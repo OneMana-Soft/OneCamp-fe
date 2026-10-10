@@ -45,6 +45,11 @@ import { columnAlignClass } from "@/components/task/columnAlign"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 
+// No list in the store yet: one empty list, made once, so the table doesn't
+// render again on every change to the store (a new `[]` is never equal to
+// the last).
+const NO_TASKS: TaskInfoInterface[] = []
+
 // <CHANGE> Helper function for safe JSON parsing
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
     if (!value) return fallback;
@@ -66,7 +71,7 @@ export const MyTaskTable = () => {
     const userInfo = useFetch<UserInfoRawInterface>(urlParam ? GetEndpointUrl.GetUserTaskList + '?' + urlParam : '');
 
     const taskListState = useSelector(
-        (state: RootState) => state.TaskInfo.taskListVisibleInfo || ([] as TaskInfoInterface[]),
+        (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
     )
     const {t} = useTranslation()
 

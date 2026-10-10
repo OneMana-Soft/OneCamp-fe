@@ -98,6 +98,14 @@ const CONSTANTS = {
 
 type UpdateTaskName = { taskUUID: string; taskName: string }
 
+// What the panel reads from the store for a task that has nothing there yet.
+// One value each, made once: a `{}` or `[]` written in the selector is new on
+// every call, never equal to the last, so the panel rendered again on every
+// change to the store while it was open (a draft keystroke anywhere, a
+// message arriving, the typing sweep).
+const NO_INPUT = {} as TaskInfoInputState
+const NO_COMMENTS: CommentInfoInterface[] = []
+
 interface TaskInfoPanelProps {
     taskUUID: string
 }
@@ -201,11 +209,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     }, [taskInfo.data?.data?.task_project?.project_uuid, revalidateTaskKeys])
 
     const taskInputState = useSelector(
-        (state: RootState) => state.TaskInfo.taskInfoInputState[taskUUID] || ({} as TaskInfoInputState),
+        (state: RootState) => state.TaskInfo.taskInfoInputState[taskUUID] || NO_INPUT,
     )
 
     const taskCommentState = useSelector(
-        (state: RootState) => state.createTaskComment.taskComments[taskUUID] || ([] as CommentInfoInterface[]),
+        (state: RootState) => state.createTaskComment.taskComments[taskUUID] || NO_COMMENTS,
     )
 
     const isAdmin = useMemo(
