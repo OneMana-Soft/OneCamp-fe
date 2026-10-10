@@ -19,6 +19,13 @@ const handle = {
   viewportSize: 600,
 }
 let reportScroll: (offset: number) => void = () => {}
+// The reader scrolls with a wheel, a touch or a key: input on the list, then the
+// scroll. A scroll with no input is the layout's (components/message/followEnd).
+const readerScrolls = (offset: number) => {
+  const scroller = document.querySelector<HTMLElement>('div[style*="overflow-y: auto"]')
+  if (scroller) fireEvent.wheel(scroller, { deltaY: -400 })
+  reportScroll(offset)
+}
 vi.mock("virtua", () => ({
   Virtualizer: forwardRef(function FakeVirtualizer({ children, onScroll }: { children: ReactNode; onScroll?: (o: number) => void }, ref) {
     useImperativeHandle(ref, () => handle)
@@ -76,7 +83,7 @@ describe("a conversation the reader is at the bottom of", () => {
 describe("a conversation the reader has scrolled up in", () => {
   it("keeps still, and counts what arrived on the way back down", () => {
     const { rerender } = render(list(items(10)))
-    act(() => reportScroll(400)) // 1,000 px from the end
+    act(() => readerScrolls(400)) // 1,000 px from the end
     handle.scrollToIndex.mockReset()
     rerender(list(items(12)))
     expect(handle.scrollToIndex).not.toHaveBeenCalled()
@@ -88,10 +95,41 @@ describe("a conversation the reader has scrolled up in", () => {
 
   it("offers the way back, labelled, once a screenful away", () => {
     render(list(items(10)))
-    act(() => reportScroll(400))
+    act(() => readerScrolls(400))
     expect(screen.getByRole("button", { name: "Jump to latest" })).toBeTruthy()
-    act(() => reportScroll(1400)) // at the end
+    act(() => readerScrolls(1400)) // at the end
     expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull()
+  })
+})
+
+describe("a conversation still settling as it opens", () => {
+  afterEach(() => {
+    handle.scrollSize = 2000
+  })
+
+  it("stays at the end when the layout moves the reader off it (an image or card measured late)", () => {
+    vi.useFakeTimers()
+    try {
+      render(list(items(10)))
+      act(() => reportScroll(1400)) // at the end
+      handle.scrollToIndex.mockReset()
+      handle.scrollSize = 2600 // rows grew; the view was left 600px above the end
+      act(() => reportScroll(1400))
+      act(() => void vi.advanceTimersByTime(50))
+      expect(handle.scrollToIndex).toHaveBeenCalledWith(9, { align: "end" })
+      expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("leaves the end for a scroll that moved the view while nothing changed size (find in page)", () => {
+    const { rerender } = render(list(items(10)))
+    act(() => reportScroll(1400)) // at the end
+    act(() => reportScroll(400)) // the browser scrolled to a match
+    handle.scrollToIndex.mockReset()
+    rerender(list(items(11)))
+    expect(handle.scrollToIndex).not.toHaveBeenCalled()
   })
 })
 
