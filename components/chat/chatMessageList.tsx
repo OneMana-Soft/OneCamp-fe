@@ -101,12 +101,16 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
 
     useEffect(() => {
 
-        if(messageId && getNewChatsWithCurrentChat.data?.data?.chats && safeChatMessageState.length == 0) {
+        // Only a non-empty answer seeds the list, as in a channel or a group.
+        // An empty one stored a fresh [] each time, which is a new value,
+        // which ran this effect again: a DM with no messages never rendered,
+        // it hit React's update limit instead.
+        if(messageId && getNewChatsWithCurrentChat.data?.data?.chats?.length && safeChatMessageState.length == 0) {
             const newChats = getNewChatsWithCurrentChat.data?.data?.chats ?? [];
             dispatch(updateChats({chats:newChats, chatId}))
         }
 
-        if(!messageId && latestMsg.data?.data.chats && safeChatMessageState.length == 0 ) {
+        if(!messageId && latestMsg.data?.data.chats?.length && safeChatMessageState.length == 0 ) {
             // Copy before reversing: latestMsg.data is the live SWR cache
             // object. Mutating it in place corrupts the cached value and
             // races concurrent revalidations.
