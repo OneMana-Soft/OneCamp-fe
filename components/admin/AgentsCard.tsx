@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
+import dynamic from "next/dynamic"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,7 +11,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Pencil, Sparkles, Rocket, History } from "@/lib/icons"
+import { Plus, Trash2, Pencil, Sparkles, History, LayoutTemplate } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -29,11 +30,26 @@ import {
   setAgentActive,
   deleteAgent,
 } from "@/services/agentService"
-import { AgentEditDialog } from "./AgentEditDialog"
-import { AgentRunsDialog } from "./AgentRunsDialog"
 import AgentActivityFeed from "./AgentActivityFeed"
 import AgentActiveWorkPanel from "./AgentActiveWorkPanel"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+
+// Loaded when opened: the edit dialog is some 1,400 lines and the run history
+// some 700, and both came down with the list before anyone opened either.
+const AgentEditDialog = dynamic(() => import("./AgentEditDialog").then((m) => m.AgentEditDialog), { ssr: false })
+const AgentRunsDialog = dynamic(() => import("./AgentRunsDialog").then((m) => m.AgentRunsDialog), { ssr: false })
+
+/** A state is a dot and a word, not a filled badge. */
+function StateWord({ tone, children }: { tone: "off" | "bad"; children: React.ReactNode }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-xs", tone === "bad" ? "text-danger-ink" : "text-muted-foreground")}>
+      <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "bad" ? "bg-destructive" : "bg-faint-foreground")} />
+      {children}
+    </span>
+  )
+}
 
 const TRIGGER_LABEL: Record<string, string> = {
   manual: "Manual",
@@ -53,6 +69,10 @@ function fmtTokens(n: number): string {
 // agents are active, aggregate run health (success rate over completed runs),
 // total AI spend, and recent activity. The admin's "is the fleet healthy and
 // worth the cost" glance.
+//
+// One sentence, as Home's glance line says its counts: it was six tiles with
+// uppercase labels, three of them often an em dash, for what reads as a line.
+// Parts with nothing to say are left out rather than shown as a dash.
 const AgentOverviewStrip: React.FC<{ stats: WorkspaceAgentStats; outcomes?: Record<string, AgentOutcome> }> = ({
   stats,
   outcomes,
@@ -60,30 +80,20 @@ const AgentOverviewStrip: React.FC<{ stats: WorkspaceAgentStats; outcomes?: Reco
   const completed = stats.succeeded + stats.failed + stats.stopped
   const successRate = completed > 0 ? Math.round((stats.succeeded / completed) * 100) : null
 
-  // "Success rate" is runs that finished without erroring. That is completion,
-  // not usefulness: an agent can succeed every time at producing something
-  // nobody wanted. This tile is the other question, and the two sit together on
-  // purpose so neither is mistaken for the other.
+  // "Finished without an error" is completion, not usefulness: an agent can
+  // succeed every time at producing something nobody wanted. Proposals kept is
+  // the other question, and the two sit together on purpose so neither is
+  // mistaken for the other.
   const kept = sumOutcomes(outcomes)
 
-  const tiles = [
-    { label: "Active agents", value: `${stats.active_agents}/${stats.total_agents}` },
-    { label: "Total runs", value: stats.total_runs.toLocaleString() },
-    { label: "Success rate", value: successRate === null ? "—" : `${successRate}%` },
-    { label: "Proposals kept", value: kept.decided === 0 ? "—" : `${kept.approved}/${kept.decided}` },
-    { label: "AI spend (7d)", value: `${fmtTokens(stats.last_7d_tokens)} tok` },
-    { label: "Runs (7d)", value: stats.last_7d_runs.toLocaleString() },
-  ]
-  return (
-    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      {tiles.map((t) => (
-        <div key={t.label} className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
-          <div className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">{t.label}</div>
-          <div className="mt-0.5 text-base font-semibold text-foreground">{t.value}</div>
-        </div>
-      ))}
-    </div>
-  )
+  const parts = [
+    `${stats.active_agents} of ${stats.total_agents} agents running`,
+    `${stats.total_runs.toLocaleString()} ${stats.total_runs === 1 ? "run" : "runs"}` +
+      (successRate === null ? "" : `, ${successRate}% finished without an error`),
+    kept.decided > 0 ? `${kept.approved} of ${kept.decided} proposals kept` : null,
+    `${stats.last_7d_runs.toLocaleString()} ${stats.last_7d_runs === 1 ? "run" : "runs"} and ${fmtTokens(stats.last_7d_tokens)} tokens this week`,
+  ].filter(Boolean)
+  return <p className="mb-1 text-sm text-muted-foreground">{parts.join(" · ")}</p>
 }
 
 // AgentHealthDot is the at-a-glance per-row reliability signal: a colored dot
@@ -183,7 +193,7 @@ const AgentOutcomeBadge: React.FC<{ outcome?: AgentOutcome }> = ({ outcome }) =>
         className="text-2xs text-muted-foreground"
         title={`${outcome.expired} proposal${outcome.expired === 1 ? "" : "s"} expired with nobody deciding. This agent may not be worth running.`}
       >
-        mostly ignored
+        proposals ignored
       </Badge>
     )
   }
@@ -220,7 +230,7 @@ const AgentsCard = () => {
     setBusyId(a.id)
     try {
       await setAgentActive(a.id, next)
-      toast({ title: next ? "Agent enabled" : "Agent paused" })
+      toast({ title: next ? `${a.name} is running` : `${a.name} is paused` })
       mutate()
     } catch {
       // interceptor surfaces the error
@@ -239,7 +249,7 @@ const AgentsCard = () => {
         setBusyId(a.id)
         try {
           await deleteAgent(a.id)
-          toast({ title: "Agent deleted" })
+          toast({ title: `${a.name} deleted` })
           mutate()
         } catch {
           // interceptor surfaces the error
@@ -268,18 +278,22 @@ const AgentsCard = () => {
 
   return (
     <Card className="border-border/60">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Sparkles className="h-5 w-5 text-primary" />
-            AI Agents
+          {/* "Agents", as the page and the menu call them; the icon on the AI
+              and automation group's tile, where it was orange. */}
+          <CardTitle as="h2" className="flex items-center gap-2.5 text-base font-semibold">
+            <Tile hue={ADMIN_GROUP_HUE.ai} size="md">
+              <Sparkles />
+            </Tile>
+            Agents
           </CardTitle>
           <CardDescription className="max-w-xl">
-            Build agents that do real work for you. Give one instructions and a few tools, and it
-            acts in your workspace, only ever within your own permissions.
+            Give an agent instructions and a few tools, and it does real work in your workspace, only ever within
+            your own permissions.
           </CardDescription>
         </div>
-        <Button onClick={() => setCreating(true)} className="shrink-0">
+        <Button onClick={() => setCreating(true)} className="shrink-0 self-start">
           <Plus className="h-4 w-4 mr-1.5" />
           New agent
         </Button>
@@ -297,14 +311,9 @@ const AgentsCard = () => {
           <EmptyState
             tone="accent"
             icon={Sparkles}
+            hue={ADMIN_GROUP_HUE.ai}
             title="No agents yet"
-            description="Try: a standup agent that summarizes #standup each morning and opens a task for any blocker."
-            action={
-              <Button variant="outline" onClick={() => setCreating(true)}>
-                <Plus className="h-4 w-4 mr-1.5" />
-                Create your first agent
-              </Button>
-            }
+            description="For example: a standup agent that sums up #standup each morning and opens a task for any blocker."
           />
         ) : (
           <div className="space-y-3">
@@ -313,20 +322,19 @@ const AgentsCard = () => {
             )}
             <AgentActiveWorkPanel />
             <AgentActivityFeed />
+            {/* One hairline list of rows, where each agent was a card. */}
+            <ul className="divide-y divide-border rounded-lg border border-border">
             {agents.map((a) => {
               const tools = parseEnabledTools(a)
               return (
-                <div
-                  key={a.id}
-                  className="flex items-start justify-between gap-4 rounded-xl border border-border/60 p-4 transition-colors hover:border-border"
-                >
+                <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3">
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <AgentHealthDot health={health?.data?.[a.id]} />
-                      <span className="truncate font-medium">{a.name}</span>
-                      <Badge variant="outline" className="text-2xs">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
-                      {!a.is_active && <Badge variant="secondary" className="text-2xs">Paused</Badge>}
-                      {a.dm_able && <Badge variant="secondary" className="text-2xs text-primary">DM</Badge>}
+                      <span className="truncate text-sm font-medium">{a.name}</span>
+                      <span className="text-xs text-muted-foreground">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</span>
+                      {!a.is_active && <StateWord tone="off">Paused</StateWord>}
+                      {a.dm_able && <Badge variant="secondary" className="text-2xs">DM</Badge>}
                       {a.agui_endpoint && (
                         <Badge variant="secondary" className="text-2xs" title={"Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record."}>
                           Remote
@@ -340,7 +348,7 @@ const AgentsCard = () => {
                       )}
                       <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
                       <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
-                      {a.last_error && <Badge variant="destructive" className="text-2xs">Last run failed</Badge>}
+                      {a.last_error && <StateWord tone="bad">Last run failed</StateWord>}
                     </div>
                     {/* Whose permissions bound it. Every other badge on this row
                         says what the agent may do; this is the only line that
@@ -368,15 +376,15 @@ const AgentsCard = () => {
                       checked={a.is_active}
                       disabled={busyId === a.id}
                       onCheckedChange={(v) => handleToggle(a, v)}
-                      aria-label="Toggle agent"
+                      aria-label={`Run ${a.name}`}
                     />
-                    <Button variant="ghost" size="icon" aria-label="Edit this agent" className="h-8 w-8" onClick={() => setEditing(a)} title="Edit">
+                    <Button variant="ghost" size="icon" aria-label={`Edit ${a.name}`} className="h-8 w-8" onClick={() => setEditing(a)} title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="See this agent's runs"
+                      aria-label={`Runs of ${a.name}`}
                       className="h-8 w-8"
                       onClick={() => setViewingRuns(a)}
                       title="Run history"
@@ -386,17 +394,17 @@ const AgentsCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Publish this agent"
+                      aria-label={`Save ${a.name} as a template`}
                       className="h-8 w-8"
                       onClick={() => setPublishing(a)}
-                      title="Save as template"
+                      title="Save as a template"
                     >
-                      <Rocket className="h-3.5 w-3.5" />
+                      <LayoutTemplate className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Delete this agent"
+                      aria-label={`Delete ${a.name}`}
                       className="h-8 w-8 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === a.id}
                       onClick={() => handleDelete(a)}
@@ -405,9 +413,10 @@ const AgentsCard = () => {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                </div>
+                </li>
               )
             })}
+            </ul>
           </div>
         )}
       </CardContent>
