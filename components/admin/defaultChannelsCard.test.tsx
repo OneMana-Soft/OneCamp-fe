@@ -17,7 +17,7 @@ vi.mock("@/services/settingsService", () => ({
   setDefaultChannels: api.set,
 }))
 
-import DefaultChannelsCard, { sameChoice } from "./DefaultChannelsCard"
+import DefaultChannelsCard, { forgetKeptChoice, sameChoice } from "./DefaultChannelsCard"
 
 const general = { ch_uuid: "g", ch_name: "general" }
 const news = { ch_uuid: "n", ch_name: "news" }
@@ -33,6 +33,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  forgetKeptChoice()
   toast.mockReset()
   api.get.mockReset()
   api.set.mockReset()
@@ -49,7 +50,26 @@ describe("choosing where new members start", () => {
     expect(await screen.findByText(/new members join #general/i)).toBeTruthy()
     expect(screen.getByRole("checkbox", { name: "general" }).getAttribute("data-state")).toBe("checked")
     expect(screen.getByRole("checkbox", { name: "news" }).getAttribute("data-state")).toBe("unchecked")
-    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true)
+    // Nothing to save, so no save bar: it appears once something changes.
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
+    fireEvent.click(screen.getByRole("checkbox", { name: "news" }))
+    expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeTruthy()
+  })
+
+  it("loads as the list it will show, not a spinner", () => {
+    api.get.mockReturnValue(new Promise(() => {}))
+    const { container } = render(<DefaultChannelsCard />)
+    expect(screen.getByLabelText("Loading the channels new members join")).toBeTruthy()
+    expect(container.querySelector(".animate-spin")).toBeNull()
+  })
+
+  it("keeps an unsaved choice when the admin switches to another section and back", async () => {
+    const first = render(<DefaultChannelsCard />)
+    fireEvent.click(await screen.findByRole("checkbox", { name: "news" }))
+    first.unmount()
+    render(<DefaultChannelsCard />)
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "news" }).getAttribute("data-state")).toBe("checked"))
+    expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeTruthy()
   })
 
   it("saves the channels picked, in the order the list shows", async () => {
