@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,9 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { CopyableCode } from "@/components/ui/copyable-code"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
 import {
   ScimToken,
   CreatedScimToken,
@@ -58,6 +61,9 @@ const ScimProvisioningCard = () => {
 
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState("")
+  // Said under the field it is about, not in a toast that leaves with it.
+  const [nameError, setNameError] = useState("")
+  const nameRef = useRef<HTMLInputElement>(null)
   const [expiry, setExpiry] = useState(0)
   const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<CreatedScimToken | null>(null)
@@ -73,6 +79,7 @@ const ScimProvisioningCard = () => {
 
   const openCreate = () => {
     setName("")
+    setNameError("")
     setExpiry(0)
     setCreated(null)
     setCreating(true)
@@ -80,7 +87,8 @@ const ScimProvisioningCard = () => {
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      toast({ title: "Give the credential a name", variant: "destructive" })
+      setNameError("Give the credential a name, so you can tell which identity provider it belongs to.")
+      nameRef.current?.focus()
       return
     }
     setSaving(true)
@@ -156,47 +164,46 @@ const ScimProvisioningCard = () => {
           <EmptyState
             tone="accent"
             icon={Network}
+            hue={ADMIN_GROUP_HUE.workspace}
             title="No directory connected"
             description="Create a credential, then paste it into your identity provider's SCIM settings."
           />
         ) : (
-          <div className="space-y-3">
+          // Rows in one list, as the app draws a list: they were a bordered card each.
+          <ul className="divide-y divide-border rounded-lg border border-border">
             {tokens.map((t) => {
               const live = isScimTokenLive(t)
               const expired = !t.revoked_at && !live
               return (
-                <div
+                <li
                   key={t.id}
-                  className={cn(
-                    "flex items-start justify-between gap-4 rounded-xl border border-border/60 p-4",
-                    !live && "opacity-60",
-                  )}
+                  className={cn("flex items-start justify-between gap-4 px-3 py-2.5", !live && "opacity-60")}
                 >
-                  <div className="min-w-0 space-y-1.5">
+                  <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium">{t.name}</span>
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-2xs">{t.token_prefix}…</code>
+                      <span className="truncate text-sm font-medium">{t.name}</span>
+                      <code className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs">{t.token_prefix}…</code>
                       {t.revoked_at && <Badge variant="secondary" className="text-2xs">Revoked</Badge>}
                       {/* Expired is called out separately from revoked. Both are dead, but only one of
                           them was intended, and an operator whose directory stopped syncing needs to
                           see which. */}
                       {expired && <Badge variant="secondary" className="text-2xs">Expired</Badge>}
                     </div>
-                    <p className="text-2xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {/* last_used_at is the only signal that a connected directory is alive. A SCIM
                           integration with nothing to sync looks exactly like one that has silently
                           stopped, and the difference matters. */}
                       {t.last_used_at
-                        ? `Last used ${new Date(t.last_used_at).toLocaleString()}`
+                        ? `Last used ${shortDateTime(new Date(t.last_used_at))}`
                         : "Never used: your identity provider has not connected yet"}
-                      {t.expires_at ? ` · expires ${new Date(t.expires_at).toLocaleDateString()}` : ""}
+                      {t.expires_at ? ` · Expires ${shortDate(new Date(t.expires_at))}` : ""}
                     </p>
                   </div>
                   {live && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-danger-ink hover:text-danger-ink"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
                       disabled={busyId === t.id}
                       onClick={() => handleRevoke(t)}
                       title="Revoke"
@@ -209,10 +216,10 @@ const ScimProvisioningCard = () => {
                       )}
                     </Button>
                   )}
-                </div>
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
 
         {/*
@@ -224,10 +231,10 @@ const ScimProvisioningCard = () => {
           nothing to do with the credential.
         */}
         {baseUrl !== "" && liveCount > 0 && (
-          <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-4">
-            <p className="text-xs font-medium">Point your identity provider here</p>
+          <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+            <p className="text-sm font-medium">Point your identity provider here</p>
             <CopyableCode value={baseUrl} label="SCIM base URL" />
-            <p className="text-2xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Authentication is <span className="font-medium">OAuth Bearer Token</span>: paste the
               credential as the token. Map your users&apos; email address to{" "}
               <code className="rounded bg-muted px-1">userName</code>; OneCamp treats it as the account&apos;s
@@ -241,7 +248,11 @@ const ScimProvisioningCard = () => {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Network className="h-4 w-4 text-primary" />
+              {/* The workspace group's hue, as the admin menu draws Security; the
+                  accent is for the button that creates it. */}
+              <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
+                <Network />
+              </Tile>
               {created ? "Credential created" : "New SCIM credential"}
             </DialogTitle>
             <DialogDescription>
@@ -284,12 +295,25 @@ const ScimProvisioningCard = () => {
               <div className="grid gap-2">
                 <Label htmlFor="scim-name">Name</Label>
                 <Input
+                  ref={nameRef}
                   id="scim-name"
+                  name="scim-name"
+                  autoComplete="off"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Okta production"
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    setNameError("")
+                  }}
+                  placeholder="Okta production…"
                   maxLength={120}
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? "scim-name-error" : undefined}
                 />
+                {nameError && (
+                  <p id="scim-name-error" role="alert" className="text-sm text-danger-ink">
+                    {nameError}
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-2">
@@ -297,24 +321,27 @@ const ScimProvisioningCard = () => {
                 {/* Defaults to no expiry, unlike an API token. A directory connection is meant to run
                     unattended for years, and an expiry nobody is watching turns into provisioning that
                     stopped weeks ago — which surfaces as a new hire with no account rather than as an
-                    alert. Offered for operators whose policy requires rotation. */}
-                <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="scim-expiry-label">
-                  {EXPIRY_OPTIONS.map((o) => (
-                    <button
-                      key={o.value}
-                      type="button"
-                      onClick={() => setExpiry(o.value)}
-                      aria-pressed={expiry === o.value}
-                      className={cn(
-                        "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                        expiry === o.value
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
+                    alert. Offered for operators whose policy requires rotation. One choice of three,
+                    so radios in the app's segmented picker. */}
+                <div role="radiogroup" aria-labelledby="scim-expiry-label" className="inline-flex w-fit gap-1 rounded-md bg-muted p-1">
+                  {EXPIRY_OPTIONS.map((o) => {
+                    const on = expiry === o.value
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => setExpiry(o.value)}
+                        className={cn(
+                          "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                          on ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {o.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
