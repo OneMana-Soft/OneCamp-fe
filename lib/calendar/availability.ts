@@ -46,15 +46,33 @@ export function groupByDay(slots: Slot[], tz: string): { day: string; slots: Slo
   return out
 }
 
+// A moment reads the same here as everywhere else in the app (lib/utils/date/
+// shortDate): "11:00 AM", "Tue 6 Oct", day before month. These were left to
+// the browser's locale, so the booking page said "Mon, Oct 12" and "Wednesday,
+// October 14, 11:00 AM – 11:30 AM" in an American browser beside an app that
+// writes "12 Oct" and "9:30 AM to 9:45 AM". The zone is still the viewer's.
+
+/** "11:00 AM", in a zone. */
 export const formatTime = (iso: string, tz: string) =>
-  new Intl.DateTimeFormat(undefined, { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(iso))
+  new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso))
 
 /** "Tue 6 Oct" for a day key; the key is a date, so it reads the same anywhere. */
-export const formatDay = (key: string) =>
-  new Intl.DateTimeFormat(undefined, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(key + "T12:00:00Z"))
+export const formatDay = (key: string) => dayWords(key + "T12:00:00Z", "UTC", "short")
 
+/** "Wednesday 14 October, 11:00 AM to 11:30 AM", in a zone. */
 export const formatRange = (start: string, end: string, tz: string) =>
-  `${new Intl.DateTimeFormat(undefined, { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date(start))}, ${formatTime(start, tz)} – ${formatTime(end, tz)}`
+  `${dayWords(start, tz, "long")}, ${formatTime(start, tz)} to ${formatTime(end, tz)}`
+
+/**
+ * "Mon 12 Oct" or "Wednesday 14 October": the day an instant falls on in a
+ * zone, put together from its parts, since locales (and ICU builds) disagree
+ * about the comma after the weekday.
+ */
+function dayWords(iso: string, tz: string, width: "short" | "long"): string {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: width, day: "numeric", month: width }).formatToParts(new Date(iso))
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ""
+  return `${part("weekday")} ${part("day")} ${part("month")}`
+}
 
 const icsTime = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
 const icsText = (s: string) => s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/([,;])/g, "\\$1")
