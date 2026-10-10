@@ -64,6 +64,14 @@ const SURFACES = [
   "components/admin/WebhooksCard.tsx",
   "components/admin/SlackImportCard.tsx",
   "components/admin/GitHubIntegrationCard.tsx",
+  // Wave 2 (10 Oct 2026): settings and admin surfaces that read SWR's isError.
+  // The admin lists and cards whose failure comes from a service call held in
+  // state (a load-failed flag rather than isError) are held by their own
+  // behaviour tests instead, since this guard reads the SWR pattern.
+  "components/connectors/ConnectorsCard.tsx",
+  "components/admin/ArchiveCard.tsx",
+  "components/admin/ImportCard.tsx",
+  "components/admin/EmailSettingsCard.tsx",
 ]
 /**
  * Strips comments before any structural analysis.
