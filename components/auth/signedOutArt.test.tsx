@@ -19,12 +19,14 @@ afterEach(cleanup)
 const art = (container: HTMLElement) => container.querySelector("[data-auth-art]")
 
 describe("pictures on the signed-out pages", () => {
-  it("draws the ring motif beside the sign-in: rings and an orbit of hued dots", () => {
+  it("draws the ring motif beside the sign-in: rings, an orbit of hued dots, the logo at its centre", () => {
     const { container } = render(<SignInSide />)
     const svgs = container.querySelectorAll("svg")
     expect(svgs.length).toBe(2)
     // Six dots in camp hues round the orbit.
     expect(container.querySelectorAll("[class*='hue-'].fill-hue").length).toBe(6)
+    // The workspace at the centre is the logo, not a grey ring.
+    expect(container.querySelector('img[src="/logo.svg"]')?.getAttribute("alt")).toBe("")
   })
 
   it("gives the sign-in page its side", () => {
