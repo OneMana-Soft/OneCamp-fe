@@ -58,7 +58,7 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
     >
       <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <TableGlyph size="sm" icon={gone ? null : bundle?.table?.icon} />
+          <TableGlyph size="sm" icon={gone ? null : bundle?.table?.icon} id={tableId} />
           <span className="truncate text-sm font-medium">
             {gone
               ? "Table unavailable"

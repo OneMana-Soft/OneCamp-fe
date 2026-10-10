@@ -30,7 +30,12 @@ import { niceTicks, type NormalizedChart } from "@/lib/utils/chartSpec";
 export const SERIES_HUES = ["sky", "moss", "sun", "dusk", "berry", "lake"] as const
 const SERIES_COLORS = SERIES_HUES.map((h) => `var(--camp-${h})`);
 
-const colorAt = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length];
+const colorAt = (i: number, palette: readonly string[] = SERIES_COLORS) => palette[i % palette.length];
+
+// A chart can be drawn in a palette of its own (a table's chart takes the
+// camp hues). Every series and slice reads it from here; a chart not given
+// one keeps the calm default above.
+const PaletteContext = React.createContext<readonly string[]>(SERIES_COLORS);
 
 // A guide (a dashed ideal pace) is context, not data: it reads in the neutral
 // faint ink, so the series it is a guide for carries the only colour.
@@ -38,12 +43,12 @@ const GUIDE_COLOR = "var(--faint-foreground)";
 
 // A series' colour: its own (an app chart's status), a guide's neutral, or the
 // theme's in turn, counting only the series that are data.
-const seriesColor = (chart: NormalizedChart, i: number) => {
+const seriesColor = (chart: NormalizedChart, i: number, palette: readonly string[] = SERIES_COLORS) => {
     const s = chart.series[i];
     if (s?.color) return s.color;
     if (s?.dashed) return GUIDE_COLOR;
     const slot = chart.series.slice(0, i).filter((x) => !x.dashed && !x.color).length;
-    return colorAt(slot);
+    return colorAt(slot, palette);
 };
 
 // The ring and gap colour: the surface a chart sits on, so touching marks
@@ -122,14 +127,17 @@ function valueBounds(chart: NormalizedChart): { min: number; max: number } {
 interface SvgChartProps {
     chart: NormalizedChart;
     className?: string;
+    /** Series colours in order, as CSS colours; the calm default when left out. */
+    palette?: readonly string[];
 }
 
-const SvgChart: React.FC<SvgChartProps> = ({ chart, className }) => {
+const SvgChart: React.FC<SvgChartProps> = ({ chart, className, palette }) => {
     const isPie = chart.type === "pie";
     const box = React.useRef<HTMLDivElement>(null);
     const g = geoFor(useWidth(box));
 
     return (
+        <PaletteContext.Provider value={palette && palette.length ? palette : SERIES_COLORS}>
         <figure
             className={cn(
                 "my-1 w-full rounded-lg border border-border/60 p-3",
@@ -156,6 +164,7 @@ const SvgChart: React.FC<SvgChartProps> = ({ chart, className }) => {
 
             <Legend chart={chart} />
         </figure>
+        </PaletteContext.Provider>
     );
 };
 
@@ -290,6 +299,7 @@ const BarSeries: React.FC<{
     yOf: (v: number) => number;
     baselineY: number;
 }> = ({ chart, slotW, xCenter, yOf, baselineY }) => {
+    const palette = React.useContext(PaletteContext);
     const groups = chart.series.length;
     // A group takes at most ~70% of its slot; each bar is capped at
     // MAX_BAR_W, and neighbours in a group stand BAR_GAP apart.
@@ -307,7 +317,7 @@ const BarSeries: React.FC<{
                             key={`b-${si}-${i}`}
                             data-bar=""
                             d={barPath(x, baselineY, barW, h, v < 0)}
-                            fill={seriesColor(chart, si)}
+                            fill={seriesColor(chart, si, palette)}
                         >
                             <title>{`${s.name}${chart.labels[i] ? ` · ${chart.labels[i]}` : ""}: ${fmtNumber(v)}`}</title>
                         </path>
@@ -327,6 +337,7 @@ const StackedAreaSeries: React.FC<{
     yOf: (v: number) => number;
     baselineY: number;
 }> = ({ chart, xCenter, yOf, baselineY }) => {
+    const palette = React.useContext(PaletteContext);
     const tops = stackedTotals(chart);
     const n = chart.labels.length;
     if (n === 0) return null;
@@ -339,7 +350,7 @@ const StackedAreaSeries: React.FC<{
                     : [`${xCenter(n - 1)},${baselineY}`, `${xCenter(0)},${baselineY}`];
                 return (
                     <g key={`band-${si}`}>
-                        <path data-band={s.name} d={`M${top.join(" L")} L${bottom.join(" L")} Z`} fill={seriesColor(chart, si)} fillOpacity={0.7} />
+                        <path data-band={s.name} d={`M${top.join(" L")} L${bottom.join(" L")} Z`} fill={seriesColor(chart, si, palette)} fillOpacity={0.7} />
                         {/* A surface gap along the band's top edge, so neighbouring
                             bands read apart by the gap rather than by hue alone. */}
                         <path d={"M" + top.join(" L")} fill="none" stroke={SURFACE} strokeWidth={2} strokeLinejoin="round" />
@@ -362,6 +373,7 @@ const LineSeries: React.FC<{
     baselineY: number;
     area: boolean;
 }> = ({ chart, xCenter, yOf, baselineY, area }) => {
+    const palette = React.useContext(PaletteContext);
     return (
         <>
             {chart.series.map((s, si) => {
@@ -374,12 +386,12 @@ const LineSeries: React.FC<{
                 return (
                     <g key={`ln-${si}`}>
                         {area && !s.dashed && (
-                            <path d={areaPath} fill={seriesColor(chart, si)} fillOpacity={0.1} />
+                            <path d={areaPath} fill={seriesColor(chart, si, palette)} fillOpacity={0.1} />
                         )}
                         <path
                             d={linePath}
                             fill="none"
-                            stroke={seriesColor(chart, si)}
+                            stroke={seriesColor(chart, si, palette)}
                             strokeWidth={s.dashed ? 1.5 : 2}
                             strokeDasharray={s.dashed ? "5 4" : undefined}
                             strokeLinejoin="round"
@@ -394,7 +406,7 @@ const LineSeries: React.FC<{
                                 cx={xCenter(i)}
                                 cy={yOf(v)}
                                 r={!s.dashed && i === shown.length - 1 ? 4 : 6}
-                                fill={!s.dashed && i === shown.length - 1 ? seriesColor(chart, si) : "transparent"}
+                                fill={!s.dashed && i === shown.length - 1 ? seriesColor(chart, si, palette) : "transparent"}
                                 stroke={!s.dashed && i === shown.length - 1 ? SURFACE : undefined}
                                 strokeWidth={2}
                             >
@@ -412,6 +424,7 @@ const LineSeries: React.FC<{
 // Only positive values contribute a slice; a fully non-positive series renders
 // nothing (the legend still lists the categories).
 const PieChart: React.FC<{ chart: NormalizedChart; g: Geo }> = ({ chart, g }) => {
+    const palette = React.useContext(PaletteContext);
     const PLOT_W = g.plotW;
     const PLOT_H = g.plotH;
     const series = chart.series[0];
@@ -449,7 +462,7 @@ const PieChart: React.FC<{ chart: NormalizedChart; g: Geo }> = ({ chart, g }) =>
         const yi1 = cy + innerR * Math.sin(start);
         const d = `M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${xi2},${yi2} A${innerR},${innerR} 0 ${large} 0 ${xi1},${yi1} Z`;
         return (
-            <path key={`sl-${i}`} d={d} fill={colorAt(i)} stroke={SURFACE} strokeWidth={2} strokeLinejoin="round">
+            <path key={`sl-${i}`} d={d} fill={colorAt(i, palette)} stroke={SURFACE} strokeWidth={2} strokeLinejoin="round">
                 <title>{`${chart.labels[i] ?? `#${i + 1}`}: ${fmtNumber(series.values[i])} (${Math.round(frac * 100)}%)`}</title>
             </path>
         );
@@ -467,10 +480,11 @@ const PieChart: React.FC<{ chart: NormalizedChart; g: Geo }> = ({ chart, g }) =>
 
 // Legend lists series (bar/line/area) or categories (pie) with their color.
 const Legend: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
+    const palette = React.useContext(PaletteContext);
     const items =
         chart.type === "pie"
-            ? chart.labels.map((label, i) => ({ label, color: colorAt(i) }))
-            : chart.series.map((s, i) => ({ label: s.name, color: seriesColor(chart, i), dashed: s.dashed }));
+            ? chart.labels.map((label, i) => ({ label, color: colorAt(i, palette) }))
+            : chart.series.map((s, i) => ({ label: s.name, color: seriesColor(chart, i, palette), dashed: s.dashed }));
 
     if (items.length <= 1 && chart.type !== "pie") return null;
 

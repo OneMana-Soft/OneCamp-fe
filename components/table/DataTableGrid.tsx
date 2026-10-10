@@ -1053,15 +1053,22 @@ function Cell({
 
 function CheckboxCell({ label, value, cellId, onCommit }: { label: string; value: boolean; cellId: string; onCommit: (v: unknown) => Promise<boolean> }) {
   const [shown, change] = useShownValue(value)
+  // The springy check (the playful layer): only when someone ticks it, never
+  // for a box that was already ticked when the table opened.
+  const [pop, setPop] = React.useState(false)
   return (
     <div className="flex justify-center py-1">
       <input
         type="checkbox"
         data-cell={cellId}
         checked={shown}
-        onChange={(e) => change(e.target.checked, onCommit)}
+        onChange={(e) => {
+          if (e.target.checked) setPop(true)
+          change(e.target.checked, onCommit)
+        }}
+        onAnimationEnd={() => setPop(false)}
         aria-label={label}
-        className="h-4 w-4 rounded-sm border-border"
+        className={cn("h-4 w-4 rounded-sm border-border accent-[var(--primary)]", pop && "animate-spring")}
       />
     </div>
   )

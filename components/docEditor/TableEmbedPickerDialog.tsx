@@ -97,7 +97,7 @@ export function TableEmbedPickerDialog({
                 }
                 className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
               >
-                <TableGlyph size="sm" icon={t.icon} />
+                <TableGlyph size="sm" icon={t.icon} id={t.id} />
                 <span className="min-w-0 flex-1 truncate font-medium">{t.name || "Untitled table"}</span>
                 <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">
                   {t.visibility === "private" ? "Private" : "Workspace"}
