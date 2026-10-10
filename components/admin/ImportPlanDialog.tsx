@@ -253,7 +253,8 @@ export const ImportPlanDialog: React.FC<Props> = ({
                           aria-label={`OneCamp status for ${name}`}
                           value={tgt}
                           onChange={(e) => setStatusMap((m) => ({ ...m, [src]: e.target.value }))}
-                          className="flex h-8 w-44 rounded-md border border-input bg-background px-3 text-sm"
+                          // 44px on a phone, a touch target; 32px from md up, as the rows are dense.
+                          className="flex h-11 w-44 rounded-md border border-input bg-background px-3 text-sm md:h-8"
                         >
                           {ONECAMP_STATUSES.map((s) => (
                             <option key={s} value={s}>
@@ -284,7 +285,8 @@ export const ImportPlanDialog: React.FC<Props> = ({
                           aria-label={`OneCamp priority for ${name}`}
                           value={tgt}
                           onChange={(e) => setPriorityMap((m) => ({ ...m, [src]: e.target.value }))}
-                          className="flex h-8 w-44 rounded-md border border-input bg-background px-3 text-sm"
+                          // 44px on a phone, a touch target; 32px from md up, as the rows are dense.
+                          className="flex h-11 w-44 rounded-md border border-input bg-background px-3 text-sm md:h-8"
                         >
                           {ONECAMP_PRIORITIES.map((p) => (
                             <option key={p} value={p}>
