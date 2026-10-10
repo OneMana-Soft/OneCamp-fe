@@ -39,7 +39,9 @@ const UploadingAttachmentIcon = ({
 
         >
             <button
- aria-label="Cancel upload"                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border"
+                type="button"
+                aria-label="Cancel upload"
+                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border"
                 onClick={(e) => {
                     e.stopPropagation();
                     removeFile();
@@ -53,10 +55,25 @@ const UploadingAttachmentIcon = ({
                 <div className="text-ellipsis truncate max-w-40 text-xs">
                     {fileName}
                 </div>
-                <div className="text-ellipsis truncate max-w-40 text-xs">
-                    uploading: {progress}%
+                <div className="truncate max-w-40 text-2xs tabular-nums text-muted-foreground">
+                    Uploading… {progress}%
                 </div>
             </div>}
+            {/* How far it has got, on every tile, the picture-only ones on a
+                phone too: the words above are not always shown. */}
+            <div
+                role="progressbar"
+                aria-label={`Uploading ${fileName}`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+                className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full bg-highlight"
+            >
+                <div
+                    className="h-full rounded-full bg-foreground/50 transition-[width] duration-200 ease-out motion-reduce:transition-none"
+                    style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+                />
+            </div>
         </div>
     );
 };
