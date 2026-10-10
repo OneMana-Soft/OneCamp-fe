@@ -109,11 +109,11 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MailPlus className="h-5 w-5 text-primary" />
-              Invite User
+              Invite people
             </DialogTitle>
             <DialogDescription>
               {email_enabled
-                ? "Enter the email address of the user you want to invite to the organization."
+                ? "They get an email with a link to join, good for seven days."
                 : "This server cannot send email yet. You will get a link to share with them yourself."}
             </DialogDescription>
           </DialogHeader>
@@ -121,10 +121,15 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email address</Label>
+              {/* Someone else's address: off, so a browser never offers the
+                  admin's own. */}
               <Input
                 id="email"
+                name="invite-email"
                 type="email"
-                placeholder="user@example.com"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value)
