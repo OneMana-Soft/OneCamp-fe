@@ -7,7 +7,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import { Eye, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { getWorkspaceSettings, setReadReceiptsPolicy } from "@/services/settingsService"
 
 export default function ReadReceiptsPolicyCard() {
@@ -43,8 +43,7 @@ export default function ReadReceiptsPolicyCard() {
         <Card className="border-border/60">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <Eye className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg font-semibold">Read receipts</CardTitle>
+                    <CardTitle className="text-base font-semibold">Read receipts</CardTitle>
                 </div>
                 <CardDescription>
                     In DMs and group chats of up to 20 people, show &quot;Seen&quot; under a person&apos;s latest message

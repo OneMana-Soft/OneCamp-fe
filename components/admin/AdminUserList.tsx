@@ -126,7 +126,7 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
   return (
     <TooltipProvider>
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {users.map((user) => (
             <AdminUserRow
               key={user.user_uuid}
@@ -182,7 +182,7 @@ function AdminUserRow({
   const isDeactivated = !isZeroEpoch(user.user_deleted_at || "")
 
   return (
-    <li className="group flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40">
+    <li className="group flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 transition-colors hover:bg-muted/60">
       <button
         type="button"
         className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -211,16 +211,11 @@ function AdminUserRow({
           is no hover to show a tooltip, and three bare icons said nothing. From
           sm up they sit beside the name as icons, labels kept for screen readers. */}
       <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:shrink-0">
-        {isDeactivated ? (
-          <Badge variant="destructive" className="text-2xs h-5 hidden xs:inline-flex sm:inline-flex">
+        {/* Only the exception is marked: a list where every row said "Active"
+            in green said nothing, fourteen times. */}
+        {isDeactivated && (
+          <Badge variant="outline" className="text-2xs h-5 text-muted-foreground">
             Deactivated
-          </Badge>
-        ) : (
-          <Badge
-            variant="outline"
-            className="text-2xs h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-success/5"
-          >
-            Active
           </Badge>
         )}
 

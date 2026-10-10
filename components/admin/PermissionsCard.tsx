@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { ShieldCheck } from "@/lib/icons"
+
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { GetEndpointUrl } from "@/services/endPoints"
 import {
@@ -70,8 +70,7 @@ export default function PermissionsCard() {
     return (
         <Card className="border-border/60">
             <CardHeader className="space-y-1">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <ShieldCheck className="h-5 w-5 text-success" />
+                <CardTitle className="text-base font-semibold">
                     Member permissions
                 </CardTitle>
                 <CardDescription className="max-w-xl">

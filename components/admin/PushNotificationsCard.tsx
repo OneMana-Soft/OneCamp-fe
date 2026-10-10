@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Bell, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 
 /** What the current state means, in the operator's terms rather than the API's. */
@@ -132,8 +132,7 @@ const PushNotificationsCard: React.FC = () => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Bell className="size-4" />
+                <CardTitle className="text-base font-semibold">
                     Push notifications
                 </CardTitle>
             </CardHeader>

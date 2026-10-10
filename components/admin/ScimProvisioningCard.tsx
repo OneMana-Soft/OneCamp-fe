@@ -126,8 +126,7 @@ const ScimProvisioningCard = () => {
     <Card className="border-border/60">
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Network className="h-5 w-5 text-primary" />
+          <CardTitle className="text-base font-semibold">
             Directory provisioning (SCIM)
           </CardTitle>
           <CardDescription className="max-w-xl">

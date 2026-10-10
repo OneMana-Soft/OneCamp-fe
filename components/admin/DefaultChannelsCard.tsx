@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
-import { Hash, Loader2, UserPlus } from "@/lib/icons"
+import { Hash, Loader2 } from "@/lib/icons"
 import { getDefaultChannels, setDefaultChannels, type DefaultChannels } from "@/services/settingsService"
 
 /** The same choice, whatever order it was made in. Pure. */
@@ -84,8 +84,7 @@ export default function DefaultChannelsCard() {
         <Card className="border-border/60">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <UserPlus className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg font-semibold">Where new members start</CardTitle>
+                    <CardTitle className="text-base font-semibold">Where new members start</CardTitle>
                 </div>
                 <CardDescription>
                     Everyone who joins is added to these channels, and opens on #general when it&apos;s one of them,
@@ -137,7 +136,7 @@ export default function DefaultChannelsCard() {
                                 With none chosen, new members start on Home and find channels themselves.
                             </p>
                         )}
-                        <Button size="sm" onClick={save} disabled={!changed || saving}>
+                        <Button size="sm" variant="outline" onClick={save} disabled={!changed || saving}>
                             {saving ? "Saving…" : "Save"}
                         </Button>
                     </>

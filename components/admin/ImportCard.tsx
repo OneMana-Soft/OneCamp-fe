@@ -29,7 +29,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
-import { CheckCircle2, Loader2, Plug, Plus, Database } from "lucide-react"
+import { CheckCircle2, Loader2, Plug, Plus } from "lucide-react"
 import {
   createImportJob,
   cancelImportJob,
@@ -299,8 +299,7 @@ const ImportCard: React.FC = () => {
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
-              <Database className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base font-semibold">
               Import from Asana, monday.com, ClickUp, Jira, Linear, Trello, Notion, Todoist
             </CardTitle>
             <CardDescription>
