@@ -28,6 +28,8 @@ import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { toast } from "@/hooks/use-toast"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface AddAdminDialogProps {
   open: boolean
@@ -245,7 +247,11 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-primary" />
+            {/* The people group's hue, as the admin menu draws Admins; the
+                accent is for Make admin. */}
+            <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
+              <UserPlus />
+            </Tile>
             Add an admin
           </DialogTitle>
           <DialogDescription>
