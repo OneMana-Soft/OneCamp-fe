@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { Editor } from "@tiptap/core"
 import { StarterKit } from "@tiptap/starter-kit"
-import { countDoc, useDocCounts } from "./docCounts"
+import { countDoc, readingLine, useDocCounts } from "./docCounts"
 
 const editors: Editor[] = []
 afterEach(() => {
@@ -21,9 +21,18 @@ function editorWith(content: string) {
   return editor
 }
 
+describe("the footer's line", () => {
+  it("says how long a doc is in the reader's number format, and no reading time for an empty one", () => {
+    expect(readingLine({ words: 0, minutes: 0 })).toBe("0 words")
+    expect(readingLine({ words: 1, minutes: 1 })).toBe("1 word, 1 min read")
+    expect(readingLine({ words: 1240, minutes: 7 })).toBe(`${(1240).toLocaleString()} words, 7 min read`)
+    expect(readingLine({ words: 1240, minutes: 7 })).not.toBe("1240 words, 7 min read")
+  })
+})
+
 describe("countDoc", () => {
   it("counts words and characters, and reads at 200 words a minute, never under one", () => {
-    expect(countDoc("")).toEqual({ words: 0, chars: 0, minutes: 1 })
+    expect(countDoc("")).toEqual({ words: 0, chars: 0, minutes: 0 })
     expect(countDoc("  two words  ")).toEqual({ words: 2, chars: 13, minutes: 1 })
     expect(countDoc(Array.from({ length: 401 }, () => "w").join(" ")).minutes).toBe(3)
   })

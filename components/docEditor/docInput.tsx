@@ -48,7 +48,7 @@ import { snapshotHtml } from '@/components/docEditor/snapshotHtml'
 const HIDDEN: React.CSSProperties = { display: 'none' }
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
 import { shortTime } from '@/lib/utils/date/shortDate'
-import { useDocCounts } from '@/components/docEditor/docCounts'
+import { readingLine, useDocCounts } from '@/components/docEditor/docCounts'
 
 interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -277,7 +277,7 @@ const DocFooter = React.memo(function DocFooter({
         <div className="shrink-0 z-10 bg-background border-t border-border w-full">
             <div className={cn("mx-auto flex items-center justify-between gap-3 whitespace-nowrap px-4 py-1.5 text-2xs tabular-nums text-muted-foreground select-none md:px-8", isFullWidth ? "max-w-none" : "doc-measure")}>
                 <span className="hidden sm:inline">
-                    {words} word{words !== 1 ? 's' : ''}, {minutes} min read
+                    {readingLine({ words, minutes })}
                 </span>
                 <div className="flex items-center gap-3 ml-auto sm:ml-0">
                     {lastEditedRelative && (
