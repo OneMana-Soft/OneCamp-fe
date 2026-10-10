@@ -97,3 +97,30 @@ describe("a guest who opens a thread before giving their name", () => {
   })
 })
 
+
+describe("a guest channel whose server falters in the corners", () => {
+  beforeEach(() => {
+    getGuestChannel.mockReset()
+    getGuestThread.mockReset()
+  })
+  afterEach(() => cleanup())
+
+  it("says the thread can't load yet, instead of spinning", async () => {
+    getGuestChannel.mockResolvedValue({ ok: true, data: page })
+    getGuestThread.mockResolvedValue({ ok: false, status: 503, msg: "" })
+    await open()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Open" })))
+    const thread = screen.getByRole("complementary")
+    expect(within(thread).getByRole("status")).toHaveTextContent("Couldn't reach the server, retrying…")
+  })
+
+  it("says so when earlier messages can't load, and offers the button again", async () => {
+    getGuestChannel.mockImplementation(async (_t, before) =>
+      before ? { ok: false, status: 503, msg: "" } : { ok: true, data: { ...page, has_more: true } },
+    )
+    await open()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Earlier messages" })))
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load earlier messages. Try again.")
+    expect(screen.getByRole("button", { name: "Earlier messages" })).toBeEnabled()
+  })
+})
