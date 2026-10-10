@@ -35,5 +35,9 @@ describe("the board canvas", () => {
       expect(remember).toBeLessThan(after.indexOf("applyingRemoteRef.current = false"))
     }
   })
+
+  it("starts from the empty scene's fingerprint, so Excalidraw's first call is no change", () => {
+    expect(src).toMatch(/const lastSignatureRef = React\.useRef\(sceneSignature\(\[\]\)\)/)
+  })
 })
 
