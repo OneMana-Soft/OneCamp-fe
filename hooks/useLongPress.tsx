@@ -30,8 +30,8 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
  * So each press now has a token that any end, move or cancel retires, and a
  * timer that runs late lets whatever the finger did meanwhile be handled
  * first, then checks its token. touchcancel (the system taking the touch)
- * ends a press too, and the mousedown a phone sends after every tap no longer
- * starts a second one.
+ * ends a press too, so does any scroll while the finger is down, and the
+ * mousedown a phone sends after every tap no longer starts a second one.
  */
 export function useLongPress(
     callback: () => void,
@@ -50,11 +50,15 @@ export function useLongPress(
     // Each press's token: a press fires only if nothing has ended it since.
     const pressRef = useRef(0);
     const lastTouchRef = useRef(-Infinity);
+    // Stops listening for a scroll during the current press.
+    const unwatchScrollRef = useRef<(() => void) | null>(null);
 
     const stop = useCallback(
         (event?: React.TouchEvent | React.MouseEvent | TouchEvent) => {
             if (event && event.type.startsWith("touch")) lastTouchRef.current = now();
             pressRef.current++;
+            unwatchScrollRef.current?.();
+            unwatchScrollRef.current = null;
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
                 timeoutRef.current = null;
@@ -85,6 +89,16 @@ export function useLongPress(
             }
 
             const press = ++pressRef.current;
+            // Anything scrolling while the finger is down makes this a scroll,
+            // not a press. The finger's own movement says so too, but not
+            // always in time: during a fling a browser may send no touchmove
+            // at all (Chrome's did not, measured), and on a busy phone they
+            // queue. Without this, a quick fling over a message, a touchstart
+            // and a touchend 600ms later with nothing between, opened its menu.
+            unwatchScrollRef.current?.();
+            const onScroll = () => stop();
+            window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+            unwatchScrollRef.current = () => window.removeEventListener("scroll", onScroll, { capture: true });
             onLongPressStart?.();
             startTimeRef.current = Date.now();
             const due = now() + threshold;
@@ -119,7 +133,7 @@ export function useLongPress(
                 fire();
             }, threshold);
         },
-        [callback, threshold, onLongPressStart, onLongPressProgress],
+        [callback, threshold, onLongPressStart, onLongPressProgress, stop],
     );
 
     const move = useCallback(
@@ -160,6 +174,7 @@ export function useLongPress(
     // A press still pending when the row unmounts must not fire.
     useEffect(() => () => {
         pressRef.current++;
+        unwatchScrollRef.current?.();
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     }, []);

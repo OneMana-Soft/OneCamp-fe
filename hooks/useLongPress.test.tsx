@@ -87,6 +87,22 @@ describe("useLongPress", () => {
     expect(open).not.toHaveBeenCalled()
   })
 
+  it("does not open when the list scrolls under the finger, even with no touchmove", () => {
+    // A fling, as Chrome delivered it to the page: a touchstart, a scroll, and
+    // a touchend 600ms later with no touchmove between.
+    const open = vi.fn()
+    render(
+      <div data-testid="scroller" style={{ overflow: "auto" }}>
+        <Row onLongPress={open} />
+      </div>,
+    )
+    fireEvent.touchStart(screen.getByTestId("row"), at())
+    fireEvent.scroll(screen.getByTestId("scroller"))
+    act(() => vi.advanceTimersByTime(600))
+    fireEvent.touchEnd(screen.getByTestId("row"))
+    expect(open, "a fling opened the menu").not.toHaveBeenCalled()
+  })
+
   it("leaves the screen's edges to the back gesture", () => {
     const open = vi.fn()
     render(<Row onLongPress={open} />)
