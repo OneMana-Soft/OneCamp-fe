@@ -22,16 +22,19 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Check, X, Terminal, Upload, Loader2, ImageIcon, Pencil } from "@/lib/icons"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Plus, Trash2, Check, X, Upload, Loader2, ImageIcon, Pencil } from "@/lib/icons"
+import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import { Plug } from "lucide-react"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { StatusWord } from "@/components/ui/statusWord"
 import {
     listApps, createApp, updateApp, deleteApp, setAppEnabled, disconnectApp, startOAuthInstall, getApp, testApp,
 } from "@/services/appService"
 import { useUploadFile } from "@/hooks/useUploadFile"
 import MarketplaceCard from "@/components/admin/MarketplaceCard"
 import AppIcon from "@/components/admin/AppIcon"
+import { CommandChip } from "@/components/admin/appParts"
 import type { AppView, AppCommandInput, CreateAppRequest } from "@/types/app"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -44,13 +47,30 @@ const KIND_LABELS: Record<string, string> = {
     oauth: "OAuth",
 }
 
-/** A state is a dot and a word, not a filled badge with an icon. */
-function StateWord({ tone, children }: { tone: "ok" | "off"; children: React.ReactNode }) {
+const KIND_OPTIONS = [
+    { value: "external", label: "External" },
+    { value: "oauth", label: "OAuth" },
+] as const
+
+/**
+ * One installed app's row while the list loads, in a loaded row's shape: the
+ * icon, the name and its line, the switch and two buttons. A block of generic
+ * 40px lines used to stand in for it.
+ */
+function AppRowSkeleton() {
     return (
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "ok" ? "bg-success" : "bg-faint-foreground")} />
-            {children}
-        </span>
+        <div data-app-skeleton-row="" aria-hidden="true" className="flex items-center gap-3 px-4 py-3">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-56 max-w-full" />
+            </div>
+            <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                <Skeleton className="mr-1 h-5 w-9 rounded-full" />
+                <Skeleton className="size-8 rounded-md" />
+                <Skeleton className="size-8 rounded-md" />
+            </div>
+        </div>
     )
 }
 
@@ -128,27 +148,58 @@ export default function AppsCard() {
             },
         })
 
+    const installedApps = apps ?? []
+
     return (
-        // Sizes to its content: the admin page's tab region is the one
-        // scroller, and the h-full and inner overflow here were dead weight.
-        <div className="flex flex-col">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h2 className="text-base font-semibold">Apps</h2>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                        Apps add slash commands, like /giphy or /zoom, to every conversation.
-                    </p>
-                </div>
-                {/* Outline: the directory below is the main way in, one click per
-                    app; this is for an app of your own. */}
-                <Button onClick={() => setCreateOpen(true)} size="sm" variant="outline" className="gap-1.5 self-start">
+        // One section like every other admin tab: an h2 and its action on the
+        // title's row. Installed apps first, the shorter list and the one an
+        // admin comes back to manage; it used to sit under the whole
+        // directory, a long scroll down. The directory follows, to add more.
+        <SettingsSection
+            title="Apps"
+            description="Apps add slash commands, like /giphy or /zoom, to every conversation."
+            action={
+                // Outline: the directory is the main way in, one click per app;
+                // this is for an app of your own.
+                <Button onClick={() => setCreateOpen(true)} size="sm" variant="outline" className={cn(sectionActionClass, "gap-1.5")}>
                     <Plus className="h-4 w-4" /> Add your own app
                 </Button>
-            </div>
+            }
+        >
+            <div className="space-y-8">
+                <SettingsSection level={3} title="Installed apps">
+                    {isLoading ? (
+                        <div role="status" aria-label="Loading the installed apps" className="divide-y divide-border rounded-lg border border-border">
+                            {[0, 1, 2].map((i) => <AppRowSkeleton key={i} />)}
+                        </div>
+                    ) : error ? (
+                        // Before the empty case: a failed read said "No apps installed yet".
+                        <ErrorState compact subject="the installed apps" detail={apiErrorMessage(error) || undefined} onRetry={() => void mutate()} />
+                    ) : installedApps.length === 0 ? (
+                        <EmptyState
+                            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
+                            title="No apps installed yet"
+                            description="Install one from the directory below, or add an app of your own."
+                        />
+                    ) : (
+                        <div className="divide-y divide-border rounded-lg border border-border">
+                            {installedApps.map((app) => (
+                                <AppRow
+                                    key={app.id}
+                                    app={app}
+                                    onToggle={handleToggle}
+                                    onEdit={() => setEditApp(app)}
+                                    onDelete={() => setConfirmDelete(app)}
+                                    onConnect={() => startOAuthInstall(app.id)}
+                                    onDisconnect={() => handleDisconnect(app)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </SettingsSection>
 
-            <div className="space-y-2">
-                {/* Curated one-click marketplace at the top — the primary way to
-                    add apps. The manual "Add app" button covers custom apps. */}
+                {/* The curated one-click directory: the primary way to add apps.
+                    "Add your own app" covers custom ones. */}
                 <MarketplaceCard
                     onConfigure={async (appId) => {
                         const app = await getApp(appId)
@@ -156,45 +207,6 @@ export default function AppsCard() {
                     }}
                     onChanged={() => mutate()}
                 />
-
-                <div className="mt-2 border-t border-border pt-4">
-                    <h3 className="mb-2 text-sm font-semibold">Installed apps</h3>
-                </div>
-
-                {isLoading && (
-                    <div role="status" aria-label="Loading apps" className="py-1">
-                        <SkeletonRows rows={3} />
-                    </div>
-                )}
-                {/* Before the empty case: a failed read said "No apps installed yet". */}
-                {!isLoading && error && (
-                    <ErrorState subject="the installed apps" onRetry={() => void mutate()} />
-                )}
-                {!isLoading && !error && (!apps || apps.length === 0) && (
-                    <EmptyState
-                        tone="accent"
-                        icon={Plug}
-                        hue={ADMIN_GROUP_HUE.connections}
-                        illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
-                        title="No apps installed yet"
-                        description="Install one above, or add a custom integration."
-                    />
-                )}
-                {apps && apps.length > 0 && (
-                <div className="divide-y divide-border rounded-lg border border-border">
-                {apps?.map((app) => (
-                    <AppRow
-                        key={app.id}
-                        app={app}
-                        onToggle={handleToggle}
-                        onEdit={() => setEditApp(app)}
-                        onDelete={() => setConfirmDelete(app)}
-                        onConnect={() => startOAuthInstall(app.id)}
-                        onDisconnect={() => handleDisconnect(app)}
-                    />
-                ))}
-                </div>
-                )}
             </div>
 
             {createOpen && (
@@ -227,7 +239,7 @@ export default function AppsCard() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </SettingsSection>
     )
 }
 
@@ -242,41 +254,43 @@ function AppRow({
     onDisconnect: () => void
 }) {
     return (
-        <div className="flex items-center gap-3 px-4 py-3">
+        // Below sm the controls fold under the words, so four controls never
+        // squeeze the name and its line into a hundred pixels at 390.
+        <div data-app-row="" className="flex items-start gap-3 px-4 py-3 sm:items-center">
             <AppIcon src={app.icon_url} alt={app.name} size="sm" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="truncate text-sm font-medium">{app.name}</span>
                     <span className="text-xs text-muted-foreground">{KIND_LABELS[app.kind] || app.kind}</span>
                     {app.kind === "oauth" && (
-                        <StateWord tone={app.is_connected ? "ok" : "off"}>{app.is_connected ? "Connected" : "Not connected"}</StateWord>
+                        <StatusWord tone={app.is_connected ? "success" : "neutral"} className="text-xs">{app.is_connected ? "Connected" : "Not connected"}</StatusWord>
                     )}
-                    {app.has_api_key && <StateWord tone="ok">Key set</StateWord>}
+                    {app.has_api_key && <StatusWord tone="success" className="text-xs">Key set</StatusWord>}
                 </div>
                 {app.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{app.description}</p>}
                 {(app.commands?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                         {(app.commands || []).slice(0, 6).map((c) => (
-                            <span key={c.id} className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
-                                <Terminal className="h-2.5 w-2.5" />/{c.command}
-                            </span>
+                            <CommandChip key={c.id} command={c.command} />
                         ))}
                     </div>
                 )}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
                 {app.kind === "oauth" && (
                     app.is_connected
-                        ? <Button size="sm" variant="ghost" className="h-8" onClick={onDisconnect}>Disconnect</Button>
-                        : <Button size="sm" variant="outline" className="h-8" onClick={onConnect}>Connect</Button>
+                        ? <Button size="sm" variant="ghost" className="mr-1 h-8" onClick={onDisconnect}>Disconnect</Button>
+                        : <Button size="sm" variant="outline" className="mr-1 h-8" onClick={onConnect}>Connect</Button>
                 )}
-                <Switch checked={app.is_enabled} onCheckedChange={(v) => onToggle(app, v)} aria-label={`Use ${app.name}`} />
+                <Switch checked={app.is_enabled} onCheckedChange={(v) => onToggle(app, v)} aria-label={`Use ${app.name}`} className="mr-1" />
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} aria-label={`Edit ${app.name}`}>
-                    <Pencil className="h-3.5 w-3.5" />
+                    <Pencil className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-danger-ink hover:text-danger-ink" onClick={onDelete} aria-label={`Remove ${app.name}`}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                 </Button>
+            </div>
             </div>
         </div>
     )
@@ -424,27 +438,18 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                     <IconField value={iconUrl} onChange={setIconUrl} />
 
                     {!isEdit && (
-                        // A choice of one: a segmented radio group, not two buttons
-                        // with the chosen one filled in the accent.
+                        // A choice of one: the app's segmented control. It was a
+                        // hand-made pair that marked the choice with the page
+                        // colour alone, 1.03:1 against its well.
                         <div className="grid gap-2">
                             <p id={kindLabelId} className="text-sm font-medium">Kind</p>
-                            <div role="radiogroup" aria-labelledby={kindLabelId} className="inline-flex w-fit gap-1 rounded-md bg-muted p-1">
-                                {(["external", "oauth"] as const).map((k) => (
-                                    <button
-                                        key={k}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={kind === k}
-                                        onClick={() => setKind(k)}
-                                        className={cn(
-                                            "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                                            kind === k ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-                                        )}
-                                    >
-                                        {k === "external" ? "External" : "OAuth"}
-                                    </button>
-                                ))}
-                            </div>
+                            <SegmentedControl
+                                aria-labelledby={kindLabelId}
+                                value={kind}
+                                onValueChange={setKind}
+                                options={KIND_OPTIONS}
+                                className="w-fit"
+                            />
                             <p className="text-xs text-muted-foreground">
                                 {kind === "oauth"
                                     ? "Each person connects their own account with the provider."
@@ -502,10 +507,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                             <div className="flex flex-wrap gap-1.5">
                                 {commands.length === 0 && <p className="text-xs text-muted-foreground">No commands.</p>}
                                 {commands.map((c, i) => (
-                                    <span key={i} className="inline-flex items-center gap-1 text-2xs text-muted-foreground bg-muted rounded px-2 py-1 font-mono">
-                                        <Terminal className="h-3 w-3" />/{c.command}
-                                        {c.usage_hint ? <span className="opacity-60">{c.usage_hint}</span> : null}
-                                    </span>
+                                    <CommandChip key={i} command={c.command} hint={c.usage_hint || undefined} />
                                 ))}
                                 <p className="w-full text-2xs text-muted-foreground/80 mt-1">
                                     Built-in commands are provided by OneCamp and can&apos;t be edited.

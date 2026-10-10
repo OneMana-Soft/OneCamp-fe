@@ -19,13 +19,41 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Check, RefreshCw, Terminal, AlertCircle, Trash2, Search } from "@/lib/icons"
-import { SkeletonCards } from "@/components/ui/skeletonCards"
+import { Check, RefreshCw, AlertCircle, Trash2, Search } from "@/lib/icons"
+import { Plug } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SettingsSection } from "@/components/ui/settingsSection"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { listMarketplace, installTemplate, uninstallTemplate } from "@/services/appService"
 import AppIcon from "@/components/admin/AppIcon"
+import { CommandChip } from "@/components/admin/appParts"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import type { MarketplaceItem } from "@/types/app"
+
+/** The directory's grid, the same for its cards and their placeholders. */
+const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2"
+
+/** A card of the directory while it loads, in a loaded card's shape. */
+function MarketplaceCardSkeleton() {
+    return (
+        <div aria-hidden="true" className="flex flex-col rounded-lg border border-border/70 p-3">
+            <div className="flex items-start gap-3">
+                <Skeleton className="size-10 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2 py-0.5">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                </div>
+            </div>
+            <Skeleton className="mt-2 h-5 w-16 rounded-sm" />
+            <div className="mt-3 border-t border-border/50 pt-2">
+                <Skeleton className="h-8 w-full rounded-md" />
+            </div>
+        </div>
+    )
+}
 
 export default function MarketplaceCard({ onConfigure, onChanged }: {
     // onConfigure opens the existing app editor for an installed app id, so the
@@ -53,26 +81,23 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
         return ["All", ...set]
     }, [apps])
 
-    // Filter by search query + active category, then group by category for
-    // a browsable, Notion-grade directory.
-    const grouped = useMemo(() => {
+    // Filter by search query and the active category, into ONE grid ordered
+    // by category, each card naming its own. Under All every category used to
+    // get its own two-column grid, so a category of one app left half a row
+    // empty, and the directory read as unfinished.
+    const shown = useMemo(() => {
         const q = query.trim().toLowerCase()
-        const filtered = (apps || []).filter((a) => {
-            if (activeCategory !== "All" && a.category !== activeCategory) return false
-            if (!q) return true
-            return (
-                a.name.toLowerCase().includes(q) ||
-                a.description.toLowerCase().includes(q) ||
-                (a.commands || []).some((c) => c.toLowerCase().includes(q))
-            )
-        })
-        const groups = new Map<string, MarketplaceItem[]>()
-        for (const a of filtered) {
-            const list = groups.get(a.category) || []
-            list.push(a)
-            groups.set(a.category, list)
-        }
-        return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+        return (apps || [])
+            .filter((a) => {
+                if (activeCategory !== "All" && a.category !== activeCategory) return false
+                if (!q) return true
+                return (
+                    a.name.toLowerCase().includes(q) ||
+                    a.description.toLowerCase().includes(q) ||
+                    (a.commands || []).some((c) => c.toLowerCase().includes(q))
+                )
+            })
+            .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
     }, [apps, query, activeCategory])
 
     const handleInstall = useCallback(async (item: MarketplaceItem) => {
@@ -115,19 +140,15 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
         }
     }, [confirmRemove, mutate, onChanged, toast])
 
-    return (
-        <div className="flex flex-col">
-            <div className="mb-3">
-                <h3 className="text-sm font-semibold">App directory</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                    Install in one click. Apps that need a key are flagged so you can finish setup.
-                </p>
-            </div>
+    const q = query.trim()
 
-            {/* Search + category filter */}
-            <div className="flex flex-col gap-2 mb-3">
-                <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+    return (
+        <SettingsSection level={3} title="App directory" description="Install in one click. Apps that need a key are flagged so you can finish setup.">
+            {/* One toolbar at one height: the search and the category filters,
+                44px on a phone, 32px from md up. */}
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <div className="relative md:w-64 md:shrink-0">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                     <Input
                         type="search"
                         aria-label="Search the app directory"
@@ -150,7 +171,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                             aria-pressed={activeCategory === cat}
                             onClick={() => setActiveCategory(cat)}
                             className={cn(
-                                "h-7 rounded-sm border px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                                "h-11 rounded-sm border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 md:h-8",
                                 activeCategory !== cat
                                     ? "border-transparent text-muted-foreground hover:text-foreground"
                                     : cat === "All"
@@ -164,42 +185,51 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                 </div>
             </div>
 
-            {isLoading && (
-                // Same two-column grid the categories render into.
-                <div role="status" aria-label="Loading apps">
-                    <SkeletonCards cards={4} gridClassName="grid grid-cols-1 sm:grid-cols-2 gap-2.5" />
+            {isLoading ? (
+                <div role="status" aria-label="Loading the app directory" className={GRID}>
+                    {[0, 1, 2, 3].map((i) => <MarketplaceCardSkeleton key={i} />)}
+                </div>
+            ) : error ? (
+                // Before any "no match": a failed read said `No apps match “”.`,
+                // quoting a search nobody had typed.
+                <ErrorState compact subject="the app directory" detail={apiErrorMessage(error) || undefined} onRetry={() => void mutate()} />
+            ) : shown.length === 0 ? (
+                q || activeCategory !== "All" ? (
+                    <EmptyState
+                        icon={Search}
+                        hue={ADMIN_GROUP_HUE.connections}
+                        title={q ? `No apps match “${q}”` : `No apps in ${activeCategory} yet`}
+                        description="Try another word, or look through every category."
+                        action={
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setQuery("")
+                                    setActiveCategory("All")
+                                }}
+                            >
+                                {q ? "Clear search" : "Show all"}
+                            </Button>
+                        }
+                    />
+                ) : (
+                    <EmptyState icon={Plug} hue={ADMIN_GROUP_HUE.connections} title="The directory is empty on this server" />
+                )
+            ) : (
+                <div data-app-grid="" className={GRID}>
+                    {shown.map((item) => (
+                        <MarketplaceAppCard
+                            key={item.slug}
+                            item={item}
+                            busy={busySlug === item.slug}
+                            onInstall={() => handleInstall(item)}
+                            onConfigure={() => item.app_id && onConfigure(item.app_id)}
+                            onRemove={() => setConfirmRemove(item)}
+                        />
+                    ))}
                 </div>
             )}
-
-            {/* Before any "no match": a failed read said `No apps match “”.`,
-                quoting a search nobody had typed. */}
-            {!isLoading && error && <ErrorState subject="the app directory" onRetry={() => void mutate()} />}
-
-            {!isLoading && !error && grouped.length === 0 && (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                    {query.trim() ? <>No apps match “{query.trim()}”.</> : activeCategory !== "All" ? <>No apps in {activeCategory} yet.</> : "The directory is empty on this server."}
-                </div>
-            )}
-
-            <div className="space-y-4">
-                {grouped.map(([category, items]) => (
-                    <div key={category}>
-                        <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">{category}</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            {items.map((item) => (
-                                <MarketplaceAppCard
-                                    key={item.slug}
-                                    item={item}
-                                    busy={busySlug === item.slug}
-                                    onInstall={() => handleInstall(item)}
-                                    onConfigure={() => item.app_id && onConfigure(item.app_id)}
-                                    onRemove={() => setConfirmRemove(item)}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </div>
 
             <Dialog open={!!confirmRemove} onOpenChange={(o) => !o && setConfirmRemove(null)}>
                 <DialogContent>
@@ -218,7 +248,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </SettingsSection>
     )
 }
 
@@ -231,7 +261,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
     onRemove: () => void
 }) {
     return (
-        <div className="rounded-xl border border-border/70 bg-card p-3 flex flex-col">
+        <div data-app-card="" className="flex flex-col rounded-lg border border-border/70 bg-card p-3">
             <div className="flex items-start gap-3">
                 <AppIcon src={item.icon_url} alt={item.name} size="md" />
                 <div className="min-w-0 flex-1">
@@ -245,11 +275,19 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                 </div>
             </div>
 
-            <div className="flex flex-wrap gap-1 mt-2">
-                {(item.commands || []).slice(0, 4).map((c) => (
-                    <span key={c} className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
-                        <Terminal className="h-2.5 w-2.5" />/{c}
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+                {/* Its category, in the category's own hue, as the filter
+                    shows it: the grid is one list now, so each card says it. */}
+                {item.category && (
+                    <span
+                        data-app-category=""
+                        className={cn(HUE_CLASS[hueFor(item.category)], "rounded-sm bg-hue-tint px-1.5 py-0.5 text-2xs font-medium text-hue-ink")}
+                    >
+                        {item.category}
                     </span>
+                )}
+                {(item.commands || []).slice(0, 4).map((c) => (
+                    <CommandChip key={c} command={c} />
                 ))}
             </div>
 
@@ -287,7 +325,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                             disabled={busy}
                             aria-label={`Uninstall ${item.name}`}
                         >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                         </Button>
                     </>
                 )}
