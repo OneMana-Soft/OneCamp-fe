@@ -13,12 +13,13 @@
  * this renders, so the gate is not repeated here where it could drift.
  */
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ErrorState } from "@/components/error/errorState"
-import { Printer } from "@/lib/icons"
+import { ErrorState } from "@/components/ui/error-state"
+import { ChevronLeft, Printer } from "@/lib/icons"
 import EvidencePackView from "@/components/admin/EvidencePackView"
 import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { usePlan } from "@/hooks/usePlan"
@@ -39,6 +40,41 @@ function windowFromQuery(params: URLSearchParams): { from?: Date; to?: Date } {
         return Number.isNaN(d.getTime()) ? undefined : d
     }
     return { from: parse(params.get("from")), to: parse(params.get("to")) }
+}
+
+/** Where the pack is opened from, and where its way back leads. (Not exported: a page may only export what Next reads.) */
+const AUDIT_LOG_HREF = "/app/admin?tab=audit"
+
+/**
+ * The bar above the document in every state: the way back to the audit log,
+ * the page's name, and what this state offers. The page had no way back at
+ * all, and it opens full-window, so an admin reached Admin again only through
+ * the browser's Back or the sidebar. Not printed: it is the furniture around
+ * the document, not part of it.
+ */
+function PackBar({ children }: { children?: ReactNode }) {
+    return (
+        <div className="sticky top-0 z-10 border-b border-border/60 bg-background print:hidden">
+            <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
+                <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
+                    <Link
+                        href={AUDIT_LOG_HREF}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    >
+                        <ChevronLeft className="size-4" aria-hidden="true" />
+                        Audit log
+                    </Link>
+                    <span aria-hidden="true" className="text-muted-foreground">
+                        /
+                    </span>
+                    <span aria-current="page" className="truncate font-medium">
+                        Evidence pack
+                    </span>
+                </nav>
+                {children}
+            </div>
+        </div>
+    )
 }
 
 export default function EvidencePackPage() {
@@ -72,7 +108,8 @@ export default function EvidencePackPage() {
     if (locked) {
         return (
             <main id="main-content" className="h-full overflow-y-auto bg-background">
-                <div className="mx-auto max-w-2xl px-4 py-10">
+                <PackBar />
+                <div className="mx-auto max-w-4xl px-4 py-8">
                     <PlanLockedNotice what="The evidence pack" upgradeUrl={plan.upgradeUrl} />
                 </div>
             </main>
@@ -80,33 +117,36 @@ export default function EvidencePackPage() {
     }
 
     if (failed) {
+        // In the page's frame, with its way back: it was the old full-page
+        // error with no bar and no way out but Try again.
         return (
-            <ErrorState
-                errorTitle="Could not assemble the pack"
-                errorMessage="The audit log could not be read for this window."
-                onRetry={load}
-            />
+            <main id="main-content" className="h-full overflow-y-auto bg-background">
+                <PackBar />
+                <div className="mx-auto max-w-4xl px-4 py-8">
+                    <ErrorState
+                        subject="the evidence pack"
+                        detail="The audit log couldn't be read for this window."
+                        onRetry={load}
+                    />
+                </div>
+            </main>
         )
     }
 
     return (
         <main id="main-content" className="h-full overflow-y-auto bg-background">
-            {/* Not printed: it is the furniture around the document, not part of it. */}
-            <div className="sticky top-0 z-10 border-b border-border/60 bg-background print:hidden">
-                <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
-                    <p className="text-sm font-medium">Evidence pack</p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => window.print()}
-                        disabled={!pack}
-                    >
-                        <Printer className="h-4 w-4" />
-                        Print or save as PDF
-                    </Button>
-                </div>
-            </div>
+            <PackBar>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-11 shrink-0 gap-2 md:h-8"
+                    onClick={() => window.print()}
+                    disabled={!pack}
+                >
+                    <Printer />
+                    Print or save as PDF
+                </Button>
+            </PackBar>
 
             {pack ? (
                 <EvidencePackView pack={pack} onDownload={download} />
