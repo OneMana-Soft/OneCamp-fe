@@ -31,6 +31,7 @@ import {setGroupChatReplyTarget} from "@/store/slice/groupChatSlice";
 import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
 import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
 import { SendStatus } from "@/components/message/sendStatus";
+import { quoteBarClass } from "@/components/message/quoteBar";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
@@ -231,7 +232,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
 
                     {chatInfo.chat_reply_to && !isMessageEditEnabled && (
                         <div
-                            className="interactive mb-1 border-l-2 border-primary/40 pl-2"
+                            className={`interactive mb-1 pl-2 ${quoteBarClass(chatInfo.chat_reply_to.chat_from)}`}
                             onClick={(e) => { e.stopPropagation(); scrollToMessage(chatInfo.chat_reply_to?.chat_uuid) }}
                         >
                             <MessagePreview

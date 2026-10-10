@@ -33,6 +33,7 @@ import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundar
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 import { SendStatus } from "@/components/message/sendStatus"
+import { quoteBarClass } from "@/components/message/quoteBar"
 import type { SendState } from "@/lib/chat/pendingSend"
 
 interface RightPanelConfig {
@@ -465,7 +466,7 @@ export const BaseMessageCard = React.memo(({
             <button
               type="button"
               onClick={() => scrollToMessage(message.replyTo?.uuid)}
-              className="mb-1 block w-full border-l-2 border-primary/40 pl-2 text-left transition-colors hover:border-primary rounded-sm"
+              className={cn(quoteBarClass(message.replyTo.from), "mb-1 block w-full rounded-sm pl-2 text-left transition-colors hover:border-hue")}
               aria-label="Jump to replied message"
             >
               <MessagePreview

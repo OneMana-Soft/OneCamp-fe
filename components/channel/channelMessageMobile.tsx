@@ -20,6 +20,7 @@ import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 import { SendStatus } from "@/components/message/sendStatus"
+import { quoteBarClass } from "@/components/message/quoteBar"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import {app_channel_path, app_user} from "@/types/paths"
@@ -270,7 +271,7 @@ const ChannelMessageMobileComponent = ({
                 )}
                     {postInfo.post_reply_to && !isMessageEditEnabled && (
                         <div
-                            className="interactive mb-1 border-l-2 border-primary/40 pl-2"
+                            className={`interactive mb-1 pl-2 ${quoteBarClass(postInfo.post_reply_to.post_by)}`}
                             onClick={(e) => { e.stopPropagation(); scrollToMessage(postInfo.post_reply_to?.post_uuid) }}
                         >
                             <MessagePreview

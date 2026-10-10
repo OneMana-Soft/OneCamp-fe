@@ -1,6 +1,7 @@
 "use client"
 
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
+import { quoteBarClass } from "@/components/message/quoteBar"
 import { formatFullTimestamp, formatTimeForPostOrComment, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { ContinuedGutter } from "@/components/message/continuedGutter"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
@@ -239,7 +240,7 @@ export const MessageContent = ({
                 )}
 
                 {replyMessage && !isMessageEditEnabled && (
-                    <div className="mb-1 border-l-2 border-primary/40 pl-2">
+                    <div className={`mb-1 pl-2 ${quoteBarClass(replyMessage.msgBy)}`}>
                         <MessagePreview
                             msgBy={replyMessage.msgBy}
                             msgText={replyMessage.msgText}
