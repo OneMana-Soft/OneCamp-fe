@@ -23,7 +23,8 @@ import {useDispatch} from "react-redux";
 import {openUI} from "@/store/slice/uiSlice";
 import {useLogout} from "@/hooks/useLogout";
 import {useState} from "react";
-import {BellOff} from "@/lib/icons";
+import {useRouter} from "next/navigation";
+import {BellOff, CircleUser, LogOut, Settings, SmilePlus} from "@/lib/icons";
 import {usePauseNotifications} from "@/hooks/usePauseNotifications";
 import {PauseNotificationsDialog, pauseMenuLabel} from "@/components/notifications/PauseNotificationsDialog";
 
@@ -31,6 +32,7 @@ export default function DesktopNavigationUserProfile() {
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const dispatch = useDispatch();
+    const router = useRouter();
     const { logout } = useLogout();
     const { theme, setTheme } = useTheme();
     const { pausedUntil, focusUntil } = usePauseNotifications();
@@ -69,19 +71,31 @@ export default function DesktopNavigationUserProfile() {
                     </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {/* Every item has its icon in the one 16px slot, so every label,
+                    the Appearance choices' included, starts on one line. Only
+                    Pause had one (with a margin on top of the item's gap), so the
+                    labels began at three different places. */}
                 <DropdownMenuGroup>
                     <DropdownMenuItem
                         onClick={()=>{dispatch(openUI({ key: 'userStatusUpdate', data: { userUUID: '' } }))}}
                     >
+                        <SmilePlus aria-hidden />
                         Set a status…
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setPauseOpen(true)}>
-                        <BellOff className="mr-2 h-4 w-4" aria-hidden />
+                        <BellOff aria-hidden />
                         {pauseMenuLabel(pausedUntil, focusUntil)}
                     </DropdownMenuItem>
+                    {/* What it opens is "Your profile". It was called Settings,
+                        and the settings page had no door here at all. */}
                     <DropdownMenuItem
                         onClick={()=>{dispatch(openUI({ key: 'selfUserProfile' }))}}
                     >
+                        <CircleUser aria-hidden />
+                        Your profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/app/settings")}>
+                        <Settings aria-hidden />
                         Settings
                     </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -97,6 +111,7 @@ export default function DesktopNavigationUserProfile() {
                 <DropdownMenuItem
                     onClick={logout}
                 >
+                    <LogOut aria-hidden />
                     Sign out
                 </DropdownMenuItem>
             </DropdownMenuContent>
