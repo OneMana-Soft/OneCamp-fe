@@ -112,4 +112,21 @@ describe("a request that gets no answer, outside usePost's toasts", () => {
     await axiosInstance.get("/c")
     expect(connectivity.isServerUnreachable()).toBe(false)
   })
+
+  // Signing out: the page leaves for the sign-in page at once, so a failed
+  // logout request has nothing to tell anyone, and "Couldn't reach the
+  // server: your change wasn't saved" flashed over it was wrong.
+  it("says nothing at all for a quiet request", async () => {
+    // Past the 4-second window in which the same toast is shown only once,
+    // so a toast here would not be swallowed as a repeat of an earlier test's.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(Date.now() + 60_000)
+    restore = serverAnswers(0)
+    const { result } = renderHook(() => usePost())
+    await act(async () => {
+      await result.current.makeRequest({ apiEndpoint: PostEndpointUrl.Logout, quiet: true }).catch(() => undefined)
+    })
+    vi.useRealTimers()
+    expect(toasts).toEqual([])
+  })
 })
