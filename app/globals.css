@@ -96,6 +96,10 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-text: var(--brand-text);
   --color-brand-muted: var(--brand-muted);
+  /* The theme's wash (app/themes.css), as a utility: bg-brand-wash, for a
+     band that should take the chosen theme the way the sidebar does (the Home
+     greeting). Ink and text-2 are AA on it in every theme. */
+  --color-brand-wash: var(--brand-wash);
   /* THE CAMP PALETTE, as utilities: bg-camp-sky-tint, text-camp-sky-ink,
      fill-camp-sky, and so on for sun, moss, lake, sky, dusk and berry. See
      the :root block for what each cut is for. */
@@ -251,6 +255,11 @@
   /* A tinted ground for the current selection: active nav, a selected row,
      a callout. Never for text. */
   --brand-muted: oklch(0.9667 0.0194 55.15);
+  /* The theme's wash and progress fill (app/themes.css), at the house values
+     so the frame is right before the theme class lands on body. */
+  --brand-wash: oklch(0.972 0.007 65);
+  --progress-from: #FF8A00;
+  --progress-to: #FF3D00;
 
   /* AGENTS HAVE A COLOUR OF THEIR OWN: an indigo, a quarter-turn from the
      brand, used only for agent identity (tag, avatar, anything an agent did),
@@ -383,6 +392,7 @@
   --brand-foreground: oklch(0.1682 0.0045 264.45);
   --brand-text: oklch(0.7514 0.1610 46.76);
   --brand-muted: oklch(0.2356 0.0313 52.65);
+  --brand-wash: oklch(0.232 0.014 55);
   --agent: oklch(0.7629 0.1064 278.81);
   --agent-foreground: oklch(0.1682 0.0045 264.45);
   --agent-muted: oklch(0.2621 0.0577 277.45);
@@ -546,6 +556,14 @@
   --hue-ink: var(--camp-berry-ink);
 }
 
+/* What progress fills with: the logo's gradient in the house theme, the
+   chosen accent in every other (--progress-from and --progress-to, per theme
+   in app/themes.css). The deep stop leads, so the moving edge of a bar is the
+   part that holds 3:1 against its track. */
+@utility bg-progress {
+  background-image: linear-gradient(90deg, var(--progress-from), var(--progress-to));
+}
+
 
 /* Everything the accent drives, declared on BODY and not on :root.
  *
@@ -562,6 +580,12 @@
  * Declared here, they resolve against body's --brand, which IS the themed one,
  * and every descendant inherits the right value. Verified in a real browser
  * rather than reasoned about, because the two look identical in the source.
+ *
+ * The frame is here for the same reason: the canvas (the sidebar, the top bar
+ * and the gutter round the sheet) and the phone's navigation take the theme's
+ * wash, so choosing a theme visibly re-themes the app the way Slack's themes
+ * recolour its sidebar. The sheet itself stays --background. Native controls
+ * take the accent here too: accent-color on :root never saw the theme.
  */
 body {
   --primary: var(--brand-text);
@@ -570,8 +594,16 @@ body {
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
-  --selection: var(--brand);
-  --selection-foreground: var(--brand-foreground);
+  /* Selected text is a tint of the accent under the text's own ink, not a
+     solid slab of it: a selected paragraph stays readable at 9:1 or more in
+     every theme (paletteContrast.test.ts). Mixed into the page rather than
+     into transparent: Chromium paints nothing for a translucent ::selection
+     background, so a see-through tint simply vanished. */
+  --selection: color-mix(in oklab, var(--brand) 26%, var(--background));
+  --selection-foreground: var(--foreground);
+  --canvas: var(--brand-wash);
+  --sidebar: var(--brand-wash);
+  accent-color: var(--brand);
 }
 
 @layer base {
@@ -1147,19 +1179,34 @@ html[data-media-collapsed="true"] [data-message-media] {
     border-radius: calc(var(--radius) + 4px);
   }
 
-  /* Navigation on the canvas. The current place is the one spot of accent in
-     the sidebar: the soft accent ground under ink text, no border and no
-     shadow. Hover is a neutral step (surface-3), so only the selection is
-     warm. */
+  /* Navigation on the canvas, which is the theme's wash. The current place is
+     the one spot of accent in the sidebar: the soft accent ground under ink
+     text, and a 2px bar of the accent at the start edge. The ground is
+     brand-muted taken one step deeper with the accent itself, because the
+     wash is a tint of the same hue and brand-muted alone all but vanished on
+     it; the step holds in every theme and both modes (paletteContrast). Hover
+     is a step of ink over the wash, so it keeps the wash's hue rather than
+     laying a grey patch on it, and only the current place carries accent. */
   .nav-active {
-    background: var(--brand-muted);
+    position: relative;
+    background: color-mix(in oklab, var(--brand) 12%, var(--brand-muted));
     color: var(--foreground);
+  }
+  .nav-active::before {
+    content: "";
+    position: absolute;
+    inset-block: 6px;
+    inset-inline-start: 0;
+    width: 2px;
+    border-start-end-radius: 2px;
+    border-end-end-radius: 2px;
+    background: var(--brand);
   }
   .nav-idle {
     color: var(--muted-foreground);
   }
   .nav-idle:hover {
-    background: var(--sidebar-accent);
+    background: color-mix(in oklab, var(--foreground) 6%, var(--canvas));
     color: var(--foreground);
   }
 }
@@ -1180,12 +1227,6 @@ html[data-media-collapsed="true"] [data-message-media] {
     gap: 0.5rem;
     padding: 0.875rem 1rem 0.375rem;
   }
-}
-
-/* Native checkboxes, radios and ranges take the accent, not the browser's
-   blue. --brand is the user's chosen accent theme. */
-:root {
-  accent-color: var(--brand);
 }
 
 /* An invoice is paper: light in any theme, on screen and when printed. The

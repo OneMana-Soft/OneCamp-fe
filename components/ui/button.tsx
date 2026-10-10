@@ -36,9 +36,9 @@ const buttonVariants = cva(
         // the top bar or sidebar used to "hover" to the colour it sat on.
         ghost: "hover:bg-highlight hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        // The current place: the soft accent ground under ink, the same as
-        // .nav-active in globals.css, so a Button and a nav link agree.
-        sidebarActive: "bg-brand-muted text-foreground hover:bg-brand-muted",
+        // The current place: .nav-active itself (globals.css), the soft accent
+        // ground and the accent bar, so a Button and a nav link cannot drift.
+        sidebarActive: "nav-active",
       },
       size: {
         default: "h-9 px-4 py-2",

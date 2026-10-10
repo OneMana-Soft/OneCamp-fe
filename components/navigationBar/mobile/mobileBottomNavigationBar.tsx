@@ -101,7 +101,8 @@ export function MobileBottomNavigationBar() {
                 aria-label="Primary"
                 className={cn(
                     "fixed bottom-0 left-0 right-0 z-[var(--z-fixed)]",
-                    "bg-background border-t border-border/60",
+                    // The theme's wash, as the top bar and the desktop sidebar.
+                    "bg-sidebar border-t border-border/60",
                     "transition-transform duration-300 ease-out",
                     isVisible ? "translate-y-0" : "translate-y-full",
                 )}

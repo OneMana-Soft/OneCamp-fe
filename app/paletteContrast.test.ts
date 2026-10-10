@@ -234,3 +234,126 @@ describe("every selectable accent meets WCAG AA", () => {
     }
   })
 })
+
+/**
+ * The theme's wash on the frame, in every theme and both modes.
+ *
+ * Choosing a theme washes the sidebar, the top bar and the phone's
+ * navigation in a tint of its hue (app/themes.css), so everything that sits
+ * on the frame has to stay readable on every wash: the sidebar's text (ink,
+ * and text-2 for the quieter labels), the 2px accent bar of the current place
+ * and the identity dots (sun is the tightest camp hue). The current place's
+ * ground (brand-muted taken one step deeper with the accent, .nav-active) has
+ * to be a visible step off the wash, with ink on it; the selection tint keeps
+ * ink readable; and the moving edge of a progress bar holds 3:1 on its track.
+ */
+function themeToken(theme: string, mode: "light" | "dark", name: string): string {
+  const head = mode === "light" ? `.theme-${theme} {` : `.dark .theme-${theme},`
+  const at = THEMES_CSS.indexOf(head)
+  const block = THEMES_CSS.slice(at, THEMES_CSS.indexOf("}", at))
+  const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(block)
+  if (!m) throw new Error(`.theme-${theme} (${mode}) has no --${name}`)
+  const ref = /^var\(--([a-z-]+)\)$/.exec(m[1].trim())
+  return ref ? themeToken(theme, mode, ref[1]) : m[1].trim()
+}
+
+type RGB = { r: number; g: number; b: number }
+
+function parseColour(raw: string): RGB {
+  const hex = /^#([0-9a-f]{6})$/i.exec(raw)
+  if (hex) {
+    const n = parseInt(hex[1], 16)
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+  }
+  const p = parseOklch(raw)
+  if (!p) throw new Error(`not a colour: ${raw}`)
+  return oklchToRgb(p.l, p.c, p.h)
+}
+
+const lin = (c: number) => {
+  const s = c / 255
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+}
+
+/** sRGB to OKLab, for mixing as color-mix(in oklab) does and for a distance. */
+function oklab({ r, g, b }: RGB): [number, number, number] {
+  const [R, G, B] = [lin(r), lin(g), lin(b)]
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B)
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B)
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B)
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ]
+}
+
+function fromOklab([L, a, b]: [number, number, number]): RGB {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+  const enc = (x: number) => {
+    const c = Math.min(1, Math.max(0, x))
+    return Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055))
+  }
+  return {
+    r: enc(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    g: enc(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    b: enc(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  }
+}
+
+/** color-mix(in oklab, a t, b): t of a, the rest b. */
+function mixOklab(a: RGB, b: RGB, t: number): RGB {
+  const [A, B] = [oklab(a), oklab(b)]
+  return fromOklab([0, 1, 2].map((i) => A[i] * t + B[i] * (1 - t)) as [number, number, number])
+}
+
+const distance = (a: RGB, b: RGB) => Math.hypot(...oklab(a).map((v, i) => v - oklab(b)[i]))
+
+describe("every theme's wash keeps the frame readable", () => {
+  const themes = [...THEMES_CSS.matchAll(/^\.theme-([a-z-]+) \{/gm)].map((m) => m[1])
+
+  it("covers all eleven themes", () => {
+    expect(themes).toHaveLength(11)
+  })
+
+  it("is what the frame paints: the canvas and the sidebar take the wash on body", () => {
+    const body = CSS.slice(CSS.indexOf("\nbody {"), CSS.indexOf("\n}", CSS.indexOf("\nbody {")))
+    expect(body).toMatch(/--canvas:\s*var\(--brand-wash\);/)
+    expect(body).toMatch(/--sidebar:\s*var\(--brand-wash\);/)
+  })
+
+  describe.each(["light", "dark"] as const)("%s", (mode) => {
+    it.each(themes)("%s", (theme) => {
+      const wash = parseColour(themeToken(theme, mode, "brand-wash"))
+      const brand = parseColour(themeToken(theme, mode, "brand"))
+      const muted = parseColour(themeToken(theme, mode, "brand-muted"))
+      const at = (fg: RGB, bg: RGB) => contrastRatio(fg, bg)
+      const say = (what: string, fg: RGB, bg: RGB) => `${theme} (${mode}): ${what}, ${rgbToHex(fg)} on ${rgbToHex(bg)}, ${at(fg, bg).toFixed(2)}:1`
+
+      for (const text of ["foreground", "muted-foreground"]) {
+        expect(at(rgb(text, mode), wash), say(`--${text} on the wash`, rgb(text, mode), wash)).toBeGreaterThanOrEqual(4.5)
+      }
+      expect(at(brand, wash), say("the accent bar on the wash", brand, wash)).toBeGreaterThanOrEqual(3)
+      for (const hue of CAMP_HUES) {
+        const dot = rgb(`camp-${hue}`, mode)
+        expect(at(dot, wash), say(`a ${hue} identity dot on the wash`, dot, wash)).toBeGreaterThanOrEqual(3)
+      }
+
+      // The current place: .nav-active's ground.
+      const active = mixOklab(brand, muted, 0.12)
+      expect(at(rgb("foreground", mode), active), say("ink on the current place", rgb("foreground", mode), active)).toBeGreaterThanOrEqual(4.5)
+      expect(distance(active, wash), `${theme} (${mode}): the current place is ${rgbToHex(active)} on the wash ${rgbToHex(wash)}, too close to see`).toBeGreaterThanOrEqual(0.04)
+
+      // Selected text: the accent at 26% under the text's own ink.
+      const selected = over(brand, rgb("background", mode), 0.26)
+      expect(at(rgb("foreground", mode), selected), say("selected text", rgb("foreground", mode), selected)).toBeGreaterThanOrEqual(4.5)
+
+      // Progress: the deep stop leads, so the moving edge holds 3:1 on its track.
+      const lead = parseColour(themeToken(theme, mode, "progress-to"))
+      const track = rgb("sidebar-accent", mode)
+      expect(at(lead, track), say("the leading edge of progress on its track", lead, track)).toBeGreaterThanOrEqual(3)
+    })
+  })
+})
