@@ -1,5 +1,6 @@
 "use client"
 
+import type * as React from "react"
 import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { startOfDay } from "date-fns"
@@ -114,6 +115,7 @@ export function ProjectTimeline({
   onCreateTask,
   compact = false,
   className,
+  leading,
 }: {
   projectId: string
   /** Draw these instead of fetching the project's, read-only: a client's view of a project shared with them. */
@@ -124,6 +126,8 @@ export function ProjectTimeline({
   onCreateTask?: () => void
   compact?: boolean
   className?: string
+  /** First in the tool row: a page's own switch (the client view's Board and Timeline). */
+  leading?: React.ReactNode
 }) {
   const fetched = useProjectTimeline(given ? "" : projectId)
   const { isLoading, isError, mutate, reschedule } = fetched
@@ -425,6 +429,7 @@ export function ProjectTimeline({
   const toolRow = (
     <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
       <div className="flex flex-wrap items-center gap-2">
+        {leading}
         {/* Quiet, as every tab's secondary controls are; the zoom is one
             32px group, the height of the controls beside it. */}
         <Button variant="ghost" size="sm" className="h-8" onClick={goToday} disabled={!drawn}>
