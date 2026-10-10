@@ -54,8 +54,11 @@ describe("an empty inbox", () => {
     list = Promise.resolve({ threads: [] })
     render(<InboxPage />)
     await act(async () => {})
-    expect(screen.getByText("Your inbox is empty.")).toBeTruthy()
+    expect(screen.getByText("Your inbox is empty")).toBeTruthy()
+    // The ringed envelope, and it is what springs.
+    const spot = document.querySelector("[data-inbox-zero]")!
+    expect(spot.querySelector("svg")).toBeTruthy()
     expect(pop).toHaveBeenCalledTimes(1)
-    expect(pop.mock.calls[0][0]).toBe(document.querySelector("[data-inbox-zero]"))
+    expect(pop.mock.calls[0][0]).toBe(spot)
   })
 })

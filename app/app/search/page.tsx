@@ -15,6 +15,7 @@ import type { UserProfileInterface } from "@/types/user"
 import { getIcon, getHighlightedTitle, getHighlightedContext, isResultPreviewable } from "@/lib/utils/helpers/search"
 import { cn } from "@/lib/utils/helpers/cn"
 import { moveListFocus } from "@/lib/search/listFocus"
+import { SpotSearch } from "@/components/ui/graphics"
 import ConnectorSearchResults from "@/components/ai/ConnectorSearchResults"
 import SearchAnswer from "@/components/ai/SearchAnswer"
 
@@ -207,7 +208,8 @@ export default function SearchPage() {
                             </p>
                         </div>
                     ) : (
-                        <div className="px-2 py-16">
+                        <div className="px-2 py-12">
+                            <SpotSearch size={80} className="mb-4" />
                             <h2 className="text-base font-semibold text-foreground">Nothing matches “{shown}”</h2>
                             <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
                                 Check the spelling, or try a shorter word. Search covers what you can open, so a private channel you are not in won’t show.

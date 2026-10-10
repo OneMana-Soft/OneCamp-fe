@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToastAction } from "@/components/ui/toast"
+import { SpotTasks } from "@/components/ui/graphics"
 import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -192,7 +193,8 @@ function NudgeBell() {
                         ))}
                     </div>
                 ) : !hasNudges ? (
-                    <div className="px-4 py-8">
+                    <div className="flex flex-col items-start gap-2 px-4 py-6">
+                        <SpotTasks size={56} />
                         <p className="text-sm font-medium">You&apos;re all caught up</p>
                         <p className="text-xs text-muted-foreground">
                             OneCamp will nudge you here when something needs your attention.

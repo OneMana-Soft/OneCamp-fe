@@ -94,4 +94,14 @@ describe("the nudge bell", () => {
     })
     expect(dismissAll).toHaveBeenCalledTimes(1)
   })
+
+  it("says it is caught up, with a small check, once it has looked", async () => {
+    pending = Promise.resolve({ nudges: [], open_count: 0 })
+    mount()
+    await act(async () => {})
+    openBell()
+    await act(async () => {})
+    const line = screen.getByText("You're all caught up")
+    expect(line.parentElement?.querySelector("svg")).toBeTruthy()
+  })
 })
