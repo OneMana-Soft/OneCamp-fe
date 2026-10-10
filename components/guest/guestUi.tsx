@@ -199,7 +199,7 @@ export function GuestCentered({ children }: { children: React.ReactNode }) {
 }
 
 export function GuestLoading() {
-  return <GuestCentered><Loader2 className="h-7 w-7 animate-spin text-primary" /></GuestCentered>
+  return <GuestCentered><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></GuestCentered>
 }
 
 export function GuestLinkGone({ detail = "It may have expired or been turned off. Ask the person who invited you for a new one." }: { detail?: string }) {

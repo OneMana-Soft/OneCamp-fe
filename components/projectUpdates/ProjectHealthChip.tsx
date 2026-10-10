@@ -17,7 +17,7 @@ export function ProjectHealthChip({ projectId, onOpen }: { projectId: string; on
   if (!latest) {
     if (!canPost) return null
     return (
-      <button type="button" onClick={onOpen} className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground">
+      <button type="button" onClick={onOpen} className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground underline-offset-2 transition-colors hover:bg-muted hover:text-foreground">
         Post the first update
       </button>
     )
@@ -29,12 +29,12 @@ export function ProjectHealthChip({ projectId, onOpen }: { projectId: string; on
       type="button"
       onClick={onOpen}
       title={due ? "An update is due" : "Open the updates"}
-      className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80", h.pill)}
+      className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-muted"
     >
       <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", h.dot)} />
       {h.label}
-      <span className="font-normal opacity-75">· {daysAgo(latest.created_at, now)}</span>
-      {due && <span className="font-normal opacity-75">· update due</span>}
+      <span className="text-muted-foreground">· {daysAgo(latest.created_at, now)}</span>
+      {due && <span className="text-muted-foreground">· update due</span>}
     </button>
   )
 }

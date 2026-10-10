@@ -32,7 +32,7 @@ export function GoalProgress({
         className="relative h-1.5 w-full min-w-16 rounded-full bg-muted"
       >
         <div
-          className={cn("h-full rounded-full", done ? "bg-success" : goal.status === "open" ? "bg-primary" : "bg-muted-foreground/60")}
+          className={cn("h-full rounded-full", done ? "bg-success" : goal.status === "open" ? "bg-foreground/70" : "bg-muted-foreground/60")}
           style={{ width: `${pct}%` }}
         />
         {tick !== undefined && tick > 0 && tick < 100 && (

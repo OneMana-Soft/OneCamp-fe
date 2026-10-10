@@ -224,7 +224,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
               Mine
             </ToggleGroupItem>
           </ToggleGroup>
-          <SearchField value={query} onChange={setQuery} placeholder="Search goals or owners…" className={compact ? "w-full" : "w-64"} />
+          <SearchField value={query} onChange={setQuery} placeholder="Search goals or owners…" className={compact ? "w-full" : "w-72"} />
           {due > 0 && !compact && <span className="text-xs text-warning">{due === 1 ? "1 goal needs a check-in" : `${due} goals need a check-in`}</span>}
           <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => setCreating(true)}>
             <Target className="h-4 w-4" />

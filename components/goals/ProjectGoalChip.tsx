@@ -19,9 +19,9 @@ export function ProjectGoalChip({ projectId }: { projectId: string }) {
     <Link
       href={`/app/goals/${first.id}`}
       title={goals.map((g) => g.title).join("\n")}
-      className="inline-flex max-w-xs items-center gap-1.5 rounded-full border border-border/70 px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+      className="inline-flex max-w-xs items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
-      <Target className="h-3 w-3 shrink-0 text-primary" aria-hidden />
+      <Target className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
       <span className="truncate">{first.title}</span>
       {first.progress !== null && <span className="tabular-nums opacity-75">· {percent(first.progress)}</span>}
       {more > 0 && <span className="shrink-0 opacity-75">+{more}</span>}

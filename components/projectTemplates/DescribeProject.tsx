@@ -59,7 +59,7 @@ function DescribeProjectUngated({ onDrafted }: { onDrafted: (t: ProjectTemplate)
   if (!open) {
     return (
       <Button type="button" variant="ghost" size="sm" className="h-8 w-fit gap-1.5 px-2 text-xs" onClick={() => setOpen(true)}>
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
         Describe it, and the AI drafts the plan
       </Button>
     )

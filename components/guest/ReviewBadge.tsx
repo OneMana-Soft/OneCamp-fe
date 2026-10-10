@@ -15,12 +15,14 @@ export function ReviewBadge({ review, withNote = false }: { review: GuestReview;
   return (
     <span className="inline-grid gap-1">
       <span
-        className={`inline-flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${approved ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}`}
+        // The verdict in words, its colour on the icon alone: a tinted chip
+        // under the dates and the assignee was the loudest thing on the card.
+        className="inline-flex w-fit items-center gap-1 text-xs font-medium text-foreground"
         title={`${approved ? "Approved" : "Changes requested"} by ${review.name}, ${ago(review.created_at)}`}
       >
-        <Icon className="h-3 w-3" aria-hidden />
+        <Icon className={`h-3.5 w-3.5 ${approved ? "text-success" : "text-warning"}`} aria-hidden />
         {approved ? "Approved" : "Changes requested"}
-        <span className="font-normal opacity-80">· {review.name}</span>
+        <span className="font-normal text-muted-foreground">· {review.name}</span>
       </span>
       {withNote && review.note && <span className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{review.note}</span>}
     </span>
