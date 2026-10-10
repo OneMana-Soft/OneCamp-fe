@@ -536,7 +536,9 @@ export default function SignUp() {
                         </p>
                       )}
 
-                      <Button type="submit" className={authControl} disabled={isLoading}>
+                      {/* On the demo build the demo button below is the page's one
+                          filled button, so this one is outlined beside it. */}
+                      <Button type="submit" variant={isDemoEnabled ? "outline" : "default"} className={authControl} disabled={isLoading}>
                         {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                         {isLoading ? "Signing in…" : "Sign in"}
                       </Button>
@@ -580,7 +582,7 @@ export default function SignUp() {
                 error={ldapError}
               />
 
-              <Button type="submit" className={authControl} disabled={isLoading}>
+              <Button type="submit" variant={isDemoEnabled ? "outline" : "default"} className={authControl} disabled={isLoading}>
                 {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                 {isLoading ? "Signing in…" : "Sign in with directory"}
               </Button>
