@@ -52,3 +52,26 @@ describe("the keyboard tip", () => {
     expect(tip()).toBeNull()
   })
 })
+
+describe("the keyboard tip's look", () => {
+  it("floats on the overlay shadow, with its close named for what it closes", () => {
+    render(<KeyboardTip />)
+    wait()
+    expect(tip()!.className).toMatch(/\bshadow-overlay\b/)
+    expect(tip()!.className).not.toMatch(/\bshadow-lg\b/)
+    const close = screen.getByRole("button", { name: "Close the keyboard tips" })
+    expect(close.className).toMatch(/hover:bg-highlight/)
+  })
+
+  it("leaves the page's one filled button to the page", () => {
+    render(<KeyboardTip />)
+    wait()
+    expect(screen.getByRole("button", { name: "Got it" }).className).not.toMatch(/\bbg-primary\b/)
+  })
+
+  it("reads what each key does in ink, beside quiet keys", () => {
+    render(<KeyboardTip />)
+    wait()
+    expect(screen.getByText("Find anything, or run any command").className).toMatch(/\btext-foreground\b/)
+  })
+})
