@@ -14,12 +14,14 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, className }) =>
     return (
         <div className={cn(
             "relative w-full h-full flex items-start justify-center pt-3 px-3 pb-0",
-            "bg-[#f8f9fa]",
+            "bg-muted/40",
             className
         )}>
             {/* White page with shadow — the actual preview */}
             <div 
-                className="bg-white shadow-[0_1px_2px_rgba(60,64,67,0.15)] overflow-hidden"
+                // The page is the card surface with a hairline, so it follows the
+                // theme: a hard-coded white sheet glared out of the dark list.
+                className="bg-card ring-1 ring-border/70 overflow-hidden"
                 style={{ 
                     width: '85%',
                     aspectRatio: '1 / 1.294',
@@ -56,13 +58,20 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, className }) =>
 function sanitizePreviewContent(html: string): string {
     if (!html) return '';
 
+    // A list hit carries a plain-text snippet, not the doc's HTML. Without a
+    // paragraph around it none of the miniature's sizes below applied, and the
+    // snippet drew at the page's 14px: a thumbnail of five words a line.
+    const source = /<[a-z][\s\S]*>/i.test(html)
+        ? html
+        : `<p>${html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;
+
     // First-pass strip of any dangerous tags / attributes.
-    const cleaned = sanitizeRichHtml(html);
+    const cleaned = sanitizeRichHtml(source);
 
     if (typeof document === 'undefined') {
         // Basic fallback for Server-Side Rendering — return the
         // sanitised HTML wrapped in our preview container.
-        return `<div style="padding:10px 12px 0 12px; font-size: 9px; color: #3c4043;">${cleaned}</div>`;
+        return `<div style="padding:10px 12px 0 12px; font-size: 9px; color: var(--foreground);">${cleaned}</div>`;
     }
 
     const temp = document.createElement('div');
@@ -77,8 +86,8 @@ function sanitizePreviewContent(html: string): string {
     const allElements = temp.querySelectorAll('*');
     allElements.forEach(el => {
         const style = (el as HTMLElement).style;
-        style.color = '#202124';
-        style.fontFamily = "'Google Sans', 'Roboto', Arial, sans-serif";
+        style.color = 'var(--foreground)';
+        style.fontFamily = 'inherit';
     });
 
     // Headings — Google Docs style sizes at preview scale
@@ -86,7 +95,7 @@ function sanitizePreviewContent(html: string): string {
     headings.forEach(heading => {
         const el = heading as HTMLElement;
         const tag = heading.tagName.toLowerCase();
-        el.style.color = '#202124';
+        el.style.color = 'var(--foreground)';
         el.style.fontWeight = tag === 'h1' ? '700' : '600';
         el.style.fontSize = tag === 'h1' ? '11px' : tag === 'h2' ? '10px' : '9px';
         el.style.lineHeight = '1.35';
@@ -97,7 +106,7 @@ function sanitizePreviewContent(html: string): string {
     // Paragraphs
     temp.querySelectorAll('p').forEach(p => {
         const el = p as HTMLElement;
-        el.style.color = '#3c4043';
+        el.style.color = 'var(--foreground)';
         el.style.fontSize = '9px';
         el.style.lineHeight = '1.55';
         el.style.margin = '0 0 3px 0';
@@ -108,7 +117,7 @@ function sanitizePreviewContent(html: string): string {
         const el = list as HTMLElement;
         el.style.margin = '0 0 3px 0';
         el.style.paddingLeft = '12px';
-        el.style.color = '#3c4043';
+        el.style.color = 'var(--foreground)';
     });
 
     temp.querySelectorAll('li').forEach(item => {
@@ -116,16 +125,16 @@ function sanitizePreviewContent(html: string): string {
         el.style.fontSize = '9px';
         el.style.lineHeight = '1.45';
         el.style.margin = '0 0 1px 0';
-        el.style.color = '#3c4043';
+        el.style.color = 'var(--foreground)';
     });
 
     // Blockquotes
     temp.querySelectorAll('blockquote').forEach(bq => {
         const el = bq as HTMLElement;
-        el.style.borderLeft = '1.5px solid #dadce0';
+        el.style.borderLeft = '1.5px solid var(--border)';
         el.style.paddingLeft = '8px';
         el.style.margin = '0 0 3px 0';
-        el.style.color = '#5f6368';
+        el.style.color = 'var(--muted-foreground)';
         el.style.fontSize = '9px';
         el.style.fontStyle = 'italic';
     });
@@ -133,32 +142,32 @@ function sanitizePreviewContent(html: string): string {
     // Code blocks
     temp.querySelectorAll('pre').forEach(pre => {
         const el = pre as HTMLElement;
-        el.style.background = '#f1f3f4';
+        el.style.background = 'var(--muted)';
         el.style.padding = '3px 5px';
         el.style.borderRadius = '3px';
         el.style.fontSize = '8px';
         el.style.margin = '0 0 3px 0';
         el.style.overflow = 'hidden';
-        el.style.color = '#3c4043';
-        el.style.fontFamily = "'Roboto Mono', monospace";
+        el.style.color = 'var(--foreground)';
+        el.style.fontFamily = 'ui-monospace, monospace';
     });
 
     // Inline code
     temp.querySelectorAll('code:not(pre code)').forEach(code => {
         const el = code as HTMLElement;
-        el.style.background = '#f1f3f4';
+        el.style.background = 'var(--muted)';
         el.style.padding = '0.5px 3px';
         el.style.borderRadius = '2px';
         el.style.fontSize = '8px';
-        el.style.color = '#3c4043';
-        el.style.fontFamily = "'Roboto Mono', monospace";
+        el.style.color = 'var(--foreground)';
+        el.style.fontFamily = 'ui-monospace, monospace';
     });
 
     // HR
     temp.querySelectorAll('hr').forEach(hr => {
         const el = hr as HTMLElement;
         el.style.border = 'none';
-        el.style.borderTop = '0.5px solid #dadce0';
+        el.style.borderTop = '0.5px solid var(--border)';
         el.style.margin = '4px 0';
     });
 
@@ -166,24 +175,24 @@ function sanitizePreviewContent(html: string): string {
     temp.querySelectorAll('a').forEach(link => {
         link.removeAttribute('href');
         const el = link as HTMLElement;
-        el.style.color = '#1a73e8';
+        el.style.color = 'var(--primary)';
         el.style.textDecoration = 'none';
     });
 
     // Callouts
     temp.querySelectorAll('[class*="callout"]').forEach(callout => {
         const el = callout as HTMLElement;
-        el.style.background = '#f8f9fa';
+        el.style.background = 'var(--muted)';
         el.style.borderRadius = '4px';
         el.style.padding = '4px 6px';
         el.style.margin = '0 0 3px 0';
-        el.style.border = '0.5px solid #dadce0';
+        el.style.border = '0.5px solid var(--border)';
     });
 
     // Collapsible / Toggle
     temp.querySelectorAll('[class*="collapsible"]').forEach(col => {
         const el = col as HTMLElement;
-        el.style.background = '#f8f9fa';
+        el.style.background = 'var(--muted)';
         el.style.borderRadius = '4px';
         el.style.padding = '3px 6px';
         el.style.margin = '0 0 3px 0';
@@ -191,18 +200,18 @@ function sanitizePreviewContent(html: string): string {
 
     // Bold
     temp.querySelectorAll('strong, b').forEach(el => {
-        (el as HTMLElement).style.color = '#202124';
+        (el as HTMLElement).style.color = 'var(--foreground)';
         (el as HTMLElement).style.fontWeight = '600';
     });
 
     // Italic
     temp.querySelectorAll('em, i').forEach(el => {
-        (el as HTMLElement).style.color = '#3c4043';
+        (el as HTMLElement).style.color = 'var(--foreground)';
     });
 
     // Strikethrough
     temp.querySelectorAll('s, strike, del').forEach(el => {
-        (el as HTMLElement).style.color = '#9aa0a6';
+        (el as HTMLElement).style.color = 'var(--muted-foreground)';
         (el as HTMLElement).style.textDecoration = 'line-through';
     });
 
@@ -216,13 +225,13 @@ function sanitizePreviewContent(html: string): string {
     });
     temp.querySelectorAll('td, th').forEach(cell => {
         const el = cell as HTMLElement;
-        el.style.border = '0.5px solid #dadce0';
+        el.style.border = '0.5px solid var(--border)';
         el.style.padding = '2px 4px';
         el.style.fontSize = '8px';
     });
     temp.querySelectorAll('th').forEach(th => {
         const el = th as HTMLElement;
-        el.style.background = '#f8f9fa';
+        el.style.background = 'var(--muted)';
         el.style.fontWeight = '600';
     });
 
@@ -247,7 +256,7 @@ function sanitizePreviewContent(html: string): string {
     if (result.length > 2500) {
         result = result.substring(0, 2500);
         result = result.replace(/<[^>]*$/, ''); 
-        result += '<span style="color:#bdc1c6;font-size:8px;">…</span>';
+        result += '<span style="color:var(--muted-foreground);font-size:8px;">…</span>';
     }
 
     // Wrap in padded container

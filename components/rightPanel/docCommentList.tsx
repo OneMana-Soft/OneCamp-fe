@@ -10,7 +10,6 @@ import type { RootState } from "@/store/store"
 import type { CreateCommentResInterface } from "@/types/comment"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { MessageSquare } from "@/lib/icons";
 import {
     addDocComments,
     clearDocCommentInputState,
@@ -248,7 +247,6 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
                     />
                 ) : docCommentState.length === 0 ? (
                     <EmptyState
-                        icon={MessageSquare}
                         title="No comments yet"
                         description="Be the first to add a comment to this document."
                         className="h-full"

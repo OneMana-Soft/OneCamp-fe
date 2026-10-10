@@ -69,7 +69,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
   const shownDay = days.find((d) => d.day === day) ?? days[0]
   const canLoadMore = !!page && !!loadedUntil && loadedUntil < new Date(page.bookable_until)
 
-  if (state === "loading") return <Centered><Loader2 className="h-7 w-7 animate-spin text-primary" /></Centered>
+  if (state === "loading") return <Centered><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" /></Centered>
   if (state === "missing" || state === "error" || !page) {
     return (
       <Centered>
@@ -85,14 +85,21 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14">
-      <div className="mx-auto grid max-w-4xl overflow-hidden rounded-2xl border bg-background shadow-sm grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="mx-auto grid max-w-4xl overflow-hidden rounded-xl border bg-background grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="grid min-w-0 content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
-          <p className="text-sm text-muted-foreground">{page.owner_name}</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">{page.title}</h1>
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" /> {page.duration_minutes} minutes
+          {/* Who the visitor is booking with comes first, as a person: an
+              initial on a neutral ground (no photo is sent to a public page). */}
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
+              {page.owner_name.trim().charAt(0).toUpperCase()}
+            </span>
+            <p className="text-sm text-muted-foreground">{page.owner_name}</p>
+          </div>
+          <h1 className="text-2xl font-semibold text-balance">{page.title}</h1>
+          <p className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
+            <Clock className="h-4 w-4" aria-hidden="true" /> {page.duration_minutes} minutes
           </p>
-          {page.description && <p className="whitespace-pre-line text-sm">{page.description}</p>}
+          {page.description && <p className="whitespace-pre-line text-sm text-pretty">{page.description}</p>}
           <div className="mt-2 grid gap-1.5">
             <Label htmlFor="tz" className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Globe className="h-3.5 w-3.5" /> Times shown in
@@ -136,7 +143,14 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
             <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
               <div>
                 <h2 className="mb-2 text-sm font-medium">Pick a day</h2>
-                <div className="flex gap-2 overflow-x-auto pb-1" role="listbox" aria-label="Days with free times">
+                {/* On a phone the days scroll sideways, and the right edge fades so
+                    it is plain there are more; from tablet width they wrap, so
+                    no day hides off the edge of a card with room to show it. */}
+                <div
+                  className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_85%,transparent)] md:flex-wrap md:overflow-visible md:[mask-image:none]"
+                  role="listbox"
+                  aria-label="Days with free times"
+                >
                   {days.map((d) => (
                     <button
                       key={d.day}
@@ -145,12 +159,12 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
                       aria-selected={shownDay?.day === d.day}
                       onClick={() => setDay(d.day)}
                       className={cn(
-                        "shrink-0 rounded-lg border px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "shrink-0 snap-start rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         shownDay?.day === d.day ? "border-primary bg-primary/10" : "hover:bg-accent",
                       )}
                     >
                       <span className="block font-medium">{formatDay(d.day)}</span>
-                      <span className="block text-xs text-muted-foreground">{d.slots.length} {d.slots.length === 1 ? "time" : "times"}</span>
+                      <span className="block text-xs text-muted-foreground tabular-nums">{d.slots.length} {d.slots.length === 1 ? "time" : "times"}</span>
                     </button>
                   ))}
                   {canLoadMore && (
@@ -158,7 +172,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
                       setLoadingMore(true)
                       await load(loadedUntil!)
                       setLoadingMore(false)
-                    }} className="shrink-0 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-accent">
+                    }} className="shrink-0 snap-start rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                       {loadingMore ? "Loading…" : "Later dates"}
                     </button>
                   )}
@@ -169,7 +183,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
                   <h2 className="mb-2 text-sm font-medium">Pick a time</h2>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2">
                     {shownDay.slots.map((s) => (
-                      <Button key={s.start} variant="outline" className="tabular-nums hover:border-primary" onClick={() => setSlot(s)}>
+                      <Button key={s.start} variant="outline" className="font-normal tabular-nums hover:border-primary" onClick={() => setSlot(s)}>
                         {formatTime(s.start, tz)}
                       </Button>
                     ))}
@@ -266,8 +280,8 @@ function Confirmation({ booked, tz }: { booked: Booked; tz: string }) {
 
   return (
     <Centered>
-      <CalendarCheck className="h-10 w-10 text-primary" />
-      <h1 className="text-2xl font-semibold tracking-tight">You&apos;re booked</h1>
+      <CalendarCheck className="h-8 w-8 text-success" aria-hidden="true" />
+      <h1 className="text-2xl font-semibold">You&apos;re booked</h1>
       <p className="text-sm">
         <span className="block font-medium">{formatRange(booked.start, booked.end, tz)}</span>
         <span className="text-muted-foreground">{title}</span>

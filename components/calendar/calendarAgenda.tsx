@@ -1,7 +1,7 @@
 "use client";
 
 import { format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
-import { Calendar as CalendarIcon, ChevronRight, Plus } from "@/lib/icons";
+import { ChevronRight, Plus } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { calendarTone } from "@/lib/colors";
@@ -49,7 +49,6 @@ export function CalendarAgenda({
   if (days.length === 0) {
     return (
       <EmptyState
-        icon={CalendarIcon}
         tone="accent"
         title="Nothing coming up this month"
         description="Events you create and tasks with dates show up here."
@@ -70,8 +69,10 @@ export function CalendarAgenda({
         <section key={day.toISOString()} aria-label={dayLabel(day)}>
           <h2
             className={cn(
-              "sticky top-0 z-10 bg-background px-4 pb-1.5 pt-4 text-xs font-semibold uppercase tracking-wide",
-              isToday(day) ? "text-primary" : "text-muted-foreground",
+              // The day heads are sentence case, and today is told by weight,
+              // not by the accent: headings never take the accent.
+              "sticky top-0 z-10 bg-background px-4 pb-1.5 pt-4 text-xs",
+              isToday(day) ? "font-semibold text-foreground" : "font-medium text-muted-foreground",
             )}
           >
             {dayLabel(day)}

@@ -71,19 +71,19 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                      if (!item) return null;
                      if (item === 'CREATE_CARD') {
                          return (
-                            <div 
+                            <button
+                                type="button"
                                 onClick={onCreate}
                                 className={cn(
-                                    "group relative flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-transparent hover:border-primary/40 hover:bg-accent/30 transition duration-150 cursor-pointer h-64 md:h-72"
+                                    "group relative flex w-full flex-col items-center justify-center gap-2 border border-dashed border-border rounded-lg bg-transparent text-muted-foreground hover:border-input hover:bg-accent/40 hover:text-foreground transition-colors duration-150 h-64 md:h-72",
+                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                                 )}
                             >
-                                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
-                                    <Plus size={24} />
-                                 </div>
-                                 <span className="mt-3 text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">
+                                 <Plus className="h-5 w-5" aria-hidden="true" />
+                                 <span className="text-sm font-medium">
                                     Blank document
                                  </span>
-                            </div>
+                            </button>
                          )
                      }
                      return (

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { History, Clock, RotateCcw, Loader2 } from "@/lib/icons"
+import { History, RotateCcw, Loader2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
 
@@ -92,10 +92,9 @@ export function DocVersionHistoryDialog({ open, onOpenChange, docId }: DocVersio
               Loading history…
             </div>
           ) : snapshots.length === 0 ? (
-            <div className="flex flex-col items-center gap-1 py-8 text-center text-sm text-muted-foreground">
-              <Clock className="h-5 w-5" />
-              <span>No versions yet.</span>
-              <span className="text-xs">Versions are saved automatically as the document is edited.</span>
+            <div className="py-6 text-sm">
+              <p className="font-medium text-foreground">No versions yet</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">A version is saved as the document is edited.</p>
             </div>
           ) : (
             snapshots.map((snap) => (
