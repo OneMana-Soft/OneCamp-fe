@@ -1,9 +1,18 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest"
 // fireEvent rather than user-event: the latter is not a dependency of this repo.
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ReactNode } from "react"
 
 import GovernanceDrillCard, { StepRow } from "@/components/admin/GovernanceDrillCard"
 import type { DrillResult, DrillStep } from "@/services/governanceDrillService"
+
+// Marks the links next/link draws, so a test can tell an in-app link from a
+// plain <a> that reloads the whole app.
+vi.mock("next/link", () => ({
+    default: ({ children, ...props }: { children: ReactNode; href: string }) => (
+        <a data-next-link="" {...props}>{children}</a>
+    ),
+}))
 
 vi.mock("@/services/governanceDrillService", () => ({
   getDrillStatus: vi.fn(),
@@ -189,6 +198,16 @@ describe("governance drill card", () => {
     expect(link, "no link to the audit log").toBeTruthy()
     // The audit log has its own admin section; ?tab=settings#audit-log still resolves to it.
     expect(link?.getAttribute("href")).toContain("tab=audit")
+    // An in-app link: a plain <a> reloaded the whole app to open a tab of it.
+    expect(link?.hasAttribute("data-next-link")).toBe(true)
+    // A sentence, not a badge that reads as a label on something.
+    expect(screen.getByText("Each run writes its own rows.")).toBeTruthy()
+  })
+
+  it("is a section of the AI tab with its own heading", async () => {
+    vi.mocked(getDrillStatus).mockResolvedValue(seeded)
+    render(<GovernanceDrillCard />)
+    expect(await screen.findByRole("heading", { name: "Governance drill" })).toBeTruthy()
   })
 
   // A passing step must not carry a failure detail; that was a real bug in the

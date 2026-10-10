@@ -24,10 +24,10 @@
  * team may already have it.
  */
 
-import React, { useCallback, useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import React, { useCallback, useEffect, useId, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import {
     AlertTriangle,
     CheckCircle2,
@@ -38,6 +38,7 @@ import {
     ShieldCheck,
 } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { shortTime } from "@/lib/utils/date/shortDate"
 import { ChainPair } from "@/components/admin/ChainPair"
 import {
     getDrillStatus,
@@ -59,11 +60,13 @@ const AUDIT_LOG_HREF = "/app/admin?tab=audit#audit-log"
 function formatWhen(iso: string): string {
     if (!iso) return ""
     const d = new Date(iso)
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString()
+    return Number.isNaN(d.getTime()) ? "" : shortTime(d)
 }
 
+// One row of the steps list: the list draws the border, each row a hairline,
+// where every step used to be a bordered card of its own.
 export const StepRow: React.FC<{ step: DrillStep; index: number }> = ({ step, index }) => (
-    <li className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+    <li className="flex items-start gap-3 px-4 py-3">
         {step.ok ? (
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
         ) : (
@@ -152,19 +155,20 @@ const GovernanceDrillCard: React.FC = () => {
     const seeded = status?.seeded === true
     const forbidden = status?.forbidden_channel || "drill-finance"
     const allowed = status?.allowed_channel || "drill-engineering"
+    const headingId = useId()
 
+    // A section of the AI tab like the others: its heading and one line, with
+    // the tab's one primary action beside them, where it was a bordered card.
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <CardTitle className="text-base font-semibold">Governance drill
-                        </CardTitle>
-                        <CardDescription>
+        <section aria-labelledby={headingId} className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                        <h2 id={headingId} className="text-base font-semibold">Governance drill</h2>
+                        <p className="max-w-[65ch] text-sm text-muted-foreground text-pretty">
                             Ask an agent to post where the person behind it cannot, and watch what this
                             install does. The attempt is recorded before it is tried, so the refusal is
                             evidence rather than a claim.
-                        </CardDescription>
+                        </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                         {seeded ? (
@@ -183,12 +187,13 @@ const GovernanceDrillCard: React.FC = () => {
                             </Button>
                         )}
                     </div>
-                </div>
-            </CardHeader>
+            </div>
 
-            <CardContent className="space-y-4">
+            <div className="space-y-4">
                 {loading ? (
-                    <p className="text-sm text-muted-foreground">Checking whether the drill is set up…</p>
+                    <div role="status" aria-label="Checking whether the drill is set up">
+                        <SkeletonRows rows={2} avatar={false} lines={1} />
+                    </div>
                 ) : null}
 
                 {error ? (
@@ -248,7 +253,7 @@ const GovernanceDrillCard: React.FC = () => {
                             </div>
                         )}
 
-                        <ol className="space-y-2">
+                        <ol className="divide-y divide-border rounded-lg border border-border">
                             {result.steps.map((step, i) => (
                                 <StepRow key={step.name} step={step} index={i} />
                             ))}
@@ -281,9 +286,10 @@ const GovernanceDrillCard: React.FC = () => {
                                 <p className="mt-1.5 text-xs text-muted-foreground">
                                     Sequence numbers and hashes are the ones in the database, not rendered from this
                                     result.{" "}
-                                    <a className="underline underline-offset-2 hover:text-foreground" href={AUDIT_LOG_HREF}>
+                                    {/* In-app: a plain <a> reloaded the whole app to open a tab of it. */}
+                                    <Link className="underline underline-offset-2 hover:text-foreground" href={AUDIT_LOG_HREF}>
                                         Open the audit log
-                                    </a>{" "}
+                                    </Link>{" "}
                                     to find these rows, verify the whole chain, or export it and check the hashes
                                     somewhere that is not this page.
                                 </p>
@@ -317,14 +323,12 @@ const GovernanceDrillCard: React.FC = () => {
                                 )}
                                 Run it again
                             </Button>
-                            <Badge variant="outline" className="font-normal">
-                                every run writes its own rows
-                            </Badge>
+                            <p className="text-xs text-muted-foreground">Each run writes its own rows.</p>
                         </div>
                     </>
                 ) : null}
-            </CardContent>
-        </Card>
+            </div>
+        </section>
     )
 }
 
