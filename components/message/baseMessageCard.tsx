@@ -33,6 +33,7 @@ import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundar
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 import { SendStatus } from "@/components/message/sendStatus"
+import { usePrimeActions } from "@/components/message/primeActions"
 import { quoteBarClass } from "@/components/message/quoteBar"
 import type { SendState } from "@/lib/chat/pendingSend"
 
@@ -390,6 +391,9 @@ export const BaseMessageCard = React.memo(({
   // A message the server has not confirmed has no id to react to, reply to or
   // forward yet: its row offers only what its status line says.
   const showActions = !isMessageEditEnabled && !message.sendState && (actionsWanted || isDropdownOpen || isEmojiPickerOpen)
+  // The first row on the page builds the toolbar once, hidden, when the
+  // browser is idle, so the first hover is not its first run (primeActions).
+  const primingActions = usePrimeActions()
 
   return (
     <div
@@ -605,8 +609,8 @@ export const BaseMessageCard = React.memo(({
         </div>
         {/* After the message in the DOM, so Tab from the author's name reaches
             the message's own links first, then its actions. */}
-        {showActions && (
-          <div className="absolute right-3 top-1.5 z-10">
+        {(showActions || primingActions) && (
+          <div className="absolute right-3 top-1.5 z-10" hidden={!showActions} aria-hidden={!showActions || undefined}>
             <MessageDesktopHoverOptionsForMainChatAndChannel
               editMessage={() => setIsMessageEditEnabled(true)}
               deleteMessage={removePost}
