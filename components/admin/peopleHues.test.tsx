@@ -36,7 +36,7 @@ describe("the people group's hue", () => {
   it("draws an admin's avatar without an orange shield", () => {
     render(
       <AdminAdminList
-        admins={[{ user_uuid: "u1", user_name: "Priya Raman", user_email_id: "priya@kestrel.studio", user_deleted_at: ZERO }]}
+        admins={[{ user_uuid: "u1", user_name: "Priya Raman", user_email_id: "priya@kestrel.studio", user_profile_object_key: "", user_deleted_at: ZERO }]}
         onRemoveAdmin={vi.fn()}
         isSubmitting={false}
         onLoadMore={vi.fn()}
