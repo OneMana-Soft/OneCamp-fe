@@ -21,6 +21,7 @@ import {
 } from "@/services/guestService"
 import {
   GUEST_POLL_MS,
+  GuestBand,
   GuestComposer,
   GuestLinkGone,
   GuestMessageView,
@@ -28,6 +29,7 @@ import {
   GuestNotYet,
   GuestPanelPending,
   GuestTroubleNote,
+  GuestTypeTile,
   pollOutcome,
   useGuestName,
   useGuestPoll,
@@ -118,8 +120,11 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
 
   return (
     <main className="flex h-dvh flex-col bg-background">
+      <GuestBand />
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6">
-        <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <GuestTypeTile>
+          <FolderKanban />
+        </GuestTypeTile>
         <h1 className="min-w-0 flex-1 truncate font-semibold sm:flex-none">{view.project}</h1>
         <span className="shrink-0 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
         <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto" aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>

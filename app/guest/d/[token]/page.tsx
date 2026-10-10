@@ -4,7 +4,7 @@ import { use, useCallback } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestDocViewer } from "@/components/guest/GuestDocViewer";
 import { GuestDocComments } from "@/components/guest/GuestDocComments";
-import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestBand, GuestLinkGone, GuestNotYet, GuestTypeTile, useGuestAnswer } from "@/components/guest/guestUi";
 import { FileText, Eye, MessageSquare } from "@/lib/icons";
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
@@ -34,11 +34,12 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
 
     return (
         <div className="min-h-dvh w-full bg-background">
+            <GuestBand />
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
                 <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                        <FileText className="h-3.5 w-3.5" />
-                    </span>
+                    <GuestTypeTile>
+                        <FileText />
+                    </GuestTypeTile>
                     <h1 className="truncate">{session.title || "Shared document"}</h1>
                 </div>
                 <div className="flex items-center gap-3">

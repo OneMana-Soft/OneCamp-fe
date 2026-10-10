@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
 import {
   GUEST_POLL_MS as POLL_MS,
+  GuestBand,
+  GuestTypeTile,
   GuestComposer as Composer,
   GuestLinkGone,
   GuestMessageView as MessageView,
@@ -95,8 +97,11 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
 
   return (
     <main className="flex h-dvh flex-col bg-background">
+      <GuestBand />
       <header className="flex items-center gap-2 border-b px-4 py-3">
-        <Hash className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <GuestTypeTile>
+          <Hash />
+        </GuestTypeTile>
         <h1 className="truncate font-semibold">{channel}</h1>
         <span className="ml-auto text-xs text-muted-foreground">You&apos;re a guest</span>
         <MadeWithOneCamp surface="guest-channel" className="hidden sm:block" />

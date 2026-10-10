@@ -34,6 +34,8 @@ import {
 } from "@/services/guestService"
 import { retryingText, sendFailedText } from "@/services/publicApi"
 import { GUEST_NAME_MAX, guestWhen, useGuestAnswer, useGuestName } from "@/components/guest/guestUi"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface GuestDocCommentsProps {
   token: string
@@ -118,7 +120,9 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
           {comments.map((c) => (
             <li key={c.id} className="py-3">
               <div className="mb-1 flex items-center gap-2">
-                <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-2xs font-medium uppercase text-muted-foreground">
+                {/* Coloured as the app colours anyone without a photo: their
+                    hue's tint behind ink initials. */}
+                <span aria-hidden="true" className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-2xs uppercase", getAvatarFallbackClass(c.guest_name))}>
                   {(c.guest_name || "G").charAt(0)}
                 </span>
                 <span className="text-sm font-medium text-foreground">{c.guest_name}</span>

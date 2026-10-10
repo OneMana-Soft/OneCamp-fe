@@ -4,7 +4,7 @@ import { use, useState } from "react";
 import { VideoConference } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
 import { getGuestMeetingStatus, joinGuestMeeting } from "@/services/guestService";
-import { GuestCentered as Centered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestBand, GuestCentered as Centered, GuestLinkGone, GuestNotYet, GuestTypeTile, useGuestAnswer } from "@/components/guest/guestUi";
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
 import { Loader2, Video } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
@@ -105,9 +105,12 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
     // prejoin / joining
     return (
         <div className="relative min-h-dvh w-full bg-background">
+            <GuestBand />
             <div className="mx-auto flex max-w-md flex-col items-center px-4 pt-6">
                 <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Video className="h-4 w-4" />
+                    <GuestTypeTile>
+                        <Video />
+                    </GuestTypeTile>
                     Joining as a guest
                 </div>
                 {errorMsg && (
