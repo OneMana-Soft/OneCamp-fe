@@ -254,20 +254,20 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="flex-1 h-8 gap-1 border-warning/60 text-warning"
+                                className="flex-1 h-8 gap-1 border-warning/60 text-warning-ink"
                                 onClick={onConfigure}
                             >
                                 <AlertCircle className="h-3.5 w-3.5" /> Finish setup
                             </Button>
                         ) : (
-                            <span className="flex-1 inline-flex items-center gap-1 text-xs text-success font-medium">
+                            <span className="flex-1 inline-flex items-center gap-1 text-xs text-success-ink font-medium">
                                 <Check className="h-3.5 w-3.5" /> Installed
                             </span>
                         )}
                         <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-destructive"
+                            className="h-8 w-8 text-danger-ink"
                             onClick={onRemove}
                             disabled={busy}
                             aria-label={`Uninstall ${item.name}`}

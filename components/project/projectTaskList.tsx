@@ -375,7 +375,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                         <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs gap-1.5 rounded-full text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                            className="h-7 text-xs gap-1.5 rounded-full text-danger-ink hover:text-danger-ink border-destructive/30 hover:bg-destructive/10"
                             onClick={handleBulkUnlink}
                             disabled={bulkUnlinking}
                         >

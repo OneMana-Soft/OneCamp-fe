@@ -167,7 +167,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                           />
 
                             {error && (
-                                <p className="text-sm text-destructive">{error.message}</p>
+                                <p className="text-sm text-danger-ink">{error.message}</p>
                             )}
                         </>
                     )}
@@ -248,7 +248,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                             </Popover>
                             <div className='h-4'>
                               {error && (
-                                <p className="text-sm text-destructive">{error.message}</p>
+                                <p className="text-sm text-danger-ink">{error.message}</p>
                               )}
                             </div>
                           </>

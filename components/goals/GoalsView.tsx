@@ -30,7 +30,7 @@ const isStatus = (v: unknown): v is "open" | "closed" => v === "open" || v === "
 function Standing({ goal, now }: { goal: GoalSummary; now: number }) {
   if (goal.status !== "open") return <HealthPill health={goal.status} />
   if (checkInDue(goal, now)) {
-    return <span className="whitespace-nowrap text-xs font-medium text-warning">{goal.health ? "Check-in due" : "No check-in yet"}</span>
+    return <span className="whitespace-nowrap text-xs font-medium text-warning-ink">{goal.health ? "Check-in due" : "No check-in yet"}</span>
   }
   if (!goal.health) return <span className="whitespace-nowrap text-xs text-muted-foreground">No check-in yet</span>
   return <HealthPill health={goal.health} />
@@ -43,7 +43,7 @@ function Line({ goal, today, className }: { goal: GoalSummary; today: string; cl
     <span className={cn("text-xs text-muted-foreground", className)}>
       {measureLine(goal)}
       {" · "}
-      <span className={cn(late && "font-medium text-destructive")}>
+      <span className={cn(late && "font-medium text-danger-ink")}>
         {late ? "was due" : "due"} {dueLabel(goal.due_date)}
       </span>
     </span>
@@ -225,7 +225,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
             </ToggleGroupItem>
           </ToggleGroup>
           <SearchField value={query} onChange={setQuery} placeholder="Search goals or owners…" className={compact ? "-mx-3 w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]" : "w-72"} />
-          {due > 0 && !compact && <span className="text-xs text-warning">{due === 1 ? "1 goal needs a check-in" : `${due} goals need a check-in`}</span>}
+          {due > 0 && !compact && <span className="text-xs text-warning-ink">{due === 1 ? "1 goal needs a check-in" : `${due} goals need a check-in`}</span>}
           <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => setCreating(true)}>
             <Target className="h-4 w-4" />
             New goal

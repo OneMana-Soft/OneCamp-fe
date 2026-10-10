@@ -33,7 +33,7 @@ export function ProjectGlanceLine({ projectId, className }: { projectId: string;
       {parts.map((part, i) => (
         <span key={part.text}>
           {i > 0 && <span aria-hidden="true"> · </span>}
-          <span className={cn("tabular-nums", part.tone === "late" && "font-medium text-destructive")}>{part.text}</span>
+          <span className={cn("tabular-nums", part.tone === "late" && "font-medium text-danger-ink")}>{part.text}</span>
         </span>
       ))}
     </p>

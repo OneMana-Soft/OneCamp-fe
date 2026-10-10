@@ -28,13 +28,13 @@ const RISK_UI: Record<
   approval: {
     label: "Needs approval",
     hint: "Changes something: goes through approval unless you allow it explicitly.",
-    tone: "text-warning",
+    tone: "text-warning-ink",
     Icon: Lock,
   },
   destructive: {
     label: "Destructive",
     hint: "Irreversible change: always warned about, never run unattended.",
-    tone: "text-destructive",
+    tone: "text-danger-ink",
     Icon: AlertTriangle,
   },
 }

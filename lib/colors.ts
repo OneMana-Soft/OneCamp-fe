@@ -30,7 +30,7 @@ export const statusColors = {
   /** Presence. The same positive green as success — it always was emerald. */
   online: {
     solid: "bg-success",
-    text: "text-success",
+    text: "text-success-ink",
     bg: "bg-success/10",
     border: "border-success/20",
     ring: "ring-success/20",
@@ -38,7 +38,7 @@ export const statusColors = {
   },
   success: {
     solid: "bg-success",
-    text: "text-success",
+    text: "text-success-ink",
     bg: "bg-success/10",
     bgLight: "bg-success/5",
     border: "border-success/20",
@@ -47,19 +47,19 @@ export const statusColors = {
   },
   error: {
     solid: "bg-destructive",
-    text: "text-destructive",
+    text: "text-danger-ink",
     bg: "bg-destructive/10",
     border: "border-destructive/20",
   },
   warning: {
     solid: "bg-warning",
-    text: "text-warning",
+    text: "text-warning-ink",
     bg: "bg-warning/10",
     border: "border-warning/20",
   },
   info: {
     solid: "bg-info",
-    text: "text-info",
+    text: "text-info-ink",
     bg: "bg-info/10",
     border: "border-info/20",
   },

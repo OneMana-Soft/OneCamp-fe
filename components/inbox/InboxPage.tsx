@@ -219,7 +219,7 @@ export default function InboxPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </p>
         )}
-        {listError && <p className="p-4 text-sm text-destructive">{listError}</p>}
+        {listError && <p className="p-4 text-sm text-danger-ink">{listError}</p>}
         {threads && threads.length === 0 && !listError && (
           <p className="p-6 text-center text-sm text-muted-foreground">{applied ? "Nothing matches that search." : "Your inbox is empty."}</p>
         )}
@@ -291,7 +291,7 @@ export default function InboxPage() {
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {threadError && <p className="text-sm text-destructive">{threadError}</p>}
+            {threadError && <p className="text-sm text-danger-ink">{threadError}</p>}
             {!thread && !threadError && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Opening…

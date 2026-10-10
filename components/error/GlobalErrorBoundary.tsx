@@ -42,7 +42,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
         <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background text-foreground">
           <div className="flex flex-col items-center max-w-md text-center">
             <div className="p-4 mb-4 rounded-full bg-destructive/10">
-              <AlertCircle className="w-12 h-12 text-destructive" />
+              <AlertCircle className="w-12 h-12 text-danger-ink" />
             </div>
             <h1 className="mb-2 text-2xl font-bold tracking-tight">Something went wrong</h1>
             <p className="mb-6 text-muted-foreground">
@@ -50,7 +50,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
             </p>
             {process.env.NODE_ENV === "development" && (
               <div className="w-full p-4 mb-6 overflow-auto text-left rounded-lg bg-muted max-h-48">
-                <p className="mb-2 font-mono text-xs font-bold text-destructive">
+                <p className="mb-2 font-mono text-xs font-bold text-danger-ink">
                   {this.state.error?.name}: {this.state.error?.message}
                 </p>
                 <p className="font-mono text-2xs text-muted-foreground whitespace-pre">

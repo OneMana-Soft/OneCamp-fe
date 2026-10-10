@@ -79,7 +79,7 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
               <span className="tabular-nums">{formatDuration(total)}</span> logged
               {!!estimateMinutes && (
-                <span className={total > estimateMinutes * 60 ? "text-destructive" : undefined}>of {formatDuration(estimateMinutes * 60)}</span>
+                <span className={total > estimateMinutes * 60 ? "text-danger-ink" : undefined}>of {formatDuration(estimateMinutes * 60)}</span>
               )}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
             </Button>
@@ -179,7 +179,7 @@ function SpanForm({ entry, onSave, onCancel }: { entry?: TimeEntryView; onSave: 
           />
         </div>
       </div>
-      {duration !== "" && !minutes && <p className="text-xs text-destructive">Try &ldquo;45m&rdquo;, &ldquo;1h 30m&rdquo; or &ldquo;1:30&rdquo;, up to 24 hours.</p>}
+      {duration !== "" && !minutes && <p className="text-xs text-danger-ink">Try &ldquo;45m&rdquo;, &ldquo;1h 30m&rdquo; or &ldquo;1:30&rdquo;, up to 24 hours.</p>}
       <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you do? (optional)" aria-label="Note" maxLength={500} className="h-8" />
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-xs">

@@ -219,7 +219,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
       return null
     })
 
-  if (error) return <Centered><p className="text-sm text-destructive">{error}</p></Centered>
+  if (error) return <Centered><p className="text-sm text-danger-ink">{error}</p></Centered>
   if (!invoice || (!saved && !report)) return <Centered><Loader2 className="h-6 w-6 animate-spin text-primary" /></Centered>
 
   return (
@@ -327,7 +327,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
                   <Send className="h-4 w-4" />
                   Mark sent
                 </Button>
-                <Button variant="ghost" onClick={() => void remove()} disabled={busy} className="col-span-2 gap-2 text-destructive hover:text-destructive">
+                <Button variant="ghost" onClick={() => void remove()} disabled={busy} className="col-span-2 gap-2 text-danger-ink hover:text-danger-ink">
                   <Trash2 className="h-4 w-4" />
                   Delete draft
                 </Button>
@@ -343,7 +343,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
                   <Undo2 className="h-4 w-4" />
                   Back to draft
                 </Button>
-                <Button variant="ghost" onClick={() => void mark("void", "Voided")} disabled={busy} className="text-destructive hover:text-destructive">
+                <Button variant="ghost" onClick={() => void mark("void", "Voided")} disabled={busy} className="text-danger-ink hover:text-danger-ink">
                   Void
                 </Button>
               </div>
@@ -354,7 +354,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
                   <Undo2 className="h-4 w-4" />
                   Mark unpaid
                 </Button>
-                <Button variant="ghost" onClick={() => void mark("void", "Voided")} disabled={busy} className="text-destructive hover:text-destructive">
+                <Button variant="ghost" onClick={() => void mark("void", "Voided")} disabled={busy} className="text-danger-ink hover:text-danger-ink">
                   Void
                 </Button>
               </div>

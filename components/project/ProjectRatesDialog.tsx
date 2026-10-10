@@ -175,13 +175,13 @@ export function ProjectRatesDialog({
               </fieldset>
             )}
             {problem && (
-              <p role="alert" className="text-sm text-destructive">
+              <p role="alert" className="text-sm text-danger-ink">
                 {problem}
               </p>
             )}
             <DialogFooter className="gap-2 sm:justify-between">
               {saved?.set ? (
-                <Button type="button" variant="ghost" className="text-destructive" onClick={() => void stop()} disabled={busy}>
+                <Button type="button" variant="ghost" className="text-danger-ink" onClick={() => void stop()} disabled={busy}>
                   Stop billing this project
                 </Button>
               ) : (

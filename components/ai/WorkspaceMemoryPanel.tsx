@@ -145,8 +145,8 @@ const KIND_META: Record<
   { label: string; Icon: React.ComponentType<{ className?: string }>; dot: string; tint: string }
 > = {
   decision: { label: "Decision", Icon: Zap, dot: "bg-violet-500", tint: "text-violet-600 dark:text-violet-400" },
-  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-info" },
-  question: { label: "Open question", Icon: HelpCircle, dot: "bg-warning", tint: "text-warning" },
+  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-info-ink" },
+  question: { label: "Open question", Icon: HelpCircle, dot: "bg-warning", tint: "text-warning-ink" },
   glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-slate-400", tint: "text-slate-500" },
 }
 
@@ -576,7 +576,7 @@ function WorkspaceMemoryPanel({
             disabled={excludeBusy}
             className={`mt-2 inline-flex items-center gap-1.5 text-xs rounded-md px-2 py-1 border transition-colors ${
               excluded
-                ? "border-warning/40 text-warning bg-warning/5"
+                ? "border-warning/40 text-warning-ink bg-warning/5"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
             title={excluded ? "AI memory is paused for this channel" : "Pause AI memory capture for this channel"}
@@ -776,7 +776,7 @@ function MemoryRow({
           {due && (
             <span
               className={`inline-flex items-center gap-1 ${
-                due.overdue ? "text-destructive font-medium" : ""
+                due.overdue ? "text-danger-ink font-medium" : ""
               }`}
             >
               <Clock className="h-3 w-3" />
@@ -840,7 +840,7 @@ function MemoryRow({
             onSelect={handlePickDue}
             onClear={() => onSetDue("")}
             onOpenChange={setActionsPinned}
-            className={cn(due?.overdue && "border-destructive/40 text-destructive")}
+            className={cn(due?.overdue && "border-destructive/40 text-danger-ink")}
           />
         )}
         {isClosed ? (
@@ -862,7 +862,7 @@ function MemoryRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-success hover:text-success hover:bg-success/10"
+            className="h-7 gap-1 px-2 text-success-ink hover:text-success-ink hover:bg-success/10"
             disabled={busy}
             onClick={onResolve}
             title="Resolve"
@@ -940,7 +940,7 @@ function MemoryRow({
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={onDelete} className="text-danger-ink focus:text-danger-ink">
               <Trash2 className="h-4 w-4" />
               Delete
             </DropdownMenuItem>

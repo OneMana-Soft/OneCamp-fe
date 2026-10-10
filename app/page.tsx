@@ -54,8 +54,8 @@ function ssoMethodHint(method: string): string {
 // the theme's warning tint for one with something to do first; neutral for
 // one that is nobody's fault (cancelled, timed out).
 const REFUSAL_STYLE: Record<RefusalTone, { box: string; icon: string; Icon: typeof AlertCircle }> = {
-  error: { box: "border-destructive/30 bg-destructive/5", icon: "text-destructive", Icon: AlertCircle },
-  warning: { box: "border-warning/40 bg-warning/5", icon: "text-warning", Icon: AlertTriangle },
+  error: { box: "border-destructive/30 bg-destructive/5", icon: "text-danger-ink", Icon: AlertCircle },
+  warning: { box: "border-warning/40 bg-warning/5", icon: "text-warning-ink", Icon: AlertTriangle },
   neutral: { box: "border-border bg-muted", icon: "text-muted-foreground", Icon: Info },
 };
 
@@ -483,7 +483,7 @@ export default function SignUp() {
                       Sign in with a passkey
                     </Button>
                   )}
-                  {passkeyError && <p role="alert" className="pt-1 text-sm text-destructive">{passkeyError}</p>}
+                  {passkeyError && <p role="alert" className="pt-1 text-sm text-danger-ink">{passkeyError}</p>}
                 </div>
               )}
 
@@ -612,7 +612,7 @@ export default function SignUp() {
               </Button>
 
               {demoError && (
-                <p role="alert" className="text-sm text-destructive">{demoError}</p>
+                <p role="alert" className="text-sm text-danger-ink">{demoError}</p>
               )}
 
               <p className="text-xs text-muted-foreground">

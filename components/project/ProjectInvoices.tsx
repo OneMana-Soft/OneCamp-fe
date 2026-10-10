@@ -45,7 +45,7 @@ export function ProjectInvoices({ projectId }: { projectId: string }) {
       {isLoading ? (
         <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
       ) : isError ? (
-        <p className="text-sm text-destructive">{serverMessage(isError, "Couldn't load this project's invoices.")}</p>
+        <p className="text-sm text-danger-ink">{serverMessage(isError, "Couldn't load this project's invoices.")}</p>
       ) : invoices.length === 0 ? (
         <p className="text-sm text-muted-foreground">None saved yet. Make an invoice from this range&apos;s time, then save it to keep track of whether it&apos;s paid.</p>
       ) : (
@@ -66,7 +66,7 @@ export function ProjectInvoices({ projectId }: { projectId: string }) {
                   <span className="min-w-0 truncate text-muted-foreground" title={inv.client.name || undefined}>{inv.client.name || "No client named"}</span>
                   <span className={`text-right tabular-nums ${status === "void" ? "text-muted-foreground line-through" : ""}`}>{formatCents(inv.total_cents, inv.currency)}</span>
                   <span className="col-start-2 text-xs tabular-nums text-muted-foreground sm:col-start-auto sm:text-right">{status === "paid" || status === "void" ? `Issued ${shortDay(inv.issued_on)}` : `Due ${shortDay(inv.due_on)}`}</span>
-                  <span className={`inline-flex items-center justify-end gap-1.5 text-xs ${status === "overdue" ? "font-medium text-destructive" : "text-foreground"}`}>
+                  <span className={`inline-flex items-center justify-end gap-1.5 text-xs ${status === "overdue" ? "font-medium text-danger-ink" : "text-foreground"}`}>
                     <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[status]}`} />
                     {STATUS_LABEL[status]}
                   </span>

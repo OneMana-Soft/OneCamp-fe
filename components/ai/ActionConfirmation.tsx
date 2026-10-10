@@ -221,7 +221,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                     <div className={cn(
                                         "text-sm p-2.5 rounded-lg font-medium",
                                         "flex items-start gap-2",
-                                        executed.success ? "text-success bg-success/10" : "text-destructive bg-destructive/10"
+                                        executed.success ? "text-success-ink bg-success/10" : "text-danger-ink bg-destructive/10"
                                     )}>
                                         {/* Not colour-only: a failure carries an icon that means failure,
                                             which is information, not decoration. */}

@@ -241,7 +241,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
                 <FileArchive className="h-4 w-4" />
                 {file.name} · {readableBytes(file.size)}
                 {file.size > PRESIGN_THRESHOLD && (
-                  <span className="ml-1 text-info">
+                  <span className="ml-1 text-info-ink">
                     · uploads direct to storage
                   </span>
                 )}
@@ -257,7 +257,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
           )}
 
           <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs flex gap-2">
-            <AlertCircle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+            <AlertCircle className="h-4 w-4 text-warning-ink mt-0.5 shrink-0" />
             <p className="text-muted-foreground">
               Workspace exports include public channels only. DMs and private channels
               require a Corporate (Plus/Enterprise) export. The plan step will tell

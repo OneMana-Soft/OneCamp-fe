@@ -38,7 +38,7 @@ export function GlanceLine({ items, className }: { items: GlanceItem[]; classNam
           >
             <span className="tabular-nums font-medium">{i.count}</span> {i.count === 1 ? i.one : i.many}
           </Link>
-          {i.flag && <span className="text-destructive">, {i.flag}</span>}
+          {i.flag && <span className="text-danger-ink">, {i.flag}</span>}
         </span>
       ))}
     </p>

@@ -158,12 +158,12 @@ const McpServersCard = () => {
                         a URL, and its tool list is the one it last reported. It is
                         contributing none of them. */}
                     {s.auth_secret_unreadable && (
-                      <p className="text-2xs text-destructive">
+                      <p className="text-2xs text-danger-ink">
                         The stored secret cannot be decrypted, so this server is contributing no tools.
                         This usually means the AI_CONFIG_KEK setting changed. Edit the server and enter the secret again.
                       </p>
                     )}
-                    {s.last_error && <p className="text-2xs text-destructive">{s.last_error}</p>}
+                    {s.last_error && <p className="text-2xs text-danger-ink">{s.last_error}</p>}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
@@ -180,7 +180,7 @@ const McpServersCard = () => {
                       variant="ghost"
                       size="icon"
                       aria-label="Delete this server"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-8 w-8 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === s.id}
                       onClick={() => handleDelete(s)}
                       title="Remove"

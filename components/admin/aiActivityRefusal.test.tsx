@@ -26,7 +26,7 @@ describe("a refusal in the activity feed", () => {
       (s) => s.textContent === "refused by permissions",
     )
     expect(el, "no refused status rendered").toBeTruthy()
-    expect(el?.className).not.toContain("text-destructive")
+    expect(el?.className).not.toContain("text-danger-ink")
     expect(el?.className).toContain("text-primary")
   })
 
@@ -39,13 +39,13 @@ describe("a refusal in the activity feed", () => {
   it("still paints a real failure as one", () => {
     const { container } = render(<AIActivityRow item={item({ title: "ai.run", status: "failed" })} />)
     const el = Array.from(container.querySelectorAll("span")).find((s) => s.textContent === "failed")
-    expect(el?.className).toContain("text-destructive")
+    expect(el?.className).toContain("text-danger-ink")
   })
 
   it("treats an allowed call as the system working", () => {
     const { container } = render(<AIActivityRow item={item({ title: "mcp.tool_call.allowed", status: "allowed" })} />)
     const el = Array.from(container.querySelectorAll("span")).find((s) => s.textContent === "allowed")
-    expect(el?.className).toContain("text-success")
+    expect(el?.className).toContain("text-success-ink")
   })
 })
 

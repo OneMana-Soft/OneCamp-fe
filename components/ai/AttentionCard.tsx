@@ -159,7 +159,7 @@ function AttentionCard() {
     return (
       <div className="ai-panel" role="status">
         <div className="ai-panel-head">
-          <CircleCheck className="h-4 w-4 shrink-0 text-success" strokeWidth={1.75} aria-hidden="true" />
+          <CircleCheck className="h-4 w-4 shrink-0 text-success-ink" strokeWidth={1.75} aria-hidden="true" />
           <h2 className="text-sm font-medium text-foreground">Nothing needs you right now</h2>
         </div>
         <p className="px-4 pb-3 text-xs text-muted-foreground">
@@ -207,7 +207,7 @@ function AttentionCard() {
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                   <span
                     className={`inline-flex items-center gap-1 text-2xs ${
-                      overdue ? "text-destructive font-medium" : "text-muted-foreground"
+                      overdue ? "text-danger-ink font-medium" : "text-muted-foreground"
                     }`}
                   >
                     {overdue && <Clock className="h-3 w-3" />}

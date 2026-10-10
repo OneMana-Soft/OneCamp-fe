@@ -213,7 +213,7 @@ const ApiTokensCard = () => {
                       variant="ghost"
                       size="icon"
                       aria-label="Revoke this token"
-                      className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                      className="h-8 w-8 shrink-0 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === t.id}
                       onClick={() => handleRevoke(t)}
                       title="Revoke"
@@ -389,7 +389,7 @@ const ApiTokensCard = () => {
                   {boundAgent && (
                     <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs">
                       {boundAgentTools.length === 0 ? (
-                        <p className="text-destructive">
+                        <p className="text-danger-ink">
                           {boundAgent.name} has no tools enabled, so this token will not be able to
                           do anything. Enable tools on the agent first.
                         </p>

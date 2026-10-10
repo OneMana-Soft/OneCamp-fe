@@ -68,7 +68,7 @@ describe("writing a formula", () => {
     render(<Editing />)
     fireEvent.change(box(), { target: { value: "{Cost} * 2" } })
     await pause()
-    expect(screen.getByText(`There's no field called "Cost" (at character 1)`).className).toContain("text-destructive")
+    expect(screen.getByText(`There's no field called "Cost" (at character 1)`).className).toContain("text-danger-ink")
   })
 
   it("keeps only the answer to the latest draft", async () => {

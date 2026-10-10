@@ -200,7 +200,7 @@ function MCPServerCard() {
                             variant="outline"
                             className={
                                 stored.enabled
-                                    ? "text-2xs bg-success/10 text-success border-success/20"
+                                    ? "text-2xs bg-success/10 text-success-ink border-success/20"
                                     : "text-2xs bg-muted text-muted-foreground border-border"
                             }
                         >
@@ -307,7 +307,7 @@ function MCPServerCard() {
                         className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 p-3"
                         role="status"
                     >
-                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
                         <p className="text-xs leading-relaxed text-foreground/80">
                             Nothing selected, so agents would connect and find no tools. Choose at
                             least one group, or turn the switch off.
@@ -415,7 +415,7 @@ function MCPServerCard() {
                                 Deliberately does not guess a hostname. A plausible-looking wrong URL
                                 inside a block people copy without reading is worse than saying so.
                             */
-                            <p className="text-xs text-destructive">
+                            <p className="text-xs text-danger-ink">
                                 The endpoint URL can&apos;t be resolved because this build has no
                                 backend URL configured (NEXT_PUBLIC_BACKEND_URL). The path is{" "}
                                 <code className="rounded bg-muted px-1">/v1/mcp</code> on your API

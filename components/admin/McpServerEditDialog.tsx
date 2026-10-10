@@ -244,7 +244,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                   this field must not do: leaving it blank would look like a save and
                   change nothing. */}
               {editing && server?.auth_secret_unreadable && (
-                <p className="text-2xs text-destructive">
+                <p className="text-2xs text-danger-ink">
                   The stored secret cannot be decrypted and cannot be kept. Enter it again to make this server usable.
                 </p>
               )}
@@ -259,7 +259,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
             <Label htmlFor="mcp-enabled">Enabled</Label>
           </div>
 
-          {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+          {error && <p className="text-sm text-danger-ink" role="alert">{error}</p>}
 
           {/* Test connection (saved servers only) */}
           {editing && (
@@ -274,7 +274,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                 </Button>
               </div>
               {testError && (
-                <p className="flex items-center gap-1.5 text-xs text-destructive">
+                <p className="flex items-center gap-1.5 text-xs text-danger-ink">
                   <AlertTriangle className="h-3.5 w-3.5" /> {testError}
                 </p>
               )}

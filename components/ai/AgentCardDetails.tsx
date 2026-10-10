@@ -85,7 +85,7 @@ export function AgentCardDetails({ botUserId, fallback }: { botUserId: string; f
       {(card.description || !card.active) && (
         <div className="space-y-1.5">
           {!card.active && (
-            <p className="text-sm font-medium text-warning">Paused. It will not run until it is resumed.</p>
+            <p className="text-sm font-medium text-warning-ink">Paused. It will not run until it is resumed.</p>
           )}
           {card.description && <p className="text-sm leading-relaxed text-foreground">{card.description}</p>}
         </div>

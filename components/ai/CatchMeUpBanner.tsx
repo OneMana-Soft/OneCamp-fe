@@ -204,13 +204,13 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
             )}
 
             {error && (
-                <div className="flex items-center gap-2 text-sm text-destructive mt-2 pl-11">
+                <div className="flex items-center gap-2 text-sm text-danger-ink mt-2 pl-11">
                     <span>{error}</span>
                     <Button
                         variant="outline"
                         size="xs"
                         onClick={handleCatchMeUp}
-                        className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                        className="border-destructive/30 text-danger-ink hover:bg-destructive/10"
                     >
                         Retry
                     </Button>

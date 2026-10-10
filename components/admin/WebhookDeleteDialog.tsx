@@ -22,7 +22,7 @@ export default function WebhookDeleteDialog({ open, onOpenChange, onConfirm, web
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" /> Delete Webhook
+            <AlertTriangle className="h-5 w-5 text-danger-ink" /> Delete Webhook
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
             <p>Are you sure you want to delete <strong className="text-foreground">{webhook?.name}</strong>?</p>

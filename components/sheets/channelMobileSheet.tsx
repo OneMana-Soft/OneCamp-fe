@@ -156,7 +156,7 @@ export function ChannelMobileSheet({ open, onOpenChange, channelId }: SidePanelP
                             onClick={handleRemoveMember}
                             className={cn(
                                 "flex items-center gap-2 px-3 py-2 rounded-md w-full text-sm font-medium",
-                                "text-destructive hover:bg-destructive/10",
+                                "text-danger-ink hover:bg-destructive/10",
                                 "active:bg-destructive/15",
                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40",
                                 "transition-colors",

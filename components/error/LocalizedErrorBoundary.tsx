@@ -35,7 +35,7 @@ export class LocalizedErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-destructive/20 rounded-xl bg-destructive/5 text-center min-h-[120px]">
-          <div className="flex items-center space-x-2 text-destructive mb-2">
+          <div className="flex items-center space-x-2 text-danger-ink mb-2">
             <AlertCircle className="h-5 w-5" />
             <span className="font-semibold text-sm">{this.props.fallbackTitle || "Component crashed"}</span>
           </div>

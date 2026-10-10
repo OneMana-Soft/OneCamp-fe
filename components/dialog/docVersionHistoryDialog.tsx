@@ -33,7 +33,7 @@ interface DocVersionHistoryDialogProps {
 const REASON_META: Record<DocSnapshot["reason"], { label: string; className: string }> = {
   mass_delete: {
     label: "Before large deletion",
-    className: "bg-warning/10 text-warning border border-warning/20",
+    className: "bg-warning/10 text-warning-ink border border-warning/20",
   },
   manual: {
     label: "Before a restore",

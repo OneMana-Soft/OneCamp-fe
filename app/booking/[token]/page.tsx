@@ -58,7 +58,7 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
         <p className="text-sm text-muted-foreground">This meeting has already happened.</p>
       ) : (
         <>
-          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
           <Button
             variant="destructive"
             disabled={busy}

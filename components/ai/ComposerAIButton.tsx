@@ -147,7 +147,7 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
               onClick={dictation.toggle}
               className={
                 "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-60 " +
-                (recording ? "bg-destructive/10 text-destructive hover:bg-destructive/15" : "hover:bg-accent")
+                (recording ? "bg-destructive/10 text-danger-ink hover:bg-destructive/15" : "hover:bg-accent")
               }
             >
               {transcribing || micDownloading ? (

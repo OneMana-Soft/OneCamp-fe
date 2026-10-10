@@ -78,6 +78,16 @@ const PAIRS: Array<[string, string, number, string]> = [
   ["agent", "agent-muted", 4.5, "an agent's tag and initials on its tinted ground"],
   ["agent", "background", 4.5, "agent-coloured text on the page"],
   ["agent-foreground", "agent", 4.5, "a label on a solid agent surface"],
+  // A meaning as text is its -ink cut, never the fill: the light fills scored
+  // 4.27 (success) and 4.10 (warning) as small text on the page.
+  ["success-ink", "background", 4.5, "a success word on the page"],
+  ["warning-ink", "background", 4.5, "a warning word on the page"],
+  ["info-ink", "background", 4.5, "an info word on the page"],
+  ["danger-ink", "background", 4.5, "a danger word on the page"],
+  ["success-ink", "card", 4.5, "a success word on a card"],
+  ["warning-ink", "card", 4.5, "a warning word on a card"],
+  ["info-ink", "card", 4.5, "an info word on a card"],
+  ["danger-ink", "card", 4.5, "a danger word on a card"],
 ]
 
 describe.each(["light", "dark"] as const)("%s palette meets WCAG AA", (mode) => {
@@ -89,6 +99,31 @@ describe.each(["light", "dark"] as const)("%s palette meets WCAG AA", (mode) => 
       ratio,
       `${what}: --${fg} ${rgbToHex(a)} on --${bg} ${rgbToHex(b)} is ${ratio.toFixed(2)}:1, needs ${min}:1`,
     ).toBeGreaterThanOrEqual(min)
+  })
+})
+
+/** A colour at `alpha` over a ground, as `bg-success/15` paints it. */
+function over(fg: { r: number; g: number; b: number }, bg: { r: number; g: number; b: number }, alpha: number) {
+  const mix = (a: number, b: number) => Math.round(a * alpha + b * (1 - alpha))
+  return { r: mix(fg.r, bg.r), g: mix(fg.g, bg.g), b: mix(fg.b, bg.b) }
+}
+
+// Status pills and notices: the word in its -ink on its own fill's tint, up to
+// the 20% the app uses under text, over the page and over a card.
+describe.each(["light", "dark"] as const)("%s: a status word reads on its own tint", (mode) => {
+  it.each([
+    ["success-ink", "success"],
+    ["warning-ink", "warning"],
+    ["info-ink", "info"],
+    ["danger-ink", "destructive"],
+  ])("--%s on --%s", (ink, fill) => {
+    for (const ground of ["background", "card"]) {
+      for (const alpha of [0.1, 0.15, 0.2]) {
+        const tint = over(rgb(fill, mode), rgb(ground, mode), alpha)
+        const ratio = contrastRatio(rgb(ink, mode), tint)
+        expect(ratio, `--${ink} on --${fill} at ${alpha * 100}% over --${ground}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
   })
 })
 

@@ -75,9 +75,9 @@ const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
     <div className="rounded-lg border border-border bg-card px-3 py-2.5">
         <div className="flex items-start gap-2">
             {check.healthy ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
             ) : (
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
             )}
             <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
@@ -92,12 +92,12 @@ const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
                 {check.detail &&
                     (check.healthy ? (
                         // A note: true, worth knowing, and not a failure.
-                        <p className="mt-1.5 flex gap-1.5 rounded border border-warning/30 bg-warning/10 px-2 py-1 text-xs text-warning">
+                        <p className="mt-1.5 flex gap-1.5 rounded border border-warning/30 bg-warning/10 px-2 py-1 text-xs text-warning-ink">
                             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                             <span>{check.detail}</span>
                         </p>
                     ) : (
-                        <p className="mt-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs text-destructive">
+                        <p className="mt-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs text-danger-ink">
                             {check.detail}
                         </p>
                     ))}
@@ -137,7 +137,7 @@ const SystemCheckCard: React.FC = () => {
         if (loading && !report) return <Badge variant="outline">Checking…</Badge>
         if (error) {
             return (
-                <Badge variant="outline" className="border-warning/30 text-warning">
+                <Badge variant="outline" className="border-warning/30 text-warning-ink">
                     Unavailable
                 </Badge>
             )
@@ -146,14 +146,14 @@ const SystemCheckCard: React.FC = () => {
         if (total === 0) return <Badge variant="outline">No checks in this build</Badge>
         if (unhealthy > 0) {
             return (
-                <Badge className="border-destructive/30 bg-destructive/10 text-destructive">
+                <Badge className="border-destructive/30 bg-destructive/10 text-danger-ink">
                     <AlertTriangle className="mr-1 h-3.5 w-3.5" />
                     {unhealthy} of {total} need attention
                 </Badge>
             )
         }
         return (
-            <Badge className="border-success/30 bg-success/10 text-success">
+            <Badge className="border-success/30 bg-success/10 text-success-ink">
                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                 All {total} healthy
             </Badge>
@@ -195,7 +195,7 @@ const SystemCheckCard: React.FC = () => {
 
             <CardContent className="space-y-3">
                 {error && (
-                    <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                    <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-ink">
                         {error}
                     </p>
                 )}

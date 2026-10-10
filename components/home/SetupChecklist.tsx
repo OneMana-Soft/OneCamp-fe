@@ -163,7 +163,7 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                             </div>
                         ) : step.done ? (
                             <div className="flex items-center gap-3 py-2.5">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-success-ink" />
                                 <span className="text-sm text-muted-foreground line-through">
                                     {step.title}
                                 </span>

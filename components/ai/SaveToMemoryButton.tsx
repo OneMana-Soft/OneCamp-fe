@@ -39,8 +39,8 @@ const KIND_OPTIONS: {
   tint: string
 }[] = [
   { kind: "decision", label: "Decision", hint: "A choice the team made", Icon: Zap, tint: "text-violet-600 dark:text-violet-400" },
-  { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: CheckCircle2, tint: "text-info" },
-  { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: HelpCircle, tint: "text-warning" },
+  { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: CheckCircle2, tint: "text-info-ink" },
+  { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: HelpCircle, tint: "text-warning-ink" },
 ]
 
 interface SaveToMemoryButtonProps {

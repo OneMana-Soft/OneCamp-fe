@@ -210,7 +210,7 @@ function ReminderPicker({
             max={toLocalInput(max)}
             onChange={(e) => setValue(e.target.value)}
           />
-          {value && problem && <p className="text-xs text-destructive">{problem}</p>}
+          {value && problem && <p className="text-xs text-danger-ink">{problem}</p>}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel

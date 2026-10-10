@@ -59,7 +59,7 @@ export default function EmailProviderCard() {
                         <CardTitle className="text-base font-semibold">Sending</CardTitle>
                     </div>
                     {configured ? (
-                        <Badge className="gap-1 bg-success/10 text-success border-success/20">
+                        <Badge className="gap-1 bg-success/10 text-success-ink border-success/20">
                             <CheckCircle2 className="h-3 w-3" /> Email is on
                         </Badge>
                     ) : (

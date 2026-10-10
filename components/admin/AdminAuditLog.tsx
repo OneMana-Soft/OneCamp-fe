@@ -28,11 +28,11 @@ import {
 } from "@/services/settingsService"
 
 const CATEGORY_STYLES: Record<string, string> = {
-    settings: "bg-blue-500/10 text-info border-blue-500/20",
+    settings: "bg-blue-500/10 text-info-ink border-blue-500/20",
     integration: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
-    auth: "bg-warning/10 text-warning border-warning/20",
-    app: "bg-success/10 text-success border-success/20",
-    security: "bg-destructive/10 text-destructive border-destructive/20",
+    auth: "bg-warning/10 text-warning-ink border-warning/20",
+    app: "bg-success/10 text-success-ink border-success/20",
+    security: "bg-destructive/10 text-danger-ink border-destructive/20",
     // Agent activity: an agent acting for a person, including calls arriving over
     // MCP from outside the workspace. Visually distinct because "was this a human
     // or an agent on their behalf" is the first thing an auditor scans for.
@@ -87,9 +87,9 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                     // greyscale print of an audit export.
                     <p className="mt-1 text-xs">
                         {meta?.refused && (
-                            <span className="font-medium text-destructive">Refused: </span>
+                            <span className="font-medium text-danger-ink">Refused: </span>
                         )}
-                        <span className={meta?.refused ? "text-destructive/90" : "text-muted-foreground"}>
+                        <span className={meta?.refused ? "text-danger-ink/90" : "text-muted-foreground"}>
                             {reason}
                         </span>
                     </p>
@@ -103,14 +103,14 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                         field did not exist when they were written, and guessing
                         "human" would put an assertion into a compliance record
                         that nothing supports. */}
-                    {entry.actor_kind === "agent" && <span className="text-warning">agent · </span>}
+                    {entry.actor_kind === "agent" && <span className="text-warning-ink">agent · </span>}
                     {/* WHO STARTED IT, as distinct from whose authority it carried. A
                         row whose initiator nobody watched says so in a word, because
                         "ran on Priya's authority" and "ran while Priya was asleep" are
                         the same actor and different facts. Omitted, not defaulted, on
                         a row that never said. */}
                     {initiator && (
-                        <span className={unattendedKinds.has(initiator) ? "text-warning" : ""}>
+                        <span className={unattendedKinds.has(initiator) ? "text-warning-ink" : ""}>
                             {unattendedKinds.has(initiator) ? `${initiator}, nobody watching · ` : `${initiator} · `}
                         </span>
                     )}
@@ -260,7 +260,7 @@ export default function AdminAuditLog() {
                         {verifyResult && (
                             <Badge
                                 variant="outline"
-                                className={`text-2xs ${verifyResult.ok ? "text-success border-success/30" : "text-destructive border-destructive/30"}`}
+                                className={`text-2xs ${verifyResult.ok ? "text-success-ink border-success/30" : "text-danger-ink border-destructive/30"}`}
                                 title={verifyResult.message}
                             >
                                 {verifyResult.ok

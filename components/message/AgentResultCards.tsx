@@ -94,7 +94,7 @@ const ICONS: Record<ResultCardIcon, React.ComponentType<{ className?: string }>>
 }
 
 const ACCENTS: Record<ResultCardAccent, string> = {
-  success: "bg-success/10 text-success",
+  success: "bg-success/10 text-success-ink",
   primary: "bg-primary/10 text-primary",
   muted: "bg-muted text-muted-foreground",
 }

@@ -63,7 +63,7 @@ export function InvitePlaceholder({ userUUID, email, name }: { userUUID: string;
       {answer && (
         <p
           role={answer.tone === "error" ? "alert" : "status"}
-          className={answer.tone === "error" ? "text-xs text-destructive text-center max-w-[260px]" : "text-xs text-muted-foreground text-center max-w-[260px]"}
+          className={answer.tone === "error" ? "text-xs text-danger-ink text-center max-w-[260px]" : "text-xs text-muted-foreground text-center max-w-[260px]"}
         >
           {answer.text}
         </p>

@@ -250,7 +250,7 @@ export default function BoardPage() {
                   </DropdownMenuItem>
                 )}
                 {isOwner && (
-                  <DropdownMenuItem onClick={confirmDelete} className="text-destructive focus:text-destructive">
+                  <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
                     <Trash className="mr-2 h-4 w-4" />
                     Delete board
                   </DropdownMenuItem>
@@ -273,7 +273,7 @@ export default function BoardPage() {
           className={cn(
             "flex shrink-0 items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium",
             collabStatus === "offline"
-              ? "border-b border-warning/20 bg-warning/10 text-warning"
+              ? "border-b border-warning/20 bg-warning/10 text-warning-ink"
               : "border-b bg-muted/50 text-muted-foreground",
           )}
         >
@@ -399,7 +399,7 @@ export default function BoardPage() {
                     </DropdownMenuItem>
                   )}
                   {isOwner && (
-                    <DropdownMenuItem onClick={confirmDelete} className="text-destructive focus:text-destructive">
+                    <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
                       <Trash className="mr-2 h-4 w-4" />
                       Delete board
                     </DropdownMenuItem>

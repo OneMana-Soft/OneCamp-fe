@@ -49,9 +49,9 @@ export function sortAgentWork(items: ActiveWorkItem[]): ActiveWorkItem[] {
 }
 
 const AgentWorkStateIcon: React.FC<{ state: ActiveWorkState }> = ({ state }) => {
-  if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-warning" />
+  if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-warning-ink" />
   if (state === "stopping") return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-  if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+  if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-warning-ink" />
   return <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
 }
 
@@ -101,7 +101,7 @@ const AgentWorkRowUngated: React.FC<{
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-1.5">
           <span className="truncate text-sm font-medium">{item.agent_name}</span>
-          <span className={cn("text-2xs", meta.attention ? "font-medium text-warning" : "text-muted-foreground")}>
+          <span className={cn("text-2xs", meta.attention ? "font-medium text-warning-ink" : "text-muted-foreground")}>
             · {meta.label}
           </span>
           {!hideWhere && <span className="text-2xs text-muted-foreground/70">· {item.where}</span>}
@@ -161,7 +161,7 @@ const AgentWorkRowUngated: React.FC<{
             // so a hover-revealed control is simply an invisible, unreachable
             // one — the whole feature would be missing on mobile.
             "opacity-100 [@media(hover:hover)]:opacity-0",
-            "transition-opacity hover:bg-destructive/10 hover:text-destructive",
+            "transition-opacity hover:bg-destructive/10 hover:text-danger-ink",
             "[@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/40",
           )}

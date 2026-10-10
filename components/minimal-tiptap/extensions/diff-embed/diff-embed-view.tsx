@@ -117,8 +117,8 @@ export const DiffEmbedView: React.FC<{ node: { attrs: { diff?: string } } }> = (
             <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="flex items-center gap-3 border-b border-border/60 px-3 py-1.5 text-xs">
                     <span className="font-medium text-muted-foreground">Proposed change</span>
-                    <span className="font-mono text-success">+{added}</span>
-                    <span className="font-mono text-destructive">-{removed}</span>
+                    <span className="font-mono text-success-ink">+{added}</span>
+                    <span className="font-mono text-danger-ink">-{removed}</span>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse font-mono text-xs">

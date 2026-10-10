@@ -81,7 +81,7 @@ function TaskCard({ id }: { id: string }) {
   const parts: React.ReactNode[] = [
     t.task_custom_status_name || taskStatusLabel(t.task_status),
     displayNameOf(t.task_assignee),
-    dueOk ? <span key="due" className={overdue ? "text-destructive" : undefined}>due {format(due, "d MMM")}</span> : null,
+    dueOk ? <span key="due" className={overdue ? "text-danger-ink" : undefined}>due {format(due, "d MMM")}</span> : null,
     t.task_project?.project_name,
   ].filter(Boolean)
   return (

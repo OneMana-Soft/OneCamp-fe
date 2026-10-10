@@ -43,8 +43,8 @@ export function RunnerTestStatus({ probe }: { probe: RunnerProbe | null }) {
       role="status"
       className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-2xs ${
         probe.ok
-          ? "border-success/30 bg-success/5 text-success"
-          : "border-destructive/30 bg-destructive/5 text-destructive"
+          ? "border-success/30 bg-success/5 text-success-ink"
+          : "border-destructive/30 bg-destructive/5 text-danger-ink"
       }`}
     >
       {probe.ok ? (

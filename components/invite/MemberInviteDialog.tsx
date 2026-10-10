@@ -113,7 +113,7 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                                 aria-describedby={refusal ? "member-invite-refusal" : undefined}
                             />
                             {refusal && (
-                                <p id="member-invite-refusal" role="alert" className="text-sm text-destructive">{refusal}</p>
+                                <p id="member-invite-refusal" role="alert" className="text-sm text-danger-ink">{refusal}</p>
                             )}
                         </div>
                     </div>

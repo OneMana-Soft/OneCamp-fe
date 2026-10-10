@@ -65,9 +65,9 @@ function formatWhen(iso: string): string {
 export const StepRow: React.FC<{ step: DrillStep; index: number }> = ({ step, index }) => (
     <li className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
         {step.ok ? (
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
         ) : (
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
         )}
         <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2">
@@ -78,7 +78,7 @@ export const StepRow: React.FC<{ step: DrillStep; index: number }> = ({ step, in
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">{step.explain}</p>
             {step.detail ? (
-                <p className="mt-1.5 text-xs font-medium text-destructive">{step.detail}</p>
+                <p className="mt-1.5 text-xs font-medium text-danger-ink">{step.detail}</p>
             ) : null}
         </div>
     </li>
@@ -193,8 +193,8 @@ const GovernanceDrillCard: React.FC = () => {
 
                 {error ? (
                     <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                        <p className="text-sm text-destructive">{error}</p>
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
+                        <p className="text-sm text-danger-ink">{error}</p>
                     </div>
                 ) : null}
 
@@ -221,9 +221,9 @@ const GovernanceDrillCard: React.FC = () => {
                             line should read the right one. */}
                         {result.passed ? (
                             <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2.5">
-                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
                                 <div className="min-w-0">
-                                    <p className="text-sm font-medium text-success">
+                                    <p className="text-sm font-medium text-success-ink">
                                         The limit held, and the attempt is on the record.
                                     </p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -235,9 +235,9 @@ const GovernanceDrillCard: React.FC = () => {
                             </div>
                         ) : (
                             <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5">
-                                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
                                 <div className="min-w-0">
-                                    <p className="text-sm font-medium text-destructive">
+                                    <p className="text-sm font-medium text-danger-ink">
                                         This install did not do what it promises. Read the failing step below.
                                     </p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -291,7 +291,7 @@ const GovernanceDrillCard: React.FC = () => {
                         ) : null}
 
                         {!result.chain_ok && result.chain_message ? (
-                            <p className="text-xs font-medium text-destructive">{result.chain_message}</p>
+                            <p className="text-xs font-medium text-danger-ink">{result.chain_message}</p>
                         ) : null}
 
                         {/* Stated, not buried. A window proves the links inside it and

@@ -733,7 +733,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                         >
                           {on ? <Check className="h-3 w-3" /> : null}
                           {t.label}
-                          {t.write && <AlertTriangle className="h-3 w-3 text-warning" />}
+                          {t.write && <AlertTriangle className="h-3 w-3 text-warning-ink" />}
                         </button>
                       )
                     })}
@@ -784,7 +784,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
           {showMultiSourceNote && (
             <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning-ink" />
               <span>
                 This agent uses tools from multiple sources
                 {(() => {
@@ -945,7 +945,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 <Label className="text-xs">Run when…</Label>
                 {WITHDRAWN_EVENT_LABELS[eventType] && (
                   <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning-ink" />
                     <span className="text-pretty">
                       This agent was set to run when “{WITHDRAWN_EVENT_LABELS[eventType]}”. GitHub events no longer
                       set off agents: anyone who can write on the repository writes what they carry, so an agent can't
@@ -1124,7 +1124,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
           <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
             <Label className="flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5 text-warning" /> Autonomy for write actions
+              <AlertTriangle className="h-3.5 w-3.5 text-warning-ink" /> Autonomy for write actions
             </Label>
             <p className="text-xs text-muted-foreground -mt-1">
               How much this agent may do on its own. Reading and thinking always run automatically;
@@ -1286,7 +1286,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   </p>
                 )}
                 {agent?.agui_auth_unreadable && (
-                  <p className="text-xs text-destructive">
+                  <p className="text-xs text-danger-ink">
                     The stored secret cannot be read (usually the encryption key changed). Enter it again or the agent cannot run.
                   </p>
                 )}
@@ -1307,7 +1307,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       <span
                         className={cn(
                           "text-xs",
-                          aguiCheck.ok ? "text-success" : "text-destructive",
+                          aguiCheck.ok ? "text-success-ink" : "text-danger-ink",
                         )}
                       >
                         {aguiCheck.ok
@@ -1405,7 +1405,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             </div>
           </details>
 
-          {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+          {error && <p className="text-sm text-danger-ink" role="alert">{error}</p>}
 
           {/* Test panel (only for saved agents) */}
           {editing && (
@@ -1435,7 +1435,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     Status: <span className="capitalize">{outcome.status}</span> · {outcome.steps} step{outcome.steps === 1 ? "" : "s"}
                   </div>
                   {outcome.result && <MarkdownMessage content={outcome.result} className="text-sm text-foreground" />}
-                  {outcome.error && <p className="text-xs text-destructive">{outcome.error}</p>}
+                  {outcome.error && <p className="text-xs text-danger-ink">{outcome.error}</p>}
                 </div>
               )}
               {agent && <AgentEvalSection agentId={agent.id} />}

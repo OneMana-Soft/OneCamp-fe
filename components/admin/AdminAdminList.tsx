@@ -194,7 +194,7 @@ function AdminAdminRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
             onClick={() => onRemoveAdmin(admin.user_email_id!, admin.user_uuid)}
             disabled={isSubmitting || isSelf}
             aria-label={`Remove admin ${seed}`}

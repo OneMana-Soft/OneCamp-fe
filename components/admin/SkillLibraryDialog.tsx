@@ -242,7 +242,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="ml-auto text-destructive hover:text-destructive"
+                                        className="ml-auto text-danger-ink hover:text-danger-ink"
                                         onClick={() => setConfirmDelete(true)}
                                         disabled={saving}
                                     >

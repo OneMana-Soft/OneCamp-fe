@@ -71,7 +71,7 @@ function Stat({ label, value, note, alert }: { label: string; value: string | nu
     <div className="min-w-0 lg:px-5 lg:first:pl-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-2xl font-semibold">{value}</dd>
-      {note && <dd className={cn("mt-0.5 text-xs", alert ? "font-medium text-destructive" : "text-muted-foreground")}>{note}</dd>}
+      {note && <dd className={cn("mt-0.5 text-xs", alert ? "font-medium text-danger-ink" : "text-muted-foreground")}>{note}</dd>}
     </div>
   )
 }
@@ -105,7 +105,7 @@ function Counts({ counts, weeks }: { counts: ReportCounts; weeks: number }) {
   return (
     <span className="text-xs tabular-nums text-muted-foreground">
       {openOf(counts)} open
-      {counts.overdue > 0 && <span className="font-medium text-destructive"> · {counts.overdue} overdue</span>} · {counts.done} done in {weeks} weeks
+      {counts.overdue > 0 && <span className="font-medium text-danger-ink"> · {counts.overdue} overdue</span>} · {counts.done} done in {weeks} weeks
     </span>
   )
 }
@@ -252,7 +252,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   return (
     <div className="grid gap-4 pb-4" data-reports="" aria-busy={isLoading || undefined}>
       {controls}
-      {isError && <p className="text-xs text-destructive">The report couldn&apos;t refresh just now. These are the last numbers it had.</p>}
+      {isError && <p className="text-xs text-danger-ink">The report couldn&apos;t refresh just now. These are the last numbers it had.</p>}
       <dl className="grid grid-cols-2 gap-x-5 gap-y-4 border-y border-border/60 py-4 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-border/60">
         <Stat label="Open" value={report.open} note={report.overdue > 0 ? `${report.overdue} overdue` : "Nothing overdue"} alert={report.overdue > 0} />
         <Stat
@@ -376,7 +376,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
                       <span className="block h-full rounded-sm bg-muted-foreground" style={{ width: `${(100 * p.open) / priorityMax}%` }} />
                     </span>
                     <span className="text-xs tabular-nums text-muted-foreground">
-                      {p.open} open{p.overdue > 0 && <span className="font-medium text-destructive"> · {p.overdue} overdue</span>}
+                      {p.open} open{p.overdue > 0 && <span className="font-medium text-danger-ink"> · {p.overdue} overdue</span>}
                     </span>
                   </li>
                 ))}

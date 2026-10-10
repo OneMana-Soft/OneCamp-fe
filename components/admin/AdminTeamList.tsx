@@ -121,7 +121,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-success hover:text-success hover:bg-success/10"
+                          className="h-8 w-8 text-success-ink hover:text-success-ink hover:bg-success/10"
                           onClick={() => onUnDelete(team.team_uuid)}
                           disabled={isSubmitting}
                           aria-label={`Restore ${team.team_name}`}
@@ -137,7 +137,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          className="h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
                           onClick={() => onDelete(team.team_uuid)}
                           disabled={isSubmitting}
                           aria-label={`Delete ${team.team_name}`}

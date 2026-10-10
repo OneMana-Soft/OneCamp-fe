@@ -151,7 +151,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
           <button
             type="button"
             onClick={stop}
-            className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2.5 text-2xs font-medium normal-case tracking-normal text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/40 [@media(hover:hover)]:min-h-0 [@media(hover:hover)]:px-1.5 [@media(hover:hover)]:py-0.5"
+            className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2.5 text-2xs font-medium normal-case tracking-normal text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-danger-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/40 [@media(hover:hover)]:min-h-0 [@media(hover:hover)]:px-1.5 [@media(hover:hover)]:py-0.5"
             aria-label="Stop generating this answer"
           >
             <CircleStop className="h-3.5 w-3.5" />

@@ -98,7 +98,7 @@ const ToastAction = React.forwardRef<
       "transition-colors hover:bg-accent",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
       "disabled:pointer-events-none disabled:opacity-50",
-      "group-[.destructive]:border-destructive/40 group-[.destructive]:text-destructive",
+      "group-[.destructive]:border-destructive/40 group-[.destructive]:text-danger-ink",
       "group-[.destructive]:hover:bg-destructive/10",
       className,
     )}
@@ -135,7 +135,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
-    className={cn("text-sm font-semibold leading-tight group-[.destructive]:text-destructive", className)}
+    className={cn("text-sm font-semibold leading-tight group-[.destructive]:text-danger-ink", className)}
     {...props}
   />
 ))

@@ -10,7 +10,7 @@ export function BlockedBadge({ count, className }: { count?: number; className?:
   if (!count) return null
   const words = `Waiting on ${count} open ${count === 1 ? "task" : "tasks"}`
   return (
-    <span title={words} className={cn("inline-flex items-center gap-0.5 font-medium text-warning", className)}>
+    <span title={words} className={cn("inline-flex items-center gap-0.5 font-medium text-warning-ink", className)}>
       <Lock aria-hidden className="h-3 w-3" />
       <span aria-hidden>{count}</span>
       <span className="sr-only">{words}</span>

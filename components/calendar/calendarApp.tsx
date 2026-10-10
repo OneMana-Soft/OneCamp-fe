@@ -653,7 +653,7 @@ export function CalendarApp() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-8 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                                    className="h-8 text-danger-ink hover:bg-destructive/10 hover:text-danger-ink border-destructive/30"
                                     onClick={handleUnlinkGCal}
                                     disabled={post.isSubmitting}
                                 >

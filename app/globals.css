@@ -109,6 +109,12 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  /* The same meanings as TEXT: text-success-ink and the rest. See the :root
+     block for why text has its own cut. */
+  --color-success-ink: var(--success-ink);
+  --color-warning-ink: var(--warning-ink);
+  --color-info-ink: var(--info-ink);
+  --color-danger-ink: var(--danger-ink);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -259,6 +265,15 @@
   --warning-foreground: var(--color-amber-50);
   --info: oklch(0.5608 0.1782 260.27);
   --info-foreground: var(--color-blue-50);
+  /* The meanings as text (-ink), the storefront's own values (sharedTokens
+     .test.ts). The fills are for dots, bars and tints; as small text on the
+     page the success and warning fills scored 4.27:1 and 4.10:1, under AA's
+     4.5. These cuts are darker, and paletteContrast.test.ts holds each at 4.5
+     or more on the page, on a card and on its own tint. */
+  --success-ink: oklch(0.4668 0.1105 152.56);
+  --warning-ink: oklch(0.4940 0.1093 66.91);
+  --info-ink: oklch(0.4776 0.1597 260.88);
+  --danger-ink: oklch(0.4895 0.1765 20.19);
 
   /* line: hairlines, structure only. line-strong: input borders. */
   --border: oklch(0.9220 0.0042 271.37);
@@ -328,6 +343,12 @@
   --warning: oklch(0.8069 0.1373 78.17);
   --info: oklch(0.7156 0.1322 258.28);
   --destructive: oklch(0.6625 0.1926 22.29);
+  /* On a dark ground the fills already read as text, so the inks are the
+     fills, but for danger, which lifts to #FF8086 (the storefront's). */
+  --success-ink: oklch(0.7350 0.1362 159.28);
+  --warning-ink: oklch(0.8069 0.1373 78.17);
+  --info-ink: oklch(0.7156 0.1322 258.28);
+  --danger-ink: oklch(0.7457 0.1546 18.61);
   /* Dark text on the destructive surface: the red lifts in dark mode, and
      white on it fails AA. */
   --destructive-foreground: oklch(0.1682 0.0045 264.45);

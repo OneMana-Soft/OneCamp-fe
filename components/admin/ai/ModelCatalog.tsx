@@ -312,7 +312,7 @@ const CatalogCard: React.FC<{
           <p className="text-2xs font-mono text-muted-foreground truncate">{model.tag}</p>
         </div>
         {model.installed ? (
-          <Badge variant="outline" className="shrink-0 gap-1 border-success/40 text-success">
+          <Badge variant="outline" className="shrink-0 gap-1 border-success/40 text-success-ink">
             <Check className="h-3 w-3" /> Installed
           </Badge>
         ) : null}
@@ -348,7 +348,7 @@ const CatalogCard: React.FC<{
       {!model.installed && model.fit && model.fit !== "ok" && (
         <p
           className={`flex items-start gap-1 text-2xs ${
-            model.fit === "risky" ? "text-destructive" : "text-warning"
+            model.fit === "risky" ? "text-danger-ink" : "text-warning-ink"
           }`}
         >
           <AlertTriangle className="h-3 w-3 mt-px shrink-0" />
@@ -361,7 +361,7 @@ const CatalogCard: React.FC<{
         <div className="space-y-1">
           <div className="flex items-center justify-between text-2xs text-muted-foreground">
             <span className="truncate">{progress?.status || "working…"}</span>
-            <button type="button" onClick={cancel} className="hover:text-destructive flex items-center gap-0.5">
+            <button type="button" onClick={cancel} className="hover:text-danger-ink flex items-center gap-0.5">
               <X className="h-3 w-3" /> cancel
             </button>
           </div>
@@ -370,7 +370,7 @@ const CatalogCard: React.FC<{
           </div>
         </div>
       ) : model.installed ? (
-        <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-success">
+        <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-success-ink">
           <Check className="h-3.5 w-3.5 mr-1" /> Ready to use
         </Button>
       ) : (

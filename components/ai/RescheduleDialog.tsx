@@ -119,7 +119,7 @@ const RescheduleDialog: React.FC<{
                 {formatSlot(result.current_start, result.current_end)}
               </div>
               {result.conflict_count > 0 ? (
-                <div className="flex items-start gap-1.5 text-2xs text-warning">
+                <div className="flex items-start gap-1.5 text-2xs text-warning-ink">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                   <span>
                     {result.conflict_count} {result.conflict_count === 1 ? "person has" : "people have"} a
@@ -127,7 +127,7 @@ const RescheduleDialog: React.FC<{
                   </span>
                 </div>
               ) : (
-                <div className="text-2xs text-success">
+                <div className="text-2xs text-success-ink">
                   No conflicts right now, but you can still move it.
                 </div>
               )}
@@ -160,7 +160,7 @@ const RescheduleDialog: React.FC<{
                           <span className="block text-sm font-medium truncate">{formatSlot(c.start, c.end)}</span>
                           <span
                             className={`text-2xs ${
-                              c.all_free ? "text-success" : "text-warning"
+                              c.all_free ? "text-success-ink" : "text-warning-ink"
                             }`}
                           >
                             {c.all_free ? "All free" : `${c.free_count} of ${c.total} free`}

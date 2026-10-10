@@ -777,7 +777,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
           />
 
           {error && (
-            <p className="mt-1.5 text-xs text-destructive" role="alert">
+            <p className="mt-1.5 text-xs text-danger-ink" role="alert">
               {error}
             </p>
           )}
@@ -813,7 +813,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 </>
               ) : (
                 <>
-                  <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-warning">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-warning-ink">
                     <Sparkles className="h-3.5 w-3.5" />
                     A few details first
                   </div>
@@ -908,7 +908,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 disabled={isSubmitting}
               />
               {refineError && (
-                <p className="text-xs text-destructive" role="alert">
+                <p className="text-xs text-danger-ink" role="alert">
                   {refineError}
                 </p>
               )}

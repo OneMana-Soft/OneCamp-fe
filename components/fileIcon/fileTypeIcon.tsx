@@ -84,7 +84,7 @@ export function FileTypeIcon({
         // numbers
         case 'application/vnd.apple.numbers':
         case 'application/x-iwork-numbers-sffnumbers':
-            return <FileSpreadsheet className="text-success" size={size} />
+            return <FileSpreadsheet className="text-success-ink" size={size} />
         // powerpoint
         case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
         case 'application/vnd.ms-powerpoint.presentation.macroEnabled.12':
@@ -94,7 +94,7 @@ export function FileTypeIcon({
         case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
         case 'application/vnd.ms-excel.sheet.macroEnabled.12':
         case 'application/vnd.ms-excel':
-            return <FileSpreadsheet className="text-success" size={size} />
+            return <FileSpreadsheet className="text-success-ink" size={size} />
         // word
         case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
         case 'application/vnd.ms-word.document.macroEnabled.12':

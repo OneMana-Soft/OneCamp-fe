@@ -144,7 +144,7 @@ const DataSourcesCard = () => {
                       </Badge>
                       {!s.enabled && <Badge variant="secondary" className="text-2xs">Disabled</Badge>}
                       {!s.has_password && (
-                        <Badge variant="outline" className="gap-1 text-2xs text-warning">
+                        <Badge variant="outline" className="gap-1 text-2xs text-warning-ink">
                           <AlertTriangle className="h-2.5 w-2.5" /> no password
                         </Badge>
                       )}
@@ -187,7 +187,7 @@ const DataSourcesCard = () => {
                       variant="ghost"
                       size="icon"
                       aria-label="Delete this data source"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-8 w-8 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === s.id || !s.can_manage}
                       onClick={() => handleDelete(s)}
                       title="Remove"
@@ -270,7 +270,7 @@ const SchemaBrowser = ({ id }: { id: string }) => {
     )
   }
   if (error) {
-    return <p className="mt-2 text-xs text-destructive">{error}</p>
+    return <p className="mt-2 text-xs text-danger-ink">{error}</p>
   }
   if (!tables || tables.length === 0) {
     return <p className="mt-2 text-xs text-muted-foreground">No tables exposed.</p>

@@ -262,7 +262,7 @@ function BriefingCard() {
                           {it.due_at && (
                             <span
                               className={`inline-flex items-center gap-1 text-2xs ${
-                                overdue ? "text-destructive font-medium" : "text-muted-foreground"
+                                overdue ? "text-danger-ink font-medium" : "text-muted-foreground"
                               }`}
                             >
                               <Clock className="h-3 w-3" />

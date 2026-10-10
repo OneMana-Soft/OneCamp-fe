@@ -186,7 +186,7 @@ function NudgeBell() {
                                     >
                                         {/* A plain glyph, in warning only when it is urgent; an
                                             orange tile on every row spent the accent on decoration. */}
-                                        <span aria-hidden="true" className={cn("mt-0.5 shrink-0", n.priority > 0 ? "text-warning" : "text-muted-foreground")}>
+                                        <span aria-hidden="true" className={cn("mt-0.5 shrink-0", n.priority > 0 ? "text-warning-ink" : "text-muted-foreground")}>
                                             <Icon className="h-4 w-4" />
                                         </span>
                                         <div className="flex-1 min-w-0">

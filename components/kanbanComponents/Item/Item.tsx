@@ -200,7 +200,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                     )}
                     {inStatus && (
                         <span
-                            className={cn("inline-flex items-center gap-0.5 tabular-nums", inStatus.stale && "text-warning")}
+                            className={cn("inline-flex items-center gap-0.5 tabular-nums", inStatus.stale && "text-warning-ink")}
                             title={`In this status for ${inStatus.days} ${inStatus.days === 1 ? "day" : "days"}`}
                         >
                             <Clock className="h-3 w-3" />
@@ -212,7 +212,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                         <span
                             className={cn(
                                 "tabular-nums",
-                                isOverdue && "text-destructive",
+                                isOverdue && "text-danger-ink",
                             )}
                             title={format(dueDate, "PPP")}
                         >

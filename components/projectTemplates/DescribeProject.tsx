@@ -90,7 +90,7 @@ function DescribeProjectUngated({ onDrafted }: { onDrafted: (t: ProjectTemplate)
         {busy ? "Drafting the plan. On a small model this can take a minute or two." : "You'll see the plan before anything is made. Ctrl/⌘ Enter drafts it."}
       </p>
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-danger-ink">
           {error}
         </p>
       )}

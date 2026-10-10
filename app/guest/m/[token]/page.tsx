@@ -105,7 +105,7 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                     Joining as a guest
                 </div>
                 {errorMsg && (
-                    <p className="mb-2 text-sm text-destructive" role="alert">{errorMsg}</p>
+                    <p className="mb-2 text-sm text-danger-ink" role="alert">{errorMsg}</p>
                 )}
                 <PreJoin onJoin={handleJoin} username="" nameEditable joinLabel={phase === "joining" ? "Joining…" : "Join call"} />
             </div>

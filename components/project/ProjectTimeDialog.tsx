@@ -106,7 +106,7 @@ export function ProjectTimeDialog({
         {isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : error ? (
-          <p className="py-6 text-center text-sm text-destructive">{serverMessage(error, "Couldn't load the report. Try again.")}</p>
+          <p className="py-6 text-center text-sm text-danger-ink">{serverMessage(error, "Couldn't load the report. Try again.")}</p>
         ) : !report || report.entries === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No time logged in this range. Start a timer or add time from any task in the project.
@@ -127,7 +127,7 @@ export function ProjectTimeDialog({
                 {report.running === 1 ? "One timer is" : `${report.running} timers are`} still running and counted up to now.
               </p>
             )}
-            {report.truncated && <p className="text-xs text-destructive">This range has too many entries to add up at once. Pick a shorter one.</p>}
+            {report.truncated && <p className="text-xs text-danger-ink">This range has too many entries to add up at once. Pick a shorter one.</p>}
             {isAdmin && !priced && (
               <p className="text-xs text-muted-foreground">
                 Set the project&apos;s{" "}

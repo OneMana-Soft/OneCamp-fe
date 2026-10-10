@@ -214,7 +214,7 @@ function MyAIActivityCard() {
         ) : null}
 
         {error ? (
-          <p className="text-sm text-destructive" role="alert">
+          <p className="text-sm text-danger-ink" role="alert">
             {error}
           </p>
         ) : null}

@@ -151,7 +151,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
     )
   }
 
-  const tone = rate >= 90 ? "text-success" : rate >= 70 ? "text-warning" : "text-destructive"
+  const tone = rate >= 90 ? "text-success-ink" : rate >= 70 ? "text-warning-ink" : "text-danger-ink"
   return (
     <Badge variant="secondary" className={cn("text-2xs", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
       {rate}% tests
@@ -188,7 +188,7 @@ const AgentOutcomeBadge: React.FC<{ outcome?: AgentOutcome }> = ({ outcome }) =>
     )
   }
   const rate = Math.round(outcome.acceptance_rate * 100)
-  const tone = rate >= 80 ? "text-success" : rate >= 50 ? "text-warning" : "text-destructive"
+  const tone = rate >= 80 ? "text-success-ink" : rate >= 50 ? "text-warning-ink" : "text-danger-ink"
   return (
     <Badge
       variant="secondary"
@@ -333,8 +333,8 @@ const AgentsCard = () => {
                         </Badge>
                       )}
                       {a.run_in_background && <Badge variant="secondary" className="text-2xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
-                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-2xs text-warning">Approval</Badge>}
-                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-2xs text-warning">Plan-approve</Badge>}
+                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-2xs text-warning-ink">Approval</Badge>}
+                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-2xs text-warning-ink">Plan-approve</Badge>}
                       {(a.max_daily_tokens ?? 0) > 0 && (
                         <Badge variant="secondary" className="text-2xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
                       )}
@@ -397,7 +397,7 @@ const AgentsCard = () => {
                       variant="ghost"
                       size="icon"
                       aria-label="Delete this agent"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-8 w-8 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === a.id}
                       onClick={() => handleDelete(a)}
                       title="Delete"

@@ -951,7 +951,7 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
   return (
     <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-warning">
+        <h3 className="text-sm font-semibold text-warning-ink">
           {status.running ? "Rebuilding AI search index…" : "AI search index rebuilt"}
         </h3>
         <span className="text-xs text-muted-foreground">
@@ -1325,7 +1325,7 @@ const ContextWindowRow: React.FC<{
           className="w-40"
         />
         {invalid && (
-          <p className="text-xs text-destructive mt-1">Use 0 (default) or a value between 2048 and 1000000.</p>
+          <p className="text-xs text-danger-ink mt-1">Use 0 (default) or a value between 2048 and 1000000.</p>
         )}
       </div>
       <Button variant="outline"
@@ -1603,7 +1603,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
             </div>
           }
         />
-        <p className="text-xs text-warning">
+        <p className="text-xs text-warning-ink">
           Current index dimension: {config.embedding_dimension}. Switching to a model with a different
           dimension rebuilds the search index.
         </p>
@@ -2486,7 +2486,7 @@ function CodePRSection({
           minutes. In force now: {config.code_pr_effective_wall_minutes} min.
         </p>
         {wallInvalid && (
-          <p className="text-2xs text-destructive">
+          <p className="text-2xs text-danger-ink">
             Use 0 (default) or a value between {CODE_PR_MIN_WALL_MINUTES} and {CODE_PR_MAX_WALL_MINUTES}.
           </p>
         )}
@@ -2583,9 +2583,9 @@ function CodePRReliabilityCard() {
   const gradeBadge = (grade: string) => {
     switch (grade) {
       case "healthy":
-        return { label: "Healthy", cls: "bg-success/15 text-success" }
+        return { label: "Healthy", cls: "bg-success/15 text-success-ink" }
       case "needs_attention":
-        return { label: "Needs attention", cls: "bg-warning/15 text-warning" }
+        return { label: "Needs attention", cls: "bg-warning/15 text-warning-ink" }
       default:
         return { label: "Unproven", cls: "bg-muted text-muted-foreground" }
     }
@@ -2615,7 +2615,7 @@ function CodePRReliabilityCard() {
       </div>
 
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="text-xs text-danger-ink">{error}</p>
       ) : loading && !data ? (
         <p className="text-xs text-muted-foreground">Loading…</p>
       ) : !data || data.total === 0 ? (
@@ -2691,21 +2691,21 @@ function CodePRReliabilityCard() {
 function CodePRRunRow({ run }: { run: CodePRRunView }) {
   const badge = (() => {
     if (run.outcome === "merged" || run.outcome === "merged_with_edits") {
-      return { label: "Merged", cls: "bg-success/15 text-success" }
+      return { label: "Merged", cls: "bg-success/15 text-success-ink" }
     }
     if (run.outcome === "closed_unmerged") {
-      return { label: "Closed", cls: "bg-destructive/15 text-destructive" }
+      return { label: "Closed", cls: "bg-destructive/15 text-danger-ink" }
     }
     switch (run.status) {
       case "ok":
         return {
           label: run.draft ? "Draft PR" : "PR opened",
-          cls: "bg-blue-500/15 text-info",
+          cls: "bg-blue-500/15 text-info-ink",
         }
       case "blocked":
-        return { label: "Needs input", cls: "bg-warning/15 text-warning" }
+        return { label: "Needs input", cls: "bg-warning/15 text-warning-ink" }
       case "no_green":
-        return { label: "Unverified", cls: "bg-warning/15 text-warning" }
+        return { label: "Unverified", cls: "bg-warning/15 text-warning-ink" }
       default:
         return { label: run.status || "—", cls: "bg-muted text-muted-foreground" }
     }
@@ -2727,7 +2727,7 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
       </div>
       <div className="flex shrink-0 items-center gap-3 text-2xs text-muted-foreground">
         {run.all_passed ? (
-          <span className="text-success" title="Build & tests passed in the sandbox">
+          <span className="text-success-ink" title="Build & tests passed in the sandbox">
             ✓ verified
           </span>
         ) : null}

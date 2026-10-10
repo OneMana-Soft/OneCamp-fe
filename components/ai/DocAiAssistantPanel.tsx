@@ -314,7 +314,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                   <span className="text-muted-foreground animate-pulse">
                     AI is {state.action === 'write' ? 'writing' : 'thinking'}...
                   </span>
-                  <Button variant="ghost" onClick={handleCancel} className="h-auto p-0 text-xs text-muted-foreground hover:text-destructive mt-4 hover:bg-transparent">Stop Generation</Button>
+                  <Button variant="ghost" onClick={handleCancel} className="h-auto p-0 text-xs text-muted-foreground hover:text-danger-ink mt-4 hover:bg-transparent">Stop Generation</Button>
                 </div>
               ) : (
                 <div className="bg-muted/10 border border-border rounded-[20px] p-4 shadow-sm">
@@ -331,7 +331,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
-                        {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+                        {copied ? <Check className="h-3 w-3 text-success-ink" /> : <Copy className="h-3 w-3" />}
                       </button>
                       <button onClick={resetState} className="p-1.5 rounded-lg text-muted-foreground transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 hover:bg-accent/10 hover:text-foreground" title="Reset All">
                         <RotateCcw className="h-3 w-3" />
@@ -404,7 +404,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                         <div className="flex flex-col gap-2">
                         {state.hasJustReplaced ? (
                           <Button
-                            className="w-full h-auto p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-medium text-sm flex items-center justify-center transition duration-200 hover:bg-destructive/20 hover:border-destructive/40"
+                            className="w-full h-auto p-3 bg-destructive/10 border border-destructive/20 text-danger-ink rounded-xl font-medium text-sm flex items-center justify-center transition duration-200 hover:bg-destructive/20 hover:border-destructive/40"
                             onClick={handleUndo}
                           >
                             <RotateCcw className="h-4 w-4 mr-2" />
@@ -428,7 +428,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
         </AnimatePresence>
 
          {hookError && (
-          <div className="mt-4 bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex justify-between items-center text-destructive">
+          <div className="mt-4 bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex justify-between items-center text-danger-ink">
             <span className="text-xs">⚠️ {hookError}</span>
             <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-2xs underline hover:bg-transparent">Dismiss</Button>
           </div>

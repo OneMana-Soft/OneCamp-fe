@@ -127,7 +127,7 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
       </div>
 
       {status?.error && status.state === "failed" && (
-        <p className="text-xs text-destructive">{status.error}</p>
+        <p className="text-xs text-danger-ink">{status.error}</p>
       )}
 
       {status?.checks && status.checks.length > 0 && (
@@ -135,12 +135,12 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
           {status.checks.map((c, i) => (
             <li key={i} className="flex items-start gap-2 text-xs">
               {c.passed ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
               ) : (
-                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
               )}
               <span className="min-w-0">
-                <span className={c.passed ? "" : "text-destructive"}>{c.name}</span>
+                <span className={c.passed ? "" : "text-danger-ink"}>{c.name}</span>
                 {!c.passed && c.detail && <span className="block text-muted-foreground">{c.detail}</span>}
               </span>
             </li>

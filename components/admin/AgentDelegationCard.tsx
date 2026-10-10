@@ -117,7 +117,7 @@ function AgentDelegationCard() {
             className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 p-3"
             role="status"
           >
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
             <p className="text-xs leading-relaxed text-foreground/80">
               Turned off for this deployment (<code className="text-2xs">AI_AGENT_DELEGATION</code>).
               An operator has decided agents must not hand work to each other here, and that
@@ -162,7 +162,7 @@ function AgentDelegationCard() {
             do, then widen.
           </p>
           {enabledButNowhere && (
-            <p className="text-xs text-warning">
+            <p className="text-xs text-warning-ink">
               Nothing will happen until you name at least one place, or <code>*</code>.
             </p>
           )}

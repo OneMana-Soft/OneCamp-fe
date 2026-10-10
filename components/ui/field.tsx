@@ -62,7 +62,7 @@ export function Field({ label, help, error, required, className, children }: Fie
           {help}
         </p>
       )}
-      <p id={errorId} aria-live="polite" className={cn("text-xs font-medium text-destructive text-pretty", !error && "hidden")}>
+      <p id={errorId} aria-live="polite" className={cn("text-xs font-medium text-danger-ink text-pretty", !error && "hidden")}>
         {error}
       </p>
     </div>

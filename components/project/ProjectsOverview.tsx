@@ -55,7 +55,7 @@ function Glance({ p, className }: { p: ProjectOverview; className?: string }) {
       {parts.map((part, i) => (
         <span key={part.text}>
           {i > 0 && " · "}
-          <span className={cn(part.tone === "late" && "font-medium text-destructive")}>{part.text}</span>
+          <span className={cn(part.tone === "late" && "font-medium text-danger-ink")}>{part.text}</span>
         </span>
       ))}
     </span>
@@ -332,7 +332,7 @@ export function ProjectsOverview() {
             {summary.map((s, i) => (
               <span key={s.text}>
                 {i > 0 && " · "}
-                <span className={cn(s.tone === "late" && "font-medium text-destructive")}>{s.text}</span>
+                <span className={cn(s.tone === "late" && "font-medium text-danger-ink")}>{s.text}</span>
               </span>
             ))}
           </p>

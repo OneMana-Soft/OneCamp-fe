@@ -134,17 +134,17 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
                           </div>
                           <div>
                             {error && (
-                                <p className="text-xs md:text-sm text-destructive">{error.message}</p>
+                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
                             )}
                             {teamNameToCheck == field.value && isTeamNameAvailable?.exists === false && (
-                                <div className="flex items-center text-success">
+                                <div className="flex items-center text-success-ink">
                                   <CheckCircle className="w-4 h-4 mr-1"/>
                                   <span
                                       className="text-xs md:text-sm">Channel name is available</span>
                                 </div>
                             )}
                             {teamNameToCheck == field.value && isTeamNameAvailable?.exists === true && (
-                                <p className="text-xs md:text-sm text-destructive">Team name is already
+                                <p className="text-xs md:text-sm text-danger-ink">Team name is already
                                   taken</p>
                             )}
                           </div>

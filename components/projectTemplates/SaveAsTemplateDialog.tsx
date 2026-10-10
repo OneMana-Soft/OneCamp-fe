@@ -84,7 +84,7 @@ export function SaveAsTemplateDialog({ projectId, projectName, open, onOpenChang
             <Textarea id={aboutId} value={about} maxLength={TEMPLATE_LIMITS.about} rows={2} placeholder="A new client on a monthly retainer." onChange={(e) => setAbout(e.target.value)} />
           </div>
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-danger-ink">
               {error}
             </p>
           )}

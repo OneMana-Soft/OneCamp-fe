@@ -32,6 +32,11 @@ const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>>
     warning: [178, 107, 0],
     destructive: [209, 41, 61],
     info: [47, 111, 219],
+    // The meanings as text (the storefront's "-ink" cuts).
+    "success-ink": [23, 107, 58], // #176B3A
+    "warning-ink": [138, 83, 0], // #8A5300
+    "info-ink": [34, 87, 181], // #2257B5
+    "danger-ink": [174, 31, 51], // #AE1F33
   },
   dark: {
     brand: [255, 122, 51], // #FF7A33
@@ -54,6 +59,11 @@ const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>>
     warning: [240, 180, 76],
     destructive: [242, 85, 90],
     info: [110, 164, 245],
+    // On the dark ground the inks are the fills, but for danger.
+    "success-ink": [76, 195, 138],
+    "warning-ink": [240, 180, 76],
+    "info-ink": [110, 164, 245],
+    "danger-ink": [255, 128, 134], // #FF8086
   },
 }
 

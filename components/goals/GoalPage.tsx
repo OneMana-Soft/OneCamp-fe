@@ -85,7 +85,7 @@ function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boo
           ) : (
             <>
               {p.done} of {total} tasks done
-              {p.overdue > 0 && <span className="font-medium text-destructive"> · {p.overdue} overdue</span>}
+              {p.overdue > 0 && <span className="font-medium text-danger-ink"> · {p.overdue} overdue</span>}
             </>
           )}
         </p>
@@ -257,7 +257,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
                 <h1 className="font-display text-2xl font-semibold text-balance">{goal.title}</h1>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                   <GoalOwner owner={goal.owner} />
-                  <span className={cn(late && "font-medium text-destructive")}>
+                  <span className={cn(late && "font-medium text-danger-ink")}>
                     {open ? (late ? "Was due" : "Due") : "Was due"} {dueLabel(goal.due_date)}
                   </span>
                   {!open && <HealthPill health={goal.status} />}
@@ -283,7 +283,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
                     <DropdownMenuItem onSelect={() => setDialog("edit")}>Edit the goal</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setDialog("subgoal")}>Add a sub-goal</DropdownMenuItem>
                     {!open && <DropdownMenuItem onSelect={act(reopen, "Goal reopened")}>Reopen the goal</DropdownMenuItem>}
-                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleting(true)}>
+                    <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" onSelect={() => setDeleting(true)}>
                       Delete the goal
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -310,7 +310,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
               <p className="text-sm text-muted-foreground">{progressSource(goal)}</p>
             </div>
             {gap !== undefined && (
-              <p className={cn("text-sm font-medium", gap <= -25 ? "text-destructive" : gap <= -10 ? "text-warning" : "text-success")}>{paceLine(gap)}</p>
+              <p className={cn("text-sm font-medium", gap <= -25 ? "text-danger-ink" : gap <= -10 ? "text-warning-ink" : "text-success-ink")}>{paceLine(gap)}</p>
             )}
           </div>
           <GoalProgress goal={goal} showLabel={false} />

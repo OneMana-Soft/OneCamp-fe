@@ -781,7 +781,7 @@ const AiChatPanel: React.FC = () => {
                 )}
 
                 {error && (
-                    <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                    <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-danger-ink text-xs">
                         {error}
                     </div>
                 )}
@@ -827,7 +827,7 @@ const AiChatPanel: React.FC = () => {
                             className={cn(
                                 "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
                                 micRecording
-                                    ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    ? "text-danger-ink hover:text-danger-ink hover:bg-destructive/10"
                                     : "text-muted-foreground hover:text-primary",
                             )}
                             onClick={toggleDictation}
@@ -848,7 +848,7 @@ const AiChatPanel: React.FC = () => {
                             variant="ghost"
                             className={cn(
                                 "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
-                                "text-destructive hover:text-destructive hover:bg-destructive/10",
+                                "text-danger-ink hover:text-danger-ink hover:bg-destructive/10",
                             )}
                             onClick={cancelStream}
                             title="Stop generating"

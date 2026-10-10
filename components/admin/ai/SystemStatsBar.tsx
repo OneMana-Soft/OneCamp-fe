@@ -107,7 +107,7 @@ export const SystemStatsBar: React.FC<{ stats: SystemStats; onRefresh: () => voi
       )}
 
       {stats.warnings && stats.warnings.length > 0 && (
-        <p className="text-xs text-warning">
+        <p className="text-xs text-warning-ink">
           {stats.warnings.join("; ")}
         </p>
       )}

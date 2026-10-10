@@ -43,7 +43,7 @@ export function DrawerItem({
                 "active:bg-accent",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                 destructive
-                    ? "text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10"
+                    ? "text-danger-ink hover:bg-destructive/10 focus-visible:bg-destructive/10"
                     : "text-foreground hover:bg-accent/60 focus-visible:bg-accent/60",
                 disabled && "opacity-60 cursor-not-allowed pointer-events-none",
             )}
@@ -52,7 +52,7 @@ export function DrawerItem({
                 <Icon
                     className={cn(
                         "h-5 w-5 shrink-0",
-                        destructive ? "text-destructive" : "text-muted-foreground",
+                        destructive ? "text-danger-ink" : "text-muted-foreground",
                     )}
                     strokeWidth={1.75}
                 />
@@ -61,7 +61,7 @@ export function DrawerItem({
                 <span
                     className={cn(
                         "block text-sm font-medium leading-tight",
-                        destructive ? "text-destructive" : "text-foreground",
+                        destructive ? "text-danger-ink" : "text-foreground",
                     )}
                 >
                     {label}

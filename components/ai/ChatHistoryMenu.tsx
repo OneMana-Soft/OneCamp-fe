@@ -134,7 +134,7 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume }) => {
                                 type="button"
                                 onClick={(e) => remove(e, s.id)}
                                 aria-label={`Delete ${s.title || "conversation"}`}
-                                className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                                className="shrink-0 rounded p-1 text-muted-foreground hover:text-danger-ink"
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </button>

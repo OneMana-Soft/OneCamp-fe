@@ -163,7 +163,7 @@ const SignaturesPanel: React.FC<{ agentId: string }> = ({ agentId }) => {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 p-3 text-sm">
       <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className={cn("min-w-0 flex-1", result?.tone === "warn" && "text-destructive", result?.tone === "ok" && "text-foreground")}>
+      <span className={cn("min-w-0 flex-1", result?.tone === "warn" && "text-danger-ink", result?.tone === "ok" && "text-foreground")}>
         {result ? result.text : "Every action this agent records is signed with its own key."}
       </span>
       <Button variant="outline" size="sm" onClick={check} disabled={checking}>
@@ -385,7 +385,7 @@ const RoutinesPanel: React.FC<{
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 text-muted-foreground hover:text-danger-ink"
               disabled={busyId === r.id}
               onClick={() => confirmRemove(r)}
               aria-label="Cancel routine"
@@ -421,7 +421,7 @@ const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compa
         <span
           className={
             "inline-flex items-center gap-1 text-2xs uppercase tracking-wide " +
-            (compaction.rescue ? "text-warning" : "text-muted-foreground")
+            (compaction.rescue ? "text-warning-ink" : "text-muted-foreground")
           }
         >
           <Layers className="h-3 w-3" />
@@ -485,7 +485,7 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
             {gov ? (
               <Badge
                 variant="outline"
-                className="gap-1 border-warning/40 bg-warning/10 text-2xs text-warning"
+                className="gap-1 border-warning/40 bg-warning/10 text-2xs text-warning-ink"
               >
                 {gov.tone === "approval" ? <AlertTriangle size={10} /> : <ShieldAlert size={10} />}
                 {gov.label}
@@ -499,9 +499,9 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
           </div>
           <ToolParamsView params={tc.params} />
           {tc.result && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-foreground">{tc.result}</p>}
-          {tc.error && !gov && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-destructive">{tc.error}</p>}
+          {tc.error && !gov && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-danger-ink">{tc.error}</p>}
           {tc.skipped && (
-            <p className={"mt-1 text-2xs " + (gov ? "text-warning" : "text-muted-foreground")}>
+            <p className={"mt-1 text-2xs " + (gov ? "text-warning-ink" : "text-muted-foreground")}>
               {gov ? gov.label + ": " : "Skipped: "}{tc.skipped}
             </p>
           )}
@@ -563,7 +563,7 @@ const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> =
                   // mark in the product, and it has to keep meaning it in both
                   // themes.
                   changed || removed
-                    ? "border-warning/40 bg-warning/10 text-warning"
+                    ? "border-warning/40 bg-warning/10 text-warning-ink"
                     : "border-border bg-background text-muted-foreground",
                 )}
               >
@@ -606,7 +606,7 @@ export const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string
         <div className="space-y-3 border-t border-border/60 p-3">
           <RunProvenance run={run} current={currentSkills} />
           {run.error && (
-            <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{run.error}</p>
+            <p className="rounded-md bg-destructive/10 p-2 text-xs text-danger-ink">{run.error}</p>
           )}
           {steps.length === 0 ? (
             // Two very different reasons for an empty transcript, and saying the

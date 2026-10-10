@@ -119,7 +119,7 @@ export function InCallAIPanel({
                 {!statusLoading && !aiEnabled && (
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
                         <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-warning/10">
-                            <AlertCircle className="h-6 w-6 text-warning" />
+                            <AlertCircle className="h-6 w-6 text-warning-ink" />
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-white/90">AI is turned off</p>
@@ -182,7 +182,7 @@ export function InCallAIPanel({
                         <div className="flex justify-start">
                             <div className="max-w-[90%] rounded-2xl rounded-bl-sm bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90">
                                 {it.error ? (
-                                    <span className="text-destructive">{it.error}</span>
+                                    <span className="text-danger-ink">{it.error}</span>
                                 ) : it.answer ? (
                                     <MarkdownMessage content={it.answer} className="text-sm leading-relaxed" />
                                 ) : (

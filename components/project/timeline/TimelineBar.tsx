@@ -132,7 +132,9 @@ export const TimelineBar = memo(function TimelineBar({
       {!inside && (
         <span
           aria-hidden
-          className={cn("pointer-events-none absolute top-[7px] flex h-[22px] items-center gap-1 whitespace-nowrap text-xs", done ? "text-faint-foreground line-through" : late ? "text-destructive" : "text-muted-foreground")}
+          // A done task's name is struck through in secondary text, not the
+          // faint step (3.17:1, under AA): done is still read, not disabled.
+          className={cn("pointer-events-none absolute top-[7px] flex h-[22px] items-center gap-1 whitespace-nowrap text-xs", done ? "text-muted-foreground line-through" : late ? "text-danger-ink" : "text-muted-foreground")}
           style={{ left: left + width + after }}
         >
           {blocked > 0 && <Lock className="h-3 w-3 shrink-0" />}

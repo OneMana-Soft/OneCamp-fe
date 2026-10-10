@@ -117,9 +117,9 @@ const EvidencePackView: React.FC<{
                         }`}
                     >
                         {v.ok ? (
-                            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+                            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-hidden="true" />
                         ) : (
-                            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+                            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" aria-hidden="true" />
                         )}
                         <div className="min-w-0 text-sm">
                             <p className="font-medium">{v.message}</p>

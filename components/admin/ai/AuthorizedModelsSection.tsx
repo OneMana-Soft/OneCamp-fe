@@ -357,7 +357,7 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
                     onClick={() => handleRevoke(m)}
                     aria-label="Revoke model"
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Trash2 className="h-4 w-4 text-danger-ink" />
                   </Button>
                 </div>
               </div>

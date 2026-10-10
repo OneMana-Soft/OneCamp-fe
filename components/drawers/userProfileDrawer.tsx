@@ -69,7 +69,7 @@ function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps
                 "text-left text-sm font-medium transition-colors",
                 "active:bg-accent",
                 destructive
-                    ? "text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10"
+                    ? "text-danger-ink hover:bg-destructive/10 focus-visible:bg-destructive/10"
                     : "text-foreground hover:bg-accent/60 focus-visible:bg-accent/60",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             )}
@@ -77,7 +77,7 @@ function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps
             <Icon
                 className={cn(
                     "h-5 w-5 shrink-0",
-                    destructive ? "text-destructive" : "text-muted-foreground",
+                    destructive ? "text-danger-ink" : "text-muted-foreground",
                 )}
                 strokeWidth={1.75}
             />

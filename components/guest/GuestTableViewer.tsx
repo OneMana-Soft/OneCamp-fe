@@ -31,13 +31,13 @@ function optionColorClass(color?: string): string {
   // Map a stored option color to a subtle chip style; fall back to muted.
   switch ((color || "").toLowerCase()) {
     case "red":
-      return "bg-destructive/10 text-destructive"
+      return "bg-destructive/10 text-danger-ink"
     case "green":
-      return "bg-success/10 text-success"
+      return "bg-success/10 text-success-ink"
     case "blue":
       return "bg-blue-500/10 text-blue-700 dark:text-blue-300"
     case "yellow":
-      return "bg-warning/10 text-warning"
+      return "bg-warning/10 text-warning-ink"
     case "purple":
       return "bg-purple-500/10 text-purple-700 dark:text-purple-300"
     case "orange":
@@ -67,7 +67,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
       // words, a tick, or what went wrong.
       const result = computedOf(field).result
       const shown = showFormulaValue(value, result)
-      if (shown.kind === "error") return <span className="text-destructive" title={shown.message}>Error</span>
+      if (shown.kind === "error") return <span className="text-danger-ink" title={shown.message}>Error</span>
       return <span>{formulaText(value, result)}</span>
     }
 

@@ -266,7 +266,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
           {kindBadge(provider.kind)}
           {provider.has_api_key && <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> key set</Badge>}
           {needsKey && (
-            <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
+            <Badge variant="outline" className="gap-1 border-warning/40 text-warning-ink">
               <KeyRound className="h-3 w-3" /> key required
             </Badge>
           )}
@@ -282,7 +282,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
             healthy keyless endpoint while every request through it failed.
           */}
           {keyUnreadable && (
-            <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive">
+            <Badge variant="outline" className="gap-1 border-destructive/40 text-danger-ink">
               <KeyRound className="h-3 w-3" /> key unreadable
             </Badge>
           )}
@@ -365,7 +365,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                 arriving at this page to fix things deserves to see it first.
               */}
               {keyUnreadable && (
-                <p id={keyUnreadableHintId} className="text-2xs text-destructive">
+                <p id={keyUnreadableHintId} className="text-2xs text-danger-ink">
                   A key is stored but the server can no longer decrypt it, so this provider is
                   unusable. This normally means AI_CONFIG_KEK changed since the key was saved. Paste
                   the key again to fix it.
@@ -392,12 +392,12 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               Test connection
             </Button>
             {!provider.is_builtin && (
-              <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={confirmRemoveProvider}>
+              <Button size="sm" variant="ghost" className="text-danger-ink" disabled={busy} onClick={confirmRemoveProvider}>
                 <Trash2 className="h-4 w-4 mr-1" /> Remove
               </Button>
             )}
             {testState && (
-              <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-success" : "text-destructive"}`}>
+              <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-success-ink" : "text-danger-ink"}`}>
                 {testState.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
                 {testState.msg}
               </span>
@@ -433,7 +433,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                       <button
                         type="button"
                         aria-label={`Delete ${m.id}`}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-danger-ink"
                         onClick={() => setDeleteTarget(m.id)}
                       >
                         <X className="h-3 w-3" />
@@ -599,7 +599,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
           Test
         </Button>
         {testState && (
-          <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-success" : "text-destructive"}`}>
+          <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-success-ink" : "text-danger-ink"}`}>
             {testState.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
             {testState.msg}
           </span>

@@ -152,7 +152,7 @@ export function ConnectAuthorize() {
   if (phase.kind === "error") {
     return (
       <div className="space-y-3 text-center">
-        <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
+        <AlertCircle className="mx-auto h-10 w-10 text-danger-ink" />
         <h1 className="text-lg font-semibold">This sign-in can&apos;t continue</h1>
         <p className="text-sm text-muted-foreground">{phase.message}</p>
       </div>
@@ -253,7 +253,7 @@ export function ConnectAuthorize() {
       </fieldset>
 
       {actionError && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-danger-ink">
           {actionError}
         </p>
       )}

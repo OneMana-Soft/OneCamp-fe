@@ -99,7 +99,7 @@ export const TaskListTask = ({
                     {!isZeroEpoch(taskInfo.task_due_date) && (
                         <span className={cn(
                             "ml-auto shrink-0 text-xs tabular-nums text-muted-foreground",
-                            dd < new Date() && !isCompleted ? "text-destructive" : ""
+                            dd < new Date() && !isCompleted ? "text-danger-ink" : ""
                         )}>
                             {shortDate(dd)}
                         </span>

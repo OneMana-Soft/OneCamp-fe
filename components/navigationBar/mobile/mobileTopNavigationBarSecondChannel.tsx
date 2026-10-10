@@ -61,7 +61,7 @@ export function MobileTopNavigationBarSecondChannel({ channelUUID }: { channelUU
                 <Star
                     className={cn(
                         "h-4 w-4",
-                        isFavorite && "text-warning fill-warning",
+                        isFavorite && "text-warning-ink fill-warning",
                     )}
                 />
             </button>

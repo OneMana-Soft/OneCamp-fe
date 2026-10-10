@@ -63,19 +63,19 @@ export function TaskGitHubSection({
               <span className="text-sm font-medium">GitHub</span>
               <PRStatusBadge task={task} size="sm" />
               {syncStatus?.status === "failed" && (
-                <div className="flex items-center gap-1 text-destructive" title={syncStatus.error || "Sync failed"}>
+                <div className="flex items-center gap-1 text-danger-ink" title={syncStatus.error || "Sync failed"}>
                   <AlertCircle className="h-3.5 w-3.5" />
                   <span className="text-2xs font-medium">Sync failed</span>
                 </div>
               )}
               {syncStatus?.status === "pending" && (
-                <div className="flex items-center gap-1 text-warning">
+                <div className="flex items-center gap-1 text-warning-ink">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-warning" />
                   <span className="text-2xs font-medium">Syncing…</span>
                 </div>
               )}
               {syncStatus?.status === "synced" && (
-                <div className="flex items-center gap-1 text-success" title="Synced with GitHub">
+                <div className="flex items-center gap-1 text-success-ink" title="Synced with GitHub">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span className="text-2xs font-medium">Synced</span>
                 </div>
@@ -104,7 +104,7 @@ export function TaskGitHubSection({
                 </Button>
               )}
               {isAdmin && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={onUnlink}>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-danger-ink hover:text-danger-ink" onClick={onUnlink}>
                   Unlink
                 </Button>
               )}
@@ -284,7 +284,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
 
           {result.partial && (
             <div className="flex flex-col gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2">
-              <div className="flex items-center gap-1.5 text-2xs text-warning">
+              <div className="flex items-center gap-1.5 text-2xs text-warning-ink">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                 This is a large repo, so the agent could only see part of it. The fix may be incomplete.
               </div>

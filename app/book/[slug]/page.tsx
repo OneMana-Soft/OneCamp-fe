@@ -260,7 +260,7 @@ function GuestForm({
         <Textarea id="g-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} rows={3} className="resize-none" />
       </div>
       <SpamTrap id="g-website" value={website} onChange={setWebsite} />
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
       <Button type="submit" disabled={busy} className="justify-self-start">
         {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
         Book
@@ -280,7 +280,7 @@ function Confirmation({ booked, tz }: { booked: Booked; tz: string }) {
 
   return (
     <Centered>
-      <CalendarCheck className="h-8 w-8 text-success" aria-hidden="true" />
+      <CalendarCheck className="h-8 w-8 text-success-ink" aria-hidden="true" />
       <h1 className="text-2xl font-semibold">You&apos;re booked</h1>
       <p className="text-sm">
         <span className="block font-medium">{formatRange(booked.start, booked.end, tz)}</span>

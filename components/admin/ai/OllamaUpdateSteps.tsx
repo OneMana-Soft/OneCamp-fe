@@ -132,7 +132,7 @@ export function OllamaUpdateSteps({
   if (variant === "blocked") {
     return (
       <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
-        <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-warning-ink">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Ollama update required
         </p>
         <p className="text-2xs text-muted-foreground">

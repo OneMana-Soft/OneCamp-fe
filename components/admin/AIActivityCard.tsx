@@ -33,13 +33,13 @@ function statusTone(status?: string): string {
   switch (status) {
     case "succeeded":
     case "allowed":
-      return "text-success"
+      return "text-success-ink"
     case "refused":
       return "text-primary"
     case "failed":
-      return "text-destructive"
+      return "text-danger-ink"
     case "running":
-      return "text-warning"
+      return "text-warning-ink"
     default:
       return "text-muted-foreground"
   }
@@ -112,7 +112,7 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
           {initiatorLabel(it.initiator) && (
             <>
               <span>·</span>
-              <span className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning" : ""}>
+              <span className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning-ink" : ""}>
                 {initiatorLabel(it.initiator)}
               </span>
             </>

@@ -52,7 +52,7 @@ export function InvitationOutcome({ answer, email }: Props) {
 
   return (
     <div className="grid gap-2 py-2">
-      <p role={sent ? "status" : "alert"} className={sent ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
+      <p role={sent ? "status" : "alert"} className={sent ? "text-sm text-muted-foreground" : "text-sm text-danger-ink"}>
         {message}
       </p>
       {link && (

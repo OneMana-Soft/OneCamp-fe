@@ -284,10 +284,10 @@ const GitHubIntegrationCard = () => {
               <div className="flex items-center gap-2 flex-wrap shrink-0">
                 {isConnected ? (
                   <>
-                    <Badge className="gap-1 bg-success/10 text-success border-success/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
+                    <Badge className="gap-1 bg-success/10 text-success-ink border-success/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}><Link2 className="h-3.5 w-3.5" />Link Repo</Button>
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowConfigDialog(true)}><Settings2 className="h-3.5 w-3.5" />Credentials</Button>
-                    <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-danger-ink hover:text-danger-ink" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
                       <Unlink className="h-3.5 w-3.5" />Disconnect
                     </Button>
                   </>
@@ -301,7 +301,7 @@ const GitHubIntegrationCard = () => {
             </div>
 
             {isConnected && rateLimitData?.connected && (rateLimitData.percent || 100) < 20 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20 text-warning">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20 text-warning-ink">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <div className="text-xs">
                   <span className="font-medium">GitHub API rate limit low:</span> {rateLimitData.remaining} / {rateLimitData.limit} requests remaining. Sync operations may fail until the limit resets.
@@ -341,7 +341,7 @@ const GitHubIntegrationCard = () => {
                           <Button aria-label="Link settings" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSettingsLinkId(link.id)}>
                             <Settings2 className="h-3.5 w-3.5" />
                           </Button>
-                          <Button aria-label="Unlink repository" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                          <Button aria-label="Unlink repository" variant="ghost" size="icon" className="h-7 w-7 text-danger-ink hover:text-danger-ink"
                             onClick={() => dispatch(openUI({ key: "githubUnlink", data: { id: link.id, repo_owner: link.repo_owner, repo_name: link.repo_name } }))}>
                             <Unlink className="h-3.5 w-3.5" />
                           </Button>

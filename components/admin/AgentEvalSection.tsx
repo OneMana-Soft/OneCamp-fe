@@ -37,7 +37,7 @@ const ScoreBadge: React.FC<{ score?: EvalScore }> = ({ score }) => {
       </Badge>
     )
   }
-  const cls = score.passed ? "text-success" : "text-destructive"
+  const cls = score.passed ? "text-success-ink" : "text-danger-ink"
   return (
     <span className={cn("inline-flex items-center gap-1 text-2xs font-medium", cls)} title={`${score.score}% of checks met`}>
       {score.passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
@@ -204,7 +204,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
                   variant="ghost"
                   size="icon"
                   aria-label="Delete this evaluation"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  className="h-7 w-7 text-danger-ink hover:text-danger-ink"
                   onClick={() => handleDelete(s.id)}
                   title="Delete test"
                 >

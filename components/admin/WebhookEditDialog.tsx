@@ -183,7 +183,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
                 <SelectContent>
                   <SelectItem value={NO_CHANNEL_VALUE}>No channel</SelectItem>
                   {channelsError && (
-                    <div className="text-sm text-destructive px-2 py-2 text-center">Failed to load channels</div>
+                    <div className="text-sm text-danger-ink px-2 py-2 text-center">Failed to load channels</div>
                   )}
                   {!channelsError && channels.length === 0 && !channelsLoading && (
                     <div className="text-sm text-muted-foreground px-2 py-4 text-center">No channels available</div>

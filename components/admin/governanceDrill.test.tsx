@@ -200,6 +200,6 @@ describe("governance drill card", () => {
     const { container: bad } = render(<StepRow step={step({ ok: false, detail: "it went through" })} index={1} />)
     const detail = Array.from(bad.querySelectorAll("p")).find((p) => p.textContent === "it went through")
     expect(detail).toBeTruthy()
-    expect(detail?.className).toContain("text-destructive")
+    expect(detail?.className).toContain("text-danger-ink")
   })
 })

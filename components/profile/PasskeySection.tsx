@@ -75,7 +75,7 @@ export function PasskeySection() {
         )}
       </div>
 
-      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
 
       {keys && keys.length > 0 && (
         <ul className="grid gap-1">

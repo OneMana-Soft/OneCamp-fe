@@ -157,7 +157,7 @@ export default function TablesPage() {
                 variant="ghost"
                 size="icon"
                 aria-label="Delete this table"
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
                 disabled={busyId === t.id}
                 onClick={() => handleDelete(t)}
                 title="Delete"

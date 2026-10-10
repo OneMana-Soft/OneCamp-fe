@@ -79,7 +79,7 @@ const AgentActiveWorkPanel: React.FC = () => {
     <div className="mb-4 overflow-hidden rounded-xl border border-border/60 bg-card/40">
       <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
         <div className="rounded-md bg-warning/10 p-1">
-          <Loader2 className={cn("h-3.5 w-3.5 text-warning", loading && "animate-spin")} />
+          <Loader2 className={cn("h-3.5 w-3.5 text-warning-ink", loading && "animate-spin")} />
         </div>
         <h3 className="text-sm font-semibold">In progress</h3>
         <span className="text-2xs text-muted-foreground">

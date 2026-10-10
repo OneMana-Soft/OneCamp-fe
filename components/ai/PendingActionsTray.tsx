@@ -148,7 +148,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 className={
                                     "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full " +
                                     (destructive
-                                        ? "bg-warning/15 text-warning"
+                                        ? "bg-warning/15 text-warning-ink"
                                         : "bg-primary/10 text-primary")
                                 }
                             >
@@ -158,7 +158,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 <div
                                     className={
                                         "flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide " +
-                                        (destructive ? "text-warning" : "text-muted-foreground")
+                                        (destructive ? "text-warning-ink" : "text-muted-foreground")
                                     }
                                 >
                                     {destructive ? <AlertTriangle size={12} /> : <ShieldCheck size={12} />}

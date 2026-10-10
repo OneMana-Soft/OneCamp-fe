@@ -223,7 +223,7 @@ function WhileYouWereAwayCard({
 
         {error && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <p className="flex-1 min-w-0 text-xs text-destructive">{error}</p>
+            <p className="flex-1 min-w-0 text-xs text-danger-ink">{error}</p>
             <Button
               variant="outline"
               size="sm"

@@ -109,9 +109,9 @@ export const EvidenceReceipts: React.FC = () => {
                             className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 -mx-2 px-2 rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                             {r.chain_ok ? (
-                                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
+                                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success-ink" aria-hidden="true" />
                             ) : (
-                                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-danger-ink" aria-hidden="true" />
                             )}
                             <span className="text-sm font-medium">{receiptLabel(r)}</span>
                             <span className="text-xs text-muted-foreground">{receiptSummary(r)}</span>

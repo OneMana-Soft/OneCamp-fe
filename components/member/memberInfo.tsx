@@ -139,7 +139,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 className={cn(
                                     "h-8 w-8 transition-colors",
                                     userInfo.user_is_admin
-                                        ? "text-warning hover:text-warning"
+                                        ? "text-warning-ink hover:text-warning-ink"
                                         : "text-muted-foreground hover:text-foreground",
                                 )}
                                 onClick={handleCrownClick}
@@ -167,7 +167,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    className="h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
                                     onClick={handleLogOutClick}
                                     aria-label="Remove member"
                                 >

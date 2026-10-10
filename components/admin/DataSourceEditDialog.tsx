@@ -271,7 +271,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
               <div
                 id="ds-test-guidance"
                 role="note"
-                className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2 text-2xs text-warning"
+                className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2 text-2xs text-warning-ink"
               >
                 <Lock className="mt-px h-3.5 w-3.5 flex-shrink-0" />
                 <span>
@@ -301,7 +301,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
           </div>
 
           {visibility === "workspace" && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2 text-2xs text-warning">
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2 text-2xs text-warning-ink">
               <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
               <span>
                 A workspace-visible source is queryable by every member (and their agents) using this
@@ -320,7 +320,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-danger-ink">
               <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -332,8 +332,8 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
             className={
               "flex items-start gap-2 rounded-lg border p-2 text-xs " +
               (testResult.ok
-                ? "border-success/30 bg-success/5 text-success"
-                : "border-destructive/30 bg-destructive/5 text-destructive")
+                ? "border-success/30 bg-success/5 text-success-ink"
+                : "border-destructive/30 bg-destructive/5 text-danger-ink")
             }
           >
             {testResult.ok ? (
