@@ -89,6 +89,14 @@ describe("EmptyState", () => {
     expect(p.className).not.toContain("max-w-[45ch]")
   })
 
+  it("takes a heading level, h3 by default", () => {
+    render(<EmptyState title="Default level" />)
+    expect(screen.getByRole("heading", { name: "Default level", level: 3 })).toBeTruthy()
+    cleanup()
+    render(<EmptyState title="Page level" headingLevel={2} />)
+    expect(screen.getByRole("heading", { name: "Page level", level: 2 })).toBeTruthy()
+  })
+
   it("omits the icon entirely when no icon is given", () => {
     const { container } = render(<EmptyState title="No results" />)
     expect(container.querySelector("[data-empty-icon]")).toBeNull()
