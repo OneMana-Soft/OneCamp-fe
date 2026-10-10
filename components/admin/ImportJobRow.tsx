@@ -17,7 +17,8 @@
  * orange ones against the page's one primary action.
  */
 
-import React from "react"
+import React, { useEffect, useRef } from "react"
+import { celebrate, springPop } from "@/lib/celebrate"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { AlertTriangle, RefreshCw, RotateCcw, Trash2, Users } from "@/lib/icons"
@@ -73,8 +74,22 @@ export const PROVIDER_HUE: Record<string, CampHue> = {
 /** Where an import stands, as a tinted word. Shared by the Slack import card. */
 export function ImportStatusChip({ status }: { status: string }) {
   const s = STATUS[status] ?? STATUS.pending
+  const chip = useRef<HTMLSpanElement>(null)
+  // The status this chip last showed. A run that turns Finished while it is
+  // on screen is one of the playful layer's moments: a burst of camp sparks
+  // from the chip and a small pop (nothing under reduced motion). An import
+  // that loads finished (a reload, another visit) has no last status, and
+  // stays quiet: its news was told already.
+  const last = useRef<string | null>(null)
+  useEffect(() => {
+    if (status === "completed" && last.current !== null && last.current !== "completed") {
+      celebrate(chip.current)
+      springPop(chip.current)
+    }
+    last.current = status
+  }, [status])
   return (
-    <span className={cn("inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-2xs font-medium", TONE[s.tone])}>
+    <span ref={chip} className={cn("inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-2xs font-medium", TONE[s.tone])}>
       {s.label}
     </span>
   )
