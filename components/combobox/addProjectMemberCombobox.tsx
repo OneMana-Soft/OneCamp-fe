@@ -86,7 +86,7 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                 onClick={()=>{handleOnClick(value)}}
                 disabled={!value}
             >
-                Add Member
+                Add member
             </Button>
         </div>
 
