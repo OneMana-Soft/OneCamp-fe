@@ -20,9 +20,11 @@ const project = (uuid: string, name: string, members: string[] = ["Maya"]): Proj
 
 // The project list, as SWR has it: what the test sets, the same object until it changes.
 let projects: { data: Project[] } | undefined
+// The signed-in person (the self profile), for a form opened from My Tasks.
+let selfProfile: { data: { user_uuid: string } } | undefined
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: projects, isLoading: false, mutate: () => {} }),
-  useFetchOnlyOnce: () => ({ data: undefined }),
+  useFetchOnlyOnce: () => ({ data: selfProfile }),
 }))
 const send = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: send, isSubmitting: false }) }))
@@ -34,7 +36,7 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: fal
 import store from "@/store/store"
 import TaskCreateForm from "./taskCreateForm"
 
-const form = (props: { defaultProjectId?: string } = {}) => (
+const form = (props: { defaultProjectId?: string; assignToMe?: boolean } = {}) => (
   <Provider store={store}>
     <TaskCreateForm {...props} />
   </Provider>
@@ -45,10 +47,15 @@ const create = async () => {
 }
 const sentProject = () => (send.mock.calls.at(-1)?.[0] as { payload: { task_project_uuid: string } }).payload.task_project_uuid
 const pickerOpen = () => screen.queryByPlaceholderText("Select project…") !== null
+const sentPayload = () => (send.mock.calls.at(-1)?.[0] as { payload: Record<string, unknown> }).payload
+const pick = async (name: RegExp) => {
+  await act(async () => void fireEvent.click(screen.getByRole("option", { name })))
+}
 
 beforeEach(() => {
   send.mockReset()
   send.mockResolvedValue({ task_uuid: "t1" })
+  selfProfile = undefined
   localStorage.clear()
 })
 afterEach(() => {
@@ -133,6 +140,72 @@ describe("pressing Create with something missing", () => {
     expect(send).not.toHaveBeenCalled()
     expect(screen.getByText(/Must be a (valid )?GitHub/)).toBeTruthy()
     expect(document.activeElement).toBe(github)
+  })
+})
+
+// Create, pressed with only the project missing, opens the picker; picking
+// one there is the answer it asked for and finishes the create. The person
+// pressed Create once already, and had to press it again (the buyer journey
+// stopped there).
+describe("picking the project Create asked for", () => {
+  beforeEach(() => {
+    projects = { data: [project("p1", "Launch", ["Maya", "Sam"]), project("p2", "Roadmap", ["Maya", "Sam"])] }
+  })
+
+  it("finishes the create: one request, in the project picked", async () => {
+    render(form())
+    nameIt()
+    await create()
+    expect(pickerOpen()).toBe(true)
+    expect(send).not.toHaveBeenCalled()
+    await pick(/Roadmap/)
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    expect(sentProject()).toBe("p2")
+    expect(pickerOpen()).toBe(false)
+  })
+
+  it("from My Tasks, sends the task as yours, in a project you belong to", async () => {
+    selfProfile = { data: { user_uuid: "u-Sam" } }
+    render(form({ assignToMe: true }))
+    nameIt()
+    await create()
+    await pick(/Roadmap/)
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    // Not left to the effect that makes it yours: that runs after the pick
+    // has rendered, and the request would have gone without anyone on it.
+    expect(sentPayload().task_assignee_uuid).toBe("u-Sam")
+    expect(sentProject()).toBe("p2")
+  })
+
+  it("closing the picker without a pick sends nothing, and the next Create asks again", async () => {
+    render(form())
+    nameIt()
+    await create()
+    fireEvent.keyDown(screen.getByPlaceholderText("Select project…"), { key: "Escape" })
+    await waitFor(() => expect(pickerOpen()).toBe(false))
+    await create()
+    await act(async () => void fireEvent.pointerDown(document.body))
+    await waitFor(() => expect(pickerOpen()).toBe(false))
+    expect(send).not.toHaveBeenCalled()
+    await create()
+    await pick(/Launch/)
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    expect(sentProject()).toBe("p1")
+  })
+
+  it("a pick in the picker opened by hand only picks, until Create", async () => {
+    render(form())
+    nameIt()
+    await create()
+    await pick(/Roadmap/)
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    // Opened by hand now: the pick changes the project and sends nothing.
+    fireEvent.click(screen.getByRole("button", { name: /Roadmap/ }))
+    await pick(/Launch/)
+    expect(send).toHaveBeenCalledTimes(1)
+    await create()
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(sentProject()).toBe("p1")
   })
 })
 
