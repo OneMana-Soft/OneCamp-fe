@@ -8,6 +8,7 @@ import {UserDMInterface, UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
+import { hasServerIdElsewhere, indexOfEchoed, indexOfLocal, type PendingAccess } from "@/lib/chat/pendingSend";
 import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 
 
@@ -25,6 +26,16 @@ export function chatContentDiffers(a: ChatInfo, b: ChatInfo): boolean {
     return false;
 }
 
+
+
+// How a chat message is read for the pending-send helpers (lib/chat/pendingSend).
+export const CHAT_ACCESS: PendingAccess<ChatInfo> = {
+    localId: (c) => c.chat_local_id,
+    id: (c) => c.chat_uuid,
+    author: (c) => c.chat_from?.user_uuid,
+    html: (c) => c.chat_body_text,
+    state: (c) => c.chat_send_state,
+}
 
 interface ChatInputState {
     chatBody: string,
@@ -363,6 +374,56 @@ const chatSlice = createSlice({
             }
         },
 
+        // A message shown the moment Send is pressed, before the server has it
+        // (lib/chat/pendingSend). It carries its local id and "sending".
+        addPendingChat: (state, action: {payload: {dmId: string, chat: ChatInfo}}) => {
+            const { dmId, chat } = action.payload;
+            if (!state.chatMessages[dmId]) {
+                state.chatMessages[dmId] = [] as ChatInfo[]
+            }
+            state.chatMessages[dmId].push(chat)
+            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, dmId);
+        },
+
+        // The server has it: its id and time. If the realtime echo of it came
+        // first and was added as a message of its own, this one goes.
+        confirmPendingChat: (state, action: {payload: {dmId: string, localId: string, chatUUID: string, createdAt?: string}}) => {
+            const { dmId, localId, chatUUID, createdAt } = action.payload;
+            const list = state.chatMessages[dmId];
+            if (!list) return
+            const i = indexOfLocal(list, CHAT_ACCESS, localId);
+            if (i < 0) return
+            if (chatUUID && hasServerIdElsewhere(list, CHAT_ACCESS, chatUUID, i)) {
+                list.splice(i, 1)
+                return
+            }
+            const c = list[i]
+            if (chatUUID) c.chat_uuid = chatUUID
+            if (createdAt) c.chat_created_at = createdAt
+            c.chat_send_state = undefined
+        },
+
+        failPendingChat: (state, action: {payload: {dmId: string, localId: string}}) => {
+            const { dmId, localId } = action.payload;
+            const list = state.chatMessages[dmId];
+            const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
+            if (i >= 0) list[i].chat_send_state = "failed"
+        },
+
+        retryPendingChat: (state, action: {payload: {dmId: string, localId: string}}) => {
+            const { dmId, localId } = action.payload;
+            const list = state.chatMessages[dmId];
+            const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
+            if (i >= 0) list[i].chat_send_state = "sending"
+        },
+
+        removePendingChat: (state, action: {payload: {dmId: string, localId: string}}) => {
+            const { dmId, localId } = action.payload;
+            const list = state.chatMessages[dmId];
+            const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
+            if (i >= 0) list.splice(i, 1)
+        },
+
         createChat: (state, action: {payload: CreateChat}) => {
             const {chatId, chatText, chatCreatedAt, dmId, chatBy, chatTo, attachments, fwdChat, fwdPost, replyTo, addedLocally = false} = action.payload;
             // Ignore an out-of-order create delivered after this message's
@@ -373,6 +434,16 @@ const chatSlice = createSlice({
             }
 
             if (state.chatMessages[dmId].some(c => c.chat_uuid === chatId)) return;
+            // The echo of a message this tab is still sending: it becomes that
+            // message, in its place, rather than a second copy below it.
+            const echoed = !fwdPost && !fwdChat ? indexOfEchoed(state.chatMessages[dmId], CHAT_ACCESS, chatBy?.user_uuid, chatText) : -1;
+            if (echoed >= 0) {
+                const c = state.chatMessages[dmId][echoed]
+                c.chat_uuid = chatId
+                c.chat_created_at = chatCreatedAt
+                c.chat_send_state = undefined
+                return
+            }
             state.chatMessages[dmId].push({
                 chat_to: chatTo,
                 chat_from: chatBy,
@@ -769,6 +840,11 @@ const chatSlice = createSlice({
 });
 
 export const {
+    addPendingChat,
+    confirmPendingChat,
+    failPendingChat,
+    retryPendingChat,
+    removePendingChat,
     createOrUpdateChatBody,
     addChatPreviewFiles,
     deleteChatPreviewFiles,
