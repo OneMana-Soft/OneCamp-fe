@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { GuestChannelMessage } from "@/services/guestService"
 import { format } from "date-fns"
-import { shortTime } from "@/lib/utils/date/shortDate"
+import { fullDateTime, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
 import { publicTrouble, retryDelayMs, retryingText, type PublicResult, type PublicTrouble } from "@/services/publicApi"
 
 export const GUEST_POLL_MS = 5000
@@ -94,8 +94,20 @@ export function useGuestPoll(key: string, everyMs: number, tick: (first: boolean
   }, [key, everyMs])
 }
 
-/** "Fri 3:10 PM", in the app's one format. */
-export const guestWhen = (iso: string) => `${format(new Date(iso), "EEE")} ${shortTime(new Date(iso))}`
+const WEEK_MS = 6 * 24 * 60 * 60 * 1000
+
+/**
+ * When a guest message was written, in the app's one format: "Fri 3:10 PM"
+ * within the last few days, "3 Oct, 3:10 PM" once it is older (a weekday
+ * alone put a three-week-old comment in this week), with the year when it
+ * isn't this one. Pure given now.
+ */
+export function guestWhen(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso)
+  const age = now.getTime() - d.getTime()
+  if (age >= 0 && age < WEEK_MS) return `${format(d, "EEE")} ${shortTime(d)}`
+  return shortDateTime(d, now)
+}
 
 const nameKey = (token: string) => `oc_guest_name_${token.slice(0, 12)}`
 
@@ -144,7 +156,7 @@ export function GuestMessageView({ m }: { m: Pick<GuestChannelMessage, "author" 
     <article>
       <p className="flex items-baseline gap-2 text-sm">
         <span className="font-semibold">{m.author}</span>
-        <time className="text-xs text-muted-foreground" dateTime={m.created_at}>{guestWhen(m.created_at)}</time>
+        <time className="text-xs text-muted-foreground" dateTime={m.created_at} title={fullDateTime(new Date(m.created_at))}>{guestWhen(m.created_at)}</time>
       </p>
       <p className="whitespace-pre-wrap break-words text-sm">{m.text}</p>
     </article>
