@@ -54,11 +54,13 @@ describe("sign-in providers", () => {
     }
   })
 
-  it("reads each provider's status as words, not a pill with an icon", async () => {
+  // A dot and a word (the app's StatusWord), not a pill with an icon: the
+  // dot carries the colour and the word stays in ink.
+  it("reads each provider's status as a dot and a word, not a pill with an icon", async () => {
     http.get.mockResolvedValue({ data: { data: status } })
     render(<OAuthConfigCard />)
     const on = await screen.findByText("Set up")
-    expect(on.className).toMatch(/text-success-ink/)
+    expect(on.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
     expect(on.querySelector("svg")).toBeNull()
     expect(screen.getByText("Not set up")).toBeTruthy()
   })

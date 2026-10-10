@@ -26,10 +26,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { SettingsSection } from "@/components/ui/settingsSection"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
+import { cn } from "@/lib/utils/helpers/cn"
 import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { ConnectionSkeleton } from "@/components/admin/integrationParts"
 import { AlertTriangle, Copy, ExternalLink, Loader2, Unlink } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -56,6 +58,7 @@ const SlackBridgeCard: React.FC = () => {
     const confirm = useConfirm()
     const [status, setStatus] = useState<SlackBridgeStatus | null>(null)
     const [loadFailed, setLoadFailed] = useState(false)
+    const [loadError, setLoadError] = useState("")
     const [retrying, setRetrying] = useState(false)
     const [token, setToken] = useState("")
     const [secret, setSecret] = useState("")
@@ -74,7 +77,8 @@ const SlackBridgeCard: React.FC = () => {
         try {
             setStatus(await getSlackBridge())
             setLoadFailed(false)
-        } catch {
+        } catch (e) {
+            setLoadError(apiErrorMessage(e))
             setLoadFailed(true)
         }
     }, [])
@@ -208,7 +212,9 @@ const SlackBridgeCard: React.FC = () => {
     if (!status && loadFailed) {
         body = (
             <ErrorState
+                compact
                 subject="the Slack bridge"
+                detail={loadError || undefined}
                 retrying={retrying}
                 onRetry={() => {
                     setRetrying(true)
@@ -217,11 +223,7 @@ const SlackBridgeCard: React.FC = () => {
             />
         )
     } else if (!status) {
-        body = (
-            <div role="status" aria-label="Loading the Slack bridge" className="rounded-lg border border-border px-4 py-3">
-                <SkeletonRows rows={2} avatar={false} />
-            </div>
-        )
+        body = <ConnectionSkeleton label="Loading the Slack bridge" />
     } else if (!status.connected) {
         body = (
             <>
@@ -239,7 +241,7 @@ const SlackBridgeCard: React.FC = () => {
                             <span className="font-medium text-foreground">Install to Workspace</span>.
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            <Button asChild variant="outline" size="sm" className="h-8">
+                            <Button asChild variant="outline" size="sm" className={sectionActionClass}>
                                 <a href={status.manifest_url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink aria-hidden="true" /> Create the app in Slack
                                 </a>
@@ -247,7 +249,7 @@ const SlackBridgeCard: React.FC = () => {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8"
+                                className={sectionActionClass}
                                 onClick={() => void copy(status.manifest, "Paste it under “From a manifest” in Slack.")}
                             >
                                 <Copy aria-hidden="true" /> Copy the manifest
@@ -305,7 +307,7 @@ const SlackBridgeCard: React.FC = () => {
                         {/* The one filled button here: the step that connects. */}
                         <Button
                             size="sm"
-                            className="h-8"
+                            className={cn(sectionActionClass, "w-fit")}
                             onClick={() => void connect()}
                             disabled={!token.trim() || !secret.trim() || busy === "connect"}
                         >
@@ -325,15 +327,18 @@ const SlackBridgeCard: React.FC = () => {
         body = (
             <>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    {/* Words, like the sign-in providers beside it: connected, and to what. */}
-                    <p className="text-sm">
-                        <span className="font-medium text-success-ink">Connected</span> to{" "}
-                        <span className="font-medium">{status.team_name || "Slack"}</span>
-                    </p>
+                    {/* A dot and a word, like the sign-in providers beside it:
+                        connected, and to what. */}
+                    <StatusWord tone="success" className="text-sm">
+                        <span>
+                            <span className="font-medium">Connected</span> to{" "}
+                            <span className="font-medium">{status.team_name || "Slack"}</span>
+                        </span>
+                    </StatusWord>
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-8"
+                        className={sectionActionClass}
                         onClick={askDisconnect}
                         disabled={busy === "disconnect"}
                     >
@@ -396,7 +401,7 @@ const SlackBridgeCard: React.FC = () => {
                                 Slack channel
                             </Label>
                             <Select value={pickSlack} onValueChange={setPickSlack}>
-                                <SelectTrigger id="slack-link-slack" className="h-8">
+                                <SelectTrigger id="slack-link-slack" className="h-11 md:h-8">
                                     <SelectValue placeholder={slackChannels === null ? "Loading Slack channels…" : "Choose a channel"} />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -416,7 +421,7 @@ const SlackBridgeCard: React.FC = () => {
                                 OneCamp channel
                             </Label>
                             <Select value={pickOneCamp} onValueChange={setPickOneCamp}>
-                                <SelectTrigger id="slack-link-onecamp" className="h-8">
+                                <SelectTrigger id="slack-link-onecamp" className="h-11 md:h-8">
                                     <SelectValue placeholder="Choose a channel" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -433,7 +438,7 @@ const SlackBridgeCard: React.FC = () => {
                         </div>
                         <Button
                             size="sm"
-                            className="h-8"
+                            className={sectionActionClass}
                             onClick={() => void link()}
                             disabled={!pickSlack || !pickOneCamp || busy === "link"}
                         >

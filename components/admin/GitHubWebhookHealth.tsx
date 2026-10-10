@@ -26,11 +26,10 @@
  */
 
 import React from "react"
-import { Webhook } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ErrorState } from "@/components/ui/error-state"
+import { StatusWord } from "@/components/ui/statusWord"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useFetch } from "@/hooks/useFetch"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -82,16 +81,16 @@ const GitHubWebhookHealth: React.FC = () => {
   return (
     <section aria-labelledby="github-webhook-health" className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id="github-webhook-health" className="flex items-center gap-2 text-sm font-medium">
-          <Tile hue={ADMIN_GROUP_HUE.connections} size="sm"><Webhook /></Tile>
+        {/* No tile beside a title, like "Linked repositories" above it. */}
+        <h3 id="github-webhook-health" className="text-sm font-medium">
           Webhook deliveries
         </h3>
-        {/* Words in their ink, not a pill with an icon. */}
+        {/* A dot and a word, not a pill with an icon. */}
         {!isError && h && total > 0 && (
           h.failed_24h > 0 ? (
-            <span className="text-xs font-medium text-danger-ink">{h.failed_24h} failed in 24 hours</span>
+            <StatusWord tone="danger" className="text-xs font-medium">{h.failed_24h} failed in 24 hours</StatusWord>
           ) : (
-            <span className="text-xs font-medium text-success-ink">Healthy</span>
+            <StatusWord tone="success" className="text-xs font-medium">Healthy</StatusWord>
           )
         )}
       </div>
@@ -102,11 +101,9 @@ const GitHubWebhookHealth: React.FC = () => {
           <Skeleton className="h-3 w-1/2" />
         </div>
       ) : isError ? (
-        // Small and in place: the section around it still works.
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load the webhook deliveries.</p>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => void mutate()}>Try again</Button>
-        </div>
+        // In place, in the compact form every section's failed read takes:
+        // the section around it still works.
+        <ErrorState compact subject="the webhook deliveries" detail={apiErrorMessage(isError) || undefined} onRetry={() => void mutate()} />
       ) : (
         <>
           <p className="text-sm">{deliverySentence(h)}</p>
