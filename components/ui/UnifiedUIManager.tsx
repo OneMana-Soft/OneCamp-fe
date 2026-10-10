@@ -168,6 +168,9 @@ export function UnifiedUIManager() {
           title={ui.confirmAlert.data.title}
           description={ui.confirmAlert.data.description}
           confirmText={ui.confirmAlert.data.confirmText}
+          // useConfirm({ destructive: true }) puts this on the data; it was
+          // dropped here, so every "Delete…" confirm drew an orange button.
+          destructive={ui.confirmAlert.data.destructive === true}
           onConfirm={ui.confirmAlert.data.onConfirm}
           open={ui.confirmAlert.isOpen}
           onOpenChange={() => dispatch(closeUI('confirmAlert'))}
