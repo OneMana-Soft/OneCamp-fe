@@ -63,12 +63,13 @@ export default function InstantMeetingPage() {
                 <PreJoin
                     onJoin={handlePreJoin}
                     username={displayNameOf(selfProfile.data?.data) || ""}
+                    hueId={selfProfile.data?.data.user_uuid}
                     joinLabel={starting ? "Starting…" : "Start meeting"}
                     onCancel={handleDisconnect}
                 />
                 {starting && (
                     <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" />
                     </div>
                 )}
             </div>
@@ -79,7 +80,7 @@ export default function InstantMeetingPage() {
         <div className="relative h-full w-full">
             {/* Guest invite bar — copy the shareable link. */}
             <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 px-3">
-                <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1.5 shadow-md">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-1.5 shadow-overlay">
                     <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="hidden sm:inline text-xs text-muted-foreground">Invite a guest</span>
                     <Button size="sm" variant="secondary" className="h-7 gap-1.5 text-xs" onClick={copyLink}>

@@ -23,6 +23,8 @@ export { ArrowLeftRight, Columns2 } from "lucide-react";
 export { ChartGantt, CalendarOff, CirclePlus } from "lucide-react";
 // Goals: the view, a goal's page and its link from a project.
 export { Target } from "lucide-react";
+// Calls: the captions toggle (hub, 10 Oct 2026).
+export { Captions, CaptionsOff } from "lucide-react";
 // Single sign-on on the sign-in page: the organisation's own way in.
 export { Building2 } from "lucide-react";
 export {
