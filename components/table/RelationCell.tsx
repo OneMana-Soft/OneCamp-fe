@@ -118,7 +118,7 @@ export function RelationCell({
   }
 
   return (
-    <div className="flex min-h-8 flex-wrap items-center gap-1 px-1.5 py-1">
+    <div className={cn("relative flex min-h-8 flex-wrap items-center gap-1 px-1.5 py-1", !readOnly && refs.length > 0 && "pr-7")}>
       {refs.map((ref) =>
         ref.type === "more" ? (
           // The links past those a cell shows, counted.
@@ -126,7 +126,7 @@ export function RelationCell({
             {ref.label}
           </span>
         ) : (
-        <span key={ref.id} className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs">
+        <span key={ref.id} className="inline-flex max-w-full items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-xs">
           {ref.type === "row" && ref.table_id && !readOnly ? (
             <Link href={`/app/tables/${ref.table_id}`} className="hover:underline" title={`Open ${ref.label}'s table`}>
               {ref.label}
@@ -147,7 +147,13 @@ export function RelationCell({
         <PopoverTrigger asChild>
           <button
             aria-label="Add a link"
-            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-xs text-muted-foreground transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              // With links in the cell, the add control sits at its right edge
+              // and shows on the row under the pointer, so two links stay on one
+              // line instead of pushing the row to twice its height.
+              refs.length > 0 && "absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+            )}
           >
             <Plus className="h-3 w-3" /> {refs.length === 0 ? "Link" : ""}
           </button>
@@ -192,7 +198,7 @@ export function RelationCell({
                     )}
                   >
                     {ref.type !== "row" && (
-                      <span className="rounded bg-muted px-1 text-2xs uppercase text-muted-foreground">{ref.type}</span>
+                      <span className="shrink-0 text-2xs text-muted-foreground first-letter:uppercase">{ref.type}</span>
                     )}
                     <span className="min-w-0 flex-1 truncate">{ref.label}</span>
                   </button>

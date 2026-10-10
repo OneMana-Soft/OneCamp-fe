@@ -273,6 +273,16 @@
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 15%, transparent);
 }
 
+/* The doc's reading column. 37rem, less 2rem of padding a side, leaves a
+   33rem measure: about 75 characters of 15px Inter (measured at 7px a
+   character in the demo's docs), the top of the 65 to 75 a line of prose reads
+   best at. It was 48rem, about 95 characters, which made long paragraphs a
+   chore to track back across. The full-width toggle still opens the page out
+   for tables and wide images. */
+.doc-measure {
+  max-width: 37rem;
+}
+
 /* Doc editor layout */
 /* Doc editor layout — scoped to avoid leaking into chat/comment contexts */
 .minimal-tiptap-editor.doc-editor {
