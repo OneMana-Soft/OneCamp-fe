@@ -19,6 +19,7 @@ import { useDispatch } from "react-redux"
 import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
+import { SendStatus } from "@/components/message/sendStatus"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import {app_channel_path, app_user} from "@/types/paths"
@@ -229,15 +230,18 @@ const ChannelMessageMobileComponent = ({
 
     const postHref = `${app_channel_path}/${channelId}/${postInfo.post_uuid}`
 
+    // Not yet on the server: no thread to open and no actions, only its status.
+    const pending = !!postInfo.post_send_state
+
     const handleOnClick = useCallback((e: React.MouseEvent) => {
         // Prevent navigation if clicking on interactive elements
-        if ((e.target as HTMLElement).closest('button, a, .interactive')) return;
+        if (pending || (e.target as HTMLElement).closest('button, a, .interactive')) return;
         router.push(postHref);
-    }, [router, postHref]);
+    }, [router, postHref, pending]);
 
     return (
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
-            <div id={messageDomId(postInfo.post_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...longPressEvent}>
+            <div id={messageDomId(postInfo.post_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)}>
                 {continued && !isMessageEditEnabled ? (
                     <ContinuedGutter createdAt={postInfo.post_created_at} authorName={authorName} />
                 ) : (
@@ -278,7 +282,7 @@ const ChannelMessageMobileComponent = ({
                             />
                         </div>
                     )}
-                    <div className="break-words" onClickCapture={handleInternalLinkClick}>
+                    <div className={cn("break-words transition-opacity", postInfo.post_send_state === "sending" && "opacity-60 delay-300")} onClickCapture={handleInternalLinkClick}>
                         <MinimalTiptapTextInput
                             throttleDelay={300}
                             isOutputText={!isMessageEditEnabled}
@@ -346,7 +350,9 @@ const ChannelMessageMobileComponent = ({
                         </div>
                     )}
 
-                    {!isMessageEditEnabled && (
+                    <SendStatus state={postInfo.post_send_state} localId={postInfo.post_local_id} />
+
+                    {!isMessageEditEnabled && !pending && (
                         <BottomMenu
                             handleEmojiClick={handleEmojiClick}
                             reactions={reactions}

@@ -2,6 +2,7 @@
 
 // src/components/channel/ChannelMessages.tsx
 import { withContinuation } from "@/lib/messageGrouping"
+import { rowKey } from "@/lib/chat/pendingSend"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import { groupByDate } from "@/lib/utils/date/groupByDate"
 import { getGroupDateHeading } from "@/lib/utils/date/getMessageGroupDate"
@@ -310,7 +311,7 @@ export const ChannelMessages = ({
         const items: Array<FlatItem<PostsRes>> = []
         Object.keys(groupedPosts).forEach((date) => {
             items.push({ type: "separator", date, key: "separator" + date })
-            groupedPosts[date].forEach((post) => items.push({ type: "item", data: post, key: post.post_uuid }))
+            groupedPosts[date].forEach((post) => items.push({ type: "item", data: post, key: rowKey(post.post_local_id, post.post_uuid) }))
         })
 
         // Same author within five minutes: drawn as one turn (lib/messageGrouping).

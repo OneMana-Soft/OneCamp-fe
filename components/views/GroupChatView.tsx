@@ -5,63 +5,109 @@ import { displayNameOf } from "@/lib/personName"
 import { useMedia } from "@/context/MediaQueryContext";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {usePost} from "@/hooks/usePost";
 import {useScheduleMessage} from "@/hooks/useScheduledMessages";
 import {ScheduleSendContext} from "@/context/ScheduleSendContext";
-import {useDispatch, useSelector} from "react-redux";
+import {useDispatch, useSelector, useStore} from "react-redux";
 import {RootState} from "@/store/store";
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {ChatInfo, CreateChatMessagePaginationResRaw, CreateChatRes, CreateOrUpdateChatsReq} from "@/types/chat";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
+import {ChatInfo, CreateChatRes, CreateOrUpdateChatsReq} from "@/types/chat";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {ChatGrpIdDesktop} from "@/components/groupChat/chatGrpIdDesktop";
 import {GrpChatIdMobile} from "@/components/groupChat/grpChatIdMobile";
 import {
+    addPendingGroupChat,
     clearGroupChatInputState,
+    confirmPendingGroupChat,
+    failPendingGroupChat,
+    removePendingGroupChat,
     restoreUnsentGroupChatMessage,
-    createGroupChat,
-    LocallyCreatedGrpInfoInterface,
+    retryPendingGroupChat,
     updateGroupChatScrollToBottom,
     ChatInputState, UpdateGrpChatLocally
 } from "@/store/slice/groupChatSlice";
 import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/chatSlice";
 import {resetUserChatUnread} from "@/store/slice/userSlice";
 import { clearChatUnread } from "@/services/unreadCache";
-import {useEffect, useRef} from "react";
-import {useToast} from "@/hooks/use-toast";
-import {NOT_SENT_TOAST, type Draft} from "@/lib/chat/unsentMessage";
+import {useEffect, useMemo, useState} from "react";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { newLocalId } from "@/lib/chat/pendingSend";
+import { appMutate } from "@/lib/swrMutate";
+import { PendingSendContext } from "@/components/message/sendStatus";
+import { usePendingSend } from "@/components/views/usePendingSend";
 
 
-const EMPTY_CHATS: ChatInfo[] = []
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
-const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 
 export function GroupChatView({ grpId }: { grpId: string }) {
 
-
-
-    const post = usePost()
     const scheduleMessage = useScheduleMessage()
-    const { toast } = useToast()
-
-    const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || EMPTY_CHATS);
-
-    const chatState = useSelector((state: RootState) => state.groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE);
-
-    const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
-
     const dispatch = useDispatch();
+    const store = useStore<RootState>()
+
+    // A group made here whose first message has not gone yet: the server makes
+    // the group with that message, from its participants.
+    const notYetOnServer = useSelector((state: RootState) => {
+        const info = state.groupChat.locallyCreatedGrpInfo[grpId]
+        return !!(info && info.grpId && !info.haveSentFirstChat)
+    });
+    const groupExists = !notYetOnServer
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
+    const latestKey = grpId ? GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId : ''
 
-    const latestMsg = useFetch<CreateChatMessagePaginationResRaw>( grpChatCreatedLocally.grpId && !grpChatCreatedLocally?.haveSentFirstChat ?  '' : (grpId ? GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId : ''))
+    // A message is in the conversation the moment Send is pressed (lib/chat/pendingSend).
+    const { send, actions } = usePendingSend<ChatInfo, CreateOrUpdateChatsReq, CreateChatRes>({
+        endpoint: PostEndpointUrl.CreateGroupChatMessage,
+        add: (chat) => addPendingGroupChat({ grpId, chat }),
+        confirm: (localId, res) => confirmPendingGroupChat({ grpId, localId, chatUUID: res?.uuid || '', createdAt: res?.chat_created_at }),
+        fail: (localId) => failPendingGroupChat({ grpId, localId }),
+        retry: (localId) => retryPendingGroupChat({ grpId, localId }),
+        remove: (localId) => removePendingGroupChat({ grpId, localId }),
+        find: (state, localId) => state.groupChat.chatMessages[grpId]?.find((c) => c.chat_local_id === localId),
+        payloadOf: (chat) => {
+            const payload: CreateOrUpdateChatsReq = {
+                media_attachments: chat.chat_attachments,
+                text_html: chat.chat_body_text,
+                grp_id: grpId,
+                ...(chat.chat_reply_to?.chat_uuid ? { reply_to_uuid: chat.chat_reply_to.chat_uuid } : {}),
+            }
+            const info = store.getState().groupChat.locallyCreatedGrpInfo[grpId]
+            if (info && info.grpId && !info.haveSentFirstChat) {
+                payload.participants = info.participants.map((t) => t.uid || '')
+                payload.grp_id = ''
+            }
+            return payload
+        },
+        draftOf: (chat) => ({
+            html: chat.chat_body_text,
+            files: chat.chat_attachments || [],
+            previews: [],
+            replyToUuid: chat.chat_reply_to?.chat_uuid,
+            replyToAuthorName: chat.chat_reply_to?.chat_from?.user_name,
+            replyToText: chat.chat_reply_to?.chat_body_text,
+        }),
+        restore: (unsent) => restoreUnsentGroupChatMessage({ grpId, unsent }),
+        onSent: (chat, res) => {
+            dispatch(UpdateMessageInChatList({
+                name: displayNameOf(selfProfile.data?.data) || '',
+                msgTime: res?.chat_created_at || chat.chat_created_at,
+                attachments: chat.chat_attachments,
+                msg: chat.chat_body_text,
+                chatUuid: res?.uuid || '',
+                grpId: grpId
+            }))
+            const info = store.getState().groupChat.locallyCreatedGrpInfo[grpId]
+            if (info && info.grpId && !info.haveSentFirstChat) {
+                dispatch(UpdateGrpChatLocally({grpId}))
+            }
+            void appMutate(latestKey)
+        },
+    })
 
-
-    // Send later: the same body Send would post, handed to the scheduler. A
-    // group that exists only on this screen (no message sent yet) is made by
-    // its first message, so it is sent, not scheduled.
-    const groupExists = !(grpChatCreatedLocally && grpChatCreatedLocally.grpId && !grpChatCreatedLocally.haveSentFirstChat)
-    const handleSchedule = async (latestContent: string | undefined, at: Date) => {
+    // Send later: the same body Send would post, handed to the scheduler.
+    const handleSchedule = useStableCallback(async (latestContent: string | undefined, at: Date) => {
+        const chatState = store.getState().groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE
         const body = removeEmptyPTags(latestContent ?? chatState.chatBody)
         if ((body.length == 0 && !chatState.filesUploaded?.length) || !groupExists) return false
         const replyToUuid = chatState.replyToUuid
@@ -73,35 +119,19 @@ export function GroupChatView({ grpId }: { grpId: string }) {
         }, at)
         if (ok) dispatch(clearGroupChatInputState({grpId}))
         return ok
-    }
+    })
 
-    const handleSend = (latestContent?: string) => {
+    const handleSend = useStableCallback((latestContent?: string) => {
+        // The draft as it is now, read when sending rather than subscribed to.
+        const chatState = store.getState().groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE
+        const body = removeEmptyPTags(latestContent ?? chatState.chatBody)
+        const files = chatState.filesUploaded || []
 
-        // Prefer the editor's latest HTML (passed in by the input wrapper
-        // after it flushed the pending throttle window) over the Redux
-        // snapshot. The snapshot lags by one keystroke when the user
-        // clicks Send before the throttle trailing-edge has fired, which
-        // would otherwise drop the most recently typed character.
-        const rawBody = latestContent ?? chatState.chatBody
-        const body = removeEmptyPTags(rawBody)
+        // Words, or files on their own: a message of only a photo is a message.
+        if (body.length == 0 && files.length == 0) return
 
-        if(body.length==0) return
-
-        // Kept until the server has it. The composer empties now, so the next
-        // message can be typed, and this goes back into it if the send fails.
-        const unsent: Draft = {
-            html: body,
-            files: chatState.filesUploaded,
-            previews: chatState.filesPreview,
-            replyToUuid: chatState.replyToUuid,
-            replyToAuthorName: chatState.replyToAuthorName,
-            replyToText: chatState.replyToText,
-        }
-
-        // Discord-style inline reply: carry the armed reply target (if any) so
-        // the backend sets the reply edge, and build an optimistic preview.
         const replyToUuid = chatState.replyToUuid
-        const optimisticReplyTo: ChatInfo | undefined = replyToUuid
+        const replyTo: ChatInfo | undefined = replyToUuid
             ? {
                   chat_uuid: replyToUuid,
                   chat_body_text: chatState.replyToText || '',
@@ -113,99 +143,49 @@ export function GroupChatView({ grpId }: { grpId: string }) {
               }
             : undefined
 
-        const payloadForReq: CreateOrUpdateChatsReq = {
-            media_attachments: chatState.filesUploaded,
-            text_html: body,
-            grp_id: grpId,
-            ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
-        }
-
-        const isLocallyCreated = grpChatCreatedLocally && grpChatCreatedLocally.grpId && !grpChatCreatedLocally.haveSentFirstChat
-
-        if(isLocallyCreated) {
-            payloadForReq.participants = grpChatCreatedLocally.participants.map((t) => t.uid || '')
-            payloadForReq.grp_id = ''
-        }
-
-
-        post.makeRequest<CreateOrUpdateChatsReq, CreateChatRes>({
-            apiEndpoint: PostEndpointUrl.CreateGroupChatMessage,
-            payload: payloadForReq
-        })
-            .then((res)=>{
-
-
-                if (
-                    res &&
-                    ((latestMsg.data?.data &&
-                    latestMsg.data?.data?.chats?.[0]?.chat_uuid ==
-                    chatMessageState[chatMessageState.length - 1]?.chat_uuid) || isLocallyCreated)
-                ) {
-                    dispatch(createGroupChat({
-                        grpId: grpId,
-                        chatCreatedAt:res?.chat_created_at,
-                        chatBy: selfProfile.data?.data || {} as UserProfileDataInterface,
-                        chatText: body,
-                        attachments: chatState.filesUploaded,
-                        chatId: res?.uuid,
-                        replyTo: optimisticReplyTo,
-                        addedLocally: true,
-                    }))
-
-                    dispatch(UpdateMessageInChatList({
-                        name: displayNameOf(selfProfile.data?.data) || '',
-                        msgTime: res?.chat_created_at,
-                        attachments: chatState.filesUploaded,
-                        msg: body,
-                        chatUuid: res?.uuid || '',
-                        grpId: grpId
-                    }))
-
-                    latestMsg.mutate()
-
-                    if(isLocallyCreated) {
-                        dispatch(UpdateGrpChatLocally({grpId}))
-                    }
-
-                    dispatch(updateGroupChatScrollToBottom({grpId, scrollToBottom: true}))
-
-
-                }
-
-            }, () => {
-                dispatch(restoreUnsentGroupChatMessage({grpId, unsent}))
-                toast(NOT_SENT_TOAST)
-            })
         dispatch(clearGroupChatInputState({grpId}))
-    }
 
+        const localId = newLocalId()
+        send(localId, {
+            chat_uuid: localId,
+            chat_local_id: localId,
+            chat_send_state: "sending",
+            chat_added_locally: true,
+            chat_from: selfProfile.data?.data || {} as UserProfileDataInterface,
+            chat_to: {} as UserProfileDataInterface,
+            chat_created_at: new Date().toISOString(),
+            chat_body_text: body,
+            chat_attachments: files,
+            chat_reply_to: replyTo,
+            chat_comment_count: 0,
+        })
+        dispatch(updateGroupChatScrollToBottom({grpId, scrollToBottom: true}))
+    })
 
-    const userChats = useSelector((state: RootState) => state.users.userSidebar.userChats);
-    const chatInSidebar = userChats.find(chat => chat.dm_grouping_id === grpId);
-    const unreadCountRef = useRef(chatInSidebar?.dm_unread || 0);
+    // How many were unread on opening, read once (see ChannelView).
+    const [unreadOnOpen] = useState(() => store.getState().users.userSidebar.userChats.find(chat => chat.dm_grouping_id === grpId)?.dm_unread || 0);
 
     useEffect(()=>{
         if(!grpId) return
         dispatch(UpdateUnreadCountToZero({grpId}))
         dispatch(resetUserChatUnread({dm_grouping_id: grpId}))
-        // Same as the 1:1 page: the caches behind these badges would otherwise
-        // re-seed Redux with the pre-read count. See services/unreadCache.ts.
         clearChatUnread(grpId)
     },[grpId, dispatch])
 
 
     const { isMobile, isDesktop } = useMedia();
 
+    const schedule = useMemo(() => (groupExists ? { kind: "group" as const, target: grpId, schedule: handleSchedule } : null), [groupExists, grpId, handleSchedule])
+
     if(!grpId) return
 
     return (
-        <>
+        <PendingSendContext.Provider value={actions}>
+            <ScheduleSendContext.Provider value={schedule}>
+            {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
 
-            <ScheduleSendContext.Provider value={groupExists ? { kind: "group", target: grpId, schedule: handleSchedule } : null}>
-            {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
-
-            {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
+            {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
             </ScheduleSendContext.Provider>
-        </>
+        </PendingSendContext.Provider>
     );
 }

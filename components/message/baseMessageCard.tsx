@@ -32,6 +32,8 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
+import { SendStatus } from "@/components/message/sendStatus"
+import type { SendState } from "@/lib/chat/pendingSend"
 
 interface RightPanelConfig {
   chatUUID?: string
@@ -71,6 +73,10 @@ interface NormalizedForwardMessage {
 
 interface BaseMessage {
   uuid: string
+  /** Sent from here and not yet confirmed (lib/chat/pendingSend). */
+  sendState?: SendState
+  /** The id it was sent with, for Try again, Edit and Delete. */
+  localId?: string
   bodyText: string
   from: UserProfileDataInterface
   createdAt: string
@@ -88,6 +94,8 @@ interface BaseMessage {
 export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
   return {
     uuid: chatInfo.chat_uuid,
+    sendState: chatInfo.chat_send_state,
+    localId: chatInfo.chat_local_id,
     bodyText: chatInfo.chat_body_text,
     from: chatInfo.chat_from,
     createdAt: chatInfo.chat_created_at,
@@ -127,6 +135,8 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
 export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
   return {
     uuid: postInfo.post_uuid,
+    sendState: postInfo.post_send_state,
+    localId: postInfo.post_local_id,
     bodyText: postInfo.post_text,
     from: postInfo.post_by,
     createdAt: postInfo.post_created_at,
@@ -373,7 +383,9 @@ export const BaseMessageCard = React.memo(({
   // (or whose menu is open). Every row used to mount its own toolbar, hidden:
   // a dozen tooltips, a reaction picker, a reminder dialog and a menu each,
   // about 600 components a message, and two dozen invisible tab stops.
-  const showActions = !isMessageEditEnabled && (actionsWanted || isDropdownOpen || isEmojiPickerOpen)
+  // A message the server has not confirmed has no id to react to, reply to or
+  // forward yet: its row offers only what its status line says.
+  const showActions = !isMessageEditEnabled && !message.sendState && (actionsWanted || isDropdownOpen || isEmojiPickerOpen)
 
   return (
     <div
@@ -465,7 +477,15 @@ export const BaseMessageCard = React.memo(({
               />
             </button>
           )}
-          <div className="break-words w-full" onClickCapture={handleInternalLinkClick}>
+          <div
+            className={cn(
+              "break-words w-full transition-opacity",
+              // Still sending after a moment: drawn lighter until the server has
+              // it. The delay keeps a quick send from flickering.
+              message.sendState === "sending" && "opacity-60 delay-300",
+            )}
+            onClickCapture={handleInternalLinkClick}
+          >
             {showErrorBoundary ? (
               <LocalizedErrorBoundary
                 fallbackTitle="Editor Error"
@@ -556,13 +576,14 @@ export const BaseMessageCard = React.memo(({
             </div>
           )}
 
-          {!isMessageEditEnabled && (
+          {!isMessageEditEnabled && !message.sendState && (
             <BottomMenu
               handleEmojiClick={handleEmojiClick}
               reactions={reactions}
               selectedEmojiId={userSelectedOption.emojiId}
             />
           )}
+          <SendStatus state={message.sendState} localId={message.localId} />
         </div>
         {/* After the message in the DOM, so Tab from the author's name reaches
             the message's own links first, then its actions. */}

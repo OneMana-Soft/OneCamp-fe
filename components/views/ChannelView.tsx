@@ -1,26 +1,29 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMedia } from "@/context/MediaQueryContext";
 import { ChannelIdDesktop } from "@/components/channel/chanelIdDesktop";
 import {ChannelIdMobile} from "@/components/channel/channelIdMobile";
-import {CreateOrUpdatePostsReq, CreatePostPaginationResRaw, CreatePostsRes, PostsRes} from "@/types/post";
+import {CreateOrUpdatePostsReq, CreatePostsRes, PostsRes} from "@/types/post";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {
+    addPendingPost,
     clearChannelInputState,
+    confirmPendingPost,
+    failPendingPost,
+    removePendingPost,
     restoreUnsentChannelPost,
-    createPostLocally,
+    retryPendingPost,
     updateChannelCallStatus,
     updateChannelScrollToBottom
 } from "@/store/slice/channelSlice";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {usePost} from "@/hooks/usePost";
 import {useScheduleMessage} from "@/hooks/useScheduledMessages";
 import {ScheduleSendContext} from "@/context/ScheduleSendContext";
-import {useDispatch, useSelector} from "react-redux";
+import {useDispatch, useStore} from "react-redux";
 import {RootState} from "@/store/store";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {ChannelInfoInterface, ChannelInfoInterfaceResp} from "@/types/channel";
+import {ChannelInfoInterfaceResp} from "@/types/channel";
 import {addUserChannelList, resetUserChannelUnread} from "@/store/slice/userSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {markChannelSeen} from "@/services/channelService";
@@ -28,32 +31,33 @@ import {MessageInputState} from "@/store/slice/channelSlice";
 import {useToast} from "@/hooks/use-toast";
 import {NOT_SENT_TOAST, type Draft} from "@/lib/chat/unsentMessage";
 import {useComposeOnArrival} from "@/hooks/useComposeOnArrival";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { newLocalId } from "@/lib/chat/pendingSend";
+import { appMutate } from "@/lib/swrMutate";
+import axiosInstance from "@/lib/axiosInstance";
+import { PendingSendContext } from "@/components/message/sendStatus";
+import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
 
 
-const EMPTY_POSTS: PostsRes[] = []
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 
 export function ChannelView({ channelId }: { channelId: string }) {
 
-    const post = usePost()
     const scheduleMessage = useScheduleMessage()
     const { toast } = useToast()
-
-    const channelPostState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || EMPTY_POSTS);
-
-    const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
-
     const dispatch = useDispatch();
+    const store = useStore<RootState>()
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : '')
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
-    const latestMsg = useFetch<CreatePostPaginationResRaw>( channelId ? GetEndpointUrl.GetChannelLatestPost + '/' + channelId : '')
+    const latestKey = channelId ? GetEndpointUrl.GetChannelLatestPost + '/' + channelId : ''
 
-    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
-    const channelInSidebar = userChannels.find((ch: ChannelInfoInterface) => ch.ch_uuid === channelId);
-    const unreadCountRef = useRef(channelInSidebar?.unread_post_count || 0);
+    // How many were unread on opening, read once: the catch-up banner says so.
+    // Subscribing to the sidebar re-rendered the whole channel each time any
+    // channel's count changed.
+    const [unreadOnOpen] = useState(() => store.getState().users.userSidebar.userChannels.find((ch) => ch.ch_uuid === channelId)?.unread_post_count || 0)
 
     const { isMobile, isDesktop } = useMedia();
 
@@ -102,11 +106,37 @@ export function ChannelView({ channelId }: { channelId: string }) {
         }
     }, [channelId]);
 
-    if(!channelId) return
-
+    // A post is in the channel the moment Send is pressed (lib/chat/pendingSend).
+    const { send, actions } = usePendingSend<PostsRes, CreateOrUpdatePostsReq, CreatePostsRes>({
+        endpoint: PostEndpointUrl.CreateChannelPost,
+        add: (post) => addPendingPost({ channelId, post }),
+        confirm: (localId, res) => confirmPendingPost({ channelId, localId, postUUID: res?.uuid || '', createdAt: res?.post_created_at }),
+        fail: (localId) => failPendingPost({ channelId, localId }),
+        retry: (localId) => retryPendingPost({ channelId, localId }),
+        remove: (localId) => removePendingPost({ channelId, localId }),
+        find: (state, localId) => state.channel.channelPosts[channelId]?.find((p) => p.post_local_id === localId),
+        payloadOf: (post) => ({
+            post_attachments: post.post_attachments,
+            channel_id: channelId,
+            post_text_html: post.post_text,
+            ...(post.post_reply_to?.post_uuid ? { reply_to_uuid: post.post_reply_to.post_uuid } : {}),
+        }),
+        draftOf: (post) => ({
+            html: post.post_text,
+            files: post.post_attachments || [],
+            previews: [],
+            replyToUuid: post.post_reply_to?.post_uuid,
+            replyToAuthorName: post.post_reply_to?.post_by?.user_name,
+            replyToText: post.post_reply_to?.post_text,
+        }),
+        restore: (unsent) => restoreUnsentChannelPost({ channelId, unsent }),
+        // The cached latest page has it next time the channel opens.
+        onSent: () => void appMutate(latestKey),
+    })
 
     // Send later: the same body Send would post, handed to the scheduler.
-    const handleSchedule = async (latestContent: string | undefined, at: Date) => {
+    const handleSchedule = useStableCallback(async (latestContent: string | undefined, at: Date) => {
+        const channelState = store.getState().channel.channelInputState[channelId] || EMPTY_INPUT_STATE
         const body = removeEmptyPTags(latestContent ?? channelState.inputTextHTML)
         if (body.length == 0 && !(channelState.filesUploaded?.length)) return false
         const replyToUuid = channelState.replyToUuid
@@ -118,35 +148,24 @@ export function ChannelView({ channelId }: { channelId: string }) {
         }, at)
         if (ok) dispatch(clearChannelInputState({channelId}))
         return ok
-    }
+    })
 
-    const handleSend = (latestContent?: string) => {
+    const handleSend = useStableCallback((latestContent?: string) => {
+        // The draft as it is now, read when sending rather than subscribed to:
+        // the view used to re-render on every change to it while typing.
+        const channelState = store.getState().channel.channelInputState[channelId] || EMPTY_INPUT_STATE
 
         // Prefer the editor's latest HTML (passed in by the input wrapper
-        // after flushing its pending throttle window) over the Redux
-        // snapshot, which can lag by one keystroke and cause the last
-        // typed character to be dropped from the sent message.
-        const rawBody = latestContent ?? channelState.inputTextHTML
-        const body = removeEmptyPTags(rawBody)
+        // after flushing its pending throttle window) over the store's copy,
+        // which can lag by one keystroke and drop the last typed character.
+        const body = removeEmptyPTags(latestContent ?? channelState.inputTextHTML)
+        const files = channelState.filesUploaded || []
 
-        if(body.length==0) return
+        // Words, or files on their own: a message of only a photo is a message.
+        if (body.length == 0 && files.length == 0) return
 
-        // Kept until the server has it. The composer empties now, so the next
-        // message can be typed, and this goes back into it if the send fails.
-        const unsent: Draft = {
-            html: body,
-            files: channelState.filesUploaded,
-            previews: channelState.filePreview,
-            replyToUuid: channelState.replyToUuid,
-            replyToAuthorName: channelState.replyToAuthorName,
-            replyToText: channelState.replyToText,
-        }
-
-        // Discord-style inline reply: carry the armed reply target (if any) so
-        // the backend sets the reply edge, and build an optimistic parent
-        // preview for the local render.
         const replyToUuid = channelState.replyToUuid
-        const optimisticReplyTo: PostsRes | undefined = replyToUuid
+        const replyTo: PostsRes | undefined = replyToUuid
             ? {
                   post_uuid: replyToUuid,
                   post_text: channelState.replyToText || '',
@@ -156,59 +175,52 @@ export function ChannelView({ channelId }: { channelId: string }) {
               }
             : undefined
 
-        post.makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
-            apiEndpoint: PostEndpointUrl.CreateChannelPost,
-            payload: {
-                post_attachments: channelState.filesUploaded,
+        dispatch(clearChannelInputState({channelId}))
+
+        // Parked on an older post from a link, the latest messages are not
+        // loaded, so there is nowhere to show it yet: it is sent as it was, and
+        // goes back in the message box if it does not go.
+        if (viewingLinkedMessage("postId")) {
+            const unsent: Draft = { html: body, files, previews: channelState.filePreview, replyToUuid, replyToAuthorName: channelState.replyToAuthorName, replyToText: channelState.replyToText }
+            axiosInstance.post(PostEndpointUrl.CreateChannelPost, {
+                post_attachments: files,
                 channel_id: channelId,
                 post_text_html: body,
                 ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
-            }
-        })
-            .then((res)=>{
-
-                if (
-                    res &&
-                    (latestMsg?.data?.data?.posts?.[0]?.post_uuid &&
-                    channelPostState?.length > 0 &&
-                    channelPostState[channelPostState.length - 1]?.post_uuid &&
-                    latestMsg.data.data.posts[0].post_uuid === channelPostState[channelPostState.length - 1].post_uuid)
-                    ||
-                    (channelPostState?.length == 0)
-                ) {
-                    dispatch(createPostLocally({
-                        channelId,
-                        postCreatedAt:res?.post_created_at || '',
-                        postBy: selfProfile.data?.data || {} as UserProfileDataInterface,
-                        postText: body,
-                        attachments: channelState.filesUploaded,
-                        postUUID: res?.uuid || '',
-                        replyTo: optimisticReplyTo,
-                    }))
-
-                    latestMsg.mutate()
-                    if(channelPostState.length > 2) {
-                        dispatch(updateChannelScrollToBottom({channelId, scrollToBottom: true}))
-                    }
-
-
-                }
-
-            }, () => {
+            }, SEND_QUIETLY).then(() => void appMutate(latestKey), () => {
                 dispatch(restoreUnsentChannelPost({channelId, unsent}))
                 toast(NOT_SENT_TOAST)
             })
-        dispatch(clearChannelInputState({channelId}))
-    }
+            return
+        }
+
+        const localId = newLocalId()
+        send(localId, {
+            post_uuid: localId,
+            post_local_id: localId,
+            post_send_state: "sending",
+            post_added_locally: true,
+            post_by: selfProfile.data?.data || {} as UserProfileDataInterface,
+            post_created_at: new Date().toISOString(),
+            post_text: body,
+            post_attachments: files,
+            post_reply_to: replyTo,
+            post_comment_count: 0,
+        })
+        dispatch(updateChannelScrollToBottom({channelId, scrollToBottom: true}))
+    })
+
+    const schedule = useMemo(() => ({ kind: "channel" as const, target: channelId, schedule: handleSchedule }), [channelId, handleSchedule])
+
+    if(!channelId) return
 
     return (
-        <>
+        <PendingSendContext.Provider value={actions}>
+            <ScheduleSendContext.Provider value={schedule}>
+            {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend} unreadCount={unreadOnOpen} focusComposer={focusComposer}/>}
 
-            <ScheduleSendContext.Provider value={{ kind: "channel", target: channelId, schedule: handleSchedule }}>
-            {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current} focusComposer={focusComposer}/>}
-
-            {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current} focusComposer={focusComposer}/>}
+            {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend} unreadCount={unreadOnOpen} focusComposer={focusComposer}/>}
             </ScheduleSendContext.Provider>
-        </>
+        </PendingSendContext.Provider>
     );
 }

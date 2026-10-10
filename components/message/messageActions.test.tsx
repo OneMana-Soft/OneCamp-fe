@@ -95,3 +95,38 @@ describe("a message's actions", () => {
     expect(screen.getByRole("toolbar", { name: "Message actions" })).toBeTruthy()
   })
 })
+
+describe("a message sent from here that the server has not confirmed", () => {
+  afterEach(cleanup)
+
+  function pendingRow(sendState: "sending" | "failed") {
+    return render(
+      <Provider store={store}>
+        <TooltipProvider>
+          <BaseMessageCard
+            message={{ uuid: "local-1", localId: "local-1", sendState, bodyText: "<p>Ship it</p>", from: { user_uuid: "me", user_name: "Sam Rivera" } as never, createdAt: "2026-10-10T09:01:00Z" }}
+            mediaGetUrl=""
+            rightPanelConfig={{}}
+            hoverOptionsConfig={{}}
+            addReaction={() => {}}
+            removeReaction={() => {}}
+            removePost={() => {}}
+            updatePost={() => {}}
+          />
+        </TooltipProvider>
+      </Provider>,
+    )
+  }
+
+  it("offers no actions while it has no id to act on, and says it is sending", () => {
+    const { container } = pendingRow("sending")
+    fireEvent.pointerEnter(container.querySelector("#msg-local-1")!)
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(screen.getByRole("status").textContent).toBe("Sending…")
+  })
+
+  it("says it was not sent", () => {
+    pendingRow("failed")
+    expect(screen.getByRole("alert").textContent).toContain("Not sent.")
+  })
+})
