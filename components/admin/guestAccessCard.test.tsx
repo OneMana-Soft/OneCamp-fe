@@ -106,7 +106,7 @@ describe("guest access, read and labelled honestly", () => {
     revoke.mockRejectedValue({ response: { data: { msg: "That link was already revoked." } } })
     await open()
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }))
-    await act(async () => confirm.mock.calls.at(-1)[0].onConfirm())
+    await act(async () => confirm.mock.calls.at(-1)![0].onConfirm())
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({
       title: "Couldn't revoke the link",
       description: "That link was already revoked.",
