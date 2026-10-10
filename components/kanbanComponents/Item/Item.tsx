@@ -321,10 +321,11 @@ export const Item = React.memo(
                         {
                             ...wrapperStyle,
                             transition: [transition, wrapperStyle?.transition].filter(Boolean).join(", "),
-                            "--translate-x": transform ? `${Math.round(transform.x)}px` : undefined,
-                            "--translate-y": transform ? `${Math.round(transform.y)}px` : undefined,
+                            // Only a card that is given a transform has one (see Item.module.scss).
+                            transform: transform
+                                ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0) scaleX(${transform.scaleX ?? 1}) scaleY(${transform.scaleY ?? 1})`
+                                : undefined,
                             "--scale-x": transform?.scaleX ? `${transform.scaleX}` : undefined,
-                            "--scale-y": transform?.scaleY ? `${transform.scaleY}` : undefined,
                             "--index": index,
                         } as React.CSSProperties
                     }

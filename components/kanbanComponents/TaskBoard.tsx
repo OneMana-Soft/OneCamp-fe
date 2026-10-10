@@ -170,7 +170,7 @@ export function TaskBoard({
         if (dragging) return
         if (heldFrom.current === board) return
         heldFrom.current = null
-        setItems(board)
+        setItems((prev) => reuseUnchanged(prev, board))
     }, [board, dragging])
 
     const sensors = useSensors(
@@ -437,6 +437,25 @@ export function TaskBoard({
 }
 
 const NO_TASKS: TaskInfoInterface[] = []
+
+/**
+ * next, keeping prev's array for each list that holds the same cards: the
+ * board's data is rebuilt whole when one task changes (a drop, an edit), and
+ * a column given a new array of the same cards would render again for nothing.
+ */
+export function reuseUnchanged(prev: Columns, next: Columns): Columns {
+    const out: Columns = {}
+    let same = Object.keys(prev).length === Object.keys(next).length
+    for (const [k, list] of Object.entries(next)) {
+        const old = prev[k]
+        if (old && old.length === list.length && old.every((t, i) => t === list[i])) out[k] = old
+        else {
+            out[k] = list
+            same = false
+        }
+    }
+    return same ? prev : out
+}
 
 /**
  * One column. Memoised: while a card is dragged, only the column the line is
