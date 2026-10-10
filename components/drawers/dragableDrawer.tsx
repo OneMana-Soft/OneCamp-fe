@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useLayoutEffect, useRef } from "react"
 import { motion, useAnimation, useDragControls, useReducedMotion, type PanInfo } from "framer-motion"
 
 interface DraggableDrawerProps {
@@ -25,7 +25,14 @@ const SETTLE_PX = 24
  * for prefers-reduced-motion), so the change still reads as motion.
  *
  * The drag handle follows the finger by setting the height directly on the
- * element (a gesture, not an animation, and no React render per frame).
+ * element (a gesture, not an animation, and no React render per frame). So
+ * the height is never React's style prop: React writes only a style that
+ * changed, and a drag that let go without changing state would keep the
+ * dragged height. It is written here, before paint, from the state.
+ *
+ * The height is the whole sheet's, the home-indicator padding inside it, so
+ * the sheet's top is where `--mobile-drawer-h` says (the typing indicator
+ * sits there).
  */
 const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
                                                              children,
@@ -43,6 +50,9 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
     // toolbar off-screen. dvh tracks the viewport as it actually is.
     const collapsedHeight = typeof window === "undefined" ? initialHeight : Math.min(initialHeight, window.innerHeight)
     const height = isExpanded ? "100dvh" : `${collapsedHeight}px`
+    useLayoutEffect(() => {
+        if (sheetRef.current) sheetRef.current.style.height = height
+    }, [height])
 
     // Opening or closing settles by transform: from a little below when it
     // opens, a little above when it closes. Never on the first render.
@@ -87,8 +97,8 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
         const thresholdDistance = window.innerHeight * 0.2 // 20% of screen height
         const thresholdVelocity = 500 // minimum velocity to count as a flick
 
-        // What the drag set by hand gives way to the height for the state.
-        if (sheetRef.current) sheetRef.current.style.height = ""
+        // Back to the height for the state; a change of state below moves it on.
+        if (sheetRef.current) sheetRef.current.style.height = height
 
         // Check for quick flick or passing the distance threshold
         if (info.offset.y < -thresholdDistance || info.velocity.y < -thresholdVelocity) {
@@ -96,7 +106,6 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
         } else if (info.offset.y > thresholdDistance || info.velocity.y > thresholdVelocity) {
             setIsExpanded(false)
         }
-        // Otherwise the sheet is back at the height for its state already.
     }
 
     // The sheet follows the finger: its height set directly, between the
@@ -112,6 +121,8 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
 
     return (
         <motion.div
+            ref={sheetRef}
+            data-composer-sheet=""
             drag="y"
             dragControls={dragControls}
             dragListener={false}
@@ -127,19 +138,17 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
             // button and toolbar sat in the OS gesture strip on every message.
             className="fixed bottom-0 left-0 border-t right-0 rounded-t-3xl opacity-100 bg-background top-shadow pb-[env(safe-area-inset-bottom)]"
         >
-            <div ref={sheetRef} data-composer-sheet="" style={{ height }}>
-                <div
-                    className="w-full py-3 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none"
-                    onPointerDown={(e) => dragControls.start(e)}
-                >
-                    <div className="h-1.5 w-[100px] rounded-full bg-muted-foreground/40"></div>
-                </div>
-                <div
-                    className="overflow-y-auto p-1 pt-0 [touch-action:auto]"
-                    style={{ height: "calc(100% - 30px)" }}
-                >
-                    {children}
-                </div>
+            <div
+                className="w-full py-3 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none"
+                onPointerDown={(e) => dragControls.start(e)}
+            >
+                <div className="h-1.5 w-[100px] rounded-full bg-muted-foreground/40"></div>
+            </div>
+            <div
+                className="overflow-y-auto p-1 pt-0 [touch-action:auto]"
+                style={{ height: "calc(100% - 30px)" }}
+            >
+                {children}
             </div>
         </motion.div>
     )
