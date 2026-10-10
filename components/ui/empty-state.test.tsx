@@ -79,6 +79,16 @@ describe("EmptyState", () => {
     expect(container.querySelector("[data-empty-icon]")?.getAttribute("class")).toContain("size-7")
   })
 
+  it("gives the muted description a readable measure the caller can change", () => {
+    render(<EmptyState title="No docs" description="Docs you write show up here." />)
+    expect(screen.getByText("Docs you write show up here.").className).toContain("max-w-[45ch]")
+    cleanup()
+    render(<EmptyState title="No docs" description="Wide copy." descriptionClassName="max-w-prose" />)
+    const p = screen.getByText("Wide copy.")
+    expect(p.className).toContain("max-w-prose")
+    expect(p.className).not.toContain("max-w-[45ch]")
+  })
+
   it("omits the icon entirely when no icon is given", () => {
     const { container } = render(<EmptyState title="No results" />)
     expect(container.querySelector("[data-empty-icon]")).toBeNull()
