@@ -174,4 +174,34 @@ describe("the page's rows", () => {
     expect(new Set([rowOf(from), rowOf(until), rowOf(zone)]).size).toBe(3)
     expect(rowOf(from)?.parentElement?.className).toMatch(/divide-y/)
   })
+
+  // The Email section was four bordered boxes in a row with nothing between
+  // them: the bar's "space and a heading, not a border on every block".
+  it("groups the email kinds and the when-and-how-often under their own headings", () => {
+    render(<NotificationPreferencesCard />)
+    const email = screen.getByRole("region", { name: "Email" })
+    expect(within(email).getByRole("heading", { level: 3, name: "What you're emailed about" })).toBeInTheDocument()
+    const timing = within(email).getByRole("region", { name: "When and how often" })
+    const away = within(timing).getByRole("switch", { name: "Only when I'm away" })
+    const digest = within(timing).getByRole("radiogroup", { name: "Activity digest" })
+    expect(away.closest(".divide-y")).toBe(digest.closest(".divide-y"))
+    expect(email.querySelectorAll(".divide-y")).toHaveLength(3)
+  })
+
+  it("draws the digest with the app's segmented control, an input's height beside it", () => {
+    render(<NotificationPreferencesCard />)
+    const group = screen.getByRole("radiogroup", { name: "Activity digest" })
+    expect(group.className).toContain("p-1")
+    expect(within(group).getByRole("radio", { name: "Off" }).className).toContain("md:h-7")
+  })
+
+  // From and Until were w-36 and the time zone w-56, so the three controls
+  // started at different x down one list.
+  it("gives the quiet-hours controls one width and the list's one height", () => {
+    state.fetch = answered({ quiet_hours_enabled: true, quiet_hours_start: "22:00", quiet_hours_end: "07:00", quiet_hours_tz: "Asia/Kolkata" })
+    render(<NotificationPreferencesCard />)
+    const widths = ["From", "Until", "Time zone"].map((n) => screen.getByLabelText(n).className.split(" ").filter((c) => /^w-/.test(c)).join(" "))
+    expect(new Set(widths).size).toBe(1)
+    for (const n of ["From", "Until", "Time zone"]) expect(screen.getByLabelText(n).className).not.toMatch(/(^|\s)h-8(\s|$)/)
+  })
 })

@@ -12,9 +12,9 @@
  */
 
 import { useMemo, useState } from "react"
-import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { SaveBar, SettingRow, SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -44,6 +44,19 @@ type Preferences = {
 }
 
 type FetchResponse = { data: Preferences; status: string }
+
+const DIGEST_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+] as const
+
+/**
+ * The quiet-hours controls: one width, so From, Until and the time zone start
+ * on one line down the list (they were w-36, w-36 and w-56), and the input's
+ * own height, the list's one height (the digest's segmented control is 36px).
+ */
+const QUIET_CONTROL = "w-48"
 
 /** What the person has changed and not saved yet, by field. */
 type Edits = Partial<Preferences>
@@ -202,6 +215,9 @@ export function NotificationPreferencesCard() {
             onChange={(v) => setField("email_enabled", v)}
           />
         </SettingsList>
+        {/* The kinds, then when and how often, each under its own heading: the
+            section was four bordered boxes in a row with nothing between them. */}
+        <SettingsSection level={3} title="What you're emailed about" className="pt-3">
         <SettingsList>
           <SwitchRow
             label="Direct messages"
@@ -253,6 +269,8 @@ export function NotificationPreferencesCard() {
             onChange={(v) => setField("email_channel_invites", v)}
           />
         </SettingsList>
+        </SettingsSection>
+        <SettingsSection level={3} title="When and how often" className="pt-3">
         <SettingsList>
           <SwitchRow
             label="Only when I'm away"
@@ -261,41 +279,24 @@ export function NotificationPreferencesCard() {
             disabled={masterOff || saving}
             onChange={(v) => setField("email_only_when_offline", v)}
           />
-        </SettingsList>
-
-        {/* A choice of one, as a radio group the arrow keys move through, in
-            the house segmented look; a row of the list like every setting. */}
-        <SettingsList>
+          {/* A choice of one, as a radio group the arrow keys move through. */}
           <SettingRow
             label="Activity digest"
             controlId="digest"
             description="A summary of your open items: overdue commitments and unanswered questions OneCamp's AI picked up from your meetings, channels and projects. Weekly digests arrive on Mondays."
           >
-            <RadioGroupPrimitive.Root
+            <SegmentedControl
               id="digest"
               value={working.email_digest_frequency}
-              onValueChange={(v) => setField("email_digest_frequency", v as Preferences["email_digest_frequency"])}
-              orientation="horizontal"
+              onValueChange={(v) => setField("email_digest_frequency", v)}
               disabled={masterOff || saving}
               aria-label="Activity digest"
               aria-describedby="digest-desc"
-              className="inline-flex gap-0.5 rounded-md bg-muted p-0.5"
-            >
-              {(["off", "daily", "weekly"] as const).map((opt) => (
-                <RadioGroupPrimitive.Item
-                  key={opt}
-                  value={opt}
-                  className={cn(
-                    "inline-flex h-7 items-center rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
-                    "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-border",
-                  )}
-                >
-                  {opt === "off" ? "Off" : opt === "daily" ? "Daily" : "Weekly"}
-                </RadioGroupPrimitive.Item>
-              ))}
-            </RadioGroupPrimitive.Root>
+              options={DIGEST_OPTIONS}
+            />
           </SettingRow>
         </SettingsList>
+        </SettingsSection>
       </SettingsSection>
 
       <SettingsSection
@@ -318,7 +319,7 @@ export function NotificationPreferencesCard() {
                 <Input
                   id="qh_start"
                   type="time"
-                  className="h-8 w-36"
+                  className={QUIET_CONTROL}
                   value={working.quiet_hours_start || ""}
                   onChange={(e) => setField("quiet_hours_start", e.target.value)}
                 />
@@ -327,7 +328,7 @@ export function NotificationPreferencesCard() {
                 <Input
                   id="qh_end"
                   type="time"
-                  className="h-8 w-36"
+                  className={QUIET_CONTROL}
                   value={working.quiet_hours_end || ""}
                   onChange={(e) => setField("quiet_hours_end", e.target.value)}
                 />
@@ -335,7 +336,7 @@ export function NotificationPreferencesCard() {
               <SettingRow label="Time zone" controlId="qh_tz" description="The clock your quiet hours follow.">
                 <Input
                   id="qh_tz"
-                  className="h-8 w-56"
+                  className={QUIET_CONTROL}
                   aria-describedby="qh_tz-desc"
                   placeholder={browserTZ()}
                   value={working.quiet_hours_tz || ""}
