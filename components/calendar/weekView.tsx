@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, format, isSameDay, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
-import { toneOf } from "@/components/calendar/calendarTones";
+import { shortTime } from "@/lib/utils/date/shortDate";
+import { CircleCheck } from "@/lib/icons";
+import { toneOf, type CalendarItemLike } from "@/components/calendar/calendarTones";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
 
 const HOUR_HEIGHT = 48; // px per hour
 const DAY_MINUTES = 24 * 60;
 
-interface TimedItem {
+interface TimedItem extends CalendarItemLike {
   uuid: string;
   title: string;
-  isTask: boolean;
-  isFocus?: boolean;
-  isAway?: boolean;
   start: Date;
   end: Date;
   topMin: number; // minutes from midnight (clamped to day)
@@ -24,16 +23,15 @@ interface TimedItem {
   cols: number;
 }
 
-interface AllDayItem {
+interface AllDayItem extends CalendarItemLike {
   uuid: string;
   title: string;
-  isTask: boolean;
-  isFocus?: boolean;
-  isAway?: boolean;
 }
 
 interface WeekViewProps {
   weekStart: Date;
+  /** 7 for a week, 1 for a day. */
+  dayCount?: number;
   events: CalendarEventInterface[];
   tasks: TaskInfoInterface[];
   showEvents: boolean;
@@ -77,8 +75,19 @@ function packDay(items: TimedItem[]): TimedItem[] {
   return result;
 }
 
+/** The time now, a minute at a time, so the now line moves while the calendar is open. */
+function useMinute(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
 export function WeekView({
   weekStart,
+  dayCount = 7,
   events,
   tasks,
   showEvents,
@@ -88,26 +97,28 @@ export function WeekView({
   onTaskClick,
 }: WeekViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(startOfDay(weekStart), i)), [weekStart]);
+  const days = useMemo(() => Array.from({ length: dayCount }, (_, i) => addDays(startOfDay(weekStart), i)), [weekStart, dayCount]);
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
+  const now = useMinute();
 
-  // Scroll to ~7am on mount / week change so the morning is visible.
+  // On opening, the working day is in view: an hour before now when today is
+  // shown, else from 7am. Moving to another week or day keeps the scroll, as
+  // a calendar does; it does not jump back to the morning each time.
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 7 * HOUR_HEIGHT;
-  }, [weekStart]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const t = new Date();
+    const showsToday = days.some((d) => isSameDay(d, t));
+    const hour = showsToday ? Math.max(0, Math.min(t.getHours() - 1, 16)) : 7;
+    el.scrollTop = hour * HOUR_HEIGHT;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on opening
+  }, []);
 
   const { timedByDay, allDayByDay } = useMemo(() => {
     const timed: TimedItem[][] = days.map(() => []);
     const allDay: AllDayItem[][] = days.map(() => []);
 
-    const pushTimedOrAllDay = (
-      uuid: string,
-      title: string,
-      isTask: boolean,
-      start: Date,
-      end: Date,
-      kind: { isFocus?: boolean; isAway?: boolean } = {},
-    ) => {
+    const pushTimedOrAllDay = (base: AllDayItem, start: Date, end: Date) => {
       days.forEach((day, di) => {
         const dayStart = startOfDay(day);
         const dayEnd = addDays(dayStart, 1);
@@ -118,7 +129,7 @@ export function WeekView({
         const isMultiDay = !isSameDay(start, end) && durationMs >= DAY_MINUTES * 60 * 1000;
 
         if (spansFullDay || isMultiDay) {
-          allDay[di].push({ uuid, title, isTask, ...kind });
+          allDay[di].push(base);
           return;
         }
 
@@ -126,18 +137,7 @@ export function WeekView({
         const clampedEnd = end > dayEnd ? dayEnd : end;
         const topMin = (clampedStart.getTime() - dayStart.getTime()) / 60000;
         const endMin = (clampedEnd.getTime() - dayStart.getTime()) / 60000;
-        timed[di].push({
-          uuid,
-          title,
-          isTask,
-          ...kind,
-          start,
-          end,
-          topMin,
-          endMin: Math.max(endMin, topMin + 20),
-          col: 0,
-          cols: 1,
-        });
+        timed[di].push({ ...base, start, end, topMin, endMin: Math.max(endMin, topMin + 20), col: 0, cols: 1 });
       });
     };
 
@@ -146,7 +146,7 @@ export function WeekView({
         const start = parseISO(e.event_start_time);
         const end = parseISO(e.event_end_time);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-        pushTimedOrAllDay(e.event_uuid, e.event_title, false, start, end, { isFocus: !!e.event_is_focus, isAway: !!e.event_is_away });
+        pushTimedOrAllDay({ uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away }, start, end);
       });
     }
 
@@ -162,7 +162,7 @@ export function WeekView({
         days.forEach((day, di) => {
           if (isSameDay(day, end) || isSameDay(day, start)) {
             if (!allDay[di].some((x) => x.uuid === t.task_uuid)) {
-              allDay[di].push({ uuid: t.task_uuid, title: t.task_name, isTask: true });
+              allDay[di].push({ uuid: t.task_uuid, title: t.task_name, event_uuid: t.task_uuid, isTask: true, task_project: t.task_project });
             }
           }
         });
@@ -172,9 +172,9 @@ export function WeekView({
     return { timedByDay: timed.map(packDay), allDayByDay: allDay };
   }, [days, events, tasks, showEvents, showTasks]);
 
-  const now = new Date();
   const todayIndex = days.findIndex((d) => isSameDay(d, now));
   const nowTopMin = now.getHours() * 60 + now.getMinutes();
+  const single = dayCount === 1;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -184,15 +184,17 @@ export function WeekView({
         {days.map((day, i) => {
           const isToday = isSameDay(day, now);
           return (
-            <div key={i} className="flex-1 min-w-[90px] border-r border-border/60 py-2 text-center">
+            <div key={i} className={cn("flex-1 border-r border-border/60 py-2", single ? "px-3 text-left" : "min-w-[90px] text-center")}>
               <div className="text-xs font-medium text-muted-foreground">
-                {format(day, "EEE")}
+                {format(day, single ? "EEEE" : "EEE")}
               </div>
               <div
                 className={cn(
-                  "mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold",
+                  "mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                  !single && "mx-auto",
                   isToday ? "bg-primary text-primary-foreground" : "text-foreground",
                 )}
+                aria-current={isToday ? "date" : undefined}
               >
                 {format(day, "d")}
               </div>
@@ -207,17 +209,20 @@ export function WeekView({
           All day
         </div>
         {allDayByDay.map((items, i) => (
-          <div key={i} className="flex-1 min-w-[90px] space-y-0.5 border-r border-border/60 p-1">
+          <div key={i} className={cn("flex-1 space-y-0.5 border-r border-border/60 p-1", !single && "min-w-[90px]")}>
             {items.map((it) => (
               <button
                 key={`${it.uuid}-${i}`}
+                type="button"
                 onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
+                aria-label={`${it.isTask ? "Task" : "Event"}: ${it.title}`}
                 className={cn(
-                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-2xs font-medium",
-                  toneOf({ ...it, event_uuid: it.uuid, event_is_focus: it.isFocus, event_is_away: it.isAway }).block,
+                  "flex w-full items-center gap-1 truncate rounded-sm px-1.5 py-0.5 text-left text-2xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                  toneOf(it).block,
                 )}
               >
-                {it.title}
+                {it.isTask && <CircleCheck className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                <span className="truncate">{it.title}</span>
               </button>
             ))}
           </div>
@@ -242,12 +247,12 @@ export function WeekView({
 
           {/* Day columns */}
           {days.map((day, di) => (
-            <div key={di} className="relative flex-1 min-w-[90px] border-r border-border/60">
+            <div key={di} className={cn("relative flex-1 border-r border-border/60", !single && "min-w-[90px]")}>
               {/* Hour cells (click to create) */}
               {hours.map((h) => (
                 <div
                   key={h}
-                  className="border-b border-border/40 hover:bg-accent/30 cursor-pointer"
+                  className="border-b border-border/40 hover:bg-highlight/40 cursor-pointer"
                   style={{ height: `${HOUR_HEIGHT}px` }}
                   onClick={() => {
                     const d = new Date(day);
@@ -262,6 +267,7 @@ export function WeekView({
                 <div
                   className="pointer-events-none absolute inset-x-0 z-20"
                   style={{ top: `${(nowTopMin / 60) * HOUR_HEIGHT}px` }}
+                  aria-hidden="true"
                 >
                   <div className="relative h-px bg-destructive">
                     <span className="absolute -left-1 -top-[3px] h-1.5 w-1.5 rounded-full bg-destructive" />
@@ -277,7 +283,9 @@ export function WeekView({
                 return (
                   <button
                     key={it.uuid}
+                    type="button"
                     onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
+                    aria-label={`${it.title}, ${shortTime(it.start)}`}
                     style={{
                       top: `${top}px`,
                       height: `${Math.max(height - 2, 16)}px`,
@@ -285,12 +293,12 @@ export function WeekView({
                       width: `calc(${widthPct}% - 4px)`,
                     }}
                     className={cn(
-                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-2xs font-medium leading-tight",
-                      toneOf({ ...it, event_uuid: it.uuid, event_is_focus: it.isFocus, event_is_away: it.isAway }).block,
+                      "absolute z-10 overflow-hidden rounded-sm px-1.5 py-0.5 text-left text-2xs font-medium leading-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                      toneOf(it).block,
                     )}
                   >
                     <span className="block truncate font-semibold">{it.title}</span>
-                    <span className="block truncate opacity-90">{format(it.start, "h:mm a")}</span>
+                    <span className="block truncate tabular-nums opacity-90">{shortTime(it.start)}</span>
                   </button>
                 );
               })}
