@@ -153,6 +153,47 @@ describe("the command palette", () => {
     expect(src).not.toMatch(/text-(blue|orange|cyan|purple|pink)-\d{3}/)
   })
 
+  it("gives Boards the board glyph, not the page glyph Docs has", () => {
+    open()
+    const row = (label: string) => within(group("Navigate")!).getByText(label).closest("[cmdk-item]")!
+    expect(row("Boards").querySelector("svg")?.getAttribute("class")).toMatch(/lucide-layout-dashboard/)
+    expect(row("Docs").querySelector("svg")?.getAttribute("class")).toMatch(/lucide-file-text/)
+  })
+
+  // Typed whole, "Docs" sat under two tasks that only mention docs, and the
+  // row the keyboard was on was halfway down the list.
+  it("puts a command the query names above what the search found in the text", () => {
+    answer = [
+      { type: "task", task: { task_id: "t1", task_name: "Record the walkthrough for the docs site", task_project_name: "Q4 launch" } },
+      { type: "task", task: { task_id: "t2", task_name: "Write the API docs", task_project_name: "Q4 launch" } },
+    ] as SearchResult[]
+    const input = open()
+    type(input, "docs")
+    const headings = [...document.querySelectorAll("[cmdk-group-heading]")].map((h) => h.textContent)
+    expect(headings.indexOf("Commands")).toBeGreaterThanOrEqual(0)
+    expect(headings.indexOf("Commands")).toBeLessThan(headings.indexOf("Messages, docs and tasks"))
+    expect(document.querySelector("[cmdk-item]")?.textContent).toMatch(/^Docs/)
+  })
+
+  it("keeps a command the query only brushes, by a keyword, under the search's hits", () => {
+    answer = [{ type: "task", task: { task_id: "t3", task_name: "Move the wiki pages", task_project_name: "Q4 launch" } }] as SearchResult[]
+    const input = open()
+    type(input, "wiki")
+    const headings = [...document.querySelectorAll("[cmdk-group-heading]")].map((h) => h.textContent)
+    expect(headings.indexOf("Messages, docs and tasks")).toBeGreaterThanOrEqual(0)
+    expect(headings.indexOf("Messages, docs and tasks")).toBeLessThan(headings.indexOf("Commands"))
+  })
+
+  // Centred, the dialog moved with every change in the list's length: the
+  // field being typed in jumped between the empty palette and a short answer.
+  it("hangs from a fixed height rather than the middle of the window", () => {
+    open()
+    const dialog = document.querySelector("[data-command-dialog]") as HTMLElement
+    expect(dialog.className).toMatch(/\btop-\[\d+dvh\]/)
+    expect(dialog.className).toMatch(/\btranslate-y-0\b/)
+    expect(dialog.className).not.toMatch(/top-\[50%\]|translate-y-\[-50%\]/)
+  })
+
   it("doesn't list a place twice, once to jump to and once as a hit", () => {
     answer = [
       { type: "project", project: { project_id: "p1", project_name: "Q4 launch" }, highlight: { project_name: ["Q4 <mark>launch</mark>"] } },

@@ -27,6 +27,11 @@ Command.displayName = CommandPrimitive.displayName
  * `commandProps` reach the cmdk root, for a palette that filters on its own
  * (`shouldFilter: false`). The input row keeps clear of the dialog's close
  * button, which used to sit on top of the shortcut chip at its right edge.
+ *
+ * The dialog hangs from a fixed height rather than sitting in the middle of
+ * the window: centred, it moved with every change in the list's length, so
+ * the field being typed in jumped 230px between the empty palette and a short
+ * answer, and again as each answer came in.
  */
 const CommandDialog = ({
   children,
@@ -35,7 +40,7 @@ const CommandDialog = ({
 }: DialogProps & { commandProps?: React.ComponentPropsWithoutRef<typeof CommandPrimitive> }) => {
   return (
     <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0">
+      <DialogContent data-command-dialog="" className="top-[12dvh] translate-y-0 overflow-hidden p-0">
         <DialogTitle className="sr-only">Command palette</DialogTitle>
         <DialogDescription className="sr-only">
           Search and execute commands using the command palette.

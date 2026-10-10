@@ -45,6 +45,14 @@ export function matchScore(query: string, label: string, keywords: readonly stri
   return 0
 }
 
+/**
+ * The score from which a query names the thing: the whole name, its start, or
+ * the start of each of its words ("q4 l" for "Q4 launch"). Below it, the query
+ * is only somewhere inside the name or in a keyword, a guess like the
+ * search's own full-text hits, and it ranks under them.
+ */
+export const NAMED_MATCH = 60
+
 export type TargetKind = "channel" | "chat" | "project" | "team" | "doc" | "board"
 
 /** A place the palette can jump to without searching. */
