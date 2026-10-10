@@ -106,6 +106,9 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { proj
   const { complete, remove } = useProjectCycles(projectId)
   const { toast } = useToast()
   const [confirming, setConfirming] = React.useState(false)
+  // Deleting asks first, in the row, saying what goes: a cycle's burndown
+  // can't be had back, though its tasks stay.
+  const [deleting, setDeleting] = React.useState(false)
   const [carry, setCarry] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
   const p = cycle.progress ?? { total: 0, started: 0, done: 0 }
@@ -147,7 +150,24 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { proj
           </span>
         )}
       </button>
-      {canEdit && !cycle.completed_at && confirming ? (
+      {canEdit && !cycle.completed_at && deleting ? (
+        <div className="mt-2 grid gap-2 border-t pt-2" role="group" aria-label={`Delete ${cycleLabel(cycle)}`}>
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Delete {cycleLabel(cycle)}?</span>{" "}
+            {p.total > 0 ? `Its ${p.total} ${p.total === 1 ? "task stays" : "tasks stay"} in the project, in no cycle.` : "It has no tasks."} Its burndown
+            is deleted with it, and this can&apos;t be undone.
+          </p>
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => setDeleting(false)}>Cancel</Button>
+            <Button size="sm" variant="destructive" className="h-7" disabled={busy} onClick={() => run(async () => {
+              await remove(cycle.id)
+              toast({ title: `Deleted ${cycleLabel(cycle)}`, description: "Its tasks stay in the project." })
+            })}>
+              {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Delete cycle
+            </Button>
+          </div>
+        </div>
+      ) : canEdit && !cycle.completed_at && confirming ? (
         <div className="mt-2 grid gap-2 border-t pt-2">
           {open > 0 && (
             <label className="flex items-center gap-2 text-xs">
@@ -176,11 +196,8 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { proj
             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfirming(true)}>Complete…</Button>
           )}
           {canEdit && !cycle.completed_at && (
-            <Button size="icon" variant="ghost" className="ml-auto h-7 w-7 text-muted-foreground" aria-label={`Delete ${cycleLabel(cycle)}`} disabled={busy}
-              onClick={() => run(async () => {
-                await remove(cycle.id)
-                toast({ title: `Deleted ${cycleLabel(cycle)}`, description: "Its tasks stay in the project." })
-              })}>
+            <Button size="icon" variant="ghost" className="ml-auto h-7 w-7 text-muted-foreground hover:text-danger-ink" aria-label={`Delete ${cycleLabel(cycle)}`} disabled={busy}
+              onClick={() => { setConfirming(false); setDeleting(true) }}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
