@@ -110,12 +110,12 @@ function unitSeries(b: Burndown, unit: BurndownUnit) {
 /** The burndown as a line chart: the ideal pace as a dashed guide, the scope
  * when it changed during the cycle, and the work remaining up to today. */
 export function burndownChart(b: Burndown, unit: BurndownUnit): NormalizedChart {
-  const { remaining, scope, ideal } = unitSeries(b, unit)
+  const { hours, remaining, scope, ideal } = unitSeries(b, unit)
   const pad = (v: number[]) => [...v, ...Array(Math.max(b.days.length - v.length, 0)).fill(0)]
   const series: NormalizedSeries[] = [{ name: "Ideal pace", values: ideal, dashed: true }]
   if (new Set(scope).size > 1) series.push({ name: "In the cycle", values: pad(scope), upTo: scope.length })
   series.push({ name: "Still to do", values: pad(remaining), upTo: remaining.length })
-  return { type: "line", title: "Still to do each day, against an even pace", labels: b.days.map(dayLabel), series }
+  return { type: "line", title: "Still to do each day, against an even pace", unit: hours ? "Hours" : "Tasks", labels: b.days.map(dayLabel), series }
 }
 
 /** What each recent completed cycle finished, as bars. */

@@ -140,7 +140,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-base font-semibold tabular-nums">{value}</dd>
+      <dd className="text-base font-semibold">{value}</dd>
     </div>
   )
 }

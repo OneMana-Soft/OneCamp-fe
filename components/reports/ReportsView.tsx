@@ -52,37 +52,45 @@ const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) 
 
 const personName = (p: ReportPersonRow) => displayNameOf(p) || "Nobody"
 
-// Where open work stands, in the order it moves, each with its colour.
+// Where open work stands, in the order it moves, each in its status's own
+// token: the colours the dots in the task list and the flow chart use, so a
+// stage reads the same everywhere. (They were three steps of one blue ramp.)
 const STAGES: { key: "to_do" | "in_progress" | "in_review"; label: string; className: string }[] = [
-  { key: "to_do", label: "To do", className: "bg-chart-1" },
-  { key: "in_progress", label: "In progress", className: "bg-chart-3" },
-  { key: "in_review", label: "In review", className: "bg-chart-5" },
+  { key: "to_do", label: "To do", className: "bg-muted-foreground" },
+  { key: "in_progress", label: "In progress", className: "bg-info" },
+  { key: "in_review", label: "In review", className: "bg-warning" },
 ]
 
-/** One headline number. */
+/**
+ * One headline number: a label, the figure, and a line under it. Plain type in
+ * a row, not a bordered card each: four identical boxes are the dashboard
+ * template, and the figures read as a set without them.
+ */
 function Stat({ label, value, note, alert }: { label: string; value: string | number; note?: string; alert?: boolean }) {
   return (
-    <div className="rounded-lg border border-border/60 p-4">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {note && <p className={cn("mt-0.5 text-xs", alert ? "font-medium text-destructive" : "text-muted-foreground")}>{note}</p>}
+    <div className="min-w-0 lg:px-5 lg:first:pl-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-2xl font-semibold">{value}</dd>
+      {note && <dd className={cn("mt-0.5 text-xs", alert ? "font-medium text-destructive" : "text-muted-foreground")}>{note}</dd>}
     </div>
   )
 }
 
-/** A row's open work as one bar, its stages side by side, scaled to the widest row. */
+/** A row's open work as one bar, its stages side by side with a hairline gap,
+ * scaled to the widest row. No grey track behind it: the bar's length is the
+ * measure, and a filled track only adds ink. */
 function StackedBar({ counts, max }: { counts: ReportCounts; max: number }) {
   const open = openOf(counts)
   const spoken = STAGES.map((s) => `${counts[s.key]} ${s.label.toLowerCase()}`).join(", ")
   return (
-    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={open ? spoken : "Nothing open"}>
-      <div className="flex h-full" style={{ width: `${max ? (100 * open) / max : 0}%` }}>
+    <div className="h-2 w-full" role="img" aria-label={open ? spoken : "Nothing open"}>
+      <div className="flex h-full gap-0.5" style={{ width: `${max ? (100 * open) / max : 0}%` }}>
         {STAGES.map((s) =>
           counts[s.key] > 0 ? (
             <span
               key={s.key}
               title={`${counts[s.key]} ${s.label.toLowerCase()}`}
-              className={cn("h-full", s.className)}
+              className={cn("h-full rounded-sm", s.className)}
               style={{ width: `${(100 * counts[s.key]) / open}%` }}
             />
           ) : null,
@@ -104,14 +112,14 @@ function Counts({ counts, weeks }: { counts: ReportCounts; weeks: number }) {
 
 function Section({ title, children, legend }: { title: string; children: React.ReactNode; legend?: boolean }) {
   return (
-    <section className="rounded-lg border border-border/60 p-4" aria-label={title}>
+    <section className="border-t border-border/60 pt-4" aria-label={title}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{title}</h3>
         {legend && (
           <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground" aria-hidden>
             {STAGES.map((s) => (
               <li key={s.key} className="flex items-center gap-1.5">
-                <span className={cn("h-2 w-2 rounded-full", s.className)} />
+                <span className={cn("h-2 w-2 rounded-sm", s.className)} />
                 {s.label}
               </li>
             ))}
@@ -219,9 +227,12 @@ export function ReportsView({ compact }: { compact?: boolean }) {
           <ErrorState subject="the report" onRetry={() => void mutate()} />
         ) : (
           <div className="grid gap-3" aria-busy>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-y border-border/60 py-4 lg:grid-cols-4">
               {Array.from({ length: 4 }, (_, i) => (
-                <Skeleton key={i} className="h-24" />
+                <div key={i} className="grid gap-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-7 w-14" />
+                </div>
               ))}
             </div>
             <Skeleton className="h-64" />
@@ -242,7 +253,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
     <div className="grid gap-4 pb-4" data-reports="" aria-busy={isLoading || undefined}>
       {controls}
       {isError && <p className="text-xs text-destructive">The report couldn&apos;t refresh just now. These are the last numbers it had.</p>}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-5 gap-y-4 border-y border-border/60 py-4 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-border/60">
         <Stat label="Open" value={report.open} note={report.overdue > 0 ? `${report.overdue} overdue` : "Nothing overdue"} alert={report.overdue > 0} />
         <Stat
           label={`Done in ${weeks} weeks`}
@@ -250,13 +261,13 @@ export function ReportsView({ compact }: { compact?: boolean }) {
           note={report.on_time_percent !== undefined ? `${report.on_time_percent}% by their due date` : undefined}
         />
         <Stat label="Due in the next 7 days" value={report.due_this_week} />
-        <Stat label="Hours logged" value={report.hours ? totalHours(report) : "—"} note={report.hours ? `in ${weeks} weeks` : "Couldn't be read just now"} />
-      </div>
+        <Stat label="Hours logged" value={report.hours ? totalHours(report) : "None"} note={report.hours ? `in ${weeks} weeks` : "Couldn't be read just now"} />
+      </dl>
       {nothing ? (
         <StatePlaceholder type="empty" title="Nothing open or done in these weeks" description="Pick more weeks, or more projects." />
       ) : (
         <>
-          <div className={cn("grid gap-3", !compact && (hours || flow) && "lg:grid-cols-2")}>
+          <div className={cn("grid gap-4", !compact && (hours || flow) && "lg:grid-cols-2")}>
             <SvgChart chart={throughputChart(report)} className="my-0" />
             {hours && <SvgChart chart={hours} className="my-0" />}
             {flow && (
@@ -317,7 +328,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
               </table>
             </>
           )}
-          <div className={cn("grid gap-3", !compact && "lg:grid-cols-2")}>
+          <div className={cn("grid gap-x-8 gap-y-6", !compact && "lg:grid-cols-2")}>
             <Section title="Open work by project" legend>
               <ul className="grid gap-3">
                 {report.projects.map((p) => (
@@ -361,8 +372,8 @@ export function ReportsView({ compact }: { compact?: boolean }) {
                 {report.priorities.map((p) => (
                   <li key={p.priority} className="grid grid-cols-[7rem_1fr_auto] items-center gap-3 text-sm">
                     <span>{PRIORITY_LABEL[p.priority] ?? p.priority}</span>
-                    <span className="h-2.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${p.open} open`}>
-                      <span className="block h-full rounded-full bg-chart-3" style={{ width: `${(100 * p.open) / priorityMax}%` }} />
+                    <span className="h-2" role="img" aria-label={`${p.open} open`}>
+                      <span className="block h-full rounded-sm bg-muted-foreground" style={{ width: `${(100 * p.open) / priorityMax}%` }} />
                     </span>
                     <span className="text-xs tabular-nums text-muted-foreground">
                       {p.open} open{p.overdue > 0 && <span className="font-medium text-destructive"> · {p.overdue} overdue</span>}

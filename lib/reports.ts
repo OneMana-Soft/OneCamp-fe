@@ -78,22 +78,32 @@ export const PRIORITY_LABEL: Record<string, string> = { high: "High", medium: "M
 /** The open tasks of a row. */
 export const openOf = (c: ReportCounts) => c.to_do + c.in_progress + c.in_review
 
-/** "14 Sep" for a week's Monday ("2026-09-14"), read as a calendar day. Pure. */
+/**
+ * "14 Sep" for a week's Monday ("2026-09-14"), read as a calendar day. Pure.
+ * A month is always three letters: en-GB's own short month is "Sept", which
+ * left one label in twelve a letter longer than its neighbours on the axis.
+ */
 export function weekLabel(iso: string, locale?: string): string {
   const [y, m, d] = iso.split("-").map(Number)
   if (!y || !m || !d) return iso
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale ?? "en-GB", { day: "numeric", month: "short", timeZone: "UTC" })
+  const date = new Date(Date.UTC(y, m - 1, d))
+  if (locale) return date.toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" })
+  return `${d} ${MONTHS[m - 1]}`
 }
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /** Done and added each week, as a chart. Pure. */
 export function throughputChart(r: Report): NormalizedChart {
   return {
     type: "bar",
     title: "Done and added each week",
+    unit: "Tasks",
     labels: r.weeks.map((w) => weekLabel(w)),
+    // Done is the story, in the one chart hue; what came in is its context, in
+    // the neutral ink. Two steps of one blue ramp were too close to tell apart.
     series: [
-      { name: "Done", values: r.done },
-      { name: "Added", values: r.added },
+      { name: "Done", values: r.done, color: "var(--info)" },
+      { name: "Added", values: r.added, color: "var(--faint-foreground)" },
     ],
   }
 }
@@ -110,13 +120,14 @@ export function flowChart(r: Report): NormalizedChart | null {
     type: "area",
     stacked: true,
     title: "Flow of work",
+    unit: "Tasks",
     labels: r.weeks.map((w) => weekLabel(w)),
-    // The statuses' own colours, as their dots show them (lib/timeline DOT).
+    // The statuses' own colours, the tokens their dots use (types/table).
     series: [
-      { name: "Done", values: flow.map((w) => w.done), color: "var(--color-emerald-500)" },
-      { name: "In review", values: flow.map((w) => w.in_review), color: "var(--color-amber-500)" },
-      { name: "In progress", values: flow.map((w) => w.in_progress), color: "var(--color-blue-600)" },
-      { name: "To do", values: flow.map((w) => w.to_do), color: "var(--color-slate-500)" },
+      { name: "Done", values: flow.map((w) => w.done), color: "var(--success)" },
+      { name: "In review", values: flow.map((w) => w.in_review), color: "var(--warning)" },
+      { name: "In progress", values: flow.map((w) => w.in_progress), color: "var(--info)" },
+      { name: "To do", values: flow.map((w) => w.to_do), color: "var(--muted-foreground)" },
     ],
   }
 }
@@ -124,7 +135,7 @@ export function flowChart(r: Report): NormalizedChart | null {
 /** Hours logged each week, or null when there are none to show. Pure. */
 export function hoursChart(r: Report): NormalizedChart | null {
   if (!r.hours || r.hours.every((h) => h === 0)) return null
-  return { type: "bar", title: "Hours logged each week", labels: r.weeks.map((w) => weekLabel(w)), series: [{ name: "Hours", values: r.hours }] }
+  return { type: "bar", title: "Hours logged each week", unit: "Hours", labels: r.weeks.map((w) => weekLabel(w)), series: [{ name: "Hours", values: r.hours }] }
 }
 
 /** The weekly total of hours, to one decimal. */
