@@ -90,6 +90,12 @@ const UserCard = () => {
     })
   })
 
+  /** The person a toast is about, by the name the list shows them under. */
+  const nameFor = (email: string) => {
+    const user = allUsers.find((u) => u.user_email_id === email)
+    return (user && displayNameOf(user)) || email
+  }
+
   const deactivateUser = (email: string, userId: string) => {
     const previous = allUsers
     setAllUsers((prev) =>
@@ -101,8 +107,9 @@ const UserCard = () => {
       .makeRequest<UserActivateOrDeactivateInterface>({
         apiEndpoint: PostEndpointUrl.DeactivateUser,
         payload: { user_uuid: userId },
-        // A refusal (a full free plan, say) must say why, not just undo.
+        // A refusal must say why, not just undo, and whom it was about.
         showErrorToast: true,
+        failureTitle: `Couldn't deactivate ${nameFor(email)}`,
       })
       .catch(() => setAllUsers(previous))
       .finally(() => void seatUsage.mutate())
@@ -122,6 +129,7 @@ const UserCard = () => {
         payload: { user_uuid: userId },
         // A refusal (a full free plan, say) must say why, not just undo.
         showErrorToast: true,
+        failureTitle: `Couldn't reactivate ${nameFor(email)}`,
       })
       .catch(() => setAllUsers(previous))
       .finally(() => void seatUsage.mutate())
