@@ -222,4 +222,4 @@ function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean }) {
   )
 }
 
-export default withAI<{ withTitle?: boolean }>(MyAssistantsCard)
+export default withAI(MyAssistantsCard as React.ComponentType<{ withTitle?: boolean }>)
