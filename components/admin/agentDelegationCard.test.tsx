@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react"
+import { SWRConfig } from "swr"
+import type { ReactElement, ReactNode } from "react"
 
 vi.mock("@/services/aiModelService", async (orig) => ({
   ...(await orig<typeof import("@/services/aiModelService")>()),
@@ -10,6 +12,14 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toas
 
 import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
 import { getAIConfig, setAIAgentDelegation } from "@/services/aiModelService"
+import { useAIConfig } from "@/components/admin/ai/useAIConfig"
+
+// The card reads the AI settings through SWR (one key shared with the Models
+// section), so each test gets its own cache and no automatic retries.
+const fresh = ({ children }: { children: ReactNode }) => (
+  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+)
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: fresh })
 
 afterEach(() => {
   cleanup()
@@ -51,5 +61,45 @@ describe("agent collaboration", () => {
     const bar = await screen.findByRole("region", { name: "Unsaved changes" })
     fireEvent.click(bar.querySelector("button:last-child") as HTMLElement)
     await waitFor(() => expect(setAIAgentDelegation).toHaveBeenCalledWith(false, 3, ""))
+  })
+
+  // The hops were a hand-made radio group marking the choice with
+  // bg-background alone, 1.03:1 against its well; the house control raises it.
+  it("picks the hops from the house segmented control", async () => {
+    vi.mocked(getAIConfig).mockResolvedValue(config as never)
+    render(<AgentDelegationCard />)
+    await screen.findByRole("radiogroup", { name: /How far a chain can go/ })
+    const two = screen.getByRole("radio", { name: "2" })
+    expect(two.getAttribute("aria-checked")).toBe("true")
+    expect(two.className).toContain("data-[state=checked]:bg-card")
+  })
+
+  // The Models section and this one each fetched /admin/ai/config.
+  it("reads the AI settings once with the Models section", async () => {
+    vi.mocked(getAIConfig).mockResolvedValue(config as never)
+    function ModelsReader() {
+      const { config: c } = useAIConfig()
+      return <p>{c ? "models has it" : "models waiting"}</p>
+    }
+    render(
+      <>
+        <ModelsReader />
+        <AgentDelegationCard />
+      </>,
+    )
+    await screen.findByText("models has it")
+    await screen.findByRole("switch", { name: /Allow agents to ask each other/ })
+    expect(getAIConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it("loads in its list's shape and fails compactly with the server's reason", async () => {
+    vi.mocked(getAIConfig).mockReturnValue(new Promise(() => {}))
+    const { unmount } = render(<AgentDelegationCard />)
+    expect(screen.getByRole("status", { name: /Loading/ }).hasAttribute("data-section-list-skeleton")).toBe(true)
+    unmount()
+    vi.mocked(getAIConfig).mockRejectedValue({ response: { status: 403, data: { msg: "Only admins can read this." } } })
+    const { container } = render(<AgentDelegationCard />)
+    expect(await screen.findByText("Only admins can read this.")).toBeTruthy()
+    expect(container.querySelector("[data-empty-illustration]")).toBeTruthy()
   })
 })
