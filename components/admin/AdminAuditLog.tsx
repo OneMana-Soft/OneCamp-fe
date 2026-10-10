@@ -15,6 +15,11 @@ import { Button } from "@/components/ui/button"
 import { RefreshCw, ShieldCheck, Download, FileArchive } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { fullDateTime, shortDateTime } from "@/lib/utils/date/shortDate"
+import { ErrorState } from "@/components/ui/error-state"
+import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils/helpers/cn"
 import {
     getAdminAuditLog,
     verifyAuditLog,
@@ -27,6 +32,9 @@ import {
     type InitiatorKind,
 } from "@/services/settingsService"
 
+// The categories name things, so their colours are categorical, not states.
+// They move to the camp hues with the playful layer; agent is already in the
+// agent's own colour, the one the app gives anything an agent did.
 const CATEGORY_STYLES: Record<string, string> = {
     settings: "bg-blue-500/10 text-info-ink border-blue-500/20",
     integration: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
@@ -36,8 +44,14 @@ const CATEGORY_STYLES: Record<string, string> = {
     // Agent activity: an agent acting for a person, including calls arriving over
     // MCP from outside the workspace. Visually distinct because "was this a human
     // or an agent on their behalf" is the first thing an auditor scans for.
-    agent: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20",
+    agent: "bg-agent-muted text-agent border-agent/20",
 }
+
+// The filter in use is marked in ink on the highlight step, not in the accent:
+// the accent is the one primary action on this card (Evidence pack), and a
+// filled orange chip beside it made two.
+const FILTER_ON = "bg-highlight text-foreground border-foreground/25 hover:bg-highlight"
+const FILTER_OFF = "text-muted-foreground"
 
 // Unknown categories still render, in a neutral style. A category the server starts
 // recording is more useful shown plainly than omitted, and omitting it is precisely
@@ -117,7 +131,8 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                     {entry.actor_kind === "system" && <span>system · </span>}
                     {entry.actor_email || "Unknown"}
                     {entry.ip_address ? ` · ${entry.ip_address}` : ""}
-                    {` · ${formatTime(entry.created_at)}`}
+                    {" · "}
+                    <AuditTime iso={entry.created_at} />
                 </p>
 
                 {hasDetail && (
@@ -150,20 +165,49 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
 }
 
 const ALL = "all"
+/** Entries read at a time; a page that comes back shorter was the last. */
+const PAGE = 50
 
-function formatTime(iso: string): string {
-    try {
-        return new Date(iso).toLocaleString(undefined, {
-            month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-        })
-    } catch {
-        return iso
-    }
+/**
+ * When an entry was written, in the app's one format ("10 Oct, 8:42 AM"), with
+ * the whole date in its tooltip. It was the browser's locale ("Oct 10, 08:42
+ * AM"), so one record read differently on each auditor's machine.
+ */
+function AuditTime({ iso }: { iso: string }) {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return <>{iso}</>
+    return (
+        <time dateTime={iso} title={fullDateTime(d)} className="tabular-nums">
+            {shortDateTime(d)}
+        </time>
+    )
+}
+
+/** The rows the log is about to show, so nothing moves when they arrive. */
+function AuditSkeleton() {
+    return (
+        <div aria-busy="true" aria-label="Loading the audit log" className="divide-y divide-border/60">
+            {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-2 py-2.5" aria-hidden="true">
+                    <Skeleton className="h-5 w-16 shrink-0" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                        <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/5" : "w-1/2")} />
+                        <Skeleton className="h-3 w-2/5" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
 }
 
 export default function AdminAuditLog() {
     const [entries, setEntries] = useState<AuditEntry[]>([])
     const [loading, setLoading] = useState(true)
+    // A failed read is not an empty log: said as such, with Try again.
+    const [failed, setFailed] = useState(false)
+    // Whether the server may hold entries past the ones shown.
+    const [hasOlder, setHasOlder] = useState(false)
+    const [loadingOlder, setLoadingOlder] = useState(false)
     const [filter, setFilter] = useState<string>(ALL)
     const [categories, setCategories] = useState<string[]>(SEED_CATEGORIES)
     // The one filter an auditor reaches for first: what ran on somebody's
@@ -184,16 +228,42 @@ export default function AdminAuditLog() {
 
     const load = (cat: string, unattended: boolean = unattendedOnly) => {
         setLoading(true)
-        getAdminAuditLog(cat === ALL ? undefined : cat, 50, 0, unattended ? UNATTENDED : undefined)
+        setFailed(false)
+        getAdminAuditLog(cat === ALL ? undefined : cat, PAGE, 0, unattended ? UNATTENDED : undefined)
             .then((page) => {
                 setEntries(page.entries)
+                setHasOlder(page.entries.length === PAGE)
                 // Only replace the filter list when the server actually sent one, so
                 // a partial response never removes a filter mid-session.
                 if (page.categories.length > 0) setCategories(page.categories)
                 if (page.initiators.length > 0) setInitiators(page.initiators)
             })
-            .catch(() => setEntries([]))
+            .catch(() => {
+                // It said "No audit entries yet", which a reviewer reads as a fact
+                // about the workspace rather than a request that failed.
+                setEntries([])
+                setHasOlder(false)
+                setFailed(true)
+            })
             .finally(() => setLoading(false))
+    }
+
+    // The next fifty, after the ones shown. The log only grows, and with export
+    // locked on the free plan this was the only way to reach anything older.
+    const loadOlder = () => {
+        setLoadingOlder(true)
+        getAdminAuditLog(filter === ALL ? undefined : filter, PAGE, entries.length, unattendedOnly ? UNATTENDED : undefined)
+            .then((page) => {
+                setEntries((prev) => {
+                    const seen = new Set(prev.map((e) => e.id))
+                    return [...prev, ...page.entries.filter((e) => !seen.has(e.id))]
+                })
+                setHasOlder(page.entries.length === PAGE)
+            })
+            .catch((e) => {
+                toast({ title: "Couldn't load older entries", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            })
+            .finally(() => setLoadingOlder(false))
     }
 
     useEffect(() => {
@@ -213,8 +283,8 @@ export default function AdminAuditLog() {
                     variant: res.ok ? undefined : "destructive",
                 })
             }
-        } catch {
-            toast({ title: "Verification failed", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't check the log", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setVerifying(false)
         }
@@ -231,8 +301,8 @@ export default function AdminAuditLog() {
                 title: "Evidence pack downloaded",
                 description: "Covers the last 90 days: the log with its chain recomputation, what each agent was told, and a manifest fingerprinting every section.",
             })
-        } catch {
-            toast({ title: "Could not build the evidence pack", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't build the evidence pack", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setExporting(false)
         }
@@ -242,8 +312,8 @@ export default function AdminAuditLog() {
         setExporting(true)
         try {
             await exportAuditLog(format, filter === "all" ? undefined : filter)
-        } catch {
-            toast({ title: "Export failed", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't export the log", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setExporting(false)
         }
@@ -313,13 +383,13 @@ export default function AdminAuditLog() {
                             Pack file
                         </Button>
                         </>)}
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh the log">
                             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         </Button>
                     </div>
                 </div>
                 <CardDescription>
-                    Configuration changes by admins, tamper-evident (hash-chained). Secret values are never recorded, only that a change occurred. Verify the chain or export it for an auditor.
+                    Every change admins make to settings, and what agents did for people. Each entry is chained to the one before, so Verify shows whether any was altered or removed. Secret values are never recorded, only that they changed.
                 </CardDescription>
                 {exportLocked && <PlanLockedNotice what="Exporting the audit log" upgradeUrl={plan.upgradeUrl} className="mt-2" />}
                 {/* Offered only AFTER a windowed check comes back, and only when it
@@ -354,8 +424,8 @@ export default function AdminAuditLog() {
                         <Button
                             key={f}
                             size="sm"
-                            variant={filter === f ? "default" : "outline"}
-                            className="h-7 px-2.5 text-xs capitalize"
+                            variant="outline"
+                            className={cn("h-7 px-2.5 text-xs capitalize", filter === f ? FILTER_ON : FILTER_OFF)}
                             aria-pressed={filter === f}
                             onClick={() => setFilter(f)}
                         >
@@ -367,8 +437,8 @@ export default function AdminAuditLog() {
                         earned is too, and this asks a different question of both. */}
                     <Button
                         size="sm"
-                        variant={unattendedOnly ? "default" : "outline"}
-                        className="h-7 px-2.5 text-xs ml-auto"
+                        variant="outline"
+                        className={cn("h-7 px-2.5 text-xs ml-auto", unattendedOnly ? FILTER_ON : FILTER_OFF)}
                         aria-pressed={unattendedOnly}
                         title="Only what ran on somebody's authority while they were away: scheduled runs, event-triggered runs, and work one agent handed to another"
                         onClick={() => setUnattendedOnly((v) => !v)}
@@ -377,18 +447,35 @@ export default function AdminAuditLog() {
                     </Button>
                 </div>
 
+                {/* The failure is checked before the empty case: both leave the
+                    list empty, and only one of them is true. */}
                 {loading && entries.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+                    <AuditSkeleton />
+                ) : failed && entries.length === 0 ? (
+                    <ErrorState subject="the audit log" onRetry={() => load(filter)} retrying={loading} />
                 ) : entries.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">No audit entries yet.</div>
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                        {filter !== ALL || unattendedOnly ? "No entries match this filter." : "No audit entries yet."}
+                    </div>
                 ) : (
-                    <div className="divide-y divide-border/60 max-h-[28rem] overflow-y-auto -mx-2">
-                        {entries.map((e) => (
-                            <AuditRow key={e.id} entry={e} unattendedKinds={unattendedKinds} />
-                        ))}
+                    // No scroller of its own: the admin page's tab region scrolls,
+                    // so the log grows with the page instead of inside a box.
+                    <div className="-mx-2">
+                        <div className="divide-y divide-border/60">
+                            {entries.map((e) => (
+                                <AuditRow key={e.id} entry={e} unattendedKinds={unattendedKinds} />
+                            ))}
+                        </div>
+                        {hasOlder && (
+                            <div className="px-2 pt-3">
+                                <Button variant="outline" size="sm" onClick={loadOlder} disabled={loadingOlder}>
+                                    {loadingOlder ? "Loading older entries…" : "Show older entries"}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
-                            <EvidenceReceipts />
+                <EvidenceReceipts />
             </CardContent>
         </Card>
     )
