@@ -9,13 +9,17 @@
  * kind of work to a model on the allowlist. A person's own chat and an agent's
  * runs are not listed: someone chose those models, and routing never overrides
  * a choice.
+ *
+ * A section of the AI tab like the others: a heading, one line, and a hairline
+ * list of rows, each row a job with its picker at one x. Choices wait for Save,
+ * so a save bar says so while one is waiting.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2 } from "@/lib/icons"
+import { SettingRow, SettingsList, SettingsSection, SaveBar } from "@/components/ui/settingsSection"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { ErrorState } from "@/components/ui/error-state"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
@@ -37,7 +41,8 @@ export default function ModelRoutingCard() {
   const [models, setModels] = useState<AuthorizedModel[]>([])
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
+  const [failed, setFailed] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -45,9 +50,9 @@ export default function ModelRoutingCard() {
       setRouting(r)
       setModels(ms)
       setValues(Object.fromEntries(r.purposes.map((p) => [p.key, routeValue(r.routes[p.key])])))
-      setError("")
-    } catch (e) {
-      setError(apiErrorMessage(e, "Couldn't load model routing."))
+      setFailed(false)
+    } catch {
+      setFailed(true)
     }
   }, [])
 
@@ -67,69 +72,70 @@ export default function ModelRoutingCard() {
     try {
       await setModelRouting(routesFromValues(values))
       await load()
-      toast({ title: "Saved", description: "Background work now runs on the models you chose." })
+      toast({ title: "Model choices saved", description: "Background work now runs on the models you chose." })
     } catch (e) {
-      toast({ title: "Couldn't save", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
+      toast({ title: "Couldn't save the model choices", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">Model per job</CardTitle>
-        <CardDescription>
-          Choose which model does each kind of background work. Use a fast or local model for frequent summaries
-          and a large one for long meeting recaps. A person&apos;s own chat and each agent keep the model they were
-          given.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-sm text-danger-ink">{error}</p>}
-        {!routing && !error && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </p>
-        )}
-        {routing?.purposes.map((p) => (
-          <div key={p.key} className="grid gap-2 sm:grid-cols-[1fr_16rem] sm:items-center">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{p.label}</p>
-              <p className="text-xs text-muted-foreground">{p.description}</p>
-            </div>
-            <Select
-              value={values[p.key] || DEFAULT}
-              onValueChange={(v) => setValues((cur) => ({ ...cur, [p.key]: v === DEFAULT ? "" : v }))}
-            >
-              <SelectTrigger aria-label={`Model for ${p.label}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT}>Workspace default</SelectItem>
-                {options.map((m) => (
-                  <SelectItem key={m.id} value={routeValue({ provider_id: m.provider_id, model: m.model })}>
-                    {(m.label || m.model) + " · " + m.provider_label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ))}
-        {routing && options.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            Add models to the allowlist above to route work to them. Until then everything uses the default.
-          </p>
-        )}
-        {routing && (
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={() => void save()} disabled={!dirty || saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <SettingsSection
+      title="Model per job"
+      description="Choose which model does each kind of background work: a fast or local one for frequent summaries, a large one for long meeting recaps. A person's own chat and each agent keep the model they were given."
+    >
+      {failed && !routing ? (
+        <ErrorState
+          subject="the model choices"
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true)
+            void load().finally(() => setRetrying(false))
+          }}
+        />
+      ) : !routing ? (
+        <div role="status" aria-label="Loading the model choices">
+          <SkeletonRows rows={3} avatar={false} />
+        </div>
+      ) : (
+        <>
+          <SettingsList>
+            {routing.purposes.map((p) => (
+              <SettingRow key={p.key} label={p.label} description={p.description} controlId={`route-${p.key}`}>
+                <Select
+                  value={values[p.key] || DEFAULT}
+                  onValueChange={(v) => setValues((cur) => ({ ...cur, [p.key]: v === DEFAULT ? "" : v }))}
+                >
+                  <SelectTrigger id={`route-${p.key}`} aria-describedby={`route-${p.key}-desc`} className="h-8 w-full sm:w-64">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DEFAULT}>Workspace default</SelectItem>
+                    {options.map((m) => (
+                      <SelectItem key={m.id} value={routeValue({ provider_id: m.provider_id, model: m.model })}>
+                        {(m.label || m.model) + " · " + m.provider_label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+            ))}
+          </SettingsList>
+          {options.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Add models to the allowlist above to send work to them. Until then everything uses the default.
+            </p>
+          )}
+          <SaveBar
+            dirty={dirty}
+            saving={saving}
+            what="model choices"
+            onSave={() => void save()}
+            onDiscard={() => setValues(stored)}
+          />
+        </>
+      )}
+    </SettingsSection>
   )
 }
