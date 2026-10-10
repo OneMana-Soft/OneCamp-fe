@@ -14,7 +14,6 @@
  * poll used to run on for up to three minutes after it was gone.
  */
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
@@ -673,7 +672,7 @@ function AutomationRulesBody({
       <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-4 custom-scrollbar">
         {RULE_GROUPS.map((group, gIdx) => (
           <div key={group.section} className="space-y-2">
-            <p className={cn(eyebrowClass, "sticky top-0 bg-background py-1 z-10")}>{group.section}</p>
+            <p className="sticky top-0 z-10 bg-background py-1 text-sm font-medium text-foreground">{group.section}</p>
             <div className="space-y-1">
               {group.items.map(rule => {
                 const id = `github-rule-${rule.key}`
