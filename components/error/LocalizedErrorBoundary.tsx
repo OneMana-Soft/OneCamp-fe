@@ -1,7 +1,7 @@
 "use client"
 
 import { Component, ErrorInfo, ReactNode } from "react";
-import { AlertCircle, RefreshCcw } from "@/lib/icons";
+import { RefreshCcw } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -33,22 +33,17 @@ export class LocalizedErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      // One part of a page, said quietly in a hairline box like the lists
+      // around it: a dashed red slab titled "Component crashed" was the loudest
+      // thing on screen for a part a retry usually brings back.
       return (
-        <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-destructive/20 rounded-xl bg-destructive/5 text-center min-h-[120px]">
-          <div className="flex items-center space-x-2 text-danger-ink mb-2">
-            <AlertCircle className="h-5 w-5" />
-            <span className="font-semibold text-sm">{this.props.fallbackTitle || "Component crashed"}</span>
-          </div>
-          <p className="text-xs text-muted-foreground mb-4 max-w-[200px]">
-            {this.props.fallbackDescription || "Something went wrong in this section."}
+        <div role="alert" className="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-lg border border-border px-4 py-6 text-center">
+          <p className="text-sm font-medium text-foreground">{this.props.fallbackTitle || "This part of the page hit a problem"}</p>
+          <p className="max-w-[40ch] text-xs text-muted-foreground">
+            {this.props.fallbackDescription || "The rest of the page still works. Try this part again."}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs"
-            onClick={this.handleReset}
-          >
-            <RefreshCcw className="mr-2 h-3 w-3" />
+          <Button variant="outline" size="sm" className="mt-1 h-8 gap-1.5" onClick={this.handleReset}>
+            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
             Try again
           </Button>
         </div>

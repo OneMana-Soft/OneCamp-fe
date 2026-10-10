@@ -2,7 +2,8 @@
 
 import { Component, ErrorInfo, ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, RotateCcw } from "@/lib/icons";
+import { EmptyState } from "@/components/ui/empty-state"
+import { AlertCircle } from "@/lib/icons";
 
 interface Props {
   children: ReactNode
@@ -28,46 +29,35 @@ export class GlobalErrorBoundary extends Component<Props, State> {
     console.error("Uncaught error:", error, errorInfo)
   }
 
-  private handleReset = () => {
-    this.setState({ hasError: false, error: null })
-  }
-
   public render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
           return this.props.fallback
       }
 
+      // The last resort, for a crash in the app's frame itself (a crash inside
+      // a page is caught inside the frame by app/app/error.tsx). It used to
+      // say "We've been notified and are looking into it": nothing reports
+      // errors anywhere, and on a server the customer runs there is nobody to
+      // tell. It says what is true, and the one way on that works: reloading.
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background text-foreground">
-          <div className="flex flex-col items-center max-w-md text-center">
-            <div className="p-4 mb-4 rounded-full bg-destructive/10">
-              <AlertCircle className="w-12 h-12 text-danger-ink" />
+        <div role="alert" className="flex min-h-dvh flex-col items-center justify-center bg-background p-6 text-foreground">
+          <EmptyState
+            tone="accent"
+            headingLevel={1}
+            icon={AlertCircle}
+            title="OneCamp hit a problem it couldn't recover from"
+            description="Nothing you saved is lost. Reload the page to carry on."
+            action={<Button onClick={() => window.location.reload()}>Reload page</Button>}
+          />
+          {process.env.NODE_ENV === "development" && (
+            <div className="mt-6 max-h-48 w-full max-w-xl overflow-auto rounded-lg bg-muted p-4 text-left">
+              <p className="mb-2 font-mono text-xs font-bold text-danger-ink">
+                {this.state.error?.name}: {this.state.error?.message}
+              </p>
+              <p className="whitespace-pre font-mono text-2xs text-muted-foreground">{this.state.error?.stack}</p>
             </div>
-            <h1 className="mb-2 text-2xl font-bold tracking-tight">Something went wrong</h1>
-            <p className="mb-6 text-muted-foreground">
-              An unexpected error occurred. We've been notified and are looking into it.
-            </p>
-            {process.env.NODE_ENV === "development" && (
-              <div className="w-full p-4 mb-6 overflow-auto text-left rounded-lg bg-muted max-h-48">
-                <p className="mb-2 font-mono text-xs font-bold text-danger-ink">
-                  {this.state.error?.name}: {this.state.error?.message}
-                </p>
-                <p className="font-mono text-2xs text-muted-foreground whitespace-pre">
-                  {this.state.error?.stack}
-                </p>
-              </div>
-            )}
-            <div className="flex gap-4">
-              <Button onClick={() => window.location.reload()} variant="outline" className="gap-2">
-                <RotateCcw className="w-4 h-4" />
-                Reload page
-              </Button>
-              <Button onClick={this.handleReset}>
-                Try again
-              </Button>
-            </div>
-          </div>
+          )}
         </div>
       )
     }

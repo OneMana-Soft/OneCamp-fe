@@ -19,7 +19,7 @@ export const ErrorState = ({ onRetry, errorMessage, errorTitle }: ErrorStateProp
             </div>
             {onRetry && (
                 <Button onClick={onRetry} variant="outline">
-                    Try Again
+                    Try again
                 </Button>
             )}
         </div>
