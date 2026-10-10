@@ -59,6 +59,13 @@ describe("the audit log", () => {
     expect(await screen.findByText("Change 1")).toBeTruthy()
   })
 
+  it("shows the inbox illustration in sun when nothing has been recorded yet", async () => {
+    getAdminAuditLog.mockResolvedValue(page([]))
+    render(<AdminAuditLog />)
+    expect(await screen.findByText("No audit entries yet")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg.hue-sun")).toBeTruthy()
+  })
+
   it("reaches entries older than the latest fifty", async () => {
     const first = Array.from({ length: 50 }, (_, i) => entry(i))
     getAdminAuditLog.mockResolvedValueOnce(page(first)).mockResolvedValueOnce(page([entry(50, { summary: "The oldest change" })]))

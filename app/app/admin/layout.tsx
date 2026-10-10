@@ -4,9 +4,11 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
-import {ErrorState} from "@/components/ui/error-state";
+import {EmptyState} from "@/components/ui/empty-state";
+import {Button} from "@/components/ui/button";
+import {SpotError} from "@/components/ui/graphics";
 import {Skeleton} from "@/components/ui/skeleton";
-import {Lock} from "@/lib/icons";
+import {Lock, RefreshCw} from "@/lib/icons";
 
 /**
  * The admin page's frame while the gate asks who you are: its header, the
@@ -66,9 +68,21 @@ export default function AdminGate({
     // the page used to answer that with "Admins only", telling an admin they
     // weren't one.
     if (selfProfile.isError && !selfProfile.data) {
+        // The whole page, so its heading is the page's, under the error spot.
         return (
             <div className="flex h-full items-center justify-center">
-                <ErrorState subject="this page" onRetry={() => void selfProfile.mutate()} />
+                <EmptyState
+                    illustration={<SpotError />}
+                    headingLevel={1}
+                    title="Couldn't load this page"
+                    description="Nothing has been lost. This is usually a connection problem: try again in a moment."
+                    action={
+                        <Button variant="outline" size="sm" onClick={() => void selfProfile.mutate()} className="gap-1.5">
+                            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                            Try again
+                        </Button>
+                    }
+                />
             </div>
         )
     }

@@ -18,6 +18,9 @@ import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { fullDateTime, shortDateTime } from "@/lib/utils/date/shortDate"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotInbox } from "@/components/ui/graphics"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils/helpers/cn"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
@@ -458,10 +461,15 @@ export default function AdminAuditLog() {
                     <AuditSkeleton />
                 ) : failed && entries.length === 0 ? (
                     <ErrorState subject="the audit log" onRetry={() => load(filter)} retrying={loading} />
+                ) : entries.length === 0 && (filter !== ALL || unattendedOnly) ? (
+                    <div className="py-8 text-center text-sm text-muted-foreground">No entries match this filter.</div>
                 ) : entries.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
-                        {filter !== ALL || unattendedOnly ? "No entries match this filter." : "No audit entries yet."}
-                    </div>
+                    // Nothing recorded yet: the inbox, in the workspace group's hue.
+                    <EmptyState
+                        illustration={<SpotInbox hue={ADMIN_GROUP_HUE.workspace} />}
+                        title="No audit entries yet"
+                        description="Changes to settings, and what agents do for people, are recorded here as they happen."
+                    />
                 ) : (
                     // No scroller of its own: the admin page's tab region scrolls,
                     // so the log grows with the page instead of inside a box.

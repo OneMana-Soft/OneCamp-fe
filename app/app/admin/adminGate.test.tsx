@@ -31,7 +31,8 @@ describe("the admin gate", () => {
     profile.value = { data: undefined, isLoading: false, isError: new Error("503"), mutate }
     render(<AdminGate><p>Members</p></AdminGate>)
     expect(screen.queryByText("Admins only")).toBeNull()
-    expect(screen.getByText("Couldn't load this page")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 1, name: "Couldn't load this page" })).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(mutate).toHaveBeenCalled()
   })
