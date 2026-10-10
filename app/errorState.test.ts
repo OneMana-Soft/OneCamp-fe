@@ -72,6 +72,10 @@ const SURFACES = [
   "components/admin/ArchiveCard.tsx",
   "components/admin/ImportCard.tsx",
   "components/admin/EmailSettingsCard.tsx",
+  // Both said "No workflows yet" and "No AI activity yet" when their lists
+  // failed (44614a16, fc046724).
+  "components/admin/WorkflowsCard.tsx",
+  "components/admin/AIActivityCard.tsx",
 ]
 /**
  * Strips comments before any structural analysis.
