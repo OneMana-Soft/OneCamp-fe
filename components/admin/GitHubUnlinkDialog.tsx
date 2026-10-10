@@ -1,8 +1,7 @@
 "use client"
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { buttonVariants } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle } from "@/lib/icons";
 
 interface LinkData {
@@ -19,32 +18,35 @@ interface Props {
   isSubmitting: boolean
 }
 
+// The question names the repository; what stops is listed after the
+// description rather than inside its <p>, which made the HTML invalid.
 export default function GitHubUnlinkDialog({ open, onOpenChange, onConfirm, link, isSubmitting }: Props) {
+  const repo = link ? `${link.repo_owner}/${link.repo_name}` : "this repository"
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="sm:max-w-md border-destructive/20">
+      <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-danger-ink">
-            <AlertTriangle className="h-5 w-5" /> Unlink Repository
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-danger-ink" aria-hidden="true" />
+            <span translate="no">Unlink {repo}?</span>
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-3 pt-2 text-sm text-muted-foreground">
-            <p>Are you sure you want to unlink <strong className="text-foreground font-semibold">{link?.repo_owner}/{link?.repo_name}</strong>?</p>
-            <div className="bg-destructive/10 text-danger-ink p-3 rounded-md border border-destructive/20">
-              <p className={cn(eyebrowClass, "text-danger-ink mb-1")}>This action will:</p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Remove the GitHub webhook from this repository</li>
-                <li>Clear GitHub metadata from all linked tasks in this project</li>
-                <li>Stop receiving webhook events for this repository</li>
-              </ul>
-            </div>
-            <p className="font-medium text-foreground mt-2">This action cannot be undone.</p>
+          <AlertDialogDescription>
+            Its tasks keep their content, and you can&apos;t undo this. You can link it again later.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="mt-4">
+        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-danger-ink">
+          <p className="mb-1 font-medium">This will:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>Remove OneCamp&apos;s webhook from the repository</li>
+            <li>Clear GitHub details from this project&apos;s linked tasks</li>
+            <li>Stop taking in its events</li>
+          </ul>
+        </div>
+        <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={isSubmitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors">
-            {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
-            Unlink Repository
+          <AlertDialogAction onClick={onConfirm} disabled={isSubmitting} className={buttonVariants({ variant: "destructive" })}>
+            {isSubmitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {isSubmitting ? "Unlinking…" : "Unlink repository"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
