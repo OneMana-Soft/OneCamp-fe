@@ -58,6 +58,7 @@ export const ChannelListResult = ({
                 className="block focus:outline-none"
             >
                 <ChannelListChannel
+                    channelId={channel.ch_uuid}
                     lastUsername={relayed ? relayed.name : displayNameOf(by) || ""}
                     lastUserMessage={relayed ? relayed.body : last?.post_text || ""}
                     lastMessageTime={channel.ch_posts?.[0]?.post_created_at || ""}

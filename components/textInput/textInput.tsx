@@ -18,6 +18,7 @@ import {
 } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap";
 
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
+import { tintMentions } from "@/components/message/tintMentions";
 import { canRenderStatically, mentionUserUUID } from "@/lib/utils/staticRichText";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
@@ -540,7 +541,8 @@ LiveTextInput.displayName = "LiveTextInput";
 const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; className?: string; contentClassName?: string }>(
     ({ html, className, contentClassName }, ref) => {
         const dispatch = useDispatch();
-        const safe = React.useMemo(() => sanitizeRichHtml(html), [html]);
+        // Each person mention in that person's hue, as their avatar is.
+        const safe = React.useMemo(() => tintMentions(sanitizeRichHtml(html)), [html]);
         const onClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
             const mention = (e.target as HTMLElement).closest<HTMLElement>('span[data-type="mention"]');
             if (!mention) return;
