@@ -21,12 +21,14 @@ const EMPTY_CHAT_MESSAGES: ChatInfo[] = [];
 interface ChatMessageListProps {
     chatId: string;
     messageId?: string;
+    /** Unread when the conversation was opened: where the "New" line goes. */
+    unreadOnOpen?: number;
 }
 
 // Memoised: its props are ids, so a parent re-rendering for another reason
 // (the composer's draft changes on every keystroke) never re-renders every
 // message. On a phone that re-render cost up to 300 ms a key.
-export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId: propMessageId}: ChatMessageListProps) {
+export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId: propMessageId, unreadOnOpen}: ChatMessageListProps) {
 
     const { isMobile } = useMedia();
     const searchParams = useSearchParams();
@@ -221,6 +223,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
                 isNewMsgLoading={newMsg.isLoading}
                 isOLdMsgLoading={oldMsg.isLoading}
                 clickedScrollToBottom={handleClickedScrollToBottom}
+                unreadOnOpen={unreadOnOpen}
             />
             {/*
               Typing indicator. On desktop it sits inline at the bottom of

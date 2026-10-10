@@ -164,7 +164,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     isChannel={false}
                     type="dm"
                 />
-                <ChatMessageList chatId={chatId} />
+                <ChatMessageList chatId={chatId} unreadOnOpen={unreadCount} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">

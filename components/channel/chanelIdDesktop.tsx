@@ -293,7 +293,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                     unreadCount={unreadCount || 0}
                     channelName={channelDisplayName}
                 />
-                <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
+                <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin} unreadOnOpen={unreadCount}/>
             </div>
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">

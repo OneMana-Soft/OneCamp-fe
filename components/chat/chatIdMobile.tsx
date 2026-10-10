@@ -45,7 +45,7 @@ export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string,
                 type="dm"
             />
             <div className="flex-1 min-h-0">
-                <ChatMessageList chatId={chatId} />
+                <ChatMessageList chatId={chatId} unreadOnOpen={unreadCount} />
             </div>
             <div>
                 {suggestions.length > 0 && (
