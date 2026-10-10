@@ -107,8 +107,8 @@ export const useTaskUpdate = () => {
                 if (pageIndex !== 0) return currentData;
                 if (!matchesFilters(newTask, searchParams, false)) return currentData;
 
-                const newData = JSON.parse(JSON.stringify(currentData));
-                const data = newData.data;
+                // A copy of what changes, the rest shared: see optimisticUpdateTask.
+                const data = { ...currentData.data };
 
                 // Use exact path matching to avoid overlap
                 if (isTimelineKey(pathname)) {
@@ -116,24 +116,20 @@ export const useTaskUpdate = () => {
                     data.tasks = [newTask, ...(data.tasks || [])];
                     data.total = (data.total || 0) + 1;
                 } else if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
-                    const statusKey = `project_tasks_${statusToKey(newTask.task_status)}` as keyof typeof data;
-                    if (Array.isArray(data[statusKey])) {
-                        (data[statusKey] as any) = [newTask, ...(data[statusKey] as any)];
-                    }
+                    const statusKey = `project_tasks_${statusToKey(newTask.task_status)}`;
+                    if (Array.isArray(data[statusKey])) data[statusKey] = [newTask, ...data[statusKey]];
                 } else if (pathname.includes(GetEndpointUrl.GetProjectTaskList)) {
                     data.project_tasks = [newTask, ...(data.project_tasks || [])];
                     data.project_task_count = (data.project_task_count || 0) + 1;
                 } else if (pathname === GetEndpointUrl.GetUserTaskListForKanban) {
-                    const statusKey = `user_tasks_${statusToKey(newTask.task_status)}` as keyof typeof data;
-                    if (Array.isArray(data[statusKey])) {
-                        (data[statusKey] as any) = [newTask, ...(data[statusKey] as any)];
-                    }
+                    const statusKey = `user_tasks_${statusToKey(newTask.task_status)}`;
+                    if (Array.isArray(data[statusKey])) data[statusKey] = [newTask, ...data[statusKey]];
                 } else if (pathname === GetEndpointUrl.GetUserTaskList) {
                     data.user_tasks = [newTask, ...(data.user_tasks || [])];
                     data.user_task_count = (data.user_task_count || 0) + 1;
                 }
 
-                return newData;
+                return { ...currentData, data };
             }, { revalidate: false }); // Disable immediate revalidation to prevent blinking
         });
     }, [cache, mutate, getTaskKeys]);
@@ -238,6 +234,13 @@ export const useTaskUpdate = () => {
     // beats newIndex: a board column for a project's own status is only part
     // of its category's list in this cache, so an index in the column is not
     // an index in the list.
+    //
+    // Only what changes is copied: the moved task, and the lists it leaves and
+    // enters. Every other task keeps its object, so a board's memoised cards
+    // skip it, and SWR's comparison (which hashes objects it has not seen)
+    // goes over two lists, not the board. A JSON copy of every list, as this
+    // was, made each of 270 cards render again after a drop, the slowest frame
+    // of the drag.
     const optimisticUpdateTask = useCallback((updatedTask: Partial<TaskInfoInterface> & { task_uuid: string }, projectId: string, newIndex?: number, placement?: { before?: string; after?: string }) => {
         // Fields alone change in place, as for several tasks at once.
         if (updatedTask.task_status === undefined && newIndex === undefined) {
@@ -246,110 +249,67 @@ export const useTaskUpdate = () => {
         }
         patchWorkload([updatedTask]);
         const matchedKeys = getTaskKeys(projectId);
+        const id = updatedTask.task_uuid;
 
-        const updateDataArray = (tasks: TaskInfoInterface[] | undefined) => {
-            if (!tasks) return tasks;
-            return tasks.map(t => t.task_uuid === updatedTask.task_uuid ? { ...t, ...updatedTask } : t);
+        const patchOne = (tasks: unknown) =>
+            Array.isArray(tasks) ? (tasks as TaskInfoInterface[]).map(t => t.task_uuid === id ? { ...t, ...updatedTask } : t) : tasks;
+
+        // Out of the column it is in, into its new status's column beside its
+        // neighbour (or at newIndex, or at the top).
+        const moveInColumns = (data: TaskLists, prefix: "project" | "user") => {
+            let fromKey: string | null = null;
+            let at = -1;
+            for (const col of BOARD_COLUMNS) {
+                const list = data[`${prefix}_tasks_${col}`];
+                if (!Array.isArray(list)) continue;
+                const i = (list as TaskInfoInterface[]).findIndex(t => t.task_uuid === id);
+                if (i >= 0) {
+                    fromKey = `${prefix}_tasks_${col}`;
+                    at = i;
+                    break;
+                }
+            }
+            if (fromKey === null) return;
+            const source = [...(data[fromKey] as TaskInfoInterface[])];
+            const [found] = source.splice(at, 1);
+            data[fromKey] = source;
+            const toKey = updatedTask.task_status !== undefined ? `${prefix}_tasks_${statusToKey(updatedTask.task_status)}` : fromKey;
+            const target = toKey === fromKey ? source : Array.isArray(data[toKey]) ? [...(data[toKey] as TaskInfoInterface[])] : [];
+            const moved = { ...found, ...updatedTask } as TaskInfoInterface;
+            const beforeAt = placement?.before ? target.findIndex(t => t.task_uuid === placement.before) : -1;
+            const afterAt = placement?.after ? target.findIndex(t => t.task_uuid === placement.after) : -1;
+            if (beforeAt >= 0) target.splice(beforeAt + 1, 0, moved);
+            else if (afterAt >= 0) target.splice(afterAt, 0, moved);
+            else if (newIndex !== undefined) target.splice(newIndex, 0, moved);
+            else target.unshift(moved);
+            data[toKey] = target;
         };
-
-        const moveTaskInKanban = (data: any, taskUuid: string, newStatus: string | undefined, prefix: "project" | "user", targetIndex?: number) => {
-            const columnKeys = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
-            let foundTask: TaskInfoInterface | null = null;
-            let sourceCol: string | null = null;
-            
-            // 1. Find and remove task from source column
-            for (const col of columnKeys) {
-                const colKey = `${prefix}_tasks_${col}` as keyof typeof data;
-                if (Array.isArray(data[colKey])) {
-                    const taskIndex = (data[colKey] as any).findIndex((t: any) => t.task_uuid === taskUuid);
-                    if (taskIndex > -1) {
-                        foundTask = (data[colKey] as any).splice(taskIndex, 1)[0];
-                        sourceCol = col;
-                        break; // Task found, stop searching
-                    }
-                }
-            }
-
-            // 2. Add task to target column
-            if (foundTask) {
-                // If newStatus is provided, move to that status. Otherwise stay in source column.
-                const targetStatusKey = newStatus ? statusToKey(newStatus) : sourceCol;
-                
-                if (targetStatusKey) {
-                    const targetColKey = `${prefix}_tasks_${targetStatusKey}` as keyof typeof data;
-                    
-                    // Ensure target column exists
-                    if (!Array.isArray(data[targetColKey])) {
-                       data[targetColKey] = [];
-                    }
-
-                    // Insert beside its neighbour, at a specific index, or at the top
-                    const taskToInsert = { ...foundTask, ...(updatedTask as any) };
-                    const list = data[targetColKey] as any[];
-                    const beforeAt = placement?.before ? list.findIndex((t: any) => t.task_uuid === placement.before) : -1;
-                    const afterAt = placement?.after ? list.findIndex((t: any) => t.task_uuid === placement.after) : -1;
-                    if (beforeAt >= 0) {
-                        list.splice(beforeAt + 1, 0, taskToInsert);
-                    } else if (afterAt >= 0) {
-                        list.splice(afterAt, 0, taskToInsert);
-                    } else if (targetIndex !== undefined) {
-                        (data[targetColKey] as any).splice(targetIndex, 0, taskToInsert);
-                    } else {
-                        (data[targetColKey] as any) = [taskToInsert, ...(data[targetColKey] as any)];
-                    }
-                } else {
-                    // Fallback to original state if we can't determine target status
-                    // This should ideally not happen
-                    console.warn("Could not determine target status for task move", taskUuid);
-                }
-            }
+        // A filtered list keeps the task only while it still matches.
+        const patchList = (tasks: unknown, searchParams: URLSearchParams) => {
+            const patched = patchOne(tasks);
+            return Array.isArray(patched) ? patched.filter(t => t.task_uuid !== id || matchesFilters(t, searchParams)) : patched;
         };
 
         matchedKeys.forEach(key => {
-            mutate(key, (currentData: any) => {
+            mutate(key, (currentData: { data?: TaskLists } | undefined) => {
                 if (!currentData || !currentData.data) return currentData;
-
                 const url = new URL(key, "http://localhost");
                 const pathname = url.pathname;
-                const newData = JSON.parse(JSON.stringify(currentData));
-                const data = newData.data;
-
+                const data: TaskLists = { ...currentData.data };
+                // A list's path is the start of its board's, so each board is
+                // tested before its list.
                 if (isTimelineKey(pathname)) {
-                    data.tasks = updateDataArray(data.tasks);
-                } else if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
-                    if (updatedTask.task_status !== undefined || newIndex !== undefined) {
-                        moveTaskInKanban(data, updatedTask.task_uuid, updatedTask.task_status, "project", newIndex);
-                    } else {
-                        const columnKeys = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
-                        columnKeys.forEach(col => {
-                            const colKey = `project_tasks_${col}` as keyof typeof data;
-                            data[colKey] = updateDataArray(data[colKey] as any);
-                        });
-                    }
-                } else if (pathname.includes(GetEndpointUrl.GetProjectTaskList)) {
-                    data.project_tasks = updateDataArray(data.project_tasks);
-                    const taskInList = data.project_tasks.find((t: any) => t.task_uuid === updatedTask.task_uuid);
-                    if (taskInList && !matchesFilters(taskInList, url.searchParams)) {
-                         data.project_tasks = data.project_tasks.filter((t: any) => t.task_uuid !== updatedTask.task_uuid);
-                    }
+                    data.tasks = patchOne(data.tasks);
+                } else if (pathname.startsWith(GetEndpointUrl.GetProjectTaskListForKanban)) {
+                    moveInColumns(data, "project");
+                } else if (pathname.startsWith(GetEndpointUrl.GetProjectTaskList)) {
+                    data.project_tasks = patchList(data.project_tasks, url.searchParams);
                 } else if (pathname === GetEndpointUrl.GetUserTaskListForKanban) {
-                    if (updatedTask.task_status !== undefined || newIndex !== undefined) {
-                        moveTaskInKanban(data, updatedTask.task_uuid, updatedTask.task_status, "user", newIndex);
-                    } else {
-                        const columnKeys = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
-                        columnKeys.forEach(col => {
-                            const colKey = `user_tasks_${col}` as keyof typeof data;
-                            data[colKey] = updateDataArray(data[colKey] as any);
-                        });
-                    }
+                    moveInColumns(data, "user");
                 } else if (pathname === GetEndpointUrl.GetUserTaskList) {
-                    data.user_tasks = updateDataArray(data.user_tasks);
-                    const taskInList = data.user_tasks.find((t: any) => t.task_uuid === updatedTask.task_uuid);
-                    if (taskInList && !matchesFilters(taskInList, url.searchParams)) {
-                         data.user_tasks = data.user_tasks.filter((t: any) => t.task_uuid !== updatedTask.task_uuid);
-                    }
+                    data.user_tasks = patchList(data.user_tasks, url.searchParams);
                 }
-                return newData;
+                return { ...currentData, data };
             }, { revalidate: false });
         });
     }, [mutate, getTaskKeys, optimisticUpdateTasks, patchWorkload]);
@@ -362,8 +322,8 @@ export const useTaskUpdate = () => {
             mutate(key, (currentData: any) => {
                 if (!currentData || !currentData.data) return currentData;
 
-                const newData = JSON.parse(JSON.stringify(currentData));
-                const data = newData.data;
+                // Lists without the task, the other tasks shared: see optimisticUpdateTask.
+                const data = { ...currentData.data };
                 const pathname = new URL(key, "http://localhost").pathname;
 
                 // A list's path is the start of its board's ("/project/taskList"
@@ -397,7 +357,7 @@ export const useTaskUpdate = () => {
                         }
                     });
                 }
-                return newData;
+                return { ...currentData, data };
             }, { revalidate: false });
         });
     }, [mutate, getTaskKeys, patchWorkload]);
