@@ -46,8 +46,11 @@ export function MobileNavigationBar({
                     screen. */}
                 {banners ? <div data-app-banners="" className="shrink-0">{banners}</div> : null}
 
+                {/* overflow-x-hidden: overflow-y-auto alone makes x scroll too,
+                    so a page drawn a few pixels too wide (the AI page was 406
+                    in 390) made the whole screen pan sideways under the thumb. */}
                 <div data-app-scroller="" className={cn(
-                    "flex-1 min-h-0 overflow-y-auto",
+                    "flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
                     !noBottomBar && "pb-[calc(4rem+env(safe-area-inset-bottom))]"
                 )}>
                     {children}

@@ -39,6 +39,17 @@ describe("the phone shell", () => {
     expect(scroller.className).toContain("overflow-y-auto")
   })
 
+  it("never pans sideways, whatever a page draws", () => {
+    // overflow-y-auto alone computes overflow-x to auto as well: a page a few
+    // pixels too wide made the whole screen move sideways under the thumb.
+    render(
+      <MobileNavigationBar>
+        <div data-testid="page" />
+      </MobileNavigationBar>,
+    )
+    expect(screen.getByTestId("page").parentElement?.className).toContain("overflow-x-hidden")
+  })
+
   it("draws no notice row when there is nothing to say", () => {
     const { container } = render(
       <MobileNavigationBar>
