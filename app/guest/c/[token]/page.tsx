@@ -6,7 +6,7 @@
 // polling, since a guest has no session for the live connection.
 
 import { use, useCallback, useRef, useState } from "react"
-import { ArrowLeft, Hash, MessageSquare } from "@/lib/icons"
+import { ArrowLeft, Hash, MessageSquare, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
 import {
@@ -176,8 +176,10 @@ function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { 
   return (
     <aside className="flex w-full min-w-0 flex-col border-l sm:w-96">
       <div className="flex items-center gap-2 border-b px-3 py-2">
+        {/* Back to the channel where the thread covers it, a cross where it sits beside it. */}
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close the thread">
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 sm:hidden" aria-hidden="true" />
+          <X className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         </Button>
         <span className="text-sm font-medium">Thread</span>
       </div>
