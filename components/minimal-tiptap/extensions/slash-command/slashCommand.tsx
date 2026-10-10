@@ -65,7 +65,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "inlineCode",
-    title: "Inline Code",
+    title: "Inline code",
     description: "Format text as inline code",
     icon: Code,
     section: "Format",
@@ -75,7 +75,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "clearFormatting",
-    title: "Clear Formatting",
+    title: "Clear formatting",
     description: "Remove all text formatting",
     icon: Eraser,
     section: "Format",
@@ -119,7 +119,7 @@ const STRUCTURE_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "bulletList",
-    title: "Bullet List",
+    title: "Bullet list",
     description: "Create a simple bullet list",
     icon: List,
     section: "Basic blocks",
@@ -129,7 +129,7 @@ const STRUCTURE_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "orderedList",
-    title: "Numbered List",
+    title: "Numbered list",
     description: "Create a numbered list",
     icon: ListOrdered,
     section: "Basic blocks",
@@ -139,7 +139,7 @@ const STRUCTURE_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "taskList",
-    title: "Task List",
+    title: "Task list",
     description: "Create a task list with checkboxes",
     icon: CheckSquare,
     section: "Basic blocks",
@@ -159,7 +159,7 @@ const STRUCTURE_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "codeBlock",
-    title: "Code Block",
+    title: "Code block",
     description: "Insert a code block",
     icon: Code,
     section: "Basic blocks",
@@ -630,7 +630,7 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
 
   if (props.items.length === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-md border bg-popover text-popover-foreground shadow-md px-3 py-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 rounded-md border bg-popover text-popover-foreground shadow-overlay px-3 py-2 text-sm text-muted-foreground">
         <Command className="h-4 w-4" />
         No commands found
       </div>
@@ -638,7 +638,7 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl min-w-[17rem] max-h-[22rem] overflow-y-auto py-1.5 px-1">
+    <div className="flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-overlay min-w-[17rem] max-h-[22rem] overflow-y-auto py-1.5 px-1">
       {groupedItems.map((group) => (
         <div key={group.section} className="mb-1 last:mb-0">
           <div className={cn(eyebrowClass, "px-2.5 py-1 text-2xs text-muted-foreground/70")}>

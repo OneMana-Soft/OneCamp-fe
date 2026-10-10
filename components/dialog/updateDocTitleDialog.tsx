@@ -75,46 +75,45 @@ const UpdateDocTitleDialog: React.FC<UpdateDocDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-start">Create Document</DialogTitle>
-                    <DialogDescription className="hidden">
-                        Update document title
+                    {/* It said "Create Document" over a rename. */}
+                    <DialogTitle className="text-start">Rename doc</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Give this doc a new title.
                     </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="grid gap-4 py-4 space-y-3">
-                        <div className="grid gap-2">
-                            <Label>Document Title</Label>
-                            <Controller
-                                name="doc_title"
-                                control={control}
-                                render={({field, fieldState: {error}}) => (
-                                    <>
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                {...field}
-                                                id="docTitle"
-                                                placeholder="Type document title"
-                                                autoFocus
-                                            />
-                                        </div>
-                                        <div>
-                                            {error && (
-                                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            />
-                        </div>
+                <form onSubmit={handleSubmit(onSubmit)} className="grid gap-5">
+                    <div className="grid gap-2">
+                        <Label htmlFor="docTitle">Title</Label>
+                        <Controller
+                            name="doc_title"
+                            control={control}
+                            render={({field, fieldState: {error}}) => (
+                                <>
+                                    <Input
+                                        {...field}
+                                        id="docTitle"
+                                        placeholder="Untitled"
+                                        autoFocus
+                                        aria-invalid={!!error}
+                                    />
+                                    {error && (
+                                        <p className="text-sm text-danger-ink">{error.message}</p>
+                                    )}
+                                </>
+                            )}
+                        />
                     </div>
                     <DialogFooter>
+                        <Button type="button" variant="outline" onClick={closeModal}>
+                            Cancel
+                        </Button>
                         <Button
                             type="submit"
                             disabled={!isValid || isSubmitting}
                         >
-                            {isSubmitting ? "Updating…" : "Update Title"}
+                            {isSubmitting ? "Saving…" : "Save"}
                         </Button>
                     </DialogFooter>
                 </form>

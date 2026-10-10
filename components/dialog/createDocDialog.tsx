@@ -76,61 +76,67 @@ const CreateDocDialog: React.FC<CreateDocDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-start">Create Document</DialogTitle>
-                    <DialogDescription className="hidden">
-                        Create a new document
+                    <DialogTitle className="text-start">New doc</DialogTitle>
+                    <DialogDescription className="text-start">
+                        A page your team writes in together.
                     </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="grid gap-4 py-4 space-y-3">
-                        <div className="grid gap-2">
-                            <Label>Document Title</Label>
-                            <Controller
-                                name="doc_title"
-                                control={control}
-                                render={({field, fieldState: {error}}) => (
-                                    <>
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                {...field}
-                                                id="docTitle"
-                                                placeholder="Type document title"
-                                                autoFocus
-                                            />
-                                        </div>
-                                        <div>
-                                            {error && (
-                                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            />
-                        </div>
-
-                        <div className="flex items-center space-x-4">
-                            <Label>Private Document</Label>
-                            <Controller
-                                name="doc_private"
-                                control={control}
-                                render={({field}) => (
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
+                <form onSubmit={handleSubmit(onSubmit)} className="grid gap-5">
+                    <div className="grid gap-2">
+                        <Label htmlFor="docTitle">Title</Label>
+                        <Controller
+                            name="doc_title"
+                            control={control}
+                            render={({field, fieldState: {error}}) => (
+                                <>
+                                    <Input
+                                        {...field}
+                                        id="docTitle"
+                                        placeholder="Launch plan"
+                                        autoFocus
+                                        aria-invalid={!!error}
                                     />
-                                )}
-                            />
+                                    {error && (
+                                        <p className="text-sm text-danger-ink">{error.message}</p>
+                                    )}
+                                </>
+                            )}
+                        />
+                    </div>
 
+                    {/* A setting row: what it is and what it means on the left,
+                        the switch on the right, the label naming the switch. */}
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="grid gap-1">
+                            <Label htmlFor="docPrivate">Private</Label>
+                            <p id="docPrivate-hint" className="text-xs text-muted-foreground">
+                                Only you, and the people you share it with, can open it.
+                            </p>
                         </div>
+                        <Controller
+                            name="doc_private"
+                            control={control}
+                            render={({field}) => (
+                                <Switch
+                                    id="docPrivate"
+                                    aria-describedby="docPrivate-hint"
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            )}
+                        />
                     </div>
                     <DialogFooter>
+                        <Button type="button" variant="outline" onClick={closeModal}>
+                            Cancel
+                        </Button>
                         <Button
                             type="submit"
                             disabled={!isValid || isSubmitting}
                         >
-                            {isSubmitting ? "Creating…" : "Create Document"}
+                            {isSubmitting ? "Creating…" : "Create doc"}
                         </Button>
                     </DialogFooter>
                 </form>

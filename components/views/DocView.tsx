@@ -485,12 +485,12 @@ export function DocView({ docId }: { docId: string }) {
             )}
 
             {/* Mobile header */}
-            {!focusMode && isMobile && (
-                <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background">
-                    <DocTopBarBreadcrumb doc={displayDocInfo!} canEdit={hasEditAccess} />
-                    {/* Comments and the document menu live in the phone's top bar
-                        (mobileTopNavigationBarThirdDoc and its drawer); repeating
-                        them here put two of each on screen. */}
+            {/* On a phone the app bar names the doc and its menu has Share, so
+                this row only shows who else is here, and only when someone is:
+                it was a third bar (Share and your own face) between the app
+                bar and the toolbar, 48px above the title on every doc. */}
+            {!focusMode && isMobile && awarenessUsers.length > 1 && (
+                <div className="shrink-0 flex items-center justify-end px-3 py-2 border-b bg-background" data-doc-presence-row="">
                     <ActiveUsersBar users={awarenessUsers} maxShown={3} />
                 </div>
             )}

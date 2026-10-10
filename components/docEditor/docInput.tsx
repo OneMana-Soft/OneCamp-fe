@@ -72,7 +72,8 @@ interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate
 // Hoisted, so the memoised sections below are not handed a new array (and so
 // rendered again) every time the toolbar renders.
 const DOC_HEADING_LEVELS: Level[] = [1, 2, 3]
-const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ['italic', 'bold', 'underline', 'code', 'strikethrough', 'clearFormatting'];
+// Bold, italic, underline, strike, code: the order every editor has. Italic came first.
+const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ['bold', 'italic', 'underline', 'strikethrough', 'code', 'clearFormatting'];
 const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ['bulletList', 'orderedList'];
 const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ['blockquote', 'codeBlock', 'horizontalRule'];
 
@@ -81,6 +82,11 @@ const TOOLBAR_TEXT_BUTTON = cn(
     "transition-colors hover:bg-accent hover:text-foreground",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 )
+
+// The words beside the toolbar's two text buttons, only where the toolbar has
+// room: beside the comments panel (an 810px editor at 1440) the row ran 44px
+// past its edge and "Write with AI" was cut in half behind a scroll with no cue.
+const TOOLBAR_LABEL = "hidden @[56rem]/toolbar:inline"
 
 // Memoised: it renders when a selection starts or ends. Each section inside
 // follows the editor itself (useEditorState), so a keystroke re-renders only
@@ -134,7 +140,7 @@ const Toolbar = React.memo(function Toolbar({ editor, onAIClick, hasSelection }:
                 type="button"
             >
                 <ImageIcon className="size-4" aria-hidden="true" />
-                <span>Image</span>
+                <span className={TOOLBAR_LABEL}>Image</span>
             </button>
 
             <Separator orientation="vertical" className="mx-1.5 h-5" />
@@ -149,10 +155,11 @@ const Toolbar = React.memo(function Toolbar({ editor, onAIClick, hasSelection }:
                 }}
                 className={TOOLBAR_TEXT_BUTTON}
                 title={hasSelection ? "Rewrite the selected text with AI" : "Write with AI"}
+                aria-label={hasSelection ? "Rewrite with AI" : "Write with AI"}
                 type="button"
             >
                 <Sparkles className="size-4" aria-hidden="true" />
-                <span>{hasSelection ? "Rewrite" : "Write with AI"}</span>
+                <span className={TOOLBAR_LABEL}>{hasSelection ? "Rewrite" : "Write with AI"}</span>
             </button>
         </div>
     )
@@ -653,7 +660,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     reader was shown every formatting control, none of which
                     could do anything. */}
                 {!focusMode && canEdit && (
-                    <div className="shrink-0 z-10 bg-background border-b border-border w-full overflow-x-auto">
+                    <div className="@container/toolbar shrink-0 z-10 bg-background border-b border-border w-full overflow-x-auto" data-doc-toolbar="">
                         <div className="px-4 md:px-8 py-2">
                             <Toolbar editor={editor} onAIClick={handleAIClick} hasSelection={hasSelection} />
                         </div>
