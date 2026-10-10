@@ -1,6 +1,8 @@
 "use client"
 
 import { X } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
+import { quoteBarClass } from "@/components/message/quoteBar"
 
 interface ComposerReplyPillProps {
   // Author name of the message being replied to.
@@ -16,7 +18,7 @@ interface ComposerReplyPillProps {
 // desktop / mobile so the reply affordance stays visually consistent.
 export function ComposerReplyPill({ authorName, text, onCancel }: ComposerReplyPillProps) {
   return (
-    <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
+    <div className={cn(quoteBarClass(authorName || ""), "mx-2 mb-1 flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1 text-xs")}>
       <span className="text-muted-foreground">Replying to</span>
       <span className="font-medium text-foreground">{authorName || "message"}</span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{text || ""}</span>

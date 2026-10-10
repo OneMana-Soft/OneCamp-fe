@@ -1,5 +1,6 @@
 
 import { displayNameOf } from "@/lib/personName"
+import { quoteBarClass } from "@/components/message/quoteBar"
 import {useLongPress} from "@/hooks/useLongPress";
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
@@ -337,7 +338,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     </div>
                     )}
                     {replyMessage && (
-                        <div className="mb-1 border-l-2 border-primary/40 pl-2">
+                        <div className={`mb-1 pl-2 ${quoteBarClass(replyMessage.msgBy)}`}>
                             <MessagePreview
                                 msgBy={replyMessage.msgBy}
                                 msgText={replyMessage.msgText}
