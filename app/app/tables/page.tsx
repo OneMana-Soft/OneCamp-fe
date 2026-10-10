@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
@@ -14,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { TableGlyph } from "@/components/table/TableGlyph"
+import { SpotImported } from "@/components/ui/graphics"
 
 export default function TablesPage() {
   const router = useRouter()
@@ -125,6 +127,7 @@ export default function TablesPage() {
       ) : tables.length === 0 ? (
         <EmptyState
           tone="accent"
+          illustration={<SpotImported hue="sky" />}
           title="No tables yet"
           description="Create a table to track anything: tasks, CRM, inventory, roadmaps."
           className="rounded-lg border border-border/60 px-6 py-16"
@@ -143,8 +146,10 @@ export default function TablesPage() {
               key={t.id}
               className="group flex items-center justify-between gap-3 px-3 py-2.5 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-accent/60"
             >
-              <button
-                onClick={() => router.push(`/app/tables/${t.id}`)}
+              {/* A link, so a table opens in a new tab with a modifier and its
+                  page is fetched ahead. */}
+              <Link
+                href={`/app/tables/${t.id}`}
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <TableGlyph icon={t.icon} id={t.id} />
@@ -152,12 +157,12 @@ export default function TablesPage() {
                   <p className="truncate text-sm font-medium">{t.name}</p>
                   {t.description && <p className="truncate text-xs text-muted-foreground">{t.description}</p>}
                 </div>
-              </button>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label="Delete this table"
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                 disabled={busyId === t.id}
                 onClick={() => handleDelete(t)}
                 title="Delete"
