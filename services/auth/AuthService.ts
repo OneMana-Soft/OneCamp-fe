@@ -432,19 +432,6 @@ class AuthService {
         }
     }
 
-        static async hasPassword(): Promise<{ hasPassword: boolean }> {
-        try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/has-password`,
-                { credentials: 'include' }
-            );
-            const data = await res.json();
-            return { hasPassword: data.has_password === true };
-        } catch {
-            return { hasPassword: false };
-        }
-    }
-
     /**
      * Probe whether the caller has a live BE session.
      *
