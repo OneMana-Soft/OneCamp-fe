@@ -18,7 +18,6 @@ import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {ErrorState} from "@/components/error/errorState";
 import { UserProfileInterface} from "@/types/user";
-import {useEffect} from "react";
 import {
     addChannelComments,
     createChannelCommentReaction, removeChannelComment, removeChannelCommentReaction, updateChannelComment,
@@ -37,6 +36,11 @@ import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+
+// Module-level, so a selector that finds nothing returns the same value every
+// time: a fresh [] per call re-drew the thread on every store change.
+const NO_ITEMS: never[] = []
 
 export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUID: string }) => {
 
@@ -44,11 +48,11 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
         channelId && postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${postUUID}` : "",
     )
 
-    const channelState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || []);
+    const channelState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || NO_ITEMS);
 
     const postState = channelState?.find(p => p.post_uuid === postUUID);
 
-    const postCommentState = useSelector((state: RootState) => state.channelComment.postComments[postUUID] || []);
+    const postCommentState = useSelector((state: RootState) => state.channelComment.postComments[postUUID] || NO_ITEMS);
 
     const post = usePost()
 
@@ -62,15 +66,10 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
         window.location.reload()
     }
 
-    useEffect(() => {
-
-        if(postInfo.data?.data && postInfo.data.data.post_comments && postCommentState.length == 0) {
-            dispatch(addChannelComments({postId: postUUID, comments:postInfo.data.data.post_comments}))
-        }
-
-
-
-    }, [postInfo.data?.data, postCommentState.length, postUUID, dispatch]);
+    // The server's replies, reconciled once per answer (useThreadReplies).
+    useThreadReplies(postInfo.data?.data?.post_comments, postInfo.lastRequestStartedAt, postCommentState, (comments) =>
+        dispatch(addChannelComments({ postId: postUUID, comments })),
+    )
 
 
     if (postInfo.isLoading || !postState) {
