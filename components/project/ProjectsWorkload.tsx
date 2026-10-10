@@ -237,7 +237,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
           the weeks say, the count and the key. */}
       {toolsRow(
         <>
-          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          <p className="min-w-[min(100%,14rem)] flex-1 truncate text-xs text-muted-foreground">
           {over > 0 ? (
             <span className="font-medium text-danger-ink">
               {over} {over === 1 ? "person has" : "people have"} more than they take on this week.

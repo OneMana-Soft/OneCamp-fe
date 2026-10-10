@@ -27,3 +27,11 @@ describe("the projects overview's frame", () => {
     expect(read("components/goals/GoalsView.tsx")).not.toMatch(/\{all\.length > 0 && \(\s*<div/)
   })
 })
+
+describe("the projects overview on a phone", () => {
+  it("lets its rows take the page's 16px inset rather than adding their own", () => {
+    // Project and goal rows sat 32px in, inside a body that was already inset.
+    expect(read("components/project/ProjectsOverview.tsx")).not.toContain('<div className="px-4 py-3" {...longPress}>')
+    expect(read("components/goals/GoalsView.tsx")).not.toContain("paddingLeft: 16 + depth * 16")
+  })
+})
