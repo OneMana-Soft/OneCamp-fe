@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast"
 import UserCard from "@/components/admin/userCard"
 import { SectionJumpMenu } from "@/components/admin/SectionJumps"
 import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
+import { PeopleTabSkeleton } from "@/components/admin/PeopleFrame"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
 import { Tile } from "@/components/ui/graphics/Tile"
@@ -21,20 +22,23 @@ import { PageHeader } from "@/components/ui/pageHeader"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
 
+// The people tabs wait in their own frame's shape (header, toolbar, six rows),
+// so nothing moves when the card's code arrives and again when its data does;
+// they waited as a generic card of four rows and a button bar.
 // Every section but Members (where the page opens) loads its cards when it is
 // first opened, or ahead of that when the pointer or focus reaches it in the
 // menu (PRELOAD below). All thirty-six cards used to come with the page, so
 // opening Members fetched 1.1 MB of script for one list (app/adminFirstLoad.test.ts).
-const TeamsCard = dynamic(() => import("@/components/admin/teamCard"), { loading: AdminCardSkeleton })
-const AdminCard = dynamic(() => import("@/components/admin/adminCard"), { loading: AdminCardSkeleton })
-const InvitationCard = dynamic(() => import("@/components/admin/invitationCard"), { loading: AdminCardSkeleton })
+const TeamsCard = dynamic(() => import("@/components/admin/teamCard"), { loading: () => <PeopleTabSkeleton leading="tile" /> })
+const AdminCard = dynamic(() => import("@/components/admin/adminCard"), { loading: () => <PeopleTabSkeleton /> })
+const InvitationCard = dynamic(() => import("@/components/admin/invitationCard"), { loading: () => <PeopleTabSkeleton leading="tile" /> })
 const EmailSettingsCard = dynamic(() => import("@/components/admin/EmailSettingsCard"), { loading: AdminCardSkeleton })
 const EmailProviderCard = dynamic(() => import("@/components/admin/EmailProviderCard"), { loading: AdminCardSkeleton })
 const WebhooksCard = dynamic(() => import("@/components/admin/WebhooksCard"), { loading: AdminCardSkeleton })
 const GitHubIntegrationCard = dynamic(() => import("@/components/admin/GitHubIntegrationCard"), { loading: AdminCardSkeleton })
 const OAuthConfigCard = dynamic(() => import("@/components/admin/OAuthConfigCard"), { loading: AdminCardSkeleton })
 const ArchiveCard = dynamic(() => import("@/components/admin/ArchiveCard"), { loading: AdminCardSkeleton })
-const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsersCard"), { loading: AdminCardSkeleton })
+const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsersCard"), { loading: () => <PeopleTabSkeleton hasAction={false} /> })
 const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
 const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
 const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
