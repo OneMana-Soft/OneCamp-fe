@@ -114,6 +114,40 @@ describe("the composer sheet", () => {
     expect(setIsExpanded).toHaveBeenCalledWith(true)
   })
 
+  it("reads the window's size in no render: each read forced a layout while the page was changing", () => {
+    let reads = 0
+    const real = Object.getOwnPropertyDescriptor(window, "innerHeight")
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      get: () => {
+        reads++
+        return 844
+      },
+    })
+    try {
+      const el = (n: number) => (
+        <DraggableDrawer initialHeight={126} isExpanded={false} setIsExpanded={() => {}}>
+          <p>composer {n}</p>
+        </DraggableDrawer>
+      )
+      const { rerender } = render(el(0))
+      const settled = reads
+      for (let n = 1; n <= 5; n++) rerender(el(n))
+      expect(reads - settled, "a render read window.innerHeight").toBe(0)
+    } finally {
+      if (real) Object.defineProperty(window, "innerHeight", real)
+    }
+  })
+
+  it("is never taller than the screen", () => {
+    const { container } = render(
+      <DraggableDrawer initialHeight={2000} isExpanded={false} setIsExpanded={() => {}}>
+        <p>composer</p>
+      </DraggableDrawer>,
+    )
+    expect(sheet(container).className).toMatch(/\bmax-h-dvh\b/)
+  })
+
   it("animates no layout property: no height in a Motion animation, a settle on y only", () => {
     const src = readFileSync("components/drawers/dragableDrawer.tsx", "utf8")
     const code = src.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")
