@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils/helpers/cn"
 import { Loader2, Plug, Check, X, AlertTriangle } from "@/lib/icons"
 import {
   McpServer,
@@ -222,27 +222,17 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
             />
           </Field>
 
-          {/* A choice of one: a segmented radio group, not three buttons with
-              the chosen one drawn in the accent. */}
+          {/* A choice of one: the house segmented control, not three buttons
+              with the chosen one drawn in the accent. */}
           <div className="grid gap-2">
             <p id="mcp-auth-label" className="text-sm font-medium">How it signs in</p>
-            <div role="radiogroup" aria-labelledby="mcp-auth-label" className="inline-flex w-fit flex-wrap gap-1 rounded-md bg-muted p-1">
-              {AUTH_TYPES.map((a) => (
-                <button
-                  key={a.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={authType === a.value}
-                  onClick={() => setAuthType(a.value)}
-                  className={cn(
-                    "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                    authType === a.value ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              aria-labelledby="mcp-auth-label"
+              value={authType}
+              onValueChange={setAuthType}
+              options={AUTH_TYPES}
+              className="w-fit"
+            />
           </div>
 
           {authType === "header" && (
