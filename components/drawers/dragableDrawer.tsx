@@ -81,10 +81,12 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
     // owns the variable while it's mounted, and clears it on unmount.
     // In the rare case two drawers mount simultaneously the last writer
     // wins, which still produces a correct value within ~1 frame.
+    // Not capped at the window's height: reading it forces a layout, and a
+    // composer taller than the screen is the whole screen (max-h-dvh), which
+    // covers whatever anchors to this line.
     useEffect(() => {
         if (typeof document === "undefined") return
-        const cap = typeof window !== "undefined" ? window.innerHeight : initialHeight
-        const h = Math.max(0, Math.min(initialHeight, cap))
+        const h = Math.max(0, initialHeight)
         document.documentElement.style.setProperty("--mobile-drawer-h", `${h}px`)
         return () => {
             document.documentElement.style.removeProperty("--mobile-drawer-h")

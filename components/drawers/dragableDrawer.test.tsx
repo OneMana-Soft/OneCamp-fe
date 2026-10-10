@@ -139,6 +139,31 @@ describe("the composer sheet", () => {
     }
   })
 
+  it("publishes its height as the composer grows without reading the window's", () => {
+    let reads = 0
+    const real = Object.getOwnPropertyDescriptor(window, "innerHeight")
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      get: () => {
+        reads++
+        return 844
+      },
+    })
+    try {
+      const el = (h: number) => (
+        <DraggableDrawer initialHeight={h} isExpanded={false} setIsExpanded={() => {}}>
+          <p>composer</p>
+        </DraggableDrawer>
+      )
+      const { rerender } = render(el(126))
+      for (const h of [148, 170, 192]) rerender(el(h))
+      expect(document.documentElement.style.getPropertyValue("--mobile-drawer-h")).toBe("192px")
+      expect(reads, "each new line read window.innerHeight").toBe(0)
+    } finally {
+      if (real) Object.defineProperty(window, "innerHeight", real)
+    }
+  })
+
   it("is never taller than the screen", () => {
     const { container } = render(
       <DraggableDrawer initialHeight={2000} isExpanded={false} setIsExpanded={() => {}}>
