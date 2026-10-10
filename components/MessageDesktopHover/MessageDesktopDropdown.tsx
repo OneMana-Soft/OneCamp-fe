@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {Button} from "@/components/ui/button";
 import { Bell, ListTodo, MoreVertical, Pencil, Trash2 } from "@/lib/icons";
-import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils/helpers/cn";
+import { ACTION_TIP_END } from "@/components/MessageDesktopHover/actionTip";
 
 interface MessageDesktopDropdownProps {
     setIsDropdownOpen: (open: boolean) => void;
@@ -31,18 +32,14 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
                 setIsDropdownOpen(open);
             }}
         >
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                        <Button aria-label="More actions" variant="ghost" size="icon" className="h-8 w-8 ">
-                            <MoreVertical className="h-4 w-4 text-muted-foreground"/>
-                        </Button>
-                    </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <p>More options</p>
-                </TooltipContent>
-            </Tooltip>
+            {/* Labelled by a CSS tip (actionTip.ts): the toolbar this sits in is
+                built on every hover, and a Radix tooltip here cost more than the
+                menu's trigger itself. */}
+            <DropdownMenuTrigger asChild>
+                <Button aria-label="More actions" data-tip="More actions" variant="ghost" size="icon" className={cn("h-8 w-8", ACTION_TIP_END)}>
+                    <MoreVertical className="h-4 w-4 text-muted-foreground"/>
+                </Button>
+            </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end">
 
                 <DropdownMenuGroup>
