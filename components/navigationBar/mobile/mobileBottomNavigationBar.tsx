@@ -14,6 +14,8 @@ import type { LucideIcon } from "lucide-react"
 interface NavItem {
     icon: LucideIcon
     label: string
+    /** The spoken name, when the label is shortened to fit the bar. */
+    name?: string
     page: string
     /** Optional unread key — read from sidebar state */
     unreadKey?: "dm" | "channel" | "activity"
@@ -22,14 +24,17 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
     { icon: Home, label: "Home", page: "app/home" },
     { icon: Hash, label: "Channels", page: "app/channel", unreadKey: "channel" },
-    { icon: MessageCircle, label: "Chats", page: "app/chat", unreadKey: "dm" },
+    // The place is "Direct messages" (the page title says so); the bar has 72px
+    // a cell at 360 wide, where those words at 11px run to about 80, so the
+    // label is the desktop sidebar's short form and the full name is spoken.
+    { icon: MessageCircle, label: "DMs", name: "Direct messages", page: "app/chat", unreadKey: "dm" },
     // Deliberately NO Search tab. Search already has a first-class entry point on
     // mobile: MobileHomeSearchBar sits above the fold on the Home tab, runs the
     // same unified GlobalSearchGet as desktop, and submitting hands off to
     // /app/search where the AI answer and connector results live. A sixth cell
     // would buy one tap from the other tabs and cost ~60px per cell at 360px,
     // past the 5-destination ceiling every mobile convention lands on. If search
-    // needs to be closer from Channels/Chats/Activity, the cheaper move is a
+    // needs to be closer from Channels/DMs/Activity, the cheaper move is a
     // search icon in those screens' top bar, not another primary destination.
     { icon: Bell, label: "Activity", page: "app/activity", unreadKey: "activity" },
 ]
@@ -103,7 +108,7 @@ export function MobileBottomNavigationBar() {
                 style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
                 <ul className="grid grid-cols-5 items-stretch h-14 w-full">
-                    {NAV_ITEMS.map(({ icon: Icon, label, page, unreadKey }) => {
+                    {NAV_ITEMS.map(({ icon: Icon, label, name, page, unreadKey }) => {
                         const isActive = currentTab === page
                         const unread = getUnreadCount(unreadKey)
                         return (
@@ -112,7 +117,7 @@ export function MobileBottomNavigationBar() {
                                     type="button"
                                     onClick={() => router.push(`/${page}`)}
                                     aria-current={isActive ? "page" : undefined}
-                                    aria-label={label}
+                                    aria-label={name ?? label}
                                     className={cn(
                                         "flex flex-col items-center justify-center gap-1 h-full",
                                         "transition-colors duration-100",
