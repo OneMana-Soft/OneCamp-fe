@@ -8,17 +8,19 @@
 
 import * as React from "react"
 import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 type Prefs = { data?: { read_receipts?: boolean; read_receipts_allowed?: boolean } }
 
 export function ReadReceiptsCard() {
-  const { toast } = useToast()
   const prefs = useFetch<Prefs>(GetEndpointUrl.GetNotificationPreferences)
   const data = prefs.data?.data
+  // Nothing while the shared answer loads or failed: the email card above
+  // reads the same request and says which.
   if (!data || data.read_receipts === undefined) return null
   const allowed = data.read_receipts_allowed !== false
 
@@ -26,11 +28,16 @@ export function ReadReceiptsCard() {
     const was = prefs.data
     void prefs.mutate({ ...was, data: { ...data, read_receipts: next } }, { revalidate: false })
     try {
-      await axiosInstance.post(PostEndpointUrl.UpdateNotificationPreferences, { read_receipts: next })
+      // The card says what went wrong, so the global toast stays quiet.
+      await axiosInstance.post(PostEndpointUrl.UpdateNotificationPreferences, { read_receipts: next }, OWN_ERRORS)
       toast({ title: next ? "Read receipts on" : "Read receipts off" })
-    } catch {
+    } catch (e) {
       void prefs.mutate(was, { revalidate: false })
-      toast({ title: "Could not save that", variant: "destructive" })
+      toast({
+        title: next ? "Couldn't turn read receipts on" : "Couldn't turn read receipts off",
+        description: apiErrorMessage(e, "Check your connection and try again."),
+        variant: "destructive",
+      })
     }
   }
 
@@ -45,7 +52,7 @@ export function ReadReceiptsCard() {
           label="Send and see read receipts"
           description={
             allowed
-              ? "Others see \u201cSeen\u201d under their latest message once you've read it, and you see theirs. Off, nobody sees when you've read their messages, and you don't see when they've read yours."
+              ? "Others see “Seen” under their latest message once you've read it, and you see theirs. Off, nobody sees when you've read their messages, and you don't see when they've read yours."
               : "Your workspace has turned read receipts off."
           }
           checked={allowed && !!data.read_receipts}
