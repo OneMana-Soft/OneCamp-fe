@@ -23,6 +23,10 @@ import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService
 import { McpToolRiskBadge, McpToolRiskLegend } from "@/components/admin/McpToolRisk"
 import { type AuthorizedModel } from "@/services/aiModelService"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug } from "@/lib/icons"
 import {
   Agent,
@@ -238,6 +242,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   const [autonomy, setAutonomy] = React.useState<"auto" | "approval" | "plan">("auto")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = React.useState<{ name?: string; instructions?: string }>({})
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const instructionsRef = React.useRef<HTMLTextAreaElement>(null)
 
   // Natural-language "describe your agent" drafting (create mode only).
   const [describePrompt, setDescribePrompt] = React.useState("")
@@ -476,7 +483,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     <div className="mt-1 grid gap-1.5 border-t pt-2.5">
       <Label className="text-xs">{heading}</Label>
       {channels.length === 0 ? (
-        <p className="text-2xs text-muted-foreground">No channels available.</p>
+        <p className="text-xs text-muted-foreground">No channels available.</p>
       ) : (
         <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
           {channels.map((c) => {
@@ -485,9 +492,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <button
                 key={c.ch_uuid}
                 type="button"
+                aria-pressed={on}
                 onClick={() => toggleChannel(c.ch_uuid)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                   on
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -499,7 +507,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           })}
         </div>
       )}
-      <p className="text-2xs text-muted-foreground">{hint}</p>
+      <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
   )
 
@@ -566,20 +574,25 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   }
 
   const handleSave = async () => {
+    // Said under the field, with the cursor there: a missing name was one red
+    // line at the foot of a long dialog.
     if (!name.trim()) {
-      setError("Give your agent a name.")
+      setFieldErrors({ name: "Give your agent a name." })
+      nameRef.current?.focus()
       return
     }
     if (!instructions.trim()) {
-      setError("Add instructions so the agent knows what to do.")
+      setFieldErrors({ instructions: "Add instructions so the agent knows what to do." })
+      instructionsRef.current?.focus()
       return
     }
+    setFieldErrors({})
     setError(null)
     setSaving(true)
     try {
       if (editing && agent) await updateAgent(agent.id, buildInput())
       else await createAgent(buildInput())
-      toast({ title: editing ? "Agent updated" : "Agent created" })
+      toast({ title: editing ? `${name.trim()} saved` : `${name.trim()} created` })
       onSaved()
     } catch {
       // axios interceptor surfaces the error toast
@@ -598,8 +611,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     try {
       const res = await runAgent(agent.id, testPrompt.trim(), dryRun)
       setOutcome(res)
-    } catch {
-      toast({ title: "Test run failed", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't run the test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunning(false)
     }
@@ -615,8 +628,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+          {/* On the AI and automation group's tile; it was orange. */}
+          <DialogTitle className="flex items-center gap-2.5">
+            <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
+              <Sparkles />
+            </Tile>
             {editing ? "Edit agent" : "New agent"}
           </DialogTitle>
           <DialogDescription>
@@ -637,7 +653,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     aria-pressed={appliedTemplate?.id === t.id}
                     onClick={() => applyTemplate(t)}
                     className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                      "rounded-sm border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                       appliedTemplate?.id === t.id
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
@@ -648,7 +664,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 ))}
               </div>
               {appliedTemplate && (
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {appliedTemplate.description} Every field below is filled in; change anything before you save.
                   {appliedTemplate.next ? ` ${appliedTemplate.next}` : ""}
                 </p>
@@ -656,14 +672,17 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             </div>
           )}
           {!editing && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
-              <Label className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                <Sparkles className="h-3.5 w-3.5" /> Describe your agent
+            // In the AI and automation group's tint: it was an orange panel,
+            // the colour of the one action a view asks for.
+            <div className={cn(HUE_CLASS[ADMIN_GROUP_HUE.ai], "space-y-2 rounded-lg border border-hue/30 bg-hue-tint/60 p-3")}>
+              <Label htmlFor="agent-describe" className="flex items-center gap-1.5 text-xs font-medium text-hue-ink">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Describe your agent
               </Label>
               <Textarea
+                id="agent-describe"
                 value={describePrompt}
                 onChange={(e) => setDescribePrompt(e.target.value)}
-                placeholder="e.g. Every morning, summarize the #standup channel and open a task for any blocker, then post the summary back."
+                placeholder="Every morning, sum up #standup, open a task for any blocker, then post the summary back…"
                 rows={2}
                 className="resize-none text-sm"
                 disabled={drafting}
@@ -688,7 +707,21 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
           <div className="grid gap-2">
             <Label htmlFor="agent-name">Name</Label>
-            <Input id="agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Standup summarizer" maxLength={120} />
+            <Input
+              ref={nameRef}
+              id="agent-name"
+              value={name}
+              aria-invalid={fieldErrors.name ? true : undefined}
+              aria-describedby={fieldErrors.name ? "agent-name-error" : undefined}
+              onChange={(e) => {
+                setName(e.target.value)
+                if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: undefined }))
+              }}
+              placeholder="Standup summariser…"
+              maxLength={120}
+              autoComplete="off"
+            />
+            {fieldErrors.name && <p id="agent-name-error" className="text-xs font-medium text-danger-ink">{fieldErrors.name}</p>}
           </div>
 
           <div className="grid gap-2">
@@ -699,13 +732,22 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           <div className="grid gap-2">
             <Label htmlFor="agent-instr">Instructions</Label>
             <Textarea
+              ref={instructionsRef}
               id="agent-instr"
               value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="Describe the agent's job, tone, and how it should use its tools. e.g. 'Each morning, summarize #standup and open a task for any blocker.'"
+              aria-invalid={fieldErrors.instructions ? true : undefined}
+              aria-describedby={fieldErrors.instructions ? "agent-instr-error" : undefined}
+              onChange={(e) => {
+                setInstructions(e.target.value)
+                if (fieldErrors.instructions) setFieldErrors((f) => ({ ...f, instructions: undefined }))
+              }}
+              placeholder="Its job, its tone, and how it should use its tools: each morning, sum up #standup and open a task for any blocker…"
               className="min-h-[120px] resize-none"
               maxLength={8000}
             />
+            {fieldErrors.instructions && (
+              <p id="agent-instr-error" className="text-xs font-medium text-danger-ink">{fieldErrors.instructions}</p>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -716,7 +758,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             <div className="space-y-3 rounded-xl border p-3">
               {toolCatalog.map((g) => (
                 <div key={g.group}>
-                  <div className="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{g.group}</div>
+                  <div className="mb-1.5 text-xs font-medium text-muted-foreground">{g.group}</div>
                   {g.note && <p className="mb-1.5 -mt-1 text-2xs text-muted-foreground/80">{g.note}</p>}
                   <div className="flex flex-wrap gap-1.5">
                     {g.tools.map((t) => {
@@ -725,9 +767,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                         <button
                           key={t.name}
                           type="button"
+                          aria-pressed={on}
                           onClick={() => toggleTool(t.name)}
                           className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                            "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                             on ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground",
                           )}
                         >
@@ -753,7 +796,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <div className="space-y-3 rounded-xl border p-3">
                 {mcpServers.map((s) => (
                   <div key={s.id}>
-                    <div className="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{s.name}</div>
+                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">{s.name}</div>
                     <div className="flex flex-wrap gap-1.5">
                       {parseMcpTools(s).map((t) => {
                         const full = mcpToolFullName(s, t)
@@ -762,10 +805,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                           <button
                             key={full}
                             type="button"
+                            aria-pressed={on}
                             onClick={() => toggleTool(full)}
                             title={t.description || t.name}
                             className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                              "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                               on ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground",
                             )}
                           >
@@ -799,12 +843,14 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           )}
 
           <div className="grid gap-2">
-            <Label>Trigger</Label>
-            <div className="flex flex-wrap gap-1.5">
+            <Label id="agent-trigger-label">Trigger</Label>
+            <div role="radiogroup" aria-labelledby="agent-trigger-label" className="flex flex-wrap gap-1.5">
               {TRIGGERS.map((t) => (
                 <button
                   key={t.value}
                   type="button"
+                  role="radio"
+                  aria-checked={triggerType === t.value}
                   onClick={() => setTriggerType(t.value)}
                   className={cn(
                     "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
@@ -821,7 +867,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             {triggerType === "schedule" && (
               <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3">
                 {/* Mode toggle: fixed interval vs a set time on chosen days. */}
-                <div className="flex items-center gap-1.5">
+                <div role="radiogroup" aria-label="How it is scheduled" className="flex items-center gap-1.5">
                   {([
                     { v: "interval", label: "Every N minutes" },
                     { v: "clock", label: "At a set time" },
@@ -829,6 +875,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     <button
                       key={opt.v}
                       type="button"
+                      role="radio"
+                      aria-checked={scheduleMode === opt.v}
                       onClick={() => setScheduleMode(opt.v)}
                       className={cn(
                         "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
@@ -842,12 +890,14 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
                 {scheduleMode === "interval" ? (
                   <>
-                    <Label className="text-xs">How often should it run?</Label>
-                    <div className="flex flex-wrap gap-1.5">
+                    <Label id="agent-often-label" className="text-xs">How often should it run?</Label>
+                    <div role="radiogroup" aria-labelledby="agent-often-label" className="flex flex-wrap gap-1.5">
                       {SCHEDULE_PRESETS.map((p) => (
                         <button
                           key={p.value}
                           type="button"
+                          role="radio"
+                          aria-checked={scheduleMinutes === p.value}
                           onClick={() => setScheduleMinutes(p.value)}
                           className={cn(
                             "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
@@ -882,6 +932,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                         <button
                           key={opt.v}
                           type="button"
+                          role="radio"
+                          aria-checked={scheduleDays === opt.v}
                           onClick={() => setScheduleDays(opt.v)}
                           className={cn(
                             "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
@@ -959,6 +1011,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     <button
                       key={o.value}
                       type="button"
+                      role="radio"
+                      aria-checked={eventType === o.value}
                       onClick={() => setEventType(o.value)}
                       className={cn(
                         "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
@@ -1015,8 +1069,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
           <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/30 p-3">
             <div className="grid gap-1">
-              <Label htmlFor="agent-dmable" className="flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" /> Direct messages
+              <Label htmlFor="agent-dmable" className="flex items-center gap-2">
+                <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
+                  <Sparkles />
+                </Tile>
+                Direct messages
               </Label>
               <p className="text-xs text-muted-foreground">
                 Let members start a 1:1 DM with this agent. It replies as its own badged AI
@@ -1047,6 +1104,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     <button
                       key={s.id}
                       type="button"
+                      aria-pressed={on}
                       onClick={() => toggleSkill(s.id)}
                       title={
                         s.agent_count > 1
@@ -1054,7 +1112,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                           : s.instructions
                       }
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                        "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                         on
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -1097,7 +1155,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               Channels the agent always reads for context, grounded in what its owner can see. Optional.
             </p>
             {channels.length === 0 ? (
-              <p className="text-2xs text-muted-foreground">No channels available.</p>
+              <p className="text-xs text-muted-foreground">No channels available.</p>
             ) : (
               <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
                 {channels.map((c) => {
@@ -1106,9 +1164,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     <button
                       key={c.ch_uuid}
                       type="button"
+                      aria-pressed={on}
                       onClick={() => toggleKnowledgeChannel(c.ch_uuid)}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                        "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                         on
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -1373,8 +1432,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <div className="rounded-xl border bg-background/60 p-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="grid gap-1">
-                    <Label htmlFor="agent-ambient" className="flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" /> Ambient replies
+                    <Label htmlFor="agent-ambient" className="flex items-center gap-2">
+                      <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
+                        <Sparkles />
+                      </Tile>
+                      Ambient replies
                     </Label>
                     <p className="text-xs text-muted-foreground">
                       Let this teammate reply in its scoped channels without an @mention, when it
@@ -1395,7 +1457,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       onChange={(e) => setAmbientKeywords(e.target.value)}
                       placeholder="billing, refund, invoice"
                     />
-                    <p className="text-2xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Comma or newline separated. It considers messages that mention these topics
                       (plus any question). Leave blank to only consider questions.
                     </p>

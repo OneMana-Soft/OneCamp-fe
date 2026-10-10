@@ -46,7 +46,8 @@ async function eventSection() {
 }
 
 function chooseEventTrigger() {
-    fireEvent.click(screen.getByRole("button", { name: /On an event/ }))
+    // The trigger is a radio group now: one choice of several.
+    fireEvent.click(screen.getByRole("radio", { name: /On an event/ }))
 }
 
 describe("GitHub events in the agent editor", () => {
