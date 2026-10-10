@@ -87,3 +87,12 @@ describe("send later's custom time", () => {
     expect(screen.getByRole("button", { name: "Schedule" }).className).toContain("self-end")
   })
 })
+
+// The marks in the usual order, as the doc toolbar has them: bold, italic,
+// strikethrough, code. The composer started with italic, then bold.
+describe("the composer's text marks", () => {
+  it("run bold, italic, strikethrough, code", () => {
+    const src = readFileSync(join(__dirname, "textInput.tsx"), "utf8")
+    expect(src).toMatch(/SECTION_2_ACTIONS[^=]*= \["bold", "italic", "strikethrough", "code"\]/)
+  })
+})
