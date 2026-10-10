@@ -55,6 +55,7 @@ import {
   runSlackImport,
   type SlackImportJob,
 } from "@/services/slackImportService"
+import { importProblemOf } from "@/services/importService"
 // Lazy-load the heavy dialogs (multi-GB upload widget, plan dialog
 // with mappings, error pagination). Same rationale as ImportCard:
 // the admin overview should render immediately; the dialogs only
@@ -159,9 +160,10 @@ const SlackImportCard: React.FC = () => {
       // Bust the live progress source.
       swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
     } catch (err) {
+      // The request shows no toast of its own: this is the one.
       toast({
         title: "Could not start import",
-        description: errorMessage(err),
+        description: importProblemOf(err).message,
         variant: "destructive",
       })
     } finally {

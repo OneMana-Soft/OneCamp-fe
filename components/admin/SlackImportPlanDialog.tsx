@@ -113,11 +113,10 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
       onComplete()
       onOpenChange(false)
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const e = err as any
+      // The request shows no toast of its own: this is the one.
       toast({
         title: "Could not start",
-        description: e?.response?.data?.error || e?.message,
+        description: importProblemOf(err).message,
         variant: "destructive",
       })
     } finally {

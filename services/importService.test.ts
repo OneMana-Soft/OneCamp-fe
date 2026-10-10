@@ -136,12 +136,15 @@ describe("importService — jobs", () => {
     expect(plan.user_count).toBe(12)
   })
 
-  it("runImportJob hits run endpoint", async () => {
+  it("runImportJob hits run endpoint, leaving the screen to say what went wrong", async () => {
     ax.post.mockResolvedValueOnce({ data: {} })
     await runImportJob("job-1", { status_mappings: { todo: "todo" } })
+    // OWN_ERRORS: a refusal (409 run_alive, "still stopping") is in `error`,
+    // and the global toast read it as "Already changed" beside the screen's own.
     expect(ax.post).toHaveBeenCalledWith(
       "/admin/import/jobs/job-1/run",
       { status_mappings: { todo: "todo" } },
+      { suppressErrorToast: true },
     )
   })
 
@@ -157,10 +160,10 @@ describe("importService — jobs", () => {
     expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/rollback")
   })
 
-  it("retryFailedImportChunks returns the reset+rerun shape", async () => {
+  it("retryFailedImportChunks returns the reset+rerun shape, leaving the screen to say what went wrong", async () => {
     ax.post.mockResolvedValueOnce({ data: { reset: 3, rerun: true } })
     const r = await retryFailedImportChunks("job-1")
-    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/retry-failed")
+    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/retry-failed", undefined, { suppressErrorToast: true })
     expect(r).toEqual({ reset: 3, rerun: true })
   })
 
@@ -360,5 +363,12 @@ describe("importService — problems", () => {
     expect(needsReconnect(importProblemOf({ response: { status: 409, data: { code: "active_job", error: "x" } } }))).toBe(false)
     expect(importProblemOf(new Error("Network Error")).message).toMatch(/Couldn't reach the server/)
     expect(importProblemOf({ response: { status: 500, data: {} } }, "Plan failed.").message).toBe("Plan failed.")
+    // A run refused while the last one is still stopping: the server's words.
+    const alive = importProblemOf({
+      response: { status: 409, data: { code: "run_alive", error: "The last run of this import is still stopping. Try again in a moment." } },
+    })
+    expect(alive).toEqual({ code: "run_alive", message: "The last run of this import is still stopping. Try again in a moment." })
+    // A refusal from elsewhere (a middleware's msg), which the global toast used to show.
+    expect(importProblemOf({ response: { status: 403, data: { msg: "Only admins can import." } } }).message).toBe("Only admins can import.")
   })
 })

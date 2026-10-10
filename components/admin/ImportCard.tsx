@@ -274,8 +274,9 @@ const ImportCard: React.FC = () => {
         })
       }
       refetchJobs()
-    } catch (err: any) {
-      toast({ title: "Retry failed", description: err?.response?.data?.error, variant: "destructive" })
+    } catch (err) {
+      // The request shows no toast of its own: this is the one.
+      toast({ title: "Retry failed", description: importProblemOf(err).message, variant: "destructive" })
     }
   }
   const onDisconnect = async () => {

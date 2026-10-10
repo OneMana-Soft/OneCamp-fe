@@ -198,10 +198,15 @@ export async function planImportJob(jobId: string, input: PlanInput = {}): Promi
   return res.data
 }
 
+// The screen that starts or resumes an import says what went wrong itself
+// (importProblemOf), as planning does: a refusal such as "the last run is
+// still stopping" (409 run_alive) comes in `error`, which the global toast
+// does not read, so it added "Already changed" beside the screen's own.
 export async function runImportJob(jobId: string, input: PlanInput = {}): Promise<void> {
   await axiosInstance.post(
     `/admin/import/jobs/${encodeURIComponent(jobId)}/run`,
     input,
+    OWN_ERRORS,
   )
 }
 
@@ -328,6 +333,8 @@ export const jobChanged = (p: ImportProblem | null | undefined) => p?.code === "
 export async function retryFailedImportChunks(jobId: string): Promise<{ reset: number; rerun: boolean }> {
   const res = await axiosInstance.post(
     `/admin/import/jobs/${encodeURIComponent(jobId)}/retry-failed`,
+    undefined,
+    OWN_ERRORS,
   )
   return res.data
 }
