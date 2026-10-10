@@ -322,6 +322,12 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         slashCommands,
         output,
         throttleRef,
+        // Not re-rendered by each keystroke: the editor draws the text itself,
+        // and what this component shows from the editor (whether there is
+        // anything to send) it subscribes to below. Every key re-rendered the
+        // composer and its buttons, about 240 components a keystroke.
+        // textInputRenders.test.tsx holds it.
+        shouldRerenderOnTransaction: false,
         ...props,
       });
 
@@ -349,6 +355,10 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         // click, as it always did.
         const isEmpty = useEditorState({ editor, selector: ({ editor: e }) => e?.isEmpty ?? true }) ?? true
         const nothingToSend = isEmpty && !hasAttachments
+        // Whether the editing controls show: the prop the effect below hands
+        // the editor. Read from the editor while rendering, it was a render
+        // behind, and nothing re-renders this for it any more.
+        const canEdit = editable ?? false
 
 
 
@@ -463,7 +473,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                 ref={divRef}
                 data-gramm="false"
             />
-            { editor.isEditable && (
+            { canEdit && (
                 <div className={cn(
                     isMobile && fixedToolbarToBottom ? 'fixed bottom-0 w-full right-0 p-2 pt-0 bg-background z-[360]' : 'px-2 pb-2 pt-1'
                 )}>
