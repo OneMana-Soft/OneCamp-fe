@@ -53,7 +53,7 @@ describe("the import screens' words and limits", () => {
     serverMax = undefined
     expect(exportLimit(undefined)).toBeNull()
     render(<SlackImportUploadDialog open onOpenChange={() => {}} onUploaded={() => {}} />)
-    expect(screen.getByText(/Drop the \.zip file you downloaded/)).toBeTruthy()
+    expect(screen.getByText(/The \.zip file you downloaded/)).toBeTruthy()
     expect(screen.queryByText(/GB/)).toBeNull()
     serverMax = 5 * 1024 ** 3
   })

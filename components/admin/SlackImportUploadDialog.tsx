@@ -7,9 +7,16 @@
  * The dialog enforces basic client-side validation (file type, size) so
  * users get instant feedback. The authoritative validation happens on
  * the backend — never trust the client alone.
+ *
+ * Everything it has to say, it says in place. A wrong file is said under the
+ * file field and let go (it was a red toast, and the file chosen before it
+ * stayed chosen); an upload can be stopped (a multi-GB one could not, and the
+ * dialog refused to close); an export uploaded before says so and offers to
+ * show that import (it was a red toast, and then the plan dialog opened on an
+ * import that had already finished).
  */
 
-import React, { useState } from "react"
+import React, { useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -20,18 +27,25 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Field } from "@/components/ui/field"
+import { Tile } from "@/components/ui/graphics/Tile"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
 import { Upload, AlertCircle, FileArchive } from "@/lib/icons"
 import { SLACK_IMPORT_LIMITS_KEY, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
+import { importProblemOf } from "@/services/importService"
 import { useFetch } from "@/hooks/useFetch"
 import { readableBytes } from "@/lib/readableBytes"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onUploaded: (jobId: string) => void
+  /** Shows the import an export already made, when the same file comes in again. */
+  onShowExisting?: (jobId: string) => void
+  /** The history changed behind the dialog: a stopped large upload leaves an unfinished import there. */
+  onChanged?: () => void
 }
 
 // 50 GB is the practical ceiling for the presigned PUT path on most
@@ -58,12 +72,19 @@ export function exportLimit(serverMax?: number): number | null {
 // http.MaxBytesReader and Go's request memory model.
 const PRESIGN_THRESHOLD = 2 * 1024 * 1024 * 1024 // 2 GB
 
-export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, onUploaded }) => {
+type Problem = { message: string; existing?: string }
+
+export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, onUploaded, onShowExisting, onChanged }) => {
   const { toast } = useToast()
   const [file, setFile] = useState<File | null>(null)
   const [workspaceName, setWorkspaceName] = useState("")
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [fileError, setFileError] = useState("")
+  const [problem, setProblem] = useState<Problem | null>(null)
+  // Which upload was stopped: a large one leaves an unfinished import behind.
+  const [stopped, setStopped] = useState<"" | "simple" | "direct">("")
+  const abortRef = useRef<AbortController | null>(null)
   const { data: limits } = useFetch<{ max_bytes: number }>(open ? SLACK_IMPORT_LIMITS_KEY : "")
   const maxBytes = exportLimit(limits?.max_bytes)
 
@@ -72,44 +93,46 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
     setWorkspaceName("")
     setUploading(false)
     setProgress(0)
+    setFileError("")
+    setProblem(null)
+    setStopped("")
   }
 
   const handleClose = (next: boolean) => {
-    if (uploading) return // don't allow closing mid-upload
+    if (uploading) return // Stop first: the footer offers it while an upload runs
     if (!next) reset()
     onOpenChange(next)
   }
 
+  // A file the dialog can't take is said under the field and let go, so
+  // Upload can't send the one chosen before it.
+  const refuse = (input: HTMLInputElement, why: string) => {
+    input.value = ""
+    setFile(null)
+    setFileError(why)
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] || null
+    const input = e.target
+    const f = input.files?.[0] || null
+    setProblem(null)
+    setStopped("")
+    setFileError("")
     if (!f) {
       setFile(null)
       return
     }
     if (!/\.zip$/i.test(f.name)) {
-      toast({ title: "Not a ZIP file", description: "Slack exports come as a .zip archive.", variant: "destructive" })
-      return
+      return refuse(input, `Slack exports come as a .zip file, and ${f.name} isn't one.`)
     }
     // Until the server's limit is known the server checks it, in the same words.
     if (maxBytes !== null && f.size > maxBytes) {
-      toast({
-        title: "File too large",
-        description: `That export is ${readableBytes(f.size)}, and this server takes exports up to ${readableBytes(maxBytes)}.`,
-        variant: "destructive",
-      })
-      return
+      return refuse(input, `That export is ${readableBytes(f.size)}, and this server takes exports up to ${readableBytes(maxBytes)}.`)
     }
-    // Magic-byte validation client-side. The backend re-validates
-    // (auth-of-record), but rejecting here gives the operator instant
-    // feedback for typos (drag-dropping a .docx renamed to .zip, etc.)
-    // and saves a multi-GB upload that's destined to fail.
+    // The first bytes, checked here: the backend checks again, but a file
+    // renamed to .zip is caught before a multi-GB upload that would fail.
     if (!(await isPKZipFile(f))) {
-      toast({
-        title: "Not a ZIP file",
-        description: "The file's contents don't match a ZIP archive (PKZIP signature missing).",
-        variant: "destructive",
-      })
-      return
+      return refuse(input, `${f.name} isn't a ZIP archive inside, although its name ends in .zip.`)
     }
     setFile(f)
     // Best-effort default for slack_workspace_name if the user hasn't typed one yet.
@@ -139,139 +162,148 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
 
   const handleSubmit = async () => {
     if (!file || !workspaceName.trim()) return
+    const controller = new AbortController()
+    abortRef.current = controller
     setUploading(true)
     setProgress(0)
+    setProblem(null)
+    setStopped("")
+    // Files over the threshold use the presigned-PUT path which uploads
+    // browser → MinIO directly. For smaller files the simple multipart
+    // route is fine and means one round-trip less.
+    const usePresigned = file.size > PRESIGN_THRESHOLD
     try {
-      // Files over the threshold use the presigned-PUT path which uploads
-      // browser → MinIO directly. For smaller files the simple multipart
-      // route is fine and means one round-trip less.
-      const usePresigned = file.size > PRESIGN_THRESHOLD
       const uploader = usePresigned ? uploadSlackExportPresigned : uploadSlackExport
-      const res = await uploader(file, workspaceName.trim(), "export_zip", setProgress)
-      toast({
-        title: "Upload complete",
-        description: `Job ${res.job_id.slice(0, 8)} created${
-          usePresigned ? " (direct-to-storage path)" : ""
-        }. Building plan…`,
-      })
+      const res = await uploader(file, workspaceName.trim(), "export_zip", setProgress, controller.signal)
+      toast({ title: "Uploaded", description: "OneCamp is counting what's in it. Nothing is imported until you run it." })
       onUploaded(res.job_id)
       reset()
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const e = err as any
+      if (controller.signal.aborted) {
+        setStopped(usePresigned ? "direct" : "simple")
+        if (usePresigned) onChanged?.()
+        return
+      }
+      const e = err as { response?: { status?: number; data?: { code?: string; existing_job_id?: unknown } } }
       const status = e?.response?.status
       const code = e?.response?.data?.code
       const existing = e?.response?.data?.existing_job_id
-
-      // 409 + duplicate_upload is the dedup hit. Show a helpful message
-      // pointing the operator at the existing job rather than a generic
-      // "upload failed".
       if (status === 409 && code === "duplicate_upload" && existing) {
-        toast({
-          title: "Already imported",
-          description: `This exact export was already uploaded as job ${String(existing).slice(0, 8)}. Open the import history to view it.`,
-          variant: "destructive",
-        })
-        // Notify the parent so it can refresh and let the operator click
-        // through to the existing job. We treat dedup as a soft success
-        // for the purpose of closing the dialog.
-        onUploaded(existing)
-        reset()
+        setProblem({ message: "You've uploaded this export before, so importing it again would bring nothing new.", existing: String(existing) })
         return
       }
       if (status === 409 && code === "active_job") {
-        toast({
-          title: "Workspace is busy",
-          description:
-            "Another import is already active for this workspace. Wait for it to finish or cancel it before starting a new one.",
-          variant: "destructive",
-        })
+        setProblem({ message: "Another import of this workspace is waiting or running. Finish or cancel it, then upload again." })
         return
       }
-
-      const msg = e?.response?.data?.error || e?.message || "Upload failed"
-      toast({ title: "Upload failed", description: msg, variant: "destructive" })
+      setProblem({ message: importProblemOf(err, "The upload didn't finish. Try again.").message })
     } finally {
       setUploading(false)
+      abortRef.current = null
     }
+  }
+
+  const showExisting = (jobId: string) => {
+    onShowExisting?.(jobId)
+    reset()
+    onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" /> Upload Slack export
+          <DialogTitle className="flex items-center gap-2.5">
+            <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
+              <Upload />
+            </Tile>
+            Upload a Slack export
           </DialogTitle>
           <DialogDescription>
-            Drop the .zip file you downloaded from Slack&apos;s Workspace settings
-            {maxBytes !== null && <> (up to {readableBytes(maxBytes)} on this server)</>}. We&apos;ll stage it, then
-            preview what would be imported before any changes are made.
+            The .zip file you downloaded from Slack&apos;s Workspace settings
+            {maxBytes !== null && <> (up to {readableBytes(maxBytes)} on this server)</>}. OneCamp reads it and shows
+            what would come across before anything is imported.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div>
-            <Label htmlFor="slack_workspace_name">Slack workspace name</Label>
+          <Field
+            label="Slack workspace name"
+            help="Shown in the import history. Importing the same workspace again under this name brings only what is new."
+          >
             <Input
-              id="slack_workspace_name"
-              placeholder="Acme Inc."
+              placeholder="Acme Inc.…"
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
               disabled={uploading}
               maxLength={120}
+              autoComplete="off"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Label for the source Slack workspace this export came from. Shown in the import
-              history and used to dedup re-imports of the same workspace.
-            </p>
-          </div>
+          </Field>
 
-          <div>
-            <Label htmlFor="file">Export file (.zip)</Label>
-            <Input
-              id="file"
-              type="file"
-              accept=".zip,application/zip"
-              onChange={handleFileChange}
-              disabled={uploading}
-            />
-            {file && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <FileArchive className="h-4 w-4" />
-                {file.name} · {readableBytes(file.size)}
-                {file.size > PRESIGN_THRESHOLD && (
-                  <span className="ml-1 text-info-ink">
-                    · uploads direct to storage
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {uploading && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Uploading {progress}%…</div>
-              <Progress value={progress} className="h-2" />
+          <Field label="Export file" help="A .zip, from Slack's Workspace settings, under Import/Export Data." error={fileError}>
+            <Input type="file" accept=".zip,application/zip" onChange={handleFileChange} disabled={uploading} />
+          </Field>
+          {file && (
+            <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <FileArchive className="h-4 w-4" aria-hidden="true" />
+              <span>
+                {file.name}, {readableBytes(file.size)}
+              </span>
+              {file.size > PRESIGN_THRESHOLD && (
+                <span className="text-info-ink">A large file goes straight to storage: keep this tab open until it finishes.</span>
+              )}
             </div>
           )}
 
-          <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs flex gap-2">
-            <AlertCircle className="h-4 w-4 text-warning-ink mt-0.5 shrink-0" />
+          {uploading && (
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground" aria-live="polite">
+                Uploading {progress}%…
+              </div>
+              <Progress value={progress} className="h-2" aria-label="Upload progress" />
+            </div>
+          )}
+
+          {stopped && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Upload stopped. Nothing was imported.
+              {stopped === "direct" && " The unfinished upload is in the import history: discard it there."}
+            </p>
+          )}
+
+          {problem && (
+            <div role="alert" className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+              <p className="break-words text-danger-ink">{problem.message}</p>
+              {problem.existing && onShowExisting && (
+                <Button size="sm" variant="outline" className="h-8" onClick={() => showExisting(problem.existing!)}>
+                  Show that import
+                </Button>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
             <p className="text-muted-foreground">
-              Workspace exports include public channels only. DMs and private channels
-              require a Corporate (Plus/Enterprise) export. The plan step will tell
-              you exactly what&apos;s in your file before you commit.
+              Workspace exports include public channels only. Direct messages and private channels need a Corporate
+              (Plus or Enterprise) export. The plan shows exactly what is in your file before anything is imported.
             </p>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleClose(false)} disabled={uploading}>
-            Cancel
-          </Button>
+          {uploading ? (
+            <Button variant="outline" onClick={() => abortRef.current?.abort()}>
+              Stop upload
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => handleClose(false)}>
+              Cancel
+            </Button>
+          )}
           <Button onClick={handleSubmit} disabled={!file || !workspaceName.trim() || uploading}>
-            {uploading ? "Uploading…" : "Upload & plan"}
+            {uploading ? "Uploading…" : "Upload and plan"}
           </Button>
         </DialogFooter>
       </DialogContent>

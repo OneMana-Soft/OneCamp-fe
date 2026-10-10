@@ -91,14 +91,20 @@ export async function uploadSlackExport(
   workspaceName: string,
   source: "export_zip" | "corporate_zip" = "export_zip",
   onUploadProgress?: (percent: number) => void,
+  /** Stops the upload: the dialog's Stop. Optional, so older callers are unchanged. */
+  signal?: AbortSignal,
 ): Promise<{ job_id: string; slack_workspace_name: string; raw_object_key: string }> {
   const fd = new FormData()
   fd.append("file", file)
   fd.append("slack_workspace_name", workspaceName)
   fd.append("source", source)
 
+  // The upload dialog says a failed upload itself, in place (a duplicate, a
+  // busy workspace, the server's limit), so the global toast stays quiet.
   const res = await axiosInstance.post(PostEndpointUrl.SlackImportUpload, fd, {
+    ...OWN_ERRORS,
     headers: { "Content-Type": "multipart/form-data" },
+    signal,
     onUploadProgress: (evt) => {
       if (!onUploadProgress || !evt.total) return
       onUploadProgress(Math.round((evt.loaded / evt.total) * 100))
@@ -214,13 +220,25 @@ async function presignSlackUpload(
   workspaceName: string,
   fileSize: number,
   source: "export_zip" | "corporate_zip" = "export_zip",
+  signal?: AbortSignal,
 ): Promise<PresignResponse> {
-  const res = await axiosInstance.post("/admin/import/slack/presign", {
-    slack_workspace_name: workspaceName,
-    file_size: fileSize,
-    source,
-  })
+  const res = await axiosInstance.post(
+    "/admin/import/slack/presign",
+    {
+      slack_workspace_name: workspaceName,
+      file_size: fileSize,
+      source,
+    },
+    { ...OWN_ERRORS, signal },
+  )
   return res.data
+}
+
+/** What a stopped upload rejects with, the same name fetch and axios use. */
+function abortError(): Error {
+  const e = new Error("The upload was stopped.")
+  e.name = "AbortError"
+  return e
 }
 
 /**
@@ -233,9 +251,14 @@ function uploadToPresignedURL(
   file: File,
   headers: Record<string, string>,
   onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(abortError())
     const xhr = new XMLHttpRequest()
+    // Stop means stop: a multi-GB PUT otherwise runs on after the dialog has
+    // given up on it, holding the connection and the bucket's space.
+    signal?.addEventListener("abort", () => xhr.abort(), { once: true })
     xhr.open("PUT", url, true)
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v))
     xhr.upload.onprogress = (evt) => {
@@ -250,7 +273,7 @@ function uploadToPresignedURL(
       }
     }
     xhr.onerror = () => reject(new Error("network error during upload"))
-    xhr.onabort = () => reject(new Error("upload aborted"))
+    xhr.onabort = () => reject(abortError())
     xhr.send(file)
   })
 }
@@ -272,9 +295,12 @@ export async function uploadSlackExportPresigned(
   workspaceName: string,
   source: "export_zip" | "corporate_zip" = "export_zip",
   onUploadProgress?: (percent: number) => void,
+  /** Stops the upload, and nothing is finalised. Optional, so older callers are unchanged. */
+  signal?: AbortSignal,
 ): Promise<{ job_id: string; slack_workspace_name: string; raw_object_key: string }> {
-  const presign = await presignSlackUpload(workspaceName, file.size, source)
-  await uploadToPresignedURL(presign.upload_url, file, presign.headers, onUploadProgress)
+  const presign = await presignSlackUpload(workspaceName, file.size, source, signal)
+  await uploadToPresignedURL(presign.upload_url, file, presign.headers, onUploadProgress, signal)
+  if (signal?.aborted) throw abortError()
   await finalizePresignedUpload(presign.job_id)
   return {
     job_id: presign.job_id,
