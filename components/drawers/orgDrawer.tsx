@@ -15,6 +15,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { destinationHue } from "@/lib/destinationHue"
 
 interface OrgDrawerProps {
     drawerOpenState: boolean
@@ -45,17 +46,20 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
                     <DrawerItem
                         icon={Users}
                         label="Teams"
+                        hue={destinationHue(app_team_path)}
                         onClick={() => handleNavigate(app_team_path)}
                     />
                     <DrawerItem
                         icon={ClipboardList}
                         label="Projects"
+                        hue={destinationHue(app_project_path)}
                         onClick={() => handleNavigate(app_project_path)}
                     />
                     {selfProfile.data?.data.user_is_admin && (
                         <DrawerItem
                             icon={Shield}
                             label="Admin control"
+                        hue={destinationHue(app_admin)}
                             onClick={() => handleNavigate(app_admin)}
                         />
                     )}
