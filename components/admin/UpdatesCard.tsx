@@ -18,9 +18,11 @@ import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { checkForUpdates, updateSummary, type UpdateStatus, type UpdateTone } from "@/services/updatesService"
 
+// News in the status colours: an available update is information (info),
+// not an action, so it no longer takes the accent, which means "press me".
 const TONE_ICON: Record<UpdateTone, React.ReactNode> = {
     current: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />,
-    available: <Download className="mt-0.5 h-4 w-4 shrink-0 text-primary" />,
+    available: <Download className="mt-0.5 h-4 w-4 shrink-0 text-info-ink" />,
     unknown: <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />,
 }
 
@@ -76,7 +78,7 @@ const UpdatesCard: React.FC = () => {
                     {error && <p className="text-sm text-danger-ink">{error}</p>}
                     {summary && (
                         <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-                            <div className="flex items-start gap-2">
+                            <div className="flex items-start gap-2" data-update-tone={summary.tone}>
                                 {TONE_ICON[summary.tone]}
                                 <div className="min-w-0 space-y-1">
                                     <p className="text-sm font-medium">{summary.title}</p>
