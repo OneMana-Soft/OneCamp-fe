@@ -26,7 +26,7 @@ describe("the playful showcase", () => {
     (file) => {
       const src = readFileSync(join(DIR, file), "utf8")
       const imports = [...src.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1])
-      const bad = imports.filter((s) => /@\/components\/ai\b|@\/lib\/ai\b|demoFunnel|demoDestination|demoSplash|demoGuide|demoWins|DemoGuide|DemoLeadPrompt/.test(s))
+      const bad = imports.filter((s) => /@\/components\/ai\b|@\/lib\/ai\b|demo(Funnel|Destination|Splash|Guide|Wins)|Demo(Guide|LeadPrompt)/.test(s))
       expect(bad).toEqual([])
     },
   )

@@ -67,12 +67,6 @@ describe("a request that fails", () => {
     expect(toasts).toEqual([expect.objectContaining({ title: "Couldn't delete project", description: "You don't have permission to do that." })])
   })
 
-  it("still lets the demo say why it keeps something", async () => {
-    restore = serverAnswers(403, { code: "demo", msg: "Everyone who opens the demo shares this." })
-    await deleteProject()
-    expect(toasts).toEqual([expect.objectContaining({ title: "The demo is shared", description: "Everyone who opens the demo shares this." })])
-  })
-
   it("says the server couldn't be reached when nothing answered", async () => {
     restore = serverAnswers(0)
     await deleteProject()

@@ -50,7 +50,7 @@ describe("the playful layer is edition-neutral", () => {
   const FORBIDDEN = [
     /@\/components\/ai\b/,
     /@\/lib\/ai\b/,
-    /demoFunnel|demoDestination|demoSplash|demoGuide|demoWins|DemoGuide|DemoLeadPrompt|DemoWins|DemoSharedNote/,
+    /demo(Funnel|Destination|Splash|Guide|Wins)|Demo(Guide|LeadPrompt|Wins|SharedNote)/,
   ]
   const files = [
     ...readdirSync(join(ROOT, "components/ui/graphics"), { recursive: true })
