@@ -18,9 +18,8 @@ import {usePost} from "@/hooks/usePost";
 import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
-     CommentInfoInterface,
 } from "@/types/comment";
-import {useEffect, useRef} from "react";
+import {useRef} from "react";
 import {UserProfileInterface} from "@/types/user";
 
 import {openUI} from "@/store/slice/uiSlice";
@@ -48,21 +47,26 @@ import {
 } from "@/store/slice/groupChatSlice";
 import {GroupChatCommentFileUpload} from "@/components/fileUpload/groupChatCommentFileUpload";
 import {useUploadFile} from "@/hooks/useUploadFile";
+import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+
+// Module-level, so a selector that finds nothing returns the same value every
+// time: a fresh [] or {} per call re-drew the thread on every store change.
+const NO_ITEMS: never[] = []
+const NO_DRAFT = {}
 
 export const GroupChatComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
-    const groupChatState = useSelector((state: RootState) => state.groupChat.chatMessages[rightPanelState.data.groupUUID] || []);
+    const groupChatState = useSelector((state: RootState) => state.groupChat.chatMessages[rightPanelState.data.groupUUID] || NO_ITEMS);
     const uploadFile = useUploadFile()
 
-    const EMPTY_COMMENTS: CommentInfoInterface[] = [];
-    const chatCommentState = useSelector((state: RootState) => state.chatComments.chatComments[rightPanelState.data.chatMessageUUID] || EMPTY_COMMENTS);
+    const chatCommentState = useSelector((state: RootState) => state.chatComments.chatComments[rightPanelState.data.chatMessageUUID] || NO_ITEMS);
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
 
-    const chatCommentInputState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[rightPanelState.data.groupUUID] || {});
+    const chatCommentInputState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[rightPanelState.data.groupUUID] || NO_DRAFT);
 
     const chatInfo = useFetch<ChatInfoRes>(
         rightPanelState.data.groupUUID && rightPanelState.data.chatMessageUUID ? `${GetEndpointUrl.GetChatWithAllComments}/${rightPanelState.data.chatMessageUUID}` : "",
@@ -80,15 +84,10 @@ export const GroupChatComments = () => {
 
 
 
-    useEffect(() => {
-
-        if(chatInfo.data?.data && chatInfo.data.data.chat_comments && chatCommentState.length != 0) {
-            dispatch(addChatComments({chatId: rightPanelState.data.chatMessageUUID, comments:chatInfo.data.data.chat_comments}))
-        }
-
-
-
-    }, [chatInfo.data, chatCommentState.length, rightPanelState.data.chatMessageUUID, dispatch]);
+    // The server's replies, reconciled once per answer (useThreadReplies).
+    useThreadReplies(chatInfo.data?.data?.chat_comments, chatInfo.lastRequestStartedAt, chatCommentState, (comments) =>
+        dispatch(addChatComments({ chatId: rightPanelState.data.chatMessageUUID, comments })),
+    )
 
 
     if (!chatInfo.data?.data || !chatInfoState) {

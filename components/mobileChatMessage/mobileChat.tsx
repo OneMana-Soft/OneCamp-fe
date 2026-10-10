@@ -14,7 +14,6 @@ import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ErrorState} from "@/components/error/errorState";
 import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
 import type {RootState} from "@/store/store";
-import {useEffect} from "react";
 import {
     addChatComments,
     createChatCommentReaction, removeChatComment,
@@ -34,6 +33,11 @@ import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+
+// Module-level, so a selector that finds nothing returns the same value every
+// time: a fresh [] per call re-drew the thread on every store change.
+const NO_ITEMS: never[] = []
 
 export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMessageUUID: string }) => {
 
@@ -42,11 +46,11 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
     )
 
     const post = usePost()
-    const chatMessageState = useSelector((state: RootState) => state.chat.chatMessages[chatId] || []);
+    const chatMessageState = useSelector((state: RootState) => state.chat.chatMessages[chatId] || NO_ITEMS);
 
     const chatState = chatMessageState?.find(c => c.chat_uuid === chatMessageUUID);
 
-    const chatCommentState = useSelector((state: RootState) => state.chatComments.chatComments[chatMessageUUID] || []);
+    const chatCommentState = useSelector((state: RootState) => state.chatComments.chatComments[chatMessageUUID] || NO_ITEMS);
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
@@ -56,15 +60,10 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
         window.location.reload()
     }
 
-    useEffect(() => {
-
-        if(chatInfo.data?.data && chatInfo.data.data.chat_comments && chatCommentState.length != chatInfo.data.data.chat_comments.length) {
-            dispatch(addChatComments({chatId: chatMessageUUID, comments:chatInfo.data.data.chat_comments}))
-        }
-
-
-
-    }, [chatInfo.data?.data, chatCommentState.length, chatMessageUUID, dispatch]);
+    // The server's replies, reconciled once per answer (useThreadReplies).
+    useThreadReplies(chatInfo.data?.data?.chat_comments, chatInfo.lastRequestStartedAt, chatCommentState, (comments) =>
+        dispatch(addChatComments({ chatId: chatMessageUUID, comments })),
+    )
 
     if (chatInfo.isLoading|| !chatState ) {
         return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>

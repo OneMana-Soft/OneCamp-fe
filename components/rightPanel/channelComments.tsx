@@ -35,9 +35,8 @@ import {usePost} from "@/hooks/usePost";
 import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
-     CommentInfoInterface,
 } from "@/types/comment";
-import {useEffect, useRef, useState} from "react";
+import {useRef, useState} from "react";
 import {CreateOrUpdateCommentReaction, CreateOrUpdatePostReaction} from "@/types/reaction";
 import {
     createPostReactionPostId,
@@ -51,21 +50,24 @@ import {
 } from "@/store/slice/channelSlice";
 import {UserProfileInterface} from "@/types/user";
 import {useUploadFile} from "@/hooks/useUploadFile";
+import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+
+// Module-level, so a selector that finds nothing returns the same value every
+// time: a fresh [] or {} per call re-drew the thread on every store change.
+const NO_ITEMS: never[] = []
+const NO_DRAFT = {}
 
 export const ChannelComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
 
-    const EMPTY_INPUT_STATE = {};
-    const EMPTY_POSTS: any[] = []; // Using any[] to match the inferred type if needed, or better typed if possible. Based on usage it seems to be an array of posts.
-    const EMPTY_COMMENTS: CommentInfoInterface[] = [];
 
-    const channelCommentState = useSelector((state: RootState) => state.channelComment.commentInputState[rightPanelState.data.channelUUID] || EMPTY_INPUT_STATE)
+    const channelCommentState = useSelector((state: RootState) => state.channelComment.commentInputState[rightPanelState.data.channelUUID] || NO_DRAFT)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const uploadFile = useUploadFile()
 
-    const channelState = useSelector((state: RootState) => state.channel.channelPosts[rightPanelState.data.channelUUID] || EMPTY_POSTS);
+    const channelState = useSelector((state: RootState) => state.channel.channelPosts[rightPanelState.data.channelUUID] || NO_ITEMS);
 
-    const postCommentState = useSelector((state: RootState) => state.channelComment.postComments[rightPanelState.data.postUUID] || EMPTY_COMMENTS);
+    const postCommentState = useSelector((state: RootState) => state.channelComment.postComments[rightPanelState.data.postUUID] || NO_ITEMS);
 
 
     const postInfo = useFetch<PostsResRaw>(
@@ -89,15 +91,10 @@ export const ChannelComments = () => {
     const [alsoSendToChannel, setAlsoSendToChannel] = useState(false)
 
 
-    useEffect(() => {
-
-        if(postInfo.data?.data && postInfo.data.data.post_comments && postCommentState.length == 0) {
-            dispatch(addChannelComments({postId: rightPanelState.data.postUUID, comments:postInfo.data.data.post_comments}))
-        }
-
-
-
-    }, [postInfo.data, postCommentState.length, rightPanelState.data.postUUID, dispatch]);
+    // The server's replies, reconciled once per answer (useThreadReplies).
+    useThreadReplies(postInfo.data?.data?.post_comments, postInfo.lastRequestStartedAt, postCommentState, (comments) =>
+        dispatch(addChannelComments({ postId: rightPanelState.data.postUUID, comments })),
+    )
 
 
     if (postInfo.isLoading || !postInfo.data?.data || !postState) {
