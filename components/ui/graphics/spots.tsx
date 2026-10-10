@@ -39,6 +39,8 @@ function Spot({ size = 96, hue, className, children }: SpotProps & { hue: CampHu
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      // On a phone, globals.css caps a spot at 72px (SPOTS ON A PHONE).
+      data-spot=""
       className={cx(HUE_CLASS[hue], className)}
     >
       {children}

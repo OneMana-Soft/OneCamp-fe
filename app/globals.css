@@ -1341,3 +1341,15 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     font-size: 1rem;
   }
 }
+
+/* SPOTS ON A PHONE. A spot illustration (components/ui/graphics/spots) is
+   96px by default; below sm it is at most 72px, so an empty state's sentence
+   and its one action stay above the fold and clear of the tab bar. A max,
+   never a size: a spot drawn smaller keeps its size. Unlayered, so it holds
+   over a size class as well as the width and height attributes. */
+@media (max-width: 639.98px) {
+  svg[data-spot] {
+    max-width: 72px;
+    max-height: 72px;
+  }
+}
