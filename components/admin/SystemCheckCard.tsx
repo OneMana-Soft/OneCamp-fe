@@ -28,13 +28,15 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { Activity, AlertTriangle, CheckCircle2, Info, Loader2, RefreshCw } from "@/lib/icons"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
+import { Activity, AlertTriangle, Info, Loader2, RefreshCw } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { cn } from "@/lib/utils/helpers/cn"
 import { shortTime } from "@/lib/utils/date/shortDate"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { runSystemCheck, type SystemCheckKind, type SystemCheckReport, type SystemCheckResult } from "@/services/systemCheckService"
@@ -75,40 +77,49 @@ const SECTIONS: { kind: SystemCheckKind; title: string; blurb: string }[] = [
     },
 ]
 
+/** A list of the group's checks: hairline rows, the admin page's one list. */
+const LIST = "divide-y divide-border rounded-lg border border-border"
+
 // One check: a row of its group's list. Each was a bordered card of its own.
+// Its state is a word with a dot at the row's end (never colour alone), and a
+// note or a failure is a line under its scope, not a tinted box in the row.
 const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
-    <li className="px-3 py-2.5">
-        <div className="flex items-start gap-2">
-            {check.healthy ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
-            ) : (
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
-            )}
-            <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                    <span className="font-mono text-sm font-medium">{check.name}</span>
-                    <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {formatDuration(check.took_ms)}
-                    </span>
-                </div>
+    <li className="px-4 py-3">
+        <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-1">
+                <p className="font-mono text-sm font-medium">{check.name}</p>
                 {/* Always rendered, healthy or not. The scope of a passing check is
                     the part an operator most needs and is most often denied. */}
-                <p className="mt-0.5 text-xs text-muted-foreground">{check.describe}</p>
+                <p className="text-xs text-muted-foreground">{check.describe}</p>
                 {check.detail &&
                     (check.healthy ? (
                         // A note: true, worth knowing, and not a failure.
-                        <p className="mt-1.5 flex gap-1.5 rounded border border-warning/30 bg-warning/10 px-2 py-1 text-xs text-warning-ink">
-                            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <p className="flex gap-1.5 text-xs text-warning-ink">
+                            <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                             <span>{check.detail}</span>
                         </p>
                     ) : (
-                        <p className="mt-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs text-danger-ink">
-                            {check.detail}
+                        <p className="flex gap-1.5 text-xs text-danger-ink">
+                            <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            <span>{check.detail}</span>
                         </p>
                     ))}
             </div>
+            <div className="flex shrink-0 items-center gap-3 text-xs">
+                <StatusWord tone={check.healthy ? "success" : "danger"}>
+                    {check.healthy ? "Healthy" : "Needs attention"}
+                </StatusWord>
+                <span className="w-10 text-right tabular-nums text-muted-foreground">{formatDuration(check.took_ms)}</span>
+            </div>
         </div>
     </li>
+)
+
+/** A group of checks: its name and what it means, then its rows. */
+const CheckGroup: React.FC<{ title: string; blurb: string; children: React.ReactNode }> = ({ title, blurb, children }) => (
+    <SettingsSection level={3} title={title} description={blurb}>
+        {children}
+    </SettingsSection>
 )
 
 const SystemCheckCard: React.FC = () => {
@@ -138,131 +149,104 @@ const SystemCheckCard: React.FC = () => {
     const unhealthy = report?.unhealthy ?? 0
     const total = report?.total ?? 0
 
-    // The verdict as a tinted word, its status in the status tokens. It carried
-    // an icon inside the chip beside the words.
-    const summary = (() => {
-        if (loading && !report) return null
-        if (error) {
-            return (
-                <Badge variant="outline" className="rounded-sm border-warning/30 text-warning-ink">
-                    Unavailable
-                </Badge>
-            )
-        }
-        if (!report) return null
-        if (total === 0) return <Badge variant="outline" className="rounded-sm">No checks in this build</Badge>
-        if (unhealthy > 0) {
-            return (
-                <Badge className="rounded-sm border-destructive/30 bg-destructive/10 text-danger-ink">
-                    {unhealthy} of {total} need attention
-                </Badge>
-            )
-        }
-        return (
-            <Badge className="rounded-sm border-success/30 bg-success/10 text-success-ink">
-                All {total} healthy
-            </Badge>
-        )
+    // The verdict as a dot and a word on the title's row, the way the task
+    // panel says a status. An empty build says so in the body instead.
+    const verdict = (() => {
+        if (error || !report || total === 0) return null
+        if (unhealthy > 0) return <StatusWord tone="danger">{unhealthy} of {total} need attention</StatusWord>
+        return <StatusWord tone="success">All {total} healthy</StatusWord>
     })()
 
+    // While a failed read is on the page, its Try again is the one way to run
+    // the check again; a second "Run again" beside it would be the same button.
+    const action = error ? undefined : (
+        <>
+            {verdict && <span className="text-sm">{verdict}</span>}
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void run()}
+                disabled={loading}
+                className={cn(sectionActionClass, "gap-1.5")}
+            >
+                {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                {loading ? "Checking…" : "Run again"}
+            </Button>
+        </>
+    )
+
     return (
-        <Card>
-            <CardHeader className="pb-3">
-                {/* Wraps: on a phone the title, the verdict and the button do not fit
-                    one row, and the title was squeezed onto two lines. */}
-                <CardTitle className="flex flex-wrap items-center gap-2.5 text-base">
-                    <Tile hue={ADMIN_GROUP_HUE.system} size="md">
-                        <Activity />
-                    </Tile>
-                    <span className="whitespace-nowrap">Installation health</span>
-                    <span className="ml-auto flex items-center gap-2">
-                        {summary}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void run()}
-                            disabled={loading}
-                            className="h-8"
-                        >
-                            {loading ? (
-                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            {loading ? "Checking…" : "Run again"}
-                        </Button>
-                    </span>
-                </CardTitle>
-                <CardDescription>
-                    Each subsystem is probed for the signature a known failure leaves behind.
-                    Nothing here writes to your workspace, so it is safe to run at any time.
+        <SettingsSection
+            title="Installation health"
+            description={
+                <>
+                    Each subsystem is probed for the signature a known failure leaves behind. Nothing here writes to your
+                    workspace, so it is safe to run at any time.
                     {report?.checked_at ? ` Last run ${formatCheckedAt(report.checked_at)}.` : ""}
-                </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-3">
-                {error && (
-                    <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-ink">
-                        {error}
-                    </p>
-                )}
-
-                {!error && report && total === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                        This build registered no checks. Each subsystem announces its own probe, so
-                        an empty list means those subsystems are not part of this edition rather
-                        than that everything passed.
-                    </p>
-                )}
-
-                {/* Rows of the checks' shape, so the list doesn't jump in when it comes. */}
-                {!error && !report && loading && (
-                    <div role="status" aria-label="Checking the installation" className="rounded-lg border border-border px-3 py-1">
-                        <SkeletonRows rows={4} avatar={false} />
-                    </div>
-                )}
-
-                {!error &&
-                    report &&
-                    SECTIONS.map(({ kind, title, blurb }) => {
+                </>
+            }
+            action={action}
+        >
+            {error ? (
+                <ErrorState compact subject="the health check" detail={error} onRetry={() => void run()} retrying={loading} />
+            ) : !report && loading ? (
+                // The list's own rows, under the first group's real heading, so
+                // nothing moves when the answer lands.
+                <CheckGroup title={SECTIONS[0].title} blurb={SECTIONS[0].blurb}>
+                    <ul role="status" aria-label="Checking the installation" className={LIST}>
+                        {[0, 1, 2, 3].map((i) => (
+                            <li key={i} aria-hidden="true" className="px-4 py-3">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0 flex-1 space-y-2 py-0.5">
+                                        <Skeleton className={cn("h-3.5", i % 2 ? "w-24" : "w-32")} />
+                                        <Skeleton className={cn("h-3", i % 2 ? "w-2/3" : "w-3/4")} />
+                                    </div>
+                                    <Skeleton className="h-3 w-24 shrink-0" />
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </CheckGroup>
+            ) : report && total === 0 ? (
+                <EmptyState
+                    icon={Activity}
+                    hue={ADMIN_GROUP_HUE.system}
+                    title="No checks in this build"
+                    description="Each subsystem announces its own probe, so an empty list means those subsystems are not part of this edition, not that everything passed."
+                />
+            ) : report ? (
+                <div className="space-y-6">
+                    {SECTIONS.map(({ kind, title, blurb }) => {
                         const rows = report.checks.filter((c) => c.kind === kind)
-                        // A build that registered nothing in this group says so
-                        // in the empty-state above; an absent group here is just
-                        // an edition without those subsystems.
+                        // An absent group is an edition without those subsystems.
                         if (rows.length === 0) return null
                         return (
-                            <section key={kind} className="space-y-2">
-                                <div>
-                                    <h3 className="text-sm font-medium">{title}</h3>
-                                    <p className="text-xs text-muted-foreground">{blurb}</p>
-                                </div>
-                                <ul aria-label={title} className="divide-y divide-border rounded-lg border border-border">
+                            <CheckGroup key={kind} title={title} blurb={blurb}>
+                                <ul aria-label={title} className={LIST}>
                                     {rows.map((check) => (
                                         <CheckRow key={check.name} check={check} />
                                     ))}
                                 </ul>
-                            </section>
+                            </CheckGroup>
                         )
                     })}
 
-                {/* The boundary of this page, stated on the page.
-                    
-                    Everything above is read-only, which is what makes it safe to press and is exactly
-                    why it cannot tell you whether somebody can create a task and then find it again.
-                    An admin who does not know that reads a green page as a working product, which is
-                    the same false comfort this page was built to stop giving. */}
-                {!error && report && report.total > 0 && (
-                    <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-                        Nothing on this page writes, so it cannot prove that creating something and
-                        finding it again works. The <code className="font-mono">journey</code> check does:
-                        it signs in, creates a task, reads it back and searches for it. Run it against
-                        this server with{" "}
-                        <code className="font-mono">go-one-camp journey</code>, giving it an API token
-                        and a project you are happy to see a test task in.
+                    {/* The boundary of this page, stated on the page.
+
+                        Everything above is read-only, which is what makes it safe to press and is exactly
+                        why it cannot tell you whether somebody can create a task and then find it again.
+                        An admin who does not know that reads a green page as a working product, which is
+                        the same false comfort this page was built to stop giving. */}
+                    <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
+                        Nothing on this page writes, so it cannot prove that creating something and finding it again
+                        works. The <code className="font-mono">journey</code> check does: it signs in, creates a task,
+                        reads it back and searches for it. Run it against this server with{" "}
+                        <code className="font-mono">go-one-camp journey</code>, giving it an API token and a project you
+                        are happy to see a test task in.
                     </p>
-                )}
-            </CardContent>
-        </Card>
+                </div>
+            ) : null}
+        </SettingsSection>
     )
 }
 

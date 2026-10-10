@@ -11,8 +11,9 @@
  */
 
 import React, { useCallback, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { cn } from "@/lib/utils/helpers/cn"
 import { CheckCircle2, Copy, Download, Info, Loader2, RefreshCw } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -58,28 +59,33 @@ const UpdatesCard: React.FC = () => {
 
     const summary = status ? updateSummary(status) : null
 
+    // A flat section like every other tab's: it was a bordered card with a
+    // 14px title, beside the health check's 16px one. On a phone the button
+    // goes under the words (the section's action slot does that): beside them
+    // it squeezed the description to two or three words a line.
     return (
-        <Card>
-            {/* On a phone the button goes under the words: beside them it
-                squeezed the description to two or three words a line. */}
-            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <div className="space-y-1.5">
-                    <CardTitle>Updates</CardTitle>
-                    <CardDescription>
-                        Looks up the newest release on your edition{status?.source ? ` at ${status.source}` : ""}. It
-                        only asks when you click, and sends nothing about this workspace.
-                    </CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={check} disabled={checking} className="shrink-0 self-start">
-                    {checking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+        <SettingsSection
+            title="Updates"
+            description={
+                <>
+                    Looks up the newest release on your edition{status?.source ? ` at ${status.source}` : ""}. It only
+                    asks when you click, and sends nothing about this workspace.
+                </>
+            }
+            action={
+                <Button variant="outline" size="sm" onClick={check} disabled={checking} className={cn(sectionActionClass, "gap-1.5")}>
+                    {checking ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                     {status ? "Check again" : "Check for updates"}
                 </Button>
-            </CardHeader>
+            }
+        >
             {(summary || error) && (
-                <CardContent className="space-y-3" aria-live="polite">
+                <div className="space-y-3" aria-live="polite">
                     {error && <p className="text-sm text-danger-ink">{error}</p>}
                     {summary && (
-                        <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+                        // The answer as words under the title, not a box in a box:
+                        // the command keeps its own code block.
+                        <div className="space-y-3">
                             <div className="flex items-start gap-2" data-update-tone={summary.tone}>
                                 {TONE_ICON[summary.tone]}
                                 <div className="min-w-0 space-y-1">
@@ -88,7 +94,7 @@ const UpdatesCard: React.FC = () => {
                                 </div>
                             </div>
                             {summary.command && (
-                                <div className="mt-3 flex items-center gap-2">
+                                <div className="flex items-center gap-2">
                                     <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs">
                                         {summary.command}
                                     </code>
@@ -105,9 +111,9 @@ const UpdatesCard: React.FC = () => {
                             )}
                         </div>
                     )}
-                </CardContent>
+                </div>
             )}
-        </Card>
+        </SettingsSection>
     )
 }
 
