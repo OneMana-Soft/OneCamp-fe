@@ -256,7 +256,7 @@ const SlackImportCard: React.FC = () => {
         <CardHeader className="pb-4 border-b border-border/50">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold tracking-tight">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
                 <Database className="h-5 w-5 text-primary" />
                 Import from Slack
               </CardTitle>

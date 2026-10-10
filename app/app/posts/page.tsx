@@ -75,7 +75,7 @@ const PostsPage = () => {
     return (
         <div className="flex h-full flex-col bg-background/30">
             {isDesktop && <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-4 md:px-6 py-3 md:py-4">
-                <h1 className="text-base md:text-lg font-semibold tracking-tight text-foreground">Your Posts</h1>
+                <h1 className="text-base md:text-lg font-semibold text-foreground">Your Posts</h1>
                 {isLoading && (
                     <div className="flex items-center gap-2 text-2xs md:text-xs text-muted-foreground animate-in fade-in">
                         <Loader2 className="h-3 w-3 animate-spin" />

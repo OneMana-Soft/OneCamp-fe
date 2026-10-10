@@ -264,7 +264,7 @@ const GitHubIntegrationCard = () => {
       <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
         <div className="flex items-center gap-2 mb-1">
           <div className="bg-primary/10 p-1.5 rounded-md"><GitBranch className="h-4 w-4 text-primary" /></div>
-          <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">Integrations</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-semibold">Integrations</CardTitle>
         </div>
         <CardDescription className="text-sm text-muted-foreground">Connect external services for bidirectional sync. Link GitHub repositories to sync issues, PRs, and branches with your tasks.</CardDescription>
       </CardHeader>

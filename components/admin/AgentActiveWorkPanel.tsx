@@ -81,7 +81,7 @@ const AgentActiveWorkPanel: React.FC = () => {
         <div className="rounded-md bg-warning/10 p-1">
           <Loader2 className={cn("h-3.5 w-3.5 text-warning", loading && "animate-spin")} />
         </div>
-        <h3 className="text-sm font-semibold tracking-tight">In progress</h3>
+        <h3 className="text-sm font-semibold">In progress</h3>
         <span className="text-2xs text-muted-foreground">
           {items.length} active{blockedCount > 0 ? ` · ${blockedCount} waiting on you` : ""}
         </span>

@@ -116,7 +116,7 @@ export const TeamProjectList = ({teamId}:{teamId: string}) => {
                         <div className="bg-primary/10 p-3 rounded-full mb-4">
                             <Search className="h-6 w-6 text-primary" />
                         </div>
-                        <h3 className="text-lg font-semibold tracking-tight">No projects yet</h3>
+                        <h3 className="text-lg font-semibold">No projects yet</h3>
                         <p className="text-sm text-muted-foreground mt-1 max-w-xs">
                             Get started by creating a new project.
                         </p>

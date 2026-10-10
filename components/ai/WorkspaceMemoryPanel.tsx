@@ -550,7 +550,7 @@ function WorkspaceMemoryPanel({
           <div className="bg-primary/10 p-1.5 rounded-lg flex-shrink-0">
             <Sparkles className="h-[18px] w-[18px] text-primary" />
           </div>
-          <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate min-w-0">
+          <h1 className="text-lg sm:text-xl font-semibold truncate min-w-0">
             {channelName ? <>Memory in <span className="text-primary">#{channelName}</span></> : "Workspace Memory"}
           </h1>
           <Button

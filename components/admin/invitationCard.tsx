@@ -131,7 +131,7 @@ const InvitationCard = () => {
               <div className="bg-primary/10 p-1.5 rounded-md">
                 <Mail className="h-4 w-4 text-primary" />
               </div>
-              <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">
+              <CardTitle className="text-lg sm:text-xl font-semibold">
                 Invitations
               </CardTitle>
               <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">

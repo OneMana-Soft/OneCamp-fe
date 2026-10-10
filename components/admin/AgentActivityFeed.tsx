@@ -61,7 +61,7 @@ const AgentActivityFeed: React.FC = () => {
         <div className="bg-primary/10 p-1 rounded-md">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
         </div>
-        <h3 className="text-sm font-semibold tracking-tight">Recent agent activity</h3>
+        <h3 className="text-sm font-semibold">Recent agent activity</h3>
         <Button
           variant="ghost"
           size="icon"

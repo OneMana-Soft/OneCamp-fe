@@ -485,7 +485,7 @@ const AIModelsCard = () => {
           <div className="bg-primary/10 p-1.5 rounded-md">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
-          <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">AI Models</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-semibold">AI Models</CardTitle>
           <Badge variant={config.enabled ? "default" : "secondary"} className="ml-2">
             {config.enabled ? "Enabled" : "Disabled"}
           </Badge>
