@@ -118,6 +118,7 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
                     title: "Remove channel member",
                     description: "Are you sure you want to proceed remove channel member",
                     confirmText: "Remove member",
+                    destructive: true,
                     onConfirm: ()=>{executeRemoveMember(id)}
                 }
             }));

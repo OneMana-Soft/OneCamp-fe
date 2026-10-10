@@ -239,6 +239,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                     title: "Deleting chat message",
                     description: "Are you sure you want to proceed deleting the message",
                     confirmText: "Delete chat",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChat(messageId)}
                 }
             }));

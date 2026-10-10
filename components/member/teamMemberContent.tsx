@@ -130,6 +130,7 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
                     title: "Remove team member",
                     description: "Are you sure you want to proceed remove team member",
                     confirmText: "Remove member",
+                    destructive: true,
                     onConfirm: ()=>{executeRemoveMember(id)}
                 }
             }));

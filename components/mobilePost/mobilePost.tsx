@@ -98,6 +98,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                         title: "Deleting post",
                         description: "Are you sure you want to proceed deleting the post",
                         confirmText: "Delete post",
+                        destructive: true,
                         onConfirm: () => {
                             setTimeout(() => {executeDeletePost(postUUID)},100)
                         },
@@ -267,6 +268,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                     title: "Deleting post",
                     description: "Are you sure you want to proceed deleting the post comment",
                     confirmText: "Delete post comment",
+                    destructive: true,
                     onConfirm: ()=>{executeDeletePostComment(commentIndex, commentUUID)}
                 }
             }));

@@ -128,6 +128,7 @@ export const ChannelComments = () => {
                     title: "Deleting post",
                     description: "Are you sure you want to proceed deleting the post",
                     confirmText: "Delete post",
+                    destructive: true,
                     onConfirm: ()=>{executeDeletePost(postId)}
                 }
             }));
@@ -162,6 +163,7 @@ export const ChannelComments = () => {
                     title: "Deleting post",
                     description: "Are you sure you want to proceed deleting the post comment",
                     confirmText: "Delete post comment",
+                    destructive: true,
                     onConfirm: ()=>{executeDeletePostComment(commentIndex, commentUUID)}
                 }
             }));
