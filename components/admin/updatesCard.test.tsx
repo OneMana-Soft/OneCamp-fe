@@ -20,11 +20,23 @@ describe("the updates card", () => {
   // three words a line.
   it("puts its button under the words on a phone, beside them from sm up", () => {
     render(<UpdatesCard />)
-    const header = screen.getByRole("button", { name: "Check for updates" }).parentElement as HTMLElement
+    const header = screen.getByRole("button", { name: "Check for updates" }).closest("[data-section-header]") as HTMLElement
     const cls = header.className.split(/\s+/)
     expect(cls).toContain("flex-col")
     expect(cls).toContain("sm:flex-row")
     expect(cls).not.toContain("flex-row")
+  })
+
+  // "Updates" was a 14px title in a bordered card, beside "Installation health"
+  // at 16px: the Health tab had two title sizes and a box around each.
+  it("is a flat section whose title is a plain h2", () => {
+    const { container } = render(<UpdatesCard />)
+    const root = container.firstElementChild as HTMLElement
+    expect(root.tagName).toBe("SECTION")
+    expect(root.className).not.toMatch(/(^|\s)border(\s|$)/)
+    expect(screen.getByRole("heading", { level: 2, name: "Updates" }).className).toContain("text-base")
+    // The section's one action, at the header's height.
+    expect(screen.getByRole("button", { name: "Check for updates" }).className).toContain("md:h-8")
   })
 
   // "An update is available" drew its icon in the accent, which means "press

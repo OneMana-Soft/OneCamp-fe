@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { SystemCheckReport } from "@/services/systemCheckService"
 
 // The two properties worth holding are both about what the card REFUSES to do,
@@ -98,12 +98,21 @@ describe("SystemCheckCard", () => {
         ).toBeNull()
     })
 
-    it("keeps a failure to reach the checker on the page rather than in a toast", async () => {
-        runSystemCheck.mockRejectedValue(new Error("network down"))
+    // It was an amber banner with no way to try again; every other section of the
+    // admin page says a failed read the same way, under its title.
+    it("keeps a failure to reach the checker on the page, under its title, with Try again", async () => {
+        runSystemCheck.mockRejectedValueOnce(new Error("network down"))
+        runSystemCheck.mockReturnValue(new Promise(() => {}))
 
         render(<SystemCheckCard />)
 
-        await waitFor(() => expect(screen.getByText("Unavailable")).toBeTruthy())
+        expect(await screen.findByText("Couldn't load the health check")).toBeTruthy()
+        expect(screen.getByText("network down")).toBeTruthy()
+        expect(screen.getByRole("heading", { level: 2, name: "Installation health" })).toBeTruthy()
+        // One way to try again: the error's own button, not a second "Run again" beside it.
+        expect(screen.queryByRole("button", { name: /run again/i })).toBeNull()
+        fireEvent.click(screen.getByRole("button", { name: /try again/i }))
+        expect(runSystemCheck).toHaveBeenCalledTimes(2)
     })
 
     it("puts dependencies above features, so a broken install is not read past", async () => {
@@ -231,14 +240,45 @@ describe("how the health check reads", () => {
         expect(list.querySelectorAll("li")).toHaveLength(2)
     })
 
-    // The verdict carried an icon inside its tinted chip, beside the words.
-    it("says its verdict as a tinted word, and its title's icon sits on the system tile", async () => {
+    // The verdict was a tinted chip; a state is a dot and a word, as the task
+    // panel's status reads, beside the section's one action.
+    it("says its verdict as a status word on the title's row, beside Run again", async () => {
         runSystemCheck.mockResolvedValue(
             report({ healthy: 1, total: 1, checks: [{ name: "email", kind: "dependency", describe: "A key is set.", healthy: true, took_ms: 2 }] }),
         )
-        const { container } = render(<SystemCheckCard />)
+        render(<SystemCheckCard />)
         const verdict = await screen.findByText("All 1 healthy")
-        expect(verdict.querySelector("svg")).toBeNull()
-        expect(container.querySelector(".hue-moss")).toBeTruthy()
+        expect(verdict.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+        const action = verdict.closest("[data-section-action]") as HTMLElement
+        expect(action).toBeTruthy()
+        expect(action.querySelector("button")?.textContent).toMatch(/Run again/)
+    })
+
+    // A bordered card with a p-4 header and a 32px tile beside a 16px title,
+    // where every other admin tab is a flat section with a plain h2: switching
+    // to Health moved the title 17px right and down.
+    it("is a flat section with a plain h2 title, like every other admin tab", async () => {
+        runSystemCheck.mockResolvedValue(report({ healthy: 1, total: 1, checks: [{ name: "email", kind: "dependency", describe: "A key is set.", healthy: true, took_ms: 2 }] }))
+        const { container } = render(<SystemCheckCard />)
+        await screen.findByText("email")
+        const root = container.firstElementChild as HTMLElement
+        expect(root.tagName).toBe("SECTION")
+        expect(root.className).not.toMatch(/(^|\s)border(\s|$)/)
+        const h2 = screen.getByRole("heading", { level: 2, name: "Installation health" })
+        expect(h2.querySelector(".hue-moss, svg")).toBeNull()
+        // Each check's state is a word too, never colour alone.
+        expect(screen.getByText("Healthy").closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+    })
+
+    // The rows that stand in while it checks are the list's own rows, under the
+    // first group's real heading, so nothing moves when the answer lands.
+    it("stands the list's own rows in, under the first group's heading", () => {
+        runSystemCheck.mockReturnValue(new Promise(() => {}))
+        render(<SystemCheckCard />)
+        const status = screen.getByRole("status", { name: "Checking the installation" })
+        expect(screen.getByRole("heading", { level: 3, name: "Services this install needs" })).toBeTruthy()
+        const rows = status.querySelectorAll("li")
+        expect(rows.length).toBe(4)
+        rows.forEach((li) => expect(li.className).toContain("px-4 py-3"))
     })
 })
