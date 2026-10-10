@@ -19,3 +19,11 @@ describe("the task panel's tabs", () => {
     expect(panel).toMatch(/subject="the activity"/)
   })
 })
+
+describe("linking a task to GitHub", () => {
+  const src = readFileSync("components/task/GitHubIssueSearchDialog.tsx", "utf8")
+  it("keeps one height for Search and Paste URL, and says so in sentence case", () => {
+    expect(src).toContain("h-[min(36rem,80vh)]")
+    expect(src).not.toMatch(/Link GitHub Issue|Tasks to GitHub/)
+  })
+})

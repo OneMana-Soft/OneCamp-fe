@@ -224,11 +224,13 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onOpenChange(false) }}>
-      <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+      {/* One height for both tabs: their bodies differ, and the dialog
+          resized on a switch, moving its title and tabs. */}
+      <DialogContent className="sm:max-w-lg h-[min(36rem,80vh)] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
-            {isBulk ? `Link ${taskIds?.length} Tasks to GitHub` : "Link GitHub Issue or PR"}
+            {isBulk ? `Link ${taskIds?.length} tasks to GitHub` : "Link a GitHub issue or pull request"}
           </DialogTitle>
           <DialogDescription>
             {isBulk
