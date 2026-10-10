@@ -29,6 +29,7 @@ export function MobileTopNavigationBarThird() {
     const fwdMsgSendClicked = useSelector((state: RootState) => state.fwdMsg.fwdMsgInputInputState.mobileViewSendClicked);
 
     const router = useRouter();
+    const openMenu = () => dispatch(openUI({ key: 'userProfileDrawer' }));
 
     const renderComponent = () => {
         switch (path[2]) {
@@ -41,10 +42,25 @@ export function MobileTopNavigationBarThird() {
             case "templates":
             case "tables":
 
-                return <div className='flex items-center space-x-4 justify-end '>
+                // 44px targets for a thumb, 4px apart: the bell and the status
+                // button are the desktop's 36px controls, sized up here.
+                return <div className='flex items-center gap-1 justify-end [&_button]:size-11'>
                     <NudgeBell />
                     <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
-                    <div onClick={()=>{dispatch(openUI({ key: 'userProfileDrawer' }))}}>
+                    {/* Was a bare div with onClick: no role, no name, no keyboard. */}
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Open menu"
+                        onClick={openMenu}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                openMenu()
+                            }
+                        }}
+                        className="h-11 w-11 flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    >
                         <UserAvatarNav userUUID={selfProfile.data?.data.user_uuid} userName={displayNameOf(selfProfile.data?.data)} userProfileObjKey={selfProfile.data?.data.user_profile_object_key}/>
                     </div>
                 </div>;
@@ -54,7 +70,7 @@ export function MobileTopNavigationBarThird() {
 
                 if(path.length < 4 && selfProfile.data?.data.user_is_admin)
                     return <div className='flex space-x-1'>
-                        <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createTeam' }))}} >New</Button>
+                        <Button className={'!no-underline h-11 px-3'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createTeam' }))}} >New</Button>
 
                     </div>
                 if(path.length < 5)
@@ -68,7 +84,7 @@ export function MobileTopNavigationBarThird() {
 
                 if(path.length < 4 && selfProfile.data?.data.user_is_admin)
                     return <div className='flex space-x-1'>
-                        <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createProject' }))}} >New</Button>
+                        <Button className={'!no-underline h-11 px-3'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createProject' }))}} >New</Button>
 
                     </div>
                 if(path.length < 5)
@@ -100,7 +116,7 @@ export function MobileTopNavigationBarThird() {
             case "channel":
 
                 if(path.length < 4)
-                    return <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} >New</Button>
+                    return <Button className={'!no-underline h-11 px-3'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} >New</Button>
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button aria-label='Channel options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>

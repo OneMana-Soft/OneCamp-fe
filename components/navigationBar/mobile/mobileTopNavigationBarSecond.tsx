@@ -28,7 +28,7 @@ export function MobileTopNavigationBarSecond() {
                 return "Admin"
             case "team":
                 if (path.length < 4)
-                    return "Team";
+                    return "Teams";
                 if (path.length < 5)
                     return <MobileTopNavigationBarSecondTeam teamId={path[3]}/>
                 break;
@@ -38,12 +38,12 @@ export function MobileTopNavigationBarSecond() {
                 return "Assistant"
             case "calendar":
                 if (path.length < 4)
-                    return "My Calendar";
+                    return "Calendar";
                 if (path.length < 6)
-                    return "Event Detail";
+                    return "Event";
                 break;
             case "profile":
-                return "My Profile";
+                return "Your profile";
             case "activity":
                 return "Activity";
             case "later":
@@ -52,8 +52,9 @@ export function MobileTopNavigationBarSecond() {
                 return "Inbox";
             case "create":
 
+                // Sentence case: "New task", not "Create Task".
                 if (path.length < 5)
-                    return <span className='capitalize'>Create {path[3]}</span>
+                    return `New ${path[3]}`
                 break
             case "meet":
                 switch (path[3]) {
@@ -96,10 +97,10 @@ export function MobileTopNavigationBarSecond() {
                 return "Templates";
 
             case "goals":
-                return "Goal";
+                return path.length < 4 ? "Goals" : "Goal";
 
             case "posts":
-                return "Your Posts"
+                return "Your posts"
 
             case "recordings":
                 return "Recordings"
