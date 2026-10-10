@@ -58,10 +58,11 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{fromMessage ? "Make a task" : "New task"}</DialogTitle>
-          <DialogDescription>
+          {/* "Create a new task" under "New task" said nothing the title didn't. */}
+          <DialogDescription className={fromMessage ? undefined : "sr-only"}>
             {fromMessage
               ? "The task links back to the message, and a reply under it links to the task."
-              : "Create a new task"}
+              : "Name it and pick its project. The rest can wait."}
           </DialogDescription>
         </DialogHeader>
         <TaskCreateForm

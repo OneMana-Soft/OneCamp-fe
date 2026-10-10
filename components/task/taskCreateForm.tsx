@@ -32,7 +32,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import MinimalTiptapTask from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Content } from "@tiptap/react";
-import { X } from "@/lib/icons";
+import { Paperclip, X } from "@/lib/icons";
+import { fieldLabel, fieldRow, inlineAdd, inlineAffordance, inlineInput, inlineValue } from "@/lib/ui/fieldRow";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { Calendar as CalenderIcon } from "lucide-react";
 import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon";
 import { shortDate } from "@/lib/utils/date/shortDate";
@@ -88,14 +90,12 @@ const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }
 
   const Trigger = (
     <Button
-      variant="outline"
-      className={cn(
-        "pl-3 text-left font-normal mt-4",
-        !field.value && "text-muted-foreground",
-      )}
+      type="button"
+      variant="ghost"
+      className={cn(inlineValue, "tabular-nums", !field.value && "text-muted-foreground")}
     >
       {field.value ? shortDate(field.value) : <span>{placeholder}</span>}
-      <CalenderIcon className="ml-2 h-4 w-4" />
+      <CalenderIcon aria-hidden className={cn(inlineAffordance, "h-3.5 w-3.5")} />
     </Button>
   );
 
@@ -368,64 +368,170 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const startDateWatch = watch("task_start_date");
   const dueDateWatch = watch("task_due_date");
 
+  const needsProject = !selectedProject;
+  const pickProjectFirst = needsProject ? "Pick a project first" : undefined;
+
   return (
     <div>
       {/* Create is never a dead end: pressed without a project, it says so and
           opens the picker, where a disabled button gave no reason at all, and
           the project picked there finishes the create. Only when the project
           is all that's missing: with another field wrong, focus goes to that
-          field, and the picker would open and shut again. */}
-      <form
-        onSubmit={submitCreate}
-        className="grid gap-4 py-4"
-      >
-        <div className="grid gap-2 mb-2">
+          field, and the picker would open and shut again.
+
+          Laid out as the task panel is: a label column and values that read
+          as text and open to edit. Every row is there from the start (those
+          that need a project say so until there is one), so the dialog no
+          longer grows by a third when a project is picked. */}
+      <form onSubmit={submitCreate} className="grid gap-5 pt-1">
+        <div className="grid gap-2">
           <Label htmlFor="task_name">Name</Label>
-          <Input id="task_name" {...register("task_name")} placeholder="Enter task name" autoFocus />
+          <Input id="task_name" {...register("task_name")} placeholder="e.g. Review the pricing page…" autoComplete="off" autoFocus />
           {renderNameHint?.(watch("task_name") ?? "", (name) => setValue("task_name", name, { shouldValidate: true, shouldDirty: true }))}
-          {errors.task_name && <p className="text-danger-ink text-sm">{errors.task_name.message}</p>}
+          {errors.task_name && <p className="text-danger-ink text-sm" role="alert">{errors.task_name.message}</p>}
         </div>
-        
-        <div className="grid gap-2 mb-2">
-          {projectsInfo.data?.data && (
-            <div className="flex items-center space-x-4">
-              <p className="text-sm">Project</p>
+
+        <div className="grid">
+          <div className={fieldRow()}>
+            <span className={fieldLabel}>Project</span>
+            <div className="min-w-0">
+              {projectsInfo.data?.data ? (
+                <Controller
+                  control={control}
+                  name="task_project_uuid"
+                  render={({ field }) => (
+                    <Popover open={popOpenProjectName} onOpenChange={onProjectPickerOpenChange}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="ghost" className={cn(inlineValue, !selectedProject && "text-muted-foreground")}>
+                          {selectedProject ? (
+                            <>
+                              <IdentityMark id={selectedProject.project_uuid} variant="square" />
+                              <span className="truncate">{selectedProject.project_name}</span>
+                              <span className="truncate text-muted-foreground">{selectedProject.project_team.team_name}</span>
+                            </>
+                          ) : (
+                            <>Pick a project</>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
+                        <Command>
+                          <CommandInput placeholder="Select project…" />
+                          <CommandList>
+                            <CommandEmpty>No project found</CommandEmpty>
+                            <CommandGroup>
+                              {projectsInfo.data?.data.map(project => (
+                                <CommandItem
+                                  key={project.project_uuid}
+                                  value={project.project_uuid}
+                                  keywords={[project.project_name, project.project_team.team_name]}
+                                  onSelect={(value) => {
+                                    field.onChange(value);
+                                    setPopOpenProjectName(false);
+                                    onProjectPicked(value);
+                                  }}
+                                >
+                                  <IdentityMark id={project.project_uuid} variant="square" />
+                                  <span className="truncate">{project.project_name}</span>
+                                  <span className="ml-auto truncate pl-2 text-xs text-muted-foreground">{project.project_team.team_name}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                />
+              ) : (
+                <span className="text-sm text-muted-foreground">Loading your projects…</span>
+              )}
+              {errors.task_project_uuid && <p className="text-danger-ink text-sm" role="alert">{errors.task_project_uuid.message}</p>}
+            </div>
+          </div>
+
+          <div className={fieldRow()}>
+            <span className={fieldLabel}>Assignee</span>
+            <div className="min-w-0">
               <Controller
                 control={control}
-                name="task_project_uuid"
+                name="task_assignee_uuid"
                 render={({ field }) => (
-                  <Popover open={popOpenProjectName} onOpenChange={onProjectPickerOpenChange}>
+                  <Popover open={popOpenUserName} onOpenChange={setPopOpenUserName}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="justify-start">
-                        {selectedProject ? (
-                          <>
-                            {selectedProject.project_name} {" (" + selectedProject.project_team.team_name + ")"}
-                          </>
-                        ) : (
-                          <>Pick a project</>
-                        )}
+                      <Button type="button" variant="ghost" disabled={needsProject} title={pickProjectFirst} className={cn(inlineValue, !selectedUser && "text-muted-foreground")}>
+                        {selectedUser ? <>{displayNameOf(selectedUser)}</> : <>Pick someone</>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="p-0" side="bottom" portalled={false}>
+                    <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
                       <Command>
-                        <CommandInput placeholder="Select project…" />
+                        <CommandInput placeholder="Select member" />
                         <CommandList>
-                          <CommandEmpty>No project found</CommandEmpty>
+                          <CommandEmpty>No member found</CommandEmpty>
                           <CommandGroup>
-                            {projectsInfo.data?.data.map(project => (
+                            {(selectedProject?.project_members ?? []).map(member => (
                               <CommandItem
-                                key={project.project_uuid}
-                                value={project.project_uuid}
+                                key={member.user_uuid}
+                                value={member.user_uuid}
                                 onSelect={(value) => {
                                   field.onChange(value);
-                                  setPopOpenProjectName(false);
-                                  onProjectPicked(value);
+                                  setPopOpenUserName(false);
                                 }}
                               >
-                                <span>
-                                  {project.project_name}
-                                  <span className="ml-2">{"(" + project.project_team.team_name + ")"}</span>
-                                </span>
+                                <span>{displayNameOf(member)}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+              {errors.task_assignee_uuid && <p className="text-danger-ink text-sm" role="alert">{errors.task_assignee_uuid.message}</p>}
+            </div>
+          </div>
+
+          <div className={fieldRow()}>
+            <span className={fieldLabel}>Priority</span>
+            <div className="min-w-0">
+              <Controller
+                control={control}
+                name="task_priority"
+                render={({ field }) => (
+                  <Popover open={popOpenPriority} onOpenChange={setPopOpenPriority}>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="ghost" className={inlineValue}>
+                        {(() => {
+                          const p = priorities.find(p => p.value === field.value);
+                          return p ? (
+                            <>
+                              <p.icon className="h-4 w-4 text-muted-foreground" />
+                              {p.label}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">Pick a priority</span>
+                          );
+                        })()}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
+                      <Command>
+                        <CommandInput placeholder="Select priority" />
+                        <CommandList>
+                          <CommandEmpty>No priority found</CommandEmpty>
+                          <CommandGroup>
+                            {priorities.map(member => (
+                              <CommandItem
+                                key={member.value}
+                                value={member.value}
+                                onSelect={(value) => {
+                                  field.onChange(value);
+                                  setPopOpenPriority(false);
+                                }}
+                              >
+                                <member.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                                <span>{member.label}</span>
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -436,116 +542,50 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                 )}
               />
             </div>
-          )}
-          {errors.task_project_uuid && <p className="text-danger-ink text-sm">{errors.task_project_uuid.message}</p>}
-          
-          {selectedProject && (
-            <div className="flex mt-2 flex-wrap gap-x-4 gap-y-4">
-              <div className="flex items-center gap-x-4">
-                <p className="text-sm">Assignee</p>
-                <Controller
-                    control={control}
-                    name="task_assignee_uuid"
-                    render={({ field }) => (
-                        <Popover open={popOpenUserName} onOpenChange={setPopOpenUserName}>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="justify-start">
-                            {selectedUser ? <>{displayNameOf(selectedUser)}</> : <>Pick someone</>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
-                            <Command>
-                            <CommandInput placeholder="Select member" />
-                            <CommandList>
-                                <CommandEmpty>No member found</CommandEmpty>
-                                <CommandGroup>
-                                {selectedProject.project_members.map(member => (
-                                    <CommandItem
-                                    key={member.user_uuid}
-                                    value={member.user_uuid}
-                                    onSelect={(value) => {
-                                        field.onChange(value);
-                                        setPopOpenUserName(false);
-                                    }}
-                                    >
-                                    <span>{displayNameOf(member)}</span>
-                                    </CommandItem>
-                                ))}
-                                </CommandGroup>
-                            </CommandList>
-                            </Command>
-                        </PopoverContent>
-                        </Popover>
-                    )}
-                />
-              </div>
-              {errors.task_assignee_uuid && <p className="text-danger-ink text-sm">{errors.task_assignee_uuid.message}</p>}
-              
-              <div className="flex items-center space-x-4">
-                <p className="text-sm">Priority</p>
+          </div>
+
+          <div className={fieldRow()}>
+            <span className={fieldLabel}>Dates</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3">
+              <div className="flex items-center">
                 <Controller
                   control={control}
-                  name="task_priority"
-                  render={({ field }) => (
-                    <Popover open={popOpenPriority} onOpenChange={setPopOpenPriority}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="justify-start">
-                          {field.value ? (
-                            <>
-                              {(() => {
-                                const p = priorities.find(p => p.value === field.value);
-                                return p ? (
-                                  <>
-                                    <p.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                                    {p.label}
-                                  </>
-                                ) : (
-                                  <>Select Priority</>
-                                );
-                              })()}
-                            </>
-                          ) : (
-                            <>Select Priority</>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
-                        <Command>
-                          <CommandInput placeholder="Select priority" />
-                          <CommandList>
-                            <CommandEmpty>No priority found</CommandEmpty>
-                            <CommandGroup>
-                              {priorities.map(member => (
-                                <CommandItem
-                                  key={member.value}
-                                  value={member.value}
-                                  onSelect={(value) => {
-                                    field.onChange(value);
-                                    setPopOpenPriority(false);
-                                  }}
-                                >
-                                  <member.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  <span>{member.label}</span>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                  name="task_start_date"
+                  render={({ field }) => <DateField field={field} placeholder="Start date" drawerTitle="Start date" />}
                 />
+                {startDateWatch && (
+                  <Button type="button" aria-label="Clear start date" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setValue("task_start_date", undefined)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
-              
-              <div className="flex items-center gap-x-4">
-                <Label htmlFor="task_label">Tags</Label>
-                <Input id="task_label" {...register("task_label")} placeholder="Separate with commas, e.g. frontend, needs review" />
-                {errors.task_label && <p className="text-danger-ink text-sm">{errors.task_label.message}</p>}
+              <span aria-hidden className="text-muted-foreground">to</span>
+              <div className="flex items-center">
+                <Controller
+                  control={control}
+                  name="task_due_date"
+                  render={({ field }) => <DateField field={field} placeholder="Due date" drawerTitle="Due date" />}
+                />
+                {dueDateWatch && (
+                  <Button type="button" aria-label="Clear due date" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setValue("task_due_date", undefined)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
-          )}
+            {errors.task_start_date && <p className="text-danger-ink text-sm" role="alert">{errors.task_start_date.message}</p>}
+            {errors.task_due_date && <p className="text-danger-ink text-sm" role="alert">{errors.task_due_date.message}</p>}
+          </div>
+
+          <div className={fieldRow()}>
+            <Label htmlFor="task_label" className={fieldLabel}>Tags</Label>
+            <div className="min-w-0">
+              <Input id="task_label" {...register("task_label")} placeholder="e.g. frontend, needs review…" autoComplete="off" className={cn(inlineInput, "w-full")} />
+              {errors.task_label && <p className="text-danger-ink text-sm" role="alert">{errors.task_label.message}</p>}
+            </div>
+          </div>
         </div>
-        
+
         <div className="grid gap-2">
           <Label htmlFor="description">Description</Label>
           <Controller
@@ -554,15 +594,16 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
             render={({ field }) => (
                 <MinimalTiptapTask
                     throttleDelay={3000}
+                    toggleToolbar
                     onActionFiles={async (files) => {
                         if (!files?.length || !taskProjectUUID) return;
                         await uploadFile.makeRequestToUploadToCreateTask(files as unknown as FileList, taskProjectUUID);
                     }}
-                    className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}
-                    editorContentClassName="overflow-auto h-full"
+                    className={cn("max-w-full rounded-lg h-auto border p-2 bg-muted/30")}
+                    editorContentClassName="overflow-auto h-full min-h-[5rem]"
                     output="html"
                     content={field.value}
-                    placeholder="Enter description…"
+                    placeholder="Add details…"
                     editable={true}
                     editorClassName="focus:outline-none px-2 py-2"
                     onChange={(content: Content) => {
@@ -571,108 +612,68 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                 />
             )}
           />
-          {errors.task_description && <p className="text-danger-ink text-sm">{errors.task_description.message}</p>}
+          {errors.task_description && <p className="text-danger-ink text-sm" role="alert">{errors.task_description.message}</p>}
         </div>
-        
-        {selectedProject?.project_uuid && (
-          <div>
-            <Label htmlFor="file-upload" className="cursor-pointer">
-              Attachments
-            </Label>
-            <Input
-              type="file"
-              key={(dialogInputState.filePreview[selectedProject.project_uuid]?.length) || 0}
-              id="file-upload"
-              multiple
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              style={{ display: "none" }}
-            />
-            <div className="flex flex-wrap">
-              {dialogInputState.filePreview[selectedProject.project_uuid]?.map((file, index) => (
-                <div key={index} className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-xl border-border">
-                  <button aria-label={`Remove ${file.fileName}`} type="button" className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border" onClick={() => removePreviewFile(file.key)}>
-                    <X height="1rem" width="1rem" />
-                  </button>
-                  <div>
-                    <FileTypeIcon name={file.fileName} fileType={file.attachmentType} />
-                  </div>
-                  <div className="flex-col">
-                    <div className="text-ellipsis truncate max-w-40 text-xs">{file.fileName}</div>
-                    <div className="text-ellipsis truncate max-w-40 text-xs">uploading: {file.progress}%</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {selectedProject?.project_uuid && (
-              <div className="mt-4">
-                <Label htmlFor="github-url">GitHub issue or pull request (optional)</Label>
-                <Controller
-                  control={control}
-                  name="task_github_issue_url"
-                  render={({ field }) => (
-                    <Input
-                      id="github-url"
-                      ref={field.ref}
-                      placeholder="https://github.com/owner/repo/issues/123"
-                      value={field.value || ""}
-                      onChange={(e) => field.onChange(e.target.value || undefined)}
-                      onBlur={field.onBlur}
-                      aria-invalid={!!errors.task_github_issue_url}
-                      className="mt-1"
-                    />
-                  )}
-                />
-                {errors.task_github_issue_url && <p className="text-danger-ink text-sm">{errors.task_github_issue_url.message}</p>}
-                <p className="text-xs text-muted-foreground mt-1">Link this task to an existing GitHub issue or pull request.</p>
-              </div>
-            )}
 
-            <div className="flex space-x-8">
-              <div className="relative">
-                <Controller
-                    control={control}
-                    name="task_start_date"
-                    render={({ field }) => (
-                        <DateField
-                            field={field}
-                            placeholder="Start date"
-                            drawerTitle="Select Start Date"
-                        />
-                    )}
-                />
-                {startDateWatch && (
-                  <Button type="button" aria-label="Clear start date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
+        <div className="grid gap-1">
+          <Label htmlFor="github-url">GitHub issue or pull request (optional)</Label>
+          <Controller
+            control={control}
+            name="task_github_issue_url"
+            render={({ field }) => (
+              <Input
+                id="github-url"
+                ref={field.ref}
+                placeholder="https://github.com/owner/repo/issues/123"
+                value={field.value || ""}
+                onChange={(e) => field.onChange(e.target.value || undefined)}
+                onBlur={field.onBlur}
+                aria-invalid={!!errors.task_github_issue_url}
+                autoComplete="off"
+                spellCheck={false}
+                inputMode="url"
+              />
+            )}
+          />
+          {errors.task_github_issue_url && <p className="text-danger-ink text-sm" role="alert">{errors.task_github_issue_url.message}</p>}
+        </div>
+
+        {selectedProject && (dialogInputState.filePreview[selectedProject.project_uuid]?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap">
+            {dialogInputState.filePreview[selectedProject.project_uuid]?.map((file, index) => (
+              <div key={index} className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-lg border-border">
+                <button aria-label={`Remove ${file.fileName}`} type="button" className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border" onClick={() => removePreviewFile(file.key)}>
+                  <X height="1rem" width="1rem" />
+                </button>
+                <div>
+                  <FileTypeIcon name={file.fileName} fileType={file.attachmentType} />
+                </div>
+                <div className="flex-col">
+                  <div className="text-ellipsis truncate max-w-40 text-xs">{file.fileName}</div>
+                  <div className="text-ellipsis truncate max-w-40 text-xs">Uploading: {file.progress}%</div>
+                </div>
               </div>
-              {errors.task_start_date && <p className="text-danger-ink text-sm">{errors.task_start_date.message}</p>}
-              
-              <div className="relative">
-                <Controller
-                    control={control}
-                    name="task_due_date"
-                    render={({ field }) => (
-                        <DateField
-                            field={field}
-                            placeholder="Due date"
-                            drawerTitle="Select Due Date"
-                        />
-                    )}
-                />
-                {dueDateWatch && (
-                  <Button type="button" aria-label="Clear due date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              {errors.task_due_date && <p className="text-danger-ink text-sm">{errors.task_due_date.message}</p>}
-            </div>
+            ))}
           </div>
         )}
-        <DialogFooter>
+
+        <DialogFooter className="flex-row items-center sm:justify-between">
+          {/* Files go to the project, so they wait for one. */}
+          <Button type="button" variant="ghost" size="sm" className={inlineAdd} disabled={needsProject} title={pickProjectFirst} onClick={() => fileInputRef.current?.click()}>
+            <Paperclip className="h-3.5 w-3.5" aria-hidden />
+            Attach a file
+          </Button>
+          <Input
+            type="file"
+            key={selectedProject ? (dialogInputState.filePreview[selectedProject.project_uuid]?.length || 0) : 0}
+            id="file-upload"
+            multiple
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            tabIndex={-1}
+            aria-hidden
+          />
           <Button type="submit" disabled={post.isSubmitting}>
             {submitLabel}
           </Button>
