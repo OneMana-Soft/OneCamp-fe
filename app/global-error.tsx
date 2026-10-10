@@ -3,11 +3,16 @@
 // The last-resort error page. A failed code chunk (a page from before a
 // deploy) reloads into the new build; anything else gets a way back instead
 // of Next's bare "Application error" line.
+//
+// The button reloads the page, as it says. For an ordinary error it called
+// reset(), which only renders the same tree again and usually throws again:
+// the person pressed Reload and nothing changed. This page stands in for the
+// whole app, so a fresh load is the one recovery worth offering.
 
 import { useEffect } from "react"
 import { isChunkLoadError, reloadForNewBuild } from "@/lib/chunkRecovery"
 
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error }: { error: Error & { digest?: string }; reset: () => void }) {
   const chunk = isChunkLoadError(error)
   useEffect(() => {
     if (chunk) reloadForNewBuild()
@@ -32,7 +37,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <main>
           <h1>{chunk ? "OneCamp was just updated" : "Something went wrong"}</h1>
           <p>{chunk ? "Reloading to get the new version…" : "Reload the page to carry on. If it keeps happening, tell your admin."}</p>
-          <button type="button" onClick={() => (chunk ? location.reload() : reset())}>
+          <button type="button" onClick={() => location.reload()}>
             Reload
           </button>
         </main>
