@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { cleanup, render, screen } from "@testing-library/react"
-import { SaveBar, SettingRow, SwitchRow } from "@/components/ui/settingsSection"
+import { SaveBar, SettingRow, SettingsSection, SwitchRow, sectionActionClass } from "@/components/ui/settingsSection"
 
 afterEach(() => {
   cleanup()
@@ -78,12 +78,73 @@ describe("a setting's row", () => {
     expect(pad(row)).toBe(pad(switchRow))
   })
 
-  it("keeps the control on one line at the row's end from sm up, and below the words on a phone", () => {
+  // The row decides by its OWN width, not the window's: in the invitation
+  // email's editor column (430px on a 1440px screen) a window rule kept the
+  // sender address's input beside its help, which was squeezed to 115px and ran
+  // ten lines of one or two words.
+  it("keeps the control on one line at the row's end when the row is wide, and below the words when it is narrow", () => {
     const { container } = render(<SettingRow label="Theme" controlId="t"><select id="t" /></SettingRow>)
     const row = container.firstElementChild as HTMLElement
-    expect(row.className).toContain("sm:flex-row")
-    expect(row.className).toContain("sm:items-center")
-    const control = row.lastElementChild as HTMLElement
+    expect(row.className).toContain("@container")
+    expect(row.className).not.toMatch(/(^|\s)sm:flex-row/)
+    const inner = row.firstElementChild as HTMLElement
+    expect(inner.className).toContain("flex-col")
+    expect(inner.className).toContain("@xl:flex-row")
+    expect(inner.className).toContain("@xl:items-center")
+    const control = inner.lastElementChild as HTMLElement
     expect(control.className).toContain("shrink-0")
+    expect(control.querySelector("select")).toBeTruthy()
+  })
+
+  it("puts a wide control (a textarea, a key to paste) under its words at full width when stacked", () => {
+    const { container } = render(
+      <SettingRow layout="stacked" label="Who can join" description="Emails and domains." controlId="allow">
+        <textarea id="allow" />
+      </SettingRow>,
+    )
+    const row = container.firstElementChild as HTMLElement
+    expect(row.getAttribute("data-setting-row")).toBe("stacked")
+    expect(row.className).not.toContain("flex-row")
+    const [words, control] = Array.from(row.children) as HTMLElement[]
+    expect(words.textContent).toContain("Who can join")
+    expect(control.querySelector("textarea")).toBeTruthy()
+    expect(screen.getByLabelText("Who can join").tagName).toBe("TEXTAREA")
+  })
+})
+
+// The frame of a section: every admin tab and settings page is a stack of these,
+// so the first title sits at one place on every tab and the one action sits on
+// its row, where the task panel keeps "Mark complete".
+describe("a settings section", () => {
+  it("is a titled region whose title is a level 2 heading by default", () => {
+    render(<SettingsSection title="Workspace" description="Uploads and sign-up."><p>rows</p></SettingsSection>)
+    const region = screen.getByRole("region", { name: "Workspace" })
+    expect(screen.getByRole("heading", { level: 2, name: "Workspace" }).className).toContain("text-base")
+    expect(region.querySelector("[data-section-header]")).toBeNull()
+  })
+
+  it("puts its action on the title's row, at the end, and under the words on a phone", () => {
+    render(
+      <SettingsSection title="Admins" description="Who can change settings." action={<button type="button">Add admin</button>}>
+        <p>rows</p>
+      </SettingsSection>,
+    )
+    const header = screen.getByRole("region", { name: "Admins" }).querySelector("[data-section-header]") as HTMLElement
+    expect(header.className).toContain("flex-col")
+    expect(header.className).toContain("sm:flex-row")
+    expect(header.className).toContain("sm:justify-between")
+    const action = header.querySelector("[data-section-action]") as HTMLElement
+    expect(action.textContent).toBe("Add admin")
+    expect(action.className).toContain("shrink-0")
+  })
+
+  it("draws a section inside a section with a level 3, 14px title", () => {
+    render(<SettingsSection level={3} title="Monthly receipts"><p>rows</p></SettingsSection>)
+    const h = screen.getByRole("heading", { level: 3, name: "Monthly receipts" })
+    expect(h.className).toContain("text-sm")
+  })
+
+  it("gives the header's action one height on every tab: 32px from md up, 44px on a phone", () => {
+    expect(sectionActionClass.split(" ").sort()).toEqual(["h-11", "md:h-8"])
   })
 })

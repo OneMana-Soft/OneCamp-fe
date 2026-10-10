@@ -19,30 +19,71 @@ import { Switch } from "@/components/ui/switch"
 import { Loader2 } from "@/lib/icons"
 import { clearUnsaved, markUnsaved } from "@/lib/unsavedChanges"
 
+/**
+ * A section: its title, at most one line under it, and its content 12px below.
+ *
+ * Every admin tab and settings page is a stack of these, so a tab's first title
+ * sits at the same place on every tab. Seven admin cards used to be bordered
+ * Cards with a p-4 header instead, which moved the title 17px right and down,
+ * boxed the content and narrowed it, and drew their titles as divs in another
+ * face; switching tabs moved everything.
+ *
+ * `action` is the section's one primary action (or a couple of quiet ones), on
+ * the title's row at its end, where the task panel keeps "Mark complete"; under
+ * sm it goes under the words, so a long description never squeezes beside it.
+ * `level` 3 is a section inside a section: a 14px title.
+ */
 export function SettingsSection({
   title,
   description,
   children,
   className,
+  action,
+  level = 2,
+  id: sectionId,
 }: {
   title: React.ReactNode
   description?: React.ReactNode
   children: React.ReactNode
   className?: string
+  action?: React.ReactNode
+  level?: 2 | 3
+  /** An id for the section itself, for a jump link. */
+  id?: string
 }) {
   const id = useId()
+  const Heading = level === 3 ? "h3" : "h2"
+  const heading = (
+    <div className="min-w-0 space-y-1">
+      <Heading id={id} className={level === 3 ? "text-sm font-medium" : "text-base font-semibold"}>
+        {title}
+      </Heading>
+      {description && <p className="max-w-[65ch] text-sm text-muted-foreground text-pretty">{description}</p>}
+    </div>
+  )
   return (
-    <section aria-labelledby={id} className={cn("space-y-3", className)}>
-      <div className="space-y-1">
-        <h2 id={id} className="text-base font-semibold">
-          {title}
-        </h2>
-        {description && <p className="max-w-[65ch] text-sm text-muted-foreground text-pretty">{description}</p>}
-      </div>
+    <section id={sectionId} aria-labelledby={id} className={cn("space-y-3", className)}>
+      {action ? (
+        <div data-section-header="" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          {heading}
+          <div data-section-action="" className="flex shrink-0 flex-wrap items-center gap-2">
+            {action}
+          </div>
+        </div>
+      ) : (
+        heading
+      )}
       {children}
     </section>
   )
 }
+
+/**
+ * The one primary action of a section's header, and its quiet neighbours: 32px
+ * from md up and 44px on a phone, where it is a touch target. Members' "Invite
+ * people" was 32px and Admins' "Add admin" 36px, a step apart on adjacent tabs.
+ */
+export const sectionActionClass = "h-11 md:h-8"
 
 /** Rows that belong together, between hairlines. */
 export function SettingsList({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -92,6 +133,15 @@ export function SwitchRow(props: {
  * `controlId` (the control carries that id), and gives the help the id
  * `${controlId}-desc` for the control to name in aria-describedby when it
  * should.
+ *
+ * Side by side only when the ROW is wide enough (36rem, a container query), not
+ * the window: in the invitation email's editor column, 430px wide on a 1440px
+ * screen, the sender address's help was squeezed to 115px beside its input and
+ * ran ten lines of one or two words. Narrower than that, the control goes under
+ * the words, as on a phone.
+ *
+ * `layout="stacked"` always puts the control under the words at full width: a
+ * textarea, a list of addresses, a key to paste.
  */
 export function SettingRow({
   label,
@@ -99,6 +149,7 @@ export function SettingRow({
   controlId,
   children,
   className,
+  layout = "inline",
 }: {
   label: React.ReactNode
   description?: React.ReactNode
@@ -106,20 +157,34 @@ export function SettingRow({
   controlId: string
   children: React.ReactNode
   className?: string
+  layout?: "inline" | "stacked"
 }) {
-  return (
-    <div className={cn("flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6", className)}>
-      <div className="min-w-0 space-y-1">
-        <Label htmlFor={controlId} className="text-sm font-medium leading-5">
-          {label}
-        </Label>
-        {description && (
-          <p id={`${controlId}-desc`} className="text-xs text-muted-foreground text-pretty">
-            {description}
-          </p>
-        )}
+  const words = (
+    <div className="min-w-0 space-y-1">
+      <Label htmlFor={controlId} className="text-sm font-medium leading-5">
+        {label}
+      </Label>
+      {description && (
+        <p id={`${controlId}-desc`} className="text-xs text-muted-foreground text-pretty">
+          {description}
+        </p>
+      )}
+    </div>
+  )
+  if (layout === "stacked") {
+    return (
+      <div data-setting-row="stacked" className={cn("space-y-2 px-4 py-3", className)}>
+        {words}
+        <div className="min-w-0">{children}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    )
+  }
+  return (
+    <div data-setting-row="" className={cn("@container px-4 py-3", className)}>
+      <div className="flex flex-col gap-2 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-6">
+        {words}
+        <div className="flex shrink-0 items-center gap-2">{children}</div>
+      </div>
     </div>
   )
 }
