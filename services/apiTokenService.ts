@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 
 // API token client. Tokens authenticate the public /v1 API as the creating
@@ -70,7 +70,8 @@ export async function createApiToken(input: {
   /** Optional agent identity to bind this credential to. Omit for a plain token. */
   agent_id?: string
 }): Promise<CreatedToken> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateApiToken, input)
+  // The dialog says a failure under the field it is about.
+  const res = await axiosInstance.post(PostEndpointUrl.CreateApiToken, input, OWN_ERRORS)
   return res.data?.data as CreatedToken
 }
 
