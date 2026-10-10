@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils/helpers/cn"
+import { SendingNote } from "@/components/message/sendStatus"
 import { formatFullTimestamp, formatGutterClock, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 
 /**
@@ -17,13 +18,27 @@ import { formatFullTimestamp, formatGutterClock, isoTimestamp } from "@/lib/util
  * It takes focus: a continued message has no name to Tab to, and focus inside
  * a message is what brings up its actions (BaseMessageCard).
  */
-export function ContinuedGutter({ createdAt, authorName, className }: { createdAt: string | number; authorName: string; className?: string }) {
+export function ContinuedGutter({
+    createdAt,
+    authorName,
+    className,
+    sending = false,
+}: {
+    createdAt: string | number
+    authorName: string
+    className?: string
+    /** Not yet confirmed: "Sending…" shows where the time would, without a hover. */
+    sending?: boolean
+}) {
     return (
         <div
             tabIndex={0}
             className={cn("flex w-9 shrink-0 justify-end rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70", className)}
         >
             <span className="sr-only">{authorName}, {formatFullTimestamp(createdAt)}</span>
+            {sending ? (
+                <SendingNote compact className="flex h-5 items-center pt-0.5" />
+            ) : (
             <time
                 aria-hidden="true"
                 dateTime={isoTimestamp(createdAt)}
@@ -32,6 +47,7 @@ export function ContinuedGutter({ createdAt, authorName, className }: { createdA
             >
                 {formatGutterClock(createdAt)}
             </time>
+            )}
         </div>
     )
 }

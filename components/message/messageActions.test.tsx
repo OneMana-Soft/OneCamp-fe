@@ -124,11 +124,12 @@ describe("a message's actions", () => {
 describe("a message sent from here that the server has not confirmed", () => {
   afterEach(cleanup)
 
-  function pendingRow(sendState: "sending" | "failed") {
+  function pendingRow(sendState: "sending" | "failed", continued = false) {
     return render(
       <Provider store={store}>
         <TooltipProvider>
           <BaseMessageCard
+            continued={continued}
             message={{ uuid: "local-1", localId: "local-1", sendState, bodyText: "<p>Ship it</p>", from: { user_uuid: "me", user_name: "Sam Rivera" } as never, createdAt: "2026-10-10T09:01:00Z" }}
             mediaGetUrl=""
             rightPanelConfig={{}}
@@ -148,6 +149,23 @@ describe("a message sent from here that the server has not confirmed", () => {
     fireEvent.pointerEnter(container.querySelector("#msg-local-1")!)
     expect(screen.queryByRole("toolbar")).toBeNull()
     expect(screen.getByRole("status").textContent).toBe("Sending…")
+  })
+
+  // "Sending…" sat over the row's bottom-right corner, 1,100px from a short
+  // message at 1440. It is where the message's time is now.
+  it("says it is sending beside the time on a turn's first message", () => {
+    pendingRow("sending")
+    const status = screen.getByRole("status")
+    expect(status.parentElement!.querySelector("time")).toBeTruthy()
+    expect(status.className).not.toMatch(/\babsolute\b/)
+  })
+
+  it("says it is sending in the gutter, where a continued message's time shows", () => {
+    const { container } = pendingRow("sending", true)
+    const status = screen.getByRole("status")
+    const gutter = container.querySelector("#msg-local-1 > [tabindex='0']")!
+    expect(gutter.contains(status)).toBe(true)
+    expect(gutter.querySelector("time")).toBeNull()
   })
 
   it("says it was not sent", () => {

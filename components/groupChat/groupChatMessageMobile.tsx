@@ -30,7 +30,7 @@ import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
 import {setGroupChatReplyTarget} from "@/store/slice/groupChatSlice";
 import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
 import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
-import { SendStatus } from "@/components/message/sendStatus";
+import { SendStatus, SendingNote } from "@/components/message/sendStatus";
 import { quoteBarClass } from "@/components/message/quoteBar";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
@@ -204,7 +204,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
         <div id={messageDomId(chatInfo.chat_uuid)} className={`relative flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)} >
 
             {continued && !isMessageEditEnabled ? (
-                <ContinuedGutter createdAt={chatInfo.chat_created_at} authorName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)} />
+                <ContinuedGutter createdAt={chatInfo.chat_created_at} authorName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)} sending={chatInfo.chat_send_state === "sending"} />
             ) : (
                 <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
@@ -227,6 +227,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                         {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}
 
                     </div>
+                    {chatInfo.chat_send_state === "sending" && <SendingNote />}
                 </div>
             )}
 

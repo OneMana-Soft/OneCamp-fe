@@ -19,7 +19,7 @@ import { useDispatch } from "react-redux"
 import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
-import { SendStatus } from "@/components/message/sendStatus"
+import { SendStatus, SendingNote } from "@/components/message/sendStatus"
 import { quoteBarClass } from "@/components/message/quoteBar"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { MessagePreview } from "@/components/message/MessagePreview"
@@ -244,7 +244,7 @@ const ChannelMessageMobileComponent = ({
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
             <div id={messageDomId(postInfo.post_uuid)} className={`relative flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)}>
                 {continued && !isMessageEditEnabled ? (
-                    <ContinuedGutter createdAt={postInfo.post_created_at} authorName={authorName} />
+                    <ContinuedGutter createdAt={postInfo.post_created_at} authorName={authorName} sending={postInfo.post_send_state === "sending"} />
                 ) : (
                     <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
                     {relayed ? (
@@ -267,6 +267,7 @@ const ChannelMessageMobileComponent = ({
                         <div className="text-2xs tabular-nums text-muted-foreground shrink-0">
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>
+                        {postInfo.post_send_state === "sending" && <SendingNote />}
                     </div>
                 )}
                     {postInfo.post_reply_to && !isMessageEditEnabled && (

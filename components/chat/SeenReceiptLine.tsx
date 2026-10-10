@@ -60,8 +60,12 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
   }, [receipts.data, people.data, latest, mine, me, target.kind])
 
   if (!line || typing) return null
+  // Under the message's own words, where its time and "Not sent." are: the
+  // row's 16px margin, the 36px avatar and its 12px gap (pl-16), on a phone
+  // as on a desktop. It sat at the row's right edge, a screen's width from a
+  // short message.
   return (
-    <p className="flex items-center justify-end gap-1 px-4 pb-1 text-2xs text-muted-foreground" title={line.title} aria-live="polite">
+    <p data-seen-receipt="" className="flex items-center gap-1 pb-1 pl-16 pr-4 text-2xs text-muted-foreground" title={line.title} aria-live="polite">
       <Eye className="h-3 w-3" aria-hidden />
       {line.text}
     </p>
