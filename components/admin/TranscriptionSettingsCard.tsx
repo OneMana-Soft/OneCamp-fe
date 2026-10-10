@@ -21,10 +21,10 @@
 import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -57,6 +57,16 @@ const MODE_LABEL: Record<TranscriptionMode, string> = {
     backend: "Server",
     off: "Off",
 }
+
+const MODE_OPTIONS = (Object.keys(MODE_LABEL) as TranscriptionMode[]).map((value) => ({ value, label: MODE_LABEL[value] }))
+
+/**
+ * The speech-to-text controls' one width (and the inputs' and select's one
+ * height, the default 36px), so their left edges line up down the list: they
+ * were 320, 256 and 160px wide at two heights. Under its words when the row is
+ * narrow, the control takes the row's width.
+ */
+const CONTROL = "w-full @xl:w-72"
 
 const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
     frontend: "Each person's browser transcribes their own speech. Free and needs no key, but it favours English and only Chrome and Edge take part: someone on Firefox or Safari is missing from the transcript.",
@@ -285,10 +295,19 @@ export default function TranscriptionSettingsCard() {
     return (
         <SettingsSection
             title="Call transcription"
-            description="Live captions during calls, and a transcript of every call, recorded or not, for searchable playback, the meeting recap and the notes document. Changes reach new calls at once."
+            description={
+                <>
+                    Live captions during calls, and a transcript of every call, recorded or not, for searchable playback,
+                    the meeting recap and the notes document. Changes reach new calls at once.{" "}
+                    {/* How it saves, said where every section says it: this line
+                        sat under the list, outside it. */}
+                    <span>The mode saves as soon as you pick it.</span>
+                </>
+            }
         >
             {!config && failed ? (
                 <ErrorState
+                    compact
                     subject="the transcription settings"
                     retrying={retrying}
                     onRetry={() => {
@@ -297,59 +316,46 @@ export default function TranscriptionSettingsCard() {
                     }}
                 />
             ) : !config ? (
-                <div role="status" aria-label="Loading the transcription settings" className="rounded-lg border border-border px-4 py-3">
-                    <SkeletonRows rows={2} avatar={false} />
-                </div>
+                // The mode's own row stands in, so nothing moves when it arrives.
+                <SettingsList>
+                    <div role="status" aria-label="Loading the transcription settings" className="flex items-center justify-between gap-6 px-4 py-3">
+                        <div className="min-w-0 flex-1 space-y-2">
+                            <Skeleton className="h-4 w-16" />
+                            <Skeleton className="h-3 w-80 max-w-full" />
+                        </div>
+                        <Skeleton className="h-9 w-48 shrink-0" />
+                    </div>
+                </SettingsList>
             ) : (
                 <>
-                    <div className="space-y-2">
-                        <SettingsList>
-                            <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                                <div className="min-w-0 space-y-1">
-                                    <p id="transcription-mode" className="text-sm font-medium leading-5">Mode</p>
-                                    <p id="transcription-mode-desc" className="text-xs text-muted-foreground text-pretty">
-                                        {withSource(MODE_DESCRIPTION[mode], config.mode_source)}
-                                    </p>
-                                </div>
-                                {/* One of three: a segmented radio group, so every
-                                    choice is in view and Off can ask first. */}
-                                <div
-                                    role="radiogroup"
-                                    aria-labelledby="transcription-mode"
-                                    aria-describedby="transcription-mode-desc"
-                                    className="inline-flex w-fit shrink-0 gap-1 rounded-md bg-muted p-1"
-                                >
-                                    {(Object.keys(MODE_LABEL) as TranscriptionMode[]).map((m) => (
-                                        <button
-                                            key={m}
-                                            type="button"
-                                            role="radio"
-                                            aria-checked={mode === m}
-                                            disabled={savingMode}
-                                            onClick={() => pickMode(m)}
-                                            className={cn(
-                                                "h-7 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
-                                                mode === m ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
-                                            {MODE_LABEL[m]}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </SettingsList>
-                        <p className="text-xs text-muted-foreground">The mode saves as soon as you pick it.</p>
-                    </div>
+                    <SettingsList>
+                        {/* One of three: the app's segmented control, so every
+                            choice is in view and Off can ask first. */}
+                        <SettingRow
+                            label="Mode"
+                            controlId="transcription-mode"
+                            description={withSource(MODE_DESCRIPTION[mode], config.mode_source)}
+                        >
+                            <SegmentedControl
+                                id="transcription-mode"
+                                aria-label="Mode"
+                                aria-describedby="transcription-mode-desc"
+                                value={mode}
+                                onValueChange={pickMode}
+                                options={MODE_OPTIONS}
+                                disabled={savingMode}
+                            />
+                        </SettingRow>
+                    </SettingsList>
 
                     {/* Backend STT model config (only relevant in backend mode) */}
                     {showBackendConfig && (
-                        <div className="space-y-3 pt-3">
-                            <div className="space-y-1">
-                                <h3 className="text-sm font-semibold">Speech-to-text</h3>
-                                <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
-                                    What the server&apos;s agent transcribes with. Keys are encrypted when saved and never shown again.
-                                </p>
-                            </div>
+                        <SettingsSection
+                            level={3}
+                            title="Speech-to-text"
+                            description="What the server's agent transcribes with. Keys are encrypted when saved and never shown again. Changes here wait for Save."
+                            className="pt-3"
+                        >
                             <SettingsList>
                                 <SettingRow
                                     label="Provider"
@@ -366,7 +372,7 @@ export default function TranscriptionSettingsCard() {
                                         onValueChange={(v) => setSttProvider(v as STTProvider)}
                                         disabled={busy}
                                     >
-                                        <SelectTrigger id="stt-provider" aria-describedby="stt-provider-desc" className="h-8 w-full sm:w-80">
+                                        <SelectTrigger id="stt-provider" aria-describedby="stt-provider-desc" className={CONTROL}>
                                             <SelectValue placeholder="Choose a provider" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -391,7 +397,7 @@ export default function TranscriptionSettingsCard() {
                                         onChange={(e) => setModel(e.target.value)}
                                         placeholder={MODEL_PLACEHOLDER[sttProvider]}
                                         disabled={busy}
-                                        className="h-8 w-full sm:w-64"
+                                        className={CONTROL}
                                         spellCheck={false}
                                         autoComplete="off"
                                     />
@@ -415,7 +421,7 @@ export default function TranscriptionSettingsCard() {
                                             onChange={(e) => setBaseUrl(e.target.value)}
                                             placeholder="https://api.openai.com/v1"
                                             disabled={busy}
-                                            className="h-8 w-full sm:w-64"
+                                            className={CONTROL}
                                             spellCheck={false}
                                             autoComplete="off"
                                         />
@@ -434,7 +440,7 @@ export default function TranscriptionSettingsCard() {
                                         onChange={(e) => setLanguage(e.target.value)}
                                         placeholder="Detect it"
                                         disabled={busy}
-                                        className="h-8 w-full sm:w-40"
+                                        className={CONTROL}
                                         spellCheck={false}
                                         autoComplete="off"
                                     />
@@ -458,25 +464,22 @@ export default function TranscriptionSettingsCard() {
                                             onChange={(e) => setApiKey(e.target.value)}
                                             placeholder={config.has_stt_api_key ? "••••••••" : "Your provider's API key"}
                                             disabled={busy}
-                                            className="h-8 w-full sm:w-64"
+                                            className={CONTROL}
                                             autoComplete="new-password"
                                         />
                                     </SettingRow>
                                 ) : sttProvider === "google" ? (
-                                    <div className="space-y-2 px-4 py-3">
-                                        <div className="space-y-1">
-                                            <Label htmlFor="stt-google-json" className="text-sm font-medium leading-5">
-                                                Service account JSON
-                                            </Label>
-                                            <p id="stt-google-json-desc" className="text-xs text-muted-foreground text-pretty">
-                                                {withSource(
-                                                    config.has_google_credentials
-                                                        ? "Saved. Leave it blank to keep it, or paste new JSON to replace it."
-                                                        : "Not set yet. Paste the key file Google gives you for a service account.",
-                                                    config.google_source,
-                                                )}
-                                            </p>
-                                        </div>
+                                    <SettingRow
+                                        layout="stacked"
+                                        label="Service account JSON"
+                                        controlId="stt-google-json"
+                                        description={withSource(
+                                            config.has_google_credentials
+                                                ? "Saved. Leave it blank to keep it, or paste new JSON to replace it."
+                                                : "Not set yet. Paste the key file Google gives you for a service account.",
+                                            config.google_source,
+                                        )}
+                                    >
                                         <Textarea
                                             id="stt-google-json"
                                             aria-describedby="stt-google-json-desc"
@@ -488,7 +491,7 @@ export default function TranscriptionSettingsCard() {
                                             spellCheck={false}
                                             className="font-mono text-xs md:text-xs"
                                         />
-                                    </div>
+                                    </SettingRow>
                                 ) : null}
                             </SettingsList>
 
@@ -531,7 +534,7 @@ export default function TranscriptionSettingsCard() {
                                 onSave={() => void saveBackend()}
                                 onDiscard={() => resetBackend(config)}
                             />
-                        </div>
+                        </SettingsSection>
                     )}
                 </>
             )}

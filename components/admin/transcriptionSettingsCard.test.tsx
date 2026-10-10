@@ -141,4 +141,45 @@ describe("call transcription settings", () => {
       expect(updateTranscriptionConfig).toHaveBeenCalledWith(expect.objectContaining({ stt_model: "whisper-large" })),
     )
   })
+
+  // The mode was a hand-made radio row that marked the choice with the page
+  // colour alone (1.03:1 against its well); it is the app's one segmented control.
+  it("picks the mode with the shared segmented control", async () => {
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
+    render(<TranscriptionSettingsCard />)
+    const browser = await screen.findByRole("radio", { name: "Browser" })
+    expect(browser.className).toContain("data-[state=checked]:bg-card")
+    expect(browser.className).not.toMatch(/(^|\s)bg-background(\s|$)/)
+  })
+
+  // "The mode saves as soon as you pick it." sat under the list, outside it,
+  // where no other section says how it saves; it is in the section's words now.
+  it("says how the mode saves in the section's description", async () => {
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
+    render(<TranscriptionSettingsCard />)
+    await screen.findByRole("radiogroup", { name: "Mode" })
+    const line = screen.getByText("The mode saves as soon as you pick it.")
+    const heading = screen.getByRole("heading", { level: 2, name: "Call transcription" })
+    expect(heading.parentElement?.contains(line)).toBe(true)
+  })
+
+  // The provider was a 32px select 320px wide, the model and key 36px fields
+  // 256px wide and the language 160px wide: their left edges were at 1062,
+  // 1126 and 1222px. One height and one width now, so they start on one line.
+  it("gives the speech-to-text controls one height and one width", async () => {
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend" }))
+    render(<TranscriptionSettingsCard />)
+    const controls = [
+      await screen.findByLabelText("Provider"),
+      screen.getByLabelText("Model"),
+      screen.getByLabelText("Endpoint base URL"),
+      screen.getByLabelText("Language"),
+      screen.getByLabelText("API key"),
+    ]
+    for (const c of controls) {
+      expect(c.className, c.id).toContain("@xl:w-72")
+      expect(c.className, c.id).not.toMatch(/(^|\s)(h-8|sm:w-\d+)(\s|$)/)
+    }
+    expect(screen.getByRole("heading", { level: 3, name: "Speech-to-text" })).toBeTruthy()
+  })
 })
