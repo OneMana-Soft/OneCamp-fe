@@ -44,6 +44,12 @@ import { TagFilter } from "@/components/tags/TagFilter"
 import { hasTag } from "@/lib/tags"
 import { taskStatusLabel } from "@/types/task"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotTasks } from "@/components/ui/graphics/spots"
+import { hueFor } from "@/lib/campHue"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -172,26 +178,43 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     }, [grouping, laneBy, columns, members, hideEmpty])
     const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
     const canEdit = useCallback(() => isAdmin, [isAdmin])
+    // The states, where every tab of a project draws them
+    // (components/task/workFrame): the board's columns while it loads, a
+    // failed load said as such, and a project with no tasks its spot.
+    const loading = projectInfo.isLoading && !p
+    const failed = !!projectInfo.isError && !p
+    const filtering = assigneeFilter.length > 0 || priorityFilter.length > 0 || tagFilter.length > 0
+    const noTasks =
+        !!p &&
+        !filtering &&
+        Object.values(allColumns).every((list) => list.length === 0) &&
+        !p.project_tasks_done_count &&
+        !p.project_tasks_canceled_count
 
     return (
         <div className={cn("flex flex-col h-full p-4 overflow-hidden", className)}>
-            {/* Wraps when narrow (side by side, or a side panel open) instead of
+            {/* The tab frame's toolbar row (components/task/workFrame). Wraps
+                when narrow (side by side, or a side panel open) instead of
                 pushing its last buttons out of sight. */}
-            <div className="flex flex-wrap gap-2 mb-2 justify-between">
-                <div className="flex flex-wrap gap-2">
+            <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
+                <div className="flex flex-wrap items-center gap-2">
                     <ProjectTaskKanbanAssigneeFilter activeList={assigneeFilter} updateList={setAssigneeFilter} members={p?.project_members} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                     <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <Button size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
-                        <CirclePlus className="h-3.5 w-3.5" /> {t("createTask")}
+                {/* Create task and View at every width, as on the List; below sm
+                    they keep their icons and drop their words. They were hidden
+                    below 1024px, so a narrow window or a phone had no View. */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" className="h-8" aria-label={t("createTask")} onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
+                        <CirclePlus className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">{t("createTask")}</span>
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="ml-auto hidden h-8 text-muted-foreground hover:text-foreground lg:flex">
-                                <MixerHorizontalIcon className="mr-2 h-4 w-4" />
-                                {t("view")}
+                            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" aria-label={t("view")}>
+                                <MixerHorizontalIcon className="h-4 w-4" />
+                                <span className="hidden sm:inline">{t("view")}</span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[200px]">
@@ -243,7 +266,20 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                 </div>
             </div>
 
-            <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className="flex-1 overflow-hidden mt-2">
+            {loading ? (
+                <div className={cn(workBody, "min-h-0 flex-1")}>
+                    <BoardSkeleton />
+                </div>
+            ) : failed ? (
+                <WorkState className={workBody}>
+                    <ErrorState subject="this project's board" onRetry={() => void projectInfo.mutate()} />
+                </WorkState>
+            ) : noTasks ? (
+                <WorkState className={workBody}>
+                    <EmptyState illustration={<SpotTasks hue={hueFor(projectId)} />} title="No tasks yet" description="Create one and it shows here." />
+                </WorkState>
+            ) : (
+            <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className={cn(workBody, "flex-1 overflow-hidden")}>
                 <CardFieldsContext.Provider value={cardFields}>
                     <div className="h-full">
                         {byPerson ? (
@@ -282,6 +318,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                     </div>
                 </CardFieldsContext.Provider>
             </KeyboardList>
+            )}
             {isAdmin && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
             {isAdmin && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
         </div>

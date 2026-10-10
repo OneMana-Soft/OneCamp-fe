@@ -28,7 +28,9 @@ import {
 
 import {TaskTableToolbar} from "@/components/task/taskTableToolbar";
 import {TaskTablePagination} from "@/components/task/taskTablePagination";
-import { KeyboardList, SelectAllHead, TaskTableRow } from "@/components/task/KeyboardList";
+import { KeyboardList, SelectAllHead, TaskTableRow, TaskTableSkeletonRows } from "@/components/task/KeyboardList";
+import { WorkState } from "@/components/task/workFrame";
+import { ErrorState } from "@/components/ui/error-state";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
 import {useDebounce} from "@/hooks/useDebounce";
 import {useFetch} from "@/hooks/useFetch";
@@ -39,7 +41,6 @@ import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
-import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 import { useFitColumns } from "@/hooks/useFitColumns";
 import { columnAlignClass } from "@/components/task/columnAlign"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -259,60 +260,76 @@ export const MyTaskTable = () => {
     // stays (not a frame of "Nothing is assigned to you"), and the pagination
     // waits under it rather than move down as the rows come in.
     const firstLoad = taskListState.length === 0 && (!urlParam || userInfo.isLoading || (userInfo.data?.data.user_tasks?.length ?? 0) > 0);
+    const filtered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
+    // In place of the rows, under the toolbar, as on every tab of a project
+    // (components/task/workFrame): a failed load says so rather than "Nothing
+    // is assigned to you".
+    const failed = userInfo.isError && taskListState.length === 0;
+    const empty = !failed && !firstLoad && !userInfo.isLoading && taskListState.length === 0 && !filtered;
 
     return (
         <KeyboardList tasks={taskListState} canEdit={canEditTask} className="space-y-4">
             <TaskTableToolbar table={table} />
-            <div ref={tableBoxRef} className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                <SelectAllHead ids={rowIds} />
-                                {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
-                                        {header.isPlaceholder
-                                            ? null
-                                            : flexRender(
-                                                header.column.columnDef.header,
-                                                header.getContext()
-                                            )}
-                                    </TableHead>
+            {/* Always there, so the columns that step aside when the table is
+                narrow are measured from the first paint, whatever it shows. */}
+            <div ref={tableBoxRef}>
+                {failed ? (
+                    <WorkState>
+                        <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
+                    </WorkState>
+                ) : empty ? (
+                    <WorkState>
+                        <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} />
+                    </WorkState>
+                ) : (
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                {table.getHeaderGroups().map((headerGroup) => (
+                                    <TableRow key={headerGroup.id}>
+                                        <SelectAllHead ids={rowIds} />
+                                        {headerGroup.headers.map((header) => (
+                                            <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext()
+                                                    )}
+                                            </TableHead>
+                                        ))}
+                                    </TableRow>
                                 ))}
-                            </TableRow>
-                        ))}
-                    </TableHeader>
-                    <TableBody>
-                        {table.getRowModel().rows?.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TaskTableRow key={row.id} id={row.id}>
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>
-                                            {flexRender(
-                                                cell.column.columnDef.cell,
-                                                cell.getContext()
-                                            )}
+                            </TableHeader>
+                            <TableBody>
+                                {table.getRowModel().rows?.length ? (
+                                    table.getRowModel().rows.map((row) => (
+                                        <TaskTableRow key={row.id} id={row.id}>
+                                            {row.getVisibleCells().map((cell) => (
+                                                <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>
+                                                    {flexRender(
+                                                        cell.column.columnDef.cell,
+                                                        cell.getContext()
+                                                    )}
+                                                </TableCell>
+                                            ))}
+                                        </TaskTableRow>
+                                    ))
+                                ) : userInfo.isLoading || firstLoad ? (
+                                    <TaskTableSkeletonRows columns={table.getVisibleLeafColumns().length} rows={pageSize} />
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
+                                            {t("noTasksMatch", { defaultValue: "No tasks match these filters." })}
                                         </TableCell>
-                                    ))}
-                                </TaskTableRow>
-                            ))
-                        ) : userInfo.isLoading || firstLoad ? (
-                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                    {table.getState().columnFilters.length > 0 || table.getState().globalFilter ? (
-                                        t("noTasksMatch", { defaultValue: "No tasks match these filters." })
-                                    ) : (
-                                        <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} className="py-8" />
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
             </div>
-            {!firstLoad && <TaskTablePagination table={table} />}
+            {!firstLoad && !failed && !empty && <TaskTablePagination table={table} />}
         </KeyboardList>
     );
 };

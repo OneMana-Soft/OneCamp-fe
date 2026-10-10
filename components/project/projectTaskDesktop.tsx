@@ -11,7 +11,6 @@ import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
 import { ProjectAttachments } from "@/components/project/ProjectAttachments"
-import { LinkedItemsSection } from "@/components/entityLink/LinkedItemsSection"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { PageHeader } from "@/components/ui/pageHeader"
@@ -158,7 +157,10 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             </TabsTrigger>
                         </TabsList>
 
-                        <div className="flex-1 overflow-hidden">
+                        {/* One scroll container for every tab's body: a List of 20
+                            to 50 tasks or a long Attachments tab was cut off
+                            here, while Board and Timeline scroll in their frames. */}
+                        <div className="min-h-0 flex-1 overflow-y-auto">
                             {/* Kept alive once seen: going back to a tab is instant. */}
                             <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="h-full mt-0 outline-none">
                                 <ProjectTaskTable projectId={projectId} />
@@ -174,18 +176,11 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                     onCreateTask={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}
                                 />
                             </KeptTab>
-                            <TabsContent value="updates" className="h-full mt-0 overflow-y-auto outline-none">
+                            <TabsContent value="updates" className="mt-0 outline-none">
                                 <ProjectUpdates projectId={projectId} />
                             </TabsContent>
-                            <TabsContent value="attachments" className="h-full mt-0 outline-none">
-                                <div className="p-4">
-                                    <LinkedItemsSection
-                                        sourceType="project"
-                                        sourceUUID={projectId}
-                                        canEdit={projectInfo.data?.data.project_is_member || false}
-                                    />
-                                </div>
-                                <ProjectAttachments projectId={projectId} />
+                            <TabsContent value="attachments" className="mt-0 outline-none">
+                                <ProjectAttachments projectId={projectId} canLink={isMember} />
                             </TabsContent>
                         </div>
                     </Tabs>

@@ -25,7 +25,7 @@ import { useStableCallback } from "@/hooks/useStableCallback"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { useTimelineView } from "@/hooks/useTimelineView"
 import { useStoredState } from "@/hooks/useStoredState"
-import { CalendarOff, ChartGantt, ChevronDown, ChevronRight, CirclePlus } from "@/lib/icons"
+import { CalendarOff, ChevronDown, ChevronRight, CirclePlus } from "@/lib/icons"
 import {
   DAY_WIDTH,
   GROUPINGS,
@@ -55,6 +55,8 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { HEADER_HEIGHT, TimelineHeader } from "./TimelineHeader"
+import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { SpotCalendar } from "@/components/ui/graphics/spots"
 import { TimelineBar } from "./TimelineBar"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
 
@@ -399,40 +401,15 @@ export function ProjectTimeline({
     })
 
   // ---- Drawing --------------------------------------------------------------------
-  if (isError && !data) {
-    return <ErrorState subject="the timeline" onRetry={() => void mutate()} />
-  }
-  if ((isLoading && !data) || !zoomReady) {
-    return (
-      <div className={cn("grid gap-2 p-1", className)} aria-busy>
-        {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-7" style={{ marginLeft: `${(i * 7) % 40}%`, width: `${30 + ((i * 13) % 35)}%` }} />
-        ))}
-      </div>
-    )
-  }
-  if (data && data.tasks.length === 0) {
-    return (
-      <EmptyState
-        className={className}
-        icon={ChartGantt}
-        title="Nothing on the timeline yet"
-        description={
-          given
-            ? "The project's tasks show here as bars across the days they run, once they have dates."
-            : "A project's tasks show here as bars across the days they run. Add a task with a due date, or start the project from a template."
-        }
-        action={
-          onCreateTask && (
-            <Button size="sm" className="gap-1.5" onClick={onCreateTask}>
-              <CirclePlus className="h-4 w-4" />
-              New task
-            </Button>
-          )
-        }
-      />
-    )
-  }
+  // The tool row and the frame are there from the first paint, as on every tab
+  // of a project (components/task/workFrame): loading, failed and empty draw
+  // inside the frame. They used to replace both, so the bars dropped about
+  // 95px and gained a border when the data landed, and an empty timeline was
+  // an icon with no tools.
+  const failed = isError && !data
+  const loadingNow = (isLoading && !data) || !zoomReady
+  const noTasks = !failed && !loadingNow && !!data && data.tasks.length === 0
+  const drawn = !failed && !loadingNow && !noTasks
 
   const todayLeft = offsetOf(today, range, dayWidth)
   const sideShown = sideOpen && unscheduled.length > 0
@@ -445,79 +422,124 @@ export function ProjectTimeline({
       ? Array.from({ length: Math.ceil(range.days / 7) }, (_, i) => i * 7 * dayWidth)
       : null
 
-  return (
-    // The project's hue, which every open bar is drawn in (lib/timeline BAR_OPEN).
-    <div className={cn(HUE_CLASS[hueFor(projectId)], "flex h-full min-h-0 flex-col gap-3", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8" onClick={goToday}>
-            Today
+  const toolRow = (
+    <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Quiet, as every tab's secondary controls are; the zoom is one
+            32px group, the height of the controls beside it. */}
+        <Button variant="ghost" size="sm" className="h-8" onClick={goToday} disabled={!drawn}>
+          Today
+        </Button>
+        <ToggleGroup
+          type="single"
+          size="sm"
+          value={zoom}
+          onValueChange={(v) => isZoom(v) && setZoom(v)}
+          aria-label="Zoom"
+          className="h-8 rounded-md border p-0.5"
+        >
+          {ZOOMS.map((z) => (
+            <ToggleGroupItem key={z.value} value={z.value} className="h-full px-2.5 text-xs">
+              {z.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        {truncated && (
+          <span className="text-xs text-muted-foreground">
+            The newest {data.tasks.length.toLocaleString()} of {data.total.toLocaleString()} tasks
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={sideShown ? "secondary" : "ghost"}
+          size="sm"
+          className="h-8 gap-1.5 text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
+          aria-pressed={sideShown}
+          disabled={unscheduled.length === 0}
+          title={unscheduled.length === 0 ? "Every open task has a date" : undefined}
+          onClick={() => setSideOpen(!sideShown)}
+        >
+          <CalendarOff className="h-4 w-4" />
+          Unscheduled
+          <span className="tabular-nums text-muted-foreground">{unscheduled.length}</span>
+        </Button>
+        {/* The one filled button, where the List and the Board keep it. */}
+        {onCreateTask && (
+          <Button size="sm" className="h-8" aria-label="Create task" onClick={onCreateTask}>
+            <CirclePlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Create task</span>
           </Button>
-          <ToggleGroup
-            type="single"
-            size="sm"
-            value={zoom}
-            onValueChange={(v) => isZoom(v) && setZoom(v)}
-            aria-label="Zoom"
-            className="rounded-md border p-0.5"
-          >
-            {ZOOMS.map((z) => (
-              <ToggleGroupItem key={z.value} value={z.value} className="h-7 px-2.5 text-xs">
-                {z.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          {truncated && (
-            <span className="text-xs text-muted-foreground">
-              The newest {data.tasks.length.toLocaleString()} of {data.total.toLocaleString()} tasks
-            </span>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" aria-label="View">
+              <MixerHorizontalIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">View</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel>Group by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={grouping} onValueChange={(v) => isGrouping(v) && setGrouping(v)}>
+              {GROUPINGS.map((g) => (
+                <DropdownMenuRadioItem key={g.value} value={g.value}>
+                  {g.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem checked={showDone} onCheckedChange={(v) => setShowDone(Boolean(v))}>
+              Show done tasks
+            </DropdownMenuCheckboxItem>
+            {canEdit && (
+              <DropdownMenuCheckboxItem checked={shiftAlong} onCheckedChange={(v) => setShiftAlong(Boolean(v))}>
+                Move waiting tasks along
+              </DropdownMenuCheckboxItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+
+  // The frame: List's radius and its 16px under the tools.
+  const frame = cn(workBody, "relative flex min-h-0 flex-1 overflow-hidden rounded-md border bg-background")
+
+  if (!drawn) {
+    return (
+      <div className={cn(HUE_CLASS[hueFor(projectId)], "flex h-full min-h-0 flex-col", className)}>
+        {toolRow}
+        <div className={frame}>
+          {loadingNow ? (
+            <TimelineSkeleton nameWidth={nameWidth} />
+          ) : failed ? (
+            <WorkState className="flex-1">
+              <ErrorState subject="the timeline" onRetry={() => void mutate()} />
+            </WorkState>
+          ) : (
+            <WorkState className="flex-1">
+              <EmptyState
+                illustration={<SpotCalendar hue={hueFor(projectId)} />}
+                title="Nothing on the timeline yet"
+                description={
+                  given
+                    ? "The project's tasks show here as bars across the days they run, once they have dates."
+                    : "A project's tasks show here as bars across the days they run. Add a task with a due date, or start the project from a template."
+                }
+              />
+            </WorkState>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5">
-                <MixerHorizontalIcon className="h-4 w-4" />
-                View
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Group by</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={grouping} onValueChange={(v) => isGrouping(v) && setGrouping(v)}>
-                {GROUPINGS.map((g) => (
-                  <DropdownMenuRadioItem key={g.value} value={g.value}>
-                    {g.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={showDone} onCheckedChange={(v) => setShowDone(Boolean(v))}>
-                Show done tasks
-              </DropdownMenuCheckboxItem>
-              {canEdit && (
-                <DropdownMenuCheckboxItem checked={shiftAlong} onCheckedChange={(v) => setShiftAlong(Boolean(v))}>
-                  Move waiting tasks along
-                </DropdownMenuCheckboxItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant={sideShown ? "secondary" : "outline"}
-            size="sm"
-            className="h-8 gap-1.5"
-            aria-pressed={sideShown}
-            disabled={unscheduled.length === 0}
-            title={unscheduled.length === 0 ? "Every open task has a date" : undefined}
-            onClick={() => setSideOpen(!sideShown)}
-          >
-            <CalendarOff className="h-4 w-4" />
-            Unscheduled
-            <span className="tabular-nums text-muted-foreground">{unscheduled.length}</span>
-          </Button>
-        </div>
       </div>
+    )
+  }
 
-      <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border bg-background">
+  return (
+    // The project's hue, which every open bar is drawn in (lib/timeline BAR_OPEN).
+    <div className={cn(HUE_CLASS[hueFor(projectId)], "flex h-full min-h-0 flex-col", className)}>
+      {toolRow}
+
+      <div className={frame}>
         <div
           ref={scrollRef}
           role="region"
@@ -674,6 +696,29 @@ export function ProjectTimeline({
         Left and right arrows move the task a day. Shift with an arrow changes when it&apos;s due. Enter opens it, and its
         panel sets what it waits on.
       </p>
+    </div>
+  )
+}
+
+/**
+ * The timeline while it loads, inside its frame: the date header's band, then
+ * rows the height of a task's row, each a name and a bar, so nothing moves
+ * when the tasks land.
+ */
+function TimelineSkeleton({ nameWidth }: { nameWidth: number }) {
+  return (
+    <div role="status" aria-label="Loading the timeline" className="flex-1">
+      <div className="border-b" style={{ height: HEADER_HEIGHT }} />
+      {Array.from({ length: 8 }, (_, i) => (
+        <div key={i} aria-hidden="true" className="flex items-center border-b border-border/40" style={{ height: ROW_HEIGHT }}>
+          <div className="shrink-0 px-3" style={{ width: nameWidth }}>
+            <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/4" : "w-1/2")} />
+          </div>
+          <div className="relative h-full flex-1 border-l">
+            <Skeleton className="absolute top-1/2 h-5 -translate-y-1/2" style={{ left: `${(i * 7) % 40}%`, width: `${18 + ((i * 13) % 30)}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

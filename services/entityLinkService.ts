@@ -14,14 +14,14 @@ import { useToast } from "@/hooks/use-toast"
 export type LinkSourceType = "task" | "project"
 export type LinkRefType = "doc" | "board"
 
-interface LinkedDoc {
+export interface LinkedDoc {
   doc_uuid: string
   doc_title?: string
   doc_private?: boolean
   doc_read_access?: number
 }
 
-interface LinkedBoard {
+export interface LinkedBoard {
   board_uuid: string
   board_title?: string
   board_private?: boolean

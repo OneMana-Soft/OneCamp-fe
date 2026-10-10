@@ -20,11 +20,12 @@ import {
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 import { useDebounce } from "@/hooks/useDebounce"
 import { TaskTablePagination } from "@/components/task/taskTablePagination"
 import { TaskTableToolbar } from "@/components/task/taskTableToolbar"
-import { KeyboardList, SelectAllHead, TaskTableRow } from "@/components/task/KeyboardList"
+import { KeyboardList, SelectAllHead, TaskTableRow, TaskTableSkeletonRows } from "@/components/task/KeyboardList"
+import { WorkState } from "@/components/task/workFrame"
+import { ErrorState } from "@/components/ui/error-state"
 import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -274,56 +275,66 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     // and the pagination waits under it: drawn under the skeleton, it moved
     // down as the rows came in (a layout shift opening a project).
     const firstLoad = taskListState.length === 0 && (projectInfo.isLoading || (projectInfo.data?.data.project_tasks?.length ?? 0) > 0)
+    const filtered = columnFilters.length > 0 || !!globalFilter
+    // In place of the rows, under the toolbar, where every tab of a project
+    // says it (components/task/workFrame): a failed load says so rather than
+    // "No tasks yet", and a project with no tasks shows its spot.
+    const failed = projectInfo.isError && taskListState.length === 0
+    const empty = !failed && !firstLoad && !projectInfo.isLoading && taskListState.length === 0 && !filtered
 
     return (
         <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} className="space-y-4">
             <TaskTableToolbar table={table} projectId={projectId} />
-            <div ref={tableBoxRef} className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                <SelectAllHead ids={rowIds} />
-                                {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
-                                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                    </TableHead>
+            {/* Always there, so the columns that step aside when the table is
+                narrow are measured from the first paint, whatever it shows. */}
+            <div ref={tableBoxRef}>
+                {failed ? (
+                    <WorkState>
+                        <ErrorState subject="this project's tasks" onRetry={() => void projectInfo.mutate()} />
+                    </WorkState>
+                ) : empty ? (
+                    <WorkState>
+                        <EmptyState illustration={<SpotTasks hue={hueFor(projectId)} />} title="No tasks yet" description="Create one and it shows here." />
+                    </WorkState>
+                ) : (
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                {table.getHeaderGroups().map((headerGroup) => (
+                                    <TableRow key={headerGroup.id}>
+                                        <SelectAllHead ids={rowIds} />
+                                        {headerGroup.headers.map((header) => (
+                                            <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
+                                                {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                            </TableHead>
+                                        ))}
+                                    </TableRow>
                                 ))}
-                            </TableRow>
-                        ))}
-                    </TableHeader>
-                    <TableBody>
-                        {table.getRowModel().rows?.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TaskTableRow key={row.id} id={row.id}>
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                                    ))}
-                                </TaskTableRow>
-                            ))
-                        ) : projectInfo.isLoading || firstLoad ? (
-                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                    {/* Say which empty this is: a filter that matched nothing, or a project with no tasks (with its spot, in the project's colour). */}
-                                    {columnFilters.length > 0 || globalFilter ? (
-                                        t("noTasksMatch", { defaultValue: "No tasks match these filters." })
-                                    ) : (
-                                        <EmptyState
-                                            illustration={<SpotTasks hue={hueFor(projectId)} />}
-                                            title="No tasks yet"
-                                            description="Create one and it shows here."
-                                            className="py-8"
-                                        />
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {table.getRowModel().rows?.length ? (
+                                    table.getRowModel().rows.map((row) => (
+                                        <TaskTableRow key={row.id} id={row.id}>
+                                            {row.getVisibleCells().map((cell) => (
+                                                <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                                            ))}
+                                        </TaskTableRow>
+                                    ))
+                                ) : projectInfo.isLoading || firstLoad ? (
+                                    <TaskTableSkeletonRows columns={table.getVisibleLeafColumns().length} rows={pageSize} />
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
+                                            {t("noTasksMatch", { defaultValue: "No tasks match these filters." })}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
             </div>
-            {!firstLoad && <TaskTablePagination table={table} />}
+            {!firstLoad && !failed && !empty && <TaskTablePagination table={table} />}
         </KeyboardList>
     )
 }

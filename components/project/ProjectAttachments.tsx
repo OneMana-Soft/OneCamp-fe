@@ -23,13 +23,33 @@ import {AttachmentMediaReq} from "@/types/attachment";
 import {openUI} from "@/store/slice/uiSlice";
 import ProjectAttachment from "@/components/project/projectAttachment";
 import { ErrorState } from "@/components/ui/error-state";
-import { AddFilesTile, ProjectFilesEmpty, ProjectFilesSkeleton } from "@/components/project/projectFiles";
+import { ProjectFilesEmpty, ProjectFilesSkeleton } from "@/components/project/projectFiles";
+import { Button } from "@/components/ui/button";
+import { Plus } from "@/lib/icons";
+import { cn } from "@/lib/utils/helpers/cn";
+import { sectionTitle } from "@/lib/ui/fieldRow";
+import { useEntityLinks } from "@/services/entityLinkService";
+import { EntityLinkPicker } from "@/components/entityLink/EntityLinkPicker";
+import { LinkedItemsList } from "@/components/entityLink/LinkedItemsSection";
+import { WorkState, workBody, workToolbar } from "@/components/task/workFrame";
 
 
 interface ProjectAttachmentsProps {
     projectId: string;
+    /** A member may link docs and boards; the server checks again. */
+    canLink?: boolean;
 }
-export function ProjectAttachments({projectId}: ProjectAttachmentsProps) {
+
+/**
+ * A project's Attachments tab on a computer, in the frame every tab of a
+ * project draws in (components/task/workFrame): a toolbar row with "Link a
+ * doc or board" and "Add files", then its files and its linked docs and
+ * boards, each under its own title, starting where every other tab starts.
+ * It was the task panel's linked-items section dropped in a p-4 box (16px
+ * down and in from the other tabs, with its own spinner and a bare "None
+ * linked."), over a files grid with a second inset.
+ */
+export function ProjectAttachments({projectId, canLink = false}: ProjectAttachmentsProps) {
 
     const dispatch = useDispatch()
     const post = usePost()
@@ -139,42 +159,84 @@ export function ProjectAttachments({projectId}: ProjectAttachmentsProps) {
     const isAdmin = projectAttachmentList.data?.data.project_is_admin || false
     const pickFiles = () => fileInputRef.current?.click()
 
+    const links = useEntityLinks("project", projectId)
+    const linked = links.docs.length + links.boards.length
+    const mayLink = canLink && !links.forbidden
+    const loading = projectAttachmentList.isLoading || (links.isLoading && linked === 0)
+    const failed = !!projectAttachmentList.isError && !projectAttachmentList.data
+    const empty = !loading && !failed && files.length === 0 && uploading.length === 0 && linked === 0
+
     return (
-        // px-4: in line with the linked docs and boards above it.
-        <div className="px-4 pb-4">
-            {projectAttachmentList.isLoading ? (
-                <ProjectFilesSkeleton />
-            ) : projectAttachmentList.isError ? (
-                <ErrorState subject="the attachments" onRetry={() => void projectAttachmentList.mutate()} />
-            ) : files.length === 0 && uploading.length === 0 ? (
-                <ProjectFilesEmpty onAdd={isAdmin ? pickFiles : undefined} className="py-10" />
-            ) : (
-                <div className="flex flex-wrap items-stretch gap-3">
-                    {files.map((file) => (
-                        <ProjectAttachment
-                            key={file.attachment_uuid}
-                            attachmentInfo={file}
-                            isAdmin={isAdmin}
-                            handleRemoveAttachment={handleDelete}
-                            projectUUID={projectId}
-                            handleAttachmentIconCLick={() => { handleAttachmentIconCLick(file) }}
-                        />
-                    ))}
-                    {uploading.map((pfile) => (
-                        <UploadingAttachmentIcon
-                            fileName={pfile.fileName}
-                            progress={pfile.progress}
-                            fileKey={pfile.key}
-                            removeFile={() => { removeProjectPreviewFile(pfile.key) }}
-                            key={pfile.key}
-                            getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
-                            attachmentOnCLick={() => {}}
-                            attachmentType={pfile.attachmentType}
-                        />
-                    ))}
-                    {isAdmin && <AddFilesTile onClick={pickFiles} />}
-                </div>
-            )}
+        <div className="flex flex-col pb-4">
+            <div data-work-toolbar="" className={cn(workToolbar, "justify-end")}>
+                {mayLink && (
+                    <EntityLinkPicker
+                        onPick={(refType, refUUID) => links.addLink(refType, refUUID)}
+                        isLinked={links.hasLink}
+                        disabled={links.mutating}
+                        triggerClassName="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+                    />
+                )}
+                {isAdmin && (
+                    <Button size="sm" className="h-8" onClick={pickFiles}>
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        Add files
+                    </Button>
+                )}
+            </div>
+            <div className={workBody}>
+                {loading ? (
+                    <ProjectFilesSkeleton />
+                ) : failed ? (
+                    <WorkState>
+                        <ErrorState subject="the attachments" onRetry={() => void projectAttachmentList.mutate()} />
+                    </WorkState>
+                ) : empty ? (
+                    <WorkState>
+                        <ProjectFilesEmpty canAdd={isAdmin} />
+                    </WorkState>
+                ) : (
+                    <div className="space-y-8">
+                        {(files.length > 0 || uploading.length > 0) && (
+                            <section aria-label="Files">
+                                <h3 className={cn(sectionTitle, "mb-3")}>Files</h3>
+                                <div className="flex flex-wrap items-stretch gap-3">
+                                    {files.map((file) => (
+                                        <ProjectAttachment
+                                            key={file.attachment_uuid}
+                                            attachmentInfo={file}
+                                            isAdmin={isAdmin}
+                                            handleRemoveAttachment={handleDelete}
+                                            projectUUID={projectId}
+                                            handleAttachmentIconCLick={() => { handleAttachmentIconCLick(file) }}
+                                        />
+                                    ))}
+                                    {uploading.map((pfile) => (
+                                        <UploadingAttachmentIcon
+                                            fileName={pfile.fileName}
+                                            progress={pfile.progress}
+                                            fileKey={pfile.key}
+                                            removeFile={() => { removeProjectPreviewFile(pfile.key) }}
+                                            key={pfile.key}
+                                            getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
+                                            attachmentOnCLick={() => {}}
+                                            attachmentType={pfile.attachmentType}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+                        {linked > 0 && (
+                            <section aria-label="Linked docs and boards">
+                                <h3 className={cn(sectionTitle, "mb-3")}>Linked docs and boards</h3>
+                                <div className="flex max-w-xl flex-col gap-1.5">
+                                    <LinkedItemsList docs={links.docs} boards={links.boards} canEdit={mayLink} onRemove={links.removeLink} />
+                                </div>
+                            </section>
+                        )}
+                    </div>
+                )}
+            </div>
             {isAdmin && (
                 <Input
                     ref={fileInputRef}

@@ -61,7 +61,9 @@ export const MyTaskDesktop = () => {
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex-1 overflow-hidden">
+                    {/* One scroll container for both tabs' bodies: a page of 20
+                        to 50 tasks was cut off here. */}
+                    <div className="min-h-0 flex-1 overflow-y-auto">
                         <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="h-full mt-0 outline-none">
                             <MyTaskTable />
                         </KeptTab>

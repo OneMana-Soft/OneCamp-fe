@@ -37,15 +37,17 @@ export function AddFilesTile({ onClick, className }: { onClick: () => void; clas
 
 /**
  * A project with no files: the tray drawing, what belongs here, and for
- * someone who can add files, the one button that does.
+ * someone who can add files, the one button that does. Where the button is
+ * already in a toolbar above (the desktop tab), `canAdd` says so without
+ * drawing a second one.
  */
-export function ProjectFilesEmpty({ onAdd, className }: { onAdd?: () => void; className?: string }) {
+export function ProjectFilesEmpty({ onAdd, canAdd, className }: { onAdd?: () => void; canAdd?: boolean; className?: string }) {
   return (
     <EmptyState
       illustration={<SpotImported />}
       title="No attachments yet"
       description={
-        onAdd ? "Add the files this project runs on, like briefs, contracts and designs." : "Files added to this project show here."
+        onAdd || canAdd ? "Add the files this project runs on, like briefs, contracts and designs." : "Files added to this project show here."
       }
       className={className}
       action={

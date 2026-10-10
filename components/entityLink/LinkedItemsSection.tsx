@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation"
 import { sectionTitle } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { FileText, LayoutDashboard, X, Lock, Loader2 } from "@/lib/icons"
-import { useEntityLinks, type LinkSourceType } from "@/services/entityLinkService"
+import { useEntityLinks, type LinkSourceType, type LinkedBoard, type LinkedDoc } from "@/services/entityLinkService"
 import { EntityLinkPicker } from "@/components/entityLink/EntityLinkPicker"
 
 interface LinkedItemsSectionProps {
@@ -19,7 +19,6 @@ interface LinkedItemsSectionProps {
 }
 
 export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedItemsSectionProps) {
-  const router = useRouter()
   const { docs, boards, isLoading, mutating, forbidden, addLink, removeLink, hasLink } = useEntityLinks(sourceType, sourceUUID)
 
   // The backend is the source of truth for authorisation: if it rejects the
@@ -37,36 +36,7 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {docs.map((d) => {
-          const locked = d.doc_private && !(d.doc_read_access && d.doc_read_access > 0)
-          return (
-            <LinkedChip
-              key={`doc-${d.doc_uuid}`}
-              icon={FileText}
-              accent="emerald"
-              title={d.doc_title || "Untitled doc"}
-              locked={!!locked}
-              canEdit={effectiveCanEdit}
-              onOpen={() => !locked && router.push(`/app/doc/${d.doc_uuid}`)}
-              onRemove={() => removeLink("doc", d.doc_uuid)}
-            />
-          )
-        })}
-        {boards.map((b) => {
-          const locked = b.board_private && !(b.board_read_access && b.board_read_access > 0)
-          return (
-            <LinkedChip
-              key={`board-${b.board_uuid}`}
-              icon={LayoutDashboard}
-              accent="sky"
-              title={b.board_title || "Untitled board"}
-              locked={!!locked}
-              canEdit={effectiveCanEdit}
-              onOpen={() => !locked && router.push(`/app/board/${b.board_uuid}`)}
-              onRemove={() => removeLink("board", b.board_uuid)}
-            />
-          )
-        })}
+        <LinkedItemsList docs={docs} boards={boards} canEdit={effectiveCanEdit} onRemove={removeLink} />
 
         {total === 0 && !isLoading && !effectiveCanEdit && (
           <p className="text-sm text-muted-foreground">None linked.</p>
@@ -88,6 +58,59 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * The linked docs and boards themselves, one row each: the task panel's
+ * section draws them under its title, and a project's Attachments tab under
+ * its own, with the picker in the tab's toolbar.
+ */
+export function LinkedItemsList({
+  docs,
+  boards,
+  canEdit,
+  onRemove,
+}: {
+  docs: LinkedDoc[]
+  boards: LinkedBoard[]
+  canEdit: boolean
+  onRemove: (refType: "doc" | "board", refUUID: string) => void
+}) {
+  const router = useRouter()
+  return (
+    <>
+      {docs.map((d) => {
+        const locked = d.doc_private && !(d.doc_read_access && d.doc_read_access > 0)
+        return (
+          <LinkedChip
+            key={`doc-${d.doc_uuid}`}
+            icon={FileText}
+            accent="emerald"
+            title={d.doc_title || "Untitled doc"}
+            locked={!!locked}
+            canEdit={canEdit}
+            onOpen={() => !locked && router.push(`/app/doc/${d.doc_uuid}`)}
+            onRemove={() => onRemove("doc", d.doc_uuid)}
+          />
+        )
+      })}
+      {boards.map((b) => {
+        const locked = b.board_private && !(b.board_read_access && b.board_read_access > 0)
+        return (
+          <LinkedChip
+            key={`board-${b.board_uuid}`}
+            icon={LayoutDashboard}
+            accent="sky"
+            title={b.board_title || "Untitled board"}
+            locked={!!locked}
+            canEdit={canEdit}
+            onOpen={() => !locked && router.push(`/app/board/${b.board_uuid}`)}
+            onRemove={() => onRemove("board", b.board_uuid)}
+          />
+        )
+      })}
+    </>
   )
 }
 

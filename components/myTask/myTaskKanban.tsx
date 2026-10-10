@@ -28,6 +28,11 @@ import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 import { KeyboardList } from "@/components/task/KeyboardList"
 import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
 import { cn } from "@/lib/utils/helpers/cn"
+import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotTasks } from "@/components/ui/graphics/spots"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -70,25 +75,38 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
     // project's own statuses sits in that status's category and says which.
     const visible = useMemo(() => BUILT_IN_STATUSES.filter((o) => isShown(viewableStatus, o.value)), [viewableStatus])
     const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
+    // The states, where every tab of a task view draws them
+    // (components/task/workFrame), as the List does.
+    const loading = userInfo.isLoading && !u
+    const failed = !!userInfo.isError && !u
+    const noTasks =
+        !!u &&
+        activeProject.length === 0 &&
+        priorityFilter.length === 0 &&
+        boardTasks.length === 0 &&
+        !u.user_tasks_done_count &&
+        !u.user_tasks_canceled_count
 
     return (
         // The project board's toolbar and gutter: the board lines up with the
         // page title, Create task is the one filled button, View is quiet.
         <div className={cn("flex flex-col h-full p-4 overflow-hidden", className)}>
-            <div className="flex flex-wrap gap-2 mb-2 justify-between">
-                <div className="flex flex-wrap gap-2">
+            <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
+                <div className="flex flex-wrap items-center gap-2">
                     <TaskKanbanProjectFilter activeList={activeProject} updateList={setActiveProject} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <Button size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
-                        <CirclePlus className="h-3.5 w-3.5" /> {t("createTask")}
+                {/* At every width, as on the List: below sm the icons stay. */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" className="h-8" aria-label={t("createTask")} onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
+                        <CirclePlus className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">{t("createTask")}</span>
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="ml-auto hidden h-8 text-muted-foreground hover:text-foreground lg:flex">
-                                <MixerHorizontalIcon className="mr-2 h-4 w-4" />
-                                {t("view")}
+                            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" aria-label={t("view")}>
+                                <MixerHorizontalIcon className="h-4 w-4" />
+                                <span className="hidden sm:inline">{t("view")}</span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[150px]">
@@ -97,7 +115,6 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                             {taskStatuses.map((column) => (
                                 <DropdownMenuCheckboxItem
                                     key={column.value}
-                                    className="capitalize"
                                     checked={isShown(viewableStatus, column.value)}
                                     onCheckedChange={(value) => setColumnShown(column.value, value)}
                                 >
@@ -109,7 +126,20 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                 </div>
             </div>
 
-            <KeyboardList tasks={boardTasks} canEdit={canEditTask} placement="overlay" className="flex-1 overflow-hidden mt-2">
+            {loading ? (
+                <div className={cn(workBody, "min-h-0 flex-1")}>
+                    <BoardSkeleton columns={3} />
+                </div>
+            ) : failed ? (
+                <WorkState className={workBody}>
+                    <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
+                </WorkState>
+            ) : noTasks ? (
+                <WorkState className={workBody}>
+                    <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} />
+                </WorkState>
+            ) : (
+            <KeyboardList tasks={boardTasks} canEdit={canEditTask} placement="overlay" className={cn(workBody, "flex-1 overflow-hidden")}>
                 <div className="h-full">
                     <TaskBoard
                         columns={columns}
@@ -123,6 +153,7 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                     />
                 </div>
             </KeyboardList>
+            )}
         </div>
     )
 }
