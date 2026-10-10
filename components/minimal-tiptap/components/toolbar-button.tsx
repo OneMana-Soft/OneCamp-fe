@@ -14,8 +14,19 @@ interface ToolbarButtonProps extends React.ComponentPropsWithoutRef<typeof Toggl
 
 export const ToolbarButton = React.forwardRef<HTMLButtonElement, ToolbarButtonProps>(
   ({ isActive, children, tooltip, className, tooltipOptions, ...props }, ref) => {
+    // On is the editor's state, not the toggle's own: `pressed` follows it, so
+    // a screen reader hears "Bold, pressed" when the caret is in bold text.
+    // The on look is set here too, because the tooltip that wraps the button
+    // takes over its data-state, so Toggle's own on style never showed; and
+    // it is surface-3, since bg-accent is the canvas a toolbar sits next to.
     const toggleButton = (
-      <Toggle size="sm" ref={ref} className={cn('size-8 p-0', isActive ? 'bg-accent text-foreground' : 'text-muted-foreground', className)} {...props}>
+      <Toggle
+        size="sm"
+        ref={ref}
+        {...(isActive === undefined ? {} : { pressed: isActive })}
+        className={cn('size-8 p-0', isActive ? 'bg-highlight text-foreground' : 'text-muted-foreground', className)}
+        {...props}
+      >
         {children}
       </Toggle>
     )
