@@ -59,3 +59,40 @@ describe("planning an import", () => {
     expect(screen.queryByRole("button", { name: "Reconnect" })).toBeNull()
   })
 })
+
+const planned = (over: Record<string, unknown> = {}) => ({
+  user_count: 3, user_new: 0, user_merge: 0, team_count: 0, project_count: 1, task_count: 9, subtask_count: 0, comment_count: 0, file_count: 0, file_bytes: 0,
+  ...over,
+})
+
+describe("the plan's mappings and warnings", () => {
+  // The mapping selects showed OneCamp's raw keys ("inProgress", "inReview")
+  // and had no names, so a screen reader heard "combo box" six times.
+  it("names each status mapping and its choices as people read them", async () => {
+    answers = [planned({ status_values: ["Open", "In Dev"] })]
+    render(<ImportPlanDialog job={job} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} />)
+    const select = await screen.findByRole("combobox", { name: "OneCamp status for In Dev" })
+    const labels = Array.from(select.querySelectorAll("option")).map((o) => o.textContent)
+    expect(labels).toContain("In progress")
+    expect(labels).not.toContain("inProgress")
+  })
+
+  // Past the eighth, warnings were "… and 4 more", with no way to read them.
+  it("shows every warning on request", async () => {
+    answers = [planned({ warnings: Array.from({ length: 10 }, (_, i) => `Warning number ${i + 1}`) })]
+    render(<ImportPlanDialog job={job} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} />)
+    await screen.findByText("Warning number 8")
+    expect(screen.queryByText("Warning number 10")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }))
+    expect(screen.getByText("Warning number 10")).toBeTruthy()
+  })
+
+  it("stands rows of the plan's shape in while it plans", async () => {
+    let finish: (v: unknown) => void = () => {}
+    answers = [new Promise((r) => (finish = r))]
+    render(<ImportPlanDialog job={job} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} />)
+    expect(screen.getByRole("status", { name: "Planning the import" })).toBeTruthy()
+    finish(planned())
+    expect(await screen.findByText("Tasks")).toBeTruthy()
+  })
+})
