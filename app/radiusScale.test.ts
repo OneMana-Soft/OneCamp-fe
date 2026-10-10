@@ -36,10 +36,10 @@ function walk(dir: string, out: string[] = []): string[] {
 const files = [...walk(resolve(root, "components")), ...walk(resolve(root, "app"))]
 const count = (re: RegExp) => files.reduce((n, f) => n + (readFileSync(f, "utf8").match(re) || []).length, 0)
 
-/** rounded-2xl uses: dialogs, sheets, the phone's drawers and a few cards. 57 on 10 Oct 2026, 35 after the wave 2 admin pass. */
-const ROUNDED_2XL_BASELINE = 35
-/** rounded-full uses: avatars and dots, and pills still to retire. 384 on 10 Oct 2026, 297 after the wave 2 admin pass. */
-const ROUNDED_FULL_BASELINE = 297
+/** rounded-2xl uses: dialogs, sheets, the phone's drawers and a few cards. 57 on 10 Oct 2026, 35 after the wave 2 admin pass, 28 counted when wave 2 was merged, 25 after its QA pass. */
+const ROUNDED_2XL_BASELINE = 25
+/** rounded-full uses: avatars and dots, and pills still to retire. 384 on 10 Oct 2026, 297 after the wave 2 admin pass, 285 counted when wave 2 was merged, 256 after its QA pass. */
+const ROUNDED_FULL_BASELINE = 256
 
 describe("radius scale", () => {
   it("derives four steps from a 6px --radius", () => {

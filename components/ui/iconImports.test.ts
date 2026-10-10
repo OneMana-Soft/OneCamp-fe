@@ -14,7 +14,8 @@ import { resolve, relative } from "node:path"
  * and lower the number.
  */
 const root = resolve(__dirname, "../..")
-const DIRECT_GLYPH_IMPORT_BASELINE = 59
+/** 59 recorded before wave 2, 51 when wave 2 was merged, 50 after its QA pass. */
+const DIRECT_GLYPH_IMPORT_BASELINE = 50
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
