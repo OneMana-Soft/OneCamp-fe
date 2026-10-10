@@ -1,6 +1,8 @@
 import {useEffect} from "react";
 import dynamic from "next/dynamic";
-import {useSelector} from "react-redux";
+import {useDispatch, useSelector} from "react-redux";
+import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
+import { useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel";
 import {RootState} from "@/store/store";
 
 // What the panel shows loads the first time it's opened, not with every
@@ -39,6 +41,13 @@ export const RightPanel = () => {
 
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
     usePreloadPanels();
+    const dispatch = useDispatch();
+    // Escape closes a thread, task, comments or event panel, once no popup,
+    // menu or dialog is open over the page. The AI panels keep Escape for
+    // their own input.
+    const data = rightPanelState.data;
+    const escapeCloses = rightPanelState.isOpen && !data.aiChatOpen && !data.docAiOpen;
+    useEscapeClosesPanel(escapeCloses, () => dispatch(closeRightPanel()));
 
 
     const renderRightPanel = () => {

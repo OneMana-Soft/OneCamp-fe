@@ -238,7 +238,9 @@ export function makeReferenceSuggestion({
         },
         onKeyDown(props) {
           if (props.event.key === "Escape") {
-            popup?.hide()
+            // Only while the list shows: a second Escape reaches the page.
+            if (!popup?.state.isVisible) return false
+            popup.hide()
             return true
           }
           if (!component?.ref) return false
