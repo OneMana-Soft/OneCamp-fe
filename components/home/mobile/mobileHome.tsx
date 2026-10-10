@@ -2,7 +2,7 @@
 
 import { homeGreeting } from "@/lib/utils/homeGreeting"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
-import SetupChecklist from "@/components/home/SetupChecklist"
+import SetupChecklist, { adminFromSidenav } from "@/components/home/SetupChecklist"
 import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
@@ -133,7 +133,7 @@ export function MobileHome() {
     )
 
     // Already fetched and deduped by the layout; a cache read, as on desktop.
-    const isAdmin = useSidenav().data?.data?.user_is_admin
+    const isAdmin = adminFromSidenav(useSidenav())
     const greetingLine = homeGreeting(
         new Date().getHours(),
         selfProfile.data?.data?.user_full_name,

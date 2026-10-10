@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import type { OnboardingState, OnboardingStep } from "@/services/onboardingService"
 
 const svc = vi.hoisted(() => ({
@@ -9,7 +11,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock("@/services/onboardingService", () => svc)
 
-import SetupChecklist, { CHECKLIST_MEMO_KEY, UNDO_HIDE_MS } from "./SetupChecklist"
+import SetupChecklist, { adminFromSidenav, CHECKLIST_MEMO_KEY, UNDO_HIDE_MS } from "./SetupChecklist"
 
 const step = (id: string, over: Partial<OnboardingStep> = {}): OnboardingStep => ({
   id,
@@ -100,6 +102,31 @@ describe("the checklist while it loads", () => {
     await show(false)
     expect(screen.queryByRole("status", { name: "Loading the setup checklist" })).toBeNull()
     expect(svc.getOnboardingStatus).not.toHaveBeenCalled()
+  })
+
+  // The server leaves user_is_admin out when it is false. Home read the field
+  // alone, so a member stayed "unknown" for good, and in a browser that had
+  // shown the card (an admin's before, a shared machine) Home held a skeleton
+  // for it forever.
+  it("knows a member is not an admin once the side nav answers without the flag", () => {
+    expect(adminFromSidenav({})).toBeUndefined()
+    expect(adminFromSidenav({ data: { data: {} } })).toBe(false)
+    expect(adminFromSidenav({ data: { data: { user_is_admin: true } } })).toBe(true)
+    expect(adminFromSidenav({ error: new Error("503") })).toBe(false)
+  })
+
+  it("holds nothing for a member in a browser that showed it to an admin", async () => {
+    localStorage.setItem(CHECKLIST_MEMO_KEY, "open")
+    await show(adminFromSidenav({ data: { data: {} } }))
+    expect(screen.queryByRole("status", { name: "Loading the setup checklist" })).toBeNull()
+  })
+
+  it("is told so by both Homes, which read the flag through adminFromSidenav", () => {
+    for (const file of ["desktop/desktopDashboard.tsx", "mobile/mobileHome.tsx"]) {
+      const src = readFileSync(resolve(__dirname, file), "utf8")
+      expect(src, file).toMatch(/isAdmin = adminFromSidenav\(useSidenav\(\)\)/)
+      expect(src, file).not.toMatch(/\.user_is_admin/)
+    }
   })
 
   it("remembers whether there was anything to show", async () => {

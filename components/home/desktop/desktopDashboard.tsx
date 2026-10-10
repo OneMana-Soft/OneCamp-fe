@@ -25,7 +25,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
-import SetupChecklist from "@/components/home/SetupChecklist"
+import SetupChecklist, { adminFromSidenav } from "@/components/home/SetupChecklist"
 import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
 import { PageHeader } from "@/components/ui/pageHeader"
@@ -76,7 +76,7 @@ export function DesktopDashboard() {
     const userSidebar = useSelector((state: RootState) => state.users.userSidebar)
     // Already fetched and deduped by the layout; this mount is a cache read,
     // not a second request.
-    const isAdmin = useSidenav().data?.data?.user_is_admin
+    const isAdmin = adminFromSidenav(useSidenav())
     const recentItems = useSelector((state: RootState) => state.recentItems.items)
     const rightPanelState = useSelector(
         (state: RootState) => state.rightPanel.rightPanelState,
