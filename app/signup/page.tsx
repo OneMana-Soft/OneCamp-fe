@@ -12,7 +12,7 @@
 
 import { LoaderCircle, Users } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { useEffect, useState, Suspense } from "react"
+import { useCallback, useEffect, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { landingPath } from "@/lib/landing"
@@ -52,10 +52,31 @@ function SignupForm() {
   // Which field the error is about, so it is said under that field; null for the form as a whole.
   const [errorField, setErrorField] = useState<"name" | "password" | null>(null)
   const [tokenInvalid, setTokenInvalid] = useState(false)
+  // The check got no answer about the link: not the same as a dead link.
+  const [checkFailed, setCheckFailed] = useState(false)
   // Until /auth/providers answers, a password is the one way offered.
   const [providers, setProviders] = useState<Providers>({ email: true, google: false, github: false, oidc: false, saml: false, ldap: false })
   // Joined: who they are now, and where they are going.
   const [joined, setJoined] = useState<{ name: string; handle: string; destination: string } | null>(null)
+
+  const checkInvitation = useCallback(() => {
+    setIsValidating(true)
+    setCheckFailed(false)
+    authService.validateInvitationToken(token).then((result) => {
+      if (result.valid) {
+        setInvitationEmail(result.email)
+        setInvitedBy({ inviter: result.inviterName, workspace: result.workspace })
+        // A name an import already knows them by; theirs to change.
+        if (result.name) setName((typed) => typed || result.name)
+      } else if (result.unreachable) {
+        setCheckFailed(true)
+      } else {
+        setTokenInvalid(true)
+        setError(result.msg)
+      }
+      setIsValidating(false)
+    })
+  }, [token])
 
   useEffect(() => {
     if (!token) {
@@ -67,19 +88,8 @@ function SignupForm() {
     authService.getEnabledProviders().then((p) => {
       if (p) setProviders(p)
     })
-    authService.validateInvitationToken(token).then((result) => {
-      if (result.valid) {
-        setInvitationEmail(result.email)
-        setInvitedBy({ inviter: result.inviterName, workspace: result.workspace })
-        // A name an import already knows them by; theirs to change.
-        if (result.name) setName((typed) => typed || result.name)
-      } else {
-        setTokenInvalid(true)
-        setError(result.msg)
-      }
-      setIsValidating(false)
-    })
-  }, [token])
+    checkInvitation()
+  }, [token, checkInvitation])
 
   // Says who they are, then opens the workspace on its own.
   useEffect(() => {
@@ -139,6 +149,19 @@ function SignupForm() {
         <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
         Checking your invitation…
       </div>
+    )
+  }
+
+  if (checkFailed) {
+    return (
+      <>
+        <AuthHeading title="Couldn't check your invitation">
+          This workspace didn&apos;t answer, so the link may well be fine. Check your connection and try again.
+        </AuthHeading>
+        <Button className={authControl} onClick={checkInvitation}>
+          Try again
+        </Button>
+      </>
     )
   }
 
