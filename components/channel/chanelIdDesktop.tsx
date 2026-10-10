@@ -17,13 +17,16 @@ import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { statusColors } from "@/lib/colors";
-import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X, MoreHorizontal, MessageSquare } from "@/lib/icons";
+import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, MoreHorizontal, MessageSquare } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {useEffect, useState, useMemo} from "react";
+import {memo, useEffect, useState} from "react";
+import type { Content } from "@tiptap/react";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
@@ -50,11 +53,8 @@ import { WithTooltip } from "@/components/common/withTooltip"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
-const EMPTY_TYPING_LIST: any[] = []
 
 export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number, focusComposer?: boolean}) => {
-    const scheduleSend = useScheduleSend()
-
     const dispatch = useDispatch()
     const postFav  = usePost()
     const postNotification  = usePost()
@@ -62,24 +62,17 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}`:'')
     const [isFavorite, setFavorite] = useState<boolean>(false)
     const [channelNotification, setChannelNotificationType] = useState<string>(NotificationType.NotificationAll)
-    const uploadFile = useUploadFile()
 
-    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
-    const channelNme = useMemo(() => userChannels?.find((item)=>item.ch_uuid == channelId), [userChannels, channelId]);
+    // Only the name: the sidebar's channel list changes whenever any channel's
+    // unread count does, and this header has no use for that.
+    const sidebarName = useSelector((state: RootState) => state.users.userSidebar.userChannels?.find((item)=>item.ch_uuid == channelId)?.ch_name);
     // Fallback to API response when channel isn't in sidebar state yet
     // (e.g. direct navigation from notification/bookmark)
-    const channelDisplayName = channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
+    const channelDisplayName = sidebarName || channelInfo.data?.channel_info?.ch_name || "channel";
     const memberCount = channelInfo.data?.channel_info?.ch_member_count ?? 0;
     const channelAgents = useChannelAgents(channelId, !!channelInfo.data?.channel_info?.ch_is_member);
 
-    const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
-
-    const rawChannelTyping = useSelector((state: RootState) => state.typing.channelTyping[channelId] || EMPTY_TYPING_LIST);
-    const channelTypingState = useMemo(() => rawChannelTyping.map(item => item.user), [rawChannelTyping]);
-
     const channelCallActive = useSelector((state: RootState) => state.channel.channelCallStatus[channelId]?.active || false)
-
-    const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
 
     useEffect(() => {
 
@@ -152,7 +145,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
         if(!channelInfo.data?.channel_info.ch_is_member) {
             return (
                 <JoinChannelPrompt
-                    channelName={channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || ""}
+                    channelName={channelDisplayName === "channel" ? "" : channelDisplayName}
                     onJoin={joinChannel}
                     joining={postJoinChannel.isSubmitting}
                     className="py-4"
@@ -161,16 +154,10 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
         }
 
         if (!isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')) {
-            // `flex` was missing, so flex-col/justify-center/items-center were all
-            // inert and the archived notice never centred as written.
             return (
-                <div className='flex flex-col justify-center items-center w-full text-center space-y-2 text-muted-foreground'>
-                    <div>Channel is archived 📦</div>
-                    {/*{channelInfo.data?.channel_info.ch_is_admin &&*/}
-                    {/*    <Button onClick={joinChannel}>*/}
-                    {/*        Unarchive channel*/}
-                    {/*    </Button>}*/}
-                </div>
+                <p className='w-full py-4 text-center text-sm text-muted-foreground'>
+                    This channel is archived. You can read it, but not post in it.
+                </p>
             )
         }
 
@@ -188,71 +175,14 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
             )
         }
 
-        return (<>
-        <CommandSurface
-            surfaceKey={channelId}
-            channelId={channelId}
-            onComposerText={(text) =>
-                dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
-            }
-            onComposerHtml={(html) =>
-                dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
-            }
-        />
-        {channelState.replyToUuid && (
-            <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
-                <span className="text-muted-foreground">Replying to</span>
-                <span className="font-medium text-foreground">{channelState.replyToAuthorName || "message"}</span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {channelState.replyToText || ""}
-                </span>
-                <button
-                    type="button"
-                    onClick={() => dispatch(clearChannelReplyTarget({ channelId }))}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
-                    aria-label="Cancel reply"
-                >
-                    <X className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-            </div>
-        )}
-        {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-        <MinimalTiptapTextInput
-            throttleDelay={300}
-            autoFocus={focusComposer}
-            attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
-            onActionFiles={async (files) => {
-                if (!files?.length) return;
-                const valid = uploadFile.validateFiles(files);
-                if (valid.length === 0) return;
-                await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
-            }}
-            className={cn("max-w-full h-auto")}
-            editorContentClassName="overflow-auto mb-2"
-            output="html"
-            content={channelState.inputTextHTML}
-            contentRevision={channelState.restoredUnsent}
-            placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name))}
-            editable={true}
-            ButtonIcon={SendHorizontal}
-            hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
-            buttonOnclick={handleSend}
-                        onSchedule={scheduleSend?.schedule}
-            editorClassName="focus:outline-none px-2 py-2"
-            onChange={(content ) => {
-                publishTyping(content as string)
-                dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
-            }}
-            aiSlot={
-                <ComposerAIButton
-                    getText={() => channelState.inputTextHTML || ""}
-                    onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
-                />
-            }
-        >
-            <ChannelFileUpload channelId={channelId}/>
-        </MinimalTiptapTextInput>
-        </>)
+        return (
+            <ChannelComposer
+                channelId={channelId}
+                handleSend={handleSend}
+                placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name))}
+                focusComposer={focusComposer}
+            />
+        )
     }
 
 
@@ -373,3 +303,83 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
         </div>
     )
 }
+/**
+ * The channel's message box and what sits on it (a reply being written, the
+ * messages scheduled here). Its own component because it is the only part of
+ * the channel that changes as someone types: the draft is read here, so the
+ * header and the conversation above it no longer re-render as it changes.
+ */
+const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, placeholder, focusComposer }: {
+    channelId: string
+    handleSend: (latestContent?: string) => void
+    placeholder: string
+    focusComposer?: boolean
+}) {
+    const dispatch = useDispatch()
+    const scheduleSend = useScheduleSend()
+    const uploadFile = useUploadFile()
+    const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
+    const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
+    // The same function for the life of the composer, so the editor's action
+    // row (memoised in textInput) keeps its buttons as the parent re-renders.
+    const send = useStableCallback((latestContent?: string) => handleSend(latestContent))
+    const onChange = useStableCallback((content: Content) => {
+        publishTyping(content as string)
+        dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
+    })
+    const onActionFiles = useStableCallback(async (files: File[]) => {
+        if (!files?.length) return;
+        const valid = uploadFile.validateFiles(files);
+        if (valid.length === 0) return;
+        await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
+    })
+    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'channelFileUpload' })) })
+
+    return (<>
+        <CommandSurface
+            surfaceKey={channelId}
+            channelId={channelId}
+            onComposerText={(text) =>
+                dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
+            }
+            onComposerHtml={(html) =>
+                dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
+            }
+        />
+        {channelState.replyToUuid && (
+            <ComposerReplyPill
+                authorName={channelState.replyToAuthorName}
+                text={channelState.replyToText}
+                onCancel={() => dispatch(clearChannelReplyTarget({ channelId }))}
+            />
+        )}
+        {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
+        <MinimalTiptapTextInput
+            throttleDelay={300}
+            autoFocus={focusComposer}
+            attachmentOnclick={openUpload}
+            onActionFiles={onActionFiles}
+            className={cn("max-w-full h-auto")}
+            editorContentClassName="overflow-auto mb-2"
+            output="html"
+            content={channelState.inputTextHTML}
+            contentRevision={channelState.restoredUnsent}
+            placeholder={placeholder}
+            editable={true}
+            ButtonIcon={SendHorizontal}
+            hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
+            buttonOnclick={send}
+            onSchedule={scheduleSend?.schedule}
+            editorClassName="focus:outline-none px-2 py-2"
+            onChange={onChange}
+            aiSlot={
+                <ComposerAIButton
+                    getText={() => channelState.inputTextHTML || ""}
+                    onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
+                />
+            }
+        >
+            <ChannelFileUpload channelId={channelId}/>
+        </MinimalTiptapTextInput>
+    </>)
+})

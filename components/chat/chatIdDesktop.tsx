@@ -11,12 +11,15 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Video, Clapperboard, Sparkles, CheckSquare, X } from "@/lib/icons";
+import { SendHorizontal, Video, Clapperboard, Sparkles, CheckSquare } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {useEffect, useMemo, useState} from "react";
+import {memo, useEffect, useState} from "react";
+import type { Content } from "@tiptap/react";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 import {openUI} from "@/store/slice/uiSlice";
@@ -29,7 +32,7 @@ import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
-import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
+import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
 import {ChatUserEmojiStatus} from "@/components/chat/chatUserEmojiStatus";
 import {Button} from "@/components/ui/button";
 import {app_chat_call} from "@/types/paths";
@@ -48,65 +51,18 @@ import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 
 export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
-    const scheduleSend = useScheduleSend()
-
     const dispatch = useDispatch()
     const postNotification  = usePost()
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
-    const uploadFile = useUploadFile()
-
-    const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
-
-    // Use a memoized selector with custom equality to prevent unnecessary re-renders
-    const rawChatTypingState = useSelector(
-        (state: RootState) => state.typing.chatTyping[chatId],
-        // Custom equality function to prevent re-renders when array reference changes but content is the same
-        (prev, next) => {
-            // If both are undefined, they're equal
-            if (!prev && !next) return true;
-            
-            // If one is undefined and the other isn't, they're different
-            if (!prev || !next) return false;
-            
-            // If lengths differ, they're different
-            if (prev.length !== next.length) return false;
-            
-            // Compare user IDs to check if the typing users are the same
-            return prev.every((item, index) => 
-                item.userId === next[index]?.userId
-            );
-        }
-    );
 
     const chatCallHref = `${app_chat_call}/${chatId}`;
     // A call opens beside the conversation, so it stays in view.
     const { isMobile } = useMedia();
     const openBeside = useOpenBeside(!isMobile);
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
-    // Memoize the mapped result to prevent creating a new array on every render
-    const chatTypingState = useMemo(() => 
-        (rawChatTypingState || []).map(item => item.user),
-        [rawChatTypingState]
-    );
-
-    const EMPTY_INPUT_STATE = {};
-    const EMPTY_USER_STATUS: UserEmojiInterface = { deviceConnected: 0 } as UserEmojiInterface;
-
-    const chatState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE);
-
-    // Suggested starter prompts for an empty DM with an AI peer (the shared
-    // coworker or a DM-able agent), so a new user isn't faced with a blank box.
-    // Only fetched when the peer is a bot and the conversation is empty.
     const isBotPeer = otherUserInfo.data?.data?.is_bot === true;
-    const msgCount = useSelector((state: RootState) => (state.chat.chatMessages[chatId] || []).length);
-    const composerEmpty = !chatState.chatBody || chatState.chatBody.replace(/<[^>]*>/g, "").trim().length === 0;
-    const showSuggestions = isBotPeer && msgCount === 0 && composerEmpty;
-    const aiSuggestions = useFetch<{ data: string[] }>(
-        showSuggestions ? `${GetEndpointUrl.GetDMAISuggestions}?peer=${chatId}` : "",
-    );
-    const suggestions = (showSuggestions && aiSuggestions.data?.data) || [];
 
     const chatCallStatusActive = useSelector((state: RootState) => state.chat.chatCallStatus[chatId]?.active || false);
 
@@ -212,27 +168,93 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
+                    <ChatComposer
+                        chatId={chatId}
+                        handleSend={handleSend}
+                        peerName={userDisplayName(otherUserInfo.data?.data)}
+                        placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
+                        isBotPeer={isBotPeer}
+                        selfUUID={selfProfile.data?.data.user_uuid || ''}
+                    />
+                </div>
+            </div>
+
+        </div>
+    )
+}
+
+const EMPTY_INPUT_STATE: Partial<RootState["chat"]["chatInputState"][string]> = {};
+
+/**
+ * The DM's message box and what sits on it. Its own component because it is
+ * the only part of the conversation that changes as someone types: the draft
+ * is read here, so the header and the messages above it no longer re-render
+ * with each change to it.
+ */
+const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, placeholder, isBotPeer, selfUUID }: {
+    chatId: string
+    handleSend: (latestContent?: string) => void
+    peerName: string
+    placeholder: string
+    isBotPeer: boolean
+    selfUUID: string
+}) {
+    const dispatch = useDispatch()
+    const scheduleSend = useScheduleSend()
+    const uploadFile = useUploadFile()
+    const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
+    const chatState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE);
+    const grpId = getGroupingId(chatId, selfUUID)
+
+    // Suggested starter prompts for an empty DM with an AI peer (the shared
+    // coworker or a DM-able agent), so a new user isn't faced with a blank box.
+    // Only fetched when the peer is a bot and the conversation is empty.
+    const empty = useSelector((state: RootState) => (state.chat.chatMessages[chatId] || []).length === 0);
+    const composerEmpty = !chatState.chatBody || chatState.chatBody.replace(/<[^>]*>/g, "").trim().length === 0;
+    const showSuggestions = isBotPeer && empty && composerEmpty;
+    const aiSuggestions = useFetch<{ data: string[] }>(
+        showSuggestions ? `${GetEndpointUrl.GetDMAISuggestions}?peer=${chatId}` : "",
+    );
+    const suggestions = (showSuggestions && aiSuggestions.data?.data) || [];
+
+    // The same function for the life of the composer, so the editor's action
+    // row (memoised in textInput) keeps its buttons as the parent re-renders.
+    const send = useStableCallback((latestContent?: string) => handleSend(latestContent))
+    const onChange = useStableCallback((content: Content) => {
+        publishTyping(content as string)
+        dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
+    })
+    const onActionFiles = useStableCallback(async (files: File[]) => {
+        if (!files?.length) return;
+        const valid = uploadFile.validateFiles(files);
+        if (valid.length === 0) return;
+        await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
+    })
+    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'chatFileUpload' })) })
+
+    return (
+        <>
                     {suggestions.length > 0 && (
                         <div className="mb-2 flex flex-wrap items-center gap-1.5">
                             <span className="mr-0.5 inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground">
-                                <Sparkles className="h-3 w-3 text-primary" /> Try asking
+                                <Sparkles className="h-3 w-3 text-agent" aria-hidden="true" /> Try asking
                             </span>
                             {suggestions.map((s, i) => (
                                 <button
                                     key={i}
                                     type="button"
-                                    onClick={() => handleSend(`<p>${s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)}
-                                    className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-foreground transition-colors hover:border-primary hover:bg-primary/5"
+                                    onClick={() => send(`<p>${s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)}
+                                    className="rounded-md border border-border/70 bg-background px-3 py-1 text-xs text-foreground transition-colors hover:bg-highlight"
                                 >
                                     {s}
                                 </button>
                             ))}
                         </div>
                     )}
-                    <PendingActionsTray surfaceId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')} />
+                    <PendingActionsTray surfaceId={grpId} />
                     <CommandSurface
                         surfaceKey={chatId}
-                        dmGroupId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')}
+                        dmGroupId={grpId}
                         onComposerText={(text) =>
                             dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: `<p>${text}</p>` }))
                         }
@@ -241,50 +263,31 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                         }
                     />
                     {chatState.replyToUuid && (
-                        <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
-                            <span className="text-muted-foreground">Replying to</span>
-                            <span className="font-medium text-foreground">{chatState.replyToAuthorName || "message"}</span>
-                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                                {chatState.replyToText || ""}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => dispatch(clearChatReplyTarget({ chatUUID: chatId }))}
-                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
-                                aria-label="Cancel reply"
-                            >
-                                <X className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                        </div>
+                        <ComposerReplyPill
+                            authorName={chatState.replyToAuthorName}
+                            text={chatState.replyToText}
+                            onCancel={() => dispatch(clearChatReplyTarget({ chatUUID: chatId }))}
+                        />
                     )}
-                    <HeldNotificationsBar userUUID={chatId} name={userDisplayName(otherUserInfo.data?.data)} isBot={isBotPeer} />
+                    <HeldNotificationsBar userUUID={chatId} name={peerName} isBot={isBotPeer} />
                     {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         throttleDelay={300}
-                        attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
-                        onActionFiles={async (files) => {
-                            if (!files?.length) return;
-                            const valid = uploadFile.validateFiles(files);
-                            if (valid.length === 0) return;
-                            const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
-                            await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
-                        }}
+                        attachmentOnclick={openUpload}
+                        onActionFiles={onActionFiles}
                         className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
                         contentRevision={chatState.restoredUnsent}
-                        placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
+                        placeholder={placeholder}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
-                        buttonOnclick={handleSend}
+                        buttonOnclick={send}
                         onSchedule={scheduleSend?.schedule}
                         editorClassName="focus:outline-none px-2 py-2"
-                        onChange={(content ) => {
-                            publishTyping(content as string)
-                            dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
-                        }}
+                        onChange={onChange}
                         aiSlot={
                             <ComposerAIButton
                                 getText={() => chatState.chatBody || ""}
@@ -294,9 +297,6 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>
-                </div>
-            </div>
-
-        </div>
+        </>
     )
-}
+})

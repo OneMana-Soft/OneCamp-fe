@@ -57,13 +57,9 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
             // no `flex`, so the centring classes were inert. Its sibling (the
             // moderators-only notice below) already gets both right.
             return (
-                <div className='border-t fixed bottom-0 flex flex-col justify-center items-center w-full py-8 pb-[calc(2rem+env(safe-area-inset-bottom))] text-center space-y-2 bg-background'>
-                    <div>Channel is archived 📦</div>
-                    {/*{channelInfo.data?.channel_info.ch_is_admin &&*/}
-                    {/*    <Button onClick={joinChannel}>*/}
-                    {/*    Unarchive channel*/}
-                    {/*</Button>}*/}
-                </div>
+                <p className='border-t fixed bottom-0 w-full px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground bg-background'>
+                    This channel is archived. You can read it, but not post in it.
+                </p>
             )
         }
 
