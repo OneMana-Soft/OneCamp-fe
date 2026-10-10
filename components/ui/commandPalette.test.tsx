@@ -152,4 +152,17 @@ describe("the command palette", () => {
     const src = readFileSync(resolve(__dirname, "CommandPalette.tsx"), "utf8")
     expect(src).not.toMatch(/text-(blue|orange|cyan|purple|pink)-\d{3}/)
   })
+
+  it("doesn't list a place twice, once to jump to and once as a hit", () => {
+    answer = [
+      { type: "project", project: { project_id: "p1", project_name: "Q4 launch" }, highlight: { project_name: ["Q4 <mark>launch</mark>"] } },
+      { type: "task", task: { task_id: "t1", task_name: "Write the launch announcement", task_project_id: "p1" } },
+    ] as SearchResult[]
+    const input = open()
+    type(input, "q4 launch")
+    expect(within(group("Jump to")!).getByText("Q4 launch")).toBeTruthy()
+    const hits = group("Messages, docs and tasks")!
+    expect(within(hits).getAllByRole("option")).toHaveLength(1)
+    expect(within(hits).queryByText("Q4 launch")).toBeNull()
+  })
 })
