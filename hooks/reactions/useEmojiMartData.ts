@@ -5,7 +5,14 @@ import type { EmojiMartData } from '@emoji-mart/data'
 
 let emojiMartData: EmojiMartData | null = null
 
-export function useEmojiMartData() {
+/**
+ * The emoji catalogue (about 420 KB of script), loaded the first time it is
+ * needed. `needed` false leaves it unloaded: the top bar and the sidebar read
+ * it only to draw somebody's status emoji, and asking for it unconditionally
+ * put it on every page's first load, ahead of Home's greeting, for people
+ * with no status at all.
+ */
+export function useEmojiMartData(needed = true) {
     const [data, setData] = useState<EmojiMartData | null>(emojiMartData)
 
     useEffect(() => {
@@ -16,9 +23,14 @@ export function useEmojiMartData() {
             setData(data)
         }
 
-        if (emojiMartData) return
+        if (emojiMartData) {
+            // Loaded by someone else since this mounted.
+            setData(emojiMartData)
+            return
+        }
+        if (!needed) return
         load()
-    }, [])
+    }, [needed])
 
     return { data }
 }
