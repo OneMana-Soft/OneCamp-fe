@@ -61,6 +61,17 @@ const save = async () => {
   await act(async () => void fireEvent.submit(document.getElementById("profile-edit-form")!))
 }
 
+describe("the profile's picture", () => {
+  // Without a photo, the person is in their camp hue, as in the corner of the
+  // app and on the phone's profile. The dialog drew them in grey.
+  it("is the person's hue when there is no photo", async () => {
+    open()
+    const initials = await screen.findByText("S", { selector: "span" })
+    expect(initials.className).toMatch(/\bbg-hue-tint\b/)
+    expect(initials.className).toMatch(/\bhue-/)
+  })
+})
+
 describe("saving a profile", () => {
   it("saves under names from before the rule, without sending the handle", async () => {
     const setOpenState = open()

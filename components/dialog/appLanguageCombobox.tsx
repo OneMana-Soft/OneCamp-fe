@@ -19,64 +19,69 @@ import {appLangList} from "@/types/user";
 interface AppLanguageComboboxProps {
     userLang?: string;
     onLangChange: (c: string) => void;
+    /** From <FormControl>: ties the field's label, help and error to the trigger. */
+    id?: string;
+    "aria-describedby"?: string;
+    "aria-invalid"?: boolean;
 }
 
-export function AppLanguageCombobox({ userLang, onLangChange }: AppLanguageComboboxProps) {
+/**
+ * The language field. It sits in a grid of text inputs, so its trigger is
+ * drawn as one of them: the same height (44px on a phone, 36px from md up),
+ * hairline, padding and type, with the value in the field's normal weight.
+ */
+export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppLanguageComboboxProps) {
     const [open, setOpen] = useState(false)
+    const current = userLang ? appLangList[userLang] : undefined
 
     return (
-        <div className='flex gap-x-3 w-full'>
-
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                    <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 px-4"
-                    >
-                        <span className="truncate text-sm font-medium">
-                            {userLang &&appLangList[userLang]
-                                ? appLangList[userLang].name
-                                : ('selectedLanguagePlaceholder')}
-                        </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40"/>
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 shadow-xl border-border/50 rounded-xl overflow-hidden" align="start">
-                    <Command className="bg-popover">
-                        <CommandInput placeholder="Search language…" className="h-9 border-none focus:ring-0 shadow-none" />
-                        <CommandList className="max-h-[200px] overflow-y-auto">
-                            <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No language found.</CommandEmpty>
-                            <CommandGroup>
-                                {Object.values(appLangList).map((e) => (<CommandItem
-                                            key={e.code}
-                                            value={e.code}
-                                            onSelect={() => {
-                                                setOpen(false)
-                                                if (onLangChange) {
-                                                    onLangChange(e.code)
-                                                }
-                                            }}
-                                            className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
-                                        >
-                                        <span className="flex-1 font-semibold text-sm">{e.name}</span>
-                                        <Check
-                                            className={cn(
-                                                "ml-auto h-4 w-4 text-primary",
-                                                userLang === e.code? "opacity-100" : "opacity-0"
-                                            )}
-                                        />
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </CommandList>
-                    </Command>
-                </PopoverContent>
-            </Popover>
-
-        </div>
-
-)
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    {...control}
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="h-11 w-full justify-between rounded-md border-input bg-transparent px-3 text-base font-normal shadow-none hover:border-faint-foreground hover:bg-transparent md:h-9 md:text-sm"
+                >
+                    <span className={cn("truncate", !current && "text-muted-foreground")}>
+                        {current ? current.name : "Choose a language"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                    <CommandInput placeholder="Search languages…" aria-label="Search languages" />
+                    <CommandList className="max-h-[200px] overflow-y-auto">
+                        <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No language by that name.</CommandEmpty>
+                        <CommandGroup>
+                            {Object.values(appLangList).map((e) => (
+                                <CommandItem
+                                    key={e.code}
+                                    value={e.code}
+                                    keywords={[e.name]}
+                                    onSelect={() => {
+                                        setOpen(false)
+                                        onLangChange?.(e.code)
+                                    }}
+                                    className="cursor-pointer"
+                                >
+                                    <span className="flex-1">{e.name}</span>
+                                    <Check
+                                        aria-hidden="true"
+                                        className={cn(
+                                            "ml-auto h-4 w-4 text-primary",
+                                            userLang === e.code ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
 }
-

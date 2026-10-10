@@ -14,6 +14,7 @@ import {useEffect, useMemo, useRef, useState} from "react";
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,} from "../ui/dialog";
 
 import {Avatar, AvatarFallback, AvatarImage} from "../ui/avatar";
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { Camera, Loader2 } from "@/lib/icons";
 import {AppLanguageCombobox} from "@/components/dialog/appLanguageCombobox";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -249,7 +250,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             <div className="relative group">
                                 <Avatar className="h-16 w-16">
                                     <AvatarImage src={selectedImage || undefined} alt="" className="object-cover" />
-                                    <AvatarFallback className="text-lg font-medium">{nameIntial}</AvatarFallback>
+                                    <AvatarFallback className={cn("text-lg", getAvatarFallbackClass(shownName || "User"))}>{nameIntial}</AvatarFallback>
                                 </Avatar>
                                 {/* A pointer's shortcut to the button beside it. */}
                                 <label
@@ -367,12 +368,14 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         control={form.control}
                                         name="language"
                                         render={({ field: f }) => (
-                                            <FormItem className="flex flex-col">
+                                            <FormItem>
                                                 <FormLabel>{t('language')}</FormLabel>
-                                                <AppLanguageCombobox
-                                                    onLangChange={f.onChange}
-                                                    userLang={f.value}
-                                                />
+                                                <FormControl>
+                                                    <AppLanguageCombobox
+                                                        onLangChange={f.onChange}
+                                                        userLang={f.value}
+                                                    />
+                                                </FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}

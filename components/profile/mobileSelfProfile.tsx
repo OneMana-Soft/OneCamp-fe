@@ -312,12 +312,14 @@ export function MobileSelfProfile() {
                                     control={form.control}
                                     name="language"
                                     render={({ field: f }) => (
-                                        <FormItem className="flex flex-col">
+                                        <FormItem>
                                             <FormLabel>{t('language')}</FormLabel>
-                                            <AppLanguageCombobox
-                                                onLangChange={f.onChange}
-                                                userLang={f.value}
-                                            />
+                                            <FormControl>
+                                                <AppLanguageCombobox
+                                                    onLangChange={f.onChange}
+                                                    userLang={f.value}
+                                                />
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
