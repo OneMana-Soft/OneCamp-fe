@@ -25,13 +25,16 @@ export function TaskTableViewOptions<TData>({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
+                {/* At every width, as Create task is: below sm the icon stays and
+                    the word goes. It was hidden below 1024px. */}
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="ml-auto hidden h-8 text-muted-foreground hover:text-foreground lg:flex"
+                    className="h-8 text-muted-foreground hover:text-foreground"
+                    aria-label={t('view')}
                 >
-                    <MixerHorizontalIcon className="mr-2 h-4 w-4" />
-                    {t('view')}
+                    <MixerHorizontalIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{t('view')}</span>
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[150px]">
@@ -47,14 +50,16 @@ export function TaskTableViewOptions<TData>({
                         // A project's own field is named as its admins wrote it.
                         const own = (column.columnDef.meta as { label?: string } | undefined)?.label
 
+                        // Sentence case, as the column's own header says it ("Start
+                        // date"): CSS capitalize made these "Start Date".
+                        const name = colName[column.id as ColumnId] || column.id
                         return (
                             <DropdownMenuCheckboxItem
                                 key={column.id}
-                                className={own ? undefined : "capitalize"}
                                 checked={column.getIsVisible()}
                                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
                             >
-                                {own || colName[column.id as ColumnId] || column.id}
+                                {own || name.charAt(0).toUpperCase() + name.slice(1)}
                             </DropdownMenuCheckboxItem>
                         );
                     })}

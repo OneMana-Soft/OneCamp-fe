@@ -39,6 +39,10 @@ export function TaskTableColumnHeader<TData, TValue>({
   }
 
   const sortDir = column.getIsSorted()
+  // A right-aligned column (dates, money) pulls its sort button into the
+  // cell's padding on the right, as a left-aligned one does on the left, so
+  // the header ends where its figures end. It ended 8px short of them.
+  const right = (column.columnDef.meta as { align?: string } | undefined)?.align === "right"
 
   return (
     <div className={cn("flex items-center", className)}>
@@ -48,7 +52,8 @@ export function TaskTableColumnHeader<TData, TValue>({
             variant="ghost"
             size="sm"
             className={cn(
-              "-ml-2 h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground",
+              right ? "-mr-2" : "-ml-2",
+              "h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground",
               "data-[state=open]:bg-accent data-[state=open]:text-foreground",
             )}
             aria-label={`Sort by ${title}`}
