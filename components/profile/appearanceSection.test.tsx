@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 // The theme choice keys as a radio group does (WAI-ARIA): one stop in the Tab
 // order, and the arrow keys move to the next theme and choose it.
@@ -54,5 +54,12 @@ describe("the appearance section", () => {
     const row = screen.getByRole("radiogroup", { name: "Theme" }).closest(".px-4.py-3")
     expect(row).not.toBeNull()
     expect(row?.parentElement?.className).toMatch(/divide-y/)
+  })
+
+  it("is the app's segmented control, the height of the inputs in a list", () => {
+    render(<AppearanceSection />)
+    const group = screen.getByRole("radiogroup", { name: "Theme" })
+    expect(group.className).toContain("p-1")
+    expect(within(group).getByRole("radio", { name: /Light/ }).className).toContain("md:h-7")
   })
 })

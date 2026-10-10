@@ -8,10 +8,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useTheme } from "next-themes"
-import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Button } from "@/components/ui/button"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { Monitor, Moon, Sun } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -24,9 +23,9 @@ import { PasskeySection } from "@/components/profile/PasskeySection"
 import { SettingRow, SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 
 const THEMES = [
-  ["light", "Light", Sun],
-  ["dark", "Dark", Moon],
-  ["system", "Match system", Monitor],
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "Match system", icon: Monitor },
 ] as const
 
 /**
@@ -44,30 +43,13 @@ export function AppearanceSection() {
     <SettingsSection title="Appearance" description="Changes as you pick, on this device.">
       <SettingsList>
         <SettingRow label="Theme" controlId="theme">
-          <RadioGroupPrimitive.Root
+          <SegmentedControl
             id="theme"
             value={choice}
             onValueChange={setTheme}
-            orientation="horizontal"
             aria-label="Theme"
-            className="inline-flex flex-wrap gap-0.5 rounded-md bg-muted p-0.5"
-          >
-            {THEMES.map(([value, label, Icon]) => (
-              <RadioGroupPrimitive.Item
-                key={value}
-                value={value}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                  // The house segmented look (TabsTrigger): the raised card and
-                  // a hairline, which read as chosen in both themes.
-                  "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-border",
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                {label}
-              </RadioGroupPrimitive.Item>
-            ))}
-          </RadioGroupPrimitive.Root>
+            options={THEMES}
+          />
         </SettingRow>
         {/* The accent picker carries its own label over its swatches. */}
         <div className="px-4 py-3">

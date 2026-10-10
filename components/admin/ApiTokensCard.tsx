@@ -1,11 +1,11 @@
 "use client"
 
 import { useRef, useState } from "react"
-import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { Field } from "@/components/ui/field"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tile } from "@/components/ui/graphics/Tile"
@@ -45,13 +45,6 @@ const NO_AGENT = ""
 
 /** The section's hue (lib/settingsSections), for its tiles. */
 const HUE: CampHue = "berry"
-
-/** The house segmented look, as the theme choice draws it: the chosen one raised on a card with a hairline. */
-const segmented = "inline-flex flex-wrap gap-1 rounded-md bg-muted p-1"
-const segment = cn(
-  "inline-flex h-8 items-center rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-  "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-border",
-)
 
 const when = (iso: string) => shortDate(new Date(iso))
 
@@ -374,19 +367,13 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
 
           <div className="grid gap-2">
             <Label id="token-expiry-label">Expiry</Label>
-            <RadioGroupPrimitive.Root
+            <SegmentedControl
               value={String(expiry)}
               onValueChange={(v) => setExpiry(Number(v))}
-              orientation="horizontal"
               aria-labelledby="token-expiry-label"
-              className={segmented}
-            >
-              {EXPIRY_OPTIONS.map((o) => (
-                <RadioGroupPrimitive.Item key={o.value} value={String(o.value)} className={segment}>
-                  {o.label}
-                </RadioGroupPrimitive.Item>
-              ))}
-            </RadioGroupPrimitive.Root>
+              className="w-fit"
+              options={EXPIRY_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+            />
           </div>
 
           {agents.length > 0 && (
@@ -397,22 +384,14 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
                 stops the moment you deactivate it, spends from its daily budget, and can only
                 use the tools it has enabled. Leave this off for a script.
               </p>
-              <RadioGroupPrimitive.Root
+              <SegmentedControl
                 value={agentId}
                 onValueChange={setAgentId}
                 aria-labelledby="token-agent-label"
                 aria-describedby="token-agent-help"
-                className={segmented}
-              >
-                <RadioGroupPrimitive.Item value={NO_AGENT} className={segment}>
-                  No agent
-                </RadioGroupPrimitive.Item>
-                {agents.map((a) => (
-                  <RadioGroupPrimitive.Item key={a.id} value={a.id} className={segment}>
-                    {a.name}
-                  </RadioGroupPrimitive.Item>
-                ))}
-              </RadioGroupPrimitive.Root>
+                className="w-fit"
+                options={[{ value: NO_AGENT, label: "No agent" }, ...agents.map((a) => ({ value: a.id, label: a.name }))]}
+              />
 
               {/* Say what the binding will actually permit, BEFORE the token is minted.
                   A bound token can do LESS than the scopes above, and finding that out
