@@ -66,4 +66,21 @@ describe("the redaction window", () => {
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Saved as 190 days" }))
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
   })
+
+  // A row's control takes the list's one height, the field's own; a plain h-8
+  // lost to the field's md:h-9, so the class said one thing and the page another.
+  it("keeps the days field at the list's one control height", async () => {
+    api.get.mockResolvedValue(policy)
+    render(<RetentionCard />)
+    const days = await screen.findByDisplayValue("365")
+    expect(days.className).not.toMatch(/(^|\s)h-8(\s|$)/)
+    expect(days.className).toContain("md:h-9")
+  })
+
+  it("says the server's reason for a failed read, under the title", async () => {
+    api.get.mockRejectedValueOnce({ response: { status: 403, data: { msg: "Only admins can change the redaction window." } } })
+    render(<RetentionCard />)
+    expect(await screen.findByText("Only admins can change the redaction window.")).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Redaction window" })).toBeTruthy()
+  })
 })

@@ -25,13 +25,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 
 const asDraft = (p: RetentionPolicy) => (p.window_days > 0 ? String(p.window_days) : "")
 
 const RetentionCard: React.FC = () => {
     const [policy, setPolicy] = useState<RetentionPolicy | null>(null)
     const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
+    // The server's own reason for a failed read, when it gave one.
+    const [failure, setFailure] = useState<string | undefined>(undefined)
     const [draft, setDraft] = useState("")
     const [saving, setSaving] = useState(false)
     // Said under the field, not in a toast that leaves with the mistake.
@@ -48,7 +50,8 @@ const RetentionCard: React.FC = () => {
             setPolicy(p)
             setDraft(asDraft(p))
             setState("ready")
-        } catch {
+        } catch (e) {
+            setFailure(apiErrorStatus(e) ? apiErrorMessage(e) : undefined)
             setState("failed")
         }
     }, [])
@@ -99,12 +102,13 @@ const RetentionCard: React.FC = () => {
                         <Skeleton className="h-4 w-28" />
                         <Skeleton className="h-3 w-72 max-w-full" />
                     </div>
-                    <Skeleton className="h-8 w-40" />
+                    {/* The field's own height: 44px on a phone, 36px from md up. */}
+                    <Skeleton className="h-11 w-40 md:h-9" />
                 </div>
             </SettingsList>
         )
     } else if (state === "failed" || !policy) {
-        body = <ErrorState subject="the redaction window" onRetry={() => void load()} />
+        body = <ErrorState compact subject="the redaction window" detail={failure} onRetry={() => void load()} />
     } else {
         body = (
             <>
@@ -136,7 +140,10 @@ const RetentionCard: React.FC = () => {
                                     setError("")
                                 }}
                                 placeholder="Keep everything"
-                                className="h-8 w-40 tabular-nums"
+                                // The list's one control height (the field's own,
+                                // 44px on a phone and 36px from md up): a plain h-8
+                                // here lost to the field's md:h-9 anyway.
+                                className="w-40 tabular-nums"
                                 aria-invalid={error ? true : undefined}
                                 aria-describedby={error ? "retention-days-error retention-days-desc" : "retention-days-desc"}
                             />
