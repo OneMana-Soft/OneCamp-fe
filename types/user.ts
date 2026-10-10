@@ -232,9 +232,11 @@ interface langListInterface {
 }
 
 export const appLangList:langListInterface = {
-    'am': {
+    // Arabic is "ar". It was listed as "am", which is Amharic, though the
+    // translation behind it has always been Arabic.
+    'ar': {
         name: "Arabic",
-        code: "am"
+        code: "ar"
     },
     'be': {
         name: "Belarusian",
@@ -324,4 +326,16 @@ export const appLangList:langListInterface = {
         name: "Swedish",
         code: "sv"
     }
+}
+
+/**
+ * Codes saved before a language's code was corrected, and the code they mean
+ * now: someone who chose Arabic when it was listed as "am" still has Arabic.
+ */
+export const LANG_ALIASES: Record<string, string> = { am: "ar" }
+
+/** The language a saved code means, reading an old code as its new one. */
+export function appLanguage(code?: string | null): langInterface | undefined {
+    if (!code) return undefined
+    return appLangList[code] ?? appLangList[LANG_ALIASES[code] ?? ""]
 }
