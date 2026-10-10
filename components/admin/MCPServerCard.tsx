@@ -11,9 +11,13 @@
  *
  * The two values save TOGETHER, matching the API, because they are one decision:
  * enabling the surface while nothing is selected exposes no tools, and selecting
- * groups without enabling looks like it took effect when nothing changed. So there is
- * one Save, disabled until something differs from what is stored — no "did that
- * apply?" ambiguity.
+ * groups without enabling looks like it took effect when nothing changed. So the
+ * edits wait in a save bar, which appears only while something differs from what is
+ * stored, and stays in view while you scroll this long section.
+ *
+ * Until the stored setting is read there is no form. A failed read used to show the
+ * switch as off, which an admin reads as "the door is closed", with a Save that could
+ * never be pressed.
  *
  * THE GROUPS COME FROM THE SERVER, not from a list in here. A group a new tool
  * introduces appears without anyone remembering to add it, and a group with no tools
@@ -21,13 +25,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
+import { SettingsList, SettingsSection, SwitchRow, SaveBar } from "@/components/ui/settingsSection"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { ErrorState } from "@/components/ui/error-state"
 import { useToast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { cn } from "@/lib/utils/helpers/cn"
 import { ShieldAlert } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -104,6 +109,8 @@ function MCPServerCard() {
     const [selected, setSelected] = useState<string[]>([])
     const [allGroups, setAllGroups] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [failed, setFailed] = useState(false)
+    const [retrying, setRetrying] = useState(false)
 
     // Derived from the same base URL axios uses, so these cannot drift from the instance being
     // administered. Memoised only because they are strings rebuilt on every keystroke otherwise;
@@ -118,11 +125,11 @@ function MCPServerCard() {
     const load = useCallback(async () => {
         try {
             setStored(await getAIMCPServer())
+            setFailed(false)
         } catch {
-            // Leave the form on its defaults (off, nothing selected). A failed read must
-            // not block the rest of the settings screen, and it must not render as
-            // "enabled" — an admin has to be able to trust that a toggle shown as off
-            // means the surface is closed.
+            // No form on defaults: a switch shown as off is read as "the surface is
+            // closed", and that must only ever be said by the server.
+            setFailed(true)
         }
     }, [])
 
@@ -131,14 +138,15 @@ function MCPServerCard() {
     }, [load])
 
     // Re-sync whenever stored settings arrive, so the form starts from the truth rather
-    // than from a stale first render.
-    useEffect(() => {
+    // than from a stale first render. Also what Discard puts back.
+    const resetToStored = useCallback(() => {
         if (!stored) return
         const groups = parseGroups(stored.tool_groups)
         setEnabled(stored.enabled)
         setAllGroups(groups.includes(ALL))
         setSelected(groups.filter((g) => g !== ALL))
     }, [stored])
+    useEffect(resetToStored, [resetToStored])
 
     const available = stored?.available_groups ?? []
 
@@ -170,20 +178,20 @@ function MCPServerCard() {
         try {
             await setAIMCPServer(enabled, toolGroups)
             toast({
-                title: "Saved",
+                title: "External agent access saved",
                 description: enabled
-                    ? "External agents can reach the groups you selected."
-                    : "The MCP surface is closed to external agents.",
+                    ? "Outside agents can reach the groups you chose."
+                    : "Outside agents can't connect.",
             })
             // Re-read rather than assume: the stored value is the truth this form must
             // show, and the server normalises what it was sent.
             await load()
         } catch (e) {
             toast({
-                title: "Couldn't save",
+                title: "Couldn't save external agent access",
                 // The server names the valid groups when one is unrecognised, so its
                 // message is more useful than anything written here.
-                description: e instanceof Error ? e.message : "Failed to update the setting.",
+                description: apiErrorMessage(e, "Try again in a moment."),
                 variant: "destructive",
             })
         } finally {
@@ -192,56 +200,48 @@ function MCPServerCard() {
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base font-semibold">External agent access (MCP)
+        <SettingsSection
+            title={
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    External agent access (MCP)
                     {stored ? (
-                        <Badge
-                            variant="outline"
-                            className={
-                                stored.enabled
-                                    ? "text-2xs bg-success/10 text-success-ink border-success/20"
-                                    : "text-2xs bg-muted text-muted-foreground border-border"
-                            }
-                        >
+                        // A state, so a dot and a word rather than a tinted badge.
+                        <span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                            <span
+                                aria-hidden="true"
+                                className={cn("h-1.5 w-1.5 rounded-full", stored.enabled ? "bg-success" : "bg-faint-foreground")}
+                            />
                             {stored.enabled ? "On" : "Off"}
-                        </Badge>
+                        </span>
                     ) : null}
-                </CardTitle>
-                <CardDescription>
-                    Let outside agents work in this workspace over the Model Context Protocol: any
-                    MCP client on any model, from a local one on Ollama to Claude, ChatGPT or Grok Bot. They sign in by URL, and every
-                    call runs as the person who approved it, so an agent can never reach something its owner
-                    couldn&apos;t open themselves, and every call is recorded in the audit log
-                    whether it succeeded or was refused. Most tools are additionally re-checked
-                    against that person&apos;s live permission on the specific channel, document or
-                    task before they run. Turning a group on here narrows what is reachable; it
-                    never widens anyone&apos;s permissions.
-                </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-5">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                        <Label htmlFor="mcp-enabled" className="text-sm">
-                            Allow external agents to connect
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                            Off by default. While this is off, the endpoint refuses every call
-                            regardless of what any token allows.
-                        </p>
-                    </div>
-                    <Switch
-                        id="mcp-enabled"
-                        checked={enabled}
-                        onCheckedChange={setEnabled}
-                        aria-describedby="mcp-enabled-hint"
-                    />
+                </span>
+            }
+            description="Let outside agents work here over the Model Context Protocol, from a local model on Ollama to Claude, ChatGPT or Grok Bot. Each call runs as the person who approved the agent, so it can't reach anything they couldn't open, and every call, allowed or refused, goes in the audit log. Choosing groups here narrows what is reachable; it never widens anyone's permissions."
+        >
+            {!stored && failed ? (
+                <ErrorState
+                    subject="the external agent access setting"
+                    retrying={retrying}
+                    onRetry={() => {
+                        setRetrying(true)
+                        void load().finally(() => setRetrying(false))
+                    }}
+                />
+            ) : !stored ? (
+                <div role="status" aria-label="Loading the external agent access setting">
+                    <SkeletonRows rows={3} avatar={false} />
                 </div>
-                <p id="mcp-enabled-hint" className="sr-only">
-                    Controls whether the Model Context Protocol endpoint accepts calls from
-                    external AI clients.
-                </p>
+            ) : (
+            <div className="space-y-5">
+                <SettingsList>
+                    <SwitchRow
+                        label="Allow external agents to connect"
+                        description="Off by default. While it's off, every call is refused, whatever a token allows."
+                        checked={enabled}
+                        disabled={saving}
+                        onChange={setEnabled}
+                    />
+                </SettingsList>
 
                 <fieldset className="space-y-3" disabled={!enabled}>
                     <legend className="text-sm font-medium">What agents can reach</legend>
@@ -315,19 +315,10 @@ function MCPServerCard() {
                     </div>
                 )}
 
-                <div className="flex items-center justify-between gap-3 pt-1">
-                    <p className="text-xs text-muted-foreground">
-                        Agent calls, including refused ones, appear in the audit log under{" "}
-                        <span className="font-medium">agent</span>.
-                    </p>
-                    <Button variant="outline"
-                        size="sm"
-                        onClick={handleSave}
-                        disabled={!dirty || saving || enabledButNothing}
-                    >
-                        {saving ? "Saving…" : "Save"}
-                    </Button>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                    Agent calls, including refused ones, appear in Admin, Audit log, under{" "}
+                    <span className="font-medium">Agent</span>.
+                </p>
 
                 {/*
                     HOW TO ACTUALLY CONNECT. Until this existed, the endpoint URL lived only in
@@ -359,7 +350,7 @@ function MCPServerCard() {
                         {endpoint ? (
                             <>
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs">Address</Label>
+                                    <p className="text-xs text-muted-foreground">Address</p>
                                     <CopyableCode value={endpoint} label="MCP address" />
                                 </div>
 
@@ -395,12 +386,12 @@ function MCPServerCard() {
                                                     {MCP_TOKEN_PLACEHOLDER}
                                                 </code>{" "}
                                                 with a token from{" "}
-                                                <span className="font-medium">Settings → API tokens</span>,
+                                                <span className="font-medium">Settings, API tokens</span>,
                                                 ideally bound to an agent. Tokens are shown once.
                                             </p>
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs">Check it works</Label>
+                                            <p className="text-xs text-muted-foreground">Check it works</p>
                                             <CopyableCode value={curlExample} label="test command" />
                                             <p className="text-xs text-muted-foreground">
                                                 An empty tool list means the token holds no scopes, or no
@@ -416,16 +407,28 @@ function MCPServerCard() {
                                 inside a block people copy without reading is worse than saying so.
                             */
                             <p className="text-xs text-danger-ink">
-                                The endpoint URL can&apos;t be resolved because this build has no
-                                backend URL configured (NEXT_PUBLIC_BACKEND_URL). The path is{" "}
+                                The address can&apos;t be shown because this server has no API
+                                address set (NEXT_PUBLIC_BACKEND_URL). It is{" "}
                                 <code className="rounded bg-muted px-1">/v1/mcp</code> on your API
                                 host.
                             </p>
                         )}
                     </div>
                 )}
-            </CardContent>
-        </Card>
+
+                {/* Saving waits for this bar while nothing is selected: the
+                    server refuses an open surface with no groups, and the
+                    warning above says why. */}
+                <SaveBar
+                    dirty={dirty && !enabledButNothing}
+                    saving={saving}
+                    what="external agent access changes"
+                    onSave={() => void handleSave()}
+                    onDiscard={resetToStored}
+                />
+            </div>
+            )}
+        </SettingsSection>
     )
 }
 
