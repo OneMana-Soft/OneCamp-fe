@@ -22,6 +22,15 @@ type EmptyStateTone = "muted" | "accent"
 
 interface EmptyStateProps {
   icon?: LucideIcon
+  /**
+   * A spot illustration (components/ui/graphics, the playful layer) above the
+   * heading, in place of the icon: <SpotInbox hue="sky" />. When both are
+   * given the illustration wins. The tone sizes it, 64px muted and 96px
+   * accent, whatever size the spot was given, and it is decorative: the
+   * heading says what is empty. A spot is a whole drawing, not an icon in a
+   * tinted chip, so the rule below still holds.
+   */
+  illustration?: React.ReactNode
   title: string
   /**
    * ReactNode rather than string: several empty states need emphasis inside the
@@ -51,6 +60,7 @@ interface EmptyStateProps {
 
 export function EmptyState({
   icon: Icon,
+  illustration,
   title,
   description,
   action,
@@ -78,7 +88,15 @@ export function EmptyState({
           spent the accent on an illustration rather than on the action under
           it (design direction: "never put an icon inside a tinted chip").
           The accent tone is now carried by scale, not colour. */}
-      {Icon && (
+      {illustration ? (
+        <div
+          aria-hidden="true"
+          data-empty-illustration=""
+          className={cn("shrink-0", accent ? "[&>svg]:size-24" : "[&>svg]:size-16")}
+        >
+          {illustration}
+        </div>
+      ) : Icon && (
         <Icon
           aria-hidden="true"
           data-empty-icon=""
