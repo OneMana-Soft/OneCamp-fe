@@ -11,10 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints"
-import { AdminCreateOrRemoveInterface, UserProfileDataInterface } from "@/types/user"
-import axiosInstance from "@/lib/axiosInstance"
+import { UserProfileDataInterface } from "@/types/user"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Check, Search } from "@/lib/icons";
 import { UserPlus } from "lucide-react";
@@ -28,6 +27,7 @@ import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { toast } from "@/hooks/use-toast"
 
 interface AddAdminDialogProps {
   open: boolean
@@ -134,7 +134,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
   const [loaded, setLoaded] = useState<Loaded>({ state: "loading" })
   const [refused, setRefused] = useState("")
   const [attempt, setAttempt] = useState(0)
-  const post = usePost()
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -174,18 +174,21 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
   )
 
   const handleAddAdmin = async () => {
-    if (!selectedUser) return
+    if (!selectedUser || submitting) return
     setRefused("")
+    setSubmitting(true)
     try {
-      await post.makeRequest<AdminCreateOrRemoveInterface>({
-        apiEndpoint: PostEndpointUrl.CreateAdmin,
-        payload: { user_uuid: selectedUser.user_uuid! },
-      })
+      // OWN_ERRORS: a refusal is said here, beside the choice, so the global
+      // toast stands down rather than saying it a second time.
+      await axiosInstance.post(PostEndpointUrl.CreateAdmin, { user_uuid: selectedUser.user_uuid }, OWN_ERRORS)
     } catch (e) {
-      // Said here, beside the choice, and the dialog stays open to try again.
+      // The dialog stays open, to choose again or try again.
       setRefused(apiErrorMessage(e, "Try again in a moment."))
       return
+    } finally {
+      setSubmitting(false)
     }
+    toast({ title: `${displayNameOf(selectedUser)} is an admin now` })
     onSuccess()
     close(false)
   }
@@ -276,11 +279,11 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)} disabled={post.isSubmitting}>
+          <Button variant="outline" onClick={() => close(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleAddAdmin} disabled={!selectedUser || post.isSubmitting}>
-            {post.isSubmitting ? "Making admin…" : "Make admin"}
+          <Button onClick={handleAddAdmin} disabled={!selectedUser || submitting}>
+            {submitting ? "Making admin…" : "Make admin"}
           </Button>
         </DialogFooter>
       </DialogContent>
