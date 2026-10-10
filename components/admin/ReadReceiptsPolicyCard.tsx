@@ -3,55 +3,45 @@
 // The workspace's read receipts: on (each person can turn theirs off), or
 // off for everyone. On by default, as in Teams and Zulip.
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { getWorkspaceSettings, setReadReceiptsPolicy } from "@/services/settingsService"
+import { setReadReceiptsPolicy, useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 
 export default function ReadReceiptsPolicyCard() {
     const { toast } = useToast()
-    // null until the server has said: the switch is never drawn from a guess.
-    const [enabled, setEnabled] = useState<boolean | null>(null)
-    const [failed, setFailed] = useState(false)
+    // The workspace's settings, read once for every card that shows a part of
+    // them. The switch is never drawn from a guess: a failed read used to leave
+    // it at its default, on, beside a toast that soon left.
+    const { settings, isLoading, isError, mutate } = useWorkspaceSettings()
+    // The value being saved, shown at once; null once the server has answered.
+    const [pending, setPending] = useState<boolean | null>(null)
     const [saving, setSaving] = useState(false)
-
-    // A failed read used to leave the switch at its default, on, beside a toast
-    // that soon left, so the card claimed a setting it had never read.
-    const load = () => {
-        setFailed(false)
-        setEnabled(null)
-        getWorkspaceSettings()
-            .then((s) => {
-                if (!s) {
-                    setFailed(true)
-                    return
-                }
-                setEnabled(s.read_receipts_enabled !== false)
-            })
-            .catch(() => setFailed(true))
-    }
-
-    useEffect(() => {
-        load()
-    }, [])
+    const enabled = pending ?? (settings ? settings.read_receipts_enabled !== false : null)
 
     const toggle = async (next: boolean) => {
         setSaving(true)
-        setEnabled(next)
+        setPending(next)
         try {
             const applied = await setReadReceiptsPolicy(next)
-            setEnabled(applied)
+            await mutate(
+                (d) => (d?.data ? { ...d, data: { ...d.data, read_receipts_enabled: applied } as WorkspaceSettings } : d),
+                { revalidate: false },
+            )
             toast({ title: applied ? "Read receipts on" : "Read receipts off" })
         } catch (e) {
-            setEnabled(!next)
             toast({ title: "Couldn't change read receipts", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
+            // Back to what the server holds: the saved value, or the old one.
+            setPending(null)
             setSaving(false)
         }
     }
+
+    const failed = isError || (!isLoading && !settings)
 
     return (
         <SettingsSection
@@ -65,7 +55,7 @@ export default function ReadReceiptsPolicyCard() {
             }
         >
             {failed ? (
-                <ErrorState subject="the read receipts setting" onRetry={load} />
+                <ErrorState compact subject="the read receipts setting" onRetry={() => void mutate()} />
             ) : enabled === null ? (
                 <SettingsList>
                     <div aria-busy="true" aria-label="Loading the read receipts setting" className="flex items-start justify-between gap-4 px-4 py-3">

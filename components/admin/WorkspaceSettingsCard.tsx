@@ -6,15 +6,14 @@
 // email is configured in one place. DB-first with env fallback. Changes apply
 // without a restart.
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
-import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
+import { updateWorkspaceSettings, useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { appMutate as globalMutate } from "@/lib/swrMutate";
 import { serverMessage } from "@/lib/http/serverMessage"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -38,9 +37,13 @@ const sameList = (a: string, b: string) => entries(a).join(",") === entries(b).j
 
 export default function WorkspaceSettingsCard() {
     const { toast } = useToast()
-    const [settings, setSettings] = useState<WorkspaceSettings | null>(null)
-    const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
-    const [draft, setDraft] = useState<Draft>({ uploadLimit: "", allowedUsers: "" })
+    // One read of the workspace's settings, shared with the read receipts,
+    // guest access and email cards: four requests became one, and a save here
+    // reaches the others.
+    const { settings, isLoading, isError, mutate } = useWorkspaceSettings()
+    // The person's edits over the server's answer; null while they have none,
+    // so the form follows the server until somebody types.
+    const [edits, setEdits] = useState<Draft | null>(null)
     const [saving, setSaving] = useState(false)
     // Said under the field it is about, not in a toast that leaves with the error.
     const [sizeError, setSizeError] = useState("")
@@ -50,33 +53,16 @@ export default function WorkspaceSettingsCard() {
     const listRef = useRef<HTMLTextAreaElement>(null)
 
     const saved = settings ? draftOf(settings) : null
+    const draft: Draft = edits ?? saved ?? { uploadLimit: "", allowedUsers: "" }
     const sizeChanged = !!saved && draft.uploadLimit !== saved.uploadLimit
     const listChanged = !!saved && !sameList(draft.allowedUsers, saved.allowedUsers)
     const dirty = sizeChanged || listChanged
-
-    const load = () => {
-        setState("loading")
-        getWorkspaceSettings()
-            .then((s) => {
-                // No answer to build the form from is a failed read too: an empty
-                // allow-list here would save as "invite only".
-                if (!s) {
-                    setState("failed")
-                    return
-                }
-                setSettings(s)
-                setDraft(draftOf(s))
-                setState("ready")
-            })
-            .catch(() => setState("failed"))
-    }
-
-    useEffect(() => {
-        load()
-    }, [])
+    const edit = (patch: Partial<Draft>) => setEdits({ ...draft, ...patch })
+    // What a save answered goes into the shared read, so every card shows it.
+    const store = (s: WorkspaceSettings) => mutate({ data: s }, { revalidate: false })
 
     const discard = () => {
-        if (saved) setDraft(saved)
+        setEdits(null)
         setSizeError("")
         setAccessRefusal("")
     }
@@ -96,7 +82,7 @@ export default function WorkspaceSettingsCard() {
             if (sizeChanged) {
                 try {
                     const s = await updateWorkspaceSettings({ upload_limit_mb: Number(draft.uploadLimit) }, { ownErrors: true })
-                    if (s) setSettings(s)
+                    if (s) await store(s)
                     // Bust the client-config cache so composers pick up the new limit.
                     globalMutate("client-config")
                 } catch (e) {
@@ -108,16 +94,16 @@ export default function WorkspaceSettingsCard() {
             if (listChanged) {
                 try {
                     const s = await updateWorkspaceSettings({ allowed_users: entries(draft.allowedUsers) }, { ownErrors: true })
-                    if (s) {
-                        setSettings(s)
-                        setDraft((d) => ({ ...d, allowedUsers: draftOf(s).allowedUsers }))
-                    }
+                    if (s) await store(s)
                 } catch (err) {
                     setAccessRefusal(serverMessage(err, "Couldn't save the allow-list. Try again."))
                     listRef.current?.focus()
                     return
                 }
             }
+            // Saved: the form follows the server's answer again (the list as
+            // the server wrote it back).
+            setEdits(null)
             toast({ title: "Workspace settings saved" })
         } finally {
             setSaving(false)
@@ -125,23 +111,29 @@ export default function WorkspaceSettingsCard() {
     }
 
     let body: React.ReactNode
-    if (state === "loading") {
+    if (isError || (!isLoading && !settings)) {
+        // No form at all: the fields would be empty, and saving an empty
+        // allow-list over a failed read made the workspace invite-only.
+        body = <ErrorState compact subject="the workspace settings" onRetry={() => void mutate()} />
+    } else if (!settings) {
+        // The rows' own shape: a setting with its field at the end, then the
+        // allow-list's words over its box.
         body = (
             <SettingsList>
-                <div aria-busy="true" aria-label="Loading the workspace settings" className="space-y-2 px-4 py-3">
-                    <Skeleton className="h-4 w-56" />
-                    <Skeleton className="h-3 w-80 max-w-full" />
+                <div aria-busy="true" aria-label="Loading the workspace settings" className="flex items-center justify-between gap-6 px-4 py-3">
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-4 w-56" />
+                        <Skeleton className="h-3 w-80 max-w-full" />
+                    </div>
+                    <Skeleton className="h-9 w-24 shrink-0" />
                 </div>
                 <div aria-hidden="true" className="space-y-2 px-4 py-3">
                     <Skeleton className="h-4 w-64" />
+                    <Skeleton className="h-3 w-full" />
                     <Skeleton className="h-16 w-full" />
                 </div>
             </SettingsList>
         )
-    } else if (state === "failed" || !settings) {
-        // No form at all: the fields would be empty, and saving an empty
-        // allow-list over a failed read made the workspace invite-only.
-        body = <ErrorState subject="the workspace settings" onRetry={load} />
     } else {
         body = (
             <>
@@ -161,10 +153,10 @@ export default function WorkspaceSettingsCard() {
                                 min={1}
                                 value={draft.uploadLimit}
                                 onChange={(e) => {
-                                    setDraft((d) => ({ ...d, uploadLimit: e.target.value }))
+                                    edit({ uploadLimit: e.target.value })
                                     setSizeError("")
                                 }}
-                                className="h-8 w-24 text-right tabular-nums"
+                                className="w-24 text-right tabular-nums"
                                 aria-invalid={sizeError ? true : undefined}
                                 aria-describedby={sizeError ? "upload-limit-error upload-limit-desc" : "upload-limit-desc"}
                             />
@@ -176,20 +168,21 @@ export default function WorkspaceSettingsCard() {
                             </p>
                         )}
                     </div>
-                    {/* A list, so the field is as wide as the row and its label and help
-                        sit above it, at the same padding as the row above. */}
-                    <div className="space-y-2 px-4 py-3">
-                        <div className="space-y-1">
-                            <Label htmlFor="allowed-users" className="text-sm font-medium leading-5">
-                                Who can join without an invitation
-                            </Label>
-                            <p id="allowed-users-desc" className="text-xs text-muted-foreground text-pretty">
+                    {/* Its words over a field as wide as the row, at the same
+                        padding as the row above. */}
+                    <SettingRow
+                        layout="stacked"
+                        label="Who can join without an invitation"
+                        description={
+                            <>
                                 Emails and domains, separated by commas; empty means invitation only. A listed address joins
                                 by signing in with Google or GitHub. A domain like @example.com admits a Google Workspace
                                 account that example.com manages: not GitHub, and not a personal Google account with an address
                                 there. Public email domains like @gmail.com can&apos;t be added. {SOURCE[settings.allowed_users_source] ?? ""}
-                            </p>
-                        </div>
+                            </>
+                        }
+                        controlId="allowed-users"
+                    >
                         <Textarea
                             ref={listRef}
                             id="allowed-users"
@@ -198,7 +191,7 @@ export default function WorkspaceSettingsCard() {
                             spellCheck={false}
                             value={draft.allowedUsers}
                             onChange={(e) => {
-                                setDraft((d) => ({ ...d, allowedUsers: e.target.value }))
+                                edit({ allowedUsers: e.target.value })
                                 setAccessRefusal("")
                             }}
                             placeholder="alice@example.com, @example.com"
@@ -207,9 +200,9 @@ export default function WorkspaceSettingsCard() {
                             aria-describedby={accessRefusal ? "allowed-users-refusal allowed-users-desc" : "allowed-users-desc"}
                         />
                         {accessRefusal && (
-                            <p id="allowed-users-refusal" role="alert" className="text-sm text-danger-ink">{accessRefusal}</p>
+                            <p id="allowed-users-refusal" role="alert" className="mt-2 text-sm text-danger-ink">{accessRefusal}</p>
                         )}
-                    </div>
+                    </SettingRow>
                 </SettingsList>
                 <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={discard} what="workspace settings" />
             </>

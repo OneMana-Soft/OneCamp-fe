@@ -11,12 +11,23 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
 const service = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
-vi.mock("@/services/settingsService", () => ({
-  getWorkspaceSettings: service.get,
+// Read through the one shared SWR key (useWorkspaceSettings), answering from service.get.
+vi.mock("@/lib/axiosInstance", () => ({
+  default: { get: async () => ({ data: { data: await service.get() } }), post: vi.fn() },
+  OWN_ERRORS: {},
+}))
+vi.mock("@/services/settingsService", async (orig) => ({
+  ...(await orig<typeof import("@/services/settingsService")>()),
   updateWorkspaceSettings: service.update,
 }))
 
-const { default: WorkspaceSettingsCard } = await import("./WorkspaceSettingsCard")
+const { SWRConfig } = await import("swr")
+const { default: Card } = await import("./WorkspaceSettingsCard")
+const WorkspaceSettingsCard = () => (
+  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+    <Card />
+  </SWRConfig>
+)
 
 const saved = { upload_limit_mb: 10, upload_limit_source: "default", allowed_users: ["@acme.example"], allowed_users_source: "db" }
 
@@ -87,5 +98,44 @@ describe("saving workspace settings", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/1 MB or more/)
     expect(size.getAttribute("aria-invalid")).toBe("true")
     expect(document.activeElement).toBe(size)
+  })
+
+  // The allow-list is a row whose field sits under its words at the list's
+  // width (SettingRow layout="stacked"), and the size field keeps the list's
+  // one control height rather than a 32px field beside 36px ones.
+  it("draws the allow-list as a stacked row, and the size at the list's height", async () => {
+    service.get.mockResolvedValue(saved)
+    render(<WorkspaceSettingsCard />)
+    const list = await screen.findByLabelText(/Who can join without an invitation/)
+    expect(list.closest("[data-setting-row]")?.getAttribute("data-setting-row")).toBe("stacked")
+    const size = screen.getByLabelText(/Largest file a member can upload/)
+    expect(size.className).not.toMatch(/(^|\s)h-8(\s|$)/)
+  })
+})
+
+// Four cards read /admin/settings (this one, read receipts, guest access and
+// the email key). They share one request, and a save here updates the others.
+describe("the workspace's settings, shared", () => {
+  it("puts what a save answered into the shared read, so the other cards show it", async () => {
+    service.get.mockResolvedValue(saved)
+    service.update.mockResolvedValue({ ...saved, upload_limit_mb: 25 })
+    const { useWorkspaceSettings } = await import("@/services/settingsService")
+    const Other = () => {
+      const { settings } = useWorkspaceSettings()
+      return <p>other card: {settings ? `${settings.upload_limit_mb} MB` : "…"}</p>
+    }
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 60_000, shouldRetryOnError: false }}>
+        <Card />
+        <Other />
+      </SWRConfig>,
+    )
+    const size = (await screen.findByLabelText(/Largest file a member can upload/)) as HTMLInputElement
+    expect(await screen.findByText("other card: 10 MB")).toBeTruthy()
+    expect(service.get).toHaveBeenCalledTimes(1)
+    fireEvent.change(size, { target: { value: "25" } })
+    await act(async () => void fireEvent.click(within(saveBar()).getByRole("button", { name: "Save" })))
+    expect(await screen.findByText("other card: 25 MB")).toBeTruthy()
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
   })
 })
