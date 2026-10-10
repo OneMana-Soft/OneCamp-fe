@@ -18,8 +18,11 @@ export function SectionListSkeleton({
   trailing = "none",
   className,
 }: {
-  /** What is loading, for a screen reader ("Loading the AI activity"). */
-  label: string
+  /**
+   * What is loading, for a screen reader ("Loading the AI activity"). Leave it
+   * out when a wrapper already says so: the list is then only its shape.
+   */
+  label?: string
   rows?: number
   /** Lines per row: the title, then meta lines. */
   lines?: 1 | 2 | 3
@@ -33,7 +36,13 @@ export function SectionListSkeleton({
   className?: string
 }) {
   return (
-    <div role="status" aria-label={label} data-section-list-skeleton="" className={cn("divide-y divide-border rounded-lg border border-border", className)}>
+    <div
+      role={label ? "status" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      data-section-list-skeleton=""
+      className={cn("divide-y divide-border rounded-lg border border-border", className)}
+    >
       {Array.from({ length: rows }).map((_, i) =>
         trailing === "control" ? (
           <div key={i} aria-hidden="true" className="@container px-4 py-3">
