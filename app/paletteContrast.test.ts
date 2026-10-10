@@ -51,8 +51,14 @@ function token(name: string, mode: "light" | "dark"): string {
 
 function rgb(name: string, mode: "light" | "dark") {
   const raw = token(name, mode)
+  // The camp hues are the design direction's hex table verbatim.
+  const hex = /^#([0-9a-f]{6})$/i.exec(raw)
+  if (hex) {
+    const n = parseInt(hex[1], 16)
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+  }
   const parsed = parseOklch(raw)
-  if (!parsed) throw new Error(`--${name} in ${mode} is not oklch: ${raw}`)
+  if (!parsed) throw new Error(`--${name} in ${mode} is not oklch or hex: ${raw}`)
   return oklchToRgb(parsed.l, parsed.c, parsed.h)
 }
 
@@ -123,6 +129,34 @@ describe.each(["light", "dark"] as const)("%s: a status word reads on its own ti
         const ratio = contrastRatio(rgb(ink, mode), tint)
         expect(ratio, `--${ink} on --${fill} at ${alpha * 100}% over --${ground}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
       }
+    }
+  })
+})
+
+/**
+ * The camp palette (the playful layer): six identity hues in three cuts.
+ *
+ * The ink is text, so it reads at 4.5:1 on its own tint (a tag, a tile, an
+ * avatar's initials) and on the page and a card. The strong cut is a graphic
+ * (a dot, an icon, a chart line, a ring), so it holds 3:1 on every ground a
+ * mark sits on: the page, a card, the canvas the sidebar's dots sit on, and
+ * its own tint, where a tile puts its icon. Sun is the tightest, at 3.10 on
+ * the canvas and on its tint in light mode: a lighter sun fails here first.
+ */
+const CAMP_HUES = ["sun", "moss", "lake", "sky", "dusk", "berry"] as const
+
+describe.each(["light", "dark"] as const)("%s: the camp hues", (mode) => {
+  it.each(CAMP_HUES)("%s: the ink reads on its own tint, the page and a card", (hue) => {
+    for (const ground of [`camp-${hue}-tint`, "background", "card"]) {
+      const ratio = contrastRatio(rgb(`camp-${hue}-ink`, mode), rgb(ground, mode))
+      expect(ratio, `--camp-${hue}-ink on --${ground}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it.each(CAMP_HUES)("%s: the strong cut is a visible mark on the page, a card, the canvas and its tint", (hue) => {
+    for (const ground of ["background", "card", "canvas", `camp-${hue}-tint`]) {
+      const ratio = contrastRatio(rgb(`camp-${hue}`, mode), rgb(ground, mode))
+      expect(ratio, `--camp-${hue} on --${ground}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
     }
   })
 })

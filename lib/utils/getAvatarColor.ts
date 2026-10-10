@@ -1,15 +1,23 @@
+import { avatarHueClass } from "@/components/ui/graphics/hues"
+import { hueFor } from "@/lib/campHue"
+
 /**
- * The avatar fallback: initials in text-2 on a neutral ground (surface-3).
+ * The avatar fallback: a person without a photo, in their camp hue. The hue's
+ * tint behind its ink initials, inside a hairline of its strong cut.
  *
- * It was a name-hashed pastel from ten hues (Notion's way), so every message
- * row carried a purple SR, a peach MC and a beige JW. A photo carries identity;
- * initials only stand in for one, and the colours added noise to every row
- * without telling anyone apart that the name beside them did not. Agents keep
- * their own tint, set where an agent's avatar is drawn.
+ * History, because it has moved twice. It was a name-hashed pastel from ten
+ * unrelated hues (a purple SR, a peach MC, a beige JW), which was noise. Wave
+ * 1 made it one neutral grey, which was calm and anonymous: an avatar row read
+ * as a row of grey coins. The playful layer (10 Oct 2026) brings colour back as
+ * a system: six harmonised hues, the same hue for the same person on every
+ * screen (lib/campHue), every pair of cuts measured for AA. Photos are
+ * untouched; agents keep their own tint, set where an agent's avatar is drawn.
  *
- * The seed is still taken so callers need not change, and so a palette can
- * come back in one place if one is ever wanted.
+ * The seed is whatever the call site keys the person by. Today every caller
+ * passes the display name, so a person is one colour everywhere; a caller that
+ * switches to the uuid must switch with all the others, or that person gets
+ * two colours. A colour the person picked (chosen) wins.
  */
-export function getAvatarFallbackClass(_seed?: string | undefined | null): string {
-    return "bg-sidebar-accent text-muted-foreground font-medium"
+export function getAvatarFallbackClass(seed?: string | undefined | null, chosen?: string | null): string {
+    return `${avatarHueClass(hueFor(seed, chosen))} font-medium`
 }
