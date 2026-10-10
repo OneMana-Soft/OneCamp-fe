@@ -44,7 +44,14 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
     const submit = useCallback(
         async (value: string) => {
             const trimmed = value.trim()
-            if (trimmed === "" || busy) return
+            if (busy) return
+            // Verify can be pressed at once (a disabled button doesn't say why);
+            // pressed with nothing in the field, it says what is missing.
+            if (trimmed === "") {
+                setError(usingRecoveryCode ? "Enter one of your recovery codes." : "Enter the 6-digit code from your authenticator app.")
+                inputRef.current?.focus()
+                return
+            }
 
             setBusy(true)
             setError("")
@@ -63,7 +70,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                 setBusy(false)
             }
         },
-        [busy, onSubmit],
+        [busy, onSubmit, usingRecoveryCode],
     )
 
     return (
@@ -91,9 +98,13 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                 // fire the request twice.
                 onComplete={(next) => void submit(next)}
                 usingRecoveryCode={usingRecoveryCode}
-                disabled={busy}
+                // busy, not disabled: the field keeps the cursor while the code
+                // is checked, so after a wrong one the next is typed straight in.
+                busy={busy}
                 error={error}
                 inputRef={inputRef}
+                // The height of the sign-in page's other fields and buttons.
+                inputClassName="md:h-10"
             />
 
             {/*
@@ -110,11 +121,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                     Start again
                 </Button>
             ) : (
-                <Button
-                    type="submit"
-                    disabled={busy || code.trim() === ""}
-                    className={authControl}
-                >
+                <Button type="submit" disabled={busy} className={authControl}>
                     {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
                     {busy ? "Verifying…" : "Verify"}
                 </Button>

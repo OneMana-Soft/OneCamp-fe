@@ -4,6 +4,7 @@ import React from "react"
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * The one code field, used everywhere a second factor is typed.
@@ -69,12 +70,24 @@ interface TwoFactorCodeFieldProps {
     onComplete?: (value: string) => void
     usingRecoveryCode: boolean
     disabled?: boolean
+    /**
+     * A code is being checked: the field can't be changed, but it keeps focus.
+     * Use this rather than `disabled` where the cursor must come back to the
+     * field after a wrong code: a browser won't focus a disabled field, and one
+     * that is disabled while focused loses the focus, so the next code typed
+     * went nowhere.
+     */
+    busy?: boolean
     /** Shown beneath the field and announced. Empty string for none. */
     error?: string
     /** Overrides the default, e.g. "Enter a code to confirm". */
     label?: string
     inputRef?: React.Ref<HTMLInputElement>
     autoFocus?: boolean
+    /** Classes for the label, so a page can match its own field labels. */
+    labelClassName?: string
+    /** Classes for the input, so a page can match its own control height. */
+    inputClassName?: string
 }
 
 export function TwoFactorCodeField({
@@ -84,10 +97,13 @@ export function TwoFactorCodeField({
     onComplete,
     usingRecoveryCode,
     disabled,
+    busy,
     error = "",
     label,
     inputRef,
     autoFocus,
+    labelClassName,
+    inputClassName,
 }: TwoFactorCodeFieldProps) {
     const errorId = `${id}-error`
 
@@ -100,8 +116,9 @@ export function TwoFactorCodeField({
     }
 
     return (
-        <div className="space-y-1.5">
-            <Label htmlFor={id}>
+        // gap-2 between label and field, as Field and the sign-in fields have.
+        <div className="space-y-2">
+            <Label htmlFor={id} className={labelClassName}>
                 {label ?? (usingRecoveryCode ? "Recovery code" : "6-digit code")}
             </Label>
             <Input
@@ -110,6 +127,8 @@ export function TwoFactorCodeField({
                 value={value}
                 onChange={(e) => handleChange(e.target.value)}
                 disabled={disabled}
+                readOnly={busy}
+                aria-busy={busy || undefined}
                 // Numeric on mobile for digits, text for recovery codes: a hyphen is unreachable on a
                 // numeric keypad, which would make recovery unusable on a phone — the exact device
                 // situation recovery codes exist for.
@@ -123,7 +142,7 @@ export function TwoFactorCodeField({
                 autoFocus={autoFocus}
                 // No height class: Input defaults to h-11 md:h-9, and the 44px mobile half is a touch
                 // target floor asserted by e2e/designSystem.spec.ts.
-                className={`font-mono tracking-widest ${error !== "" ? "border-destructive/50" : ""}`}
+                className={cn("font-mono tracking-widest", error !== "" && "border-destructive/50", inputClassName)}
             />
             {error !== "" && (
                 // role=alert so a screen reader hears the rejection. Without it the only signal is a
