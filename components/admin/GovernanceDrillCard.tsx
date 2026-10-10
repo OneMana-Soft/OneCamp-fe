@@ -24,10 +24,12 @@
  * team may already have it.
  */
 
-import React, { useCallback, useEffect, useId, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { ErrorState } from "@/components/ui/error-state"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import {
     AlertTriangle,
     CheckCircle2,
@@ -107,15 +109,22 @@ const GovernanceDrillCard: React.FC = () => {
     const [result, setResult] = useState<DrillResult | undefined>(undefined)
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState<"setup" | "run" | undefined>(undefined)
-    const [error, setError] = useState("")
+    // Two different failures, said in two different places. A failed READ means
+    // the card doesn't know whether the drill is set up, so it offers neither
+    // action and shows the section's error state with Try again. A failed
+    // ACTION (setting up, running) is said in a line beside the action, which
+    // stays. Both used to be one red banner, and a failed read went on
+    // offering "Set it up" as if it knew.
+    const [loadError, setLoadError] = useState("")
+    const [actionError, setActionError] = useState<{ what: string; why: string } | null>(null)
 
     const loadStatus = useCallback(async () => {
         setLoading(true)
+        setLoadError("")
         try {
             setStatus(await getDrillStatus())
-            setError("")
         } catch (e) {
-            setError(apiErrorMessage(e))
+            setLoadError(apiErrorMessage(e, "Try again in a moment."))
         } finally {
             setLoading(false)
         }
@@ -127,11 +136,11 @@ const GovernanceDrillCard: React.FC = () => {
 
     const onSetup = useCallback(async () => {
         setBusy("setup")
-        setError("")
+        setActionError(null)
         try {
             setStatus(await setupDrill())
         } catch (e) {
-            setError(apiErrorMessage(e))
+            setActionError({ what: "Couldn't set up the drill", why: apiErrorMessage(e, "Try again in a moment.") })
         } finally {
             setBusy(undefined)
         }
@@ -139,14 +148,14 @@ const GovernanceDrillCard: React.FC = () => {
 
     const onRun = useCallback(async () => {
         setBusy("run")
-        setError("")
+        setActionError(null)
         // Cleared first: a stale PASSED sitting above a spinner is the one thing
         // this card must never show.
         setResult(undefined)
         try {
             setResult(await runDrill())
         } catch (e) {
-            setError(apiErrorMessage(e))
+            setActionError({ what: "Couldn't run the drill", why: apiErrorMessage(e, "Try again in a moment.") })
         } finally {
             setBusy(undefined)
         }
@@ -155,40 +164,29 @@ const GovernanceDrillCard: React.FC = () => {
     const seeded = status?.seeded === true
     const forbidden = status?.forbidden_channel || "drill-finance"
     const allowed = status?.allowed_channel || "drill-engineering"
-    const headingId = useId()
+    const known = !loading && !loadError
 
     // A section of the AI tab like the others: its heading and one line, with
-    // the tab's one primary action beside them, where it was a bordered card.
+    // the tab's one primary action on the title's row.
     return (
-        <section aria-labelledby={headingId} className="space-y-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                        <h2 id={headingId} className="text-base font-semibold">Governance drill</h2>
-                        <p className="max-w-[65ch] text-sm text-muted-foreground text-pretty">
-                            Ask an agent to post where the person behind it cannot, and watch what this
-                            install does. The attempt is recorded before it is tried, so the refusal is
-                            evidence rather than a claim.
-                        </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                        {seeded ? (
-                            <Button size="sm" onClick={onRun} disabled={busy !== undefined}>
-                                {busy === "run" ? (
-                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Play className="mr-1.5 h-3.5 w-3.5" />
-                                )}
-                                Run the drill
-                            </Button>
-                        ) : (
-                            <Button size="sm" variant="outline" onClick={onSetup} disabled={loading || busy !== undefined}>
-                                {busy === "setup" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                                Set it up
-                            </Button>
-                        )}
-                    </div>
-            </div>
-
+        <SettingsSection
+            title="Governance drill"
+            description="Ask an agent to post where the person behind it cannot, and watch what this install does. The attempt is recorded before it is tried, so the refusal is evidence rather than a claim."
+            action={
+                // Nothing to offer until the card knows whether the drill is set up.
+                loadError ? undefined : seeded ? (
+                    <Button size="sm" className={sectionActionClass} onClick={onRun} disabled={busy !== undefined}>
+                        {busy === "run" ? <Loader2 className="animate-spin" /> : <Play />}
+                        Run the drill
+                    </Button>
+                ) : (
+                    <Button size="sm" variant="outline" className={sectionActionClass} onClick={onSetup} disabled={loading || busy !== undefined}>
+                        {busy === "setup" ? <Loader2 className="animate-spin" /> : null}
+                        Set it up
+                    </Button>
+                )
+            }
+        >
             <div className="space-y-4">
                 {loading ? (
                     <div role="status" aria-label="Checking whether the drill is set up">
@@ -196,14 +194,20 @@ const GovernanceDrillCard: React.FC = () => {
                     </div>
                 ) : null}
 
-                {error ? (
-                    <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
-                        <p className="text-sm text-danger-ink">{error}</p>
-                    </div>
+                {loadError ? (
+                    <ErrorState compact subject="the governance drill" detail={loadError} onRetry={() => void loadStatus()} />
                 ) : null}
 
-                {!loading && !seeded && !error ? (
+                {actionError ? (
+                    <p role="alert" className="flex items-start gap-2 text-sm text-danger-ink">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span>
+                            <span className="font-medium">{actionError.what}.</span> {actionError.why}
+                        </span>
+                    </p>
+                ) : null}
+
+                {known && !seeded ? (
                     <p className="text-sm text-muted-foreground">
                         Setting up creates two private channels, <span className="font-mono">#{allowed}</span> and{" "}
                         <span className="font-mono">#{forbidden}</span>, and removes you from the second one so there is
@@ -212,7 +216,7 @@ const GovernanceDrillCard: React.FC = () => {
                     </p>
                 ) : null}
 
-                {seeded && !result && busy !== "run" ? (
+                {known && seeded && !result && busy !== "run" ? (
                     <p className="text-sm text-muted-foreground">
                         Ready. The drill will ask an agent acting for you to post in{" "}
                         <span className="font-mono">#{forbidden}</span>, which you are not a member of. It runs through
@@ -316,11 +320,7 @@ const GovernanceDrillCard: React.FC = () => {
 
                         <div className="flex items-center gap-2">
                             <Button size="sm" variant="outline" onClick={onRun} disabled={busy !== undefined}>
-                                {busy === "run" ? (
-                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Play className="mr-1.5 h-3.5 w-3.5" />
-                                )}
+                                {busy === "run" ? <Loader2 className="animate-spin" /> : <Play />}
                                 Run it again
                             </Button>
                             <p className="text-xs text-muted-foreground">Each run writes its own rows.</p>
@@ -328,7 +328,7 @@ const GovernanceDrillCard: React.FC = () => {
                     </>
                 ) : null}
             </div>
-        </section>
+        </SettingsSection>
     )
 }
 

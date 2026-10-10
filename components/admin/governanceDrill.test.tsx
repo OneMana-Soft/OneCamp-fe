@@ -204,6 +204,38 @@ describe("governance drill card", () => {
     expect(screen.getByText("Each run writes its own rows.")).toBeTruthy()
   })
 
+  // A failed read was a red banner with no way to try again, and the card went
+  // on offering "Set it up" as if it knew the drill wasn't set up. It is the
+  // section's error state now, under its title, with the server's reason.
+  it("says it couldn't check the drill, under its heading, with the reason and Try again", async () => {
+    vi.mocked(getDrillStatus)
+      .mockRejectedValueOnce({ response: { status: 503, data: { msg: "The drill could not be read." } } })
+      .mockResolvedValueOnce(seeded)
+    render(<GovernanceDrillCard />)
+    expect(await screen.findByText("Couldn't load the governance drill")).toBeTruthy()
+    expect(screen.getByText("The drill could not be read.")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 2, name: "Governance drill" })).toBeTruthy()
+    // Whether it is set up is unknown, so neither action is offered.
+    expect(screen.queryByRole("button", { name: /set it up/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: /run the drill/i })).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /try again/i })) })
+    expect(await screen.findByRole("button", { name: /run the drill/i })).toBeTruthy()
+  })
+
+  // A run that failed to start is said beside the action, in words, not as a
+  // second banner style.
+  it("says a failed run in a line with its reason, and keeps the action", async () => {
+    vi.mocked(getDrillStatus).mockResolvedValue(seeded)
+    vi.mocked(runDrill).mockRejectedValue({ response: { status: 500, data: { msg: "The executor is not running." } } })
+    render(<GovernanceDrillCard />)
+    const runBtn = await screen.findByRole("button", { name: /run the drill/i })
+    await act(async () => { fireEvent.click(runBtn) })
+    const alert = await screen.findByRole("alert")
+    expect(alert.textContent).toContain("Couldn't run the drill")
+    expect(alert.textContent).toContain("The executor is not running.")
+    expect(screen.getByRole("button", { name: /run the drill/i })).toBeTruthy()
+  })
+
   it("is a section of the AI tab with its own heading", async () => {
     vi.mocked(getDrillStatus).mockResolvedValue(seeded)
     render(<GovernanceDrillCard />)
