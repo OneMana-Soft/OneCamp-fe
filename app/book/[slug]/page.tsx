@@ -86,7 +86,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
   if (booked) return <Confirmation booked={booked} tz={tz} />
 
   return (
-    <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14">
+    <main className="min-h-dvh bg-muted/30 px-4 py-8 sm:py-14">
       <div className="mx-auto grid max-w-4xl overflow-hidden rounded-xl border bg-background grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="grid min-w-0 content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
           {/* Who the visitor is booking with comes first, as a person: their
@@ -340,5 +340,5 @@ function BookingSkeleton() {
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
+  return <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
 }

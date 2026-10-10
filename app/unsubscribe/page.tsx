@@ -36,7 +36,8 @@ import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
+import { AuthHeading, AuthShell, authControl, authLink } from "@/components/auth/AuthShell"
+import { cn } from "@/lib/utils/helpers/cn"
 import { apiUrl } from "@/lib/utils/apiUrl"
 import { SpotError, SpotInbox } from "@/components/ui/graphics/spots"
 
@@ -154,7 +155,7 @@ function SettingsButton() {
 function SettingsLink({ label }: { label: string }) {
   return (
     <p className="text-sm">
-      <Link href={SETTINGS} className="font-medium text-foreground underline-offset-4 hover:underline">
+      <Link href={SETTINGS} className={cn(authLink, "font-medium text-foreground underline-offset-4 hover:underline")}>
         {label}
       </Link>
     </p>

@@ -22,7 +22,7 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed z-[var(--z-toast)] flex flex-col gap-2 p-4 max-h-screen w-full",
+      "fixed z-[var(--z-toast)] flex flex-col gap-2 p-4 max-h-dvh w-full",
       // Phone: at the top, full width less the padding, under the status bar.
       "top-0 left-1/2 -translate-x-1/2 pt-[calc(env(safe-area-inset-top)+0.75rem)]",
       // sm and up: bottom right, at a bounded width.

@@ -202,7 +202,7 @@ export const RecordingPlayerDialog = () => {
             {/* ... Dialog Content ... */}
              <DialogContent className={cn(
                 "max-w-[70vw] h-[85vh] p-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden", 
-                isFullscreen && "!max-w-none !w-screen !h-screen !rounded-none border-none"
+                isFullscreen && "!max-w-none !w-screen !h-dvh !rounded-none border-none"
             )}>
                 {/* ... Header ... */}
                  <div className="flex justify-between items-center p-3 border-b bg-muted/20">

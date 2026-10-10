@@ -562,7 +562,7 @@ export function MediaLightboxDialog({
             <DialogContent
                 className={cn(
                     "max-w-[95vw] md:max-w-[85vw] lg:max-w-[80vw] transition duration-300 p-0 overflow-hidden bg-background border [&>button]:hidden",
-                    isFullscreen && "!max-w-none !w-screen !h-screen !rounded-none",
+                    isFullscreen && "!max-w-none !w-screen !h-dvh !rounded-none",
                 )}
             >
                 <DialogHeader className="hidden">
@@ -570,7 +570,7 @@ export function MediaLightboxDialog({
                     <DialogDescription></DialogDescription>
                 </DialogHeader>
 
-                <div className={cn("flex h-[90vh] w-full", isFullscreen && "h-screen")}>
+                <div className={cn("flex h-[90dvh] w-full", isFullscreen && "h-dvh")}>
                     {/*
                       Main content column.
                       The image canvas (flex-1 inner area) keeps a neutral
