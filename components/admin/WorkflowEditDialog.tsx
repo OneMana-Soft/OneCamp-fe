@@ -546,11 +546,14 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                             value={a.text || ""}
                                             onChange={(e) => updateAction(idx, { text: e.target.value })}
                                             placeholder={
+                                                // Examples in the app's own voice: no "Please", no
+                                                // exclamation marks, and "…" like every other
+                                                // placeholder here.
                                                 a.type === "warn_user"
-                                                    ? "Please keep it respectful."
+                                                    ? "Keep this channel respectful…"
                                                     : a.type === "reply_ephemeral"
-                                                        ? "Only this person will see this."
-                                                        : "Thanks! We’ll get back to you shortly."
+                                                        ? "Only you can see this…"
+                                                        : "Thanks, we’ll get back to you soon…"
                                             }
                                             maxLength={4000}
                                         />

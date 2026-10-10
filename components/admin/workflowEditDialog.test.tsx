@@ -50,4 +50,27 @@ describe("the workflow editor", () => {
     expect(screen.getByRole("heading", { name: "Then" })).toBeTruthy()
     expect(document.body.innerHTML).not.toMatch(/\buppercase\b/)
   })
+
+  // The example messages spoke in another voice than the app ("Please keep it
+  // respectful.", "Thanks! We'll get back to you shortly.").
+  it("suggests its example messages in the app's voice: no Please, no exclamation, ending in an ellipsis", async () => {
+    const workflow = {
+      id: "wf1",
+      name: "Etiquette",
+      is_active: true,
+      trigger_type: "message",
+      match_type: "any",
+      keywords: '["idiot"]',
+      actions: '[{"type":"warn_user","text":""},{"type":"reply","text":""},{"type":"reply_ephemeral","text":""}]',
+      run_count: 0,
+    }
+    render(<WorkflowEditDialog open workflow={workflow as never} onClose={() => {}} onSaved={() => {}} />)
+    const fields = await screen.findAllByLabelText(/^Message for action/)
+    expect(fields).toHaveLength(3)
+    for (const f of fields) {
+      const ph = f.getAttribute("placeholder") || ""
+      expect(ph).not.toMatch(/Please|!/)
+      expect(ph.endsWith("…")).toBe(true)
+    }
+  })
 })
