@@ -26,9 +26,9 @@ export function TaskTableViewOptions<TData>({
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="ml-auto hidden h-8 lg:flex"
+                    className="ml-auto hidden h-8 text-muted-foreground hover:text-foreground lg:flex"
                 >
                     <MixerHorizontalIcon className="mr-2 h-4 w-4" />
                     {t('view')}

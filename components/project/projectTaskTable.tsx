@@ -34,6 +34,7 @@ import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/tas
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
+import { columnAlignClass } from "@/components/task/columnAlign"
 
 interface ProjectTaskTableProps {
     projectId: string
@@ -271,7 +272,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                             <TableRow key={headerGroup.id}>
                                 <SelectAllHead ids={rowIds} />
                                 {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id} colSpan={header.colSpan}>
+                                    <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
                                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                     </TableHead>
                                 ))}
@@ -283,7 +284,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                             table.getRowModel().rows.map((row) => (
                                 <TaskTableRow key={row.id} id={row.id}>
                                     {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                                        <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                                     ))}
                                 </TaskTableRow>
                             ))
@@ -291,8 +292,11 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                             <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length + 1} className="h-24 text-center">
-                                    {t("noResultFound")}
+                                <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
+                                    {/* Say which empty this is: a filter that matched nothing, or a project with no tasks. */}
+                                    {columnFilters.length > 0 || globalFilter
+                                        ? t("noTasksMatch", { defaultValue: "No tasks match these filters." })
+                                        : t("noTasksYet", { defaultValue: "No tasks yet. Create one and it shows here." })}
                                 </TableCell>
                             </TableRow>
                         )}

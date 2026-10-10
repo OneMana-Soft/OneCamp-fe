@@ -1,3 +1,4 @@
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { TagPills } from "@/components/tags/TagPills"
 import {TaskInfoInterface} from "@/types/task";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
@@ -9,7 +10,6 @@ import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import { CheckCircle2, GitBranch, MessageSquare } from "@/lib/icons";
 import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {format} from "date-fns";
 import { app_task_path} from "@/types/paths";
 import Link from "next/link";
 import React, {useCallback} from "react";
@@ -101,7 +101,7 @@ export const TaskListTask = ({
                             "ml-auto shrink-0 text-xs tabular-nums text-muted-foreground",
                             dd < new Date() && !isCompleted ? "text-destructive" : ""
                         )}>
-                            {format(dd, "dd MMM")}
+                            {shortDate(dd)}
                         </span>
                     )}
                 </div>

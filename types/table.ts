@@ -84,7 +84,10 @@ export const priorities = [
         value: "medium",
         icon: ArrowRightIcon,
         color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-        dot: "bg-warning",
+        // Neutral: a row keeps one colour for what needs looking at, and only
+        // High asks for that. Medium in amber beside an amber "In review" and a
+        // red due date made every row a traffic light.
+        dot: "bg-muted-foreground",
     },
     {
         label: "High",

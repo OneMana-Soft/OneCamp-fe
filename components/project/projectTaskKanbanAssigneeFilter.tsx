@@ -1,10 +1,9 @@
 import { displayNameOf } from "@/lib/personName"
+import { FilterChip } from "@/components/task/filterChip"
 import { useTranslation } from "react-i18next"
-import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
+import { CheckIcon, } from "@radix-ui/react-icons";
 
 import { cn } from "@/lib/utils/helpers/cn";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -19,7 +18,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import {UserProfileDataInterface} from "@/types/user";
 
 
@@ -42,43 +40,7 @@ export function ProjectTaskKanbanAssigneeFilter({
     return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <PlusCircledIcon className="mr-2 h-4 w-4" />
-          {"Assignee"}
-          {activeList.length > 0 && (
-            <>
-              <Separator orientation="vertical" className="mx-2 h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
-                {activeList.length}
-              </Badge>
-              <div className="hidden space-x-1 lg:flex">
-                {activeList.length > 2 ? (
-                  <Badge
-                    variant="secondary"
-                    className="rounded-sm px-1 font-normal"
-                  >
-                    {activeList.length} {t('selected')}
-                  </Badge>
-                ) : members && (
-                    members
-                    .filter((option) => activeList.includes(option.uid || ""))
-                    .map((option) => (
-                      <Badge
-                        variant="secondary"
-                        key={option.uid}
-                        className="rounded-sm px-1 font-normal"
-                      >
-                        {displayNameOf(option)}
-                      </Badge>
-                    ))
-                )}
-              </div>
-            </>
-          )}
-        </Button>
+        <FilterChip title={t("assignee", { defaultValue: "Assignee" })} count={activeList.length} selected={(members ?? []).filter((o) => activeList.includes(o.uid || "")).map((o) => displayNameOf(o) || "")} />
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="start">
         <Command>

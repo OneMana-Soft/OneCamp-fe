@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 
 import { priorities } from "@/types/table";
-import { statusValueOf, statusOptionOf, type StatusOption } from "@/lib/taskStatus";
-import {format} from "date-fns";
+import { isClosedStatus, statusValueOf, statusOptionOf, type StatusOption } from "@/lib/taskStatus";
+import { shortDate } from "@/lib/utils/date/shortDate";
 import { GitBranch, MessageSquare } from "@/lib/icons";
 import {prioritiesInterface} from "@/types/table";
 import {TaskTableColumnHeader} from "@/components/task/taskTableColumnHeader";
@@ -57,6 +57,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
                         {label && <Badge variant="secondary">{label}</Badge>}
                         <span
                             className="max-w-[500px] truncate font-medium group-hover:underline task-name mr-2"
+                            title={row.getValue("task_name") as string}
                         >
             {row.getValue("task_name")}
           </span>
@@ -152,7 +153,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
                 }}>
         <TaskAssigneeCell userInfo={row.original?.task_assignee}/>
                     </div>:
-                    <span>{"--"}</span>}</>
+                    null}</>
             ),
             enableSorting: false,
             filterFn: (row,_, filterValue) => {
@@ -161,6 +162,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
         },
         {
             accessorKey: "task_start_date",
+            meta: { align: "right" },
             header: ({ column }) => (
                 <TaskTableColumnHeader column={column} title={t("startDate")} />
             ),
@@ -168,7 +170,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
 
                 const d = new Date(row.getValue("task_start_date"))
                 return (
-                    <div className="flex space-x-2 w-full hover: cursor-pointer text-xs" onClick={()=>{
+                    <div className="flex w-full cursor-pointer justify-end text-xs tabular-nums text-muted-foreground" onClick={()=>{
                         dispatch(openRightPanel({
                             channelUUID: "",
                             chatMessageUUID: "",
@@ -181,7 +183,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
                         // openTaskInfo(row.original.task_uuid)
                     }}>
         <div className=" truncate">
-          {!isZeroEpoch(row.getValue("task_start_date")) ? format(d, "dd MMM yyyy"):"--"}
+          {!isZeroEpoch(row.getValue("task_start_date")) ? shortDate(d):""}
         </div>
                     </div>
                 )},
@@ -191,13 +193,14 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
         },
         {
             accessorKey: "task_due_date",
+            meta: { align: "right" },
             header: ({ column }) => (
                 <TaskTableColumnHeader column={column} title={t("dueDate")} />
             ),
             cell: ({ row }) => {
                 const d = new Date(row.getValue("task_due_date"))
                 return (
-                    <div className="flex space-x-2 hover: cursor-pointer w-full text-xs" onClick={()=>{
+                    <div className="flex w-full cursor-pointer justify-end text-xs tabular-nums text-muted-foreground" onClick={()=>{
                         dispatch(openRightPanel({
                             channelUUID: "",
                             chatMessageUUID: "",
@@ -211,9 +214,9 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
                     }}>
 
                         <span className={`${
-            d < new Date() && !isZeroEpoch(row.getValue("task_due_date")) && row.getValue("task_status") != 'done' ? 'text-destructive' : ''
+            d < new Date() && !isZeroEpoch(row.getValue("task_due_date")) && !isClosedStatus(row.getValue("task_status") as string) ? 'text-destructive' : ''
         } `}>
-          {!isZeroEpoch(row.getValue("task_due_date")) ? format(d, "dd MMM yyyy") : "--"}
+          {!isZeroEpoch(row.getValue("task_due_date")) ? shortDate(d) : ""}
         </span>
                     </div>
                 )},
@@ -223,13 +226,14 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
         },
         {
             accessorKey: "task_created_at",
+            meta: { align: "right" },
             header: ({ column }) => (
                 <TaskTableColumnHeader column={column} title={t("createdDate")} />
             ),
             cell: ({ row }) => {
                 const d = new Date(row.getValue("task_created_at"))
                 return (
-                    <div className="flex space-x-2 hover: cursor-pointer w-full text-xs" onClick={()=>{
+                    <div className="flex w-full cursor-pointer justify-end text-xs tabular-nums text-muted-foreground" onClick={()=>{
                         dispatch(openRightPanel({
                             channelUUID: "",
                             chatMessageUUID: "",
@@ -242,7 +246,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
                         // openTaskInfo(row.original.task_uuid)
                     }}>
         <span >
-          {!isZeroEpoch(row.getValue("task_created_at")) ? format(d, "dd MMM yyyy") : "--"}
+          {!isZeroEpoch(row.getValue("task_created_at")) ? shortDate(d) : ""}
         </span>
                     </div>
                 )},
@@ -255,7 +259,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
         // (business/TaskField); values aren't sorted on.
         ...fields.map((f): ColumnDef<TaskInfoInterface> => ({
             id: f.filter_id,
-            meta: { label: f.name },
+            meta: { label: f.name, ...(f.type === "money" || f.type === "number" ? { align: "right" } : {}) },
             accessorFn: (row) => row.task_fields?.[f.id],
             header: ({ column }) => <TaskTableColumnHeader column={column} title={f.name} />,
             cell: ({ row }) => <FieldValueView field={f} value={row.original.task_fields?.[f.id]} nameOf={nameOf} className="max-w-[14rem]" />,
