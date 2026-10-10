@@ -37,22 +37,30 @@ ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 const toastVariants = cva(
   cn(
     "group pointer-events-auto relative flex w-full items-start justify-between gap-3",
-    "overflow-hidden rounded-lg border p-3 pr-10 shadow-lg",
+    "overflow-hidden rounded-lg border p-3 pr-10 shadow-overlay",
     "data-[swipe=cancel]:translate-x-0",
     "data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]",
     "data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none",
     "data-[state=open]:animate-in data-[state=closed]:animate-out",
     "data-[swipe=end]:animate-out data-[state=closed]:fade-out-80",
-    "data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-bottom-full",
-    "sm:data-[state=open]:slide-in-from-right-full",
-    "transition",
+    // In from below by a few pixels and out as a fade, on the house curve: a
+    // toast confirms something happened, it does not need to fly across the
+    // screen to do it. Swipe-to-dismiss still slides, because there the
+    // finger is moving it.
+    "duration-200 ease-standard data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-2",
+    "data-[swipe=end]:slide-out-to-right-full",
+    "transition-[transform,opacity]",
   ),
   {
     variants: {
       variant: {
         default: "border-border/60 bg-background text-foreground",
+        // A failure is said in words and one red title, on the same calm
+        // surface as every other toast. A solid red slab in the corner was the
+        // loudest thing in the app for something a retry usually fixes, and
+        // its white-on-red body text was the hardest to read.
         destructive:
-          "destructive border-destructive/60 bg-destructive text-destructive-foreground",
+          "destructive border-destructive/40 bg-background text-foreground",
         notification:
           "border-border/60 bg-background text-foreground",
       },
@@ -88,12 +96,10 @@ const ToastAction = React.forwardRef<
       "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input",
       "bg-transparent px-3 text-xs font-medium",
       "transition-colors hover:bg-accent",
-      "focus:outline-none focus:ring-2 focus:ring-ring/40",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
       "disabled:pointer-events-none disabled:opacity-50",
-      "group-[.destructive]:border-destructive-foreground/30",
-      "group-[.destructive]:hover:bg-destructive-foreground/10",
-      "group-[.destructive]:hover:text-destructive-foreground",
-      "group-[.destructive]:focus:ring-destructive-foreground/40",
+      "group-[.destructive]:border-destructive/40 group-[.destructive]:text-destructive",
+      "group-[.destructive]:hover:bg-destructive/10",
       className,
     )}
     {...props}
@@ -112,9 +118,6 @@ const ToastClose = React.forwardRef<
       "text-foreground/60 hover:text-foreground hover:bg-accent",
       "transition-colors",
       "focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-      "group-[.destructive]:text-destructive-foreground/70 group-[.destructive]:hover:text-destructive-foreground",
-      "group-[.destructive]:hover:bg-destructive-foreground/10",
-      "group-[.destructive]:focus-visible:ring-destructive-foreground/40",
       className,
     )}
     toast-close=""
@@ -132,7 +135,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
-    className={cn("text-sm font-semibold leading-tight", className)}
+    className={cn("text-sm font-semibold leading-tight group-[.destructive]:text-destructive", className)}
     {...props}
   />
 ))
@@ -144,7 +147,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-xs leading-snug opacity-90 mt-0.5", className)}
+    className={cn("text-xs leading-snug text-muted-foreground mt-0.5", className)}
     {...props}
   />
 ))

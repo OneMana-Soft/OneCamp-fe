@@ -137,7 +137,26 @@
   --animate-blink: blink 1s infinite;
   --animate-text-shimmer: text-shimmer 1.5s infinite linear;
   --animate-msg-fade-in: msg-fade-in 0.2s ease-out;
-  --animate-shimmer: shimmer 1.5s infinite;
+  /* A loading placeholder breathes slowly rather than sweeping a highlight
+     across itself: the shimmer was a perpetual decorative loop, which DESIGN.md
+     rules out, and on a screen of twenty skeleton bars it was the busiest thing
+     in the app at the moment nothing was there. The name is kept so every
+     caller of animate-shimmer gets the calm version. */
+  --animate-shimmer: skeleton-breathe 1.8s ease-in-out infinite;
+  /* MOTION (design direction, "Motion"): 120ms for hover and press, 150ms
+     for popovers and menus, 200ms for sheets and side panels, one easing.
+     Setting Tailwind's defaults means every bare `transition` and
+     `transition-colors` in the app takes the house timing without a per-file
+     edit; ease-standard names the curve for anything that sets its own. */
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* The highlight under a hovered or keyboard-focused row in a menu, a select,
+     the command list and a ghost button. It is surface-3, one step past
+     --accent (surface-2): --accent IS the canvas, so a ghost button in the top
+     bar or the sidebar lit up with exactly the colour it already sat on, and a
+     menu row on a white popover moved by 1.08:1, which reads as nothing. */
+  --color-highlight: var(--sidebar-accent);
   --animate-load-progress: load-progress 10s linear forwards;
   /* Z-Index Layer System — each layer must be higher than all UI below it */
   --z-base: 0;
@@ -367,6 +386,11 @@
   }
 }
 
+@keyframes skeleton-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 @utility glass {
   @apply bg-background border-b border-border/40;
 }
@@ -536,16 +560,24 @@ body {
   }
 }
 
+/* Named properties, never `all`: transition-all also animates layout (width,
+   padding, a border appearing) and is how a hover turns into jank. */
 @utility transition-hover {
-  @apply transition-all duration-100 ease-out;
+  transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+  transition-duration: 120ms;
+  transition-timing-function: var(--ease-standard);
 }
 
 @utility transition-focus {
-  @apply transition-all duration-150 ease-out;
+  transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-standard);
 }
 
 @utility transition-modal {
-  @apply transition-all duration-200 ease-out;
+  transition-property: opacity, transform;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-standard);
 }
 
 @utility focus-ring {
@@ -581,7 +613,7 @@ body {
 }
 
 @utility hover-surface {
-  @apply transition-hover hover:bg-accent hover:text-accent-foreground;
+  @apply transition-hover hover:bg-highlight hover:text-accent-foreground;
 }
 
 @layer components {
@@ -872,18 +904,9 @@ body {
   }
 }
 
-/* Respect user's motion preferences globally */
+/* Respect user's motion preferences. The universal rule is in the
+   interaction-defaults block below; this one only retires the completion wave. */
 @media (prefers-reduced-motion: reduce) {
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-
   .animate-gradient-completion::before {
     animation: none !important;
     transform: none !important;
@@ -945,6 +968,13 @@ html[data-media-collapsed="true"] [data-message-media] {
     touch-action: manipulation;
   }
   html { -webkit-tap-highlight-color: transparent; }
+
+  /* ICONS: Lucide, from @/lib/icons, at a 1.5 stroke (design direction,
+     "Icons"). Lucide's default is 2, which at 16px next to 14px Inter reads
+     heavier than the text it labels. This reaches only icons left at the
+     default: an icon that sets its own strokeWidth (1.75 in the nav, 2.5 on a
+     check) keeps it, because that was a decision. */
+  svg.lucide[stroke-width="2"] { stroke-width: 1.5; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

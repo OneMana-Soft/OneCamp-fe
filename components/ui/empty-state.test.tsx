@@ -28,27 +28,36 @@ describe("EmptyState", () => {
     expect(screen.getByRole("button", { name: "Create" })).toBeTruthy()
   })
 
-  it("defaults to the muted tone: grey circle icon and small description", () => {
+  // 10 Oct 2026 design pass: the icon no longer sits in a tinted chip (grey
+  // circle for muted, orange tile for accent). The design direction bans an
+  // icon inside a tinted chip, and the orange tile spent the accent on an
+  // illustration. These assertions changed on purpose; the tones now differ by
+  // scale, and no tone paints the icon in the accent.
+  it("defaults to the muted tone: a small bare muted icon and small description", () => {
     const { container } = render(
       <EmptyState icon={Sparkles} title="Nothing here" description="Quiet copy." />,
     )
     const shell = container.firstElementChild as HTMLElement
     expect(shell.className).toContain("px-6")
-    // Grey circle, not the primary tile.
-    expect(container.querySelector(".rounded-full.bg-muted")).toBeTruthy()
+    const icon = container.querySelector("[data-empty-icon]") as SVGElement
+    expect(icon.getAttribute("class")).toContain("size-5")
+    expect(icon.getAttribute("class")).toContain("text-muted-foreground")
+    expect(container.querySelector(".rounded-full.bg-muted")).toBeNull()
     expect(container.querySelector(".bg-primary\\/10")).toBeNull()
     // Muted descriptions stay on the smaller scale with the narrower measure.
     expect(screen.getByText("Quiet copy.").className).toContain("text-xs")
   })
 
-  it("accent tone uses the primary tile and body-size description", () => {
+  it("accent tone is larger, never orange: bigger bare icon, body-size description", () => {
     const { container } = render(
       <EmptyState tone="accent" icon={Sparkles} title="No tables yet" description="Track anything." />,
     )
     const shell = container.firstElementChild as HTMLElement
     expect(shell.className).toContain("px-4")
-    expect(container.querySelector(".rounded-2xl.bg-primary\\/10")).toBeTruthy()
-    expect(container.querySelector(".rounded-full.bg-muted")).toBeNull()
+    const icon = container.querySelector("[data-empty-icon]") as SVGElement
+    expect(icon.getAttribute("class")).toContain("size-7")
+    expect(icon.getAttribute("class")).not.toContain("text-primary")
+    expect(container.querySelector(".bg-primary\\/10")).toBeNull()
     expect(screen.getByText("Track anything.").className).toContain("text-sm")
   })
 
@@ -67,11 +76,12 @@ describe("EmptyState", () => {
     expect(shell.className).toContain("px-6")
     expect(shell.className).not.toContain("px-4")
     expect(shell.className).toContain("border")
-    expect(container.querySelector(".bg-primary\\/10")).toBeTruthy()
+    expect(container.querySelector("[data-empty-icon]")?.getAttribute("class")).toContain("size-7")
   })
 
-  it("omits the icon wrapper entirely when no icon is given", () => {
+  it("omits the icon entirely when no icon is given", () => {
     const { container } = render(<EmptyState title="No results" />)
+    expect(container.querySelector("[data-empty-icon]")).toBeNull()
     expect(container.querySelector(".rounded-full.bg-muted")).toBeNull()
     expect(container.querySelector(".bg-primary\\/10")).toBeNull()
   })

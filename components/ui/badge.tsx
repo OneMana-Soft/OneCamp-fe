@@ -4,6 +4,10 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils/helpers/cn"
 
 const badgeVariants = cva(
+  // A badge is a label, not a control: no hover. The hover fills that used to
+  // be here (hover:bg-primary/80 on default) survived every caller's own
+  // colour through tailwind-merge, so a green "Connected" badge turned orange
+  // under the cursor, inviting a click that did nothing.
   "inline-flex items-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
   {
     variants: {
@@ -29,14 +33,19 @@ const badgeVariants = cva(
         false: "font-medium",
       },
       variant: {
+        // Neutral by default. The accent is for one primary action, the
+        // focus ring, the selection and links (DESIGN.md); a filled orange
+        // chip as the default made every unstyled badge compete with the
+        // page's one button. Every default-variant caller in the app sets its
+        // own status colour, so none of them changes.
         default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+          "border-transparent bg-sidebar-accent text-foreground",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-transparent bg-secondary text-secondary-foreground",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+          "border-transparent bg-destructive/10 text-destructive",
         outline: "text-foreground",
-        soft: "border-transparent bg-primary/10 text-primary hover:bg-primary/20",
+        soft: "border-transparent bg-primary/10 text-primary",
         // text-3xs, not text-3xs: the same 10px, but the primitive must not
         // bypass the type token it exists to hand out.
         sidebar: "border-transparent bg-primary text-primary-foreground text-3xs px-1.5 py-0 min-w-[1.2rem] h-5 flex items-center justify-center rounded-full",

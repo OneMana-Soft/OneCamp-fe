@@ -65,7 +65,7 @@ describe("a drawer taller than the screen", () => {
     // takes the affordance with it.
     it("keeps the handle in place while the body moves", () => {
         render(<TallDrawer />)
-        const handle = document.querySelector(".rounded-full.bg-muted") as HTMLElement
+        const handle = document.querySelector("[data-drawer-handle]") as HTMLElement
         expect(handle, "no drag handle").toBeTruthy()
         expect(handle.className).toContain("shrink-0")
         expect(handle.closest(".overflow-y-auto"), "the handle scrolls with the content").toBeNull()

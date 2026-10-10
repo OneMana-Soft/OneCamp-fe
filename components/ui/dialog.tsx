@@ -24,7 +24,7 @@ const DialogOverlay = React.forwardRef<
       // Fixed dark backdrop in both themes. Inverting via tokens (foreground/X)
       // would flip to a white veil in dark mode, which is wrong for a modal
       // backdrop — the purpose is to dim, not invert.
-      "fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/50 duration-200 ease-standard data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -41,7 +41,13 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-[var(--z-modal)] grid w-full max-w-lg max-h-[85dvh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-background p-6 shadow-dialog duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-2xl",
+        // Fade only, no scale (motion confirms a state change; it does not
+        // perform). On a phone the dialog keeps a 16px gutter and its 14px
+        // corners instead of running edge to edge with square ones: a sheet
+        // that touches both sides of the screen reads as a new page, not as a
+        // question asked over this one. overscroll-contain stops a long form's
+        // last flick from scrolling the page underneath.
+        "fixed left-[50%] top-[50%] z-[var(--z-modal)] grid w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border border-border bg-background p-6 shadow-dialog duration-200 ease-standard data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className
       )}
       {...props}
@@ -69,7 +75,8 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      // Left-aligned at every width, and clear of the close button.
+      "flex flex-col gap-1.5 pr-8 text-left",
       className
     )}
     {...props}
@@ -83,7 +90,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
       className
     )}
     {...props}
@@ -98,7 +105,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-medium leading-none",
+      "text-lg font-semibold leading-tight text-balance",
       className
     )}
     {...props}

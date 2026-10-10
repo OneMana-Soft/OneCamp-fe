@@ -4,8 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils/helpers/cn"
 
+// States, in one place: hover is a fill step, press settles the button down a
+// pixel (feedback that the click landed, without a scale that blurs the
+// label), keyboard focus is the accent ring with a gap so it reads on a
+// filled button too, and disabled fades. aria-busy (a caller's loading state)
+// dims the label and blocks a second press while the request runs.
+// Timing is the house default (120ms, see globals.css), on named properties.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,opacity,transform] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
   {
     variants: {
       variant: {
@@ -14,12 +20,16 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-background hover:bg-highlight hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        // highlight, not accent: --accent is the canvas, so a ghost button in
+        // the top bar or sidebar used to "hover" to the colour it sat on.
+        ghost: "hover:bg-highlight hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        sidebarActive: "bg-accent text-accent-foreground hover:bg-accent/80",
+        // The current place: the soft accent ground under ink, the same as
+        // .nav-active in globals.css, so a Button and a nav link agree.
+        sidebarActive: "bg-brand-muted text-foreground hover:bg-brand-muted",
       },
       size: {
         default: "h-9 px-4 py-2",

@@ -1,42 +1,23 @@
 import { cn } from "@/lib/utils/helpers/cn";
 
 interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Kept for compatibility. "shimmer" and "default" now look the same: a block
+   * in surface-3 (--muted was 1.03:1 on the page and all but vanished) that breathes slowly (animate-shimmer in globals.css). The
+   * sweeping highlight is gone because DESIGN.md rules out perpetual decorative
+   * loops, and a page of twenty sweeping bars was the busiest thing on screen
+   * at the one moment there was nothing to read. "circle" is the round one for
+   * avatars and status dots. Reduced motion stops the breathing entirely.
+   */
   variant?: "default" | "shimmer" | "circle";
 }
 
 function Skeleton({ className, variant = "shimmer", ...props }: SkeletonProps) {
-  if (variant === "circle") {
-    return (
-      <div
-        className={cn(
-          "rounded-full bg-muted",
-          "animate-pulse",
-          className
-        )}
-        {...props}
-      />
-    );
-  }
-
-  if (variant === "default") {
-    return (
-      <div
-        className={cn("animate-pulse rounded-md bg-muted", className)}
-        {...props}
-      />
-    );
-  }
-
-  // Shimmer variant (modern, default)
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md bg-muted",
-        "before:absolute before:inset-0",
-        "before:-translate-x-full",
-        "before:animate-shimmer",
-        "before:bg-gradient-to-r",
-        "before:from-transparent before:via-muted-foreground/10 before:to-transparent",
+        "animate-shimmer bg-highlight",
+        variant === "circle" ? "rounded-full" : "rounded-md",
         className
       )}
       {...props}
@@ -44,4 +25,4 @@ function Skeleton({ className, variant = "shimmer", ...props }: SkeletonProps) {
   );
 }
 
-export { Skeleton }
+export { Skeleton };
