@@ -9,6 +9,7 @@ import { SectionJumps } from "@/components/admin/SectionJumps"
 import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
 import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
 import { Tile } from "@/components/ui/graphics/Tile"
+import { AdminScrollContext } from "@/components/admin/adminScroll"
 import dynamic from "next/dynamic"
 import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
@@ -240,6 +241,8 @@ const AdminPage = () => {
     if (requestedTabVisible) setActiveTab(requestedTab)
   }, [requestedTab, requestedTabVisible])
   const processed = useRef(false)
+  // The page's one scroller, for lists that draw only the rows in view.
+  const scrollRef = useRef<HTMLDivElement>(null)
   // Groups with at least one tab this server offers, in menu order.
   const visibleGroups = TAB_GROUPS.map((g) => ({
     ...g,
@@ -321,7 +324,8 @@ const AdminPage = () => {
             the header and tab strip now stay put — which is what "Sticky tab strip" above always
             claimed. Cards must therefore NOT set h-full or their own overflow-y-auto; they size to
             their content and this box scrolls. adminLayout.test.ts holds that line. */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <AdminScrollContext.Provider value={scrollRef}>
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
               {isDesktop ? (
@@ -520,6 +524,7 @@ const AdminPage = () => {
               </div>
             </div>
           </div>
+          </AdminScrollContext.Provider>
         </div>
       </Tabs>
       )}
