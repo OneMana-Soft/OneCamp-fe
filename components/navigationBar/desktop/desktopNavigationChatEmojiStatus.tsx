@@ -1,11 +1,17 @@
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";
+import type {UserEmojiInterface} from "@/store/slice/userSlice";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {useMedia} from "@/context/MediaQueryContext";
 import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 
+
+// One empty status for everyone without one: a fresh {} from the selector was
+// a new value on every store change, so each DM row in the sidebar re-rendered
+// on every dispatch.
+const NO_STATUS: Partial<UserEmojiInterface> = {}
 
 export const DesktopNavigationEmojiStatus = ({userUUID}: {userUUID: string}) => {
 
@@ -14,7 +20,7 @@ export const DesktopNavigationEmojiStatus = ({userUUID}: {userUUID: string}) => 
     const { isMobile } = useMedia();
 
 
-    const userStatusState = useSelector((state: RootState) => state.users.usersStatus[userUUID] || {} );
+    const userStatusState = useSelector((state: RootState) => state.users.usersStatus[userUUID] || NO_STATUS);
 
     /**
      * Drop expired statuses at render time. The BE doesn't publish a

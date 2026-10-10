@@ -3,25 +3,54 @@
 import { displayNameOf } from "@/lib/personName"
 import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
-import { useSelector, useDispatch } from "react-redux"
+import { useDispatch, useStore } from "react-redux"
 import type { RootState } from "@/store/store"
 import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
+
+/** The page's title and kind, from what the store holds, or null if it doesn't hold it yet. */
+function visitOf(state: RootState, entity: string, id: string): { title: string; type: RecentItem["type"] } | null {
+  switch (entity) {
+    case "task": {
+      const task = (state.TaskInfo?.taskListVisibleInfo ?? []).find((t) => t.task_uuid === id)
+      return task ? { title: task.task_name, type: "task" } : null
+    }
+    case "project": {
+      const project = (state.users?.userSidebar?.userProjects ?? []).find((p) => p.project_uuid === id)
+      return project ? { title: project.project_name, type: "project" } : null
+    }
+    case "channel": {
+      const channel = (state.users?.userSidebar?.userChannels ?? []).find((c) => c.ch_uuid === id)
+      return channel ? { title: channel.ch_name, type: "channel" } : null
+    }
+    case "team": {
+      const team = (state.users?.userSidebar?.userTeams ?? []).find((t) => t.team_uuid === id)
+      return team ? { title: team.team_name, type: "team" } : null
+    }
+    case "chat": {
+      const chat = (state.users?.userSidebar?.userChats ?? []).find((c) => c.dm_grouping_id === id)
+      if (!chat) return null
+      const participants = chat.dm_participants || []
+      return { title: participants.length > 0 ? participants.map((p) => displayNameOf(p)).join(", ") : "Chat", type: "chat" }
+    }
+    default:
+      return null
+  }
+}
 
 /**
  * Watches pathname changes and tracks page visits with real entity names
  * derived from Redux state. No UUIDs, no localStorage.
+ *
+ * It reads the store when the address changes, and listens to it only until
+ * the page's name is there. It used to subscribe to the task list and the
+ * sidebar's four lists for the life of the app, and the always-mounted
+ * command palette that calls it re-rendered on every unread count.
  */
 export function useTrackPageVisit() {
   const pathname = usePathname()
   const dispatch = useDispatch()
+  const store = useStore<RootState>()
   const trackedRef = useRef<string>("")
-
-  // Select entity data from Redux
-  const taskList = useSelector((state: RootState) => state.TaskInfo?.taskListVisibleInfo || [])
-  const projects = useSelector((state: RootState) => state.users?.userSidebar?.userProjects || [])
-  const channels = useSelector((state: RootState) => state.users?.userSidebar?.userChannels || [])
-  const teams = useSelector((state: RootState) => state.users?.userSidebar?.userTeams || [])
-  const chats = useSelector((state: RootState) => state.users?.userSidebar?.userChats || [])
 
   useEffect(() => {
     if (!pathname) return
@@ -36,75 +65,22 @@ export function useTrackPageVisit() {
     const id = parts[2]
     if (!id) return
 
-    let title: string | null = null
-    let type: RecentItem["type"] | null = null
-
-    switch (entity) {
-      case "task": {
-        const task = taskList.find((t) => t.task_uuid === id)
-        if (task) {
-          title = task.task_name
-          type = "task"
-        }
-        break
-      }
-      case "project": {
-        const project = projects.find((p) => p.project_uuid === id)
-        if (project) {
-          title = project.project_name
-          type = "project"
-        }
-        break
-      }
-      case "channel": {
-        const channel = channels.find((c) => c.ch_uuid === id)
-        if (channel) {
-          title = channel.ch_name
-          type = "channel"
-        }
-        break
-      }
-      case "team": {
-        const team = teams.find((t) => t.team_uuid === id)
-        if (team) {
-          title = team.team_name
-          type = "team"
-        }
-        break
-      }
-      case "chat": {
-        const chat = chats.find((c) => c.dm_grouping_id === id)
-        if (chat) {
-          const participants = chat.dm_participants || []
-          if (participants.length > 0) {
-            title = participants.map((p) => displayNameOf(p)).join(", ")
-          } else {
-            title = "Chat"
-          }
-          type = "chat"
-        }
-        break
-      }
-      default:
-        return
+    const tryTrack = (): boolean => {
+      // Tracked already, perhaps by the dispatch below calling back in here.
+      if (trackedRef.current === pathname) return true
+      const visit = visitOf(store.getState(), entity, id)
+      if (!visit || !visit.title) return false
+      // Mark as tracked only when we successfully got a name
+      trackedRef.current = pathname
+      dispatch(addRecentItem({ id, type: visit.type, title: visit.title, path: pathname }))
+      return true
     }
 
-    if (!type || !title) {
-      // Data not in Redux yet — try again next time data changes
-      // by NOT setting trackedRef, so when Redux updates, this re-runs
-      return
-    }
-
-    // Mark as tracked only when we successfully got a name
-    trackedRef.current = pathname
-
-    dispatch(
-      addRecentItem({
-        id,
-        type,
-        title,
-        path: pathname,
-      })
-    )
-  }, [pathname, dispatch, taskList, projects, channels, teams, chats])
+    if (tryTrack()) return
+    // Not in the store yet: try again as it fills, until it's there.
+    const unsubscribe = store.subscribe(() => {
+      if (tryTrack()) unsubscribe()
+    })
+    return unsubscribe
+  }, [pathname, dispatch, store])
 }
