@@ -88,7 +88,8 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
             <Breadcrumb className="hidden md:block">
                 <BreadcrumbList>
                     <BreadcrumbItem>
-                        <BreadcrumbLink href="/app/doc">Home</BreadcrumbLink>
+                        {/* Where it leads: the docs list. It said "Home", which is another place. */}
+                        <BreadcrumbLink href="/app/doc">Docs</BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>

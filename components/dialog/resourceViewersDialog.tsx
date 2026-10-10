@@ -20,7 +20,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { RESOURCE_ROW, ResourceListEmpty, ResourceListSkeleton } from "@/components/dialog/resourceListParts"
 import { Button } from "@/components/ui/button"
 import { Eye, Loader2 } from "@/lib/icons"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
@@ -100,17 +101,11 @@ function ResourceViewersDialog({
           <DialogDescription>People who have opened this {noun}, most recent first.</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-1 overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto">
           {loading && viewers.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading viewers…
-            </div>
+            <ResourceListSkeleton label="Loading viewers" />
           ) : viewers.length === 0 ? (
-            <div className="flex flex-col items-center gap-1 py-8 text-center text-sm text-muted-foreground">
-              <Eye className="h-5 w-5" />
-              <span>No views yet.</span>
-            </div>
+            <ResourceListEmpty icon={Eye} title="No views yet" description={`People who open this ${noun} show here, most recent first.`} />
           ) : (
             <>
               {viewers.map((v) => (
@@ -144,11 +139,8 @@ function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean
   const name = displayNameOf(viewer) || "Someone"
 
   return (
-    <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-accent/40">
-      <Avatar className="h-7 w-7 shrink-0">
-        <AvatarImage src={src} alt={name} className="object-cover" />
-        <AvatarFallback className="text-2xs">{name.charAt(0).toUpperCase()}</AvatarFallback>
-      </Avatar>
+    <div className={RESOURCE_ROW}>
+      <IdentityMark variant="avatar" size={28} id={viewer.user_uuid} label={name} src={src} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">
           {name}
