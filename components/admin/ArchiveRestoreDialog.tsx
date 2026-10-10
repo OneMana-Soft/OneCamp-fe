@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Skeleton } from "@/components/ui/skeleton"
 import { RefreshCw, Search } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { PostEndpointUrl } from "@/services/endPoints"
@@ -181,8 +181,9 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2" onClick={() => fetchItems(0, false)} disabled={loading}>
-                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+              {/* The search field's height beside it: 44px on a phone, 32px from md up. */}
+              <Button variant="ghost" size="sm" className="h-11 gap-1.5 px-2 md:h-8" onClick={() => fetchItems(0, false)} disabled={loading}>
+                <RefreshCw className={cn(loading && "animate-spin")} />
                 Refresh
               </Button>
             </div>
@@ -198,11 +199,21 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
 
             <div className="max-h-56 overflow-y-auto rounded-md border border-border">
               {loading && list.length === 0 ? (
-                <div role="status" aria-label={`Loading archived ${label}`} className="px-3 py-1">
-                  <SkeletonRows rows={4} avatar={false} />
-                </div>
+                // The rows' own shape (a box, a name, when it was archived) at
+                // their padding, where it was the generic skeleton rows.
+                <ul role="status" aria-label={`Loading archived ${label}`} className="divide-y divide-border">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <li key={i} aria-hidden="true" className="flex items-center gap-3 px-3 py-2">
+                      <Skeleton className="size-4 shrink-0 rounded-sm" />
+                      <span className="min-w-0 flex-1 space-y-1.5">
+                        <Skeleton className={i % 2 === 0 ? "h-3.5 w-40" : "h-3.5 w-28"} />
+                        <Skeleton className="h-3 w-32" />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               ) : loadFailed ? (
-                <ErrorState subject={`the archived ${label}`} onRetry={() => fetchItems(0, false)} retrying={loading} className="py-6" />
+                <ErrorState compact subject={`the archived ${label}`} onRetry={() => fetchItems(0, false)} retrying={loading} />
               ) : filteredItems.length === 0 ? (
                 <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                   {searchQuery.trim() ? "Nothing archived matches that." : `No ${label} have been archived recently.`}

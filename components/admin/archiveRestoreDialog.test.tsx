@@ -87,3 +87,25 @@ describe("restoring archived items", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })
+
+describe("how the restore list reads", () => {
+  // The generic skeleton rows stood in for rows of another shape.
+  it("loads in its rows' own shape: a box, a name and when it was archived", () => {
+    get.mockReturnValue(new Promise(() => {}))
+    open()
+    const status = screen.getByRole("status", { name: /Loading archived/ })
+    const rows = status.querySelectorAll("li")
+    expect(rows.length).toBe(4)
+    expect(rows[0].className).toContain("px-3 py-2")
+    expect(rows[0].querySelector(".size-4")).toBeTruthy()
+  })
+
+  // On a phone the search field is 44px; Refresh beside it was 32px.
+  it("keeps Refresh at the search field's height on a phone", () => {
+    get.mockReturnValue(new Promise(() => {}))
+    open()
+    const refresh = screen.getByRole("button", { name: "Refresh" })
+    expect(refresh.className).toContain("h-11")
+    expect(refresh.className).toContain("md:h-8")
+  })
+})
