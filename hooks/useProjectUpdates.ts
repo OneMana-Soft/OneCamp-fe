@@ -37,7 +37,7 @@ export interface Posted {
 
 export function useProjectUpdates(projectId: string | undefined) {
   const key = projectId ? `${base(projectId)}?limit=${UPDATES_SHOWN}` : ""
-  const { data, isLoading, mutate } = useFetch<{ data: { updates: ProjectUpdate[]; can_post: boolean } }>(key)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: { updates: ProjectUpdate[]; can_post: boolean } }>(key)
 
   const draft = useCallback(async (): Promise<UpdateDraft> => {
     const res = await axiosInstance.get(`${base(projectId!)}/draft`, { params: { tz: browserTZ() } })
@@ -78,6 +78,9 @@ export function useProjectUpdates(projectId: string | undefined) {
     updates: data?.data?.updates ?? [],
     canPost: !!data?.data?.can_post,
     isLoading,
+    // A failed load, said as such: the tab used to say "No updates yet".
+    isError: !!isError && !data,
+    retry: mutate,
     draft,
     aiDraft,
     post,

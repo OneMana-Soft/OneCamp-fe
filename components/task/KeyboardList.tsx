@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { BulkTaskBar } from "@/components/task/BulkTaskBar"
 import { useMedia } from "@/context/MediaQueryContext"
@@ -77,6 +78,14 @@ export function KeyboardList({
 }
 
 /** A task's row in a table: marked for the keys, tinted when selected, edged when highlighted, with its box first. */
+/**
+ * A task table's row: 36px, the list row of the task panel's bar, whatever its
+ * cells hold. The cells' own 8px padding made a row as tall as its tallest
+ * cell: 41px on a project (the assignee's 24px avatar), 37px on My Tasks
+ * (text only), so the two lists of the same tasks kept two rhythms.
+ */
+export const taskRowClass = "h-9 [&>td]:py-1.5"
+
 export function TaskTableRow({ id, children }: { id: string; children: React.ReactNode }) {
   const { highlighted, selected } = useRowState(id)
   return (
@@ -86,7 +95,7 @@ export function TaskTableRow({ id, children }: { id: string; children: React.Rea
       data-highlighted={highlighted || undefined}
       aria-selected={selected}
       tabIndex={-1}
-      className={cn("group/row outline-none", highlighted && "bg-muted/60 shadow-[inset_2px_0_0_var(--primary)]")}
+      className={cn(taskRowClass, "group/row outline-none", highlighted && "bg-muted/60 shadow-[inset_2px_0_0_var(--primary)]")}
     >
       <TableCell className="w-8 pr-0">
         <RowCheck id={id} selected={selected} />
@@ -110,6 +119,33 @@ function RowCheck({ id, selected }: { id: string; selected: boolean }) {
 }
 
 /** The header's box: every task on this page, or none. */
+const SKELETON_WIDTHS = ["w-4/5", "w-3/5", "w-2/3", "w-1/2", "w-3/4"]
+
+/**
+ * A task table's rows while its first page loads: a page of them, each a
+ * row's height and with the row's checkbox, so nothing moves when the tasks
+ * land. The shared skeleton drew five rows of 33px against a page of ten 37px
+ * rows.
+ */
+export function TaskTableSkeletonRows({ columns, rows }: { columns: number; rows: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, r) => (
+        <TableRow key={r} aria-hidden="true" data-skeleton-row="" className={cn(taskRowClass, "hover:bg-transparent")}>
+          <TableCell className="w-8 pr-0">
+            <Skeleton className="h-4 w-4 rounded-sm" />
+          </TableCell>
+          {Array.from({ length: columns }, (_, c) => (
+            <TableCell key={c}>
+              <Skeleton className={cn("h-4", SKELETON_WIDTHS[(r + c) % SKELETON_WIDTHS.length])} />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  )
+}
+
 export function SelectAllHead({ ids }: { ids: string[] }) {
   const store = React.useContext(ListSelectionContext)
   const selected = useSelectedIds(store)

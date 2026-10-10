@@ -65,12 +65,14 @@ describe("a task table's first load", () => {
     expect(screen.queryByText(/Rows per page/)).toBeNull()
   })
 
-  it("a project with no tasks says so, with its pagination", () => {
+  // In place of the table, where every tab of a project says it
+  // (components/task/workFrame): no pages to turn through nothing.
+  it("a project with no tasks says so, in place of the table", () => {
     h.answer = { data: { data: { project_tasks: [], project_task_count: 0 } }, isLoading: false }
     const { container } = render(<Provider store={store}><ProjectTaskTable projectId="p" /></Provider>)
     expect(screen.getByText("No tasks yet")).toBeTruthy()
     expect(skeletonRows(container)).toBe(0)
-    expect(screen.getAllByText(/Rows per page/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Rows per page/)).toBeNull()
   })
 
   it("My Tasks': the skeleton holds, and the pagination waits, until the answer's rows are in", () => {
@@ -81,10 +83,10 @@ describe("a task table's first load", () => {
     expect(screen.queryByText(/Rows per page/)).toBeNull()
   })
 
-  it("nothing assigned says so, with its pagination", () => {
+  it("nothing assigned says so, in place of the table", () => {
     h.answer = { data: { data: { user_tasks: [] }, pageCount: 1 }, isLoading: false }
     render(<Provider store={store}><MyTaskTable /></Provider>)
     expect(screen.getByText("Nothing is assigned to you.")).toBeTruthy()
-    expect(screen.getAllByText(/Rows per page/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Rows per page/)).toBeNull()
   })
 })

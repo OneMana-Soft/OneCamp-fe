@@ -24,9 +24,11 @@ interface EntityLinkPickerProps {
   onPick: (refType: LinkRefType, refUUID: string, title: string) => void
   isLinked: (refType: LinkRefType, refUUID: string) => boolean
   disabled?: boolean
+  /** The trigger's classes: a section's quiet add button unless given (a toolbar's button, say). */
+  triggerClassName?: string
 }
 
-export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPickerProps) {
+export function EntityLinkPicker({ onPick, isLinked, disabled, triggerClassName }: EntityLinkPickerProps) {
   const { search } = useGlobalSearch()
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -73,7 +75,7 @@ export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPicke
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" disabled={disabled} className={inlineAdd}>
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} className={triggerClassName ?? inlineAdd}>
           <Plus className="h-3.5 w-3.5" aria-hidden />
           Link a doc or board
         </Button>

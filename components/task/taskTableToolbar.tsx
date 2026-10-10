@@ -21,6 +21,8 @@ import { CyclesButton } from "@/components/task/cyclesButton"
 import { TaskTableFieldFilter } from "@/components/task/taskTableFieldFilter"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { cycleFilter } from "@/lib/tasks/cycles"
+import { workToolbar } from "@/components/task/workFrame"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface DataTableToolbarProps<TData> {
     table: Table<TData>
@@ -74,7 +76,9 @@ export function TaskTableToolbar<TData>({
     }, [table])
 
     return (
-        <div className="flex flex-wrap items-start justify-between gap-2">
+        // The tab frame's toolbar row (components/task/workFrame): 32px
+        // controls, the filter field included.
+        <div data-work-toolbar="" className={cn(workToolbar, "items-start justify-between")}>
             {/* Sized by the room it has, not the window: beside another view
                 (split view) or a side panel, the buttons wrap below rather than
                 the search box spilling over them. */}

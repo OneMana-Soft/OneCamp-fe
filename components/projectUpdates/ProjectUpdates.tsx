@@ -15,6 +15,10 @@ import { updateDue, type ProjectUpdate } from "@/lib/projectUpdates"
 import { daysSince } from "@/lib/utils/relativeTime"
 import { UpdateCard } from "@/components/projectUpdates/UpdateCard"
 import { UpdateComposer } from "@/components/projectUpdates/UpdateComposer"
+import { ErrorState } from "@/components/ui/error-state"
+import { SpotDocs } from "@/components/ui/graphics/spots"
+import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { hueFor } from "@/lib/campHue"
 
 /**
  * A project's updates: where it stands and what changed, newest first. Its
@@ -22,7 +26,7 @@ import { UpdateComposer } from "@/components/projectUpdates/UpdateComposer"
  * reminded here once the last one is a week old.
  */
 export function ProjectUpdates({ projectId }: { projectId: string }) {
-  const { updates, canPost, isLoading, draft, aiDraft, post, edit, remove } = useProjectUpdates(projectId)
+  const { updates, canPost, isLoading, isError, retry, draft, aiDraft, post, edit, remove } = useProjectUpdates(projectId)
   const hasAI = useFeature(FEATURE_AI)
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const me = self.data?.data?.user_uuid
@@ -45,67 +49,91 @@ export function ProjectUpdates({ projectId }: { projectId: string }) {
   )
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-10">
-      {canPost && !composer && latest && (
-        <div
-          className={cn(
-            "flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3",
-            due ? "border-warning/30 bg-warning/5" : "border-border/60 bg-muted/30",
+    // The tab frame (components/task/workFrame): a toolbar row from the first
+    // paint, then the updates, starting at the tab's left edge like every other
+    // tab's content (max-w-3xl keeps the measure). The column used to be
+    // centred, 180px right of the other tabs at 1440, with no toolbar: its
+    // "Write an update" card came with the updates and pushed them down 74px.
+    <div className="flex flex-col pb-10">
+      <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
+        <p className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
+          {canPost && latest && !composer && (
+            <>
+              <Megaphone className={cn("h-4 w-4 shrink-0", due ? "text-warning-ink" : "text-muted-foreground")} />
+              <span className="truncate">
+                {due
+                  ? `The last update was ${daysSince(latest.created_at, now)} days ago. The next one is drafted from this week's tasks.`
+                  : "Post an update when something changes. It's drafted from the project's tasks."}
+              </span>
+            </>
           )}
-        >
-          <Megaphone className={cn("h-4 w-4 shrink-0", due ? "text-warning-ink" : "text-muted-foreground")} />
-          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-            {due
-              ? `The last update was ${daysSince(latest.created_at, now)} days ago. The next one is drafted from this week's tasks.`
-              : "Post an update when something changes. It's drafted from the project's tasks."}
-          </p>
-          <Button size="sm" variant={due ? "default" : "outline"} onClick={() => setComposer({})}>
+        </p>
+        {canPost && !composer && (
+          <Button size="sm" className="h-8" onClick={() => setComposer({})}>
             Write an update
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {composer && !composer.editing && composerFor()}
+      {/* The updates keep a reading measure (max-w-3xl) from the tab's left
+          edge; an empty or failed tab says so across the whole body, where
+          every other tab says it. */}
+      <div className={cn(workBody, "flex flex-col gap-3")}>
+        {composer && !composer.editing && <div className="w-full max-w-3xl">{composerFor()}</div>}
 
-      {isLoading ? (
-        <div className="flex flex-col gap-3">
-          {[0, 1].map((i) => (
-            <Skeleton key={i} className="h-36 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : updates.length === 0 ? (
-        !composer && (
-          <EmptyState
-            icon={Megaphone}
-            title="No updates yet"
-            description={
-              canPost
-                ? "An update says where the project stands (on track, at risk, off track) with a short note. OneCamp drafts it from the project's tasks: what's done, what's stuck or late, and what's next."
-                : "The project's admins post updates here: where it stands, and what changed."
-            }
-            action={canPost ? <Button onClick={() => setComposer({})}>Write the first update</Button> : undefined}
-          />
-        )
-      ) : (
-        <ol className="flex flex-col gap-3" aria-label="Updates, newest first">
-          {updates.map((u) =>
-            composer?.editing?.id === u.id ? (
-              <li key={u.id}>{composerFor(u)}</li>
-            ) : (
-              <li key={u.id}>
-                <UpdateCard
-                  update={u}
-                  now={now}
-                  canEdit={canPost && u.author_uuid === me}
-                  canDelete={canPost || u.author_uuid === me}
-                  onEdit={() => setComposer({ editing: u })}
-                  onDelete={() => remove(u.id).catch(() => {})}
-                />
-              </li>
-            ),
-          )}
-        </ol>
-      )}
+        {isLoading ? (
+          <div role="status" aria-label="Loading updates" className="flex w-full max-w-3xl flex-col gap-3">
+            {[0, 1].map((i) => (
+              <div key={i} aria-hidden="true" className="rounded-xl border border-border/60 p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <Skeleton className="h-3.5 w-11/12" />
+                <Skeleton className="mt-2 h-3.5 w-3/4" />
+                <Skeleton className="mt-2 h-3.5 w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : isError ? (
+          <WorkState>
+            <ErrorState subject="this project's updates" onRetry={() => void retry()} />
+          </WorkState>
+        ) : updates.length === 0 ? (
+          !composer && (
+            <WorkState>
+              <EmptyState
+                illustration={<SpotDocs hue={hueFor(projectId)} />}
+                title="No updates yet"
+                description={
+                  canPost
+                    ? "An update says where the project stands (on track, at risk, off track) with a short note. OneCamp drafts it from the project's tasks: what's done, what's stuck or late, and what's next."
+                    : "The project's admins post updates here: where it stands, and what changed."
+                }
+              />
+            </WorkState>
+          )
+        ) : (
+          <ol className="flex w-full max-w-3xl flex-col gap-3" aria-label="Updates, newest first">
+            {updates.map((u) =>
+              composer?.editing?.id === u.id ? (
+                <li key={u.id}>{composerFor(u)}</li>
+              ) : (
+                <li key={u.id}>
+                  <UpdateCard
+                    update={u}
+                    now={now}
+                    canEdit={canPost && u.author_uuid === me}
+                    canDelete={canPost || u.author_uuid === me}
+                    onEdit={() => setComposer({ editing: u })}
+                    onDelete={() => remove(u.id).catch(() => {})}
+                  />
+                </li>
+              ),
+            )}
+          </ol>
+        )}
+      </div>
     </div>
   )
 }
