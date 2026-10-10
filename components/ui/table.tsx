@@ -67,14 +67,29 @@ const TableRow = React.forwardRef<
 ))
 TableRow.displayName = "TableRow"
 
+/**
+ * Column alignment, said once per cell: `align="right"` for numbers, which
+ * also sets tabular figures so digits line up down the column; "center" for
+ * a short status mark. It replaces the deprecated HTML `align` attribute
+ * (which these cells used to pass straight to the DOM) with classes, so the
+ * header and its cells agree. Omit it for the default, left.
+ */
+type CellAlign = "left" | "right" | "center"
+const ALIGN: Record<CellAlign, string> = {
+  left: "text-left",
+  right: "text-right tabular-nums",
+  center: "text-center",
+}
+
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
+  Omit<React.ThHTMLAttributes<HTMLTableCellElement>, "align"> & { align?: CellAlign }
+>(({ className, align, ...props }, ref) => (
   <th
     ref={ref}
     className={cn(
       "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      align && ALIGN[align],
       className
     )}
     {...props}
@@ -84,12 +99,13 @@ TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<
   HTMLTableCellElement,
-  React.TdHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
+  Omit<React.TdHTMLAttributes<HTMLTableCellElement>, "align"> & { align?: CellAlign }
+>(({ className, align, ...props }, ref) => (
   <td
     ref={ref}
     className={cn(
       "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      align && ALIGN[align],
       className
     )}
     {...props}
