@@ -162,7 +162,7 @@ export const ActivityAllListResult = ({
             className="justify-start px-1 pb-2"
         >
             {actorFilters(aiAvailable).map((f) => (
-                <ToggleGroupItem key={f.value} value={f.value} size="sm" className="h-7 rounded-full px-3 text-xs">
+                <ToggleGroupItem key={f.value} value={f.value} size="sm" className="h-7 rounded-md px-2.5 text-xs">
                     {f.label}
                 </ToggleGroupItem>
             ))}

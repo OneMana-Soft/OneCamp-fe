@@ -153,7 +153,7 @@ export function VideoControls({
         label={isScreenShareEnabled ? "Stop sharing" : "Share screen"}
         onClick={toggleScreenShare}
         isActive={isScreenShareEnabled}
-        activeClass="bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 border-blue-500/50"
+        activeClass="bg-info/20 text-info hover:bg-info/30 border-info/50"
       >
         {isScreenShareEnabled ? <MonitorOff className="h-5 w-5" /> : <MonitorUp className="h-5 w-5" />}
       </ControlBtn>
@@ -167,7 +167,7 @@ export function VideoControls({
             onClick={onToggleRecording}
             isActive={isRecording}
             disabled={isRecordingLoading}
-            activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50 animate-pulse"
+            activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50 motion-safe:animate-pulse"
         >
             {isRecordingLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Disc className="h-5 w-5" />}
         </ControlBtn>
@@ -240,7 +240,7 @@ export function VideoControls({
             <Button
  aria-label="Leave call"              variant="destructive"
               size="icon"
-              className="h-12 w-12 rounded-full shadow-lg hover:scale-110 transition-transform"
+              className="h-12 w-12 rounded-full transition-colors active:scale-[0.97]"
               onClick={handleLeave}
             >
               <PhoneOff className="h-5 w-5" />

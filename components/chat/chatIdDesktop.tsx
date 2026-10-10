@@ -158,7 +158,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                         <Video size={18} />
                         {chatCallStatusActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                                <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
                             </span>
                         )}

@@ -61,7 +61,7 @@ export default function SearchPage() {
                     </h1>
                 </div>
 
-                <form onSubmit={onSearchSubmit} className="relative w-full max-w-2xl">
+                <form onSubmit={onSearchSubmit} role="search" className="relative w-full max-w-2xl">
                     <div className="relative group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-foreground transition-colors" />
                         <Input
@@ -70,7 +70,8 @@ export default function SearchPage() {
                             aria-label="Search"
                             type="search"
                             className="pl-9 pr-10 h-10 w-full bg-background focus-visible:ring-offset-0 [&::-webkit-search-cancel-button]:hidden"
-                            placeholder="Search for chats, posts, docs, or people…"
+                            autoComplete="off"
+                            placeholder="Search messages, docs, tasks and people…"
                         />
                         {inputValue && (
                             <button

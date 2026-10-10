@@ -13,7 +13,7 @@ import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
 import { cn } from "@/lib/utils/helpers/cn";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { useActivityNavigation } from "@/hooks/activity/useActivityNavigation";
-import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment";
+import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { ListRow } from "@/components/ui/listRow";
 
 interface ActivityCardProps {
@@ -41,8 +41,11 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
 
     const meta = useMemo<ActivityMeta>(() => {
         let badgeIcon: React.ReactNode = <MessageSquare className="h-2.5 w-2.5" strokeWidth={2.5} />;
+        // One neutral badge for every kind: the glyph (@, a speech bubble, the
+        // emoji) says which. Each kind had its own tint, orange for mentions and
+        // green for comments, colours that meant nothing on their own.
         let badgeClass =
-            "bg-muted text-muted-foreground border border-border";
+            "bg-background text-muted-foreground border border-border";
         let title = "";
         let content = "";
         let user: UserProfileDataInterface | undefined;
@@ -51,7 +54,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         if (activity.activity_type === "MENTION" && activity.mention) {
             badgeIcon = <AtSign className="h-2.5 w-2.5" strokeWidth={2.5} />;
             badgeClass =
-                "bg-primary/10 text-primary border border-primary/20";
+                "bg-background text-muted-foreground border border-border";
             time = activity.mention.mention_created_at;
 
             if (activity.mention.mention_chat) {
@@ -80,7 +83,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         } else if (activity.activity_type === "COMMENT" && activity.comment) {
             badgeIcon = <MessageSquare className="h-2.5 w-2.5" strokeWidth={2.5} />;
             badgeClass =
-                "bg-success/10 text-success border border-success/20";
+                "bg-background text-muted-foreground border border-border";
             time = activity.comment.comment_created_at;
             title = activity.comment.comment_board
                 ? "commented on your board"
@@ -98,7 +101,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 </span>
             );
             badgeClass =
-                "bg-warning/10 text-warning border border-warning/20";
+                "bg-background text-muted-foreground border border-border";
             time = activity.reaction.reaction_added_at;
             title = "reacted to your content";
             content = "";
@@ -110,7 +113,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
 
     const { src: imageSrc } = useUserAvatar(meta.user?.user_profile_object_key);
 
-    const formattedTime = meta.time ? formatTimeForPostOrComment(meta.time) : "";
+    const formattedTime = meta.time ? formatListTimestamp(meta.time) : "";
     const cleanContent = useMemo(
         () => (meta.content ? removeHtmlTags(meta.content) : ""),
         [meta.content],
@@ -137,7 +140,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 aria-hidden
                 className={cn(
                     "absolute -bottom-1 -right-1.5 w-4 h-4 rounded-full",
-                    "flex items-center justify-center shadow-sm",
+                    "flex items-center justify-center",
                     "ring-2 ring-background",
                     meta.badgeClass,
                 )}
@@ -158,7 +161,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 <span className="font-normal text-muted-foreground">{meta.title}</span>
             </span>
             {activity.priority === "high" && (
-                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary">
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium text-foreground">
                     Needs reply
                 </span>
             )}

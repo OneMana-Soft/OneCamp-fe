@@ -3,7 +3,6 @@
 import { useMedia } from "@/context/MediaQueryContext"
 import { ChatUserList } from "@/components/chat/chatUserList"
 import { EmptyState } from "@/components/ui/empty-state"
-import { MessageCircle } from "@/lib/icons"
 
 export default function ChatPage() {
     const { isDesktop, isMobile } = useMedia()
@@ -14,11 +13,12 @@ export default function ChatPage() {
 
     if (isDesktop) {
         return (
+            // No icon in a circle: the pane is empty because nothing is open,
+            // and one line saying where to look is all it needs.
             <div className="flex h-full items-center justify-center">
                 <EmptyState
-                    icon={MessageCircle}
-                    title="Select a conversation"
-                    description="Choose a chat from the sidebar to start messaging."
+                    title="No conversation open"
+                    description="Pick one from the list, or start a new one with New message."
                 />
             </div>
         )

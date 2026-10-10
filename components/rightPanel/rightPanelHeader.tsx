@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
     ArrowRightToLine,
     CalendarIcon,
@@ -50,15 +51,20 @@ export const RightPanelHeader = ({ titleKey, title }: RightPanelHeaderProps) => 
                     {title || config.label}
                 </h2>
             </div>
-            <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleClose}
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label="Close panel"
-            >
-                <ArrowRightToLine className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={handleClose}
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                        aria-label="Close panel"
+                    >
+                        <ArrowRightToLine className="h-4 w-4" />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>Close panel</TooltipContent>
+            </Tooltip>
         </header>
     )
 }
