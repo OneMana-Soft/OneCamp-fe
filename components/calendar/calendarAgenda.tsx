@@ -5,6 +5,7 @@ import { shortTime } from "@/lib/utils/date/shortDate";
 import { ChevronRight, Plus } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SpotCalendar } from "@/components/ui/graphics";
 import { toneOf } from "@/components/calendar/calendarTones";
 import { cn } from "@/lib/utils/helpers/cn";
 
@@ -52,11 +53,12 @@ export function CalendarAgenda({
     return (
       <EmptyState
         tone="accent"
+        illustration={<SpotCalendar />}
         title="Nothing coming up this month"
         description="Events you create and tasks with dates show up here."
         action={
           <Button size="sm" onClick={onCreate} className="gap-1.5">
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             New event
           </Button>
         }
