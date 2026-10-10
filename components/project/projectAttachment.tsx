@@ -62,6 +62,8 @@ export default function ProjectAttachment({
             )}
         >
             <AttachmentIcon
+                // The name beside it opens the file too, and takes the focus.
+                focusable={false}
                 attachmentType={attachmentInfo.attachment_type}
                 attachmentOnCLick={handleAttachmentIconCLick}
                 getUrl={GetEndpointUrl.GetProjectMedia + "/" + projectUUID + "/" + attachmentInfo.attachment_uuid}
