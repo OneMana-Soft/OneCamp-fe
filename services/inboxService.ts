@@ -1,4 +1,5 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { fullDateTime, shortDate as dayAndMonth, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
 
 // The person's own Gmail inside OneCamp. The server reads it with the Gmail
 // connection they made, sanitises every body and drops remote images.
@@ -77,18 +78,26 @@ export function senderName(from: string): string {
   return (m && m[1].trim()) || from.replace(/[<>]/g, "").trim()
 }
 
-/** A full local date for one email, or the header as sent when it cannot be read. */
+// Dates are written the app's one way (lib/utils/date/shortDate): "3:10 PM"
+// today, "9 Oct" otherwise, day before month. The browser's locale wrote
+// "10/10/2026, 12:00:00 PM" in a header, which half the world reads as the
+// tenth of a different month.
+
+/** All of one email's date, for a tooltip: "Wednesday 1 October 2026, 3:30 PM", or the header as sent when it can't be read. */
 export function fullDate(raw: string): string {
   const d = new Date(raw)
-  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString()
+  return Number.isNaN(d.getTime()) ? raw : fullDateTime(d)
 }
 
-/** A short, local date for the list: time today, else day and month. */
+/** One email's date in its header: "1 Oct, 3:30 PM", the year only when it isn't this one. */
+export function mailDate(raw: string, now = new Date()): string {
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? raw : shortDateTime(d, now)
+}
+
+/** A conversation's date in the list: the time today, else "9 Oct". */
 export function shortDate(raw: string, now = new Date()): string {
   const d = new Date(raw)
   if (Number.isNaN(d.getTime())) return ""
-  const sameDay = d.toDateString() === now.toDateString()
-  return sameDay
-    ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+  return d.toDateString() === now.toDateString() ? shortTime(d) : dayAndMonth(d, now)
 }

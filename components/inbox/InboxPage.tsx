@@ -13,13 +13,18 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { springPop } from "@/lib/celebrate"
+import { SpotInbox, SpotPlug, SpotSearch } from "@/components/ui/graphics"
+import { ErrorState } from "@/components/ui/error-state"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
-import { ArrowLeft, ExternalLink, Inbox as InboxIcon, Loader2, Mail, Search, CircleCheck, Send } from "@/lib/icons"
+import { ArrowLeft, ExternalLink, Loader2, Search, CircleCheck, Send } from "@/lib/icons"
+import { Skeleton } from "@/components/ui/skeleton"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -31,6 +36,7 @@ import {
   getInboxThread,
   connectionProblem,
   fullDate,
+  mailDate,
   replyToThread,
   senderName,
   shortDate,
@@ -165,7 +171,7 @@ export default function InboxPage() {
     const reconnect = connection === "reconnect"
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
-        <Mail className="h-10 w-10 text-muted-foreground" />
+        <SpotPlug />
         <h1 className="text-lg font-semibold">{reconnect ? "Reconnect Gmail" : "Bring your email into OneCamp"}</h1>
         <p className="text-sm text-muted-foreground">
           {reconnect
@@ -190,38 +196,77 @@ export default function InboxPage() {
       >
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search mail" className="pl-8" aria-label="Search mail" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search mail…" className="pl-8" aria-label="Search mail" name="q" autoComplete="off" />
         </div>
       </form>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {threads === null && (
-          <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </p>
+          // The rows' own shape while the list loads, not a spinner.
+          <ul role="status" aria-label="Loading your inbox">
+            {[0, 1, 2, 3, 4].map((i) => (
+              // A row's line boxes (20, 20 and 18px, 2px apart): the bars were
+              // 16, 16 and 12px with 6px gaps, so the fifth row landed 30px lower.
+              <li key={i} data-inbox-skeleton-row="" className="flex gap-3 border-b border-border px-4 py-3">
+                <Skeleton className="mt-0.5 size-7 shrink-0 rounded-full" />
+                <span className="flex flex-1 flex-col gap-0.5">
+                  <Skeleton className="h-5 w-1/3" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-[18px] w-5/6" />
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
-        {listError && <p className="p-4 text-sm text-danger-ink">{listError}</p>}
+        {/* Failed, nothing found and empty all sit in InboxZero's centred
+            frame: a failure was a red line with no way to try again, and a
+            search with no match one grey sentence. */}
+        {listError && (
+          <div data-inbox-state="" className="flex flex-col items-center px-6 py-10 text-center">
+            <ErrorState subject="your inbox" onRetry={() => void load(applied)} />
+          </div>
+        )}
         {threads && threads.length === 0 && !listError && (
-          <p className="p-6 text-center text-sm text-muted-foreground">{applied ? "Nothing matches that search." : "Your inbox is empty."}</p>
+          applied ? (
+            <div data-inbox-state="" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+              <SpotSearch size={88} />
+              <p className="text-sm font-medium text-foreground">Nothing matches “{applied}”</p>
+              <p className="text-xs text-muted-foreground">Check the spelling, or try fewer words.</p>
+              <Button variant="outline" size="sm" onClick={() => { setQuery(""); setApplied("") }}>
+                Clear search
+              </Button>
+            </div>
+          ) : (
+            <InboxZero />
+          )
         )}
         <ul>
           {threads?.map((t) => (
             <li key={t.id}>
               <button
+                type="button"
                 onClick={() => void open(t.id)}
+                aria-current={openId === t.id || undefined}
                 className={cn(
-                  "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left transition-colors hover:bg-accent",
-                  openId === t.id && "bg-accent",
+                  "flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors duration-100",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
+                  // The open conversation is the selection: the soft accent,
+                  // as in the sidebar. Hover is a neutral step.
+                  openId === t.id ? "bg-brand-muted" : "hover:bg-highlight",
                 )}
               >
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className={cn("truncate text-sm", t.unread ? "font-semibold" : "text-foreground/80")}>
-                    {senderName(t.from)}
-                    {t.messages > 1 && <span className="ml-1 text-xs text-muted-foreground">{t.messages}</span>}
+                {/* The sender's colour, the same for every mail from them. */}
+                <IdentityMark variant="avatar" size={28} id={t.from} label={senderName(t.from)} className="mt-0.5" />
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className={cn("truncate text-sm", t.unread ? "font-semibold" : "text-foreground/80")}>
+                      {senderName(t.from)}
+                      {t.messages > 1 && <span className="ml-1 text-xs tabular-nums text-muted-foreground">{t.messages}</span>}
+                    </span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{shortDate(t.date)}</span>
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{shortDate(t.date)}</span>
+                  <span className={cn("truncate text-sm", t.unread && "font-medium")}>{t.subject || "(no subject)"}</span>
+                  <span className="line-clamp-1 text-xs text-muted-foreground">{t.snippet}</span>
                 </span>
-                <span className={cn("truncate text-sm", t.unread && "font-medium")}>{t.subject || "(no subject)"}</span>
-                <span className="line-clamp-1 text-xs text-muted-foreground">{t.snippet}</span>
               </button>
             </li>
           ))}
@@ -241,15 +286,15 @@ export default function InboxPage() {
   const detail = (
     <div className={cn("flex min-h-0 flex-1 flex-col", !openId && "hidden md:flex")}>
       {!openId && (
-        <div className="m-auto flex flex-col items-center gap-2 text-sm text-muted-foreground">
-          <InboxIcon className="h-8 w-8" />
-          Choose a conversation
-        </div>
+        <p className="m-auto text-sm text-muted-foreground">Pick a conversation to read it here.</p>
       )}
       {openId && (
         <>
-          <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpenId(null)} aria-label="Back to the inbox">
+          {/* The list's toolbar height: 69px on a phone (a 44px back button,
+              as its 44px box) and 61px from md, so the reading pane starts
+              where the list did and the two bottom borders meet. */}
+          <div data-inbox-thread-bar="" className="flex min-h-[69px] flex-wrap items-center gap-2 border-b border-border p-3 md:min-h-[61px]">
+            <Button variant="ghost" size="icon" className="size-11 md:hidden" onClick={() => setOpenId(null)} aria-label="Back to the inbox">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <h2 className="mr-auto min-w-0 flex-1 truncate text-base font-semibold">{thread?.subject || " "}</h2>
@@ -267,18 +312,32 @@ export default function InboxPage() {
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {threadError && <p className="text-sm text-danger-ink">{threadError}</p>}
             {!thread && !threadError && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Opening…
-              </p>
+              // A message's own shape while the conversation opens.
+              <div role="status" aria-label="Opening the conversation" className="rounded-lg border border-border p-4">
+                <div className="mb-3 flex items-center gap-2.5">
+                  <Skeleton className="size-7 rounded-full" />
+                  <Skeleton className="h-4 w-40" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3.5 w-11/12" />
+                  <Skeleton className="h-3.5 w-4/5" />
+                  <Skeleton className="h-3.5 w-2/3" />
+                </div>
+              </div>
             )}
             <div className="space-y-4">
               {thread?.messages.map((m) => (
                 <article key={m.id} className="rounded-lg border border-border p-4">
-                  <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium">{senderName(m.from)}</span>
-                    <span className="text-xs text-muted-foreground">{fullDate(m.date)}</span>
+                  <header className="mb-3 flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <IdentityMark variant="avatar" size={28} id={m.from} label={senderName(m.from)} />
+                      <span className="truncate text-sm font-medium">{senderName(m.from)}</span>
+                    </span>
+                    <time dateTime={m.date} title={fullDate(m.date)} className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {mailDate(m.date)}
+                    </time>
                   </header>
-                  <SafeHtml html={m.body} sanitizer={sanitizeRichHtml} className="prose prose-sm max-w-none break-words dark:prose-invert" />
+                  <SafeHtml html={m.body} sanitizer={sanitizeRichHtml} className="max-w-none break-words" />
                   {(m.truncated || (m.attachments ?? 0) > 0) && (
                     <p className="mt-3 text-xs text-muted-foreground">
                       {m.truncated ? "This email is long and was shortened here. " : ""}
@@ -323,6 +382,28 @@ export default function InboxPage() {
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       {list}
       {detail}
+    </div>
+  )
+}
+
+/**
+ * Nothing in the inbox: a small moment, so the line springs once as it
+ * arrives (springPop, which stands still for reduced motion). Not a burst:
+ * those are for a task done or an import finished.
+ */
+function InboxZero() {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    springPop(ref.current)
+  }, [])
+  // The playful layer's own example: a small ringed envelope.
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+      <span ref={ref} data-inbox-zero="" className="inline-flex">
+        <SpotInbox size={88} />
+      </span>
+      <p className="text-sm font-medium text-foreground">Your inbox is empty</p>
+      <p className="text-xs text-muted-foreground">New mail lands here.</p>
     </div>
   )
 }
