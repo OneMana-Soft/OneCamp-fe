@@ -29,18 +29,6 @@ const SOURCE: Record<string, string> = {
 
 type Draft = { uploadLimit: string; allowedUsers: string }
 
-/**
- * An unsaved edit, kept while the admin looks at another section. The admin
- * page shows one section at a time, so leaving General unmounted this card
- * and the edit was simply gone when they came back. It comes back now, with
- * the save bar saying it is unsaved.
- */
-let keptDraft: Draft | null = null
-/** For tests: start each one with nothing kept. */
-export function forgetKeptDraft() {
-    keptDraft = null
-}
-
 const draftOf = (s: WorkspaceSettings): Draft => ({
     uploadLimit: String(s.upload_limit_mb),
     allowedUsers: s.allowed_users?.join(", ") ?? "",
@@ -66,13 +54,6 @@ export default function WorkspaceSettingsCard() {
     const listChanged = !!saved && !sameList(draft.allowedUsers, saved.allowedUsers)
     const dirty = sizeChanged || listChanged
 
-    // The draft as it is at unmount, kept only while it differs from what's saved.
-    const latest = useRef({ draft, dirty })
-    latest.current = { draft, dirty }
-    useEffect(() => () => {
-        keptDraft = latest.current.dirty ? latest.current.draft : null
-    }, [])
-
     const load = () => {
         setState("loading")
         getWorkspaceSettings()
@@ -84,8 +65,7 @@ export default function WorkspaceSettingsCard() {
                     return
                 }
                 setSettings(s)
-                setDraft(keptDraft ?? draftOf(s))
-                keptDraft = null
+                setDraft(draftOf(s))
                 setState("ready")
             })
             .catch(() => setState("failed"))
