@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 /**
@@ -38,18 +38,19 @@ interface ApproveResult {
 }
 
 export async function getConsent(id: string): Promise<ConsentView> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetOAuthRequest}/${id}`)
+  // The page says every failure in place; the global toast stays quiet.
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetOAuthRequest}/${id}`, OWN_ERRORS)
   return res.data?.data as ConsentView
 }
 
 /** agent_id empty makes a new agent named after the client. */
 export async function approveConsent(id: string, input: { agent_id: string; scopes: string[] }): Promise<ApproveResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.AnswerOAuthRequest}/${id}/approve`, input)
+  const res = await axiosInstance.post(`${PostEndpointUrl.AnswerOAuthRequest}/${id}/approve`, input, OWN_ERRORS)
   return res.data?.data as ApproveResult
 }
 
 export async function denyConsent(id: string): Promise<string> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.AnswerOAuthRequest}/${id}/deny`)
+  const res = await axiosInstance.post(`${PostEndpointUrl.AnswerOAuthRequest}/${id}/deny`, undefined, OWN_ERRORS)
   return (res.data?.data?.redirect as string) || ""
 }
 
