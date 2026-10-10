@@ -130,7 +130,11 @@ export const mentionSuggestionOptions: MentionOptions["suggestion"] = {
 
       onKeyDown(props) {
         if (props.event.key === "Escape") {
-          popup?.hide();
+          // Escape closes the picker, and only the picker. Once it is closed
+          // the key is not this suggestion's any more, so a second press
+          // reaches the page (closing the thread it was typed in, say).
+          if (!popup?.state.isVisible) return false;
+          popup.hide();
           return true;
         }
 

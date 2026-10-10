@@ -526,8 +526,10 @@ export const slashCommandSuggestion = {
 
       onKeyDown(props: SuggestionKeyDownProps) {
         if (props.event.key === "Escape") {
+          // Only while the menu shows: a second Escape reaches the page.
+          if (!popup?.state.isVisible) return false
           slashMenuOpen = false
-          popup?.hide()
+          popup.hide()
           return true
         }
         if (!component?.ref) return false
