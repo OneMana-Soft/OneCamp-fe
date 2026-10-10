@@ -61,6 +61,13 @@ describe("data sources", () => {
     expect(document.body.innerHTML).not.toMatch(/\buppercase\b/)
   })
 
+  it("shows the plug spot when no source is connected", () => {
+    fetchState.value = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<DataSourcesCard />)
+    expect(screen.getByText("No data sources yet")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration]")).toBeTruthy()
+  })
+
   // A test that threw left nothing on screen: no catch at all.
   it("says why a connection test couldn't run", async () => {
     fetchState.value = { data: { data: [source] }, isLoading: false, isError: undefined, mutate: vi.fn() }

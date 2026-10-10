@@ -25,6 +25,7 @@ import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SpotPlug } from "@/components/ui/graphics"
 import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -134,6 +135,7 @@ const McpServersCard = () => {
             tone="accent"
             icon={Plug}
             hue={ADMIN_GROUP_HUE.ai}
+            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.ai} />}
             title="No MCP servers yet"
             description="Add a server to bring its tools to your agents, or install one from the catalogue below."
           />

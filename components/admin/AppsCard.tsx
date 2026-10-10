@@ -36,6 +36,7 @@ import type { AppView, AppCommandInput, CreateAppRequest } from "@/types/app"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SpotPlug } from "@/components/ui/graphics"
 
 const KIND_LABELS: Record<string, string> = {
     builtin: "Built-in",
@@ -174,6 +175,7 @@ export default function AppsCard() {
                         tone="accent"
                         icon={Plug}
                         hue={ADMIN_GROUP_HUE.connections}
+                        illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
                         title="No apps installed yet"
                         description="Install one above, or add a custom integration."
                     />

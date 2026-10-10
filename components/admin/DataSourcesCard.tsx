@@ -23,6 +23,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SpotPlug } from "@/components/ui/graphics"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -141,6 +142,7 @@ const DataSourcesCard = () => {
             tone="accent"
             icon={Database}
             hue={ADMIN_GROUP_HUE.ai}
+            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.ai} />}
             title="No data sources yet"
             description="Add a read-only PostgreSQL or MySQL connection to let agents query it."
           />
