@@ -51,7 +51,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                     the chips in a row of their own that scrolls sideways rather
                     than wrapping. Wrapping as they arrived pushed the list down
                     about 100px on a phone. */}
-                <div className="grid gap-1.5 px-4 pt-3">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
                     <div className="flex items-center gap-1">
                         <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 truncate" />
                         <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />

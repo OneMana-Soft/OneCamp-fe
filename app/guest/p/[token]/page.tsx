@@ -1,4 +1,5 @@
 "use client"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 // A project shared with a client: its tasks by status (or on a timeline),
 // how far along it is, and each task's description and (when the link
@@ -43,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea"
 // A board changes slower than a conversation.
 const BOARD_POLL_MS = GUEST_POLL_MS * 3
 
-const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+const day = (iso: string) => shortDate(new Date(iso))
 
 function isOverdue(t: GuestTaskCard) {
   return !!t.due_date && t.status !== "done" && new Date(t.due_date).getTime() < Date.now()
@@ -115,20 +116,23 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
 
   return (
     <main className="flex h-dvh flex-col bg-background">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6">
         <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <h1 className="min-w-0 flex-1 truncate font-semibold sm:flex-none">{view.project}</h1>
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
+        <span className="shrink-0 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
         <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto" aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted sm:w-24 sm:flex-none" aria-hidden>
-            <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
+            <div className="h-full rounded-full bg-foreground/70 transition-[width]" style={{ width: `${pct}%` }} />
           </div>
           <span className="tabular-nums">{view.done_tasks} of {view.total_tasks} done</span>
         </div>
       </header>
       <GuestTroubleNote trouble={trouble} />
       <div className="flex min-h-0 flex-1">
-        <section className={`min-w-0 flex-1 overflow-auto p-4 ${open ? "hidden md:block" : ""}`}>
+        <section className={`min-w-0 flex-1 overflow-auto p-4 sm:px-6 ${open ? "hidden md:block" : ""}`}>
+          {/* One measure for the page: at 1440 the columns ran edge to edge under
+              a half-width update. */}
+          <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <GuestUpdates updates={view.updates ?? []} />
           </div>
@@ -155,9 +159,9 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
             <div className="grid gap-4 md:grid-flow-col md:auto-cols-[minmax(14rem,1fr)]">
               {view.columns.map((col) => (
                 <section key={col.status} aria-label={col.label} className="flex min-w-0 flex-col gap-2">
-                  <h2 className="flex items-baseline gap-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <h2 className="flex items-baseline gap-2 px-1 text-sm font-medium text-foreground">
                     {col.label}
-                    <span className="tabular-nums">{col.tasks.length}</span>
+                    <span className="text-xs font-normal tabular-nums text-muted-foreground">{col.tasks.length}</span>
                   </h2>
                   {col.tasks.length === 0 && <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">Nothing here</p>}
                   {col.tasks.map((t) => (
@@ -166,7 +170,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
                       type="button"
                       onClick={() => setOpen(t.id)}
                       aria-current={open === t.id ? "true" : undefined}
-                      className={`rounded-md border bg-card p-3 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${open === t.id ? "border-primary/60" : ""}`}
+                      className={`rounded-lg border bg-card p-3 text-left transition-colors hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${open === t.id ? "border-primary/60" : ""}`}
                     >
                       <p className="break-words text-sm font-medium">{t.name}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -198,6 +202,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
             </div>
           )}
           <MadeWithOneCamp surface="guest-project" className="mt-8" />
+          </div>
         </section>
         {open && <TaskPanel token={token} taskId={open} onClose={() => setOpen(null)} onCommented={() => void refresh(true)} />}
       </div>
@@ -240,7 +245,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
         {missing ? (
           <p className="text-sm text-muted-foreground">That task isn&apos;t here any more.</p>
         ) : !task ? (
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : (
           <div className="grid gap-5">
             <div className="grid gap-2">
@@ -270,7 +275,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
             )}
             {task.can_comment && (
               <section aria-label="Comments" className="grid gap-3">
-                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Comments</h3>
+                <h3 className="text-sm font-medium text-foreground">Comments</h3>
                 {task.comments.length === 0 && <p className="text-sm text-muted-foreground">No comments yet.</p>}
                 <ol className="grid gap-3">
                   {task.comments.map((c) => <li key={c.id}><GuestMessageView m={c} /></li>)}

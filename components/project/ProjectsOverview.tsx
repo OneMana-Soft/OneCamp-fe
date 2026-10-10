@@ -75,7 +75,7 @@ function Progress({ p, className }: { p: ProjectOverview; className?: string }) 
         aria-label={`${p.project_name}: ${pct}% of tasks done`}
         className="h-1.5 w-full min-w-16 overflow-hidden rounded-full bg-muted"
       >
-        <div className={cn("h-full rounded-full", pct === 100 ? "bg-success" : "bg-primary")} style={{ width: `${pct}%` }} />
+        <div className={cn("h-full rounded-full", pct === 100 ? "bg-success" : "bg-foreground/70")} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{pct}%</span>
     </div>
@@ -107,7 +107,7 @@ function MobileRow({ p }: { p: ProjectOverview }) {
         <div className="px-4 py-3" {...longPress}>
           <div className="flex items-center justify-between gap-3">
             <span className="truncate font-medium">{p.project_name}</span>
-            {p.health && <HealthPill health={p.health} className="h-5 px-2 text-2xs" />}
+            {p.health && <HealthPill health={p.health} className="text-2xs" />}
           </div>
           <p className="mt-0.5 truncate text-xs">
             {p.project_team?.team_name && <span className="text-muted-foreground">{p.project_team.team_name} · </span>}
@@ -227,7 +227,7 @@ export function ProjectsOverview() {
               }}
             >
               <td className="py-3 pr-4">
-                <Link href={href(p)} className="block truncate font-medium outline-none hover:underline focus-visible:underline">
+                <Link href={href(p)} title={p.project_name} className="block truncate font-medium outline-none hover:underline focus-visible:underline">
                   {p.project_name}
                 </Link>
                 {p.project_team?.team_name && <span className="block truncate text-xs text-muted-foreground">{p.project_team.team_name}</span>}
@@ -241,7 +241,7 @@ export function ProjectsOverview() {
               <td className="truncate py-3 pr-4 text-xs">
                 <Glance p={p} />
               </td>
-              <td className="py-3 text-xs tabular-nums text-muted-foreground">{p.updated_at ? daysAgo(p.updated_at) : <span aria-label="No update yet">—</span>}</td>
+              <td className="py-3 text-xs tabular-nums text-muted-foreground">{p.updated_at ? daysAgo(p.updated_at) : "None yet"}</td>
             </tr>
           ))}
         </tbody>
@@ -253,7 +253,7 @@ export function ProjectsOverview() {
   // Goals and reports have their own controls: no project search, filter or sort.
   const ownTools = goalsView || view === "reports"
   const tools = (all.length > 0 || ownTools) && (
-    <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-4 pt-4" : "px-0 pb-1")}>
+    <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-8 pt-4" : "px-0 pb-1")}>
       {!ownTools && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />}
       <div className={cn("flex flex-wrap items-center gap-2", !isDesktop && "px-3")}>
         <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="rounded-md border p-0.5">

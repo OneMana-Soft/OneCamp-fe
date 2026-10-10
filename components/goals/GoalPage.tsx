@@ -252,7 +252,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
           </nav>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-start gap-3">
-              <Target className="mt-1.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <Target className="mt-1.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               <div className="min-w-0 space-y-1.5">
                 <h1 className="font-display text-2xl font-semibold tracking-tight text-balance">{goal.title}</h1>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">

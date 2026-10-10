@@ -104,7 +104,7 @@ export function ProjectTimeDialog({
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : error ? (
           <p className="py-6 text-center text-sm text-destructive">{serverMessage(error, "Couldn't load the report. Try again.")}</p>
         ) : !report || report.entries === 0 ? (
@@ -113,7 +113,7 @@ export function ProjectTimeDialog({
           </p>
         ) : (
           <div className="grid gap-5">
-            <dl className="grid grid-cols-3 gap-2">
+            <dl className="grid grid-cols-3 divide-x border-y py-3">
               <Stat label="Total" value={formatDuration(report.seconds)} />
               <Stat label="Billable" value={formatDuration(report.billable_seconds)} />
               {priced ? (
@@ -151,9 +151,11 @@ export function ProjectTimeDialog({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border p-3">
+    // Figures in a row split by hairlines, not three boxes: they are one
+    // reading, and the boxes made the dialog a grid of cards.
+    <div className="min-w-0 px-4 first:pl-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+      <dd className="truncate text-lg font-semibold">{value}</dd>
     </div>
   )
 }
@@ -161,7 +163,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function Breakdown({ title, lines, total, priced }: { title: string; lines: TimeLine[]; total: number; priced?: (cents: number) => string }) {
   return (
     <section className="grid gap-2">
-      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <h3 className="text-sm font-medium text-foreground">{title}</h3>
       <ul className="grid gap-1.5">
         {lines.map((l) => (
           <li key={l.id} className="grid gap-1">
@@ -181,7 +183,7 @@ function Breakdown({ title, lines, total, priced }: { title: string; lines: Time
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-              <div className="h-full rounded-full bg-primary/70" style={{ width: `${total ? Math.max(2, (l.seconds / total) * 100) : 0}%` }} />
+              <div className="h-full rounded-full bg-foreground/60" style={{ width: `${total ? Math.max(2, (l.seconds / total) * 100) : 0}%` }} />
             </div>
           </li>
         ))}
