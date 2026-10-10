@@ -1,13 +1,16 @@
 "use client"
 
 /**
- * SlackImportErrorsDialog — paginated error log for a single import job.
+ * SlackImportErrorsDialog: what a Slack import skipped or couldn't bring
+ * across, a page at a time, filterable by how serious. Reads
+ * /admin/import/slack/jobs/{id}/errors.
  *
- * The backend exposes /admin/import/slack/jobs/{id}/errors with optional
- * severity filter. We render in batches of 100 with a "load more" button.
+ * A failed load is said in the dialog, with a way to try again. It used to
+ * raise a toast and then say "No matching entries.", so the dialog claimed a
+ * clean import behind the toast that contradicted it.
  */
 
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -17,10 +20,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/hooks/use-toast"
-import { LoaderCircle, AlertTriangle, AlertCircle, X } from "@/lib/icons"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { getSlackImportErrors, type SlackImportError } from "@/services/slackImportService"
+import { ErrorRow, SeverityFilter, type SeverityChoice } from "@/components/admin/ImportErrorsDialog"
 
 interface Props {
   jobId: string
@@ -30,140 +33,89 @@ interface Props {
 
 const PAGE_SIZE = 100
 
-const SEVERITY_BADGE: Record<string, { className: string; icon: React.ReactNode }> = {
-  warning: {
-    className: "bg-warning/10 text-warning-ink border-warning/20",
-    icon: <AlertTriangle className="h-3 w-3" />,
-  },
-  error: {
-    className: "bg-destructive/10 text-danger-ink border-destructive/20",
-    icon: <AlertCircle className="h-3 w-3" />,
-  },
-  fatal: {
-    className: "bg-destructive/15 text-danger-ink border-destructive/30",
-    icon: <X className="h-3 w-3" />,
-  },
+const EMPTY_LINE: Record<SeverityChoice, string> = {
+  "": "Nothing was logged: the import brought everything across.",
+  warning: "No warnings.",
+  error: "No errors.",
+  fatal: "Nothing stopped this import.",
 }
 
 export const SlackImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenChange }) => {
-  const { toast } = useToast()
-  const [filter, setFilter] = useState<"" | "warning" | "error" | "fatal">("")
+  const [filter, setFilter] = useState<SeverityChoice>("")
   const [items, setItems] = useState<SlackImportError[]>([])
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
-
-  const reset = useCallback(() => {
-    setItems([])
-    setDone(false)
-  }, [])
+  const [failed, setFailed] = useState<"first" | "more" | null>(null)
+  // The newest request wins when the filter changes while a page is on its way.
+  const latest = useRef(0)
 
   const fetchPage = useCallback(
-    async (offset: number, severity: typeof filter) => {
+    async (offset: number) => {
+      const ask = ++latest.current
       setLoading(true)
+      setFailed(null)
       try {
-        const page = await getSlackImportErrors(
-          jobId,
-          severity || undefined,
-          PAGE_SIZE,
-          offset,
-        )
-        if (offset === 0) setItems(page)
-        else setItems((prev) => [...prev, ...page])
-        if (page.length < PAGE_SIZE) setDone(true)
-      } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const e = err as any
-        toast({
-          title: "Could not load errors",
-          description: e?.response?.data?.error || e?.message,
-          variant: "destructive",
-        })
+        const page = await getSlackImportErrors(jobId, filter || undefined, PAGE_SIZE, offset)
+        if (ask !== latest.current) return
+        setItems((prev) => (offset === 0 ? page : [...prev, ...page]))
+        setDone(page.length < PAGE_SIZE)
+      } catch {
+        if (ask !== latest.current) return
+        if (offset === 0) setItems([])
+        setFailed(offset === 0 ? "first" : "more")
       } finally {
-        setLoading(false)
+        if (ask === latest.current) setLoading(false)
       }
     },
-    [jobId, toast],
+    [jobId, filter],
   )
 
   useEffect(() => {
     if (!open) return
-    reset()
-    fetchPage(0, filter)
-  }, [open, filter, fetchPage, reset])
-
-  const onChangeFilter = (v: typeof filter) => {
-    setFilter(v)
-  }
+    setDone(false)
+    void fetchPage(0)
+  }, [open, fetchPage])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Import errors</DialogTitle>
           <DialogDescription>
-            Skipped items, unsupported features, and infra failures for this import.
+            What the import left out or couldn&apos;t bring across from Slack, and why.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {(["", "warning", "error", "fatal"] as const).map((v) => (
-            <Button
-              key={v || "all"}
-              variant={filter === v ? "default" : "outline"}
-              size="sm"
-              onClick={() => onChangeFilter(v)}
-            >
-              {v ? v.charAt(0).toUpperCase() + v.slice(1) : "All"}
-            </Button>
-          ))}
-        </div>
+        <SeverityFilter value={filter} onChange={setFilter} disabled={loading && items.length === 0} />
 
-        <div className="flex-1 overflow-auto border border-border/40 rounded-md">
-          {items.length === 0 && !loading && (
-            <div className="text-center py-12 text-sm text-muted-foreground">
-              No matching entries.
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading && items.length === 0 ? (
+            <div role="status" aria-label="Loading the error log" className="rounded-md border border-border px-3 py-1">
+              <SkeletonRows rows={4} avatar={false} />
             </div>
+          ) : failed === "first" ? (
+            <ErrorState subject="the error log" onRetry={() => void fetchPage(0)} retrying={loading} />
+          ) : items.length === 0 ? (
+            <p className="rounded-md border border-border px-3 py-8 text-center text-sm text-muted-foreground">{EMPTY_LINE[filter]}</p>
+          ) : (
+            <ul aria-label="Logged problems" className="divide-y divide-border rounded-md border border-border">
+              {items.map((r) => (
+                <ErrorRow key={r.id} row={{ ...r, source: r.slack_id }} />
+              ))}
+            </ul>
           )}
-          <ul className="divide-y divide-border/40 text-xs">
-            {items.map((row) => {
-              const sev = SEVERITY_BADGE[row.severity] || SEVERITY_BADGE.error
-              return (
-                <li key={row.id} className="p-3 flex flex-col gap-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className={`gap-1 ${sev.className}`}>
-                      {sev.icon}
-                      {row.severity}
-                    </Badge>
-                    {row.code && <Badge variant="outline">{row.code}</Badge>}
-                    {row.entity_type && (
-                      <Badge variant="outline">{row.entity_type}</Badge>
-                    )}
-                    {row.slack_id && (
-                      <span className="text-muted-foreground font-mono">
-                        {row.slack_id}
-                      </span>
-                    )}
-                    <span className="ml-auto text-muted-foreground">
-                      {new Date(row.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="text-foreground/90">{row.message}</div>
-                </li>
-              )
-            })}
-          </ul>
-          {loading && (
-            <div className="py-4 flex justify-center text-muted-foreground">
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            </div>
+          {failed === "more" && (
+            <p role="alert" className="mt-2 text-sm text-danger-ink">
+              Couldn&apos;t load more. Try again.
+            </p>
           )}
         </div>
 
         <DialogFooter className="flex justify-between">
           <div>
-            {!done && !loading && items.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => fetchPage(items.length, filter)}>
-                Load more
+            {!done && items.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => void fetchPage(items.length)} disabled={loading}>
+                {loading ? "Loading…" : "Show more"}
               </Button>
             )}
           </div>
