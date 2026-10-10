@@ -24,6 +24,6 @@ describe("phone Home tiles", () => {
 
   it("keeps the accent off the AI row's icon", () => {
     expect(src).not.toMatch(/<Sparkles[^>]*text-primary/)
-    expect(src).toContain('<Tile hue={destinationHue("/app/ai")}>')
+    expect(src).toContain('<Tile hue={destinationHue("/app/ai")} size="sm">')
   })
 })
