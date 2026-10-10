@@ -56,10 +56,13 @@ export function ChannelListTabs() {
             icon={Hash}
             title="Channels"
             actions={
+                // On a phone the top bar's "+" makes a channel; this one is for
+                // the desktop frame, which has no such bar. The phone showed both.
                 <Button
                     variant="ghost"
                     size="icon"
                     aria-label="New channel"
+                    className="max-sm:hidden"
                     onClick={() => dispatch(openUI({ key: "createChannel" }))}
                 >
                     <Plus className="h-4 w-4" />
