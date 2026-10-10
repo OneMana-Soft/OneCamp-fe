@@ -53,9 +53,9 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting Doc",
-                    description: "Are you sure you want to proceed deleting the doc",
-                    confirmText: "Delete chat",
+                    title: "Delete this doc?",
+                    description: "The doc and everything written in it are removed for everyone. This can't be undone.",
+                    confirmText: "Delete doc",
                     destructive: true,
                     onConfirm: ()=>{executeDeleteDoc()}
                 }

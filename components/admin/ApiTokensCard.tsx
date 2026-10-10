@@ -106,9 +106,10 @@ const ApiTokensCard = () => {
 
   const handleRevoke = async (t: ApiToken) => {
     confirm({
-      title: "Revoke token",
-      description: `Revoke "${t.name}"? Apps using it will stop working immediately.`,
-      confirmText: "Revoke",
+      title: `Revoke the token "${t.name}"?`,
+      description: "Apps using it stop working immediately. This can't be undone, but you can create a new token.",
+      confirmText: "Revoke token",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(t.id)
         try {

@@ -113,8 +113,8 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Remove channel member",
-                    description: "Are you sure you want to proceed remove channel member",
+                    title: "Remove this member from the channel?",
+                    description: "They lose access to the channel and its messages. You can add them back later.",
                     confirmText: "Remove member",
                     destructive: true,
                     onConfirm: ()=>{executeRemoveMember(id)}

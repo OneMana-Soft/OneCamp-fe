@@ -259,9 +259,10 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
 
   const deleteColumn = async (field: TableField) => {
     confirm({
-      title: "Delete column",
-      description: `Delete column "${field.name}"? Existing cell data in this column is removed.`,
-      confirmText: "Delete",
+      title: `Delete the column "${field.name}"?`,
+      description: "Its cells are emptied in every row. This can't be undone.",
+      confirmText: "Delete column",
+      destructive: true,
       onConfirm: async () => {
         try {
           await deleteField(tableId, field.id)

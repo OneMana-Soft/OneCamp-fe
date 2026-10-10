@@ -56,9 +56,10 @@ export default function TablesPage() {
 
   const handleDelete = async (t: DataTable) => {
     confirm({
-      title: "Delete table",
-      description: `Delete table "${t.name}"? This can't be undone.`,
-      confirmText: "Delete",
+      title: `Delete the table "${t.name}"?`,
+      description: "Its rows and columns are removed for everyone. This can't be undone.",
+      confirmText: "Delete table",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(t.id)
         try {

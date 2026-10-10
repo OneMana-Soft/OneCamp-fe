@@ -122,8 +122,8 @@ export const ChannelComments = () => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting post",
-                    description: "Are you sure you want to proceed deleting the post",
+                    title: "Delete this post?",
+                    description: "It's removed from the channel for everyone. This can't be undone.",
                     confirmText: "Delete post",
                     destructive: true,
                     onConfirm: ()=>{executeDeletePost(postId)}
@@ -157,9 +157,9 @@ export const ChannelComments = () => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting post",
-                    description: "Are you sure you want to proceed deleting the post comment",
-                    confirmText: "Delete post comment",
+                    title: "Delete this reply?",
+                    description: "It's removed from the thread for everyone. This can't be undone.",
+                    confirmText: "Delete reply",
                     destructive: true,
                     onConfirm: ()=>{executeDeletePostComment(commentIndex, commentUUID)}
                 }

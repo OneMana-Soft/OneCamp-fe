@@ -112,9 +112,9 @@ export const ChatComments = () => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting post",
-                    description: "Are you sure you want to proceed deleting the post",
-                    confirmText: "Delete post",
+                    title: "Delete this message?",
+                    description: "It's removed from the conversation for everyone. This can't be undone.",
+                    confirmText: "Delete message",
                     destructive: true,
                     onConfirm: ()=>{executeDeleteChat(postId)}
                 }
@@ -156,9 +156,9 @@ export const ChatComments = () => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting chat",
-                    description: "Are you sure you want to proceed deleting the chat",
-                    confirmText: "Delete post",
+                    title: "Delete this reply?",
+                    description: "It's removed from the thread for everyone. This can't be undone.",
+                    confirmText: "Delete reply",
                     destructive: true,
                     onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
                 }

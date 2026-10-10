@@ -3,19 +3,26 @@ import { readFileSync, readdirSync } from "node:fs"
 import { relative, resolve } from "node:path"
 
 /**
- * A confirm that deletes, removes, revokes or leaves draws its button in red,
- * and the dialog only knows that when the caller says so. useConfirm takes
- * `destructive`; code that opens the dialog directly with
- * openUI({ key: "confirmAlert", data }) has to put `destructive: true` in the
- * data itself. About twenty-two of those call sites never did, so "Delete
- * post" and "Remove member" asked in the brand's orange, the colour of the
- * safe, primary action.
+ * Destructive confirms say one thing, in red.
  *
- * This reads every direct opener's data block and fails on one whose title or
- * confirm text says delete, remove, revoke or leave without the flag.
+ * 1. A confirm that deletes, removes, revokes, leaves, discards or disconnects
+ *    draws its button in red, and the dialog only knows that when the caller
+ *    says so: `destructive: true`, whether it goes through useConfirm or opens
+ *    the dialog directly with openUI({ key: "confirmAlert", data }). About
+ *    twenty-five direct openers never said so, and "Delete post" asked in the
+ *    brand's orange, the colour of the safe primary action.
+ * 2. The button names what the title asks about. Its words after the verb
+ *    ("Delete *doc*", "Remove *data source*") must all appear in the title.
+ *    Openers had drifted into "Deleting Doc" over a "Delete chat" button and
+ *    "Deleting comment" over "Delete post". A person reads the title, then
+ *    clicks the button; if they disagree, one of them is wrong about what is
+ *    about to be lost.
+ *
+ * It reads every confirmAlert data block and every object with a confirmText
+ * in a file that uses useConfirm.
  */
 const root = resolve(__dirname, "../..")
-const DANGER = /\b(delet|remov|revok|leav)/i
+const DANGER = /\b(delet|remov|revok|leav|discard|disconnect)/i
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -30,46 +37,89 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-/** The `data: { ... }` object that follows each `key: "confirmAlert"`, braces balanced. */
-function confirmAlertBlocks(src: string): string[] {
-  const blocks: string[] = []
-  const re = /key:\s*["']confirmAlert["']/g
-  for (const m of src.matchAll(re)) {
-    const start = src.indexOf("data:", m.index!)
-    if (start < 0) continue
-    const open = src.indexOf("{", start)
-    let depth = 0
-    for (let i = open; i < src.length; i++) {
-      if (src[i] === "{") depth++
-      else if (src[i] === "}" && --depth === 0) {
-        blocks.push(src.slice(open, i + 1))
-        break
-      }
-    }
+/** The balanced `{ ... }` starting at `open`. */
+function objectAt(src: string, open: number): string {
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "{") depth++
+    else if (src[i] === "}" && --depth === 0) return src.slice(open, i + 1)
   }
-  return blocks
+  return ""
 }
 
-const strings = (block: string, field: string) =>
-  [...block.matchAll(new RegExp(`${field}:\\s*(["'\`])([^"'\`]*)\\1`, "g"))].map((m) => m[2])
+/** The innermost object literal enclosing `at`. */
+function enclosingObject(src: string, at: number): string {
+  let depth = 0
+  for (let i = at; i >= 0; i--) {
+    if (src[i] === "}") depth++
+    else if (src[i] === "{") {
+      if (depth === 0) return objectAt(src, i)
+      depth--
+    }
+  }
+  return ""
+}
 
-describe("destructive confirms opened directly", () => {
-  it("finds the openers it is meant to check", () => {
-    const n = ["components", "app"].flatMap((d) => walk(resolve(root, d)))
-      .reduce((sum, f) => sum + confirmAlertBlocks(readFileSync(f, "utf8")).length, 0)
-    expect(n).toBeGreaterThan(20)
+function confirmBlocks(src: string): string[] {
+  const blocks = new Set<string>()
+  for (const m of src.matchAll(/key:\s*["']confirmAlert["']/g)) {
+    const data = src.indexOf("data:", m.index!)
+    if (data >= 0) blocks.add(objectAt(src, src.indexOf("{", data)))
+  }
+  if (/\buseConfirm\b/.test(src)) {
+    for (const m of src.matchAll(/confirmText:/g)) blocks.add(enclosingObject(src, m.index!))
+  }
+  return [...blocks].filter(Boolean)
+}
+
+/** Every string literal in a field's value, up to the next field (a conditional title has two). */
+function literals(block: string, field: string): string[] {
+  const start = block.search(new RegExp(`\\b${field}:`))
+  if (start < 0) return []
+  const rest = block.slice(start + field.length + 1)
+  const next = rest.search(/,\s*\n\s*(?:\/\/[^\n]*\n\s*)*\w+:/)
+  const value = next >= 0 ? rest.slice(0, next) : rest
+  return [...value.matchAll(/`([^`]*)`|"([^"]*)"|'([^']*)'/g)].map((m) => m[1] ?? m[2] ?? m[3])
+}
+
+const words = (s: string) =>
+  s.replace(/\$\{[^}]*\}/g, " ").toLowerCase().split(/[^a-z0-9-]+/).filter(Boolean)
+
+const blocks = ["components", "app"]
+  .flatMap((d) => walk(resolve(root, d)))
+  .flatMap((file) => confirmBlocks(readFileSync(file, "utf8")).map((block) => ({ file: relative(root, file), block })))
+
+describe("destructive confirms", () => {
+  it("finds the confirms it is meant to check", () => {
+    expect(blocks.length).toBeGreaterThan(40)
   })
 
-  it("marks every delete, remove, revoke or leave as destructive", () => {
+  it("marks every delete, remove, revoke, leave, discard or disconnect as destructive", () => {
+    const offenders = blocks
+      .filter(({ block }) => [...literals(block, "title"), ...literals(block, "confirmText")].some((w) => DANGER.test(w)))
+      .filter(({ block }) => !/destructive:\s*true/.test(block))
+      .map(({ file, block }) => `${file}: ${literals(block, "confirmText").join(" | ")}`)
+    expect(offenders, `add destructive: true to:\n${offenders.join("\n")}`).toEqual([])
+  })
+
+  it("names in the title the thing its button acts on", () => {
     const offenders: string[] = []
-    for (const file of ["components", "app"].flatMap((d) => walk(resolve(root, d)))) {
-      for (const block of confirmAlertBlocks(readFileSync(file, "utf8"))) {
-        const words = [...strings(block, "title"), ...strings(block, "confirmText")]
-        if (words.some((w) => DANGER.test(w)) && !/destructive:\s*true/.test(block)) {
-          offenders.push(`${relative(root, file)}: ${words.join(" / ")}`)
+    for (const { file, block } of blocks) {
+      if (!/destructive:\s*true/.test(block)) continue
+      const titles = literals(block, "title")
+      for (const button of literals(block, "confirmText")) {
+        const noun = words(button).slice(1)
+        if (noun.length === 0) {
+          offenders.push(`${file}: "${button}" names no thing (use "Delete doc", not "Delete")`)
+          continue
+        }
+        for (const title of titles) {
+          const have = new Set(words(title))
+          const missing = noun.filter((w) => !have.has(w))
+          if (missing.length) offenders.push(`${file}: "${button}" vs title "${title}" (missing: ${missing.join(", ")})`)
         }
       }
     }
-    expect(offenders, `add destructive: true to these confirmAlert data blocks:\n${offenders.join("\n")}`).toEqual([])
+    expect(offenders, offenders.join("\n")).toEqual([])
   })
 })

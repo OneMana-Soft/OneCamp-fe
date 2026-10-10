@@ -70,9 +70,10 @@ export default function TemplatesPage() {
 
   const handleDelete = async (t: MarketplaceTemplate) => {
     confirm({
-      title: "Remove template",
-      description: `Remove "${t.name}" from the templates gallery?`,
-      confirmText: "Remove",
+      title: `Remove the template "${t.name}"?`,
+      description: "It is taken out of the templates gallery for everyone.",
+      confirmText: "Remove template",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(t.id)
         try {

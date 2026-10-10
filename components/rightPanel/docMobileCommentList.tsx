@@ -147,9 +147,9 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                 openUI({
                     key: "confirmAlert",
                     data: {
-                        title: "Deleting comment",
-                        description: "Are you sure you want to proceed deleting the comment",
-                        confirmText: "Delete post",
+                        title: "Delete this comment?",
+                        description: "It's removed from the doc for everyone. This can't be undone.",
+                        confirmText: "Delete comment",
                         destructive: true,
                         onConfirm: () => {
                             executeDeleteDocComment(commentIndex, commentUUID)

@@ -67,9 +67,10 @@ const WorkflowsCard = () => {
 
     const handleDelete = async (wf: Workflow) => {
         confirm({
-            title: "Delete workflow",
-            description: `Delete workflow "${wf.name}"? This can't be undone.`,
-            confirmText: "Delete",
+            title: `Delete the workflow "${wf.name}"?`,
+            description: "It stops running and is removed. This can't be undone.",
+            confirmText: "Delete workflow",
+            destructive: true,
             onConfirm: async () => {
                 setBusyId(wf.id);
                 try {
