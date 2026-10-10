@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 // The Integrations tab's three sections (Slack bridge, GitHub, sign-in
 // providers) in one frame: titles without tiles, states said with the app's
@@ -73,6 +73,22 @@ describe("GitHub", () => {
     reads.current = status(true)
     render(<GitHubIntegrationCard />)
     expect(word("Connected")).toBe("success")
+  })
+})
+
+describe("GitHub's automation rules", () => {
+  it("draws each rule's picker at the branch field's height: 44px on a phone, 32px from md up", async () => {
+    reads.current = status(true, [
+      { id: "l1", project_id: "p1", repo_owner: "acme", repo_name: "web", sync_issues: true, sync_prs: true, auto_create_tasks: false, default_task_status: "", created_at: "2026-10-01T00:00:00Z" },
+    ])
+    render(<GitHubIntegrationCard />)
+    fireEvent.click(screen.getByRole("button", { name: "Automation rules for acme/web" }))
+    const triggers = (await screen.findAllByRole("combobox")) as HTMLElement[]
+    expect(triggers.length).toBeGreaterThan(0)
+    for (const t of triggers) {
+      expect(t.className).toContain("h-11")
+      expect(t.className).toContain("md:h-8")
+    }
   })
 })
 

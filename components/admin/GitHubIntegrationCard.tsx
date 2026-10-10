@@ -685,7 +685,8 @@ function AutomationRulesBody({
                       <p id={`${id}-desc`} className="text-xs text-muted-foreground leading-tight">{rule.desc}</p>
                     </div>
                     <Select value={v || ""} onValueChange={(val) => void saveRule(rule.key, val)}>
-                      <SelectTrigger id={id} aria-describedby={`${id}-desc`} className="h-8 w-40 shrink-0 text-xs">
+                      {/* 44px on a phone, as the branch format's field below is. */}
+                      <SelectTrigger id={id} aria-describedby={`${id}-desc`} className="h-11 w-40 shrink-0 text-xs md:h-8">
                         <SelectValue placeholder="No change" />
                       </SelectTrigger>
                       <SelectContent>
