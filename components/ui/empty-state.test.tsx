@@ -131,4 +131,21 @@ describe("EmptyState", () => {
     expect(container.querySelector(".rounded-full.bg-muted")).toBeNull()
     expect(container.querySelector(".bg-primary\\/10")).toBeNull()
   })
+
+  // The playful layer (10 Oct 2026): icons in empty states sit on a hued tint
+  // tile, in a camp hue, never the accent. Opt-in, so every caller that passes
+  // no hue renders exactly as before.
+  it("puts the icon on a hued tile when given a hue, never on the accent", () => {
+    const { container } = render(<EmptyState icon={Sparkles} hue="sun" title="No webhooks yet" />)
+    const tile = container.querySelector(".hue-sun") as HTMLElement
+    expect(tile).not.toBeNull()
+    expect(tile.className).toContain("bg-hue-tint")
+    expect(tile.querySelector("[data-empty-icon]")).not.toBeNull()
+    expect(container.querySelector(".bg-primary\\/10")).toBeNull()
+  })
+
+  it("draws no tile without a hue", () => {
+    const { container } = render(<EmptyState icon={Sparkles} title="Nothing here" />)
+    expect(container.querySelector("[class*='hue-']")).toBeNull()
+  })
 })

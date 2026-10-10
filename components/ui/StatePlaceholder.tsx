@@ -4,6 +4,7 @@ import * as React from "react"
 import { AlertCircle, Inbox, Search } from "@/lib/icons"
 import type { LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
+import type { CampHue } from "@/lib/campHue"
 
 /**
  * StatePlaceholder — kept as a thin wrapper around EmptyState for backward
@@ -25,6 +26,8 @@ interface StatePlaceholderProps {
     icon?: LucideIcon
     className?: string
     action?: React.ReactNode
+    /** The hue of the icon's tile, passed to EmptyState. */
+    hue?: CampHue
 }
 
 const TYPE_ICON: Record<StatePlaceholderProps["type"], LucideIcon> = {
@@ -40,6 +43,7 @@ export function StatePlaceholder({
     icon,
     className,
     action,
+    hue,
 }: StatePlaceholderProps) {
     return (
         <EmptyState
@@ -48,6 +52,7 @@ export function StatePlaceholder({
             description={description}
             action={action}
             className={className}
+            hue={hue}
         />
     )
 }
