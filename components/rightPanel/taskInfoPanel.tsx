@@ -1,5 +1,5 @@
 "use client"
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {startTransition, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Separator} from "@/components/ui/separator"
 import { TagPicker } from "@/components/tags/TagPicker"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
@@ -768,6 +768,17 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [taskUUID, post, taskInfo.data?.data.task_project.project_uuid, optimisticDeleteTask, revalidateTaskListsDebounced],
     )
 
+    // Opening a task paints its header and fields first; the description and
+    // everything under it (two editors, comments, dependencies) follow a frame
+    // later, as a transition. With the task already loaded (hovering loads
+    // it), the click otherwise waited for the whole panel before its first
+    // paint.
+    const [settled, setSettled] = useState(false)
+    useEffect(() => {
+        const id = requestAnimationFrame(() => startTransition(() => setSettled(true)))
+        return () => cancelAnimationFrame(id)
+    }, [])
+
     // The panel's shape, not a spinner: it fills in place (taskPanelSkeleton).
     if(taskInfo.isLoading) return <TaskPanelSkeleton />
 
@@ -960,6 +971,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         </div>
                     </div>
 
+                    {settled ? (<>
                     {/* Its own component: typing renders the editor, not the panel. */}
                     <TaskDescription
                         taskUUID={taskUUID}
@@ -1174,17 +1186,23 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                             )}
                         </Tabs>
                     </div>
+                    </>) : (
+                        // Where the description and the rest go, for the frame before they do.
+                        <div aria-hidden className="h-[11.5rem]" />
+                    )}
                 </div>
             </div>
 
             {/* An AI teammate working on THIS task, with the control to stop it.
                 Sits directly above the composer — the same place a person types a
                 correction — and renders nothing when no agent is working. */}
+            {settled && (
             <div className="px-4 pb-2 sm:px-6">
                 <AgentWorkStrip entityId={taskUUID} revalidateKey={taskCommentState.length} />
             </div>
+            )}
 
-            <TaskCommentBox
+            {settled ? <TaskCommentBox
                 taskUUID={taskUUID}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
                 onAttachmentClick={openCommentFiles}
@@ -1194,7 +1212,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     files.forEach(f => dt.items.add(f));
                     await uploadFile.makeRequestToUploadToTaskComment(dt.files, taskInfo.data.data.task_project.project_uuid, taskUUID);
                 }}
-            />
+            /> : <div aria-hidden className="h-[7.5rem] flex-shrink-0 border-t" />}
         </div>
     )
 }
