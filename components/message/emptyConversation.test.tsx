@@ -29,7 +29,7 @@ vi.mock("@/hooks/useFetch", () => {
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useMessageResync", () => ({ useMessageResync: () => {} }))
-vi.mock("@/components/typingIndicator/typingIndicatorBar", () => ({ TypingIndicatorBar: () => null }))
+vi.mock("@/components/typingIndicator/typingIndicatorBar", () => ({ TypingIndicatorBar: () => null, ChannelTypingBar: () => null, ChatTypingBar: () => null, GroupChatTypingBar: () => null }))
 vi.mock("@/components/chat/chatMessages", () => ({
   ChatMessages: ({ chats }: { chats: unknown[] }) => <p>{`${chats.length} messages`}</p>,
 }))

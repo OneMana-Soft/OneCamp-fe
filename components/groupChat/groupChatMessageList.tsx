@@ -5,12 +5,12 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {  PostsRes} from "@/types/post";
-import {memo, useEffect, useState, useMemo} from "react";
+import {memo, useEffect, useState} from "react";
 
 import {CreateChatPaginationResRaw} from "@/types/chat";
 import {ChatInfo} from "@/types/chat";
 import {useMessageResync} from "@/hooks/useMessageResync";
-import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
+import {GroupChatTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {RawUserDMInterface} from "@/types/user";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {
@@ -55,8 +55,6 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || EMPTY_CHATS);
 
-    const rawChatTyping = useSelector((state: RootState) => state.typing.groupChatTyping[grpId] || []);
-    const chatTypingState = useMemo(() => (rawChatTyping as any[]).map(item => item.user), [rawChatTyping]);
 
     const [hasMoreChat, setHasMoreChat] = useState(true)
     const [oldChatTime, setOldChatTime] = useState(0)
@@ -212,7 +210,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 grpId={grpId}
             />
-            <TypingIndicatorBar users={chatTypingState} />
+            <GroupChatTypingBar grpId={grpId} />
         </div>
     )
 

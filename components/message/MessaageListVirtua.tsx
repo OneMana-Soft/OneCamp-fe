@@ -1,43 +1,30 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { SeparatorPill } from "@/components/separator/separatorPill"
 import { debounceUtil } from "@/lib/utils/helpers/debounce"
-import type { VirtualizedListProps } from "@/types/virtual"
+import type { RowMeta, VirtualizedListProps } from "@/types/virtual"
 import { Virtualizer } from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import {Button} from "@/components/ui/button";
-import { ChevronDown, Loader2 } from "@/lib/icons";
+import { ArrowDown, Loader2 } from "@/lib/icons";
 import { changedAtStart } from "@/components/message/listShift";
+import { rowMeta } from "@/components/message/rowMeta";
+import { followAfterScroll, READER_INPUT_MS } from "@/components/message/followEnd";
 
-/**
- * How far from the newest message a row may be and still be drawn as one of
- * the newest: renderItem's index and total are there for that question (the
- * lists load the images of the last five eagerly). A row's place beyond it
- * changes nothing it draws.
- */
-const NEWEST_ROWS = 6
+interface MessageRowProps<T> extends RowMeta {
+    data: T
+    renderItem: (item: T, meta: RowMeta) => React.ReactNode
+}
 
-// Where a row stands, as far as drawing it is concerned: its distance from the
-// end, counted up to NEWEST_ROWS and no further.
-const fromEnd = (index: number, total: number) => Math.min(total - index, NEWEST_ROWS)
-
-// Memoized item component to prevent unnecessary re-renders
-const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { item: any, index: number, total: number, renderItem: any }) => {
-    return renderItem(item.data!, index, total, !!item.continued)
-}, (prevProps, nextProps) => {
-    // Check if data reference is stable (Redux usually keeps it stable)
-    // Check if renderItem is stable (we wrapped it in useCallback)
-    // continued too: a message whose neighbour above changed (deleted, or
-    // older ones loaded) can join or leave a group with its own data unchanged.
-    // Not its raw index and the list's length: a new message changed both for
-    // every row on screen, and older ones loading changed every index, so each
-    // re-drew every message mounted. Only a row's distance from the end, up to
-    // NEWEST_ROWS, changes what it draws (messageListRows.test.tsx).
-    return prevProps.item.data === nextProps.item.data &&
-           !!prevProps.item.continued === !!nextProps.item.continued &&
-           fromEnd(prevProps.index, prevProps.total) === fromEnd(nextProps.index, nextProps.total) &&
-           prevProps.renderItem === nextProps.renderItem
-})
-MemoizedMessageItem.displayName = "MemoizedMessageItem"
+// One message row. It re-renders when its own message changes, or when its
+// place does (newest few, newest, continuing the one above), and for nothing
+// else. It used to compare its index and the list's length too, so older
+// messages loading above, or one arriving below, re-rendered every message in
+// the conversation: 120,000 component renders on one scroll through history,
+// and 350 ms of main thread on every send.
+function MessageRowImpl<T>({ data, priority, isLast, continued, renderItem }: MessageRowProps<T>) {
+    return <>{renderItem(data, { priority, isLast, continued })}</>
+}
+const MemoizedMessageItem = React.memo(MessageRowImpl) as typeof MessageRowImpl
 
 
 export const MessageListVirtua = <T,>({
@@ -50,16 +37,42 @@ export const MessageListVirtua = <T,>({
                                           hasOldMessage = true,
                                           fetchNewMessage,
                                           newMessageLoading,
-                                            clickedScrollToBottom,
+                                          clickedScrollToBottom,
                                           hasNewMessage = true,
                                           ref,
                                           initialTopMostItemIndex,
                                           initialScrollOffsetFromTop,
-                                          onScroll
-                                      }: Omit<VirtualizedListProps<T>, 'onScroll'> & { initialTopMostItemIndex?: number, initialScrollOffsetFromTop?: number, onScroll?: (key: string, offset: number) => void }) => {
-    const initiallyScrolledToBottom = useRef(false)
+                                          onScroll,
+                                          empty,
+                                      }: Omit<VirtualizedListProps<T>, 'onScroll'> & {
+                                          initialTopMostItemIndex?: number,
+                                          initialScrollOffsetFromTop?: number,
+                                          onScroll?: (key: string, offset: number) => void,
+                                          /** What an empty conversation shows (ConversationEmpty), in its own hue. */
+                                          empty?: React.ReactNode,
+                                      }) => {
+    const scrollerRef = useRef<HTMLDivElement>(null)
+    const contentRef = useRef<HTMLDivElement>(null)
     const [visibleDateIndex, setVisibleDateIndex] = useState<number>(-1)
-    const [isScrolledToBottom, setIsScrolledToBottom] = useState(true) 
+    const [isScrolledToBottom, setIsScrolledToBottom] = useState(true)
+
+    // STAYING AT THE BOTTOM. A reader at the bottom of a conversation stays
+    // there as it grows: a new message, their own send, an image or a code
+    // block that finishes laying out, a reaction on the last message. A reader
+    // who has scrolled up stays exactly where they are, and new messages are
+    // counted on the button that takes them back down. It used to be a one-
+    // second window after opening with retries at 50 and 150 ms, then nothing:
+    // a message that arrived while you watched landed below the fold, and the
+    // list faded in over 300 ms to hide its own settling.
+    const restoring = initialTopMostItemIndex !== undefined
+    const atBottomRef = useRef(!restoring)
+    const [unseen, setUnseen] = useState(0)
+    // Only the reader leaves the end (components/message/followEnd): when they
+    // last scrolled, pressed or touched the list, and how big the content was
+    // at the previous scroll, so a scroll the layout made is told apart.
+    const readerInputAt = useRef(0)
+    const lastScrollSize = useRef(0)
+    const repinFrame = useRef(0)
 
     // Shift only for the render in which the list changed at its start (see
     // listShift). Worked out while rendering, from the previous items, so
@@ -71,12 +84,9 @@ export const MessageListVirtua = <T,>({
         setShift(changedAtStart(prevItems, items))
     }
 
-
-    // Optimized: Calculate dateKeys and separatorItems in one pass if possible, or just memoize efficiently
     const { dateKeys, separatorItems } = useMemo(() => {
         const dKeys: string[] = []
         const sItems: { index: number }[] = []
-        
         items.forEach((item, index) => {
             if (item.type === "separator") {
                 dKeys.push(item.date!)
@@ -86,158 +96,136 @@ export const MessageListVirtua = <T,>({
         return { dateKeys: dKeys, separatorItems: sItems }
     }, [items])
 
-
-    const scrollToBottom = useCallback(() => {
+    const toBottom = useCallback(() => {
         if (!ref.current || items.length === 0) return
-
-        clickedScrollToBottom()
+        ref.current.scrollToIndex(items.length - 1, { align: "end" })
     }, [ref, items.length])
+
+    const jumpToLatest = useCallback(() => {
+        if (!ref.current || items.length === 0) return
+        atBottomRef.current = true
+        // The press on this button was the reader's; the scroll it starts
+        // is the list's, and lands at the end even if rows measure late.
+        readerInputAt.current = 0
+        setUnseen(0)
+        clickedScrollToBottom()
+        toBottom()
+    }, [ref, items.length, clickedScrollToBottom, toBottom])
 
     const calculateVisibleDateIndex = useCallback(() => {
         if (!ref.current || dateKeys.length === 0) return -1
-
-        const virtualizer = ref.current
-        const startIndex = virtualizer.findStartIndex()
-        
-        // If scrolled to the top, hide the separator pill
+        const startIndex = ref.current.findStartIndex()
+        // If scrolled to the top, hide the floating date.
         if (startIndex <= 0) return -1
-
-        if (startIndex === -1) return visibleDateIndex
-
-        // Binary search to find the closest separator <= startIndex
         let low = 0
         let high = separatorItems.length - 1
         let bestIndex = -1
-
         while (low <= high) {
             const mid = Math.floor((low + high) / 2)
-            const separatorIndex = separatorItems[mid].index
-
-            if (separatorIndex <= startIndex) {
+            if (separatorItems[mid].index <= startIndex) {
                 bestIndex = mid
                 low = mid + 1
             } else {
                 high = mid - 1
             }
         }
-
         return bestIndex
-    }, [dateKeys, separatorItems, visibleDateIndex])
+    }, [ref, dateKeys, separatorItems])
 
-    const updateVisibleDateIndex = useCallback(() => {
-        const newIndex = calculateVisibleDateIndex()
-        setVisibleDateIndex(newIndex)
-    }, [calculateVisibleDateIndex])
-
-    // @ts-ignore
     const debouncedUpdateVisibleDateIndex = useMemo(
-        () => debounceUtil(updateVisibleDateIndex, 50), // Reduced debounce time for snappier updates
-        [updateVisibleDateIndex],
+        () => debounceUtil(() => setVisibleDateIndex(calculateVisibleDateIndex()), 50),
+        [calculateVisibleDateIndex],
     )
 
+    // A conversation shorter than the screen loads what is next to it.
     useLayoutEffect(() => {
-        if (!ref.current || items.length === 0) return;
-        const virtualizer = ref.current;
-        const scrollSize = virtualizer.scrollSize;
-        const viewportSize = virtualizer.viewportSize;
-
-        // If content does not overflow, fetch older and/or new messages
-        if (scrollSize <= viewportSize) {
-            if (hasOldMessage && !olderMessageLoading) {
-                fetchOlderMessage();
-            }
-            if (hasNewMessage && !newMessageLoading) {
-                fetchNewMessage();
-            }
+        if (!ref.current || items.length === 0) return
+        if (ref.current.scrollSize <= ref.current.viewportSize) {
+            if (hasOldMessage && !olderMessageLoading) fetchOlderMessage()
+            if (hasNewMessage && !newMessageLoading) fetchNewMessage()
         }
     }, [items, ref, hasOldMessage, hasNewMessage, olderMessageLoading, newMessageLoading, fetchOlderMessage, fetchNewMessage]);
 
-
-    // Only lock bottom if we are NOT restoring a previous position
-    const shouldLockBottom = useRef(initialTopMostItemIndex === undefined)
-    const [isReady, setIsReady] = useState(initialTopMostItemIndex !== undefined || items.length < 10) // Ready immediately if restoring or small list
+    // Coming back to a conversation: where the reader left it, once it is there.
     const [hasRestored, setHasRestored] = useState(false)
-
-
-    // Handle delayed restoration (e.g. when items load after mount)
     useEffect(() => {
-        if (!hasRestored && initialTopMostItemIndex !== undefined && ref.current && items.length > 0) {
-
-            ref.current.scrollToIndex(initialTopMostItemIndex, { align: "start", offset: initialScrollOffsetFromTop || 0 })
+        if (!hasRestored && restoring && ref.current && items.length > 0) {
+            ref.current.scrollToIndex(initialTopMostItemIndex!, { align: "start", offset: initialScrollOffsetFromTop || 0 })
             setHasRestored(true)
-            shouldLockBottom.current = false
-            setIsReady(true)
         }
-    }, [initialTopMostItemIndex, initialScrollOffsetFromTop, hasRestored, items.length])
+    }, [restoring, initialTopMostItemIndex, initialScrollOffsetFromTop, hasRestored, items.length, ref])
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            shouldLockBottom.current = false
-
-        }, 1000)
-        return () => clearTimeout(timer)
-    }, [])
-
+    // Messages added at the end: followed when at the bottom, counted when not.
+    const lastKey = items.length ? items[items.length - 1].key : undefined
+    const prevLastKey = useRef(lastKey)
     useLayoutEffect(() => {
-        if (!ref.current || items.length === 0) return
-
-        // If we are in the "locked" phase (initial load), force scroll to bottom on every update
-        if (shouldLockBottom.current && !hasRestored) {
-             const scroll = () => {
-                if (ref.current) {
-                    ref.current.scrollToIndex(items.length - 1, {
-                        align: "end"
-                    })
-                }
-            }
-            scroll()
-            // Retry to handle layout shifts
-            setTimeout(scroll, 50)
-            setTimeout(scroll, 150)
+        const before = prevLastKey.current
+        prevLastKey.current = lastKey
+        if (!lastKey || lastKey === before) return
+        if (atBottomRef.current) {
+            toBottom()
+            return
         }
-        
-        // Shown once the last retry above has run: hidden any longer, a
-        // channel with history looked slower to open than it was.
-        if (!isReady && shouldLockBottom.current) {
-             setTimeout(() => setIsReady(true), 160)
-        }
-        
-        // We still set this to true to enable onScroll logic
-        initiallyScrolledToBottom.current = true
-        
-    }, [items.length, ref, hasRestored])
+        // Scrolled up: how many arrived below, for the button.
+        const from = before ? items.findIndex((i) => i.key === before) : -1
+        const arrived = items.slice(from + 1).filter((i) => i.type === "item").length
+        if (arrived > 0 && from >= 0) setUnseen((n) => n + arrived)
+    }, [lastKey, items, toBottom])
 
-    const handleUserInteraction = () => {
-        shouldLockBottom.current = false
-    }
+    // Anything that grows the conversation while the reader is at the bottom
+    // (an image loading, a code block laying out, a reaction) keeps them there.
+    useLayoutEffect(() => {
+        const content = contentRef.current
+        if (!content || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(() => {
+            if (atBottomRef.current) toBottom()
+        })
+        observer.observe(content)
+        return () => observer.disconnect()
+    }, [toBottom])
+
+    // The reader's own input on the list: a wheel or trackpad, a touch, a key
+    // (Page Up, the arrows), a press on the scrollbar or a quoted message.
+    useEffect(() => {
+        const scroller = scrollerRef.current
+        if (!scroller) return
+        const mark = () => {
+            readerInputAt.current = performance.now()
+        }
+        const opts = { passive: true } as const
+        const kinds = ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"] as const
+        kinds.forEach((k) => scroller.addEventListener(k, mark, opts))
+        return () => {
+            kinds.forEach((k) => scroller.removeEventListener(k, mark))
+            cancelAnimationFrame(repinFrame.current)
+        }
+    }, [])
 
     return (
         <div
-            className={cn(containerClassName, "touch-pan-y w-full min-w-0 flex-1 min-h-0 transition-opacity duration-150 md:pb-0 pb-[150px]", {
-                "opacity-0": items.length > 0 && !isReady,
-                "opacity-100": items.length === 0 || isReady
-            })}
-            onPointerDown={handleUserInteraction}
-            onWheel={handleUserInteraction}
+            ref={scrollerRef}
+            className={cn(containerClassName, "touch-pan-y w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[150px]")}
             style={{
-                overflowY: "auto", overflowX: "hidden", overflowAnchor: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y"
+                overflowY: "auto", overflowX: "hidden", overflowAnchor: "none", WebkitOverflowScrolling: "touch", touchAction: "pan-y"
             }}
         >
-            {visibleDateIndex > -1 && items.length > 2 && (
-                /* A floating date, not a thing sitting on the conversation.
-                   The pill is opaque but the row it sits in was transparent, so
-                   message text ran past it at the same height and the two read
-                   as collided. The band fades the messages out beneath it, which
-                   is what makes it look like they are scrolling underneath, and
-                   it never takes a click meant for the message below. */
+            {/* The floating date takes no room in the list: a sticky row of zero
+                height whose pill hangs below it. In the flow it pushed every
+                message down 32 px when it appeared and back when it went, the
+                jump scrolling showed (and the layout shift the audit measured),
+                and virtua's offsets were out by its height. */}
+            <div className="pointer-events-none sticky top-0 z-[var(--z-sticky)] h-0 overflow-visible" aria-hidden={visibleDateIndex < 0 || items.length <= 2}>
                 <SeparatorPill
-                    className="sticky top-0 z-[var(--z-sticky)] pointer-events-none py-1.5 transition-opacity duration-200 bg-gradient-to-b from-background via-background/95 to-transparent"
+                    className={cn(
+                        "py-1.5 bg-gradient-to-b from-background via-background/95 to-transparent transition-opacity duration-150",
+                        visibleDateIndex > -1 && items.length > 2 ? "opacity-100" : "opacity-0",
+                    )}
                     lineClassName="bg-transparent"
                     pillClassName="rounded-md border border-border bg-background px-2 py-0.5 shadow-overlay"
                 >
-                    {getDateHeading(dateKeys[visibleDateIndex])}
+                    {visibleDateIndex > -1 ? getDateHeading(dateKeys[visibleDateIndex]) : " "}
                 </SeparatorPill>
-            )}
+            </div>
             {/* Older messages loading: floats over the list rather than being
                 inserted into it. Inside the list it pushed every row down 40 px
                 and back when it went, a layout shift on every channel open, and
@@ -252,77 +240,120 @@ export const MessageListVirtua = <T,>({
             {/* An empty conversation said nothing at all: a blank panel above the
                 composer, which reads as still loading. */}
             {items.length === 0 && !olderMessageLoading && !newMessageLoading && (
-                <div className="flex h-full flex-col justify-end px-4 pb-4 md:pb-6">
-                    <p className="text-sm font-medium text-foreground">No messages yet</p>
-                    <p className="text-sm text-muted-foreground">What you write below starts the conversation.</p>
-                </div>
+                empty ?? (
+                    <div className="flex h-full flex-col justify-end px-4 pb-4 md:pb-6">
+                        <p className="text-sm font-medium text-foreground">No messages yet</p>
+                        <p className="text-sm text-muted-foreground">What you write below starts the conversation.</p>
+                    </div>
+                )
             )}
+            <div ref={contentRef}>
             <Virtualizer
                 ref={ref}
+                scrollRef={scrollerRef}
                 shift={shift}
-                overscan={500} // Render extra content for smoother scrolling
-                // @ts-ignore
-                initialTopMostItemIndex={initialTopMostItemIndex !== undefined ? initialTopMostItemIndex : (shouldLockBottom.current ? items.length - 1 : undefined)}
-                // @ts-ignore
-                followOutput={isScrolledToBottom}
+                // Every message stays mounted (overscan counts rows, not
+                // pixels): a jump to a quoted message finds it in the page,
+                // and a message's own height never has to be guessed.
+                overscan={500}
                 onScroll={(offset) => {
                     if (onScroll && ref.current) {
                         const index = ref.current.findStartIndex()
                         if (index !== -1 && items[index]) {
                             const itemOffset = ref.current.getItemOffset(index)
-                            const scrollOffset = ref.current.scrollOffset
-                            const relativeOffset = scrollOffset - itemOffset
-
-                            onScroll(items[index].key, relativeOffset)
+                            onScroll(items[index].key, ref.current.scrollOffset - itemOffset)
                         }
                     }
-
-                    if (shouldLockBottom.current) return 
-
-                    if (!initiallyScrolledToBottom.current || !ref.current) return
-
-                    // Check if scrolled to bottom
-                    const isAtBottom = offset >= ref.current.scrollSize - ref.current.viewportSize - 300 // Small threshold
-                    setIsScrolledToBottom(isAtBottom)
-
-                    // Hide separator pill when scrolled to the top
-                    if (offset < 20) {
-                        setVisibleDateIndex(-1)
-                    } else {
-                        debouncedUpdateVisibleDateIndex()
+                    if (!ref.current) return
+                    const scrollSize = ref.current.scrollSize
+                    const fromBottom = scrollSize - ref.current.viewportSize - offset
+                    // Within a few pixels of the end is at the end: the list
+                    // follows what arrives. Leaving it takes the reader: a
+                    // scroll the layout made while it settled (rows measured,
+                    // an image in, older messages above) keeps a following
+                    // reader at the end (followEnd).
+                    const decision = followAfterScroll({
+                        fromBottom,
+                        wasFollowing: atBottomRef.current,
+                        readerInput: performance.now() - readerInputAt.current < READER_INPUT_MS,
+                        contentResized: scrollSize !== lastScrollSize.current,
+                    })
+                    lastScrollSize.current = scrollSize
+                    atBottomRef.current = decision.following
+                    if (decision.repin) {
+                        cancelAnimationFrame(repinFrame.current)
+                        repinFrame.current = requestAnimationFrame(toBottom)
                     }
+                    // The button shows past a screenful's edge, not for the
+                    // last few pixels, and never while the list is following.
+                    const nearBottom = decision.following || fromBottom <= 300
+                    setIsScrolledToBottom(nearBottom)
+                    if (atBottomRef.current) setUnseen(0)
 
-                    if (offset < 200 && !olderMessageLoading && hasOldMessage) {
-                        fetchOlderMessage()
-                    }
+                    if (offset < 20) setVisibleDateIndex(-1)
+                    else debouncedUpdateVisibleDateIndex()
 
-                    if (
-                        offset - ref.current.scrollSize + ref.current.viewportSize >= -200 &&
-                        hasNewMessage &&
-                        !newMessageLoading
-                    ) {
-                        fetchNewMessage()
-                    }
+                    if (offset < 200 && !olderMessageLoading && hasOldMessage) fetchOlderMessage()
+                    if (fromBottom <= 200 && hasNewMessage && !newMessageLoading) fetchNewMessage()
                 }}
             >
                 {items.map((item, index) => {
+                    if (item.type === "separator") {
+                        return (
+                            <div key={item.key}>
+                                <SeparatorPill>{getDateHeading(item.date!)}</SeparatorPill>
+                            </div>
+                        )
+                    }
+                    if (item.type === "unread") {
+                        return (
+                            <div key={item.key}>
+                                <UnreadDivider />
+                            </div>
+                        )
+                    }
+                    const meta = rowMeta(index, items.length, item.continued)
                     return (
                         <div key={item.key}>
-                            {item.type === "separator" ? (
-                                <SeparatorPill>{getDateHeading(item.date!)}</SeparatorPill>
-                            ) : (
-                                <MemoizedMessageItem item={item} index={index} total={items.length} renderItem={renderItem} />
-                            )}
+                            <MemoizedMessageItem
+                                data={item.data!}
+                                priority={meta.priority}
+                                isLast={meta.isLast}
+                                continued={meta.continued}
+                                renderItem={renderItem}
+                            />
                         </div>
                     )
                 })}
             </Virtualizer>
+            </div>
 
             {!isScrolledToBottom && (
-                <Button aria-label="Jump to latest messages" className="sticky bottom-2 md:bottom-8 float-right mr-4 md:mr-8 z-[var(--z-sticky)] rounded-full shadow-overlay" onClick={scrollToBottom} size="icon">
-                    <ChevronDown />
+                // Back to the newest message, saying how many arrived meanwhile.
+                // A labelled button on the page's own surface: it was an orange
+                // disc with only an arrow, as loud as Send.
+                <Button
+                    variant="outline"
+                    onClick={jumpToLatest}
+                    className="sticky bottom-3 md:bottom-6 float-right mr-4 md:mr-6 z-[var(--z-sticky)] h-8 gap-1.5 rounded-md bg-background px-3 text-xs font-medium shadow-overlay motion-safe:animate-msg-fade-in"
+                >
+                    <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    {unseen > 0 ? `${unseen} new ${unseen === 1 ? "message" : "messages"}` : "Jump to latest"}
                 </Button>
             )}
+        </div>
+    )
+}
+
+/**
+ * Where the unread messages start, as the conversation was opened: a hairline
+ * and "New" in the accent, the one place a conversation spends it on its own.
+ */
+function UnreadDivider() {
+    return (
+        <div className="flex items-center gap-2 px-4 py-1.5" role="separator" aria-label="New messages">
+            <div className="h-px flex-1 bg-brand/50" />
+            <span className="text-2xs font-semibold text-brand-text">New</span>
         </div>
     )
 }

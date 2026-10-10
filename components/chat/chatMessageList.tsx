@@ -10,7 +10,7 @@ import {ChatMessages} from "@/components/chat/chatMessages";
 import {ChatInfo, CreateChatPaginationResRaw} from "@/types/chat";
 import {updateChats, updateChatScrollToBottom, mergeChats} from "@/store/slice/chatSlice";
 import {useMessageResync} from "@/hooks/useMessageResync";
-import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
+import {ChatTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
@@ -47,33 +47,6 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatId, messageId])
-
-    // Use a memoized selector with custom equality to prevent unnecessary re-renders
-    const rawChatTypingState = useSelector(
-        (state: RootState) => state.typing.chatTyping[chatId],
-        // Custom equality function to prevent re-renders when array reference changes but content is the same
-        (prev, next) => {
-            // If both are undefined, they're equal
-            if (!prev && !next) return true;
-            
-            // If one is undefined and the other isn't, they're different
-            if (!prev || !next) return false;
-            
-            // If lengths differ, they're different
-            if (prev.length !== next.length) return false;
-            
-            // Compare user IDs to check if the typing users are the same
-            return prev.every((item, index) => 
-                item.userId === next[index]?.userId
-            );
-        }
-    );
-    
-    // Memoize the mapped result to prevent creating a new array on every render
-    const chatTypingState = useMemo(() => 
-        (rawChatTypingState || []).map(item => item.user),
-        [rawChatTypingState]
-    );
 
     // Use a memoized selector with custom equality to prevent unnecessary re-renders
     const chatMessageState = useSelector(
@@ -254,7 +227,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
               the message column. On mobile it floats just above the
               DraggableDrawer (which publishes --mobile-drawer-h).
             */}
-            <TypingIndicatorBar users={chatTypingState} />
+            <ChatTypingBar chatId={chatId} />
         </div>
     )
 

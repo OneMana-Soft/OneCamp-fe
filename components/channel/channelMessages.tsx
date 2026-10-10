@@ -2,14 +2,13 @@
 
 // src/components/channel/ChannelMessages.tsx
 import { withContinuation } from "@/lib/messageGrouping"
-import { displayNameOf } from "@/lib/personName"
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import { groupByDate } from "@/lib/utils/date/groupByDate"
 import { getGroupDateHeading } from "@/lib/utils/date/getMessageGroupDate"
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import type { CreateOrUpdatePostsReq, CreatePostsRes, PostsRes } from "@/types/post"
 import { ChannelMessage } from "@/components/channel/chanelMessage"
-import type { FlatItem } from "@/types/virtual"
+import type { FlatItem, RowMeta } from "@/types/virtual"
 import { useMedia } from "@/context/MediaQueryContext"
 import { ChannelMessageMobile } from "@/components/channel/channelMessageMobile"
 import TouchableDiv from "@/components/animation/touchRippleAnimation"
@@ -27,15 +26,16 @@ import {
     ScrollToBottom
 } from "@/store/slice/channelSlice"
 import {updateChatScrollPosition} from "@/store/slice/chatSlice";
-import { useDispatch, useSelector } from "react-redux"
+import { useDispatch, useSelector, useStore } from "react-redux"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import { openUI } from "@/store/slice/uiSlice"
 import { MessageListVirtua } from "@/components/message/MessaageListVirtua"
 import type { VListHandle } from "virtua"
 import type { RootState } from "@/store/store"
-import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import { useStableCallback } from "@/hooks/useStableCallback"
+import { useAuthorsSeen } from "@/components/message/useAuthorsSeen"
 
 interface ChannelMessagesProps {
     posts: PostsRes[]
@@ -78,24 +78,13 @@ export const ChannelMessages = ({
 
     const channelScrollToBottom = useSelector((state: RootState) => state.channel.channelScrollToBottom[channelId] || EMPTY_SCROLL_TO_BOTTOM)
 
-    useEffect(() => {
-        const uniqueUsers = new Set(posts.map((post) => post.post_by?.user_uuid).filter(Boolean))
-        uniqueUsers.forEach((userUUID) => {
-            const userPost = posts.find((p) => p.post_by?.user_uuid === userUUID)
-            if (userPost?.post_by && userPost.post_by.user_uuid != selfProfile.data?.data.user_uuid) {
-                dispatch(
-                    updateUserInfoStatus({
-                        userUUID: userPost.post_by.user_uuid || "",
-                        profileKey: userPost.post_by.user_profile_object_key || "",
-                        userName: displayNameOf(userPost.post_by) || "",
-                        status: userPost.post_by.user_status || "",
-                    }),
-                )
-            }
-        })
-    }, [posts, dispatch])
+    // Who wrote what is on screen, for avatars and names elsewhere: told to the
+    // store once per person, not once per person on every new message.
+    useAuthorsSeen(posts, (p) => p.post_by, selfProfile.data?.data.user_uuid)
 
-    const createOrUpdateReaction = (postId: string, emojiId: string, reactionId: string) => {
+    // Stable for the life of the conversation (they read the latest posts when
+    // they run), so the rows they are handed to stay memoised.
+    const createOrUpdateReaction = useStableCallback((postId: string, emojiId: string, reactionId: string) => {
         if (!postId) return
 
         let tempId = ""
@@ -174,9 +163,9 @@ export const ChannelMessages = ({
                     dispatch(removePostReactionByPostId({ channelId, reactionId: tempId, postId }))
                 }
             })
-    }
+    })
 
-    const removeReaction = (postId: string, reactionId: string) => {
+    const removeReaction = useStableCallback((postId: string, reactionId: string) => {
         // Handle Race Condition: Removing a temp reaction
         if (reactionId.startsWith("temp-")) {
             pendingReactionDeletes.current.add(reactionId)
@@ -217,7 +206,7 @@ export const ChannelMessages = ({
                     )
                 }
             })
-    }
+    })
 
     const executeDeletePost = (postId: string) => {
         // Store for revert if needed
@@ -245,7 +234,7 @@ export const ChannelMessages = ({
             })
     }
 
-    const handleUpdatePost = (postHTMLText: string, postId: string) => {
+    const handleUpdatePost = useStableCallback((postHTMLText: string, postId: string) => {
         // Trim leading/trailing empty paragraphs and whitespace before sending.
         const trimmedHtml = removeEmptyPTags(postHTMLText)
         if (!trimmedHtml) return
@@ -284,9 +273,9 @@ export const ChannelMessages = ({
                 // Revert
                 dispatch(updatePostByPostId({ postId, channelId, htmlText: originalText }));
             })
-    }
+    })
 
-    const handleDeletePost = (postId: string) => {
+    const handleDeletePost = useStableCallback((postId: string) => {
         if (!postId) return
 
 
@@ -306,7 +295,7 @@ export const ChannelMessages = ({
                 }),
             )
         }, 500)
-    }
+    })
 
     const groupedPosts = useMemo(() => {
         try {
@@ -330,9 +319,7 @@ export const ChannelMessages = ({
     }, [groupedPosts])
 
     const renderItem = useCallback(
-        (post: PostsRes, index: number, total: number, continued?: boolean) => {
-            const isPriority = index >= total - 5;
-            return (
+        (post: PostsRes, { priority, continued }: RowMeta) => (
             <div>
                 {isMobile ? (
                     <TouchableDiv rippleBrightness={0.8} rippleDuration={800}>
@@ -352,7 +339,7 @@ export const ChannelMessages = ({
                             updatePost={(body: string) => {
                                 handleUpdatePost(body, post.post_uuid)
                             }}
-                            priority={isPriority}
+                            priority={priority}
                             continued={continued}
                         />
                     </TouchableDiv>
@@ -372,12 +359,12 @@ export const ChannelMessages = ({
                         updatePost={(body: string) => {
                             handleUpdatePost(body, post.post_uuid)
                         }}
-                        priority={isPriority}
-                    continued={continued}
+                        priority={priority}
+                        continued={continued}
                     />
                 )}
             </div>
-        )},
+        ),
         [isMobile, isAdmin, channelId, handleDeletePost, createOrUpdateReaction, removeReaction, handleUpdatePost],
     )
     const containerRef = useRef<VListHandle>(null)
@@ -397,7 +384,10 @@ export const ChannelMessages = ({
         getNewMessages()
     }
 
-    const scrollPosition = useSelector((state: RootState) => state.chat.chatScrollPositions[channelId])
+    // Where the reader left this conversation, read once on opening: it is
+    // written on every scroll, and subscribing re-rendered the list each time.
+    const store = useStore<RootState>()
+    const [scrollPosition] = useState(() => store.getState().chat.chatScrollPositions[channelId])
 
     const initialIndex = useMemo(() => {
         if (!scrollPosition?.key) {
