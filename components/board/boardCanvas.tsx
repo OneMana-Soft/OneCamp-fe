@@ -27,6 +27,7 @@ import { GetEndpointUrl, PostFileUploadURL, PostEndpointUrl } from "@/services/e
 import { useToast } from "@/hooks/use-toast"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
+import { whenSceneReady } from "@/lib/board/scene"
 import "@excalidraw/excalidraw/index.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
@@ -175,6 +176,15 @@ function BoardCanvas({
 }: BoardCanvasProps) {
   const apiRef = React.useRef<ExcalidrawImperativeAPI | null>(null)
   const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
+  // Whether Excalidraw has finished loading its own (empty) scene. Until it
+  // has, anything put on the canvas is wiped when it does (lib/board/scene,
+  // whenSceneReady), so the drawing and the camera wait for this.
+  const [sceneReady, setSceneReady] = React.useState(false)
+  React.useEffect(() => {
+    setSceneReady(false)
+    if (!api) return
+    return whenSceneReady(() => api.getAppState().isLoading, () => setSceneReady(true))
+  }, [api])
   // Excalidraw module, loaded client-side so we can render a custom MainMenu
   // (replacing Excalidraw's default menu, which ships its own brand/social
   // links and a "Reset the canvas" item we do not want on a shared board).
@@ -375,7 +385,7 @@ function BoardCanvas({
   // the server still held the content (the "content cleared on refresh" bug).
   // -------------------------------------------------------------------------
   React.useEffect(() => {
-    if (!api) return
+    if (!api || !sceneReady) return
 
     // Resolve image metadata entries to Excalidraw files by pointing each
     // fileId at its backend image URL (Excalidraw loads it as an image).
@@ -446,14 +456,14 @@ function BoardCanvas({
       yElements.unobserve(onElementsChange)
       yFiles.unobserve(onFilesChange)
     }
-  }, [api, yElements, yFiles, boardId])
+  }, [api, sceneReady, yElements, yFiles, boardId])
 
   // Belt-and-suspenders: when the provider reports a completed sync, hydrate
   // once more. If the initial sync update arrived before the observers were
   // attached (or in the same tick as the seed), this guarantees the freshly
   // synced content is on the canvas.
   React.useEffect(() => {
-    if (!api || !synced) return
+    if (!api || !synced || !sceneReady) return
     applyingRemoteRef.current = true
     try {
       const local = api.getSceneElementsIncludingDeleted()
@@ -471,7 +481,7 @@ function BoardCanvas({
     } finally {
       applyingRemoteRef.current = false
     }
-  }, [api, synced, yElements])
+  }, [api, synced, sceneReady, yElements])
 
   // -------------------------------------------------------------------------
   // Camera restore: once the API is ready, put the user back where they were
@@ -481,7 +491,7 @@ function BoardCanvas({
   // once per board; enables camera persistence afterwards.
   // -------------------------------------------------------------------------
   React.useEffect(() => {
-    if (!api || viewportRestoredRef.current) return
+    if (!api || !sceneReady || viewportRestoredRef.current) return
 
     const saved = loadBoardViewport(boardId)
     if (saved) {
@@ -516,7 +526,7 @@ function BoardCanvas({
     return () => {
       if (timer) clearTimeout(timer)
     }
-  }, [api, synced, boardId])
+  }, [api, sceneReady, synced, boardId])
   // -------------------------------------------------------------------------
   // Local -> Yjs: on every Excalidraw change, push changed elements into the
   // shared map. New images are uploaded to MinIO and only their metadata is
