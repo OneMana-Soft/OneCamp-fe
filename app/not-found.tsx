@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
+import { AuthHeading, AuthShell } from "@/components/auth/AuthShell"
 import { app_home_path, app_login_path } from "@/types/paths"
 
 /**
@@ -18,7 +18,9 @@ export default function NotFoundPage() {
                 The link may be old or mistyped, or what it pointed to was deleted.
             </AuthHeading>
             <div className="space-y-4">
-                <Button asChild className={authControl}>
+                {/* authControl's classes written out: this is a server component, and a
+                    plain value imported from a client module arrives here as a reference. */}
+                <Button asChild className="h-11 w-full md:h-10">
                     <Link href={app_home_path}>Go to your workspace</Link>
                 </Button>
                 <p className="text-sm text-muted-foreground">

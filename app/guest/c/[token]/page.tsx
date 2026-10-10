@@ -91,7 +91,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <Hash className="h-4 w-4 text-muted-foreground" aria-hidden />
         <h1 className="truncate font-semibold">{channel}</h1>
-        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">You&apos;re a guest</span>
+        <span className="ml-auto text-xs text-muted-foreground">You&apos;re a guest</span>
         <MadeWithOneCamp surface="guest-channel" className="hidden sm:block" />
       </header>
       <GuestTroubleNote trouble={trouble} />
@@ -106,11 +106,11 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
               </div>
             )}
             {messages.length === 0 && <p className="text-center text-sm text-muted-foreground">No messages yet.</p>}
-            <ol className="grid gap-4">
+            <ol className="mx-auto grid w-full max-w-3xl gap-4">
               {messages.map((m) => (
                 <li key={m.id}>
                   <MessageView m={m} />
-                  <button type="button" onClick={() => setThread(m.id)} className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline">
+                  <button type="button" onClick={() => setThread(m.id)} className="mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
                     <MessageSquare className="h-3 w-3" aria-hidden />
                     {m.reply_count > 0 ? `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}` : canPost ? "Reply" : "Open"}
                   </button>
