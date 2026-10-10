@@ -7,9 +7,8 @@
 // password, so someone accepting one can pick the account they already use
 // rather than make up a password. Which are on comes from /auth/providers.
 
-import { cn } from "@/lib/utils/helpers/cn"
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { LoaderCircle } from "@/lib/icons"
+import { Building2, LoaderCircle } from "@/lib/icons"
+import { authControl } from "@/components/auth/AuthShell"
 import { Button } from "@/components/ui/button"
 import authService from "@/services/auth/AuthService"
 
@@ -26,13 +25,13 @@ interface OAuthButtonsProps {
 /** Continue with Google and Continue with GitHub, for those that are on. */
 export function OAuthButtons({ google, github, disabled, busy, onGoogle, onGithub }: OAuthButtonsProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {google && (
-        <Button variant="outline" className="w-full border-border/50 hover:bg-muted/50 transition-colors" disabled={disabled} onClick={onGoogle}>
+        <Button variant="outline" className={authControl} disabled={disabled} onClick={onGoogle}>
           {busy ? (
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>
+              <LoaderCircle className="animate-spin" aria-hidden="true"/>
           ) : (
-          <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
             <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -55,11 +54,11 @@ export function OAuthButtons({ google, github, disabled, busy, onGoogle, onGithu
       )}
 
       {github && (
-        <Button variant="outline" className="w-full border-border/50 hover:bg-muted/50 transition-colors" disabled={disabled} onClick={onGithub}>
+        <Button variant="outline" className={authControl} disabled={disabled} onClick={onGithub}>
           {busy ? (
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>
+              <LoaderCircle className="animate-spin" aria-hidden="true"/>
           ) : (
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path
             fillRule="evenodd"
             clipRule="evenodd"
@@ -74,44 +73,30 @@ export function OAuthButtons({ google, github, disabled, busy, onGoogle, onGithu
   )
 }
 
-/** The OIDC and SAML buttons under an Enterprise SSO divider, for those that are on. */
+/**
+ * The workspace's single sign-on, OIDC and SAML, for those that are on.
+ *
+ * Stacked with the other one-click ways in, in the same size and words a
+ * person reads: it was a pair of small buttons under an "ENTERPRISE SSO"
+ * label, titled with protocol names and a purple dot and a green shield drawn
+ * by hand that stood for nothing.
+ */
 export function EnterpriseSSOButtons({ oidc, saml, disabled }: { oidc: boolean; saml: boolean; disabled: boolean }) {
+  const both = oidc && saml
   return (
-    <div className="space-y-4">
-      <div className="relative flex py-2 items-center">
-        <div className="flex-grow border-t border-border/40"></div>
-        <span className={cn(eyebrowClass, "flex-shrink mx-3")}>Enterprise SSO</span>
-        <div className="flex-grow border-t border-border/40"></div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {oidc && (
-          <Button 
-            variant="outline" 
-            className="w-full text-xs py-2 h-9 border-border/50 hover:bg-muted/50 transition duration-200" 
-            disabled={disabled} 
-            onClick={() => authService.loginWithOIDC()}
-          >
-            <svg className="w-4 h-4 mr-1.5 text-indigo-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2zm1 10h-2v4h2v-4zm0-4h-2v2h2V8z" fill="currentColor"/>
-            </svg>
-            OIDC SSO
-          </Button>
-        )}
-        {saml && (
-          <Button 
-            variant="outline" 
-            className="w-full text-xs py-2 h-9 border-border/50 hover:bg-muted/50 transition duration-200" 
-            disabled={disabled} 
-            onClick={() => authService.loginWithSAML()}
-          >
-            <svg className="w-4 h-4 mr-1.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/>
-            </svg>
-            SAML 2.0
-          </Button>
-        )}
-      </div>
+    <div className="space-y-2">
+      {oidc && (
+        <Button variant="outline" className={authControl} disabled={disabled} onClick={() => authService.loginWithOIDC()}>
+          <Building2 aria-hidden="true" />
+          {both ? "Single sign-on (OIDC)" : "Continue with single sign-on"}
+        </Button>
+      )}
+      {saml && (
+        <Button variant="outline" className={authControl} disabled={disabled} onClick={() => authService.loginWithSAML()}>
+          <Building2 aria-hidden="true" />
+          {both ? "Single sign-on (SAML)" : "Continue with single sign-on"}
+        </Button>
+      )}
     </div>
   )
 }

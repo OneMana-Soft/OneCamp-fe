@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Loader2, ShieldCheck } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
+import { AuthHeading, authControl } from "@/components/auth/AuthShell"
 import { TwoFactorCodeField } from "@/components/auth/TwoFactorCodeField"
 
 /**
@@ -73,15 +74,11 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
             }}
             className="space-y-4"
         >
-            <div className="flex items-start gap-2.5">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <div className="space-y-1">
-                    <p className="text-sm font-medium">Two-step verification</p>
-                    <p className="text-xs text-muted-foreground">
-                        {prompt || "Enter the code from your authenticator app."}
-                    </p>
-                </div>
-            </div>
+            {/* The page's heading while this step is up: it replaces the sign-in
+                form, so it takes the form's place in the outline too. */}
+            <AuthHeading title="Two-step verification">
+                {prompt || "Enter the code from your authenticator app."}
+            </AuthHeading>
 
             <TwoFactorCodeField
                 id="totp-code"
@@ -105,20 +102,20 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                 "Verify" as the main button would invite the user to keep submitting codes against a
                 challenge the server has already forgotten.
 
-                h-11 md:h-10 matches the "Sign In" button this screen replaces, so the primary action
+                authControl matches the "Sign in" button this screen replaces, so the primary action
                 does not change size when the second step appears.
             */}
             {expired ? (
-                <Button type="button" onClick={onCancel} className="w-full h-11 md:h-10">
+                <Button type="button" onClick={onCancel} className={authControl}>
                     Start again
                 </Button>
             ) : (
                 <Button
                     type="submit"
                     disabled={busy || code.trim() === ""}
-                    className="w-full h-11 md:h-10 gap-2"
+                    className={authControl}
                 >
-                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
                     {busy ? "Verifying…" : "Verify"}
                 </Button>
             )}
@@ -127,7 +124,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
             <div className="flex items-center justify-between text-sm">
                 <button
                     type="button"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                        className="rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                     onClick={() => {
                         setUsingRecoveryCode((v) => !v)
                         setCode("")
@@ -138,7 +135,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                 </button>
                 <button
                     type="button"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                     onClick={onCancel}
                 >
                     Back to sign in

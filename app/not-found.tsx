@@ -1,57 +1,33 @@
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Home, HelpCircle } from "@/lib/icons"
+import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
 import { app_home_path, app_login_path } from "@/types/paths"
 
 /**
- * Global 404 page.
+ * Global 404 page, in the frame of the signed-out pages: the product's name
+ * at the top, and one column that says what happened and offers the way on.
  *
- * Friendlier than the previous "404 / This page could not be found" wall.
- * Surfaces both a primary recovery path (back to the workspace home for
- * authenticated users, login otherwise) and a back-history shortcut.
- *
- * The Back button is a `<Link>` to `app_login_path` because Next's App
- * Router doesn't expose router.back() in server components — clicking
- * Home is the correct primary action regardless. We render the auth
- * fallback link only at the bottom for users who landed here logged out.
+ * It was a centred icon tile over an "ERROR 404" eyebrow over a centred
+ * paragraph over two equal buttons: the shape of every template's 404, and
+ * the status code is the server's business, not the reader's.
  */
 export default function NotFoundPage() {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 text-foreground">
-            <div className="w-full max-w-sm flex flex-col items-center text-center gap-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground">
-                    <HelpCircle className="h-7 w-7" />
-                </div>
-
-                <div className="space-y-2">
-                    <p className={eyebrowClass}>
-                        Error 404
-                    </p>
-                    <h1 className="text-2xl font-semibold tracking-tight">
-                        Page not found
-                    </h1>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                        The page you&apos;re looking for doesn&apos;t exist, was moved,
-                        or you may not have access to it.
-                    </p>
-                </div>
-
-                <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-                    <Button asChild className="gap-2">
-                        <Link href={app_home_path}>
-                            <Home className="h-4 w-4" />
-                            Go home
-                        </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="gap-2">
-                        <Link href={app_login_path}>
-                            <ArrowLeft className="h-4 w-4" />
-                            Sign in
-                        </Link>
-                    </Button>
-                </div>
+        <AuthShell>
+            <AuthHeading title="This page doesn't exist">
+                The link may be old or mistyped, or what it pointed to was deleted.
+            </AuthHeading>
+            <div className="space-y-4">
+                <Button asChild className={authControl}>
+                    <Link href={app_home_path}>Go to your workspace</Link>
+                </Button>
+                <p className="text-sm text-muted-foreground">
+                    Not signed in?{" "}
+                    <Link href={app_login_path} className="font-medium text-foreground underline-offset-4 hover:underline">
+                        Sign in
+                    </Link>
+                </p>
             </div>
-        </div>
+        </AuthShell>
     )
 }

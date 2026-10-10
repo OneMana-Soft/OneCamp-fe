@@ -42,10 +42,10 @@ afterEach(() => {
 
 async function signInThroughTheDirectory() {
   render(<SignInPage />)
-  fireEvent.click(await screen.findByRole("button", { name: "Directory Login" }))
-  fireEvent.change(screen.getByLabelText("Directory Username or Email"), { target: { value: "cleo" } })
-  fireEvent.change(screen.getByLabelText("Directory Password"), { target: { value: "directory-password" } })
-  await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in via Directory" })))
+  fireEvent.click(await screen.findByRole("tab", { name: "Company directory" }))
+  fireEvent.change(screen.getByLabelText("Directory username or email"), { target: { value: "cleo" } })
+  fireEvent.change(screen.getByLabelText("Directory password"), { target: { value: "directory-password" } })
+  await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in with directory" })))
 }
 
 describe("a first sign-in through the directory", () => {

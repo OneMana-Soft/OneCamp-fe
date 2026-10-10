@@ -1,11 +1,10 @@
 "use client"
 
-import { LoaderCircle, AlertCircle, AlertTriangle, Info, Mail, Lock, Eye, EyeOff, Fingerprint } from "@/lib/icons";
+import { LoaderCircle, AlertCircle, AlertTriangle, Info, Mail, Fingerprint } from "@/lib/icons";
 import { signInRefusal, type RefusalTone } from "@/lib/auth/signInRefusal";
 import { signInWithPasskey } from "@/services/passkeyService";
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
-import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
 import {useEffect, useState, useCallback, Suspense} from "react";
 import authService, { type LoginOutcome } from "@/services/auth/AuthService";
 import { assertUnreachable } from "@/lib/utils/assertUnreachable";
@@ -14,7 +13,8 @@ import { EnterpriseSSOButtons, OAuthButtons } from "@/components/auth/ProviderBu
 import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
-import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils/helpers/cn"
+import { AuthDivider, AuthField, AuthHeading, AuthShell, PasswordField, authControl } from "@/components/auth/AuthShell"
 import { landingPath } from "@/lib/landing"
 
 // Build-time defaults. These are fallbacks ONLY — the runtime
@@ -53,9 +53,9 @@ function ssoMethodHint(method: string): string {
 // the theme's warning tint for one with something to do first; neutral for
 // one that is nobody's fault (cancelled, timed out).
 const REFUSAL_STYLE: Record<RefusalTone, { box: string; icon: string; Icon: typeof AlertCircle }> = {
-  error: { box: "bg-destructive/10 border-destructive text-destructive", icon: "text-destructive", Icon: AlertCircle },
-  warning: { box: "bg-warning/10 border-warning text-foreground", icon: "text-warning", Icon: AlertTriangle },
-  neutral: { box: "bg-muted border-border text-foreground", icon: "text-muted-foreground", Icon: Info },
+  error: { box: "border-destructive/30 bg-destructive/5", icon: "text-destructive", Icon: AlertCircle },
+  warning: { box: "border-warning/40 bg-warning/5", icon: "text-warning", Icon: AlertTriangle },
+  neutral: { box: "border-border bg-muted", icon: "text-muted-foreground", Icon: Info },
 };
 
 function AuthErrorMessage() {
@@ -67,18 +67,18 @@ function AuthErrorMessage() {
   const refusal = signInRefusal(error);
   const { box, icon, Icon } = REFUSAL_STYLE[refusal.tone];
 
+  // One quiet box in the tone's tint: no side bar, shadow or slide-in, which
+  // made a cancelled sign-in look like an outage.
   return (
     <div
       role={refusal.tone === "error" ? "alert" : "status"}
       data-tone={refusal.tone}
-      className={`${box} border-l-4 p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300`}
+      className={`${box} flex items-start gap-3 rounded-lg border p-4 text-foreground`}
     >
-      <div className="flex items-start">
-        <Icon aria-hidden="true" className={`h-5 w-5 mr-3 mt-0.5 shrink-0 ${icon}`} />
-        <div>
-          <h3 className="font-semibold text-sm">{refusal.title}</h3>
-          <p className="text-sm mt-1">{refusal.message}</p>
-        </div>
+      <Icon aria-hidden="true" className={`mt-0.5 h-4 w-4 shrink-0 ${icon}`} />
+      <div className="space-y-1">
+        <h2 className="text-sm font-semibold">{refusal.title}</h2>
+        <p className="text-sm text-muted-foreground">{refusal.message}</p>
       </div>
     </div>
   );
@@ -378,69 +378,21 @@ export default function SignUp() {
 
   if (!hasAnyAuthMethod && !isDemoEnabled) {
     return (
-      <div className="min-h-screen text-foreground flex flex-col justify-center items-center px-4 py-12">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold mb-2">No Login Methods Configured</h2>
-        <p className="text-muted-foreground text-center max-w-sm">
-          Please contact your administrator to enable at least one authentication method.
-        </p>
-      </div>
+      <AuthShell>
+        <AuthHeading title="There's no way to sign in yet">
+          Every sign-in method is turned off on this server. Ask whoever runs it to turn one on.
+        </AuthHeading>
+      </AuthShell>
     );
   }
 
+  // The address this page is on, so somebody with two workspaces can tell
+  // which one is asking. Only ever drawn in the browser (see isChecking).
+  const workspaceHost = typeof window !== "undefined" ? window.location.host : "";
+  const hasProviderButtons = hasOAuthProviders || hasEnterpriseSSO || canUsePasskey;
+
   return (
-      <div className="min-h-screen text-foreground flex flex-col justify-center items-center px-4 py-12 relative bg-background/50">
-        {/* Theme Toggle */}
-        <div className="absolute right-4 top-4 md:right-8 md:top-8">
-          <ThemeToggle/>
-        </div>
-
-        {/* Logo */}
-        <div className="w-full max-w-sm mb-6 flex justify-center">
-          <img
-              src="/logo.svg"
-              alt="OneCamp Logo"
-              width={48}
-              height={48}
-              className="h-12 w-12 mx-auto"
-          />
-        </div>
-
-        <div className="w-full max-w-sm space-y-6">
-
-          <Suspense fallback={null}>
-            <AuthErrorMessage />
-          </Suspense>
-
-          {/* Directory Switcher Tab. Hidden during a second-factor challenge: the password step is
-              already done, and offering another sign-in method here implies it can be restarted in place. */}
-          {!totpChallenge && isLdapEnabled && (
-            <div className="flex p-1 bg-muted/80 backdrop-blur rounded-lg border border-border/40 select-none">
-              <button
-                type="button"
-                onClick={() => setActiveTab("standard")}
-                className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition duration-200 ${
-                  activeTab === "standard"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Standard Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("directory")}
-                className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition duration-200 ${
-                  activeTab === "directory"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Directory Login
-              </button>
-            </div>
-          )}
-
+      <AuthShell>
           {totpChallenge ? (
             /*
               Replaces the credential form entirely rather than appearing beneath it. A screen showing
@@ -448,110 +400,135 @@ export default function SignUp() {
               challenge and invalidates the one the user is holding -- so the obvious action would break
               the flow it appears to belong to.
             */
-            <div className="rounded-lg border border-border/50 bg-card/60 p-5 backdrop-blur">
-              <TwoFactorPrompt
-                onSubmit={submitTwoFactor}
-                onCancel={cancelTwoFactor}
-                prompt={totpPrompt}
-              />
+            <TwoFactorPrompt
+              onSubmit={submitTwoFactor}
+              onCancel={cancelTwoFactor}
+              prompt={totpPrompt}
+            />
+          ) : (
+          <>
+          <AuthHeading title="Sign in">
+            {workspaceHost && (
+              <>to <span className="font-medium text-foreground" translate="no">{workspaceHost}</span></>
+            )}
+          </AuthHeading>
+
+          <div className="space-y-6">
+          <Suspense fallback={null}>
+            <AuthErrorMessage />
+          </Suspense>
+
+          {/* Which kind of account: the workspace's own, or the company
+              directory's. Tabs, because that is what they are. */}
+          {isLdapEnabled && (
+            <div role="tablist" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
+              {([["standard", "OneCamp account"], ["directory", "Company directory"]] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  id={`signin-tab-${value}`}
+                  aria-selected={activeTab === value}
+                  aria-controls={`signin-panel-${value}`}
+                  onClick={() => setActiveTab(value)}
+                  className={cn(
+                    "h-9 rounded-sm text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                    activeTab === value ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-          ) : activeTab === "standard" ? (
-            <>
-              {/* OAuth Buttons */}
-              {hasOAuthProviders && (
-                <OAuthButtons
-                  google={isGoogleEnabled}
-                  github={isGithubEnabled}
-                  busy={isLoading}
-                  disabled={isLoading || isDemoLoading}
-                  onGoogle={() => handleLogin(authService.loginWithGoogle)}
-                  onGithub={() => handleLogin(authService.loginWithGithub)}
-                />
-              )}
+          )}
 
-              {/* Passkey: the device's own sign-in, no password typed. */}
-              {canUsePasskey && (
+          {activeTab === "standard" ? (
+            <div
+              className="space-y-6"
+              {...(isLdapEnabled ? { role: "tabpanel", id: "signin-panel-standard", "aria-labelledby": "signin-tab-standard" } : {})}
+            >
+              {/* The ways in that are one click: the accounts the workspace
+                  trusts, its single sign-on, and this device's passkey. */}
+              {hasProviderButtons && (
                 <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    className="w-full border-border/50 hover:bg-muted/50 transition-colors"
-                    disabled={isLoading || isDemoLoading}
-                    onClick={handlePasskeyLogin}
-                  >
-                    <Fingerprint className="mr-2 h-4 w-4" />
-                    Sign in with a passkey
-                  </Button>
-                  {passkeyError && <p role="alert" className="text-sm text-destructive font-medium">{passkeyError}</p>}
+                  {hasOAuthProviders && (
+                    <OAuthButtons
+                      google={isGoogleEnabled}
+                      github={isGithubEnabled}
+                      busy={isLoading}
+                      disabled={isLoading || isDemoLoading}
+                      onGoogle={() => handleLogin(authService.loginWithGoogle)}
+                      onGithub={() => handleLogin(authService.loginWithGithub)}
+                    />
+                  )}
+                  {hasEnterpriseSSO && (
+                    <EnterpriseSSOButtons oidc={isOidcEnabled} saml={isSamlEnabled} disabled={isLoading || isDemoLoading} />
+                  )}
+                  {canUsePasskey && (
+                    <Button
+                      variant="outline"
+                      className={authControl}
+                      disabled={isLoading || isDemoLoading}
+                      onClick={handlePasskeyLogin}
+                    >
+                      <Fingerprint aria-hidden="true" />
+                      Sign in with a passkey
+                    </Button>
+                  )}
+                  {passkeyError && <p role="alert" className="pt-1 text-sm text-destructive">{passkeyError}</p>}
                 </div>
               )}
 
-              {/* DIVIDER between OAuth and Email */}
-              {hasOAuthProviders && isEmailEnabled && (
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border/50" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or continue with email</span>
-                  </div>
-                </div>
-              )}
+              {hasProviderButtons && isEmailEnabled && <AuthDivider />}
 
-              {/* Email Login */}
               {isEmailEnabled && (
                 <>
                   {!showEmailLogin ? (
-                    <Button 
-                      variant="outline" 
-                      className="w-full border-border/50 hover:bg-muted/50 transition-colors" 
+                    <Button
+                      variant="outline"
+                      className={authControl}
                       disabled={isLoading || isDemoLoading}
                       onClick={() => setShowEmailLogin(true)}
                     >
-                      <Mail className="mr-2 h-4 w-4" />
-                      Sign in with Email
+                      <Mail aria-hidden="true" />
+                      Sign in with email
                     </Button>
                   ) : (
-                    <form onSubmit={handleEmailLogin} className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            type="email"
-                            placeholder="Email address"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            autoComplete="email"
-                            autoCapitalize="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            aria-label="Email address"
-                            className="pl-10"
-                          />
-                        </div>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            minLength={8}
-                            autoComplete="current-password"
-                            aria-label="Password"
-                            className="pl-10 pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            aria-label={showPassword ? "Hide password" : "Show password"}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
-                          >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
+                    <form onSubmit={handleEmailLogin} className="space-y-4" noValidate={false}>
+                      <AuthField
+                        id="signin-email"
+                        name="email"
+                        label="Email address"
+                        type="email"
+                        placeholder="you@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="username"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        // Focused when it appears: the button that revealed it was a request to type here.
+                        autoFocus={hasProviderButtons}
+                      />
+                      <PasswordField
+                        id="signin-password"
+                        name="password"
+                        label="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        autoComplete="current-password"
+                        visible={showPassword}
+                        onVisibleChange={setShowPassword}
+                        error={emailError}
+                        aside={
+                          <Link href="/forgot-password" className="rounded-sm text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
+                            Forgot password?
+                          </Link>
+                        }
+                      />
 
                       {adminPasswordOnly && (
                         <p className="text-xs text-muted-foreground">
@@ -559,118 +536,85 @@ export default function SignUp() {
                         </p>
                       )}
 
-                      {emailError && (
-                        <p className="text-sm text-destructive font-medium">{emailError}</p>
-                      )}
-
-                      <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
-                        {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        Sign In
+                      <Button type="submit" className={authControl} disabled={isLoading}>
+                        {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                        {isLoading ? "Signing in…" : "Sign in"}
                       </Button>
-
-                      <div className="flex justify-between text-sm">
-                        <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground transition-colors">
-                          Forgot password?
-                        </Link>
-                      </div>
                     </form>
                   )}
                 </>
               )}
-            </>
+            </div>
           ) : (
             /* Directory Login (LDAP) */
-            <form onSubmit={handleLdapLogin} className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="space-y-2">
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Directory Username or Email"
-                    value={ldapUser}
-                    onChange={(e) => setLdapUser(e.target.value)}
-                    required
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    aria-label="Directory Username or Email"
-                    className="pl-10"
-                  />
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type={showLdapPassword ? "text" : "password"}
-                    placeholder="Directory Password"
-                    value={ldapPass}
-                    onChange={(e) => setLdapPass(e.target.value)}
-                    required
-                    aria-label="Directory Password"
-                    className="pl-10 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowLdapPassword(!showLdapPassword)}
-                    aria-label={showLdapPassword ? "Hide password" : "Show password"}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
-                  >
-                    {showLdapPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
+            <form
+              onSubmit={handleLdapLogin}
+              className="space-y-4"
+              role="tabpanel"
+              id="signin-panel-directory"
+              aria-labelledby="signin-tab-directory"
+            >
+              <AuthField
+                id="ldap-user"
+                name="username"
+                label="Directory username or email"
+                type="text"
+                value={ldapUser}
+                onChange={(e) => setLdapUser(e.target.value)}
+                required
+                autoComplete="username"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <PasswordField
+                id="ldap-password"
+                name="password"
+                label="Directory password"
+                value={ldapPass}
+                onChange={(e) => setLdapPass(e.target.value)}
+                required
+                autoComplete="current-password"
+                visible={showLdapPassword}
+                onVisibleChange={setShowLdapPassword}
+                error={ldapError}
+              />
 
-              {ldapError && (
-                <p className="text-sm text-destructive font-medium">{ldapError}</p>
-              )}
-
-              <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
-                {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
-                Sign in via Directory
+              <Button type="submit" className={authControl} disabled={isLoading}>
+                {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                {isLoading ? "Signing in…" : "Sign in with directory"}
               </Button>
             </form>
           )}
 
-          {/* Enterprise Single Sign-On (SAML / OIDC) Grid */}
-          {hasEnterpriseSSO && (
-            <EnterpriseSSOButtons oidc={isOidcEnabled} saml={isSamlEnabled} disabled={isLoading || isDemoLoading} />
-          )}
-
           {/* Demo Login Section */}
           {isDemoEnabled && (
-            <>
-              {hasAnyAuthMethod && (
-                <div className="relative mb-4 mt-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border/40" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or</span>
-                  </div>
-                </div>
-              )}
+            <div className="space-y-3">
+              {hasAnyAuthMethod && <AuthDivider />}
 
               {/* A plain primary button in the theme's own colour: the
                   orange-to-amber gradient and rocket belonged to no token. */}
               <Button
-                className="w-full font-medium"
+                className={cn(authControl, "font-medium")}
                 disabled={isLoading || isDemoLoading}
                 onClick={handleDemoLogin}
               >
-                {isDemoLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                {isDemoLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                 Try the demo, no sign up needed
               </Button>
 
               {demoError && (
-                <p className="text-sm text-destructive text-center font-medium">{demoError}</p>
+                <p role="alert" className="text-sm text-destructive">{demoError}</p>
               )}
 
-              <p className="text-xs text-muted-foreground text-center">
-                Explore OneCamp with a pre-configured demo account. Data resets periodically.
+              <p className="text-xs text-muted-foreground">
+                A shared workspace with sample people and work in it. It starts over every night.
               </p>
-            </>
+            </div>
           )}
-
-        </div>
-      </div>
+          </div>
+          </>
+          )}
+      </AuthShell>
   )
 }

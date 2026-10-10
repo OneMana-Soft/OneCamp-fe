@@ -1,12 +1,11 @@
 "use client"
 
-import { LoaderCircle, Mail, CheckCircle, ArrowLeft } from "@/lib/icons";
+import { LoaderCircle, ArrowLeft } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useState } from "react"
 import authService from "@/services/auth/AuthService"
 import Link from "next/link"
-import { Input } from "@/components/ui/input"
+import { AuthField, AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -33,76 +32,53 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen text-foreground flex flex-col justify-center items-center px-4 py-12 relative">
-      <div className="absolute right-4 top-4 md:right-8 md:top-8">
-        <ThemeToggle />
-      </div>
+    <AuthShell>
+      {isSent ? (
+        <div role="status">
+          <AuthHeading title="Check your email">
+            If <span className="font-medium text-foreground">{email}</span> has an account here, a link to set a new
+            password is on its way. It works for an hour. If it hasn&apos;t come in a few minutes, look in spam.
+          </AuthHeading>
+          <Button variant="outline" className={authControl} asChild>
+            <Link href="/">Back to sign in</Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          <AuthHeading title="Reset your password">
+            Enter the email you sign in with and we&apos;ll send you a link to set a new one.
+          </AuthHeading>
 
-      <div className="w-full max-w-sm mb-8 flex justify-center">
-        <img src="/logo.svg" alt="OneCamp Logo" width={48} height={48} className="h-12 w-12 mx-auto" />
-      </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AuthField
+              id="email"
+              name="email"
+              label="Email address"
+              type="email"
+              placeholder="you@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="username"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              error={error || undefined}
+            />
 
-      <div className="w-full max-w-sm space-y-6">
-        {isSent ? (
-          <div className="space-y-4 text-center animate-in fade-in duration-300">
-            <CheckCircle className="h-12 w-12 text-success mx-auto" />
-            <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
-            <p className="text-sm text-muted-foreground">
-              If an account with <span className="font-medium text-foreground">{email}</span> exists, we&apos;ve sent a password reset link.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              The link expires in 1 hour. Don&apos;t forget to check your spam folder.
-            </p>
-            <Button variant="outline" className="mt-4" asChild><Link href="/">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Login
-              </Link></Button>
-          </div>
-        ) : (
-          <>
-            <div className="text-center space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight">Forgot password?</h1>
-              <p className="text-sm text-muted-foreground">
-                Enter your email and we&apos;ll send you a reset link.
-              </p>
-            </div>
+            <Button type="submit" className={authControl} disabled={isLoading}>
+              {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+              {isLoading ? "Sending…" : "Send reset link"}
+            </Button>
+          </form>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="email"
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  aria-label="Email address"
-                  className="pl-10"
-                />
-              </div>
-
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-
-              <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
-                {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Send Reset Link
-              </Button>
-            </form>
-
-            <p className="text-xs text-center text-muted-foreground">
-              <Link href="/" className="text-foreground hover:underline flex items-center justify-center gap-1">
-                <ArrowLeft className="h-3 w-3" /> Back to Login
-              </Link>
-            </p>
-          </>
-        )}
-      </div>
-    </div>
+          <p className="mt-6 text-sm">
+            <Link href="/" className="inline-flex items-center gap-1.5 rounded-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to sign in
+            </Link>
+          </p>
+        </>
+      )}
+    </AuthShell>
   )
 }

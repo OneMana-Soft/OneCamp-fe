@@ -82,7 +82,7 @@ describe("accepting an invitation", () => {
     render(<SignupPage />)
     expect(await screen.findByRole("button", { name: "Continue with Google" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Continue with GitHub" })).toBeNull()
-    expect(screen.getByRole("button", { name: /OIDC SSO/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Continue with single sign-on" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: /SAML/ })).toBeNull()
     expect(screen.getByRole("link", { name: /directory account/ }).getAttribute("href")).toBe("/?tab=directory")
   })
@@ -92,14 +92,14 @@ describe("accepting an invitation", () => {
     render(<SignupPage />)
     await screen.findByLabelText("Your name")
     const line = screen.getByText(/invited you/)
-    expect(line.textContent).toBe("Sam Rivera invited you to team.example.com.")
+    expect(line.textContent).toBe("Sam Rivera invited you to team.example.com as ana@example.com.")
   })
 
   it("says only what it knows when the inviter has gone", async () => {
     invitedBy = { inviter_name: "", workspace: "team.example.com" }
     render(<SignupPage />)
     await screen.findByLabelText("Your name")
-    expect(screen.getByText(/You're invited/).textContent).toBe("You're invited to team.example.com.")
+    expect(screen.getByText(/You're invited/).textContent).toBe("You're invited to team.example.com as ana@example.com.")
   })
 
   it("leaves the password out when the workspace has turned it off", async () => {

@@ -1,13 +1,12 @@
 "use client"
 
-import { LoaderCircle, Mail, Lock, User, Eye, EyeOff, Shield } from "@/lib/icons";
+import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useEffect, useState } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
-import { Input } from "@/components/ui/input"
+import { AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
 
 export default function AdminSetupPage() {
   const [email, setEmail] = useState("")
@@ -22,6 +21,8 @@ export default function AdminSetupPage() {
   // from a refusal.
   const [pinned, setPinned] = useState(false)
   const [error, setError] = useState("")
+  // Which field the error is about; null for the form as a whole (the server's answer).
+  const [errorField, setErrorField] = useState<"email" | "password" | "confirm" | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -38,25 +39,30 @@ export default function AdminSetupPage() {
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrorField(null)
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match")
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailRegex.test(email)) {
+      setError("Enter an email address like you@company.com.")
+      setErrorField("email")
       return
     }
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters")
+      setError("Use at least 8 characters.")
+      setErrorField("password")
       return
     }
 
     if (password.length > 72) {
-      setError("Password must not exceed 72 characters")
+      setError("Use 72 characters or fewer.")
+      setErrorField("password")
       return
     }
 
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-    if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address")
+    if (password !== confirmPassword) {
+      setError("The two passwords are different. Type the same one in both.")
+      setErrorField("confirm")
       return
     }
 
@@ -77,136 +83,91 @@ export default function AdminSetupPage() {
 
   if (isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <AuthShell>
+        <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
+          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Checking this server…
+        </div>
+      </AuthShell>
     )
   }
 
   return (
-    <div className="min-h-screen text-foreground flex flex-col justify-center items-center px-4 py-12 relative">
-      <div className="absolute right-4 top-4 md:right-8 md:top-8">
-        <ThemeToggle />
-      </div>
+    <AuthShell>
+      <AuthHeading title="Set up your workspace">
+        Nobody has an account on this server yet. The one you make now is its admin, and you&apos;ll invite your team
+        from inside.
+      </AuthHeading>
 
-      <div className="w-full max-w-sm mb-8 flex justify-center">
-        <img src="/logo.svg" alt="OneCamp Logo" width={48} height={48} className="h-12 w-12 mx-auto" />
-      </div>
+      <form onSubmit={handleSetup} className="space-y-4" noValidate>
+        <AuthField
+          id="email"
+          name="email"
+          label="Your email"
+          type="email"
+          placeholder="you@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="username"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          hint={pinned ? "Use the address you gave when you installed OneCamp. This server accepts only that one." : undefined}
+          error={errorField === "email" ? error : undefined}
+        />
 
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Shield className="h-6 w-6 text-primary" />
-            </div>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome to OneCamp</h1>
-          <p className="text-sm text-muted-foreground">
-            Set up your admin account to get started.
-          </p>
-        </div>
+        <AuthField
+          id="username"
+          name="nickname"
+          label={<>Username <span className="font-normal text-muted-foreground">(optional)</span></>}
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          maxLength={25}
+          autoComplete="nickname"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          hint="Leave it empty to use what comes before the @ in your email."
+        />
 
-        <form onSubmit={handleSetup} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="Admin email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                className="pl-10"
-              />
-            </div>
-            {pinned && (
-              <p className="text-xs text-muted-foreground">
-                This server accepts only the address given when it was installed.
-              </p>
-            )}
-          </div>
+        <PasswordField
+          id="password"
+          name="new-password"
+          label="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+          hint="At least 8 characters."
+          error={errorField === "password" ? error : undefined}
+          visible={showPassword}
+          onVisibleChange={setShowPassword}
+        />
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="username">Username</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="username"
-                type="text"
-                placeholder="Choose a username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                maxLength={25}
-                autoComplete="username"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                className="pl-10"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Optional. Defaults to the part of your email before the @.</p>
-          </div>
+        <AuthField
+          id="confirm-password"
+          name="confirm-password"
+          label="Type it again"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+          error={errorField === "confirm" ? error : undefined}
+          // The show button on the first field shows both.
+          type={showPassword ? "text" : "password"}
+        />
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="password">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Create a strong password (min 8)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-                className="pl-10 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
+        {errorField === null && <FormProblem>{error}</FormProblem>}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="confirm-password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
-
-          <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
-            {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
-            Create Admin Account
-          </Button>
-        </form>
-      </div>
-    </div>
+        <Button type="submit" className={authControl} disabled={isLoading}>
+          {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+          {isLoading ? "Creating your account…" : "Create admin account"}
+        </Button>
+      </form>
+    </AuthShell>
   )
 }
