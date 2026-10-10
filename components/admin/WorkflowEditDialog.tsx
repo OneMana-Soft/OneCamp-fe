@@ -43,6 +43,9 @@ import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/chan
 import { ProjectInfoInterface } from "@/types/project";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields";
+import { HUE_CLASS } from "@/components/ui/graphics/hues";
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues";
+import { cn } from "@/lib/utils/helpers/cn";
 import {
     Workflow,
     WorkflowAction,
@@ -132,6 +135,13 @@ const TRIGGER_HELP: Record<WorkflowTriggerType, string> = {
 export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) {
     const { toast } = useToast();
     const isEdit = !!workflow;
+    // What stops a save, said where it is: the name under the name (with the
+    // cursor there), anything about the actions in the Then section. It was a
+    // "Can't save yet" toast in the corner, tied to no field.
+    const [nameError, setNameError] = useState<string | null>(null);
+    const [actionsError, setActionsError] = useState<string | null>(null);
+    const nameRef = React.useRef<HTMLInputElement>(null);
+    const actionsRef = React.useRef<HTMLDivElement>(null);
 
     const [name, setName] = useState("");
     const [isActive, setIsActive] = useState(true);
@@ -263,12 +273,12 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
         if (actions.length === 0) return "Add at least one action.";
         for (const a of actions) {
             if ((a.type === "reply" || a.type === "reply_ephemeral" || a.type === "warn_user") && !a.text?.trim())
-                return "Message actions need text.";
-            if (a.type === "create_task" && !a.project_id) return "Create-task actions need a project.";
+                return "Write the message for each reply.";
+            if (a.type === "create_task" && !a.project_id) return "Choose a project for each new task.";
             if (a.type === "create_task" && !isMessageTrigger && !a.task_name?.trim())
-                return "Create-task needs a task name for this trigger.";
+                return "Give each new task a name: this trigger has no message to name it from.";
             if (a.type === "flag_to_channel" && !a.target_channel_id)
-                return "Flag actions need a review channel.";
+                return "Choose the review channel for each flag.";
             if (a.type === "reply" && isTaskTrigger && channelId === NO_CHANNEL)
                 return "Choose the channel the reply posts in.";
         }
@@ -278,9 +288,19 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     const handleSave = async () => {
         const err = validate();
         if (err) {
-            toast({ title: "Can't save yet", description: err, variant: "destructive" });
+            if (!name.trim()) {
+                setNameError(err);
+                setActionsError(null);
+                nameRef.current?.focus();
+            } else {
+                setNameError(null);
+                setActionsError(err);
+                actionsRef.current?.scrollIntoView({ block: "nearest" });
+            }
             return;
         }
+        setNameError(null);
+        setActionsError(null);
         const values: WorkflowFormValues = {
             name: name.trim(),
             is_active: isActive,
@@ -301,10 +321,10 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
         try {
             if (isEdit && workflow) {
                 await updateWorkflow(workflow.id, values);
-                toast({ title: "Workflow updated" });
+                toast({ title: `${name.trim()} saved` });
             } else {
                 await createWorkflow(values);
-                toast({ title: "Workflow created" });
+                toast({ title: `${name.trim()} created` });
             }
             onSaved();
         } catch {
@@ -327,58 +347,72 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                 <div className="space-y-5 py-2">
                     {/* AI draft (create mode only) */}
                     {!isEdit && (
-                        <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
-                            <Label className="flex items-center gap-1.5 text-sm">
-                                <Sparkles className="h-4 w-4 text-primary" /> Describe it in plain English
+                        // In the AI and automation group's tint: it was an orange
+                        // panel, the colour of the one action a view asks for.
+                        <div className={cn(HUE_CLASS[ADMIN_GROUP_HUE.ai], "space-y-2 rounded-xl border border-hue/30 bg-hue-tint/60 p-3")}>
+                            <Label htmlFor="wf-describe" className="flex items-center gap-1.5 text-sm text-hue-ink">
+                                <Sparkles className="h-4 w-4" aria-hidden="true" /> Describe it in plain English
                             </Label>
                             <Textarea
+                                id="wf-describe"
                                 value={draftPrompt}
                                 onChange={(e) => setDraftPrompt(e.target.value)}
-                                placeholder="e.g. When someone posts 'help' in a channel, reply that support will follow up and create a high-priority task."
+                                placeholder="When someone posts “help” in a channel, reply that support will follow up and create a high-priority task…"
                                 className="min-h-[64px] resize-none bg-background text-sm"
                                 maxLength={2000}
                             />
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-2xs text-muted-foreground">
-                                    The AI fills the form below. You review and pick channels/projects before saving.
+                                <p className="text-xs text-muted-foreground">
+                                    The AI fills in the form below. You check it and pick the channels and projects before saving.
                                 </p>
                                 <Button type="button" size="sm" variant="outline" onClick={handleDraft} disabled={drafting || !draftPrompt.trim()} className="shrink-0 gap-1.5">
                                     {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                                     Generate
                                 </Button>
                             </div>
-                            {draftNote && <p className="text-2xs text-primary">{draftNote}</p>}
+                            {draftNote && <p className="text-xs text-hue-ink">{draftNote}</p>}
                         </div>
                     )}
 
                     {/* Name */}
                     <div className="space-y-1.5">
-                        <Label>Name</Label>
+                        <Label htmlFor="wf-name">Name</Label>
                         <Input
+                            ref={nameRef}
+                            id="wf-name"
                             value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Support auto-acknowledge"
+                            aria-invalid={nameError ? true : undefined}
+                            aria-describedby={nameError ? "wf-name-error" : undefined}
+                            onChange={(e) => {
+                                setName(e.target.value);
+                                if (nameError) setNameError(null);
+                            }}
+                            placeholder="Support auto-reply…"
                             maxLength={120}
+                            autoComplete="off"
                         />
+                        {nameError && <p id="wf-name-error" className="text-xs font-medium text-danger-ink">{nameError}</p>}
                     </div>
 
                     {/* Bot label */}
                     <div className="space-y-1.5">
-                        <Label className="flex items-center gap-1.5">Bot name <span className="text-2xs font-normal text-muted-foreground">(optional)</span></Label>
+                        <Label htmlFor="wf-bot" className="flex items-center gap-1.5">Sender name <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
                         <Input
+                            id="wf-bot"
                             value={botName}
                             onChange={(e) => setBotName(e.target.value)}
-                            placeholder="Shown on automated messages (defaults to the workflow name)"
+                            placeholder="Its messages come from this name; it's the workflow's name if empty…"
                             maxLength={80}
+                            autoComplete="off"
                         />
                     </div>
 
                     {/* Trigger */}
                     <div className="space-y-3 rounded-xl border border-border/60 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">When</p>
+                        <h3 id="wf-when" className="text-sm font-medium">When</h3>
 
                         <Select value={triggerType} onValueChange={(v) => setTriggerType(v as WorkflowTriggerType)}>
-                            <SelectTrigger>
+                            <SelectTrigger aria-labelledby="wf-when">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -402,11 +436,11 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                         {isTaskTrigger && <TaskMoveFilterFields value={taskMove} onChange={setTaskMove} projects={projects} />}
 
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-normal">
+                            <Label htmlFor="wf-channel" className="text-sm font-normal">
                                 {isMessageTrigger ? "In channel" : isTaskTrigger ? "Reply in" : "Channel"}
                             </Label>
                             <Select value={channelId} onValueChange={setChannelId}>
-                                <SelectTrigger>
+                                <SelectTrigger id="wf-channel">
                                     <SelectValue placeholder="Any channel" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -422,9 +456,10 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
 
                         {isMessageTrigger && (
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-normal">Containing keywords (optional)</Label>
+                                <Label htmlFor="wf-keyword" className="text-sm font-normal">Containing keywords (optional)</Label>
                                 <div className="flex gap-2">
                                     <Input
+                                        id="wf-keyword"
                                         value={keywordInput}
                                         onChange={(e) => setKeywordInput(e.target.value)}
                                         onKeyDown={(e) => {
@@ -433,7 +468,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                                 addKeyword();
                                             }
                                         }}
-                                        placeholder="Type a word and press Enter"
+                                        placeholder="Type a word and press Enter…"
+                                        autoComplete="off"
                                         maxLength={80}
                                     />
                                     <Button aria-label="Add keyword" type="button" variant="outline" size="icon" onClick={addKeyword} className="shrink-0">
@@ -445,7 +481,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                         {keywords.map((kw) => (
                                             <span key={kw} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
                                                 {kw}
-                                                <button aria-label={`Remove keyword ${kw}`} onClick={() => removeKeyword(kw)} className="text-muted-foreground hover:text-foreground">
+                                                <button type="button" aria-label={`Remove keyword ${kw}`} onClick={() => removeKeyword(kw)} className="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
                                                     <X className="h-3 w-3" />
                                                 </button>
                                             </span>
@@ -454,9 +490,9 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                 )}
                                 {keywords.length > 1 && (
                                     <div className="flex items-center gap-2 pt-1">
-                                        <Label className="text-xs font-normal text-muted-foreground">Match</Label>
+                                        <Label htmlFor="wf-match" className="text-xs font-normal text-muted-foreground">Match</Label>
                                         <Select value={matchType} onValueChange={(v) => setMatchType(v as "any" | "all")}>
-                                            <SelectTrigger className="h-8 w-auto gap-1">
+                                            <SelectTrigger id="wf-match" className="h-8 w-auto gap-1">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -467,25 +503,28 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     </div>
                                 )}
                                 {keywords.length === 0 && (
-                                    <p className="text-2xs text-muted-foreground">
-                                        No keywords = the workflow runs on every message in the selected scope.
+                                    <p className="text-xs text-muted-foreground">
+                                        With no keywords, it runs on every message in that channel.
                                     </p>
                                 )}
                             </div>
                         )}
                         {!isMessageTrigger && (
-                            <p className="text-2xs text-muted-foreground">
-                                Tip: use <code className="rounded bg-muted px-1">{"{user}"}</code> in a message to greet the person who joined.
+                            <p className="text-xs text-muted-foreground">
+                                Write <code className="rounded bg-muted px-1">{"{user}"}</code> in a message to greet the person who joined.
                             </p>
                         )}
                     </div>
 
                     {/* Actions */}
-                    <div className="space-y-3 rounded-xl border border-border/60 p-3">
+                    <div ref={actionsRef} className="space-y-3 rounded-xl border border-border/60 p-3">
                         <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Then</p>
-                            <span className="text-2xs text-muted-foreground">{actions.length}/{MAX_ACTIONS}</span>
+                            <h3 className="text-sm font-medium">Then</h3>
+                            <span className="text-xs text-muted-foreground">{actions.length} of {MAX_ACTIONS}</span>
                         </div>
+                        {actionsError && (
+                            <p role="alert" className="text-xs font-medium text-danger-ink">{actionsError}</p>
+                        )}
 
                         {actions.map((a, idx) => {
                             const meta = ACTION_META[a.type];
@@ -496,13 +535,14 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                         <span className="inline-flex items-center gap-1.5 text-sm font-medium">
                                             <Icon className="h-4 w-4 text-muted-foreground" /> {meta.label}
                                         </span>
-                                        <Button aria-label="Remove action" variant="ghost" size="icon" className="h-7 w-7 text-danger-ink" onClick={() => removeAction(idx)}>
+                                        <Button aria-label={`Remove ${meta.label.toLowerCase()} (action ${idx + 1})`} variant="ghost" size="icon" className="h-8 w-8 text-danger-ink hover:text-danger-ink" onClick={() => removeAction(idx)}>
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
 
                                     {(a.type === "reply" || a.type === "reply_ephemeral" || a.type === "warn_user") && (
                                         <Input
+                                            aria-label={`Message for action ${idx + 1}`}
                                             value={a.text || ""}
                                             onChange={(e) => updateAction(idx, { text: e.target.value })}
                                             placeholder={
@@ -519,8 +559,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     {a.type === "create_task" && (
                                         <div className="space-y-2">
                                             <Select value={a.project_id || ""} onValueChange={(v) => updateAction(idx, { project_id: v })}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select a project" />
+                                                <SelectTrigger aria-label={`Project for action ${idx + 1}`}>
+                                                    <SelectValue placeholder="Choose a project" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {projects.map((p) => (
@@ -531,18 +571,19 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                                 </SelectContent>
                                             </Select>
                                             {projects.length === 0 && (
-                                                <p className="text-2xs text-warning-ink">
+                                                <p className="text-xs text-warning-ink">
                                                     You can only create tasks in projects you administer.
                                                 </p>
                                             )}
                                             <Input
+                                                aria-label={`Task name for action ${idx + 1}`}
                                                 value={a.task_name || ""}
                                                 onChange={(e) => updateAction(idx, { task_name: e.target.value })}
                                                 placeholder={isMessageTrigger ? "Task name (defaults to the message text)" : "Task name"}
                                                 maxLength={200}
                                             />
                                             <Select value={a.priority || "medium"} onValueChange={(v) => updateAction(idx, { priority: v as WorkflowAction["priority"] })}>
-                                                <SelectTrigger className="h-9">
+                                                <SelectTrigger aria-label={`Priority for action ${idx + 1}`} className="h-9">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -556,8 +597,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
 
                                     {a.type === "flag_to_channel" && (
                                         <Select value={a.target_channel_id || ""} onValueChange={(v) => updateAction(idx, { target_channel_id: v })}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a review channel" />
+                                            <SelectTrigger aria-label={`Review channel for action ${idx + 1}`}>
+                                                <SelectValue placeholder="Choose a review channel" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {channels.map((c) => (
@@ -570,7 +611,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     )}
 
                                     {a.type === "delete_message" && (
-                                        <p className="text-2xs text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground">
                                             Removes the matching message. Only works if you’re a moderator of the channel.
                                         </p>
                                     )}
@@ -605,10 +646,10 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                     {/* Active toggle */}
                     <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                            <Label className="text-sm">Enabled</Label>
-                            <p className="text-2xs text-muted-foreground">Paused workflows keep their config but don’t run.</p>
+                            <Label htmlFor="wf-active" className="text-sm">Turned on</Label>
+                            <p id="wf-active-help" className="text-xs text-muted-foreground">While it’s off it keeps its settings but doesn’t run.</p>
                         </div>
-                        <Switch checked={isActive} onCheckedChange={setIsActive} />
+                        <Switch id="wf-active" aria-describedby="wf-active-help" checked={isActive} onCheckedChange={setIsActive} />
                     </div>
                 </div>
 
