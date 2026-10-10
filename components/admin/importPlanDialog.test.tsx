@@ -72,6 +72,9 @@ describe("the plan's mappings and warnings", () => {
     answers = [planned({ status_values: ["Open", "In Dev"] })]
     render(<ImportPlanDialog job={job} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} />)
     const select = await screen.findByRole("combobox", { name: "OneCamp status for In Dev" })
+    // A touch target on a phone, a dense row from md up.
+    expect(select.className).toContain("h-11")
+    expect(select.className).toContain("md:h-8")
     const labels = Array.from(select.querySelectorAll("option")).map((o) => o.textContent)
     expect(labels).toContain("In progress")
     expect(labels).not.toContain("inProgress")
