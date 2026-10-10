@@ -123,8 +123,8 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
         <h1 className="min-w-0 flex-1 truncate font-semibold sm:flex-none">{view.project}</h1>
         <span className="shrink-0 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
         <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto" aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted sm:w-24 sm:flex-none" aria-hidden>
-            <div className="h-full rounded-full bg-foreground/70 transition-[width]" style={{ width: `${pct}%` }} />
+          <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-muted sm:w-24 sm:flex-none" aria-hidden>
+            <div className="h-full rounded-sm bg-foreground/70 transition-[width]" style={{ width: `${pct}%` }} />
           </div>
           <span className="tabular-nums">{view.done_tasks} of {view.total_tasks} done</span>
         </div>
