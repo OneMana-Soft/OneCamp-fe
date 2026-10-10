@@ -34,6 +34,12 @@ interface EmptyStateProps {
    *  person to make a decision before they have anything to decide about. */
   action?: React.ReactNode
   className?: string
+  /**
+   * Classes for the description line, usually its width. The default is a
+   * readable measure (45ch); a page-level empty state can widen it, a narrow
+   * panel can tighten it. tailwind-merge lets the caller's max-w win.
+   */
+  descriptionClassName?: string
   tone?: EmptyStateTone
 }
 
@@ -43,6 +49,7 @@ export function EmptyState({
   description,
   action,
   className,
+  descriptionClassName,
   tone = "muted",
 }: EmptyStateProps) {
   const accent = tone === "accent"
@@ -51,7 +58,7 @@ export function EmptyState({
       className={cn(
         "flex flex-col items-center justify-center gap-3 text-center",
         // Horizontal padding differs by tone because the accent copy is wider
-        // (max-w-sm vs max-w-[260px]); px-6 on a 360px screen would cost it a
+        // (max-w-sm vs 45ch); px-6 on a 360px screen would cost it a
         // line. Callers override either via className — cn is tailwind-merge.
         accent ? "px-4 py-12" : "px-6 py-12",
         className
@@ -78,7 +85,10 @@ export function EmptyState({
             className={cn(
               // pretty: no sentence ends on a word alone on its last line.
               "text-muted-foreground text-pretty",
-              accent ? "text-sm" : "text-xs max-w-[260px]"
+              // 45ch, not a fixed 260px: 260px was a sidebar's width, and on a
+              // page it broke a two-line sentence into four.
+              accent ? "text-sm" : "text-xs max-w-[45ch]",
+              descriptionClassName
             )}
           >
             {description}
