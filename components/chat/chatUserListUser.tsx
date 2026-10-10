@@ -1,7 +1,7 @@
 import { displayNameOf } from "@/lib/personName"
 import React, { useMemo } from "react";
 import { getLastMessagePreview } from "@/lib/utils/lastMessagePreview";
-import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment";
+import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { ChatUserListUserAvatar } from "@/components/chat/chatUserListUserAvatar";
 import { useUserInfoState } from "@/hooks/useUserInfoState";
 import { UserProfileDataInterface, USER_STATUS_ONLINE } from "@/types/user";
@@ -76,7 +76,7 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
     }, [otherParticipant, userStatusState]);
 
     const formattedTime = useMemo(
-        () => (lastMessageTime ? formatTimeForPostOrComment(lastMessageTime) : ""),
+        () => (lastMessageTime ? formatListTimestamp(lastMessageTime) : ""),
         [lastMessageTime],
     );
 
@@ -86,6 +86,13 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
     );
 
     const hasUnread = unseenMessageCount > 0;
+    const previewAuthor = !lastUsername
+        ? ""
+        : lastUsername === displayNameOf(selfProfile)
+            ? "You"
+            : isGroupChat
+                ? lastUsername
+                : "";
 
     const leading = (
         <div className="relative h-8 w-8 shrink-0">
@@ -136,8 +143,11 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
 
     const subtitle = message ? (
         <>
-            {lastUsername && (
-                <span className="text-muted-foreground/90 font-medium">{lastUsername}: </span>
+            {/* Who wrote it only when the row does not already say: "You" for
+                your own, the author in a group. A 1:1 row repeated the name in
+                its own title ("OneCamp AI / OneCamp AI: Hi Sam"). */}
+            {previewAuthor && (
+                <span className="text-muted-foreground/90 font-medium">{previewAuthor}: </span>
             )}
             {message}
         </>

@@ -60,12 +60,15 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
 
     useEffect(() => {
 
-        if(postId && getNewPostsWithCurrentPost.data?.data?.posts && channelPostState.length == 0) {
+        if(postId && getNewPostsWithCurrentPost.data?.data?.posts?.length && channelPostState.length == 0) {
             const newPosts = getNewPostsWithCurrentPost.data?.data?.posts ?? [];
             dispatch(updateChannelPosts({channelId, posts: newPosts}))
         }
 
-        if(!postId && latestMsg.data?.data?.posts && channelPostState.length == 0 ) {
+        // Only a non-empty answer seeds the list. An empty one stored a fresh
+        // [] each time, which is a new value, which ran this effect again: an
+        // empty channel never rendered, it hit React's update limit instead.
+        if(!postId && latestMsg.data?.data?.posts?.length && channelPostState.length == 0 ) {
             const newPosts = [...latestMsg.data.data.posts].reverse();
             dispatch(updateChannelPosts({channelId, posts: newPosts}))
         } else if (!postId && latestMsg.data?.data?.posts && channelPostState.length > 0) {

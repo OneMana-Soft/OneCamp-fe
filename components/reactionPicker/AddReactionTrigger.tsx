@@ -4,8 +4,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
 import {useTooltipWithPicker} from "@/components/reactionPicker/useTooltipWithPicker";
 import {Button} from "@/components/ui/button";
-import Image from "next/image";
-import addEmojiIconSrc from "@/assets/addEmoji.svg";
+import {SmilePlus} from "@/lib/icons";
 import {cn} from "@/lib/utils/helpers/cn";
 
 interface AddReactionTriggerProps {
@@ -31,10 +30,10 @@ export const AddReactionTrigger = ({ onReactionSelect, showCustomReactions = fal
                         variant={variant}
                         size="icon"
                         aria-label="Add a reaction"
-                        className={cn(size === "sm" ? "h-6 w-6 mt-1 md:mt-0 rounded-full" : "h-8 w-8")}
+                        className={cn(size === "sm" ? "h-6 w-7 rounded-md" : "h-8 w-8")}
                         onMouseLeave={onTriggerMouseLeave}
                     >
-                        <Image src={addEmojiIconSrc || "/placeholder.svg?height=24&width=24"} alt="Add Emoji"  className={'h-4 w-4 md:h-3.5 md:w-3.5'} />
+                        <SmilePlus aria-hidden="true" className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
                     </Button>
                 </TooltipTrigger>
             </ReactionPicker>

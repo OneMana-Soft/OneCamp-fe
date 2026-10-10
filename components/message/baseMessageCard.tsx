@@ -2,7 +2,7 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
-import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
+import { formatFullTimestamp, formatTimeForPostOrComment, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
@@ -342,7 +342,7 @@ export const BaseMessageCard = React.memo(({
       throttleDelay={300}
       isOutputText={!isMessageEditEnabled}
       className={cn("max-w-full h-auto", isMessageEditEnabled && "mt-1 mb-2")}
-      editorContentClassName="overflow-auto mb-2"
+      editorContentClassName="overflow-auto"
       output="html"
       content={bodyText}
       placeholder="Edit message…"
@@ -364,7 +364,10 @@ export const BaseMessageCard = React.memo(({
     <div
       id={messageDomId(message.uuid)}
       className={cn(
-        "group relative flex gap-3 px-4 py-2.5",
+        // py-1.5, not 2.5: a message is a line of a conversation, and the
+        // extra 8px on every row (plus a margin under every body) made a
+        // channel read as a stack of cards.
+        "group relative flex gap-3 px-4 py-1.5",
         "transition-colors duration-100",
         "hover:bg-accent/40",
         (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40",
@@ -395,7 +398,12 @@ export const BaseMessageCard = React.memo(({
             />
           </div>
         )}
-        <div className="h-9 w-9 shrink-0 mt-0.5" onClick={relayed ? undefined : onAvatarClick}>
+        {/* A second, mouse-only way to the profile the name already opens: the
+            name is the control, so the picture stays out of the tab order. */}
+        <div
+          className={cn("h-9 w-9 shrink-0 mt-0.5", !relayed && onAvatarClick && "cursor-pointer")}
+          onClick={relayed ? undefined : onAvatarClick}
+        >
           {relayed ? (
             <RelayedAvatar name={relayed.name} />
           ) : (
@@ -427,9 +435,13 @@ export const BaseMessageCard = React.memo(({
               ) : message.from.is_bot && (
                 <BotTag userUUID={message.from.user_uuid} />
               )}
-              <span className="text-2xs tabular-nums text-muted-foreground">
+              <time
+                dateTime={isoTimestamp(message.createdAt)}
+                title={formatFullTimestamp(message.createdAt)}
+                className="text-2xs tabular-nums text-muted-foreground"
+              >
                 {formatTimeForPostOrComment(message.createdAt, true)}
-              </span>
+              </time>
             </div>
           )}
           {message.replyTo && !isMessageEditEnabled && (
@@ -464,9 +476,9 @@ export const BaseMessageCard = React.memo(({
           {/* Inline AI translation: shown beneath the original, with a toggle
               back to the source text. Plain text (the model returns prose). */}
           {!isMessageEditEnabled && (translating || (translation && showTranslation)) && (
-            <div className="mt-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
-              <div className="mb-0.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
-                <Languages className="h-3 w-3" />
+            <div className="mt-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
+              <div className="mb-0.5 flex items-center gap-1.5 text-2xs font-medium text-muted-foreground">
+                <Languages className="h-3 w-3" aria-hidden="true" />
                 {translating ? "Translating…" : "Translated"}
                 {translation && !translating && (
                   <button

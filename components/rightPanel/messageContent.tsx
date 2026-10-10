@@ -1,7 +1,7 @@
 "use client"
 
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
-import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
+import { formatFullTimestamp, formatTimeForPostOrComment, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -153,12 +153,16 @@ export const MessageContent = ({
 
 
     return (
-        <div className={`pl-2 flex relative space-x-4 pt-4 hover:bg-primary/5 transition-colors duration-150 group ${isDropdownOpen || isEmojiPickerOpen? 'bg-primary/5':''}`}>
+        // The same row as the channel's: a 36px avatar, the name and a small
+        // time, and a neutral hover. The thread drew a 48px avatar, a lighter
+        // name and an orange hover, so a reply looked like a different kind of
+        // thing from the message it answered.
+        <div className={cn("group relative flex gap-3 px-2 py-1.5 transition-colors duration-100 hover:bg-accent/40", (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40")}>
 
             {!isMessageEditEnabled && !isGuest && <div
                 className={cn(
                     "absolute -top-0.5 right-2 transition-opacity duration-150 z-[var(--z-dropdown)]",
-                    (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto",
+                    (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
                 )}
             >
                 <MessageDesktopHoverOptionsForRightPanelChatAndChannel
@@ -173,7 +177,7 @@ export const MessageContent = ({
                     deleteMessage={()=>{deleteMessage(chatUUID || postUUID || commentUUID || '')}}
                 />
             </div>}
-            <div className="h-12 w-12 flex-shrink-0" onClick={asGuest ? undefined : handleUserClick}>
+            <div className={cn("h-9 w-9 shrink-0 mt-0.5", !asGuest && "cursor-pointer")} onClick={asGuest ? undefined : handleUserClick}>
                 {asGuest ? (
                     <RelayedAvatar name={guestDisplayName} />
                 ) : (
@@ -185,21 +189,32 @@ export const MessageContent = ({
                     />
                 )}
             </div>
-            <div className="flex-1 min-w-0 mb-4">
-                <div className="flex items-baseline space-x-2 mb-1">
-                    <div
-                        className="font-medium text-sm"
-                        onClick={asGuest ? undefined : handleUserClick}
-                    >
-                        {asGuest ? guestDisplayName : userInfo?.user_name}
-                    </div>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                    {asGuest ? (
+                        <span className="text-sm font-semibold text-foreground truncate">{guestDisplayName}</span>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleUserClick}
+                            className="text-sm font-semibold text-foreground hover:underline truncate rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                        >
+                            {userInfo?.user_name}
+                        </button>
+                    )}
                     {asGuest && (
                         <PrincipalTag kind={tagKind} />
                     )}
                     {!asGuest && userInfo?.is_bot && (
                         <BotTag userUUID={userInfo?.user_uuid} />
                     )}
-                     <div className="text-xs text-muted-foreground">{formatTimeForPostOrComment(createdAt || '')}</div>
+                    <time
+                        dateTime={isoTimestamp(createdAt || '')}
+                        title={formatFullTimestamp(createdAt || '')}
+                        className="text-2xs tabular-nums text-muted-foreground"
+                    >
+                        {formatTimeForPostOrComment(createdAt || '')}
+                    </time>
                 </div>
 
                 {replyMessage && !isMessageEditEnabled && (
@@ -221,7 +236,7 @@ export const MessageContent = ({
                         className={cn("max-w-full rounded-xl h-auto",
                             isMessageEditEnabled ? "p-2" : "border-none"
                         )}
-                        editorContentClassName="overflow-auto mb-2 text-sm"
+                        editorContentClassName="overflow-auto"
                         output="html"
                         content={body}
                         placeholder="Edit message…"

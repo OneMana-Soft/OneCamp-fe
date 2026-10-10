@@ -12,11 +12,11 @@ export function formatTimeForReplyCount(dateString: string | number): string {
 
     // Today
     if (dateObject.toDateString() === currentDate.toDateString()) {
-        return `Today ${dateObject.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+        return `Today at ${dateObject.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     }
     // Yesterday
     else if (daysDiff <= 1) {
-        return `Yesterday ${dateObject.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+        return `Yesterday at ${dateObject.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     }
     // Less than a month
     else if (daysDiff < 30) {

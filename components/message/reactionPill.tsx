@@ -2,6 +2,8 @@ import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {Button} from "@/components/ui/button";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
+import {cn} from "@/lib/utils/helpers/cn";
+import {nameList} from "@/lib/utils/format/nameList";
 
 interface reactionPillProps {
     emojiId: string;
@@ -17,48 +19,44 @@ export const ReactionPill =  ({ emojiId, reactionUserNames, onClickEmoji, isSele
         onClickEmoji(emojiId)
     }
 
-    const truncateString = (str: string, maxLength: number) => {
-        return str.length > maxLength ? `${str.slice(0, maxLength)}...` : str;
-    };
-
     const emojiData = useEmojiMartData()
-
-    const emojiString = findEmojiMartEmojiByEmojiID(emojiData.data, emojiId)?.skins[0].native
-
-
-    const reactionUserNamesString =  truncateString(reactionUserNames.join(', '), 50);
+    const emoji = findEmojiMartEmojiByEmojiID(emojiData.data, emojiId)
+    const emojiString = emoji?.skins[0].native
+    const count = reactionUserNames.length || 0
+    // Who reacted, in words: the tooltip for the eye and the name for a screen
+    // reader, which otherwise heard an emoji character and a number.
+    const who = nameList(reactionUserNames, 5)
+    const label = `${emoji?.name ?? "Reaction"}: ${count} ${count === 1 ? "person" : "people"}${who ? ` (${who})` : ""}. ${isSelected ? "Remove your reaction" : "Add your reaction"}`
 
     return (
-        <div 
-            className='flex items-center gap-1' 
-            onTouchStart={(e) => e.stopPropagation()} 
+        <div
+            className='flex items-center gap-1'
+            onTouchStart={(e) => e.stopPropagation()}
             data-no-ripple="true"
         >
-
             <Tooltip>
                 <TooltipTrigger asChild>
-                        <Button
-                            variant="outline"
-                            onClick={onClickEmojiHandle}
-                            className={`px-1.5 h-6 rounded-full items-center gap-1 transition-colors ${
-                                isSelected
-                                    ? "bg-blue-100 border-blue-400 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/20 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-500/20"
-                                    : ""
-                            }`}
-                        >
-                            <div className='flex justify-center items-center gap-1'>
-                                <span className="text-base leading-none">{emojiString}</span>
-                                <span className="text-xs font-medium tabular-nums">
-                                    {reactionUserNames.length || 0}
-                                </span>
-                            </div>
-                        </Button>
+                    <Button
+                        variant="outline"
+                        onClick={onClickEmojiHandle}
+                        aria-label={label}
+                        aria-pressed={isSelected}
+                        // Your own reaction sits on the soft accent ground, the
+                        // same mark as the current item in the sidebar. It was a
+                        // raw blue, the only blue in a graphite and orange UI.
+                        className={cn(
+                            "h-6 gap-1 rounded-md px-1.5 transition-colors",
+                            isSelected && "border-brand/40 bg-brand-muted text-foreground hover:bg-brand-muted",
+                        )}
+                    >
+                        <span className="text-base leading-none" aria-hidden="true">{emojiString}</span>
+                        <span className="text-xs font-medium tabular-nums">{count}</span>
+                    </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p className='text-xs'>{reactionUserNamesString}</p>
+                    <p className='max-w-64 text-xs'>{who}</p>
                 </TooltipContent>
             </Tooltip>
-
         </div>
     );
 }

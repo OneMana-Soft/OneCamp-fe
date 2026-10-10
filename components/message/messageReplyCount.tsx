@@ -32,18 +32,19 @@ export const MessageReplyCount = ({
     const { isDesktop } = useMedia()
 
     if (!replyCount || !lastCommentCreatedAt) return null
+    const lastReply = formatTimeForReplyCount(lastCommentCreatedAt)
 
     const content = (
         <div className="group flex items-center gap-2 text-xs">
             {participants && participants.length > 0 && (
                 <ThreadParticipants participants={participants} />
             )}
-            <span className="font-semibold text-primary hover:underline">
+            <span className="font-medium text-primary group-hover:underline underline-offset-2">
                 {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </span>
-            <span className="text-muted-foreground inline-flex items-center gap-1">
-                <span className="hidden md:inline">Last reply</span>
-                <span>{formatTimeForReplyCount(lastCommentCreatedAt)}</span>
+            <span className="text-muted-foreground">
+                <span className="hidden md:inline">Last reply {lastReply.charAt(0).toLowerCase() + lastReply.slice(1)}</span>
+                <span className="md:hidden">{lastReply}</span>
             </span>
             <ChevronRight
                 className={cn(
@@ -58,7 +59,9 @@ export const MessageReplyCount = ({
         return (
             <Button
                 variant="ghost"
-                className="flex w-full justify-start px-2 py-1 h-auto"
+                // -ml-2 lines the words up with the message text above; the
+                // padding is only there for the hover ground.
+                className="-ml-2 flex w-[calc(100%+0.5rem)] justify-start px-2 py-1 h-auto"
                 onClick={openDesktopThread}
             >
                 {content}

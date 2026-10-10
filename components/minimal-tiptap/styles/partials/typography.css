@@ -36,7 +36,11 @@
   font-weight: 600;
 }
 
-.minimal-tiptap-editor .ProseMirror p {
+/* Relaxed leading is for documents, read at length. Everywhere else a
+   paragraph keeps the 15/22 the editor sets (index.css): this rule applied to
+   every message too, so a chat line was 15/24.4 against the 22 the type scale
+   names, and a channel read looser than it was meant to. */
+.minimal-tiptap-editor.doc-editor .ProseMirror p {
   @apply leading-relaxed;
   text-wrap: pretty;
 }
