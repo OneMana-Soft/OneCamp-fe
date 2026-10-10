@@ -16,10 +16,10 @@ import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import { CheckCircle } from "@/lib/icons";
 import {useEffect, useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
-import {ChannelNameExistsInterface} from "@/types/channel";
+import { useTeamNameCheck } from "@/components/dialog/useTeamNameCheck";
+import { TeamNameStatus } from "@/components/dialog/teamNameStatus";
 
 import {TeamInfoRawInterface} from "@/types/team";
 import {useDispatch} from "react-redux";
@@ -75,11 +75,6 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
 
     const dispatch = useDispatch();
     const { makeRequest, isSubmitting } = usePost();
-    const [teamNameToCheck, setTeamNameToCheck] = useState<string | null>(null);
-    const { data: isChannelNameAvailable, isLoading: isCheckingAvailability } = useFetch<ChannelNameExistsInterface>(
-        teamNameToCheck ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${encodeURIComponent(teamNameToCheck)}` : ''
-    );
-
     const onSubmit =  (data: UpdateTeamFormValues) => {
          makeRequest<UpdateTeamFormValues>({
             payload: data,
@@ -87,7 +82,6 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
             showToast: true
         }).then(()=> {
 
-             setTeamNameToCheck(null);
              dispatch(updateUserTeamList({teamName: data.team_name, teamUUID: data.team_uuid}));
              teamInfo.mutate()
              closeModal();
@@ -100,77 +94,34 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
         setOpenState(false);
     };
 
-    const checkChannelNameAvailability = (teamName: string) => {
-        setTeamNameToCheck(teamName);
-    };
-
-    const ch_name = watch("team_name");
+    const teamName = watch("team_name");
+    const name = useTeamNameCheck(teamName, { valid: isValid, original: originalTeamName });
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
             <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
                 <DialogHeader>
-                    <DialogTitle className="text-start">Edit Team</DialogTitle>
-                    <DialogDescription className="hidden">
-                        Edit team name
-                    </DialogDescription>
+                    <DialogTitle className="text-start">Rename team</DialogTitle>
+                    <DialogDescription className="sr-only">Give the team a new name.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="grid gap-4 py-4 space-y-3">
-                        <div className="grid gap-2">
-                            <Label>Channel Name</Label>
-                            <Controller
-                                name="team_name"
-                                control={control}
-                                render={({field, fieldState: {error}}) => (
-                                    <>
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                {...field}
-                                                id="teamName"
-                                                placeholder="Type channel name"
-                                                autoFocus
-                                            />
-                                            <Button
-                                                type="button"
-                                                onClick={() => checkChannelNameAvailability(field.value)}
-                                                disabled={!field.value || isSubmitting || isCheckingAvailability || !isValid}
-                                            >
-                                                {isCheckingAvailability ? "Checking…" : "Check availability"}
-                                            </Button>
-                                        </div>
-                                        <div>
-                                            {error && (
-                                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
-                                            )}
-                                            {teamNameToCheck === field.value && !isChannelNameAvailable?.exists && (
-                                                <div className="flex items-center text-success-ink">
-                                                    <CheckCircle className="w-4 h-4 mr-1"/>
-                                                    <span className="text-xs md:text-sm">Channel name is available</span>
-                                                </div>
-                                            )}
-                                            {teamNameToCheck === field.value && isChannelNameAvailable?.exists && (
-                                                <p className="text-xs md:text-sm text-danger-ink">Channel name is already taken</p>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            />
-                        </div>
-
-
+                    <div className="grid gap-2 py-4">
+                        <Label htmlFor="team-name">Team name</Label>
+                        <Controller
+                            name="team_name"
+                            control={control}
+                            render={({field, fieldState: {error}}) => (
+                                <>
+                                    <Input {...field} id="team-name" autoFocus aria-describedby="team-name-status" />
+                                    <TeamNameStatus id="team-name-status" error={error?.message} {...name} />
+                                </>
+                            )}
+                        />
                     </div>
                     <DialogFooter>
-                        <Button
-                            type="submit"
-                            disabled={
-                                !isValid ||
-                                isSubmitting ||
-                                (ch_name !== originalTeamName && // Only check if name changed
-                                    (ch_name !== teamNameToCheck || isChannelNameAvailable?.exists))
-                            }
-                        >
-                            {isSubmitting ? "Updating…" : "Update Team name"}
+                        <Button type="button" variant="ghost" onClick={closeModal}>Cancel</Button>
+                        <Button type="submit" disabled={!isValid || isSubmitting || name.unchanged || !name.available}>
+                            {isSubmitting ? "Saving…" : "Save name"}
                         </Button>
                     </DialogFooter>
                 </form>
