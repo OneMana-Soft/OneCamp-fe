@@ -44,7 +44,6 @@ export {
   User,
   CircleUser,
   Search,
-  Send,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,
@@ -62,8 +61,6 @@ export {
   CalendarX,
   ArrowUp,
   ArrowDown,
-  Fingerprint,
-  CircleStop,
   ArrowUpDown,
 } from "lucide-react";
 
@@ -90,6 +87,7 @@ export {
   RefreshCcw,
   Undo2,
   ClipboardCheck,
+  CircleStop,
 } from "lucide-react";
 
 // ─── Status ─────────────────────────────────────────────────
@@ -109,6 +107,7 @@ export {
 // ─── Communication ──────────────────────────────────────────
 export {
   SendHorizontal,
+  Send,
   Mail,
   MailPlus,
   AtSign,
@@ -117,6 +116,7 @@ export {
   Share,
   Share2,
   MessageSquareText,
+  MessageSquarePlus,
   PhoneOff,
   Video,
   VideoOff,
@@ -156,9 +156,13 @@ export {
   Minus,
   Sparkles,
   // Marks an answer whose prompt was shortened to fit the model's context window.
+  Scissors,
   Zap,
+  Plug,
   Lightbulb,
   Workflow,
+  Milestone,
+  Route,
   Network,
   Smartphone,
   Command,
@@ -202,7 +206,6 @@ export {
   Tag,
   Bookmark,
   BookmarkCheck,
-  CalendarClock,
   Rocket,
   Terminal,
 } from "lucide-react";
@@ -211,6 +214,7 @@ export {
 export {
   Calendar as CalendarIcon,
   CalendarDays,
+  CalendarClock,
   Clock,
   History,
 } from "lucide-react";
@@ -229,9 +233,13 @@ export {
 export {
   Settings,
   Settings2,
+  SlidersHorizontal,
   Filter,
   Database,
+  Layers,
   Sigma,
+  ArrowDownWideNarrow,
+  Percent,
   LogOut,
   Moon,
   Sun,
@@ -241,10 +249,14 @@ export {
   Languages,
   Shield,
   ShieldCheck,
+  Bot,
   ShieldAlert,
   Lock,
   Key,
+  Fingerprint,
+  MemoryStick,
   Brain,
+  Wrench,
 } from "lucide-react";
 
 // ─── Layout / UI ────────────────────────────────────────────

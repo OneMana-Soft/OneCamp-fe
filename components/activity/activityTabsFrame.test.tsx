@@ -97,10 +97,6 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   useAIAvailable: () => true,
   useFeature: () => true,
 }))
-vi.mock("@/services/governanceDrillService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/governanceDrillService")>()),
-  getMyDrillStatus: vi.fn(async () => undefined),
-}))
 vi.mock("next/navigation", () => ({
   usePathname: () => "/app/activity",
   useRouter: () => ({ replace: () => {} }),

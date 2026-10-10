@@ -20,7 +20,7 @@ vi.mock("@/services/settingsService", () => ({
 
 const { default: PushNotificationsCard } = await import("./PushNotificationsCard")
 
-const on = { configured: true, active: true, source: "settings", project_id: "kestrel-mobile", client_email: "push@kestrel-mobile.iam.gserviceaccount.com" }
+const on = { configured: true, active: true, source: "settings", project_id: "kestrel-mobile", client_email: "push@kestrel-mobile.iam.example.com" }
 
 afterEach(() => {
   cleanup()

@@ -18,12 +18,12 @@ const state = vi.hoisted(() => ({ mode: "loaded" as "loaded" | "empty" | "loadin
 
 const ZERO = "0001-01-01T00:00:00Z"
 const people = [
-  { user_uuid: "u1", user_name: "Priya Raman", user_full_name: "Priya Raman", user_email_id: "priya@kestrel.studio", user_profile_object_key: "", user_deleted_at: ZERO },
-  { user_uuid: "u2", user_name: "Arjun Mehta", user_full_name: "Arjun Mehta", user_email_id: "arjun@kestrel.studio", user_profile_object_key: "", user_deleted_at: ZERO },
+  { user_uuid: "u1", user_name: "Priya Raman", user_full_name: "Priya Raman", user_email_id: "priya@kestrel.example", user_profile_object_key: "", user_deleted_at: ZERO },
+  { user_uuid: "u2", user_name: "Arjun Mehta", user_full_name: "Arjun Mehta", user_email_id: "arjun@kestrel.example", user_profile_object_key: "", user_deleted_at: ZERO },
 ]
 const teams = [{ team_uuid: "t1", team_name: "Design", team_member_count: 4, team_deleted_at: ZERO }]
-const invitations = [{ id: "i1", email: "elif@kestrel.studio", invited_by: "priya@kestrel.studio", status: "sent", expires_in_days: 6, invite_link: "https://x/signup?token=a", created_at: "2026-10-09T10:14:00Z" }]
-const external = [{ user_uuid: "x1", user_email_id: "jordan@harborbank.com", user_name: "Jordan Blake", user_profile_object_key: "", github_login: "jblake" }]
+const invitations = [{ id: "i1", email: "elif@kestrel.example", invited_by: "priya@kestrel.example", status: "sent", expires_in_days: 6, invite_link: "https://x/signup?token=a", created_at: "2026-10-09T10:14:00Z" }]
+const external = [{ user_uuid: "x1", user_email_id: "jordan@harborbank.example", user_name: "Jordan Blake", user_profile_object_key: "", github_login: "jblake" }]
 
 function answer(url: string): Answer {
   if (state.mode === "loading") return { data: undefined, isLoading: true }

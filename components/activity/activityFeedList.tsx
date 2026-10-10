@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { AtSign, Bell, CheckCircle2, Users } from "@/lib/icons"
 import { SpotSearch, SpotTasks, SpotWelcome } from "@/components/ui/graphics"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useAIAvailable } from "@/hooks/useClientConfig"
 import { actorFilters, matchesActor, parseActorFilter, type ActorFilter } from "@/lib/activity/actor"
 import { activityKey, hasSubject, mergeActivityPages, olderPageCursor } from "@/lib/activity/feedPages"
 
@@ -55,7 +54,8 @@ export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAl
     const searchParams = useSearchParams()
     const router = useRouter()
     const pathname = usePathname()
-    const aiAvailable = useAIAvailable()
+    // This edition has no AI, so the filters never offer agents.
+    const aiAvailable = false
     // People, agents or apps: kept in the URL so a reload or a shared link
     // shows the same slice of the feed.
     const who: ActorFilter = parseActorFilter(searchParams.get("who"))

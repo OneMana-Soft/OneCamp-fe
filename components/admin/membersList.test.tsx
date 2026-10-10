@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
     user_uuid: `u-${i}`,
     user_name: `person${i}`,
     user_full_name: i === 497 ? "Astrid Duarte" : `Person Number${i}`,
-    user_email_id: i === 497 ? "astrid.duarte@kestrel.studio" : `person${i}@kestrel.studio`,
+    user_email_id: i === 497 ? "astrid.duarte@kestrel.example" : `person${i}@kestrel.example`,
     user_profile_object_key: `k-u-${i}`,
     user_deleted_at: "0001-01-01T00:00:00Z",
   })),

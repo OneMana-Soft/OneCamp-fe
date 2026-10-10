@@ -42,7 +42,6 @@ describe("Home's two lines", () => {
     "components/home/mobile/mobileHome.tsx",
     "components/home/SetupChecklist.tsx",
     "components/home/NoChannelsYet.tsx",
-    "components/banner/DemoGuide.tsx",
     "components/ai/AttentionCard.tsx",
     "components/ai/WhileYouWereAwayCard.tsx",
     "components/ai/AgentWorkCard.tsx",
@@ -58,8 +57,6 @@ describe("Home's two lines", () => {
     // the band and the place tiles 4px wider than everything else on a phone
     ["components/home/mobile/mobileHome.tsx", /-mx-1/],
     // a 32px header tile beside steps with 16px circles: title 16px off the steps
-    ["components/banner/DemoGuide.tsx", /size="md"/],
-    ["components/banner/DemoGuide.tsx", /className="hover-lift p-5"/],
     ["components/home/SetupChecklist.tsx", /className="p-5"/],
     // rows at 16px with a 10px gap, approvals with a 6px gap
     ["components/ai/AttentionCard.tsx", /gap-2\.5 px-4|gap-1\.5 px-4/],

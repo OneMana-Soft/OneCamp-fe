@@ -21,7 +21,7 @@ vi.mock("@/services/scimTokenService", async (orig) => ({
   ...(await orig<typeof import("@/services/scimTokenService")>()),
   createScimToken: create,
   revokeScimToken: vi.fn(),
-  scimBaseUrl: () => "https://api.kestrel.studio/scim/v2",
+  scimBaseUrl: () => "https://api.kestrel.example/scim/v2",
 }))
 
 const { default: ScimProvisioningCard } = await import("./ScimProvisioningCard")

@@ -21,7 +21,6 @@ const TOUCH = /\[@media\(hover:none\)\]:|\[@media\(hover:hover\)\]:(?:group-hove
 
 /** Hover-only on purpose: decoration beside a control that is always there. */
 const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
-  ["components/banner/DemoGuide.tsx", "pointer-events-none h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0", "an arrow echoing the row, which is the link"],
   ["components/home/SetupChecklist.tsx", "h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0", "an arrow echoing the row, which is the link"],
   ["components/ai/ConnectorSearchResults.tsx", "mt-1 h-4 w-4 shrink-0 text-muted-foreground opacity-0", "an external-link glyph on a row that is the link"],
   ["components/ai/SearchAnswer.tsx", "h-3 w-3 shrink-0 text-muted-foreground opacity-0", "an external-link glyph on a row that is the link"],

@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // OWN_ERRORS itself, a path of its own for one request.
 
 const ZERO = "0001-01-01T00:00:00Z"
-const hana = { user_uuid: "m3", user_name: "Hana Kobayashi", user_full_name: "Hana Kobayashi", user_email_id: "hana@kestrel.studio", user_deleted_at: ZERO }
+const hana = { user_uuid: "m3", user_name: "Hana Kobayashi", user_full_name: "Hana Kobayashi", user_email_id: "hana@kestrel.example", user_deleted_at: ZERO }
 
 const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock("@/lib/axiosInstance", () => ({ default: { get: http.get, post: http.post }, OWN_ERRORS: { suppressErrorToast: true } }))

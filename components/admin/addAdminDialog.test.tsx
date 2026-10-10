@@ -11,7 +11,7 @@ const member = (i: number, extra: Record<string, unknown> = {}) => ({
   user_uuid: `m${i}`,
   user_name: `Member ${i}`,
   user_full_name: `Member ${i}`,
-  user_email_id: `m${i}@kestrel.studio`,
+  user_email_id: `m${i}@kestrel.example`,
   user_deleted_at: ZERO,
   ...extra,
 })
