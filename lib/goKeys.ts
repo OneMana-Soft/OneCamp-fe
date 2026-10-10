@@ -21,7 +21,7 @@ export const GO_KEYS: { key: string; to: string; label: string }[] = [
   { key: "c", to: app_channel_path, label: "Channels" },
   { key: "m", to: app_chat_path, label: "Direct messages" },
   { key: "i", to: app_inbox_path, label: "Inbox" },
-  { key: "t", to: app_my_task_path, label: "My Tasks" },
+  { key: "t", to: app_my_task_path, label: "My tasks" },
   { key: "a", to: app_doc_activity, label: "Activity" },
   { key: "l", to: app_later_path, label: "Later" },
   { key: "d", to: app_doc_path, label: "Docs" },

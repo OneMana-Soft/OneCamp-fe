@@ -182,7 +182,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerSection label="Work" />
                     <DrawerItem
                         icon={ClipboardCheck}
-                        label="My Tasks"
+                        label="My tasks"
                         hue={destinationHue("/app/myTask")}
                         onClick={() => handleNavigate("/app/myTask")}
                     />
@@ -248,7 +248,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             {can(CAP_AGENT_MANAGE) && (
                                 <DrawerItem
                                     icon={Sparkles}
-                                    label="Agents & skills"
+                                    label="Agents and skills"
                         hue={destinationHue("/app/settings/agents")}
                                     onClick={() => handleNavigate("/app/settings/agents")}
                                 />

@@ -125,7 +125,7 @@ describe("the More menu's look", () => {
             const b = screen.getByRole("button", { name: new RegExp(`^${name}`) })
             return b.querySelector("span[aria-hidden='true']")
         }
-        expect(tileOf("My Tasks")?.className).toContain("hue-moss")
+        expect(tileOf("My tasks")?.className).toContain("hue-moss")
         expect(tileOf("Calendar")?.className).toContain("hue-berry")
         expect(tileOf("AI activity")?.className).toContain("hue-dusk")
         expect(tileOf("Sign out")).toBeNull()

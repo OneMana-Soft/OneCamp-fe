@@ -38,7 +38,7 @@ export function MyTaskOptionsDrawer({
         <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
-                    <DrawerTitle>My Tasks</DrawerTitle>
+                    <DrawerTitle>My tasks</DrawerTitle>
                     <DrawerDescription>Task and navigation actions.</DrawerDescription>
                 </DrawerHeader>
                 <div className="p-3 pb-6 space-y-0.5">

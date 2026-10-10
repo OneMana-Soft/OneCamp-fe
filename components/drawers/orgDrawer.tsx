@@ -58,7 +58,7 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
                     {selfProfile.data?.data.user_is_admin && (
                         <DrawerItem
                             icon={Shield}
-                            label="Admin control"
+                            label="Admin"
                         hue={destinationHue(app_admin)}
                             onClick={() => handleNavigate(app_admin)}
                         />

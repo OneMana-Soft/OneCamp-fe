@@ -14,6 +14,7 @@ import {
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarSecondDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondDoc";
 import {MobileTopNavigationBarSecondBoard} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondBoard";
+import { settingsSection } from "@/lib/settingsSections";
 
 export function MobileTopNavigationBarSecond() {
     const path = usePathname().split('/');
@@ -35,7 +36,9 @@ export function MobileTopNavigationBarSecond() {
             case "ai":
                 if (path[3] === "memory")
                     return "Memory";
-                return "Assistant"
+                // Its name everywhere else: the top bar's button, the panel,
+                // Home's "Ask OneCamp AI".
+                return "OneCamp AI"
             case "calendar":
                 if (path.length < 4)
                     return "Calendar";
@@ -71,22 +74,11 @@ export function MobileTopNavigationBarSecond() {
                 }
                 break
             case "settings":
-                // Five pages with no case at all, so each one arrived with a blank
-                // title bar. The names match what the entry in the profile drawer
-                // says, so the screen you land on is the one you thought you tapped.
-                switch (path[3]) {
-                    case "agents":
-                        return "Agents & skills";
-                    case "api-tokens":
-                        return "API tokens";
-                    case "connectors":
-                        return "Connectors";
-                    case "notifications":
-                        return "Notifications";
-                    case "workflows":
-                        return "Workflows";
-                }
-                return "Settings";
+                // Each section by the name its page and the list of sections
+                // give it (lib/settingsSections), so the bar can't drift from
+                // them: it said "Agents & skills" over "Agents and skills", and
+                // "Settings" over "Your AI assistants", which had no case.
+                return (path[3] && settingsSection(`/app/settings/${path[3]}`)?.label) || "Settings";
 
             case "tables":
                 if (path.length < 4)
@@ -129,7 +121,7 @@ export function MobileTopNavigationBarSecond() {
                 break;
             case "myTask":
                 if (path.length < 4)
-                    return "My Tasks";
+                    return "My tasks";
                 if (path.length < 5)
                     return
                 break;

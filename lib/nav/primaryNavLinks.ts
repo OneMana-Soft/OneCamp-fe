@@ -92,7 +92,7 @@ export function buildPrimaryNavLinks(
             path: app_inbox_path,
         },
         {
-            title: "My Tasks",
+            title: "My tasks",
             label: "",
             icon: CircleCheck,
             variant: variantFor(path, "myTask"),
