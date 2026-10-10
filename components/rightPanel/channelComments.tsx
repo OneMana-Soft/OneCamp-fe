@@ -11,6 +11,7 @@ import {ErrorState} from "@/components/error/errorState";
 import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {CommentsList} from "@/components/rightPanel/commentsList";
+import { ThreadEmpty } from "@/components/rightPanel/threadEmpty";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -119,9 +120,9 @@ export const ChannelComments = () => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Delete this post?",
+                    title: "Delete this message?",
                     description: "It's removed from the channel for everyone. This can't be undone.",
-                    confirmText: "Delete post",
+                    confirmText: "Delete message",
                     destructive: true,
                     onConfirm: ()=>{executeDeletePost(postId)}
                 }
@@ -451,6 +452,7 @@ export const ChannelComments = () => {
 
 
                 <CommentsList
+                    empty={<ThreadEmpty />}
                     comments={postCommentState}
                     removeReaction={removeCommentReaction}
                     addOrUpdateReaction={createOrUpdateCommentReaction}

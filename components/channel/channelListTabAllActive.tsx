@@ -6,7 +6,8 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import type {ChannelInfoInterface} from "@/types/channel";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {ChannelInfoListSchema} from "@/lib/validations/schemas";
-import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SpotSearch, SpotWelcome } from "@/components/ui/graphics/spots";
 import {LocalizedErrorBoundary} from "@/components/error/LocalizedErrorBoundary";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
 
@@ -44,11 +45,11 @@ export const ChannelListTabAllActive = ({searchQuery}:{searchQuery: string}) => 
                         />:
                         (!isAllLoading && (
                             <div className="p-4">
-                                <StatePlaceholder 
-                                    type={searchQuery.trim().length > 0 ? 'search' : 'empty'}
+                                <EmptyState
+                                    illustration={searchQuery.trim().length > 0 ? <SpotSearch /> : <SpotWelcome />}
                                     title={searchQuery.trim().length > 0 ? "No channels match" : "All caught up!"}
                                     description={searchQuery.trim().length > 0 
-                                        ? `We couldn't find any global channels matching "${searchQuery}"`
+                                        ? `No channel you could join has “${searchQuery.trim()}” in its name.`
                                         : "Looks like you have joined all available public channels. New channels will appear here once created."}
                                 />
                             </div>
