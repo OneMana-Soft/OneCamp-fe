@@ -184,9 +184,8 @@ export default function WorkspaceSettingsCard() {
                                 Who can join without an invitation
                             </Label>
                             <p id="allowed-users-desc" className="text-xs text-muted-foreground text-pretty">
-                                Emails and domains, separated by commas. Leave it empty and people join only by invitation.
-                                People on this list join by signing in, without an invitation. An address on it gets in through
-                                Google or GitHub. An entry like @example.com lets in anyone who signs in with a Google Workspace
+                                Emails and domains, separated by commas; empty means invitation only. A listed address joins
+                                by signing in with Google or GitHub. A domain like @example.com admits a Google Workspace
                                 account that example.com manages: not GitHub, and not a personal Google account with an address
                                 there. Public email domains like @gmail.com can&apos;t be added. {SOURCE[settings.allowed_users_source] ?? ""}
                             </p>
