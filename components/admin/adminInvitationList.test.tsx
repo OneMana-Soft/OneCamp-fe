@@ -40,6 +40,14 @@ describe("the admin's invitation list", () => {
     expect(screen.getByText("Expired")).toBeTruthy()
   })
 
+  // "Sent  Expires in 6 days" ran the expiry into the status word.
+  it("keeps the expiry apart from the status with a separator, and has none to keep apart when there's no expiry", () => {
+    list()
+    const meta = (email: string) => screen.getByText(email).nextElementSibling as HTMLElement
+    expect(meta(live.email).textContent).toMatch(/Sent·Expires in 6 days$/)
+    expect(meta(expired.email).textContent).not.toContain("·")
+  })
+
   it("copies a live invitation's link, and offers none for an expired or used one", () => {
     const { onCopyLink } = list()
     fireEvent.click(screen.getByRole("button", { name: "Copy the invitation link for live@example.com" }))
