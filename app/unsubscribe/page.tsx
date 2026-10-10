@@ -36,8 +36,8 @@ import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || ""
+import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
+import { apiUrl } from "@/lib/utils/apiUrl"
 
 type Status = "unsubscribed" | "resubscribed" | "missing" | "unknown"
 
@@ -71,110 +71,101 @@ function UnsubscribeContent() {
     }
   }, [params, router])
 
-  return (
-    <div className="max-w-md w-full bg-background border rounded-lg shadow-sm p-8 text-center space-y-4">
-      {status === "missing" && (
-        <>
-          <h1 className="text-xl font-semibold">Missing token</h1>
-          <p className="text-sm text-muted-foreground">
-            The unsubscribe link looks incomplete. Please use the original
-            link from the email, or open your notification settings inside
-            OneCamp.
-          </p>
-          <SettingsLink />
-        </>
-      )}
+  // apiUrl joins with exactly one slash: the configured address ends in one,
+  // and `${base}/public/...` posted to //public/..., which the API has no
+  // route for.
+  const resubscribe = token ? apiUrl(`public/notifications/resubscribe?token=${encodeURIComponent(token)}`) : ""
 
-      {status === "unsubscribed" && (
-        <>
-          <h1 className="text-xl font-semibold">You're unsubscribed</h1>
-          <p className="text-sm text-muted-foreground">
-            You won't receive notification emails from OneCamp anymore.
-            In-app and push notifications keep working as usual.
-          </p>
+  if (status === "missing") {
+    return (
+      <>
+        <AuthHeading title="This link is incomplete">
+          Open the unsubscribe link from the email again, or choose which emails you get in your notification settings.
+        </AuthHeading>
+        <SettingsButton />
+      </>
+    )
+  }
 
-          {token && BACKEND && (
-            <form
-              action={`${BACKEND}/public/notifications/resubscribe?token=${encodeURIComponent(token)}`}
-              method="post"
-              className="pt-2 space-y-3"
-            >
-              <p className="text-xs text-muted-foreground">
-                Did you change your mind?
-              </p>
-              <Button type="submit" size="sm" className="gap-2">
-                Resubscribe
+  if (status === "unsubscribed") {
+    return (
+      <>
+        <AuthHeading title="You're unsubscribed">
+          OneCamp won&apos;t email you notifications any more. You&apos;ll still see them in the app and on your devices.
+        </AuthHeading>
+        <div className="space-y-6">
+          {resubscribe && (
+            <form action={resubscribe} method="post" className="space-y-3">
+              <p className="text-sm text-muted-foreground">Changed your mind?</p>
+              <Button type="submit" variant="outline" className={authControl}>
+                Turn emails back on
               </Button>
             </form>
           )}
+          <SettingsLink label="Manage notification settings" />
+        </div>
+      </>
+    )
+  }
 
-          <div className="pt-4 border-t mt-4">
-            <SettingsLink label="Manage notification settings" />
+  if (status === "resubscribed") {
+    return (
+      <>
+        <AuthHeading title="Emails are back on">
+          OneCamp will email you notifications again. Choose which ones in your notification settings.
+        </AuthHeading>
+        {isSuppressed && (
+          <div role="note" className="mb-6 space-y-1 rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm">
+            <p className="font-medium">They may not arrive yet</p>
+            <p className="text-muted-foreground">
+              An earlier email to your address bounced or was marked as spam, so OneCamp&apos;s email service is holding
+              new ones back. Ask your workspace admin to clear your address.
+            </p>
           </div>
-        </>
-      )}
+        )}
+        <SettingsButton />
+      </>
+    )
+  }
 
-      {status === "resubscribed" && (
-        <>
-          <h1 className="text-xl font-semibold">You're resubscribed</h1>
-          <p className="text-sm text-muted-foreground">
-            You'll start receiving OneCamp notification emails again. Open
-            the settings page to fine-tune which events reach your inbox.
-          </p>
-          {isSuppressed && (
-            <div className="text-left text-xs rounded-md border border-warning/30 bg-warning/10 p-3 text-foreground">
-              <p className="font-medium mb-1">Heads-up</p>
-              <p>
-                Your address is currently flagged at the provider level
-                (likely from a previous bounce or spam-folder action). You
-                may not see emails arrive until your workspace admin clears
-                the suppression for your address.
-              </p>
-            </div>
-          )}
-          <SettingsLink />
-        </>
-      )}
-
-      {status === "unknown" && (
-        <>
-          <h1 className="text-xl font-semibold">Unsubscribe</h1>
-          <p className="text-sm text-muted-foreground">
-            Use the unsubscribe link inside any email from OneCamp, or open
-            your notification settings to manage your preferences.
-          </p>
-          <SettingsLink />
-        </>
-      )}
-    </div>
+  return (
+    <>
+      <AuthHeading title="Choose which emails you get">
+        Use the unsubscribe link in any email from OneCamp, or change which emails you get in your notification settings.
+      </AuthHeading>
+      <SettingsButton />
+    </>
   )
 }
 
-function SettingsLink({ label = "Open notification settings" }: { label?: string }) {
+const SETTINGS = "/app/settings/notifications"
+
+/** The page's one way on, where there is nothing else to do. */
+function SettingsButton() {
   return (
-    <div className="pt-2">
-      <Link
-        href="/app/settings/notifications"
-        className="inline-flex items-center text-sm font-medium underline underline-offset-4 hover:no-underline"
-      >
+    <Button className={authControl} asChild>
+      <Link href={SETTINGS}>Open notification settings</Link>
+    </Button>
+  )
+}
+
+/** The same place as a quiet link, under the page's own action. */
+function SettingsLink({ label }: { label: string }) {
+  return (
+    <p className="text-sm">
+      <Link href={SETTINGS} className="font-medium text-foreground underline-offset-4 hover:underline">
         {label}
       </Link>
-    </div>
+    </p>
   )
 }
 
 export default function UnsubscribePage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Suspense
-        fallback={
-          <div className="max-w-md w-full bg-background border rounded-lg shadow-sm p-8 text-center">
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          </div>
-        }
-      >
+    <AuthShell>
+      <Suspense fallback={null}>
         <UnsubscribeContent />
       </Suspense>
-    </div>
+    </AuthShell>
   )
 }
