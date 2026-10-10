@@ -125,6 +125,38 @@ describe("motion cost", () => {
     expect(over).toEqual([])
   })
 
+  it("lifts a card on the compositor: translate, and a shadow that fades in", () => {
+    const css = readFileSync(join(ROOT, "app/globals.css"), "utf8")
+    const at = css.indexOf("@utility hover-lift {")
+    expect(at, "hover-lift is defined").toBeGreaterThan(-1)
+    let depth = 0
+    let end = at
+    for (let i = css.indexOf("{", at); i < css.length; i++) {
+      if (css[i] === "{") depth++
+      else if (css[i] === "}" && --depth === 0) {
+        end = i
+        break
+      }
+    }
+    const lift = css.slice(at, end)
+    // What it transitions: translate on the card, opacity on its shadow layer.
+    const props = [...lift.matchAll(/transition(?:-property)?:\s*([^;]+);/g)].flatMap((m) => m[1].split(",").map((p) => p.trim().split(/\s+/)[0]))
+    expect(props.length).toBeGreaterThan(0)
+    for (const p of props) expect(["translate", "transform", "opacity"]).toContain(p)
+    // The bigger shadow is drawn once, not animated.
+    expect(lift).not.toMatch(/&:hover\s*\{[^}]*box-shadow/)
+  })
+
+  it("bursts a celebration with transform and opacity only", () => {
+    const src = readFileSync(join(ROOT, "lib/celebrate.ts"), "utf8")
+    const frames = [...src.matchAll(/\{\s*(transform|scale|opacity|offset)[^{}]*\}/g)].map((m) => m[0])
+    expect(frames.length).toBeGreaterThan(0)
+    for (const f of frames) {
+      const keys = [...f.matchAll(/([a-zA-Z]+)\s*:/g)].map((m) => m[1])
+      for (const k of keys) expect(["transform", "opacity", "offset", "scale", "rotate", "translate", "easing"]).toContain(k)
+    }
+  })
+
   it("would catch one: the shell's old panel transition and loading bar", () => {
     expect(layoutMotion(`className="transition-[flex-basis] duration-75"`)).toHaveLength(1)
     expect(layoutMotion(`className="will-change-[flex-basis]"`)).toHaveLength(1)

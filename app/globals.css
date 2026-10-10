@@ -829,14 +829,33 @@ body {
   @apply transition-hover hover:bg-highlight hover:text-accent-foreground;
 }
 
+/* The lift is a translate, and the bigger shadow is drawn once on a layer of
+   its own (::after) that fades in, so the whole hover runs on the compositor.
+   Transitioning box-shadow repainted the card on every frame of the hover
+   (motionCost.test.ts). A card that takes it needs its ::after free. */
 @utility hover-lift {
-  transition-property: translate, box-shadow;
+  position: relative;
+  isolation: isolate;
+  transition-property: translate;
   transition-duration: 160ms;
   transition-timing-function: var(--ease-standard);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    box-shadow: var(--shadow-lift);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms var(--ease-standard);
+  }
   @media (hover: hover) {
     &:hover {
       translate: 0 -1px;
-      box-shadow: var(--shadow-lift);
+    }
+    &:hover::after {
+      opacity: 1;
     }
   }
   @media (prefers-reduced-motion: reduce) {
