@@ -40,9 +40,25 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
  * as "about to submit", and Enter would do it. A field says "type here".
  * Without a field, or on a touch screen, Radix's default stands. A caller's onOpenAutoFocus runs
  * first and wins by calling preventDefault (to focus something else).
+ *
+ * A field is something typed in and seen. A file, range or colour input is
+ * picked rather than typed in, and a hidden one has nowhere to show focus: the
+ * profile dialog's hidden photo input came first, took the focus, and the
+ * dialog opened with focus nowhere a person could see it.
  */
 const FIRST_FIELD =
-  'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled]), [contenteditable="true"]'
+  'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled]), [contenteditable="true"]'
+
+/** The first field in the dialog a person can see and type in, if any. */
+function firstVisibleField(content: HTMLElement): HTMLElement | null {
+  for (const field of Array.from(content.querySelectorAll<HTMLElement>(FIRST_FIELD))) {
+    // Disabled by a fieldset around it, or hidden. display: none, on the field
+    // or on anything around it, leaves it no boxes at all.
+    if (field.matches(":disabled") || field.closest("[hidden], [inert]")) continue
+    if (field.getClientRects().length > 0) return field
+  }
+  return null
+}
 
 function focusFirstField(event: Event) {
   // Desktop only (web-design-guidelines: autoFocus sparingly, avoid on
@@ -51,11 +67,12 @@ function focusFirstField(event: Event) {
   if (typeof window === "undefined" || !window.matchMedia?.("(pointer: fine)").matches) return
   // Radix dispatches this event on the content element itself.
   const content = event.target instanceof HTMLElement ? event.target : null
-  const field = content?.querySelector<HTMLElement>(FIRST_FIELD)
-  if (field) {
-    event.preventDefault()
-    field.focus({ preventScroll: true })
-  }
+  const field = content && firstVisibleField(content)
+  if (!field) return
+  field.focus({ preventScroll: true })
+  // Radix's default (the first tabbable element) stands unless the focus is
+  // now really on the field.
+  if (field.ownerDocument.activeElement === field) event.preventDefault()
 }
 
 const DialogContent = React.forwardRef<
