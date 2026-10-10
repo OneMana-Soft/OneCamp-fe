@@ -6,7 +6,7 @@
 // polling, since a guest has no session for the live connection.
 
 import { use, useCallback, useRef, useState } from "react"
-import { ArrowLeft, Hash, Loader2, MessageSquare } from "@/lib/icons"
+import { ArrowLeft, Hash, MessageSquare } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
 import {
@@ -16,6 +16,7 @@ import {
   GuestMessageView as MessageView,
   GuestNameForm,
   GuestNotYet,
+  GuestPanelPending,
   GuestTroubleNote,
   pollOutcome,
   useGuestName,
@@ -34,6 +35,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
   const [messages, setMessages] = useState<GuestChannelMessage[]>([]) // oldest first
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [olderFailed, setOlderFailed] = useState(false)
   const [name, setName] = useGuestName(token)
   const [thread, setThread] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
@@ -76,9 +78,14 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
   const loadOlder = async () => {
     if (!messages.length) return
     setLoadingMore(true)
+    setOlderFailed(false)
     const res = await getGuestChannel(token, messages[0].created_at)
     setLoadingMore(false)
-    if (!res.ok) return
+    if (!res.ok) {
+      // Said under the button, which stays to try again.
+      setOlderFailed(true)
+      return
+    }
     setMessages((prev) => [...[...res.data.messages].reverse(), ...prev])
     setHasMore(res.data.has_more)
   }
@@ -103,6 +110,9 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
                 <Button variant="ghost" size="sm" onClick={loadOlder} disabled={loadingMore}>
                   {loadingMore ? "Loading…" : "Earlier messages"}
                 </Button>
+                {olderFailed && (
+                  <p role="alert" className="mt-1 text-xs text-danger-ink">Couldn&apos;t load earlier messages. Try again.</p>
+                )}
               </div>
             )}
             {messages.length === 0 && <p className="text-center text-sm text-muted-foreground">No messages yet.</p>}
@@ -147,10 +157,18 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
 function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { token: string; postId: string; canPost: boolean; name: string; onName: (name: string) => void; onClose: () => void; onReplied: () => void }) {
   const [data, setData] = useState<{ message: GuestChannelMessage; replies: GuestChannelMessage[] } | null>(null)
   const [missing, setMissing] = useState(false)
+  // Why the thread can't load or refresh just now; it keeps trying.
+  const [trouble, setTrouble] = useState<PublicTrouble | null>(null)
   const load = useCallback(async () => {
     const res = await getGuestThread(token, postId)
-    if (res.ok) setData(res.data)
-    else if (publicTrouble(res.status) === "gone") setMissing(true)
+    if (res.ok) {
+      setData(res.data)
+      setTrouble(null)
+    } else {
+      const t = publicTrouble(res.status)
+      if (t === "gone") setMissing(true)
+      else setTrouble(t)
+    }
     return pollOutcome(res)
   }, [token, postId])
   useGuestPoll(`${token}:${postId}`, POLL_MS, load)
@@ -163,11 +181,12 @@ function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { 
         </Button>
         <span className="text-sm font-medium">Thread</span>
       </div>
+      {data && !missing && <GuestTroubleNote trouble={trouble} />}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {missing ? (
           <p className="text-sm text-muted-foreground">That message isn&apos;t here any more.</p>
         ) : !data ? (
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <GuestPanelPending trouble={trouble} />
         ) : (
           <div className="grid gap-4">
             <MessageView m={data.message} />

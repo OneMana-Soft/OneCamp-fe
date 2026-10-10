@@ -8,7 +8,7 @@ import { shortDate } from "@/lib/utils/date/shortDate"
 // for the live connection.
 
 import { use, useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, Calendar, FolderKanban, Loader2, MessageSquare, User } from "@/lib/icons"
+import { ArrowLeft, Calendar, FolderKanban, MessageSquare, User } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   reviewGuestTask,
@@ -26,6 +26,7 @@ import {
   GuestMessageView,
   GuestNameForm,
   GuestNotYet,
+  GuestPanelPending,
   GuestTroubleNote,
   pollOutcome,
   useGuestName,
@@ -213,6 +214,8 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
 function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; taskId: string; onClose: () => void; onCommented: () => void }) {
   const [task, setTask] = useState<GuestTaskView | null>(null)
   const [missing, setMissing] = useState(false)
+  // Why the task can't load or refresh just now; it keeps trying.
+  const [trouble, setTrouble] = useState<PublicTrouble | null>(null)
   const [name, setName] = useGuestName(token)
 
   const load = useCallback(async () => {
@@ -220,11 +223,19 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
     if (res.ok) {
       setTask(res.data)
       setMissing(false)
-    } else if (publicTrouble(res.status) === "gone") setMissing(true)
+      setTrouble(null)
+    } else {
+      const t = publicTrouble(res.status)
+      if (t === "gone") setMissing(true)
+      else setTrouble(t)
+    }
     return pollOutcome(res)
   }, [token, taskId])
 
-  useEffect(() => setTask(null), [taskId])
+  useEffect(() => {
+    setTask(null)
+    setTrouble(null)
+  }, [taskId])
   useGuestPoll(`${token}:${taskId}`, GUEST_POLL_MS * 2, load)
 
   useEffect(() => {
@@ -241,11 +252,12 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
         </Button>
         <span className="truncate text-sm font-medium">{task?.name ?? "Task"}</span>
       </div>
+      {task && !missing && <GuestTroubleNote trouble={trouble} />}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {missing ? (
           <p className="text-sm text-muted-foreground">That task isn&apos;t here any more.</p>
         ) : !task ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <GuestPanelPending trouble={trouble} />
         ) : (
           <div className="grid gap-5">
             <div className="grid gap-2">

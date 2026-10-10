@@ -11,6 +11,7 @@ import { AlertCircle, Loader2, Send } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { GuestChannelMessage } from "@/services/guestService"
 import { format } from "date-fns"
 import { fullDateTime, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
@@ -242,6 +243,29 @@ export function GuestNotYet({ trouble, loading = <GuestLoading />, gone = <Guest
       </GuestCentered>
     )
   return <>{loading}</>
+}
+
+/**
+ * A side panel's body before its first answer: the shape of what is coming,
+ * and, while the server is busy or out of reach, why it is still trying. A
+ * spinner here used to turn for as long as the server was down.
+ */
+export function GuestPanelPending({ trouble }: { trouble: PublicTrouble | null }) {
+  return (
+    <div aria-busy="true" className="grid gap-3">
+      {trouble && trouble !== "gone" ? (
+        <p role="status" className="text-sm text-muted-foreground">{retryingText[trouble]}</p>
+      ) : (
+        <p role="status" className="sr-only">Loading…</p>
+      )}
+      <div aria-hidden="true" className="grid gap-2.5">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-1/2" />
+        <Skeleton className="h-3 w-3/4" />
+        <Skeleton className="h-3 w-2/5" />
+      </div>
+    </div>
+  )
 }
 
 /** Above a page still showing what it last had, while it can't refresh. */
