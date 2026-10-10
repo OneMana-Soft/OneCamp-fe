@@ -85,6 +85,11 @@ describe("the task panel", () => {
     expect(panel).toMatch(/<TaskCommentBox\b/)
   })
 
+  it("paints its fields first and the rest a frame later, as a transition", () => {
+    expect(panel).toMatch(/requestAnimationFrame\(\(\) => startTransition\(\(\) => setSettled\(true\)\)\)/)
+    expect(panel).toMatch(/\{settled \? \(<>/)
+  })
+
   it("loads in its own shape, not behind a spinner", () => {
     expect(panel).not.toMatch(/LoadingStateCircle/)
     expect(panel).toMatch(/isLoading\) return <TaskPanelSkeleton/)
