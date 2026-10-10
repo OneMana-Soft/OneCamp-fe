@@ -52,3 +52,10 @@ describe("deleting a form", () => {
     expect(post).toHaveBeenCalledWith(expect.stringMatching(/\/f1\/delete$/), {})
   })
 })
+
+describe("opening the Forms dialog", () => {
+  it("focuses the dialog itself, not its first button, so nothing lights up before a key is pressed", () => {
+    render(<ProjectFormsDialog projectId="p" open onOpenChange={() => {}} />)
+    expect(document.activeElement?.getAttribute("role")).toBe("dialog")
+  })
+})
