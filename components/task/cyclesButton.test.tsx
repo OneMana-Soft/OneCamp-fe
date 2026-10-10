@@ -4,7 +4,8 @@ import type { Cycle } from "@/lib/tasks/cycles"
 
 const remove = vi.fn(async () => {})
 const complete = vi.fn(async () => ({ done: 0, carried: 0 }))
-const cycles: Cycle[] = [
+let cycles: Cycle[] = []
+const CYCLES: Cycle[] = [
   {
     id: "c3",
     project_uuid: "p",
@@ -16,6 +17,7 @@ const cycles: Cycle[] = [
     progress: { total: 5, started: 2, done: 1 },
   },
 ]
+cycles = CYCLES
 vi.mock("@/hooks/useProjectCycles", () => ({
   useProjectCycles: () => ({ cycles, canEdit: true, isLoading: false, create: vi.fn(), complete, rename: vi.fn(), remove, refresh: vi.fn() }),
 }))
@@ -60,5 +62,17 @@ describe("deleting a cycle", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete cycle" })))
     expect(remove).toHaveBeenCalledWith("c3")
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Deleted Launch week" }))
+  })
+})
+
+describe("a project with no cycles", () => {
+  it("shows the calendar spot above what cycles are", () => {
+    cycles = []
+    render(<CyclesButton projectId="p" onShow={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: /Cycles/ }))
+    const empty = document.querySelector("[data-cycles-empty]")!
+    expect(empty.querySelector("svg.hue-lake")).toBeTruthy()
+    expect(empty.textContent).toContain("Cycles are short, fixed stretches of work")
+    cycles = CYCLES
   })
 })

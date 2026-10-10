@@ -35,6 +35,9 @@ import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
 import { columnAlignClass } from "@/components/task/columnAlign"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotTasks } from "@/components/ui/graphics/spots"
+import { hueFor } from "@/lib/campHue"
 
 interface ProjectTaskTableProps {
     projectId: string
@@ -293,10 +296,17 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                    {/* Say which empty this is: a filter that matched nothing, or a project with no tasks. */}
-                                    {columnFilters.length > 0 || globalFilter
-                                        ? t("noTasksMatch", { defaultValue: "No tasks match these filters." })
-                                        : t("noTasksYet", { defaultValue: "No tasks yet. Create one and it shows here." })}
+                                    {/* Say which empty this is: a filter that matched nothing, or a project with no tasks (with its spot, in the project's colour). */}
+                                    {columnFilters.length > 0 || globalFilter ? (
+                                        t("noTasksMatch", { defaultValue: "No tasks match these filters." })
+                                    ) : (
+                                        <EmptyState
+                                            illustration={<SpotTasks hue={hueFor(projectId)} />}
+                                            title="No tasks yet"
+                                            description="Create one and it shows here."
+                                            className="py-8"
+                                        />
+                                    )}
                                 </TableCell>
                             </TableRow>
                         )}

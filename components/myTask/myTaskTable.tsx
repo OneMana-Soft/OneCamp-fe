@@ -42,6 +42,8 @@ import {useTranslation} from "react-i18next";
 import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 import { useFitColumns } from "@/hooks/useFitColumns";
 import { columnAlignClass } from "@/components/task/columnAlign"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotTasks } from "@/components/ui/graphics/spots"
 
 // <CHANGE> Helper function for safe JSON parsing
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
@@ -288,9 +290,11 @@ export const MyTaskTable = () => {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                    {table.getState().columnFilters.length > 0 || table.getState().globalFilter
-                                        ? t("noTasksMatch", { defaultValue: "No tasks match these filters." })
-                                        : t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })}
+                                    {table.getState().columnFilters.length > 0 || table.getState().globalFilter ? (
+                                        t("noTasksMatch", { defaultValue: "No tasks match these filters." })
+                                    ) : (
+                                        <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} className="py-8" />
+                                    )}
                                 </TableCell>
                             </TableRow>
                         )}

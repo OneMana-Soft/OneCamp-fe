@@ -6,6 +6,9 @@ import { useMemo, useState, type ReactNode } from "react"
 import { GoalDialog } from "@/components/goals/GoalDialog"
 import { GoalOwner } from "@/components/goals/GoalOwner"
 import { GoalProgress } from "@/components/goals/GoalProgress"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotTasks } from "@/components/ui/graphics/spots"
+import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { SearchField } from "@/components/search/searchField"
 import { Button } from "@/components/ui/button"
@@ -17,7 +20,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoals } from "@/hooks/useGoals"
 import { useStoredState } from "@/hooks/useStoredState"
 import { Target } from "@/lib/icons"
-import { checkInDue, dueLabel, filterGoals, goalTree, measureLine, overdue, type GoalSummary } from "@/lib/goals"
+import { checkInDue, dueLabel, filterGoals, goalTree, measureLine, overdue, percent, type GoalSummary } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
 import { localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -87,8 +90,8 @@ export function GoalsView({ compact }: { compact: boolean }) {
   } else if (all.length === 0) {
     body = (
       <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 py-10">
-        <StatePlaceholder
-          type="empty"
+        <EmptyState
+          illustration={<SpotTasks hue="sun" />}
           title="No goals yet"
           description="A goal is an outcome you're after by a date: a launch, a number of customers, a reply time. Its progress fills in by itself from the projects serving it, from its sub-goals, or from a number you update."
           action={
@@ -120,16 +123,26 @@ export function GoalsView({ compact }: { compact: boolean }) {
       <ul className="divide-y divide-border/60">
         {shown.map(({ goal, depth }) => (
           <li key={goal.id}>
-            <Link href={href(goal)} className="block px-4 py-3 outline-none active:bg-muted focus-visible:bg-muted" style={{ paddingLeft: 16 + depth * 16 }}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="truncate font-medium">{goal.title}</span>
-                <Standing goal={goal} now={now} />
+            {/* A goal's card: how far it is as a ring beside its name (the
+                desktop table keeps bars, which carry the pace tick). */}
+            <Link href={href(goal)} className="flex items-center gap-3 px-4 py-3 outline-none active:bg-muted focus-visible:bg-muted" style={{ paddingLeft: 16 + depth * 16 }}>
+              {goal.progress !== null ? (
+                <ProgressRing value={Math.round(goal.progress * 100)} size={36} label={`${goal.title}: ${percent(goal.progress)}`} className="text-muted-foreground">
+                  <span className="text-3xs font-medium tabular-nums text-foreground">{Math.round(goal.progress * 100)}</span>
+                </ProgressRing>
+              ) : (
+                <span aria-hidden className="size-9 shrink-0 rounded-full border border-dashed border-border" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate font-medium">{goal.title}</span>
+                  <Standing goal={goal} now={now} />
+                </div>
+                <div className="mt-0.5 flex items-center gap-2">
+                  <GoalOwner owner={goal.owner} compact />
+                  <Line goal={goal} today={today} className="truncate" />
+                </div>
               </div>
-              <div className="mt-0.5 flex items-center gap-2">
-                <GoalOwner owner={goal.owner} compact />
-                <Line goal={goal} today={today} className="truncate" />
-              </div>
-              <GoalProgress goal={goal} className="mt-2" />
             </Link>
           </li>
         ))}
