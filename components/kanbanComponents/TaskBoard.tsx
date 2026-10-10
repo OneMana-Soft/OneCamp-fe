@@ -82,9 +82,24 @@ const dropAnimation: DropAnimation = {
 // collision pass would only repeat that work, over every card, on every move.
 const noCollisions: CollisionDetection = () => []
 
-// Auto-scroll only the board (sideways) and its columns (down), never the page
-// around them: dnd-kit otherwise checks every scrollable ancestor on every move.
-const boardScrollsOnly = (element: Element) => element instanceof HTMLElement && element.dataset.boardScroll !== undefined
+// The sensors' options, made once. Written inline they were new objects on
+// every render of the board, so dnd-kit rebuilt its sensors and activators,
+// its context changed, and every card on the board rendered again: on each
+// step of a drag's line, on pick-up and on drop (boardRenders.test.tsx).
+// A few pixels before a drag starts, so a click still opens the task.
+const MOUSE = { activationConstraint: { distance: 5 } }
+// A short hold on touch, so a tap opens and a swipe scrolls.
+const TOUCH = { activationConstraint: { delay: 180, tolerance: 8 } }
+// dnd-kit starts scrolling within 20% of the scroller's edge by default:
+// about 250px on a board, so a column near the edge of the window slid away
+// while the card was held over it and the card landed several columns on.
+// Scroll only at the very edge, and only the board and its columns.
+const AUTO_SCROLL = {
+    canScroll: (element: Element) => element instanceof HTMLElement && element.dataset.boardScroll !== undefined,
+    threshold: { x: 0.06, y: 0.1 },
+    acceleration: 8,
+}
+
 
 function pointerOf(event: Event | null): { x: number; y: number } | null {
     if (!event) return null
@@ -173,12 +188,7 @@ export function TaskBoard({
         setItems((prev) => reuseUnchanged(prev, board))
     }, [board, dragging])
 
-    const sensors = useSensors(
-        // A few pixels before a drag starts, so a click still opens the task.
-        useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-        // A short hold on touch, so a tap opens and a swipe scrolls.
-        useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
-    )
+    const sensors = useSensors(useSensor(MouseSensor, MOUSE), useSensor(TouchSensor, TOUCH))
 
     const aim = (next: Target | null) => {
         const cur = targetRef.current
@@ -362,15 +372,7 @@ export function TaskBoard({
         <DndContext
             sensors={sensors}
             collisionDetection={noCollisions}
-            autoScroll={{
-                canScroll: boardScrollsOnly,
-                // dnd-kit starts scrolling within 20% of the scroller's edge by
-                // default: about 250px on a board, so a column near the edge of
-                // the window slid away while the card was held over it and the
-                // card landed several columns on. Scroll only at the very edge.
-                threshold: { x: 0.06, y: 0.1 },
-                acceleration: 8,
-            }}
+            autoScroll={AUTO_SCROLL}
             onDragStart={onDragStart}
             onDragMove={onDragMove}
             onDragEnd={onDragEnd}
