@@ -462,6 +462,7 @@ export const useMinimalTiptapEditor = ({
   slashCommands,
   showOnlyCurrentPlaceholder,
   throttleRef,
+  shouldRerenderOnTransaction,
   ...props
 }: UseMinimalTiptapEditorProps) => {
   const onUpdateRef = React.useRef(onUpdate)
@@ -583,6 +584,11 @@ export const useMinimalTiptapEditor = ({
     onCreate: ({ editor }) => handleCreate(editor),
     onBlur: ({ editor }) => handleBlur(editor),
     immediatelyRender: false,
+    // Tiptap re-renders the component holding the editor on every transaction
+    // unless told not to: a keystroke re-rendered the whole composer around
+    // it. A host that reads editor state while rendering subscribes to that
+    // state (useEditorState) and passes false; the default is unchanged.
+    shouldRerenderOnTransaction,
     editable,
     editorProps: {
       attributes: {
