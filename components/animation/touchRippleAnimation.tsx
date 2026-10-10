@@ -1,105 +1,42 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface TouchableDivProps {
+    /** Called when a press ends. */
     onTouch?: () => void
     onClick?: () => void
     className?: string
     children?: React.ReactNode
-    rippleBrightness?: number // 1.2 = 20% brighter, 0.8 = 20% darker
-    rippleDuration?: number // in milliseconds
+    /** @deprecated Kept so callers compile; the press is a CSS tint now. */
+    rippleBrightness?: number
+    /** @deprecated Kept so callers compile; the press is a CSS tint now. */
+    rippleDuration?: number
 }
 
-export default function TouchableDiv({
-                                         onTouch,
-                                         onClick,
-                                         className = "",
-                                         children,
-                                         rippleBrightness = 1.2, // default to 20% brighter
-                                         rippleDuration = 600, // default to 600ms
-                                     }: TouchableDivProps) {
-    const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number }>>([])
-    const divRef = useRef<HTMLDivElement>(null)
-    const rippleIdRef = useRef(0)
-    // Clean up completed ripples
-    useEffect(() => {
-        if (ripples.length > 0) {
-            const timer = setTimeout(() => {
-                setRipples([])
-                if (onTouch) onTouch()
-            }, rippleDuration)
-
-            return () => clearTimeout(timer)
-        }
-    }, [ripples, rippleDuration, onTouch])
-
-    const handleTouch = (event: React.TouchEvent) => {
-        if (!divRef.current) return
-
-        if ((event.target as HTMLElement).closest("[data-no-ripple]")) {
-            return
-        }
-
-        // Get the position relative to the div
-        const rect = divRef.current.getBoundingClientRect()
-        const x = event.touches[0].clientX - rect.left
-        const y = event.touches[0].clientY - rect.top
-
-        // Add new ripple
-        const newRipple = {
-            id: rippleIdRef.current++,
-            x,
-            y,
-        }
-
-        setRipples([newRipple])
-    }
-
+/**
+ * A row that answers a touch: it tints while it is pressed.
+ *
+ * It used to draw a Material ripple, and that cost more than it showed. Every
+ * touchstart, the first touch of every scroll included, set React state, so
+ * the row and the whole message inside it rendered again, twice (once to add
+ * the ripple, once 600 to 800ms later to clear it). The ripple then animated
+ * width and height, laying the row out on every frame, from a keyframe that
+ * styled-jsx injected for each row.
+ *
+ * The tint is :active, so the browser draws it, drops it when the touch turns
+ * into a scroll, and nothing re-renders. Its colour is the neutral step a list
+ * row hovers to, on the 120ms press timing.
+ */
+export default function TouchableDiv({ onTouch, onClick, className, children }: TouchableDivProps) {
     return (
         <div
-            ref={divRef}
-            className={`relative overflow-hidden cursor-pointer ${className}`}
-            onTouchStart={handleTouch}
+            className={cn("relative overflow-hidden cursor-pointer transition-colors active:bg-highlight", className)}
             onClick={onClick}
+            onTouchEnd={onTouch}
         >
             {children}
-
-            {/* Ripple elements */}
-            {ripples.map((ripple) => (
-                <div
-                    key={ripple.id}
-                    className="absolute rounded-full pointer-events-none"
-                    style={{
-                        left: ripple.x,
-                        top: ripple.y,
-                        width: "10px",
-                        height: "10px",
-                        transform: "translate(-50%, -50%)",
-                        background: `currentColor`,
-                        opacity: 0,
-                        filter: `brightness(${rippleBrightness})`,
-                        animation: `ripple ${rippleDuration}ms ease-out forwards`,
-                    }}
-                />
-            ))}
-
-            {/* Ripple animation */}
-            <style jsx>{`
-                @keyframes ripple {
-                    0% {
-                        opacity: 0.7;
-                        width: 0;
-                        height: 0;
-                    }
-                    100% {
-                        opacity: 0;
-                        width: ${divRef.current ? Math.max(divRef.current.clientWidth, divRef.current.clientHeight) * 2.5 : 1000}px;
-                        height: ${divRef.current ? Math.max(divRef.current.clientWidth, divRef.current.clientHeight) * 2.5 : 1000}px;
-                    }
-                }
-            `}</style>
         </div>
     )
 }
