@@ -61,10 +61,11 @@ function categoryChipClass(category: string): string {
     return hue ? cn(CHIP, HUE_CLASS[hue], "bg-hue-tint text-hue-ink") : cn(CHIP, "bg-muted text-muted-foreground")
 }
 
-// The filter in use is marked in ink on the highlight step, not in the accent:
-// the accent is the one primary action on this card (Evidence pack), and a
-// filled orange chip beside it made two.
-const FILTER_ON = "bg-highlight text-foreground border-foreground/25 hover:bg-highlight"
+// The filter in use is the current selection, so it takes the selection's
+// soft accent ground, as the app marks a current place. Not the filled accent:
+// that is the one primary action on this card (Evidence pack), and a filled
+// orange chip beside it made two.
+const FILTER_ON = "bg-brand-muted text-foreground border-brand/40 hover:bg-brand-muted"
 const FILTER_OFF = "text-muted-foreground"
 
 // The filter list the component starts with, replaced by whatever the server

@@ -72,15 +72,19 @@ describe("the audit log", () => {
     expect(screen.queryByRole("button", { name: "Show older entries" })).toBeNull()
   })
 
-  it("marks the filter in use without the accent fill", async () => {
+  it("marks the filter in use as the current selection, not as a second filled button", async () => {
     getAdminAuditLog.mockResolvedValue(page([entry(1)]))
     render(<AdminAuditLog />)
     await screen.findByText("Change 1")
+    // The selection's soft accent ground, as the app marks a current place;
+    // the filled accent stays with the card's one primary action.
     const all = screen.getByRole("button", { name: "all", pressed: true })
+    expect(all.className).toMatch(/bg-brand-muted/)
     expect(all.className).not.toMatch(/bg-primary/)
     const nobody = screen.getByRole("button", { name: /nobody watching/i })
     await act(async () => void fireEvent.click(nobody))
     expect(nobody.getAttribute("aria-pressed")).toBe("true")
+    expect(nobody.className).toMatch(/bg-brand-muted/)
     expect(nobody.className).not.toMatch(/bg-primary/)
   })
 
