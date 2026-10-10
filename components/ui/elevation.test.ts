@@ -81,10 +81,22 @@ describe("elevation rule", () => {
     expect(classSource("switch.tsx")).not.toMatch(/shadow-lg/)
   })
 
-  it("the hover-lift utility is gone from the design vocabulary", () => {
+  it("allows one lift, on purpose: 1px, opt-in, and still for reduced motion", () => {
+    // The old lift rose 2px on everything and was retired as a 2021 tell. The
+    // playful layer brings back exactly one: a card that IS a thing to open may
+    // lift a single pixel with its shadow growing a little. It is opt-in, so no
+    // in-page primitive carries it, and it never moves for reduced motion.
     const globals = readFileSync(resolve(uiDir, "../../app/globals.css"), "utf8")
-    // Defined only inside the explanatory comment, never as an @utility.
-    expect(globals).not.toMatch(/@utility\s+hover-lift/)
+    const at = globals.indexOf("@utility hover-lift {")
+    expect(at, "hover-lift is defined as a utility").toBeGreaterThan(-1)
+    const body = globals.slice(at, globals.indexOf("\n}", at))
+    expect(body).toMatch(/@media \(hover: hover\)/)
+    expect(body).toMatch(/translate:\s*0 -1px;/)
+    expect(body).not.toMatch(/-2px|-0\.5|translate-y/)
+    expect(body).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*&:hover\s*\{\s*translate:\s*none;/)
+    for (const file of INLINE_PRIMITIVES) {
+      expect(classSource(file), `${file} lifts by default`).not.toMatch(/\bhover-lift\b/)
+    }
   })
 
   it("keeps shadow-overlay as the one floating-surface token", () => {
