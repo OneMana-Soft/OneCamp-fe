@@ -14,7 +14,7 @@ import {
 } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { AdminAdminList } from "./AdminAdminList"
-import { ShieldAlert, Plus, Search } from "@/lib/icons"
+import { Plus, Search } from "@/lib/icons"
 import { AddAdminDialog } from "./AddAdminDialog"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileResponseSchema } from "@/lib/validations/schemas"
@@ -86,13 +86,10 @@ const AdminCard = () => {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="bg-primary/10 p-1.5 rounded-md">
-                <ShieldAlert className="h-4 w-4 text-primary" />
-              </div>
-              <CardTitle className="text-lg sm:text-xl font-semibold">
+              <CardTitle className="text-base font-semibold">
                 Administrators
               </CardTitle>
-              <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+              <span className="text-sm tabular-nums text-muted-foreground">
                 {allAdmins.length}
                 {hasMore ? "+" : ""}
               </span>
@@ -119,7 +116,7 @@ const AdminCard = () => {
               onClick={() => setIsAddDialogOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline sm:inline">Add Admin</span>
+              <span className="hidden xs:inline sm:inline">Add admin</span>
             </Button>
           </div>
         </div>

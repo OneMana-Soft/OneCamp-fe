@@ -1,7 +1,5 @@
 "use client"
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
 import React, { useRef, useEffect } from "react"
 import { TeamInfoInterface } from "@/types/team"
 import { Button } from "@/components/ui/button"
@@ -92,28 +90,25 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
   return (
     <TooltipProvider>
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {teams.map((team) => {
             const isDeleted = !isZeroEpoch(team.team_deleted_at || "")
             return (
               <li
                 key={team.team_uuid}
-                className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40"
+                className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/60"
               >
-                <div className="h-10 w-10 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-medium leading-tight truncate">
                     {team.team_name}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={cn(eyebrowClass, "text-2xs")}>
+                    <span className="text-xs tabular-nums text-muted-foreground">
                       {team.team_member_count || 0} members
                     </span>
                     {isDeleted && (
-                      <span className={cn(eyebrowClass, "text-2xs text-destructive")}>
-                        • Deleted
+                      <span className="text-xs text-muted-foreground">
+                        Deleted
                       </span>
                     )}
                   </div>

@@ -101,7 +101,7 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
   return (
     <TooltipProvider>
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {admins.map((admin) => (
             <AdminAdminRow
               key={admin.user_uuid}
@@ -154,7 +154,7 @@ function AdminAdminRow({
   const isSelf = admin.user_uuid === currentUserUUID
 
   return (
-    <li className="group flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40">
+    <li className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/60">
       <button
         type="button"
         className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"

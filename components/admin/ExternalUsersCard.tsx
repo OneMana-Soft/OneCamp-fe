@@ -6,7 +6,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
 import { ExternalUserList, ExternalUserItem } from "./ExternalUserList"
-import { UserX } from "lucide-react"
+
 import { useToast } from "@/hooks/use-toast"
 
 interface ExternalUsersResponse {
@@ -79,13 +79,10 @@ const ExternalUsersCard = () => {
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0 pb-4 shrink-0">
         <div className="flex items-center gap-2 mb-1">
-          <div className="bg-primary/10 p-1.5 rounded-md">
-            <UserX className="h-4 w-4 text-primary" />
-          </div>
-          <CardTitle className="text-lg sm:text-xl font-semibold">
-            External Users
+          <CardTitle className="text-base font-semibold">
+            External users
           </CardTitle>
-          <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+          <span className="text-sm tabular-nums text-muted-foreground">
             {allUsers.length}
             {hasMore ? "+" : ""}
           </span>

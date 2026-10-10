@@ -23,7 +23,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Mic, CheckCircle2, AlertTriangle, Loader2, XCircle } from "@/lib/icons"
+import { CheckCircle2, AlertTriangle, Loader2, XCircle } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import {
     getTranscriptionConfig,
@@ -216,8 +216,7 @@ export default function TranscriptionSettingsCard() {
         <Card className="border-border/60">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <Mic className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg font-semibold">Call transcription</CardTitle>
+                    <CardTitle className="text-base font-semibold">Call transcription</CardTitle>
                 </div>
                 <CardDescription>
                     Controls live captions and the searchable transcripts attached to recordings. Applies to new calls
@@ -381,7 +380,7 @@ export default function TranscriptionSettingsCard() {
                             )}
 
                             <div className="flex items-center gap-2">
-                                <Button size="sm" onClick={saveBackend} disabled={savingBackend || testing || loading}>
+                                <Button variant="outline" size="sm" onClick={saveBackend} disabled={savingBackend || testing || loading}>
                                     {savingBackend && !testing ? "Saving…" : "Save backend settings"}
                                 </Button>
                                 <Button
