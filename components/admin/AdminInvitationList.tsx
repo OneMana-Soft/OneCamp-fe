@@ -2,16 +2,13 @@
 
 import React from "react"
 import { Invitation } from "@/types/user"
-import { Button } from "@/components/ui/button"
 import { Trash2, Mail, RefreshCw, Copy } from "@/lib/icons"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { fullDateTime, shortDate } from "@/lib/utils/date/shortDate"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ErrorState } from "@/components/ui/error-state"
-import { EmptyState } from "@/components/ui/empty-state"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { SpotWelcome } from "@/components/ui/graphics"
-import { cn } from "@/lib/utils/helpers/cn"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { PEOPLE_LIST, PERSON_TILE, PersonAction, PersonRow } from "@/components/admin/PeopleFrame"
 
 interface AdminInvitationListProps {
   invitations: Invitation[]
@@ -22,14 +19,6 @@ interface AdminInvitationListProps {
   onCopyLink: (link: string) => void
   isSubmitting: boolean
   resendingEmail: string | null
-  isLoading?: boolean
-  /** The list could not be read: said as such, never as "no invitations". */
-  isError?: boolean
-  onRetry?: () => void
-  isFiltered?: boolean
-  totalLoaded?: number
-  /** Opens the invite dialog, offered when there are no invitations yet. */
-  onInvite?: () => void
 }
 
 /**
@@ -48,24 +37,23 @@ function isLive(inv: Pick<Invitation, "status">): boolean {
 }
 
 /** A dot and a word: the status of an invitation is information, not a coloured pill. */
-const STATUS: Record<string, { label: string; dot: string }> = {
-  sent: { label: "Sent", dot: "bg-info" },
-  joined: { label: "Joined", dot: "bg-success" },
+const STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  sent: { label: "Sent", tone: "info" },
+  joined: { label: "Joined", tone: "success" },
   // Ran out: nothing is wrong, it needs sending again.
-  expired: { label: "Expired", dot: "bg-muted-foreground/60" },
-  pending: { label: "Pending", dot: "bg-warning" },
+  expired: { label: "Expired", tone: "neutral" },
+  pending: { label: "Pending", tone: "warning" },
 }
 
-function getStatusBadge(status: string) {
-  const { label, dot } = STATUS[status] ?? STATUS.pending
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-      {label}
-    </span>
-  )
+function statusWord(status: string) {
+  const { label, tone } = STATUS[status] ?? STATUS.pending
+  return <StatusWord tone={tone}>{label}</StatusWord>
 }
 
+/**
+ * The invitations' rows. The tab's frame (PeopleFrame, in invitationCard)
+ * draws the header, the toolbar, the skeleton and the empty and failed states.
+ */
 export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   invitations,
   onDelete,
@@ -73,160 +61,78 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   onCopyLink,
   isSubmitting,
   resendingEmail,
-  isLoading,
-  isError,
-  onRetry,
-  isFiltered,
-  totalLoaded,
-  onInvite,
 }) => {
-  // Loading draws the rows it is about to show, in the same bordered list, so
-  // nothing moves when they arrive.
-  if (invitations.length === 0 && isLoading && !totalLoaded) {
-    return (
-      <ul aria-busy="true" aria-label="Loading invitations" className="divide-y divide-border rounded-lg border border-border">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <li key={i} className="flex items-center gap-3 px-3 py-2.5" aria-hidden="true">
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-52" : "w-44")} />
-              <Skeleton className="h-3 w-40" />
-            </div>
-          </li>
-        ))}
-      </ul>
-    )
-  }
-
-  // Before the empty branch: a failed request leaves the list empty too.
-  if (invitations.length === 0 && isError) {
-    return <ErrorState subject="the invitations" onRetry={onRetry} />
-  }
-
-  if (invitations.length === 0) {
-    // A search that matched nothing keeps the people group's icon tile; a
-    // workspace with no invitations at all is a first run, so it is welcomed,
-    // in the people group's hue, with the one thing to do.
-    return isFiltered ? (
-      <EmptyState icon={Mail} hue={ADMIN_GROUP_HUE.people} title="No invitation matches your search." />
-    ) : (
-      <EmptyState
-        illustration={<SpotWelcome hue={ADMIN_GROUP_HUE.people} />}
-        title="No invitations yet"
-        description="Invite the people you work with. Each gets an email with a link to join, good for seven days."
-        action={
-          onInvite ? (
-            <Button variant="outline" size="sm" onClick={onInvite}>
-              Invite people
-            </Button>
-          ) : undefined
-        }
-      />
-    )
-  }
-
+  // No scroller of its own: the admin page's tab region is the one that
+  // scrolls, so this list sizes to its rows.
   return (
     <TooltipProvider>
-      {/* No scroller of its own: the admin page's tab region is the one that
-          scrolls, so this list sizes to its rows. */}
-      <div>
-        <ul className="divide-y divide-border rounded-lg border border-border">
-          {invitations.map((inv) => (
-            <li
-              key={inv.id}
-              className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-highlight"
-            >
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm font-medium leading-tight truncate">
-                  {inv.email}
-                </span>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {/* When it was sent, in the app's one date format, not the browser's. */}
-                  <time
-                    dateTime={inv.created_at}
-                    title={fullDateTime(new Date(inv.created_at))}
-                    className="text-xs text-muted-foreground tabular-nums"
-                  >
-                    {shortDate(new Date(inv.created_at))}
-                  </time>
-                  {getStatusBadge(inv.status)}
-                  {expiryText(inv) && (
-                    <>
-                      {/* A separator, so the expiry doesn't run into the status word. */}
-                      <span aria-hidden="true" className="text-xs text-faint-foreground">·</span>
-                      <span className="text-xs text-muted-foreground">{expiryText(inv)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                {inv.invite_link && inv.status !== "joined" && inv.status !== "expired" && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => onCopyLink(inv.invite_link!)}
-                        aria-label={`Copy the invitation link for ${inv.email}`}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Copy link</TooltipContent>
-                  </Tooltip>
+      <ul className={PEOPLE_LIST}>
+        {invitations.map((inv) => (
+          <PersonRow
+            key={inv.id}
+            // An invitation is not a person yet: the people group's tile, the
+            // size of a member's face, so the names start where they do on
+            // Members and Admins.
+            leading={
+              <Tile hue={ADMIN_GROUP_HUE.people} className={PERSON_TILE}>
+                <Mail />
+              </Tile>
+            }
+            title={inv.email}
+            meta={
+              <span className="inline-flex items-center gap-2">
+                {/* When it was sent, in the app's one date format, not the browser's. */}
+                <time dateTime={inv.created_at} title={fullDateTime(new Date(inv.created_at))} className="tabular-nums">
+                  {shortDate(new Date(inv.created_at))}
+                </time>
+                {statusWord(inv.status)}
+                {expiryText(inv) && (
+                  <>
+                    {/* A separator, so the expiry doesn't run into the status word. */}
+                    <span aria-hidden="true" className="text-faint-foreground">·</span>
+                    <span>{expiryText(inv)}</span>
+                  </>
+                )}
+              </span>
+            }
+            actions={
+              <>
+                {inv.invite_link && isLive(inv) && (
+                  <PersonAction
+                    icon={Copy}
+                    word="Copy"
+                    tip="Copy link"
+                    onClick={() => onCopyLink(inv.invite_link!)}
+                    aria-label={`Copy the invitation link for ${inv.email}`}
+                  />
                 )}
                 {inv.status !== "joined" && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => onResend(inv.email)}
-                        disabled={isSubmitting || resendingEmail === inv.email}
-                        aria-label={
-                          inv.status === "expired"
-                            ? `Send ${inv.email} a new invitation link`
-                            : `Resend invitation to ${inv.email}`
-                        }
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 ${
-                            resendingEmail === inv.email ? "animate-spin" : ""
-                          }`}
-                        />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {inv.status === "expired" ? "Send a new link" : "Send again with a new link"}
-                    </TooltipContent>
-                  </Tooltip>
+                  <PersonAction
+                    icon={RefreshCw}
+                    word={inv.status === "expired" ? "Send" : "Resend"}
+                    tip={inv.status === "expired" ? "Send a new link" : "Send again with a new link"}
+                    iconClassName={resendingEmail === inv.email ? "animate-spin" : undefined}
+                    onClick={() => onResend(inv.email)}
+                    disabled={isSubmitting || resendingEmail === inv.email}
+                    aria-label={
+                      inv.status === "expired" ? `Send ${inv.email} a new invitation link` : `Resend invitation to ${inv.email}`
+                    }
+                  />
                 )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
-                      onClick={() => onDelete(inv)}
-                      disabled={isSubmitting}
-                      aria-label={
-                        isLive(inv)
-                          ? `Revoke the invitation to ${inv.email}`
-                          : `Clear ${inv.email}'s invitation from the list`
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{isLive(inv) ? "Revoke invitation" : "Clear from the list"}</TooltipContent>
-                </Tooltip>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+                <PersonAction
+                  icon={Trash2}
+                  word={isLive(inv) ? "Revoke" : "Clear"}
+                  tip={isLive(inv) ? "Revoke invitation" : "Clear from the list"}
+                  tone="danger"
+                  onClick={() => onDelete(inv)}
+                  disabled={isSubmitting}
+                  aria-label={isLive(inv) ? `Revoke the invitation to ${inv.email}` : `Clear ${inv.email}'s invitation from the list`}
+                />
+              </>
+            }
+          />
+        ))}
+      </ul>
     </TooltipProvider>
   )
 }

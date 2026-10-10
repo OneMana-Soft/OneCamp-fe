@@ -1,10 +1,7 @@
 "use client"
 
 import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
-import { useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import {
   AdminListResponseInterface,
@@ -15,8 +12,10 @@ import {
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { AdminAdminList } from "./AdminAdminList"
-import { Plus, Search } from "@/lib/icons"
+import { Plus, ShieldAlert } from "@/lib/icons"
 import { AddAdminDialog } from "./AddAdminDialog"
+import { ErrorState } from "@/components/ui/error-state"
+import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileResponseSchema } from "@/lib/validations/schemas"
 
@@ -98,51 +97,43 @@ const AdminCard = () => {
     return allAdmins.filter((a) => matchesPerson(a, normalisedSearch, [a.user_email_id]))
   }, [allAdmins, normalisedSearch])
 
-  return (
-    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-4 shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <CardTitle className="text-base font-semibold">
-                Admins
-              </CardTitle>
-              <span className="text-sm tabular-nums text-muted-foreground">
-                {allAdmins.length}
-                {hasMore ? "+" : ""}
-              </span>
-            </div>
-            <CardDescription className="text-sm text-muted-foreground">
-              Admins can open Admin and change any of its settings.
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
-            <div className="relative flex-1 sm:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                type="search"
-                placeholder="Search admins…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-background/50"
-                aria-label="Search admins"
-              />
-            </div>
-            <Button
-              size="sm"
-              className="h-9 gap-1.5 shrink-0"
-              onClick={() => setIsAddDialogOpen(true)}
-            >
-              {/* Words at every width: the label hid below an xs: breakpoint
-                  that does not exist, so a phone showed a bare "+". */}
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Add admin
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+  const loaded = allAdmins.length > 0 || !adminList.isLoading
+  let state: ReactNode = undefined
+  // Before the empty branch: a failed request leaves the list empty too, and
+  // "No administrators found" is not something an admin should ever be told.
+  if (allAdmins.length === 0 && adminList.isError) {
+    state = <ErrorState subject="the admins" onRetry={() => void adminList.mutate()} />
+  } else if (loaded && filteredAdmins.length === 0) {
+    state = normalisedSearch ? (
+      <PeopleNoMatch
+        icon={ShieldAlert}
+        title={`No admins match ${quoted(search)}`}
+        hint="Check the spelling, or search by email."
+        onClear={() => setSearch("")}
+      />
+    ) : (
+      <PeopleFirstRun title="No admins yet" description="Make a member an admin to share running this workspace." />
+    )
+  }
 
-      <CardContent className="px-0 flex-1 min-h-0 flex flex-col">
+  return (
+    <>
+      <PeopleFrame
+        title="Admins"
+        count={peopleCount({ shown: filteredAdmins.length, total: allAdmins.length, more: hasMore, filtering: !!normalisedSearch, loaded })}
+        description="Admins can open Admin and change any setting."
+        search={{ value: search, onChange: setSearch, placeholder: "Search admins…", label: "Search admins", name: "admin-search" }}
+        // Words at every width: the label hid below an xs: breakpoint that
+        // does not exist, so a phone showed a bare "+".
+        action={
+          <PeopleAction icon={Plus} onClick={() => setIsAddDialogOpen(true)}>
+            Add admin
+          </PeopleAction>
+        }
+        loading={allAdmins.length === 0 && adminList.isLoading && !adminList.isError}
+        loadingLabel="Loading admins"
+        state={state}
+      >
         <AdminAdminList
           admins={filteredAdmins}
           currentUserUUID={selfProfile.data?.data?.user_uuid}
@@ -151,19 +142,11 @@ const AdminCard = () => {
           onLoadMore={handleLoadMore}
           hasMore={hasMore && !normalisedSearch}
           isLoading={adminList.isLoading}
-          isError={!!adminList.isError && allAdmins.length === 0}
-          onRetry={() => void adminList.mutate()}
-          isFiltered={!!normalisedSearch}
-          totalLoaded={allAdmins.length}
         />
-      </CardContent>
+      </PeopleFrame>
 
-      <AddAdminDialog
-        open={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
-        onSuccess={handleAdminAdded}
-      />
-    </Card>
+      <AddAdminDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} onSuccess={handleAdminAdded} />
+    </>
   )
 }
 

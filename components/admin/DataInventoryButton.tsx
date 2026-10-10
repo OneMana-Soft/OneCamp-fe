@@ -29,6 +29,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Database, Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
+import { PersonActionWord, personActionClass } from "@/components/admin/PeopleFrame"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
     getPersonalDataInventory,
@@ -75,15 +76,17 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
             <Tooltip>
                 <TooltipTrigger asChild>
                     <DialogTrigger asChild>
+                        {/* A row action like the rest of the row's (PeopleFrame): an
+                            icon from sm up, the icon and its word on a phone, where
+                            the tooltip cannot be seen. */}
                         <Button
+                            type="button"
                             variant="ghost"
-                            size="icon"
-                            className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:text-foreground hover:bg-muted sm:w-8 sm:px-0"
+                            className={personActionClass()}
                             aria-label={`Show where data for ${displayName} is stored`}
                         >
-                            <Database className="h-4 w-4" />
-                            {/* Seen on a phone, where the tooltip cannot be. */}
-                            <span className="text-2xs sm:sr-only">Data</span>
+                            <Database className="size-4" aria-hidden="true" />
+                            <PersonActionWord>Data</PersonActionWord>
                         </Button>
                     </DialogTrigger>
                 </TooltipTrigger>
