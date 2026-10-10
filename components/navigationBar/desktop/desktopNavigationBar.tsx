@@ -5,6 +5,7 @@ import { useLaterList } from "@/hooks/useLater";
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import { isCurrentPath } from "@/lib/utils/isCurrentPath";
 import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components/ui/resizable";
+import { sidebarSizes, startsAsRail } from "@/lib/ui/sidebarSize";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import {cn} from "@/lib/utils/helpers/cn";
 import {DesktopChildrenNavType, DesktopNavType} from "@/types/nav";
@@ -35,6 +36,22 @@ import {FOCUS_SECTION_KEY, FOCUS_SECTION_TITLE, FOLDED_NAV_TITLES, partitionByTi
 import {useSidebarDisclosure} from "@/lib/nav/sidebarDisclosure";
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 
+
+/**
+ * The window's width, followed only when it changes: the address bar of a
+ * tablet's browser changes the height on most scrolls, and a height change
+ * must not re-render the whole sidebar.
+ */
+function useWindowWidth(): number {
+    const [width, setWidth] = useState(0);
+    useEffect(() => {
+        const update = () => setWidth((w) => (w === window.innerWidth ? w : window.innerWidth));
+        update();
+        window.addEventListener("resize", update);
+        return () => window.removeEventListener("resize", update);
+    }, []);
+    return width;
+}
 
 export function DesktopNavigationBar({
                                         children,
@@ -85,7 +102,11 @@ export function DesktopNavigationBar({
     const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
 
 
-    const navCollapsedSize = 4;
+    // In pixels, whatever the window: at least 200px open and a 56px rail
+    // (lib/ui/sidebarSize). In percent of a tablet's width they were 123 and 31.
+    const windowWidth = useWindowWidth();
+    const sizes = sidebarSizes(windowWidth);
+    const navCollapsedSize = sizes.rail;
 
     const totalDMUnread = useMemo(() => 
         (userSidebarState.userChats || []).reduce((acc, chat) => acc + (chat.dm_unread || 0), 0),
@@ -400,9 +421,13 @@ export function DesktopNavigationBar({
             .split('; ')
             .find(row => row.startsWith('react-resizable-root-panels:collapsed='));
         
+        // Nobody has chosen: a tablet-width window starts with the rail, so a
+        // channel and a thread fit beside it; anything wider starts open.
         const savedCollapsed = collapsedCookie 
             ? JSON.parse(collapsedCookie.split('=')[1]) 
-            : false; // Default to expanded
+            : startsAsRail(window.innerWidth);
+        const { rail, min } = sidebarSizes(window.innerWidth);
+        const defaults = savedCollapsed ? [rail, 100 - rail] : [Math.max(16, min), 100 - Math.max(16, min)];
 
         // Read the layout cookie — but only apply if it matches collapsed state
         const layoutCookie = document.cookie
@@ -414,18 +439,19 @@ export function DesktopNavigationBar({
         if (layoutCookie) {
             const layoutSizes = JSON.parse(layoutCookie.split('=')[1]);
             const sidebarWidth = layoutSizes[0];
-            // Sanity check: if saved as expanded but sidebar width < 8%,
-            // or saved as collapsed but sidebar width > 8%, reset to defaults
-            const looksCollapsed = sidebarWidth < 8;
+            // Sanity check: a saved width that disagrees with the saved state
+            // (open but rail-wide, or collapsed but wider than the rail) is
+            // reset to the defaults for that state. The rail's width in
+            // percent depends on the window, so it is measured, not 8%.
+            const looksCollapsed = sidebarWidth <= rail + 0.5;
             if (savedCollapsed !== looksCollapsed) {
-                // Cookie mismatch — use defaults matching saved collapsed state
-                targetSizes = savedCollapsed ? [4, 96] : [16, 84];
+                targetSizes = defaults;
             } else {
                 targetSizes = layoutSizes;
             }
         } else {
             // No layout cookie — use defaults matching collapsed state
-            targetSizes = savedCollapsed ? [4, 96] : [16, 84];
+            targetSizes = defaults;
         }
 
         setIsCollapsed(savedCollapsed);
@@ -472,8 +498,8 @@ export function DesktopNavigationBar({
                         defaultSize={panelSizes[0]}
                         collapsedSize={navCollapsedSize}
                         collapsible={true}
-                        minSize={15}
-                        maxSize={18}
+                        minSize={sizes.min}
+                        maxSize={sizes.max}
                         onCollapse={() => {
                             setIsCollapsed(true)
                             setTimeout(() => {
