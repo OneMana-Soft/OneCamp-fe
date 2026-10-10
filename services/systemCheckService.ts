@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 
 // "Does this installation actually work?"
 //
@@ -40,6 +40,8 @@ export interface SystemCheckReport {
 const systemCheckUrl = "/admin/system-check"
 
 export async function runSystemCheck(): Promise<SystemCheckReport | undefined> {
-    const res = await axiosInstance.get(systemCheckUrl)
+    // The health card says a failure in place, where it can be read beside the
+    // rest; a toast saying it again was the second of two messages.
+    const res = await axiosInstance.get(systemCheckUrl, OWN_ERRORS)
     return (res.data as { data?: SystemCheckReport })?.data
 }

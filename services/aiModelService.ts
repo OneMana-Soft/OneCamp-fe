@@ -10,7 +10,7 @@
  * Single-tenant: there is one global AI configuration.
  */
 
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { authedStreamFetch } from "@/lib/utils/streamFetch"
 import { dedupeInFlight } from "@/lib/utils/inFlight"
@@ -303,7 +303,8 @@ export async function listProviderModels(providerId: string, refresh = false): P
  */
 export async function getOllamaCatalog(providerId: string, refresh = false): Promise<OllamaCatalog> {
   const url = `${GetEndpointUrl.GetAIOllamaCatalog}/${encodeURIComponent(providerId)}/catalog${refresh ? "?refresh=true" : ""}`
-  const res = await axiosInstance.get(url)
+  // The catalog says a failure in its own toast, with the provider's reason.
+  const res = await axiosInstance.get(url, OWN_ERRORS)
   return res.data?.data
 }
 

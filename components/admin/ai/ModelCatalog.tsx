@@ -41,14 +41,9 @@ import {
   formatBytes,
 } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { OllamaUpdateSteps } from "@/components/admin/ai/OllamaUpdateSteps"
 
-// errMessage safely extracts a human-readable message from an unknown error
-// (axios error shape or a plain Error) without resorting to `any`.
-function errMessage(e: unknown): string {
-  const ax = e as { response?: { data?: { msg?: string } }; message?: string }
-  return ax?.response?.data?.msg || ax?.message || ""
-}
 
 // Capability → label + icon, for compact, scannable tags.
 const CAP_META: Record<CatalogCapability, { label: string; Icon: React.FC<{ className?: string }> }> = {
@@ -99,8 +94,8 @@ export const ModelCatalog: React.FC<{
         setModels(cat.models ?? [])
       } catch (e) {
         toast({
-          title: "Could not load model catalog",
-          description: errMessage(e) || "Provider unreachable",
+          title: "Couldn't load the model catalog",
+          description: apiErrorMessage(e, "The model provider couldn't be reached. Check that it is running."),
           variant: "destructive",
         })
       } finally {
@@ -274,15 +269,15 @@ const CatalogCard: React.FC<{
           onInstalled()
         } else {
           toast({
-            title: "Install failed",
-            description: result.error || "pull error",
+            title: `Couldn't install ${model.tag}`,
+            description: result.error || "The download didn't finish. Try again.",
             variant: "destructive",
           })
         }
       })
       .catch((e) => {
         if ((e as { name?: string })?.name !== "AbortError") {
-          toast({ title: "Install failed", description: errMessage(e) || "pull error", variant: "destructive" })
+          toast({ title: `Couldn't install ${model.tag}`, description: apiErrorMessage(e, "The download didn't finish. Try again."), variant: "destructive" })
         }
       })
       .finally(() => {

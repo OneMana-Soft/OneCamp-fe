@@ -3,12 +3,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 let disk: Record<string, unknown> | undefined
 const asked: string[] = []
+const requestConfigs: unknown[] = []
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => {
+  useFetch: (url: string, _schema?: unknown, _config?: unknown, requestConfig?: unknown) => {
     asked.push(url)
+    requestConfigs.push(requestConfig)
     return { data: url && disk ? { data: disk } : undefined }
   },
 }))
+vi.mock("@/lib/axiosInstance", () => ({ OWN_ERRORS: { suppressErrorToast: true } }))
 vi.mock("next/link", () => ({ default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a> }))
 
 const { DiskBanner } = await import("./DiskBanner")
@@ -20,6 +23,15 @@ afterEach(() => {
 })
 
 describe("the disk banner", () => {
+  // A failed background read raised "Not allowed" or "Something went wrong"
+  // over whatever the admin was doing, every ten minutes.
+  it("says nothing when the disk can't be read", () => {
+    disk = undefined
+    const { container } = render(<DiskBanner isAdmin />)
+    expect(container.textContent).toBe("")
+    expect(requestConfigs.at(-1)).toEqual({ suppressErrorToast: true })
+  })
+
   it("says nothing while there is room, and asks nothing for members", () => {
     disk = { available: true, used_pct: 40, free_bytes: 200e9, level: "ok" }
     const { container } = render(<DiskBanner isAdmin />)

@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 
 // What this workspace still needs before it is useful.
 //
@@ -41,7 +41,9 @@ export interface OnboardingState {
 const onboardingUrl = "/admin/onboarding"
 
 export async function getOnboardingStatus(): Promise<OnboardingState | undefined> {
-    const res = await axiosInstance.get(onboardingUrl)
+    // The checklist is a hint on Home: when it can't load, Home goes on without
+    // it, and says nothing about a request the person didn't make.
+    const res = await axiosInstance.get(onboardingUrl, OWN_ERRORS)
     return (res.data as { data?: OnboardingState })?.data
 }
 

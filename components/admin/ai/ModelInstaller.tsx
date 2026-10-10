@@ -25,6 +25,7 @@ import { Download, X, CheckCircle2 } from "lucide-react"
 import { OllamaUpdateSteps } from "@/components/admin/ai/OllamaUpdateSteps"
 import { PullProgress, pullModel, formatBytes } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 const SUGGESTIONS = [
   // The default a new install pulls (OLLAMA_MODEL), first so it is the obvious pick.
@@ -90,16 +91,15 @@ export const ModelInstaller: React.FC<{
           setTag("")
         } else {
           toast({
-            title: "Install failed",
-            description: result.error || "pull error",
+            title: `Couldn't install ${model}`,
+            description: result.error || "The download didn't finish. Try again.",
             variant: "destructive",
           })
         }
       })
       .catch((e: unknown) => {
         if ((e as { name?: string })?.name !== "AbortError") {
-          const msg = (e as { message?: string })?.message || "pull error"
-          toast({ title: "Install failed", description: msg, variant: "destructive" })
+          toast({ title: `Couldn't install ${model}`, description: apiErrorMessage(e, "The download didn't finish. Try again."), variant: "destructive" })
         }
       })
       .finally(() => {
