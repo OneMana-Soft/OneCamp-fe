@@ -43,6 +43,16 @@ const formatActions: InsertElement[] = [
   }
 ]
 
+// Built once: ToolbarSection is memoised, and an icon or list made in render
+// is a new prop every time, which re-rendered it anyway.
+const DROPDOWN_ICON = (
+  <>
+    <Plus className="size-4" strokeWidth={1.75} />
+    <ChevronDown className="size-4" strokeWidth={1.75} />
+  </>
+)
+const ALL_ACTIONS = formatActions.map(action => action.value)
+
 interface SectionFiveProps extends VariantProps<typeof toggleVariants> {
   editor: Editor
   activeActions?: InsertElementAction[]
@@ -51,7 +61,7 @@ interface SectionFiveProps extends VariantProps<typeof toggleVariants> {
 
 export const SectionFive: React.FC<SectionFiveProps> = ({
   editor,
-  activeActions = formatActions.map(action => action.value),
+  activeActions = ALL_ACTIONS,
   mainActionCount = 0,
   size,
   variant
@@ -62,12 +72,7 @@ export const SectionFive: React.FC<SectionFiveProps> = ({
       actions={formatActions}
       activeActions={activeActions}
       mainActionCount={mainActionCount}
-      dropdownIcon={
-        <>
-          <Plus className="size-4" strokeWidth={1.75} />
-          <ChevronDown className="size-4" strokeWidth={1.75} />
-        </>
-      }
+      dropdownIcon={DROPDOWN_ICON}
       dropdownTooltip="Insert elements"
       size={size}
       variant={variant}

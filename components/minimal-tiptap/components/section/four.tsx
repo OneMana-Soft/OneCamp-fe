@@ -34,6 +34,16 @@ const formatActions: ListItem[] = [
   }
 ]
 
+// Built once: ToolbarSection is memoised, and an icon or list made in render
+// is a new prop every time, which re-rendered it anyway.
+const DROPDOWN_ICON = (
+  <>
+    <List className="size-4" strokeWidth={1.75} />
+    <ChevronDown className="size-4" strokeWidth={1.75} />
+  </>
+)
+const ALL_ACTIONS = formatActions.map(action => action.value)
+
 interface SectionFourProps extends VariantProps<typeof toggleVariants> {
   editor: Editor
   activeActions?: ListItemAction[]
@@ -42,7 +52,7 @@ interface SectionFourProps extends VariantProps<typeof toggleVariants> {
 
 export const SectionFour: React.FC<SectionFourProps> = ({
   editor,
-  activeActions = formatActions.map(action => action.value),
+  activeActions = ALL_ACTIONS,
   mainActionCount = 0,
   size,
   variant
@@ -53,12 +63,7 @@ export const SectionFour: React.FC<SectionFourProps> = ({
       actions={formatActions}
       activeActions={activeActions}
       mainActionCount={mainActionCount}
-      dropdownIcon={
-        <>
-          <List className="size-4" strokeWidth={1.75} />
-          <ChevronDown className="size-4" strokeWidth={1.75} />
-        </>
-      }
+      dropdownIcon={DROPDOWN_ICON}
       dropdownTooltip="Lists"
       size={size}
       variant={variant}
