@@ -75,9 +75,9 @@ describe("a refused Google or GitHub sign-in", () => {
     expect(shown).toContain("didn't finish. Please try again.")
   })
 
-  it("keeps the old words for the old code, which servers before these codes send", async () => {
+  it("reads the old code, which servers before these codes send, as not invited", async () => {
     const shown = await arriveWith("error=unauthorized&message=x")
-    expect(shown).toContain("contact your administrator for an invitation")
+    expect(shown).toContain("Ask your administrator for an invitation")
   })
 
   it("falls back to the general message for a code it doesn't know, never the message", async () => {
