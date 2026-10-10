@@ -227,7 +227,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             )}
             <div className='flex-1 min-w-0'>
                 {!(continued && !isMessageEditEnabled) && (
-                <div className='flex items-baseline gap-2'>
+                <div data-name-line="" className="flex h-5 items-center gap-2">
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                         {messageAuthorName(chatInfo.chat_from, userInfoState.userName)}
                     </div>

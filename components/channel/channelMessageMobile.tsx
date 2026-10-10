@@ -261,7 +261,7 @@ const ChannelMessageMobileComponent = ({
                 )}
                 <div className="flex-1 min-w-0">
                     {!(continued && !isMessageEditEnabled) && (
-                    <div className="flex items-baseline gap-2">
+                    <div data-name-line="" className="flex h-5 items-center gap-2">
                         <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{authorName}</div>
                         {relayed ? <PrincipalTag kind={relayed.kind} /> : postInfo.post_by.is_bot && <BotTag userUUID={postInfo.post_by.user_uuid} />}
                         <div className="text-2xs tabular-nums text-muted-foreground shrink-0">
