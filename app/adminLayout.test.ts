@@ -255,3 +255,21 @@ describe("admin sections load ahead of the click", () => {
         expect(missing).toEqual([])
     })
 })
+
+/**
+ * The playful layer: the menu's sections sit on hued tiles, one camp hue per
+ * group (components/admin/adminHues), so the menu scans as five places in five
+ * colours rather than nineteen icons in grey, or nineteen colours.
+ */
+describe("admin menu colours", () => {
+    it("gives every group a hue from the admin palette", () => {
+        const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
+        const keys = [...groupsBlock.matchAll(/key: "([^"]+)"/g)].map((m) => m[1])
+        expect(keys).toEqual(["people", "workspace", "ai", "connections", "system"])
+    })
+
+    it("draws each section's icon on its group's tile", () => {
+        const trigger = rawSource.slice(rawSource.indexOf("<TabsTrigger"), rawSource.indexOf("</TabsTrigger>"))
+        expect(trigger).toMatch(/<Tile hue=\{ADMIN_GROUP_HUE\[group\.key\]\} size="sm">/)
+    })
+})
