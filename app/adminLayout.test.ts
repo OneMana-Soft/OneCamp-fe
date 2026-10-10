@@ -277,3 +277,31 @@ describe("admin menu colours", () => {
         expect(trigger).toMatch(/<Tile hue=\{ADMIN_GROUP_HUE\[group\.key\]\} size="sm">/)
     })
 })
+
+/**
+ * The AI tab's jump row names each card by its own title. "Agent permissions"
+ * landed on a card titled "Agent collaboration" and "MCP servers" on
+ * "External agent access (MCP)", so an admin looking for the name they had
+ * just clicked found a different one.
+ */
+describe("the AI tab's jump row", () => {
+    const CARD: Record<string, string> = {
+        "ai-models-models": "AIModelsCard",
+        "ai-models-routing": "ModelRoutingCard",
+        "ai-models-inventory": "AgentInventoryCard",
+        "ai-models-delegation": "AgentDelegationCard",
+        "ai-models-drill": "GovernanceDrillCard",
+        "ai-models-mcp": "MCPServerCard",
+        "ai-models-activity": "AIActivityCard",
+    }
+    it("names every card by the title it carries", () => {
+        const block = rawSource.slice(rawSource.indexOf("const AI_JUMPS"), rawSource.indexOf("]", rawSource.indexOf("const AI_JUMPS")))
+        const jumps = [...block.matchAll(/\{ id: "([^"]+)", label: "([^"]+)" \}/g)].map((m) => [m[1], m[2]])
+        expect(jumps.length).toBe(7)
+        const wrong = jumps.filter(([id, label]) => {
+            const src = readFileSync(join(process.cwd(), "components/admin", `${CARD[id]}.tsx`), "utf8")
+            return !src.includes(label)
+        })
+        expect(wrong).toEqual([])
+    })
+})

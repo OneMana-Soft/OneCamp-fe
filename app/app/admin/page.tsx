@@ -191,11 +191,11 @@ function preloadSection(value: string) {
 const AI_JUMPS = [
   { id: "ai-models-models", label: "Models" },
   { id: "ai-models-routing", label: "Model per job" },
-  { id: "ai-models-inventory", label: "Inventory" },
-  { id: "ai-models-delegation", label: "Agent permissions" },
+  { id: "ai-models-inventory", label: "Agent inventory" },
+  { id: "ai-models-delegation", label: "Agent collaboration" },
   { id: "ai-models-drill", label: "Governance drill" },
-  { id: "ai-models-mcp", label: "MCP servers" },
-  { id: "ai-models-activity", label: "Activity" },
+  { id: "ai-models-mcp", label: "External agent access" },
+  { id: "ai-models-activity", label: "AI activity" },
 ]
 
 const AdminPage = () => {
