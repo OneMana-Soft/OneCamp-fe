@@ -127,7 +127,7 @@ const ExternalUsersCard = () => {
       search={{
         value: searchQuery,
         onChange: setSearchQuery,
-        placeholder: "Search by name, login or email…",
+        placeholder: "Search external users…",
         label: "Search external users",
         name: "external-user-search",
       }}
