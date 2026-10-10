@@ -21,11 +21,11 @@ describe("a search hit a guest or Slack person wrote", () => {
   it("reads as theirs", () => {
     const post = { type: "post", post: { post_body: "[Priya (Acme) (guest)]Looks good", post_by_user_id: "guests", post_ch_name: "acme" } }
     expect(shown(getHighlightedTitle(post as never))).toBe("Priya (Acme): Looks good")
-    expect(shown(getContext(post as never))).toBe("Post in acme")
+    expect(shown(getContext(post as never))).toBe("#acme · Priya (Acme)")
 
     const reply = { type: "comment", comment: { comment_body: "[Ana Ruiz]On it", comment_by_user_id: "slack", comment_by_user_full_name: "Slack" } }
     expect(shown(getHighlightedTitle(reply as never))).toBe("Ana Ruiz: On it")
-    expect(shown(getContext(reply as never))).toBe("Comment by Ana Ruiz")
+    expect(shown(getContext(reply as never))).toBe("Reply by Ana Ruiz")
   })
 
   it("keeps the highlight on what they wrote", () => {
@@ -36,7 +36,8 @@ describe("a search hit a guest or Slack person wrote", () => {
     }
     const { container } = render(<>{getHighlightedTitle(hit as never)}</>)
     expect(container.textContent).toBe("Priya (Acme): Looks good")
-    expect(container.querySelector("em")?.textContent).toBe("Looks")
+    // The search page marks a hit with <mark>, whatever tag the server used.
+    expect(container.querySelector("mark")?.textContent).toBe("Looks")
   })
 
   it("leaves anyone else's hit as it was", () => {
