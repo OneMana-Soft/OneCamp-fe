@@ -183,14 +183,7 @@ export function MobileHomeSearchBar() {
                                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                             )}
                                         >
-                                            <div
-                                                className={cn(
-                                                    "shrink-0",
-                                                    result.type === "user"
-                                                        ? ""
-                                                        : "p-1.5 rounded-md bg-muted text-muted-foreground",
-                                                )}
-                                            >
+                                            <div className="shrink-0" aria-hidden="true">
                                                 {getIcon(result)}
                                             </div>
                                             <div className="flex-1 min-w-0">

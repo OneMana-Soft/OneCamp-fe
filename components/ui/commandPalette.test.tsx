@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Profiler } from "react"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import type { SearchResult } from "@/services/searchService"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { hueFor } from "@/lib/campHue"
 
 const push = vi.fn()
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn(), back: vi.fn() }), usePathname: () => "/app/home" }))
@@ -134,5 +137,19 @@ describe("the command palette", () => {
     // item bookkeeping. A second copy of the query, kept in step by an effect,
     // took the palette to 19 for these six keys.
     expect(commits).toBeLessThanOrEqual(15)
+  })
+
+  // Each kind had one raw Tailwind colour (every task blue, every channel
+  // orange): the kind said twice, and nothing about which one it was.
+  it("marks a place in its own identity hue", () => {
+    const input = open()
+    type(input, "eng")
+    const row = within(group("Jump to")!).getByText("engineering").closest("[cmdk-item]")!
+    expect(row.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("c1"))
+  })
+
+  it("names no raw Tailwind hue for a kind", () => {
+    const src = readFileSync(resolve(__dirname, "CommandPalette.tsx"), "utf8")
+    expect(src).not.toMatch(/text-(blue|orange|cyan|purple|pink)-\d{3}/)
   })
 })
