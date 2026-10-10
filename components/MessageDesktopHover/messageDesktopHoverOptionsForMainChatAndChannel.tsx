@@ -4,9 +4,9 @@ import { memo, useCallback, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
 
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Forward, Languages, MessageSquareText, Reply } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
+import { ACTION_TIP } from "@/components/MessageDesktopHover/actionTip";
 
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
 import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigger";
@@ -66,22 +66,20 @@ interface HoverIconButtonProps {
     children: ReactNode;
 }
 
+// Labelled by a CSS tip (actionTip.ts), not a Radix tooltip: the toolbar is
+// built on every hover, and the tooltips were most of what that cost.
 const HoverIconButton = ({ label, onClick, children }: HoverIconButtonProps) => (
-    <Tooltip>
-        <TooltipTrigger asChild>
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={label}
-                onClick={onClick}
-                className={ICON_BUTTON_CLASS}
-            >
-                {children}
-            </Button>
-        </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        data-tip={label}
+        onClick={onClick}
+        className={cn(ICON_BUTTON_CLASS, ACTION_TIP)}
+    >
+        {children}
+    </Button>
 );
 
 const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
@@ -176,24 +174,22 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
             )}
         >
             {QUICK_REACTIONS.map(({ id, emoji, label }) => (
-                <Tooltip key={id}>
-                    <TooltipTrigger asChild>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`React with ${label}`}
-                            onClick={() => onReactionSelect(id)}
-                            className={cn(
-                                "h-8 w-8 rounded-md text-base leading-none",
-                                "hover:bg-accent motion-safe:transition-transform motion-safe:hover:scale-110",
-                            )}
-                        >
-                            <span aria-hidden="true">{emoji}</span>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{label}</TooltipContent>
-                </Tooltip>
+                <Button
+                    key={id}
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`React with ${label}`}
+                    data-tip={label}
+                    onClick={() => onReactionSelect(id)}
+                    className={cn(
+                        "h-8 w-8 rounded-md text-base leading-none",
+                        "hover:bg-accent motion-safe:transition-transform motion-safe:hover:scale-110",
+                        ACTION_TIP,
+                    )}
+                >
+                    <span aria-hidden="true">{emoji}</span>
+                </Button>
             ))}
 
             <AddReactionTrigger
