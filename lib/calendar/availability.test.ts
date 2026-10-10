@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { dayKey, groupByDay, googleCalendarUrl, icsFor, slugify } from "./availability"
+import { dayKey, formatDay, formatRange, formatTime, groupByDay, googleCalendarUrl, icsFor, slugify } from "./availability"
 
 describe("availability helpers", () => {
   it("puts a slot on the viewer's day", () => {
@@ -31,5 +31,13 @@ describe("availability helpers", () => {
 
   it("makes an address the server keeps", () => {
     expect(slugify("  Akash's 30-min Chat! ")).toBe("akash-s-30-min-chat")
+  })
+
+  it("writes days and times as the rest of the app does, in the viewer's zone", () => {
+    expect(formatDay("2026-10-12")).toBe("Mon 12 Oct")
+    expect(formatTime("2026-10-14T05:30:00Z", "Asia/Kolkata")).toMatch(/^11:00\sAM$/)
+    expect(formatRange("2026-10-14T05:30:00Z", "2026-10-14T06:00:00Z", "Asia/Kolkata")).toMatch(/^Wednesday 14 October, 11:00\sAM to 11:30\sAM$/)
+    // No browser-locale order ("Oct 12"), and "to", not a dash.
+    expect(formatRange("2026-10-14T05:30:00Z", "2026-10-14T06:00:00Z", "UTC")).not.toMatch(/[–—]|October 14/)
   })
 })
