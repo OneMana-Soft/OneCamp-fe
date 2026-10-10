@@ -27,6 +27,9 @@ export function PasskeySection() {
   const [keys, setKeys] = useState<Passkey[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  // The list couldn't be read: said with a way to read it again, apart from a
+  // failed action's message.
+  const [loadProblem, setLoadProblem] = useState("")
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
   const supported = passkeysSupported()
   const confirm = useConfirm()
@@ -34,9 +37,10 @@ export function PasskeySection() {
   const refresh = useCallback(async () => {
     try {
       setKeys(await listPasskeys())
+      setLoadProblem("")
     } catch (e) {
-      setKeys([])
-      setError(serverMessage(e, "Couldn't load your passkeys."))
+      const reason = serverMessage(e, "")
+      setLoadProblem(`Couldn't load your passkeys. ${reason || "This is usually a connection problem: try again in a moment."}`)
     }
   }, [])
   useEffect(() => {
@@ -59,10 +63,10 @@ export function PasskeySection() {
   }
 
   return (
-    <div className="space-y-4 px-4 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium">Passkeys</h3>
+    <div className="space-y-4 px-4 py-3">
+      <div className="flex items-center justify-between gap-6">
+        <div className="min-w-0 space-y-1">
+          <h3 className="text-sm font-medium leading-5">Passkeys</h3>
           <p className="text-xs text-muted-foreground text-pretty">
             {supported ? "Sign in with your fingerprint, face or device PIN instead of a password." : "This browser can't use passkeys."}
           </p>
@@ -77,10 +81,21 @@ export function PasskeySection() {
 
       {error && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
 
+      {loadProblem && (
+        <div className="flex items-center justify-between gap-4">
+          <p role="alert" className="text-xs text-danger-ink text-pretty">
+            {loadProblem}
+          </p>
+          <Button size="sm" variant="outline" className="shrink-0" onClick={() => void refresh()}>
+            Try again
+          </Button>
+        </div>
+      )}
+
       {keys && keys.length > 0 && (
         <ul className="grid gap-1">
           {keys.map((k) => (
-            <li key={k.id} className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40">
+            <li key={k.id} className="group flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-highlight">
               {renaming?.id === k.id ? (
                 <form
                   className="flex flex-1 gap-2"
@@ -93,7 +108,7 @@ export function PasskeySection() {
                   }}
                 >
                   <Input value={renaming.name} onChange={(e) => setRenaming({ id: k.id, name: e.target.value })} maxLength={60} aria-label="Passkey name" className="h-8" autoFocus />
-                  <Button type="submit" size="sm" className="h-8" disabled={busy}>Save</Button>
+                  <Button type="submit" size="sm" variant="outline" className="h-8" disabled={busy}>Save</Button>
                   <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setRenaming(null)}>Cancel</Button>
                 </form>
               ) : (

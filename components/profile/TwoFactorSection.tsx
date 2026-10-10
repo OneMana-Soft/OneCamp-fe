@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { QRCodeSVG } from "qrcode.react"
 
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
     AlertTriangle,
     Check,
@@ -42,7 +43,8 @@ type View =
 const LOW_RECOVERY_CODE_THRESHOLD = 3
 
 export function TwoFactorSection() {
-    const [status, setStatus] = useState<TwoFactorStatus | null>(null)
+    // null while it is checked, "failed" when it couldn't be.
+    const [status, setStatus] = useState<TwoFactorStatus | null | "failed">(null)
     const [view, setView] = useState<View>({ name: "summary" })
     const [code, setCode] = useState("")
     const [usingRecoveryCode, setUsingRecoveryCode] = useState(false)
@@ -54,17 +56,26 @@ export function TwoFactorSection() {
     const [copied, setCopied] = useState(false)
     const [savedAcknowledged, setSavedAcknowledged] = useState(false)
 
+    /**
+     * The first read, and Try again. A failed read says that the check failed, with a retry: never
+     * "Off", which in a security panel reads as "your account is unprotected", and no longer nothing
+     * at all, which hid the setting from someone who had come to change it.
+     */
+    const load = useCallback(async () => {
+        setStatus(null)
+        const result = await TwoFactorService.getStatus()
+        setStatus(result.ok ? result.data : "failed")
+    }, [])
+
+    /** After a change: a failed re-read keeps what was on screen rather than replacing it. */
     const refreshStatus = useCallback(async () => {
         const result = await TwoFactorService.getStatus()
-        // A failed read leaves `status` null and the card hidden, matching ChangePasswordSection. An
-        // "unavailable" placeholder in a security panel reads as "your account is unprotected", which
-        // is a worse lie than saying nothing while the request is retried on the next open.
         if (result.ok) setStatus(result.data)
     }, [])
 
     useEffect(() => {
-        void refreshStatus()
-    }, [refreshStatus])
+        void load()
+    }, [load])
 
     const resetEntry = () => {
         setCode("")
@@ -157,7 +168,7 @@ export function TwoFactorSection() {
         } catch {
             // Clipboard is permission-gated and absent over plain HTTP. The codes are already on screen
             // and selectable, so this is a convenience failing, not a loss — say so and move on.
-            setError("Could not copy. Select the codes and copy them manually.")
+            setError("Couldn't copy. Select the codes and copy them yourself.")
         }
     }
 
@@ -167,11 +178,38 @@ export function TwoFactorSection() {
         // races the download. Either fault means the button appears to work and no file arrives —
         // for the one artefact in this product that cannot be re-issued.
         if (!downloadTextFile("onecamp-recovery-codes.txt", recoveryCodesText(codes))) {
-            setError("Could not download. Copy the codes instead.")
+            setError("Couldn't download. Copy the codes instead.")
         }
     }
 
-    if (status === null) return null
+    // The row keeps its place while it is checked, so the rows under it do not jump.
+    if (status === null) {
+        return (
+            <div role="status" aria-label="Checking two-step verification" className="flex items-center justify-between gap-6 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-2 pt-0.5" aria-hidden="true">
+                    <Skeleton className="h-3.5 w-36" />
+                    <Skeleton className="h-3 w-3/4" />
+                </div>
+                <Skeleton className="h-8 w-20 shrink-0" aria-hidden="true" />
+            </div>
+        )
+    }
+
+    if (status === "failed") {
+        return (
+            <div className="flex items-center justify-between gap-6 px-4 py-3">
+                <div className="min-w-0 space-y-1">
+                    <h3 className="text-sm font-medium leading-5">Couldn&apos;t check two-step verification</h3>
+                    <p className="text-xs text-muted-foreground text-pretty">
+                        Nothing has changed. This is usually a connection problem: try again in a moment.
+                    </p>
+                </div>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => void load()}>
+                    Try again
+                </Button>
+            </div>
+        )
+    }
 
     const enrolled = status.enrolled
     const lowOnCodes = enrolled && status.unusedRecoveryCodes <= LOW_RECOVERY_CODE_THRESHOLD
@@ -183,10 +221,10 @@ export function TwoFactorSection() {
         : "Off. Turn it on to need a code from your phone as well as your password."
 
     return (
-        <div className="space-y-4 px-4 py-4">
-            <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                    <h3 className="text-sm font-medium">Two-step verification</h3>
+        <div className="space-y-4 px-4 py-3">
+            <div className="flex items-center justify-between gap-6">
+                <div className="min-w-0 space-y-1">
+                    <h3 className="text-sm font-medium leading-5">Two-step verification</h3>
                     <p className="text-xs text-muted-foreground text-pretty">{description}</p>
                 </div>
 
@@ -423,7 +461,7 @@ export function TwoFactorSection() {
                     <div className="flex items-center justify-between gap-3">
                         <button
                             type="button"
-                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            className="rounded-sm text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                             onClick={() => {
                                 setUsingRecoveryCode((v) => !v)
                                 setCode("")
