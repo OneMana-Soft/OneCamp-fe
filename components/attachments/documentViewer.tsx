@@ -95,7 +95,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
     if (htmlContent) {
         return (
             <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-lg flex flex-col">
-                <div className="flex-1 overflow-auto p-8 prose max-w-none dark:prose-invert bg-white text-black">
+                <div className="flex-1 overflow-auto p-8 max-w-none bg-white text-black">
                     <SafeHtml html={htmlContent} sanitizer={sanitizeImportedDocument} />
                 </div>
                  <div className="bg-muted/50 p-3 text-center text-sm text-muted-foreground border-t border-border/50">

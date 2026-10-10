@@ -387,7 +387,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     as="div"
                                     sanitizer={sanitizeRichHtml}
                                     html={event.event_description}
-                                    className="text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
+                                    className="text-sm leading-relaxed text-foreground max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
                                 />
                             ) : (
                                 <p className="text-sm text-muted-foreground">No notes.</p>

@@ -567,7 +567,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             <EditorContent
                 editor={editor}
                 className={cn(
-                    "minimal-tiptap-editor overflow-y-auto outline-none prose-sm sm:prose-base",
+                    "minimal-tiptap-editor overflow-y-auto outline-none",
                     !isOutputText && (
                         fixedToolbarToBottom
                             ? "min-h-[30px]"
@@ -632,7 +632,7 @@ const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; classNam
         }, [dispatch]);
         return (
             <div ref={ref} className={cn("flex w-full flex-col overflow-hidden", className)}>
-                <div className={cn("minimal-tiptap-editor overflow-y-auto outline-none prose-sm sm:prose-base", contentClassName)}>
+                <div className={cn("minimal-tiptap-editor overflow-y-auto outline-none", contentClassName)}>
                     <div className="ProseMirror static-rich focus:outline-none" onClick={onClick} dangerouslySetInnerHTML={{ __html: safe }} />
                 </div>
             </div>
