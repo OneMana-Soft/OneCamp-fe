@@ -2,6 +2,7 @@
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { downloadBlob } from "@/lib/utils/download"
+import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 export interface WorkspaceSettings {
@@ -25,6 +26,28 @@ interface UpdateSettingsRequest {
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings | null> {
     const res = await axiosInstance.get(GetEndpointUrl.GetWorkspaceSettings)
     return (res.data as { data?: WorkspaceSettings })?.data ?? null
+}
+
+/** The SWR key every reader of the workspace's settings shares. */
+export const WORKSPACE_SETTINGS_KEY = GetEndpointUrl.GetWorkspaceSettings
+
+/**
+ * The workspace's settings, read once for every card that shows a part of them.
+ *
+ * General's workspace card, its read receipts card, Security's guest access and
+ * Email's sending card each fetched the same document on their own, four
+ * requests for one answer, and a save in one card left the others showing the
+ * old values. They share one key now: one request, and `mutate` after a save
+ * updates all of them.
+ */
+export function useWorkspaceSettings() {
+    const { data, isLoading, isError, mutate } = useFetch<{ data?: WorkspaceSettings }>(WORKSPACE_SETTINGS_KEY)
+    return {
+        settings: data?.data ?? null,
+        isLoading,
+        isError: Boolean(isError),
+        mutate,
+    }
 }
 
 /** Turns read receipts on or off for the workspace; answers what applies now. */
