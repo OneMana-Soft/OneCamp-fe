@@ -38,24 +38,26 @@ const THEMES = [
 export function AppearanceSection() {
   const { theme, setTheme } = useTheme()
   const choice = theme === "dark" || theme === "light" ? theme : "system"
+  // Rows of a settings list, at the padding of the switch rows in the rest of
+  // the profile: the theme and the accent were a loose block of their own.
   return (
     <SettingsSection title="Appearance" description="Changes as you pick, on this device.">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <p id="theme-label" className="text-sm font-medium">Theme</p>
+      <SettingsList>
+        <SettingRow label="Theme" controlId="theme">
           <RadioGroupPrimitive.Root
+            id="theme"
             value={choice}
             onValueChange={setTheme}
             orientation="horizontal"
-            aria-labelledby="theme-label"
-            className="inline-flex flex-wrap gap-1 rounded-md bg-muted p-1"
+            aria-label="Theme"
+            className="inline-flex flex-wrap gap-0.5 rounded-md bg-muted p-0.5"
           >
             {THEMES.map(([value, label, Icon]) => (
               <RadioGroupPrimitive.Item
                 key={value}
                 value={value}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                  "inline-flex h-7 items-center gap-1.5 rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                   // The house segmented look (TabsTrigger): the raised card and
                   // a hairline, which read as chosen in both themes.
                   "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-border",
@@ -66,9 +68,12 @@ export function AppearanceSection() {
               </RadioGroupPrimitive.Item>
             ))}
           </RadioGroupPrimitive.Root>
+        </SettingRow>
+        {/* The accent picker carries its own label over its swatches. */}
+        <div className="px-4 py-3">
+          <ColorThemePicker />
         </div>
-        <ColorThemePicker />
-      </div>
+      </SettingsList>
     </SettingsSection>
   )
 }

@@ -45,3 +45,14 @@ describe("the theme choice", () => {
     expect(theme.setTheme).toHaveBeenCalledWith("system")
   })
 })
+
+// The theme and the accent are rows of a settings list, at the padding of the
+// switch rows elsewhere in the profile, not a loose block of their own.
+describe("the appearance section", () => {
+  it("sets the theme in a row of a settings list", () => {
+    render(<AppearanceSection />)
+    const row = screen.getByRole("radiogroup", { name: "Theme" }).closest(".px-4.py-3")
+    expect(row).not.toBeNull()
+    expect(row?.parentElement?.className).toMatch(/divide-y/)
+  })
+})

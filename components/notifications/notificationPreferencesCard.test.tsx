@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 // The email and quiet-hours card keeps what the person changed until they save
 // or put it back. It shares its request with the Read receipts card, which
@@ -143,5 +143,35 @@ describe("before the settings arrive", () => {
     state.fetch = answered({ email_supported: false })
     render(<NotificationPreferencesCard />)
     expect(screen.getByText(/hasn.t turned email on/)).toBeInTheDocument()
+  })
+})
+
+// One rhythm on the page: every setting is a row of the list, at the switch
+// rows' padding, with its name and help on the left and its control at the end.
+// The digest and the quiet-hours times were hand-made blocks at their own
+// spacing, and the digest's radios didn't answer the arrow keys.
+describe("the page's rows", () => {
+  it("makes the digest a choice of one that the arrow keys move through", async () => {
+    render(<NotificationPreferencesCard />)
+    const group = screen.getByRole("radiogroup", { name: "Activity digest" })
+    const off = within(group).getByRole("radio", { name: "Off" })
+    const daily = within(group).getByRole("radio", { name: "Daily" })
+    act(() => off.focus())
+    fireEvent.keyDown(off, { key: "ArrowRight" })
+    await waitFor(() => expect(document.activeElement).toBe(daily))
+    expect(daily).toHaveAttribute("aria-checked", "true")
+    expect(group.closest(".divide-y")).not.toBeNull()
+  })
+
+  it("puts each quiet-hours time in its own row of the list", () => {
+    state.fetch = answered({ quiet_hours_enabled: true, quiet_hours_start: "22:00", quiet_hours_end: "07:00", quiet_hours_tz: "Asia/Kolkata" })
+    render(<NotificationPreferencesCard />)
+    const from = screen.getByLabelText("From")
+    const until = screen.getByLabelText("Until")
+    const zone = screen.getByLabelText("Time zone")
+    const rowOf = (el: HTMLElement) => el.closest(".px-4.py-3")
+    expect(rowOf(from)).not.toBeNull()
+    expect(new Set([rowOf(from), rowOf(until), rowOf(zone)]).size).toBe(3)
+    expect(rowOf(from)?.parentElement?.className).toMatch(/divide-y/)
   })
 })
