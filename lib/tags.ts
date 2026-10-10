@@ -2,6 +2,9 @@
  * A task's tags live in its label, comma-separated ("frontend, needs review"),
  * as the server keeps them (helpers/tags.go). Pure helpers, for their test.
  */
+import { hueFor } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+
 export const MAX_TAGS = 10
 export const MAX_TAG_LENGTH = 32
 
@@ -33,21 +36,12 @@ export function hasTag(label: string | null | undefined, tag: string): boolean {
   return splitTags(label).some((t) => t.toLowerCase() === k)
 }
 
-// Soft tints that read on both themes; a tag keeps its colour everywhere.
-const TONES = [
-  "bg-sky-500/12 text-sky-800 dark:text-sky-300",
-  "bg-violet-500/12 text-violet-800 dark:text-violet-300",
-  "bg-emerald-500/12 text-emerald-800 dark:text-emerald-300",
-  "bg-amber-500/15 text-amber-800 dark:text-amber-300",
-  "bg-rose-500/12 text-rose-800 dark:text-rose-300",
-  "bg-teal-500/12 text-teal-800 dark:text-teal-300",
-  "bg-fuchsia-500/12 text-fuchsia-800 dark:text-fuchsia-300",
-  "bg-lime-500/15 text-lime-800 dark:text-lime-300",
-] as const
-
-/** The tint for a tag: the same name, the same colour, whatever its case. */
+/**
+ * A tag's colour: its camp hue's tint, with the name in the hue's ink (5.9:1
+ * or more on the tint, in both themes). The same name is the same colour
+ * wherever it shows, whatever its case. It was eight raw Tailwind hues of its
+ * own; now a tag's colours are the six every person and project draws from.
+ */
 export function tagTone(tag: string): string {
-  let h = 0
-  for (const ch of tag.toLowerCase()) h = (h * 31 + ch.codePointAt(0)!) >>> 0
-  return TONES[h % TONES.length]
+  return `${HUE_CLASS[hueFor(tag)]} bg-hue-tint text-hue-ink`
 }

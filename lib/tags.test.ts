@@ -17,3 +17,12 @@ describe("tags", () => {
     expect(tagTone("Bug")).toBe(tagTone("bug"))
   })
 })
+
+describe("a tag's colour", () => {
+  it("is a camp hue's tint with its ink, never a raw palette colour", () => {
+    for (const t of ["bug", "frontend", "needs review", "launch", "Q4"]) {
+      expect(tagTone(t)).toMatch(/^hue-(sky|moss|sun|dusk|berry|lake) bg-hue-tint text-hue-ink$/)
+      expect(tagTone(t)).not.toMatch(/-[0-9]{3}/)
+    }
+  })
+})
