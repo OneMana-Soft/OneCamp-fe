@@ -161,6 +161,7 @@ export function UnifiedUIManager() {
           title={ui.confirmAlert.data.title}
           description={ui.confirmAlert.data.description}
           confirmText={ui.confirmAlert.data.confirmText}
+          cancelText={ui.confirmAlert.data.cancelText}
           // useConfirm({ destructive: true }) puts this on the data; it was
           // dropped here, so every "Delete…" confirm drew an orange button.
           destructive={ui.confirmAlert.data.destructive === true}

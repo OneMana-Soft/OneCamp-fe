@@ -16,6 +16,12 @@ interface ConfirmOptions {
   title: string
   description: string
   confirmText?: string
+  /**
+   * The safe button's words, when "Cancel" would be ambiguous: a confirm whose
+   * action is itself a cancel ("Cancel import") names what the other button
+   * keeps ("Keep importing").
+   */
+  cancelText?: string
   /** The action loses something (deletes, removes, revokes): its button is drawn in the danger colour. */
   destructive?: boolean
   onConfirm: () => void
@@ -32,6 +38,7 @@ export function useConfirm() {
             title: opts.title,
             description: opts.description,
             confirmText: opts.confirmText || "Confirm",
+            cancelText: opts.cancelText,
             destructive: opts.destructive === true,
             onConfirm: opts.onConfirm,
           },

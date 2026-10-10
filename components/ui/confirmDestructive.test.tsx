@@ -21,6 +21,27 @@ describe("destructive confirms", () => {
     expect(screen.getByRole("button", { name: "Delete channel" }).className).toContain("bg-destructive")
   })
 
+  // "Cancel" beside "Cancel import" left the person to guess which button
+  // stops the import. A confirm whose action is itself a cancel names the
+  // safe button for what it keeps instead.
+  it("UnifiedUIManager passes the data's cancel label to the dialog", () => {
+    const src = readFileSync(resolve(__dirname, "UnifiedUIManager.tsx"), "utf8")
+    const block = src.slice(src.indexOf("<ConfirmAlertDialog"), src.indexOf("/>", src.indexOf("<ConfirmAlertDialog")))
+    expect(block).toMatch(/cancelText=\{ui\.confirmAlert\.data\.cancelText/)
+  })
+
+  it("useConfirm carries a cancel label through to the dialog's data", () => {
+    const src = readFileSync(resolve(__dirname, "../../hooks/useConfirm.ts"), "utf8")
+    expect(src).toMatch(/cancelText\?: string/)
+    expect(src).toMatch(/cancelText: opts\.cancelText/)
+  })
+
+  it("names the safe button when asked", () => {
+    render(<ConfirmAlertDialog open onOpenChange={() => {}} title="Cancel this import?" description="What has come over stays." confirmText="Cancel import" cancelText="Keep importing" destructive />)
+    expect(screen.getByRole("button", { name: "Keep importing" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull()
+  })
+
   it("keeps the brand fill when not destructive", () => {
     render(<ConfirmAlertDialog open onOpenChange={() => {}} title="Publish?" description="Everyone sees it." confirmText="Publish" />)
     const button = screen.getByRole("button", { name: "Publish" })
