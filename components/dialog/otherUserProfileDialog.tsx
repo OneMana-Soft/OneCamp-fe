@@ -121,14 +121,18 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="sm:max-w-2xl">
+            {/* One column, 448px: the card's few lines read top to bottom, as the
+                task panel's do. Two columns at 672px spent the width on a 128px
+                photo and left "Nothing else on their profile yet." alone beside it. */}
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-base font-semibold">{isBot ? botCopy.title : "Member profile"}</DialogTitle>
                 </DialogHeader>
 
-                <div className="flex flex-col gap-8 md:flex-row md:gap-12 py-4">
+                <div className="flex flex-col gap-5 pt-1">
                     {/* Left: Avatar Section */}
-                    <div className="flex flex-col items-center gap-4 flex-shrink-0">
+                    <div className="flex flex-col gap-4">
+                      <div data-profile-head="" className="flex items-center gap-4">
                         <button
                             type="button"
                             disabled={!profileInfo.data?.data?.user_profile_object_key}
@@ -156,12 +160,12 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 }
                             }}
                         >
-                            <Avatar className="h-32 w-32 ring-2 ring-border/50 shadow-sm">
+                            <Avatar className="h-16 w-16 ring-1 ring-border/50">
                                 <AvatarImage
                                     src={imageSrc}
                                     alt={`${userSeed}'s profile`}
                                 />
-                                <AvatarFallback className={cn("text-2xl font-semibold", getAvatarFallbackClass(userSeed))}>
+                                <AvatarFallback className={cn("text-lg font-semibold", getAvatarFallbackClass(userSeed))}>
                                     {nameIntial}
                                 </AvatarFallback>
                             </Avatar>
@@ -169,22 +173,22 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <span
                                     aria-hidden
                                     className={cn(
-                                        "h-6 w-6 ring-[4px] ring-background rounded-full absolute bottom-1 right-2",
+                                        "h-3.5 w-3.5 ring-2 ring-background rounded-full absolute bottom-0 right-0",
                                         statusColors.online.solid,
                                     )}
                                 />
                             )}
                         </button>
-                        <div className="text-center space-y-1">
+                        <div data-profile-name="" className="min-w-0 flex-1 space-y-0.5">
                             {loading && (
-                                <div className="flex flex-col items-center gap-2" role="status" aria-label="Loading their profile">
+                                <div className="flex flex-col gap-2" role="status" aria-label="Loading their profile">
                                     <Skeleton className="h-6 w-40" />
                                     <Skeleton className="h-4 w-28" />
                                 </div>
                             )}
                             {!loading && (
-                            <div className="flex items-center justify-center gap-2">
-                                <h2 className="text-lg font-semibold text-foreground truncate max-w-[220px]">
+                            <div className="flex min-w-0 items-center gap-2">
+                                <h2 className="text-base font-semibold text-foreground truncate">
                                     {shownName || "Unnamed"}
                                 </h2>
                                 {isBot ? (
@@ -197,14 +201,15 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                             {/* The green dot says it in colour; this says it in words. */}
                             {isOnline && <p className="text-xs font-medium text-success-ink">Online</p>}
                             {(fullName || handle) && (
-                                <p className="text-sm text-muted-foreground truncate max-w-[260px]">
+                                <p className="text-sm text-muted-foreground truncate">
                                     {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
                                 </p>
                             )}
                             {showContactLine && (
-                                <p className="text-sm text-muted-foreground truncate max-w-[260px]">{contactLine}</p>
+                                <p className="text-sm text-muted-foreground truncate">{contactLine}</p>
                             )}
                         </div>
+                      </div>
                         {/*
                           External users are read-only contacts (e.g. GitHub
                           collaborators surfaced through tasks/comments).
@@ -237,7 +242,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
                             <>
-                                <p className="text-xs text-muted-foreground text-center max-w-[220px] leading-relaxed">
+                                <p className="text-xs text-muted-foreground leading-relaxed">
                                     External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
                                 </p>
                                 {/* An admin can bring an imported placeholder in. */}

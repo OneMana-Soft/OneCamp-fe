@@ -24,7 +24,7 @@ const maya = { user_uuid: "u-maya", user_name: "maya", user_full_name: "Maya Che
 
 /** The lines under the name, in order. */
 function linesUnderName(name: string): string[] {
-  const block = screen.getByRole("heading", { name }).closest(".text-center")!
+  const block = screen.getByRole("heading", { name }).closest("[data-profile-name]")!
   return Array.from(block.querySelectorAll(":scope > p")).map((p) => p.textContent ?? "")
 }
 
@@ -69,5 +69,19 @@ describe("a member's profile", () => {
     profile.data = { data: { ...maya } }
     render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
     expect((screen.getByRole("button", { name: "See maya's photo" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe("the profile card's shape", () => {
+  // One 448px column: the photo at 64px beside the name, its few details
+  // below. Two 672px columns left one line beside a 128px photo.
+  it("is one narrow column with the photo beside the name", async () => {
+    const { readFileSync } = await import("node:fs")
+    const { resolve } = await import("node:path")
+    const src = readFileSync(resolve(__dirname, "otherUserProfileDialog.tsx"), "utf8")
+    expect(src).toContain('<DialogContent className="sm:max-w-md">')
+    expect(src).toMatch(/data-profile-head="" className="flex items-center gap-4"/)
+    expect(src).toContain('<Avatar className="h-16 w-16')
+    expect(src).not.toMatch(/md:flex-row|h-32 w-32|sm:max-w-2xl/)
   })
 })
