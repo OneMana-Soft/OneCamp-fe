@@ -1,11 +1,12 @@
 import {MobileChannelTextInput} from "@/components/textInput/mobileChannelTextInput";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
+import { ComposerNotice } from "@/components/channel/composerNotice";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
 import {ChannelInfoInterfaceResp, ChannelJoinInterface} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import {useFetch} from "@/hooks/useFetch";
-import { Megaphone } from "@/lib/icons";
+import { FileArchive, Megaphone } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
@@ -47,7 +48,9 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
                     channelName={channelDisplayName}
                     onJoin={joinChannel}
                     joining={postJoinChannel.isSubmitting}
-                    className="mt-12 pb-[env(safe-area-inset-bottom)]"
+                    // 16px above the screen's edge as well as the home bar: the
+                    // button touched the bottom of the screen.
+                    className="mt-12 pb-[calc(1rem+env(safe-area-inset-bottom))]"
                 />
             )
         }
@@ -57,9 +60,12 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
             // no `flex`, so the centring classes were inert. Its sibling (the
             // moderators-only notice below) already gets both right.
             return (
-                <p className='border-t fixed bottom-0 w-full px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground bg-background'>
+                // The moderators-only notice's form: one quiet line where the
+                // composer would be, in the desktop's words. It was a 64px
+                // block ending in an emoji.
+                <ComposerNotice icon={<FileArchive />} className='border-t fixed bottom-0 px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-background'>
                     This channel is archived. You can read it, but not post in it.
-                </p>
+                </ComposerNotice>
             )
         }
 
@@ -68,10 +74,9 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
             !channelInfo.data?.channel_info.ch_is_admin
         ) {
             return (
-                <div className='border-t fixed bottom-0 flex items-center justify-center gap-2 w-full py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground bg-background'>
-                    <Megaphone className="h-4 w-4" />
-                    <span>Only moderators can post here.</span>
-                </div>
+                <ComposerNotice icon={<Megaphone />} className='border-t fixed bottom-0 px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-background'>
+                    Only moderators can post here.
+                </ComposerNotice>
             )
         }
 
