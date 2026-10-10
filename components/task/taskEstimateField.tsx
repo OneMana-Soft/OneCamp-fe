@@ -11,7 +11,8 @@ import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
 import { formatDuration, parseDuration } from "@/lib/tasks/time"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { fieldLabel, fieldRow, inlineInput } from "@/lib/ui/fieldRow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
@@ -73,7 +74,7 @@ export function TaskEstimateField({ taskUUID, projectUUID, minutes, canEdit }: {
         <Input
           id={id}
           value={draft}
-          placeholder="How long? 2h, 30m"
+          placeholder="How long? 2h 30m…"
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => void save()}
           onKeyDown={(e) => {
@@ -85,7 +86,7 @@ export function TaskEstimateField({ taskUUID, projectUUID, minutes, canEdit }: {
               e.currentTarget.blur()
             }
           }}
-          className="h-8 w-40 text-sm"
+          className={cn(inlineInput, "w-48 tabular-nums")}
         />
       ) : (
         <span className="text-sm text-muted-foreground">{shown || "None"}</span>

@@ -40,3 +40,12 @@ describe("the Estimate field", () => {
     expect(screen.getByText("1h 30m")).toBeTruthy()
   })
 })
+
+describe("the Estimate field's look", () => {
+  it("reads as a value until it has focus: no box at rest, and an example of what to type", () => {
+    render(<TaskEstimateField taskUUID="t" projectUUID="p" canEdit />)
+    expect(field().className).toMatch(/border-transparent/)
+    expect(field().className).not.toMatch(/(^|\s)border-input(\s|$)/)
+    expect(field().placeholder).toBe("How long? 2h 30m…")
+  })
+})

@@ -11,7 +11,8 @@ import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { fieldLabel, fieldRow, inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
+import { PrincipalTag } from "@/components/ui/principalTag"
 
 
 type AssigneePickerProps = {
@@ -52,24 +53,25 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
             <div>
                 <span className={fieldLabel}>{label}</span>
             </div>
-            <div className="min-w-0 -ml-2">
+            <div className="min-w-0">
                 <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                         <Button
                             variant="ghost"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-full max-w-[220px] justify-between font-normal h-8 bg-transparent group hover:bg-muted/40 transition-colors duration-150 px-2"
+                            aria-label={assignee ? `${label}: ${displayNameOf(assignee)}` : `${label}: nobody`}
+                            className={cn(inlineValue, "max-w-[240px]")}
                             disabled={!isAdmin}
                         >
-                            <div className='flex text-sm font-medium gap-x-2 items-center truncate'>
-                                {assignee && <DesktopNavigationChatAvatar userInfo={assignee}/>}
-                                <span className="truncate">{assignee ? displayNameOf(assignee) : "Select assignee"}</span>
-                            </div>
-                            <ChevronsUpDown className="invisible group-hover:visible ml-2 h-4 w-4 shrink-0 opacity-40" />
+                            {assignee && <DesktopNavigationChatAvatar userInfo={assignee}/>}
+                            <span className={cn("truncate", !assignee && "text-muted-foreground")}>
+                                {assignee ? displayNameOf(assignee) : isAdmin ? "Assign someone" : "Nobody"}
+                            </span>
+                            <ChevronsUpDown className={cn(inlineAffordance, "h-3.5 w-3.5")} aria-hidden />
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[240px] p-0 shadow-xl border-border/50 rounded-xl overflow-hidden">
+                    <PopoverContent className="w-[240px] overflow-hidden p-0" align="start">
                         <Command className="bg-popover">
                             <CommandInput placeholder="Search member…" className="h-9 border-none focus:ring-0 shadow-none"/>
                             <CommandList className="max-h-[200px] overflow-y-auto">
@@ -81,9 +83,10 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                             value={member.user_uuid}
                                             keywords={personKeywords(member)}
                                             onSelect={handleSelect}
-                                            className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
+                                            className="cursor-pointer gap-2"
                                         >
-                                            <span className="flex-1 font-medium text-sm">{displayNameOf(member)}</span>
+                                            <DesktopNavigationChatAvatar userInfo={member}/>
+                                            <span className="flex-1 truncate">{displayNameOf(member)}</span>
                                             <Check
                                                 className={cn(
                                                     "ml-auto h-4 w-4 text-primary",
@@ -101,10 +104,11 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                                 value={member.user_uuid}
                                                 keywords={personKeywords(member, ["ai"])}
                                                 onSelect={handleSelect}
-                                                className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
+                                                className="cursor-pointer gap-2"
                                             >
-                                                <span className="flex-1 font-medium text-sm">{displayNameOf(member)}</span>
-                                                <span className="text-2xs uppercase tracking-wide text-primary/70 border border-primary/30 rounded px-1 py-0.5">AI</span>
+                                                <DesktopNavigationChatAvatar userInfo={member}/>
+                                                <span className="flex-1 truncate">{displayNameOf(member)}</span>
+                                                <PrincipalTag kind="ai" />
                                                 <Check
                                                     className={cn(
                                                         "ml-1 h-4 w-4 text-primary",

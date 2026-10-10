@@ -10,7 +10,7 @@ import { usePost } from "@/hooks/usePost"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { cycleDates, cycleLabel, openCycles, type Cycle } from "@/lib/tasks/cycles"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { fieldLabel, fieldRow, inlineSelect } from "@/lib/ui/fieldRow"
 
 const NONE = "none"
 
@@ -43,7 +43,7 @@ export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: str
       </div>
       <div className="min-w-0">
         <Select value={current?.id ?? NONE} onValueChange={change} disabled={!isAdmin || isSubmitting}>
-          <SelectTrigger className="-ml-2 h-8 w-fit min-w-40 border-none px-2 shadow-none hover:bg-accent" aria-label="Cycle">
+          <SelectTrigger className={inlineSelect} aria-label="Cycle">
             <SelectValue>{current ? cycleLabel(current) : <span className="text-muted-foreground">No cycle</span>}</SelectValue>
           </SelectTrigger>
           <SelectContent>

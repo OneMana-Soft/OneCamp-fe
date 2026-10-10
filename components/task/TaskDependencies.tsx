@@ -7,6 +7,7 @@
 // keyboard's way to what the timeline draws as arrows.
 
 import * as React from "react"
+import { inlineAdd, sectionTitle } from "@/lib/ui/fieldRow"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Input } from "@/components/ui/input"
@@ -63,7 +64,7 @@ export function TaskDependencies({
   return (
     <div className="mb-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Label className="inline">Dependencies</Label>
+        <h3 className={sectionTitle}>Dependencies</h3>
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
       <div className="grid gap-3">
@@ -95,19 +96,15 @@ export function TaskDependencies({
             onChangeWay={(id, way) => void change(id, taskUUID, false, way)}
           />
         )}
-        {waitingOn.length === 0 && blocking.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            {canEdit
-              ? "Add a task this one can't start without. The timeline draws it as an arrow; you can then change how it waits."
-              : "It doesn't wait on another task."}
-          </p>
+        {waitingOn.length === 0 && blocking.length === 0 && !canEdit && (
+          <p className="text-sm text-muted-foreground">It doesn&apos;t wait on another task.</p>
         )}
         {canEdit && (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-8 w-fit gap-1.5 px-2 text-xs" disabled={busy}>
-                <Plus className="h-3.5 w-3.5" />
-                Waits on…
+              <Button type="button" variant="ghost" size="sm" className={cn(inlineAdd, "w-fit")} disabled={busy} title="A task this one can't start without. The timeline draws it as an arrow.">
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Add a task it waits on
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
@@ -168,7 +165,7 @@ function DependencyGroup({
     <div className="grid gap-1.5">
       <p className="text-xs text-muted-foreground">{title}</p>
       {tasks.map((t) => (
-        <div key={t.task_uuid} className="group flex items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 transition-colors hover:bg-accent/40">
+        <div key={t.task_uuid} className="group -mx-2 flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-highlight">
           <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", dotColor(t, options))} />
           <button
             type="button"

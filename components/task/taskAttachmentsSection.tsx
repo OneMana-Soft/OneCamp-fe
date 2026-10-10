@@ -1,8 +1,10 @@
 "use client"
 
-import { Plus, X } from "@/lib/icons";
+import { Paperclip, X } from "@/lib/icons";
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils/helpers/cn"
+import { inlineAdd, sectionTitle } from "@/lib/ui/fieldRow"
 import ProjectAttachment from "@/components/project/projectAttachment"
 import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon"
 import type { AttachmentMediaReq } from "@/types/attachment"
@@ -35,30 +37,24 @@ export function TaskAttachmentsSection({
   onAttachmentClick,
   onRemovePreview,
 }: TaskAttachmentsSectionProps) {
+  // Nothing to show and nothing to add: no section at all.
+  if (!isAdmin && attachments.length === 0 && previewFiles.length === 0) return null
   return (
     <div className="mb-4">
-      <div className="mb-2">
-        <Label className="inline">Attachments</Label>
-      </div>
+      <h3 className={cn(sectionTitle, "mb-2")}>Attachments</h3>
+      {isAdmin && (
+        <>
+          {/* A button the keyboard reaches: the dashed tile was a label over a
+              hidden input, which only a pointer could open. */}
+          <Button type="button" variant="ghost" size="sm" className={inlineAdd} onClick={() => fileInputRef.current?.click()}>
+            <Paperclip className="h-3.5 w-3.5" aria-hidden />
+            Attach a file
+          </Button>
+          <Input type="file" id="project-file-task-upload" multiple ref={fileInputRef} onChange={onFileSelect} className="hidden" tabIndex={-1} aria-hidden />
+        </>
+      )}
 
       <div className="flex flex-wrap gap-2">
-        {isAdmin && (
-          <div className="flex justify-between items-center">
-            <Label htmlFor="project-file-task-upload" className="cursor-pointer">
-              <div className="p-2 h-14 w-14 border-dashed bg-background rounded-2xl border-2 text-muted-foreground flex justify-center items-center hover:border-primary hover:text-primary transition-colors">
-                <Plus size={30} />
-              </div>
-            </Label>
-            <Input
-              type="file"
-              id="project-file-task-upload"
-              multiple
-              ref={fileInputRef}
-              onChange={onFileSelect}
-              className="hidden"
-            />
-          </div>
-        )}
         {attachments.map((file) => (
           <ProjectAttachment
             key={file.attachment_uuid}

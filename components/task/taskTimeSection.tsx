@@ -15,7 +15,8 @@ import { serverMessage } from "@/lib/http/serverMessage"
 import { ChevronDown, CircleStop, Pencil, Play, Plus, Trash2 } from "@/lib/icons"
 import { formatClock, formatDuration, parseDuration, type TimeEntryView } from "@/lib/tasks/time"
 import { startTimer, stopTimer, useElapsed, useRunningTimer, useTaskTime, type SpanInput } from "@/hooks/useTaskTime"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { fieldLabel, fieldRow, inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { localDay } from "@/lib/utils/timeZone"
 
 const shortDay = (iso: string) => shortDate(new Date(iso))
@@ -51,8 +52,19 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
       <div className="pt-1.5">
         <span className={fieldLabel}>Time</span>
       </div>
-      <div className="min-w-0 grid gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 grid gap-1">
+        {/* What's logged first, as the row's value; then what can be done. Each
+            line starts at the column's edge, which one wrapping row could not. */}
+        {(time?.entries.length ?? 0) > 0 && (
+          <Button size="sm" variant="ghost" className={cn(inlineValue, "w-fit")} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <span className="tabular-nums">{formatDuration(total)}</span> logged
+            {!!estimateMinutes && (
+              <span className={total > estimateMinutes * 60 ? "text-danger-ink" : "text-muted-foreground"}>of {formatDuration(estimateMinutes * 60)}</span>
+            )}
+            <ChevronDown aria-hidden className={cn(inlineAffordance, "h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+          </Button>
+        )}
+        <div className="flex flex-wrap items-center gap-1">
           {runningHere ? (
             <Button size="sm" variant="destructive" className="h-8 gap-1.5" disabled={busy} onClick={() => act(() => stopTimer(taskUUID), "Couldn't stop the timer")}>
               <CircleStop className="h-4 w-4" />
@@ -61,8 +73,8 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
           ) : (
             <Button
               size="sm"
-              variant="outline"
-              className="h-8 gap-1.5"
+              variant="ghost"
+              className={inlineValue}
               disabled={busy}
               title={running ? `Stops the timer on "${running.task_name}"` : undefined}
               onClick={() => act(() => startTimer(taskUUID, running?.entry.task_uuid), "Couldn't start the timer")}
@@ -71,19 +83,10 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
               Start timer
             </Button>
           )}
-          <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={() => { setOpen(true); setEditing("new") }}>
+          <Button size="sm" variant="ghost" className="h-8 gap-1 px-2 font-normal text-muted-foreground hover:text-foreground" onClick={() => { setOpen(true); setEditing("new") }}>
             <Plus className="h-3.5 w-3.5" />
             Add time
           </Button>
-          {(time?.entries.length ?? 0) > 0 && (
-            <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-              <span className="tabular-nums">{formatDuration(total)}</span> logged
-              {!!estimateMinutes && (
-                <span className={total > estimateMinutes * 60 ? "text-danger-ink" : undefined}>of {formatDuration(estimateMinutes * 60)}</span>
-              )}
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-            </Button>
-          )}
         </div>
 
         {editing === "new" && (
