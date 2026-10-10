@@ -103,7 +103,7 @@ interface MinimalTiptapProps
 // send) grow together, whoever draws them.
 export const COMPOSER_ROW_TOUCH = "pointer-coarse:[&_button]:size-10"
 
-const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ["italic", "bold", "code", "strikethrough"];
+const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ["bold", "italic", "strikethrough", "code"];
 const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ["bulletList", "orderedList"];
 const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ["blockquote", "codeBlock", "horizontalRule"];
 const DEFAULT_ALLOWED_MIME_TYPES = ['*/*'];
