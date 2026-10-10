@@ -103,7 +103,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
             <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
                 <DialogHeader>
-                    <DialogTitle className="text-start">Edit Project</DialogTitle>
+                    <DialogTitle className="text-start">Rename the project</DialogTitle>
                     <DialogDescription className="hidden">
                         Edit project name
                     </DialogDescription>
@@ -111,7 +111,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="grid gap-4 py-4 space-y-3">
                         <div className="grid gap-2">
-                            <Label>Channel Name</Label>
+                            <Label htmlFor="projectName">Project name</Label>
                             <Controller
                                 name="project_name"
                                 control={control}
@@ -120,8 +120,8 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                                         <div className="flex items-center gap-2">
                                             <Input
                                                 {...field}
-                                                id="teamName"
-                                                placeholder="Type channel name"
+                                                id="projectName"
+                                                placeholder="e.g. Q4 launch"
                                                 autoFocus
                                             />
                                         </div>
@@ -147,7 +147,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                                 (p_name == originalTeamName)
                             }
                         >
-                            {isSubmitting ? "Updating…" : "Update Project name"}
+                            {isSubmitting ? "Updating…" : "Rename"}
                         </Button>
                     </DialogFooter>
                 </form>
