@@ -193,7 +193,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {all.length > 0 && (
-        <div className={cn("flex flex-wrap items-center gap-2 pb-2", compact && "px-3")}>
+        <div className="flex flex-wrap items-center gap-2 pb-2">
           <ToggleGroup
             type="single"
             size="sm"
@@ -224,7 +224,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
               Mine
             </ToggleGroupItem>
           </ToggleGroup>
-          <SearchField value={query} onChange={setQuery} placeholder="Search goals or owners…" className={compact ? "w-full" : "w-72"} />
+          <SearchField value={query} onChange={setQuery} placeholder="Search goals or owners…" className={compact ? "-mx-3 w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]" : "w-72"} />
           {due > 0 && !compact && <span className="text-xs text-warning">{due === 1 ? "1 goal needs a check-in" : `${due} goals need a check-in`}</span>}
           <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => setCreating(true)}>
             <Target className="h-4 w-4" />
