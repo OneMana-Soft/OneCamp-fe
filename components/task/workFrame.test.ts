@@ -40,3 +40,11 @@ describe("the task views' tabs share one frame", () => {
     expect(src).not.toContain('<div className="p-4">')
   })
 })
+
+describe("the client's project view", () => {
+  it("leads one 32px toolbar row with its Board and Timeline switch on both views", () => {
+    const src = readFileSync("app/guest/p/[token]/page.tsx", "utf8")
+    expect(src).toContain("leading={modeSwitch}")
+    expect(src).toContain('<div data-work-toolbar="" className={workToolbar}>{modeSwitch}</div>')
+  })
+})
