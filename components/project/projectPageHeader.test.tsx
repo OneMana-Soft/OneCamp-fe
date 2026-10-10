@@ -22,8 +22,8 @@ vi.mock("@/components/project/timeline/ProjectTimeline", () => ({ ProjectTimelin
 vi.mock("@/components/projectUpdates/ProjectUpdates", () => ({ ProjectUpdates: () => null }))
 vi.mock("@/components/project/ProjectAttachments", () => ({ ProjectAttachments: () => null }))
 vi.mock("@/components/entityLink/LinkedItemsSection", () => ({ LinkedItemsSection: () => null }))
-vi.mock("@/components/project/ProjectHeaderLine", () => ({ ProjectHeaderLine: () => null }))
-vi.mock("@/components/project/ProjectToolButtons", () => ({ ProjectActionsMenu: () => null }))
+vi.mock("@/components/project/ProjectHeaderLine", () => ({ ProjectHeaderLine: () => <div data-testid="project-line" /> }))
+vi.mock("@/components/project/ProjectToolButtons", () => ({ ProjectActionsMenu: () => <button type="button">Project actions</button> }))
 vi.mock("@/components/Notification/notificationBell", () => ({ NotificationBell: () => null }))
 
 const { ProjectTaskDesktop } = await import("@/components/project/projectTaskDesktop")
@@ -49,5 +49,15 @@ describe("a project's page", () => {
     render(<ProjectTaskDesktop projectId={id} />)
     const title = screen.getByRole("heading", { level: 1 })
     expect(title.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor(id))
+  })
+
+  it("gives the line under the name the header's whole width, with the actions on the name's row", () => {
+    // Beside the actions the line was cut short at 1440 with a panel open:
+    // "6 open · 5 due this week · 11 do…" and "Launch the Business t…".
+    h.info = { data: { data: { project_uuid: id, project_name: "Q4 launch", project_is_admin: true, project_is_member: true } }, isLoading: false }
+    render(<ProjectTaskDesktop projectId={id} />)
+    const row = screen.getByRole("heading", { level: 1 }).closest("[data-page-title-row]")!
+    expect(row.contains(screen.getByRole("button", { name: "Project actions" }))).toBe(true)
+    expect(screen.getByTestId("project-line").closest("[data-page-title-row]")).toBeNull()
   })
 })

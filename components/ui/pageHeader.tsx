@@ -29,33 +29,42 @@ export function PageHeader({
 }: {
   eyebrow?: React.ReactNode
   title: React.ReactNode
-  /** The line under the title. Leave it out rather than restate the title. */
+  /** The line under the title, the header's full width. Leave it out rather than restate the title. */
   children?: React.ReactNode
-  /** Controls on the right, level with the title. */
+  /** Controls on the right, on the title's centre line. */
   actions?: React.ReactNode
   /** `lg` for Home, where the greeting is the page. */
   size?: "default" | "lg"
   className?: string
 }) {
   return (
-    // Narrow (a side panel open, or the page side by side with another): the
-    // controls drop below the title rather than squeezing it a word a line.
-    <header className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-3", className)}>
-      <div className="min-w-[min(100%,16rem)] flex-1 space-y-1.5">
-        {eyebrow && <p className={kicker}>{eyebrow}</p>}
+    <header className={cn("space-y-1.5", className)}>
+      {eyebrow && <p className={kicker}>{eyebrow}</p>}
+      {/* The title and the page's controls share one row, on its centre line.
+          The controls used to sit beside the whole block, bottom-aligned: with a
+          line under the title they sat level with that line instead, and took
+          their width from it, so a project's line ("6 open · 5 due this week ·
+          11 done", its health and its goal) was cut short at 1440 with a panel
+          open. Narrow (a side panel open, or the page side by side with
+          another), the controls drop below the title rather than squeezing it a
+          word a line. Their -my-1 keeps a 36px button from making the row taller
+          than the title, so every header has the same rhythm with or without
+          controls. */}
+      <div data-page-title-row="" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <h1
           className={cn(
             // No extra tracking: Inter Tight is already set tight, and
             // tracking-tight on top of it ran the words together.
-            "font-display font-semibold tracking-normal text-foreground text-balance",
+            "min-w-[min(100%,16rem)] flex-1 font-display font-semibold tracking-normal text-foreground text-balance",
             size === "lg" ? "text-3xl" : "text-2xl",
           )}
         >
           {title}
         </h1>
-        {children}
+        {actions && <div data-page-actions="" className="-my-1 flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {/* The line under the title has the header's whole width. */}
+      {children}
     </header>
   )
 }
