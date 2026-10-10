@@ -59,7 +59,11 @@ describe("a formula column", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add a column" }))
     fireEvent.change(screen.getByPlaceholderText("Column name"), { target: { value: "With tax" } })
     fireEvent.change(screen.getByDisplayValue("Text"), { target: { value: "formula" } })
-    const add = screen.getByRole("button", { name: "Add" })
+    // Set up in a popover on the + button, in the column menu's form.
+    const form = document.querySelector("[data-add-column]") as HTMLElement
+    expect(form).not.toBeNull()
+    expect(screen.getByLabelText("Type").tagName).toBe("SELECT")
+    const add = screen.getByRole("button", { name: "Add column" })
     // Not without a formula.
     expect((add as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole("textbox", { name: "Formula" }), { target: { value: "{Total} * 1.18" } })

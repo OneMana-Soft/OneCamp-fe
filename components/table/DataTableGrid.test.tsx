@@ -17,7 +17,8 @@ vi.mock("@/services/tableService", async (importOriginal) => {
 })
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
-import { DataTableGrid } from "@/components/table/DataTableGrid"
+import { DataTableGrid, groupedNumber } from "@/components/table/DataTableGrid"
+import { optionColorClass } from "@/components/table/optionChip"
 import type { TableField, TableRow } from "@/services/tableService"
 
 const fields: TableField[] = [
@@ -158,6 +159,49 @@ describe("a grid with no rows to show", () => {
   it("shows nothing extra once there are rows", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} empty={<p>No rows yet</p>} />)
     expect(screen.queryByText("No rows yet")).toBeNull()
+  })
+})
+
+describe("a grid's cells at rest", () => {
+  const typed: TableField[] = [
+    { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 0 },
+    { id: "cost", table_id: "t", name: "Cost", type: "number", config: "{}", position: 1 },
+    { id: "due", table_id: "t", name: "Due", type: "date", config: "{}", position: 2 },
+    { id: "kind", table_id: "t", name: "Kind", type: "select", config: JSON.stringify({ options: [{ label: "Events", color: "berry" }, { label: "Support" }] }), position: 3 },
+    { id: "tags", table_id: "t", name: "Tags", type: "multi_select", config: JSON.stringify({ options: [{ label: "Urgent", color: "sun" }] }), position: 4 },
+  ]
+  const one = (values: Record<string, unknown>): TableRow[] => [
+    { id: "r0", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth", ...values }) },
+  ]
+
+  it("writes a date as the app does, from a button that opens the task panel's calendar", () => {
+    render(<DataTableGrid tableId="t" fields={typed} rows={one({ due: "2026-10-07" })} canManage onChange={() => {}} />)
+    expect(document.querySelector('input[type="date"]')).toBeNull()
+    const due = screen.getByRole("button", { name: /^Due:/ })
+    expect(due.textContent).toMatch(/^7 Oct( 2026)?$/)
+    fireEvent.click(due)
+    expect(screen.getByRole("grid")).toBeTruthy()
+  })
+
+  it("groups a number at rest as the formula beside it does, and keeps the digits to type in", () => {
+    render(<DataTableGrid tableId="t" fields={typed} rows={one({ cost: 1200 })} canManage onChange={() => {}} />)
+    const cost = screen.getByRole("textbox", { name: "Cost" }) as HTMLInputElement
+    expect(cost.value).toBe("1200")
+    const shown = cost.parentElement?.querySelector("span[aria-hidden]")
+    expect(shown?.textContent).toBe((1200).toLocaleString(undefined, { maximumFractionDigits: 6 }))
+    expect(cost.className).toMatch(/text-transparent/)
+    expect(cost.className).toMatch(/focus:text-foreground/)
+    expect(groupedNumber("6.5")).toBe((6.5).toLocaleString(undefined, { maximumFractionDigits: 6 }))
+    expect(groupedNumber("12 boxes")).toBeNull()
+  })
+
+  it("shows a chosen option in its colour, the way a guest sees it", () => {
+    render(<DataTableGrid tableId="t" fields={typed} rows={one({ kind: "Events", tags: ["Urgent"] })} canManage onChange={() => {}} />)
+    const chips = [...document.querySelectorAll("[data-option-chip]")] as HTMLElement[]
+    const events = chips.find((c) => c.textContent === "Events")!
+    const urgent = chips.find((c) => c.textContent === "Urgent")!
+    for (const cls of optionColorClass("berry").split(" ")) expect(events.className).toContain(cls)
+    for (const cls of optionColorClass("sun").split(" ")) expect(urgent.className).toContain(cls)
   })
 })
 
