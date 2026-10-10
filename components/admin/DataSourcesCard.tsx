@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { Switch } from "@/components/ui/switch"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -21,23 +22,13 @@ import { DataSourceEditDialog } from "./DataSourceEditDialog"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { cn } from "@/lib/utils/helpers/cn"
 
 const ENGINE_LABELS: Record<string, string> = { postgres: "PostgreSQL", mysql: "MySQL" }
 
-/** A state is a dot and a word, not a filled badge. */
-function StateWord({ tone, children }: { tone: "off" | "warn"; children: React.ReactNode }) {
-  return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs", tone === "warn" ? "text-warning-ink" : "text-muted-foreground")}>
-      <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "warn" ? "bg-warning" : "bg-faint-foreground")} />
-      {children}
-    </span>
-  )
-}
 
 const DataSourcesCard = () => {
   const { data, isLoading, isError, mutate } = useFetch<{ data: DataSource[] }>(GetEndpointUrl.GetDataSources)
@@ -106,46 +97,41 @@ const DataSourcesCard = () => {
     })
   }
 
+  // A flat section of the settings Agents page, where it was a bordered Card
+  // with its own tile and title.
   return (
-    <Card className="border-border/60">
-      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          {/* On the AI and automation group's tile; it was orange, which is
-              for the one action a view asks for. */}
-          <CardTitle as="h2" className="flex items-center gap-2.5 text-base font-semibold">
-            <Tile hue={ADMIN_GROUP_HUE.ai} size="md">
-              <Database />
-            </Tile>
-            Data sources
-          </CardTitle>
-          <CardDescription className="max-w-xl">
-            Connect an outside database so agents can answer questions from it, the way they query tables here.
-            Connections are read-only, and the password is stored encrypted.
-          </CardDescription>
-        </div>
-        {/* Outline: the page's one primary action is New agent. */}
-        <Button variant="outline" onClick={() => setCreating(true)} className="shrink-0 self-start">
-          <Plus className="h-4 w-4 mr-1.5" />
+    <SettingsSection
+      title="Data sources"
+      description="Connect an outside database so agents can answer questions from it, the way they query tables here. Connections are read-only, and the password is stored encrypted."
+      action={
+        // Outline: the page's one primary action is New agent.
+        <Button variant="outline" size="sm" className={sectionActionClass} onClick={() => setCreating(true)}>
+          <Plus />
           Add source
         </Button>
-      </CardHeader>
-
-      <CardContent>
+      }
+    >
         {isLoading ? (
-          <div role="status" aria-label="Loading data sources">
-            <SkeletonRows rows={3} />
-          </div>
+          <SectionListSkeleton label="Loading data sources" rows={1} lines={2} trailing="switch" />
         ) : isError ? (
-          <ErrorState subject="the data sources" onRetry={() => void mutate()} />
-        ) : sources.length === 0 ? (
-          <EmptyState
-            tone="accent"
-            icon={Database}
-            hue={ADMIN_GROUP_HUE.ai}
-            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.ai} />}
-            title="No data sources yet"
-            description="Add a read-only PostgreSQL or MySQL connection to let agents query it."
+          <ErrorState
+            compact
+            subject="the data sources"
+            detail={apiErrorMessage(isError, "Try again in a moment.")}
+            onRetry={() => void mutate()}
           />
+        ) : sources.length === 0 ? (
+          // A first run, so the plug spot, inside the list's own box.
+          <div className="rounded-lg border border-border">
+            <EmptyState
+              icon={Database}
+              hue={ADMIN_GROUP_HUE.ai}
+              illustration={<SpotPlug hue={ADMIN_GROUP_HUE.ai} />}
+              title="No data sources yet"
+              description="Add a read-only PostgreSQL or MySQL connection to let agents query it."
+              className="py-6"
+            />
+          </div>
         ) : (
           // One hairline list of rows, where each source was a card.
           <ul className="divide-y divide-border rounded-lg border border-border">
@@ -160,8 +146,8 @@ const DataSourcesCard = () => {
                         {s.visibility === "private" && <Lock className="h-3 w-3" aria-hidden="true" />}
                         {s.visibility === "private" ? "Only you and admins" : "Everyone here"}
                       </span>
-                      {!s.enabled && <StateWord tone="off">Turned off</StateWord>}
-                      {!s.has_password && <StateWord tone="warn">No password</StateWord>}
+                      {!s.enabled && <StatusWord className="text-xs">Turned off</StatusWord>}
+                      {!s.has_password && <StatusWord tone="warning" className="text-xs">No password</StatusWord>}
                     </div>
                     <p className="truncate font-mono text-xs text-muted-foreground">
                       {s.username ? `${s.username}@` : ""}{s.host}:{s.port}/{s.database} · sslmode={s.ssl_mode}
@@ -225,7 +211,6 @@ const DataSourcesCard = () => {
             ))}
           </ul>
         )}
-      </CardContent>
 
       {(creating || editing) && (
         <DataSourceEditDialog
@@ -242,7 +227,7 @@ const DataSourcesCard = () => {
           }}
         />
       )}
-    </Card>
+    </SettingsSection>
   )
 }
 

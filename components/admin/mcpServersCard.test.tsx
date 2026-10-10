@@ -29,11 +29,12 @@ const server = {
 describe("MCP servers", () => {
   // The title icon was orange; the playful layer puts it on the AI group's
   // dusk tile, and the accent stays with the page's one primary action.
-  it("puts the title icon on the AI group's tile, and adds a server from an outline button", () => {
+  // A flat section now: no tile beside its title, nothing orange in it.
+  it("has no tile on its title, and adds a server from an outline button", () => {
     fetchState.servers = { data: { data: [server] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     fetchState.catalog = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<McpServersCard />)
-    expect(document.querySelector(".hue-dusk")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 2, name: "MCP servers" }).querySelector("svg")).toBeNull()
     expect(document.querySelector("svg.text-primary")).toBeNull()
     expect(screen.getByRole("button", { name: /Add server/ }).className).not.toMatch(/\bbg-primary\b/)
   })

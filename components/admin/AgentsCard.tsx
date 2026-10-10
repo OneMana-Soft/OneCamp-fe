@@ -2,8 +2,9 @@
 
 import React, { useState } from "react"
 import dynamic from "next/dynamic"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useFetch } from "@/hooks/useFetch"
@@ -12,9 +13,10 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Plus, Trash2, Pencil, Sparkles, History, LayoutTemplate } from "@/lib/icons"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
   Agent,
   WorkspaceAgentStats,
@@ -33,23 +35,12 @@ import {
 import AgentActivityFeed from "./AgentActivityFeed"
 import AgentActiveWorkPanel from "./AgentActiveWorkPanel"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 // Loaded when opened: the edit dialog is some 1,400 lines and the run history
 // some 700, and both came down with the list before anyone opened either.
 const AgentEditDialog = dynamic(() => import("./AgentEditDialog").then((m) => m.AgentEditDialog), { ssr: false })
 const AgentRunsDialog = dynamic(() => import("./AgentRunsDialog").then((m) => m.AgentRunsDialog), { ssr: false })
-
-/** A state is a dot and a word, not a filled badge. */
-function StateWord({ tone, children }: { tone: "off" | "bad"; children: React.ReactNode }) {
-  return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs", tone === "bad" ? "text-danger-ink" : "text-muted-foreground")}>
-      <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "bad" ? "bg-destructive" : "bg-faint-foreground")} />
-      {children}
-    </span>
-  )
-}
 
 const TRIGGER_LABEL: Record<string, string> = {
   manual: "Manual",
@@ -210,7 +201,19 @@ const AgentOutcomeBadge: React.FC<{ outcome?: AgentOutcome }> = ({ outcome }) =>
   )
 }
 
-const AgentsCard = () => {
+/**
+ * The agents a person builds and sponsors: a flat section of the settings
+ * Agents page (it was a bordered Card with its own tile and title).
+ *
+ * "New agent" is the page's one primary action. When the page holds it (the
+ * settings page puts it in its header, beside the h1), it passes `creating`
+ * and `onCreatingChange` and the section draws no button of its own; on its
+ * own, the section offers it on its title's row.
+ */
+const AgentsCard = ({
+  creating: creatingProp,
+  onCreatingChange,
+}: { creating?: boolean; onCreatingChange?: (open: boolean) => void } = {}) => {
   const { data, isLoading, isError, mutate } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
   const { data: overview } = useFetch<{ data: WorkspaceAgentStats }>(`${GetEndpointUrl.GetAgents}/overview`)
   const { data: health } = useFetch<{ data: Record<string, AgentHealth> }>(`${GetEndpointUrl.GetAgents}/health`)
@@ -219,7 +222,10 @@ const AgentsCard = () => {
   const { toast } = useToast()
   const confirm = useConfirm()
   const [editing, setEditing] = useState<Agent | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [creatingHere, setCreatingHere] = useState(false)
+  const heldByPage = onCreatingChange !== undefined
+  const creating = heldByPage ? !!creatingProp : creatingHere
+  const setCreating = (open: boolean) => (heldByPage ? onCreatingChange(open) : setCreatingHere(open))
   const [publishing, setPublishing] = useState<Agent | null>(null)
   const [viewingRuns, setViewingRuns] = useState<Agent | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -277,44 +283,33 @@ const AgentsCard = () => {
   })
 
   return (
-    <Card className="border-border/60">
-      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          {/* "Agents", as the page and the menu call them; the icon on the AI
-              and automation group's tile, where it was orange. */}
-          <CardTitle as="h2" className="flex items-center gap-2.5 text-base font-semibold">
-            <Tile hue={ADMIN_GROUP_HUE.ai} size="md">
-              <Sparkles />
-            </Tile>
-            Agents
-          </CardTitle>
-          <CardDescription className="max-w-xl">
-            Give an agent instructions and a few tools, and it does real work in your workspace, only ever within
-            your own permissions.
-          </CardDescription>
-        </div>
-        <Button onClick={() => setCreating(true)} className="shrink-0 self-start">
-          <Plus className="h-4 w-4 mr-1.5" />
-          New agent
-        </Button>
-      </CardHeader>
-
-      <CardContent>
+    <SettingsSection
+      title="Agents"
+      description="Give an agent instructions and a few tools, and it does real work in your workspace, only ever within your own permissions."
+      action={
+        heldByPage ? undefined : (
+          <Button size="sm" className={sectionActionClass} onClick={() => setCreating(true)}>
+            <Plus />
+            New agent
+          </Button>
+        )
+      }
+    >
         {isLoading ? (
-          // Agent rows are avatar + name + description, so the placeholder is too.
-          <div role="status" aria-label="Loading agents">
-            <SkeletonRows rows={3} />
-          </div>
+          // Agent rows are a name with its badges, who it acts as, and its tools.
+          <SectionListSkeleton label="Loading agents" rows={2} lines={3} trailing="switch" />
         ) : isError ? (
-          <ErrorState subject="the agents" onRetry={() => void mutate()} />
+          <ErrorState compact subject="the agents" detail={apiErrorMessage(isError, "Try again in a moment.")} onRetry={() => void mutate()} />
         ) : agents.length === 0 ? (
-          <EmptyState
-            tone="accent"
-            icon={Sparkles}
-            hue={ADMIN_GROUP_HUE.ai}
-            title="No agents yet"
-            description="For example: a standup agent that sums up #standup each morning and opens a task for any blocker."
-          />
+          <div className="rounded-lg border border-border">
+            <EmptyState
+              icon={Sparkles}
+              hue={ADMIN_GROUP_HUE.ai}
+              title="No agents yet"
+              description="For example: a standup agent that sums up #standup each morning and opens a task for any blocker."
+              className="py-6"
+            />
+          </div>
         ) : (
           <div className="space-y-3">
             {overview?.data && overview.data.total_runs > 0 && (
@@ -333,7 +328,7 @@ const AgentsCard = () => {
                       <AgentHealthDot health={health?.data?.[a.id]} />
                       <span className="truncate text-sm font-medium">{a.name}</span>
                       <span className="text-xs text-muted-foreground">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</span>
-                      {!a.is_active && <StateWord tone="off">Paused</StateWord>}
+                      {!a.is_active && <StatusWord className="text-xs">Paused</StatusWord>}
                       {a.dm_able && <Badge variant="secondary" className="text-2xs">DM</Badge>}
                       {a.agui_endpoint && (
                         <Badge variant="secondary" className="text-2xs" title={"Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record."}>
@@ -348,7 +343,7 @@ const AgentsCard = () => {
                       )}
                       <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
                       <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
-                      {a.last_error && <StateWord tone="bad">Last run failed</StateWord>}
+                      {a.last_error && <StatusWord tone="danger" className="text-xs">Last run failed</StatusWord>}
                     </div>
                     {/* Whose permissions bound it. Every other badge on this row
                         says what the agent may do; this is the only line that
@@ -419,7 +414,6 @@ const AgentsCard = () => {
             </ul>
           </div>
         )}
-      </CardContent>
 
       {(creating || editing) && (
         <AgentEditDialog
@@ -455,7 +449,7 @@ const AgentsCard = () => {
           onClose={() => setViewingRuns(null)}
         />
       )}
-    </Card>
+    </SettingsSection>
   )
 }
 

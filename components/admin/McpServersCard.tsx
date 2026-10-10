@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useId, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useFetch } from "@/hooks/useFetch"
@@ -20,29 +21,24 @@ import {
 import { McpServerEditDialog } from "./McpServerEditDialog"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
 import { hueFor } from "@/lib/campHue"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 
-/** A state is a dot and a word, not a filled badge. */
-function StateWord({ tone, children }: { tone: "ok" | "off" | "bad"; children: React.ReactNode }) {
-  return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs", tone === "bad" ? "text-danger-ink" : "text-muted-foreground")}>
-      <span
-        aria-hidden="true"
-        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "ok" ? "bg-success" : tone === "bad" ? "bg-destructive" : "bg-faint-foreground")}
-      />
-      {children}
-    </span>
-  )
-}
-
-const McpServersCard = () => {
+/**
+ * The MCP servers agents can use, and the catalogue of checked connectors.
+ *
+ * A flat section, as every settings page and admin tab is: its title, one line
+ * and a hairline list. It was a bordered Card with its own tile and h2, both on
+ * the settings Agents page and inside the AI tab's Models section, where it
+ * sat as a box in a box. `embedded` draws it as a section of a section there.
+ */
+const McpServersCard = ({ embedded = false }: { embedded?: boolean } = {}) => {
   const { data, isLoading, isError, mutate } = useFetch<{ data: McpServer[] }>(GetEndpointUrl.GetMcpServers)
   const { data: catalogData, mutate: mutateCatalog } = useFetch<{ data: McpCatalogEntry[] }>(
     GetEndpointUrl.GetMcpCatalog,
@@ -91,54 +87,54 @@ const McpServersCard = () => {
     })
   }
 
+  const catalogHeadingId = useId()
+  const CatalogHeading = embedded ? "h4" : "h3"
+
   return (
-    <Card className="border-border/60">
-      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          {/* The title's icon on the AI and automation group's tile; it was
-              orange, which is for the one action a view asks for. */}
-          <CardTitle as="h2" className="flex items-center gap-2.5 text-base font-semibold">
-            <Tile hue={ADMIN_GROUP_HUE.ai} size="md">
-              <Plug />
-            </Tile>
-            MCP servers
-          </CardTitle>
-          <CardDescription className="max-w-xl">
-            Give your agents new tools from Model Context Protocol servers, from GitHub to your own internal
-            services.
-          </CardDescription>
-        </div>
-        {/* Outline: the page's one primary action is elsewhere (Run the drill
-            on the AI tab, New agent in your settings). */}
+    <SettingsSection
+      level={embedded ? 3 : 2}
+      title="MCP servers"
+      description="Give your agents new tools from Model Context Protocol servers, from GitHub to your own internal services."
+      action={
+        // Outline: the page's one primary action is elsewhere (New agent in
+        // your settings, Run the drill on the AI tab).
         <Button
           variant="outline"
+          size="sm"
+          className={sectionActionClass}
           onClick={() => {
             setPrefill(null)
             setCreating(true)
           }}
-          className="shrink-0 self-start"
         >
-          <Plus className="h-4 w-4 mr-1.5" />
+          <Plus />
           Add server
         </Button>
-      </CardHeader>
-
-      <CardContent>
+      }
+    >
         {isLoading ? (
-          <div role="status" aria-label="Loading MCP servers">
-            <SkeletonRows rows={3} />
-          </div>
+          <SectionListSkeleton label="Loading MCP servers" rows={2} lines={3} trailing="switch" />
         ) : isError ? (
-          <ErrorState subject="the MCP servers" onRetry={() => void mutate()} />
-        ) : servers.length === 0 ? (
-          <EmptyState
-            tone="accent"
-            icon={Plug}
-            hue={ADMIN_GROUP_HUE.ai}
-            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.ai} />}
-            title="No MCP servers yet"
-            description="Add a server to bring its tools to your agents, or install one from the catalogue below."
+          <ErrorState
+            compact
+            subject="the MCP servers"
+            detail={apiErrorMessage(isError, "Try again in a moment.")}
+            onRetry={() => void mutate()}
           />
+        ) : servers.length === 0 ? (
+          // A first run, so the plug spot; inside the list's own box, where
+          // the servers will appear.
+          <div className="rounded-lg border border-border">
+            <EmptyState
+              icon={Plug}
+              hue={ADMIN_GROUP_HUE.ai}
+              illustration={<SpotPlug hue={ADMIN_GROUP_HUE.ai} />}
+              title="No MCP servers yet"
+              description="Add a server to bring its tools to your agents, or install one from the catalogue below."
+              headingLevel={embedded ? 4 : 3}
+              className="py-6"
+            />
+          </div>
         ) : (
           <div className="space-y-3">
             {/* Read once for the whole list: every tool chip below is labelled
@@ -153,11 +149,11 @@ const McpServersCard = () => {
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="truncate text-sm font-medium">{s.name}</span>
-                      {!s.enabled && <StateWord tone="off">Turned off</StateWord>}
+                      {!s.enabled && <StatusWord className="text-xs">Turned off</StatusWord>}
                       {s.auth_secret_unreadable ? (
-                        <StateWord tone="bad">Secret unreadable</StateWord>
+                        <StatusWord tone="danger" className="text-xs">Secret unreadable</StatusWord>
                       ) : s.last_error ? (
-                        <StateWord tone="bad">Can&apos;t connect</StateWord>
+                        <StatusWord tone="danger" className="text-xs">Can&apos;t connect</StatusWord>
                       ) : (
                         <span className="text-xs text-muted-foreground">{tools.length} {tools.length === 1 ? "tool" : "tools"}</span>
                       )}
@@ -220,9 +216,11 @@ const McpServersCard = () => {
             couple of clicks (prefills the add-server dialog). Self-hosted and
             vendor-neutral: each points at a server the operator runs. */}
         {catalog.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <div className="space-y-0.5">
-              <h3 className="text-sm font-semibold">Connector catalogue</h3>
+          <section aria-labelledby={catalogHeadingId} className="space-y-3 pt-3">
+            <div className="space-y-1">
+              <CatalogHeading id={catalogHeadingId} className="text-sm font-medium">
+                Connector catalogue
+              </CatalogHeading>
               <p className="text-xs text-muted-foreground">
                 Connectors we&apos;ve checked. Install one to fill in the setup, then paste your server&apos;s
                 address and token.
@@ -232,14 +230,16 @@ const McpServersCard = () => {
               {catalog.map((c) => (
                 <div
                   key={c.slug}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-border/60 p-3 transition-colors hover:border-border"
+                  className="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3 transition-colors hover:border-border"
                 >
                   <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{c.name}</span>
+                    {/* The name wraps rather than cutting: "Google Drive" was
+                        "Google Dri…" beside its chip. */}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-sm font-medium">{c.name}</span>
                       {/* A category is a thing with a colour: its camp hue's
                           tint and ink, fixed per category. */}
-                      <span className={cn(HUE_CLASS[hueFor(c.category)], "rounded-sm bg-hue-tint px-1.5 py-0.5 text-2xs font-medium text-hue-ink")}>
+                      <span className={cn(HUE_CLASS[hueFor(c.category)], "whitespace-nowrap rounded-sm bg-hue-tint px-1.5 py-0.5 text-2xs font-medium text-hue-ink")}>
                         {c.category}
                       </span>
                     </div>
@@ -254,7 +254,7 @@ const McpServersCard = () => {
                     </a>
                   </div>
                   {c.installed ? (
-                    <StateWord tone="ok">Installed</StateWord>
+                    <StatusWord tone="success" className="shrink-0 text-xs">Installed</StatusWord>
                   ) : (
                     <Button
                       variant="outline"
@@ -265,15 +265,14 @@ const McpServersCard = () => {
                         setCreating(true)
                       }}
                     >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Install
+                      <Plus /> Install
                     </Button>
                   )}
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
-      </CardContent>
 
       {(creating || editing) && (
         <McpServerEditDialog
@@ -294,7 +293,7 @@ const McpServersCard = () => {
           }}
         />
       )}
-    </Card>
+    </SettingsSection>
   )
 }
 

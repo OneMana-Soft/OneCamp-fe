@@ -1,5 +1,9 @@
 "use client"
 
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { sectionActionClass } from "@/components/ui/settingsSection"
+import { Plus } from "@/lib/icons"
 import MyAIActivityCard from "@/components/ai/MyAIActivityCard"
 import AgentsCard from "@/components/admin/AgentsCard"
 import McpServersCard from "@/components/admin/McpServersCard"
@@ -18,6 +22,10 @@ export default function AgentsSettingsPage() {
   // yes or no, the page said "This server runs without AI" on servers that
   // have it, until their config arrived.
   const ai = useFeatureState(FEATURE_AI)
+  // New agent is the page's one primary action, so it sits in the page's
+  // header beside the h1 (as New token does on API tokens), and the Agents
+  // section below opens its dialog when it is pressed.
+  const [creating, setCreating] = useState(false)
 
   if (ai === "unknown" || (ai === "available" && isLoading)) {
     return (
@@ -58,8 +66,16 @@ export default function AgentsSettingsPage() {
     // The agents first: the page is named for them. The record of what was
     // done in your name follows the things that do it.
     <div className="space-y-10">
-      <SectionHeader href={HREF} />
-      <AgentsCard />
+      <SectionHeader
+        href={HREF}
+        actions={
+          <Button size="sm" className={sectionActionClass} onClick={() => setCreating(true)}>
+            <Plus />
+            New agent
+          </Button>
+        }
+      />
+      <AgentsCard creating={creating} onCreatingChange={setCreating} />
       <McpServersCard />
       <DataSourcesCard />
       <MyAIActivityCard />
