@@ -52,3 +52,14 @@ describe("inviting a placeholder from their profile", () => {
     expect(container.textContent).toBe("")
   })
 })
+
+describe("where an unsent invitation's link is", () => {
+  // The app names places as "Admin, Invitations" (the menu's own words); an
+  // arrow path read as a different place.
+  it("says Admin, Invitations, in the app's words", async () => {
+    const { placeholderInviteAnswer } = await import("./InvitePlaceholder")
+    const answer = placeholderInviteAnswer({ invited: [{ user_id: "u1", name: "P", email: "p@x" }], alreadyInvited: [], failed: [], seatLimit: null, notEmailed: [{ user_id: "u1", name: "P", email: "p@x" }], unsentMsg: null })
+    expect(answer.text).toContain("Admin, Invitations")
+    expect(answer.text).not.toContain("→")
+  })
+})

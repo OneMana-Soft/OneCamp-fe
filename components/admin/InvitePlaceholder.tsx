@@ -21,7 +21,7 @@ type Answer = { tone: "ok" | "error"; text: string }
 export function placeholderInviteAnswer(run: Awaited<ReturnType<typeof inviteImportedPeople>>): Answer {
   if (run.invited.length) {
     return run.notEmailed.length
-      ? { tone: "ok", text: run.unsentMsg || "Invitation created, but no email went out: copy their link from Admin → Invitations." }
+      ? { tone: "ok", text: run.unsentMsg || "Invitation created, but no email went out: copy their link from Admin, Invitations." }
       : { tone: "ok", text: "Invited. They get an email with a link to join." }
   }
   if (run.alreadyInvited.length) return { tone: "ok", text: "They were already invited." }
