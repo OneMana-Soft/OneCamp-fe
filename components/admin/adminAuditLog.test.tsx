@@ -33,7 +33,7 @@ const entry = (i: number, over: Partial<AuditEntry> = {}): AuditEntry =>
     action: "settings.retention",
     category: "settings",
     summary: `Change ${i}`,
-    actor_email: "priya@kestrel.studio",
+    actor_email: "priya@kestrel.example",
     actor_kind: "human",
     created_at: "2026-10-10T08:42:11Z",
     ...over,

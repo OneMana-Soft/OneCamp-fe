@@ -99,10 +99,10 @@ describe("the AI activity's states", () => {
   it("says who and when at the help size in the muted ink, never faded", () => {
     render(
       <ul>
-        <AIActivityRow item={{ kind: "agent_run", title: "Release Captain", summary: "Posted the notes", status: "succeeded", actor: "priya@kestrel.studio", at: new Date().toISOString() }} />
+        <AIActivityRow item={{ kind: "agent_run", title: "Release Captain", summary: "Posted the notes", status: "succeeded", actor: "priya@kestrel.example", at: new Date().toISOString() }} />
       </ul>,
     )
-    const who = screen.getByText("priya@kestrel.studio")
+    const who = screen.getByText("priya@kestrel.example")
     const line = who.parentElement as HTMLElement
     expect(line.className).toContain("text-xs")
     expect(line.className).not.toMatch(/text-muted-foreground\/\d+/)

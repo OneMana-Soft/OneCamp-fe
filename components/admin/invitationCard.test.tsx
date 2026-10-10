@@ -6,8 +6,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // clearing an invitation asks in words that fit what it does: a live one is
 // revoked, a joined or expired one only leaves the list.
 
-const live = { id: "i1", email: "elif@kestrel.studio", invited_by: "priya@kestrel.studio", status: "sent", expires_in_days: 6, invite_link: "https://x/signup?token=a", created_at: "2026-10-09T10:14:00Z" }
-const joined = { id: "i2", email: "kwame@kestrel.studio", invited_by: "arjun@kestrel.studio", status: "joined", created_at: "2026-09-29T11:20:00Z" }
+const live = { id: "i1", email: "elif@kestrel.example", invited_by: "priya@kestrel.example", status: "sent", expires_in_days: 6, invite_link: "https://x/signup?token=a", created_at: "2026-10-09T10:14:00Z" }
+const joined = { id: "i2", email: "kwame@kestrel.example", invited_by: "arjun@kestrel.example", status: "joined", created_at: "2026-09-29T11:20:00Z" }
 
 const state = vi.hoisted(() => ({
   list: { data: undefined as unknown, isLoading: false, isError: undefined as unknown, mutate: vi.fn() },
@@ -62,7 +62,7 @@ describe("the Invitations tab", () => {
     state.list = { data: { data: [live] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     resend.mockRejectedValue(new Error("Network Error"))
     render(<InvitationCard />)
-    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Resend invitation to elif@kestrel.studio" })))
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Resend invitation to elif@kestrel.example" })))
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({
       title: "Couldn't send it again",
       description: expect.stringMatching(/server could not be reached/),
@@ -73,14 +73,14 @@ describe("the Invitations tab", () => {
   it("revokes a live invitation, and only clears a joined one from the list", () => {
     state.list = { data: { data: [live, joined] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<InvitationCard />)
-    fireEvent.click(screen.getByRole("button", { name: "Revoke the invitation to elif@kestrel.studio" }))
+    fireEvent.click(screen.getByRole("button", { name: "Revoke the invitation to elif@kestrel.example" }))
     expect(confirm).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: "Revoke the invitation to elif@kestrel.studio?",
+      title: "Revoke the invitation to elif@kestrel.example?",
       confirmText: "Revoke invitation",
     }))
-    fireEvent.click(screen.getByRole("button", { name: "Clear kwame@kestrel.studio's invitation from the list" }))
+    fireEvent.click(screen.getByRole("button", { name: "Clear kwame@kestrel.example's invitation from the list" }))
     const last = confirm.mock.calls.at(-1)?.[0]
-    expect(last.title).toBe("Clear kwame@kestrel.studio's invitation from the list?")
+    expect(last.title).toBe("Clear kwame@kestrel.example's invitation from the list?")
     expect(last.description).not.toMatch(/stops working/)
   })
 })

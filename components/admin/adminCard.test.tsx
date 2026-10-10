@@ -13,8 +13,8 @@ globalThis.IntersectionObserver ??= class {
 } as unknown as typeof IntersectionObserver
 
 const ZERO = "0001-01-01T00:00:00Z"
-const priya = { user_uuid: "u1", user_name: "Priya Raman", user_full_name: "Priya Raman", user_email_id: "priya@kestrel.studio", user_deleted_at: ZERO }
-const arjun = { user_uuid: "u2", user_name: "Arjun Mehta", user_full_name: "Arjun Mehta", user_email_id: "arjun@kestrel.studio", user_deleted_at: ZERO }
+const priya = { user_uuid: "u1", user_name: "Priya Raman", user_full_name: "Priya Raman", user_email_id: "priya@kestrel.example", user_deleted_at: ZERO }
+const arjun = { user_uuid: "u2", user_name: "Arjun Mehta", user_full_name: "Arjun Mehta", user_email_id: "arjun@kestrel.example", user_deleted_at: ZERO }
 
 const state = vi.hoisted(() => ({
   list: { data: undefined as unknown, isLoading: false, isError: undefined as unknown, mutate: vi.fn() },

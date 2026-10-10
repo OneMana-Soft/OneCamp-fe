@@ -82,7 +82,7 @@ describe("saving workspace settings", () => {
     render(<WorkspaceSettingsCard />)
     const list = (await screen.findByLabelText(/Who can join without an invitation/)) as HTMLTextAreaElement
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
-    fireEvent.change(list, { target: { value: "@acme.example, @kestrel.studio" } })
+    fireEvent.change(list, { target: { value: "@acme.example, @kestrel.example" } })
     fireEvent.click(within(saveBar()).getByRole("button", { name: "Discard" }))
     expect(list.value).toBe("@acme.example")
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()

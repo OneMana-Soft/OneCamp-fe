@@ -27,7 +27,7 @@ const { default: EmailSettingsCard } = await import("./EmailSettingsCard")
 const saved = {
   has_logo: false,
   sender_email: "",
-  default_sender: "noreply@kestrel.studio",
+  default_sender: "noreply@kestrel.example",
   invitation_email_subject: "Join Kestrel on OneCamp",
   invitation_email_template: "<p>{{inviter_name}} invited you.</p>",
 }
@@ -150,6 +150,6 @@ describe("the invitation email", () => {
     const { container } = render(<EmailSettingsCard />)
     expect(container.querySelector("[class*='#ff5f56'], [class*='#27c93f']")).toBeNull()
     expect(container.querySelector(".shadow-xl")).toBeNull()
-    expect(screen.getByText("noreply@kestrel.studio")).toBeTruthy()
+    expect(screen.getByText("noreply@kestrel.example")).toBeTruthy()
   })
 })

@@ -25,7 +25,7 @@ const source = {
   id: "d1",
   name: "Billing replica",
   engine: "postgres",
-  host: "db.kestrel.studio",
+  host: "db.kestrel.example",
   port: 5432,
   database: "billing",
   username: "reader",

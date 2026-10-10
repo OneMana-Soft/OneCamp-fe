@@ -20,7 +20,7 @@ afterEach(() => {
 const saved = {
   id: "m1",
   name: "GitHub tools",
-  url: "https://mcp.kestrel.studio/github",
+  url: "https://mcp.kestrel.example/github",
   auth_type: "bearer" as const,
   enabled: true,
   has_auth_secret: true,

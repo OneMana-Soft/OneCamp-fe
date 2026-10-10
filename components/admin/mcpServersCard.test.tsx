@@ -21,7 +21,7 @@ afterEach(() => {
 const server = {
   id: "m1",
   name: "GitHub tools",
-  url: "https://mcp.kestrel.studio/github",
+  url: "https://mcp.kestrel.example/github",
   enabled: false,
   tools: [{ name: "list_issues" }, { name: "create_issue" }],
 }
