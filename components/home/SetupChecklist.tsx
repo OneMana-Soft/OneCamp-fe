@@ -34,7 +34,8 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Circle, ArrowRight, X, CheckCircle2 } from "@/lib/icons"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { celebrate } from "@/lib/celebrate"
 import {
     getOnboardingStatus,
     dismissOnboarding,
@@ -133,6 +134,8 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     const [showAll, setShowAll] = useState(false)
     const [showSkipped, setShowSkipped] = useState(false)
     const [skipFailed, setSkipFailed] = useState(false)
+    // The checklist was just finished, while this browser was following it.
+    const [finished, setFinished] = useState(false)
 
     useEffect(() => {
         if (!isAdmin) return
@@ -140,6 +143,10 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
         getOnboardingStatus()
             .then((s) => {
                 if (cancelled) return
+                // The last step was done since this browser last showed the
+                // card: the one moment worth a celebration. A workspace that
+                // was finished long ago loads quietly ("closed").
+                if (s && !s.dismissed && s.complete && s.total > 0 && readMemo() === "open") setFinished(true)
                 setState(s ?? null)
                 setLoaded(true)
                 if (s) writeMemo(shouldShowChecklist(true, false, s) ? "open" : "closed")
@@ -196,7 +203,12 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
         void setStepSkipped(id, skipped)
             .then(getOnboardingStatus)
             .then((s) => {
-                if (s) setState(s)
+                if (!s) return
+                if (s.complete && s.total > 0 && !before?.complete) {
+                    setFinished(true)
+                    writeMemo("closed")
+                }
+                setState(s)
             })
             .catch(() => {
                 setState(before)
@@ -222,6 +234,8 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
         return <ChecklistPlaceholder />
     }
 
+    if (finished && isAdmin) return <ChecklistDone onClose={() => setFinished(false)} />
+
     // Checked on the client rather than server-side so the endpoint stays a plain
     // description of the workspace rather than a rendering decision.
     if (!shouldShowChecklist(isAdmin, false, state)) return null
@@ -236,14 +250,15 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
 
     return (
         <Card role="region" aria-labelledby="setup-checklist-title" className="p-5">
-            {/* The heading sits beside a moss tile, as Home's other cards sit
-                beside theirs; the playful layer's progress ring takes the
-                tile's place. */}
+            {/* The heading sits beside how far along the setup is, a ring in
+                the place Home's other cards keep their tile. */}
             <div className="flex items-start gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <Tile hue="moss" size="md">
-                        <CheckCircle2 strokeWidth={1.75} />
-                    </Tile>
+                    <ProgressRing
+                        value={state.total > 0 ? (state.done / state.total) * 100 : 0}
+                        label={`${state.done} of ${state.total} steps done`}
+                        className="shrink-0"
+                    />
                     <div className="min-w-0">
                         <h2 id="setup-checklist-title" className="text-sm font-semibold">Finish setting up your workspace</h2>
                         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -350,13 +365,46 @@ function StepRow({ step, isNext, onSkip }: { step: OnboardingStep; isNext: boole
     )
 }
 
+/**
+ * The checklist, finished: said once, with the ring full and a burst of camp
+ * sparks from it (nothing under reduced motion). Closing it, or the next
+ * visit, leaves Home without it.
+ */
+function ChecklistDone({ onClose }: { onClose: () => void }) {
+    const ringRef = useRef<HTMLSpanElement>(null)
+    const fired = useRef(false)
+    useEffect(() => {
+        if (fired.current) return
+        fired.current = true
+        celebrate(ringRef.current)
+    }, [])
+    return (
+        <Card role="region" aria-labelledby="setup-checklist-done" className="p-5">
+            <div className="flex items-start gap-3">
+                <span ref={ringRef} className="shrink-0">
+                    <ProgressRing value={100} label="Every step done">
+                        <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                    </ProgressRing>
+                </span>
+                <div className="min-w-0 flex-1">
+                    <h2 id="setup-checklist-done" className="text-sm font-semibold">Your workspace is set up</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Everything on the checklist is done, so this card won&apos;t come back.</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="Close">
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+        </Card>
+    )
+}
+
 /** The card's shape while it loads: its header and three step rows. */
 function ChecklistPlaceholder() {
     return (
         <Card role="status" aria-label="Loading the setup checklist" aria-busy="true" className="p-5">
             <div aria-hidden="true">
                 <div className="flex items-start gap-3">
-                    <Skeleton className="size-8 shrink-0 rounded-lg" />
+                    <Skeleton variant="circle" className="size-8 shrink-0" />
                     <div className="grid gap-1.5 pt-0.5">
                         <Skeleton className="h-4 w-56" />
                         <Skeleton className="h-3 w-44" />

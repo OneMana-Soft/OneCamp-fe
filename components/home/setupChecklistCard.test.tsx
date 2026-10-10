@@ -152,14 +152,16 @@ describe("the steps it lists", () => {
 })
 
 describe("the checklist's heading", () => {
-  it("sits beside a moss tile, as Home's other cards sit beside theirs", async () => {
+  // The playful layer's progress ring took the moss tile's place: the same
+  // spot beside the heading Home's other cards give their tile.
+  it("sits beside its progress ring, where Home's other cards keep their tile", async () => {
     svc.getOnboardingStatus.mockResolvedValue(status([step("invite")]))
     await show()
     const heading = screen.getByRole("heading", { name: "Finish setting up your workspace" })
     const row = heading.parentElement!.parentElement!
-    const tile = row.querySelector("span.hue-moss")
-    expect(tile).not.toBeNull()
-    expect(tile!.querySelector("svg")).not.toBeNull()
+    const ring = row.querySelector('[role="progressbar"]')
+    expect(ring).not.toBeNull()
+    expect(ring!.querySelector("svg")).not.toBeNull()
   })
 
   it("holds the tile's place while it loads", async () => {
