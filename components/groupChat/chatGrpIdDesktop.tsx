@@ -11,12 +11,15 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Users, Video, Clapperboard, X } from "@/lib/icons";
+import { SendHorizontal, Users, Video, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {useEffect, useState} from "react";
+import {memo, useEffect, useState} from "react";
+import type { Content } from "@tiptap/react";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 
@@ -47,8 +50,6 @@ const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpIn
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
 export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
-    const scheduleSend = useScheduleSend()
-
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
 
@@ -56,12 +57,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
     const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
 
-    const chatState = useSelector((state: RootState) => state.groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE);
-
     const chatCallActive = useSelector((state: RootState) => state.chat.chatCallStatus[grpId]?.active || false);
 
-    const { publishTyping } = usePublishTyping({ targetType: 'groupChat', targetId: grpId });
-    const uploadFile = useUploadFile()
 
     const router = useRouter();
 
@@ -149,7 +146,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         {/* Joined rather than a span per participant with manual
                             separators: truncation applies to the whole line, so a
                             long list ends in an ellipsis instead of a stray comma. */}
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>
+                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>
                             {participants.map((u) => displayNameOf(u)).join(', ')}
                         </span>
                         {/* Mirrors "Active now" on the 1:1 header, so both have a
@@ -191,70 +188,89 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto">
-                <GroupChatMessageList grpId={grpId} />
+                <GroupChatMessageList grpId={grpId} unreadOnOpen={unreadCount} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
-                    <CommandSurface
-                        surfaceKey={grpId}
-                        dmGroupId={grpId}
-                        onComposerText={(text) =>
-                            dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: `<p>${text}</p>` }))
-                        }
-                        onComposerHtml={(html) =>
-                            dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
-                        }
-                    />
-                    {chatState.replyToUuid && (
-                        <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
-                            <span className="text-muted-foreground">Replying to</span>
-                            <span className="font-medium text-foreground">{chatState.replyToAuthorName || "message"}</span>
-                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                                {chatState.replyToText || ""}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => dispatch(clearGroupChatReplyTarget({ grpId }))}
-                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
-                                aria-label="Cancel reply"
-                            >
-                                <X className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                        </div>
-                    )}
-                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-                    <MinimalTiptapTextInput
-                        throttleDelay={300}
-                        attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}
-                        onActionFiles={async (files) => {
-                            if (!files?.length) return;
-                            const valid = uploadFile.validateFiles(files);
-                            if (valid.length === 0) return;
-                            await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
-                        }}
-                        className={cn("max-w-full h-auto")}
-                        editorContentClassName="overflow-auto mb-2"
-                        output="html"
-                        content={chatState.chatBody}
-                        contentRevision={chatState.restoredUnsent}
-                        placeholder={GROUP_COMPOSER_PLACEHOLDER}
-                        editable={true}
-                        ButtonIcon={SendHorizontal}
-                        hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
-                        buttonOnclick={handleSend}
-                        onSchedule={scheduleSend?.schedule}
-                        editorClassName="focus:outline-none px-2 py-2"
-                        onChange={(content ) => {
-                            publishTyping(content as string)
-                            dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
-                        }}
-                    >
-                        <GroupChatFileUpload groupChatID={grpId} />
-                    </MinimalTiptapTextInput>
+                    <GroupComposer grpId={grpId} handleSend={handleSend} />
                 </div>
             </div>
 
         </div>
     )
 }
+
+/**
+ * The group's message box and what sits on it. Its own component because it is
+ * the only part of the conversation that changes as someone types: the draft
+ * is read here, so the header and the messages above it no longer re-render
+ * with each change to it.
+ */
+const GroupComposer = memo(function GroupComposer({ grpId, handleSend }: {
+    grpId: string
+    handleSend: (latestContent?: string) => void
+}) {
+    const dispatch = useDispatch()
+    const scheduleSend = useScheduleSend()
+    const uploadFile = useUploadFile()
+    const { publishTyping } = usePublishTyping({ targetType: 'groupChat', targetId: grpId });
+    const chatState = useSelector((state: RootState) => state.groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE);
+    // The same function for the life of the composer, so the editor's action
+    // row (memoised in textInput) keeps its buttons as the parent re-renders.
+    const send = useStableCallback((latestContent?: string) => handleSend(latestContent))
+    const onChange = useStableCallback((content: Content) => {
+        publishTyping(content as string)
+        dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
+    })
+    const onActionFiles = useStableCallback(async (files: File[]) => {
+        if (!files?.length) return;
+        const valid = uploadFile.validateFiles(files);
+        if (valid.length === 0) return;
+        await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
+    })
+    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'groupChatFileUpload' })) })
+
+    return (
+        <>
+            <CommandSurface
+                surfaceKey={grpId}
+                dmGroupId={grpId}
+                onComposerText={(text) =>
+                    dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: `<p>${text}</p>` }))
+                }
+                onComposerHtml={(html) =>
+                    dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
+                }
+            />
+            {chatState.replyToUuid && (
+                <ComposerReplyPill
+                    authorName={chatState.replyToAuthorName}
+                    text={chatState.replyToText}
+                    onCancel={() => dispatch(clearGroupChatReplyTarget({ grpId }))}
+                />
+            )}
+            {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
+            <MinimalTiptapTextInput
+                throttleDelay={300}
+                attachmentOnclick={openUpload}
+                onActionFiles={onActionFiles}
+                className={cn("max-w-full h-auto")}
+                editorContentClassName="overflow-auto mb-2"
+                output="html"
+                content={chatState.chatBody}
+                contentRevision={chatState.restoredUnsent}
+                placeholder={GROUP_COMPOSER_PLACEHOLDER}
+                editable={true}
+                ButtonIcon={SendHorizontal}
+                hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
+                buttonOnclick={send}
+                onSchedule={scheduleSend?.schedule}
+                editorClassName="focus:outline-none px-2 py-2"
+                onChange={onChange}
+            >
+                <GroupChatFileUpload groupChatID={grpId} />
+            </MinimalTiptapTextInput>
+        </>
+    )
+})

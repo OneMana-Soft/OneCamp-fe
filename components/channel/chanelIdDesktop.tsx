@@ -16,13 +16,17 @@ import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { statusColors } from "@/lib/colors";
-import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X, MoreHorizontal, MessageSquare } from "@/lib/icons";
+import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {useEffect, useState, useMemo} from "react";
+import {memo, useEffect, useRef, useState} from "react";
+import { celebrate } from "@/lib/celebrate";
+import type { Content } from "@tiptap/react";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
@@ -35,6 +39,7 @@ import {
 import {GenericResponse} from "@/types/genericRes";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
+import { ComposerNotice } from "@/components/channel/composerNotice";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {app_channel_call} from "@/types/paths";
 import Link from "next/link";
@@ -46,11 +51,8 @@ import { WithTooltip } from "@/components/common/withTooltip"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
-const EMPTY_TYPING_LIST: any[] = []
 
-export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number, focusComposer?: boolean}) => {
-    const scheduleSend = useScheduleSend()
-
+export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean}) => {
     const dispatch = useDispatch()
     const postFav  = usePost()
     const postNotification  = usePost()
@@ -58,23 +60,16 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}`:'')
     const [isFavorite, setFavorite] = useState<boolean>(false)
     const [channelNotification, setChannelNotificationType] = useState<string>(NotificationType.NotificationAll)
-    const uploadFile = useUploadFile()
 
-    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
-    const channelNme = useMemo(() => userChannels?.find((item)=>item.ch_uuid == channelId), [userChannels, channelId]);
+    // Only the name: the sidebar's channel list changes whenever any channel's
+    // unread count does, and this header has no use for that.
+    const sidebarName = useSelector((state: RootState) => state.users.userSidebar.userChannels?.find((item)=>item.ch_uuid == channelId)?.ch_name);
     // Fallback to API response when channel isn't in sidebar state yet
     // (e.g. direct navigation from notification/bookmark)
-    const channelDisplayName = channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
+    const channelDisplayName = sidebarName || channelInfo.data?.channel_info?.ch_name || "channel";
     const memberCount = channelInfo.data?.channel_info?.ch_member_count ?? 0;
 
-    const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
-
-    const rawChannelTyping = useSelector((state: RootState) => state.typing.channelTyping[channelId] || EMPTY_TYPING_LIST);
-    const channelTypingState = useMemo(() => rawChannelTyping.map(item => item.user), [rawChannelTyping]);
-
     const channelCallActive = useSelector((state: RootState) => state.channel.channelCallStatus[channelId]?.active || false)
-
-    const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
 
     useEffect(() => {
 
@@ -147,7 +142,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
         if(!channelInfo.data?.channel_info.ch_is_member) {
             return (
                 <JoinChannelPrompt
-                    channelName={channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || ""}
+                    channelName={channelDisplayName === "channel" ? "" : channelDisplayName}
                     onJoin={joinChannel}
                     joining={postJoinChannel.isSubmitting}
                     className="py-4"
@@ -156,16 +151,10 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
         }
 
         if (!isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')) {
-            // `flex` was missing, so flex-col/justify-center/items-center were all
-            // inert and the archived notice never centred as written.
             return (
-                <div className='flex flex-col justify-center items-center w-full text-center space-y-2 text-muted-foreground'>
-                    <div>Channel is archived 📦</div>
-                    {/*{channelInfo.data?.channel_info.ch_is_admin &&*/}
-                    {/*    <Button onClick={joinChannel}>*/}
-                    {/*        Unarchive channel*/}
-                    {/*    </Button>}*/}
-                </div>
+                <ComposerNotice icon={<FileArchive />}>
+                    This channel is archived. You can read it, but not post in it.
+                </ComposerNotice>
             )
         }
 
@@ -176,72 +165,20 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
             !channelInfo.data?.channel_info.ch_is_admin
         ) {
             return (
-                <div className="flex items-center justify-center gap-2 w-full py-4 text-center text-sm text-muted-foreground">
-                    <Megaphone className="h-4 w-4" />
-                    <span>Only moderators can post in this announcement channel.</span>
-                </div>
+                <ComposerNotice icon={<Megaphone />}>
+                    Only moderators can post in this announcement channel.
+                </ComposerNotice>
             )
         }
 
-        return (<>
-        <CommandSurface
-            surfaceKey={channelId}
-            channelId={channelId}
-            onComposerText={(text) =>
-                dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
-            }
-            onComposerHtml={(html) =>
-                dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
-            }
-        />
-        {channelState.replyToUuid && (
-            <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
-                <span className="text-muted-foreground">Replying to</span>
-                <span className="font-medium text-foreground">{channelState.replyToAuthorName || "message"}</span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {channelState.replyToText || ""}
-                </span>
-                <button
-                    type="button"
-                    onClick={() => dispatch(clearChannelReplyTarget({ channelId }))}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
-                    aria-label="Cancel reply"
-                >
-                    <X className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-            </div>
-        )}
-        {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-        <MinimalTiptapTextInput
-            throttleDelay={300}
-            autoFocus={focusComposer}
-            attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
-            onActionFiles={async (files) => {
-                if (!files?.length) return;
-                const valid = uploadFile.validateFiles(files);
-                if (valid.length === 0) return;
-                await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
-            }}
-            className={cn("max-w-full h-auto")}
-            editorContentClassName="overflow-auto mb-2"
-            output="html"
-            content={channelState.inputTextHTML}
-            contentRevision={channelState.restoredUnsent}
-            placeholder={channelComposerPlaceholder(channelDisplayName)}
-            editable={true}
-            ButtonIcon={SendHorizontal}
-            hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
-            buttonOnclick={handleSend}
-                        onSchedule={scheduleSend?.schedule}
-            editorClassName="focus:outline-none px-2 py-2"
-                        onChange={(content ) => {
-                            publishTyping(content as string)
-                            dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
-                        }}
-                    >
-                        <ChannelFileUpload channelId={channelId}/>
-                </MinimalTiptapTextInput>
-        </>)
+        return (
+            <ChannelComposer
+                channelId={channelId}
+                handleSend={handleSend}
+                placeholder={channelComposerPlaceholder(channelDisplayName)}
+                focusComposer={focusComposer}
+            />
+        )
     }
 
 
@@ -260,7 +197,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                         its name is read. */}
                     <IdentityMark id={channelId} variant="tile" size={32} icon={<Hash />} />
                     <div className='flex flex-col min-w-0'>
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
+                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
                         {/* The second line keeps this header the same height as a
                             DM's, and a member count is the thing people actually
                             want to know about a channel they just opened. */}
@@ -310,7 +247,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                                 <Button size='icon' variant='ghost' aria-label="More channel actions"><MoreHorizontal /></Button>
                             </DropdownMenuTrigger>
                         </WithTooltip>
-                        <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuContent align="end" className="w-72">
                             <FeatureGate feature={FEATURE_AI}>
                                 <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}>
                                     <CheckSquare className="text-muted-foreground" /> Create tasks from this conversation
@@ -342,7 +279,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
-                <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
+                <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin} unreadOnOpen={unreadCount}/>
             </div>
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
@@ -353,3 +290,81 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
         </div>
     )
 }
+/**
+ * The channel's message box and what sits on it (a reply being written, the
+ * messages scheduled here). Its own component because it is the only part of
+ * the channel that changes as someone types: the draft is read here, so the
+ * header and the conversation above it no longer re-render as it changes.
+ */
+const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, placeholder, focusComposer }: {
+    channelId: string
+    handleSend: (latestContent?: string) => boolean | void
+    placeholder: string
+    focusComposer?: boolean
+}) {
+    const dispatch = useDispatch()
+    const scheduleSend = useScheduleSend()
+    const uploadFile = useUploadFile()
+    const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
+    const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
+    // The same function for the life of the composer, so the editor's action
+    // row (memoised in textInput) keeps its buttons as the parent re-renders.
+    // A first message here bursts sparks from Send (lib/celebrate).
+    const rootRef = useRef<HTMLDivElement>(null)
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrate(rootRef.current?.querySelector('button[aria-label="Send"]'))
+    })
+    const onChange = useStableCallback((content: Content) => {
+        publishTyping(content as string)
+        dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
+    })
+    const onActionFiles = useStableCallback(async (files: File[]) => {
+        if (!files?.length) return;
+        const valid = uploadFile.validateFiles(files);
+        if (valid.length === 0) return;
+        await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
+    })
+    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'channelFileUpload' })) })
+
+    return (<div ref={rootRef}>
+        <CommandSurface
+            surfaceKey={channelId}
+            channelId={channelId}
+            onComposerText={(text) =>
+                dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
+            }
+            onComposerHtml={(html) =>
+                dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
+            }
+        />
+        {channelState.replyToUuid && (
+            <ComposerReplyPill
+                authorName={channelState.replyToAuthorName}
+                text={channelState.replyToText}
+                onCancel={() => dispatch(clearChannelReplyTarget({ channelId }))}
+            />
+        )}
+        {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
+        <MinimalTiptapTextInput
+            throttleDelay={300}
+            autoFocus={focusComposer}
+            attachmentOnclick={openUpload}
+            onActionFiles={onActionFiles}
+            className={cn("max-w-full h-auto")}
+            editorContentClassName="overflow-auto mb-2"
+            output="html"
+            content={channelState.inputTextHTML}
+            contentRevision={channelState.restoredUnsent}
+            placeholder={placeholder}
+            editable={true}
+            ButtonIcon={SendHorizontal}
+            hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
+            buttonOnclick={send}
+            onSchedule={scheduleSend?.schedule}
+            editorClassName="focus:outline-none px-2 py-2"
+            onChange={onChange}
+        >
+            <ChannelFileUpload channelId={channelId}/>
+        </MinimalTiptapTextInput>
+    </div>)
+})

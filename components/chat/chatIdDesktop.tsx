@@ -11,12 +11,16 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Video, Clapperboard, X } from "@/lib/icons";
+import { SendHorizontal, Video, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {useEffect, useMemo, useState} from "react";
+import {memo, useEffect, useRef, useState} from "react";
+import { celebrate } from "@/lib/celebrate";
+import type { Content } from "@tiptap/react";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 import {openUI} from "@/store/slice/uiSlice";
@@ -28,7 +32,7 @@ import {ChatNotificationInterface} from "@/types/chat";
 import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
 import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
-import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
+import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
 import {ChatUserEmojiStatus} from "@/components/chat/chatUserEmojiStatus";
 import {Button} from "@/components/ui/button";
 import {app_chat_call} from "@/types/paths";
@@ -44,54 +48,19 @@ import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 
-export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void }) => {
-    const scheduleSend = useScheduleSend()
-
+export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number}) => {
     const dispatch = useDispatch()
     const postNotification  = usePost()
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
-    const uploadFile = useUploadFile()
-
-    const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
-
-    // Use a memoized selector with custom equality to prevent unnecessary re-renders
-    const rawChatTypingState = useSelector(
-        (state: RootState) => state.typing.chatTyping[chatId],
-        // Custom equality function to prevent re-renders when array reference changes but content is the same
-        (prev, next) => {
-            // If both are undefined, they're equal
-            if (!prev && !next) return true;
-            
-            // If one is undefined and the other isn't, they're different
-            if (!prev || !next) return false;
-            
-            // If lengths differ, they're different
-            if (prev.length !== next.length) return false;
-            
-            // Compare user IDs to check if the typing users are the same
-            return prev.every((item, index) => 
-                item.userId === next[index]?.userId
-            );
-        }
-    );
 
     const chatCallHref = `${app_chat_call}/${chatId}`;
     // A call opens beside the conversation, so it stays in view.
     const { isMobile } = useMedia();
     const openBeside = useOpenBeside(!isMobile);
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
-    // Memoize the mapped result to prevent creating a new array on every render
-    const chatTypingState = useMemo(() => 
-        (rawChatTypingState || []).map(item => item.user),
-        [rawChatTypingState]
-    );
-
-    const EMPTY_INPUT_STATE = {};
-    const EMPTY_USER_STATUS: UserEmojiInterface = { deviceConnected: 0 } as UserEmojiInterface;
-
-    const chatState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE);
+    const isBotPeer = otherUserInfo.data?.data?.is_bot === true;
 
     const chatCallStatusActive = useSelector((state: RootState) => state.chat.chatCallStatus[chatId]?.active || false);
 
@@ -143,8 +112,14 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
 
                     </div>
                     <div className='flex flex-col min-w-0'>
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{userDisplayName(otherUserInfo.data?.data)}</span>
-                        {isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now</span>}
+                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>{userDisplayName(otherUserInfo.data?.data)}</span>
+                        {/* Always a second line, dot and word, as a channel's member
+                            count is: the header was one line unless the person was
+                            online, so it changed shape with their presence. */}
+                        <span data-header-meta='' className='flex items-center gap-1.5 text-2xs text-muted-foreground leading-tight'>
+                            {!isBotPeer && <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', isOnline ? statusColors.online.solid : 'bg-muted-foreground/50')} />}
+                            {isBotPeer ? 'Agent' : isOnline ? 'Active now' : currentStatus === 'away' ? 'Away' : 'Offline'}
+                        </span>
                     </div>
                 </div>
                 <div className='flex items-center gap-0.5 shrink-0'>
@@ -170,14 +145,73 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto">
-                <ChatMessageList chatId={chatId} />
+                <ChatMessageList chatId={chatId} unreadOnOpen={unreadCount} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
+                    <ChatComposer
+                        chatId={chatId}
+                        handleSend={handleSend}
+                        peerName={userDisplayName(otherUserInfo.data?.data)}
+                        placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
+                        isBotPeer={isBotPeer}
+                        selfUUID={selfProfile.data?.data.user_uuid || ''}
+                    />
+                </div>
+            </div>
+
+        </div>
+    )
+}
+
+const EMPTY_INPUT_STATE: Partial<RootState["chat"]["chatInputState"][string]> = {};
+
+/**
+ * The DM's message box and what sits on it. Its own component because it is
+ * the only part of the conversation that changes as someone types: the draft
+ * is read here, so the header and the messages above it no longer re-render
+ * with each change to it.
+ */
+const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, placeholder, isBotPeer, selfUUID }: {
+    chatId: string
+    handleSend: (latestContent?: string) => boolean | void
+    peerName: string
+    placeholder: string
+    isBotPeer: boolean
+    selfUUID: string
+}) {
+    const dispatch = useDispatch()
+    const scheduleSend = useScheduleSend()
+    const uploadFile = useUploadFile()
+    const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
+    const chatState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE);
+    const grpId = getGroupingId(chatId, selfUUID)
+
+    // The same function for the life of the composer, so the editor's action
+    // row (memoised in textInput) keeps its buttons as the parent re-renders.
+    // A first message here bursts sparks from Send (lib/celebrate).
+    const rootRef = useRef<HTMLDivElement>(null)
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrate(rootRef.current?.querySelector('button[aria-label="Send"]'))
+    })
+    const onChange = useStableCallback((content: Content) => {
+        publishTyping(content as string)
+        dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
+    })
+    const onActionFiles = useStableCallback(async (files: File[]) => {
+        if (!files?.length) return;
+        const valid = uploadFile.validateFiles(files);
+        if (valid.length === 0) return;
+        await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
+    })
+    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'chatFileUpload' })) })
+
+    return (
+        <div ref={rootRef}>
                     <CommandSurface
                         surfaceKey={chatId}
-                        dmGroupId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')}
+                        dmGroupId={grpId}
                         onComposerText={(text) =>
                             dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: `<p>${text}</p>` }))
                         }
@@ -186,56 +220,34 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                         }
                     />
                     {chatState.replyToUuid && (
-                        <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
-                            <span className="text-muted-foreground">Replying to</span>
-                            <span className="font-medium text-foreground">{chatState.replyToAuthorName || "message"}</span>
-                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                                {chatState.replyToText || ""}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => dispatch(clearChatReplyTarget({ chatUUID: chatId }))}
-                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
-                                aria-label="Cancel reply"
-                            >
-                                <X className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                        </div>
+                        <ComposerReplyPill
+                            authorName={chatState.replyToAuthorName}
+                            text={chatState.replyToText}
+                            onCancel={() => dispatch(clearChatReplyTarget({ chatUUID: chatId }))}
+                        />
                     )}
-                    <HeldNotificationsBar userUUID={chatId} name={userDisplayName(otherUserInfo.data?.data)} isBot={otherUserInfo.data?.data?.is_bot === true} />
+                    <HeldNotificationsBar userUUID={chatId} name={peerName} isBot={isBotPeer} />
                     {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         throttleDelay={300}
-                        attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
-                        onActionFiles={async (files) => {
-                            if (!files?.length) return;
-                            const valid = uploadFile.validateFiles(files);
-                            if (valid.length === 0) return;
-                            const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
-                            await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
-                        }}
+                        attachmentOnclick={openUpload}
+                        onActionFiles={onActionFiles}
                         className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
                         contentRevision={chatState.restoredUnsent}
-                        placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
+                        placeholder={placeholder}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
-                        buttonOnclick={handleSend}
+                        buttonOnclick={send}
                         onSchedule={scheduleSend?.schedule}
                         editorClassName="focus:outline-none px-2 py-2"
-                        onChange={(content ) => {
-                            publishTyping(content as string)
-                            dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
-                        }}
+                        onChange={onChange}
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>
-                </div>
-            </div>
-
         </div>
     )
-}
+})
