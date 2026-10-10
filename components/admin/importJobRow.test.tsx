@@ -108,3 +108,18 @@ describe("how an import job reads", () => {
     expect(screen.getByText("120 items")).toBeTruthy()
   })
 })
+
+describe("which tool an import came from", () => {
+  // In the list of every provider's imports, each tool keeps one colour, so
+  // a Jira import and an Asana one can be told apart before they are read.
+  it("marks the provider with its own hue, only where providers are mixed", () => {
+    const { container } = render(<ImportJobRow job={job("completed", { provider: "jira" })} showProvider {...handlers()} />)
+    expect(container.querySelector('svg[data-hue="sky"]')).toBeTruthy()
+    cleanup()
+    const asana = render(<ImportJobRow job={job("completed", { provider: "asana" })} showProvider {...handlers()} />)
+    expect(asana.container.querySelector('svg[data-hue="berry"]')).toBeTruthy()
+    cleanup()
+    const one = render(<ImportJobRow job={job("completed", { provider: "jira" })} {...handlers()} />)
+    expect(one.container.querySelector("svg[data-hue]")).toBeNull()
+  })
+})

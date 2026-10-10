@@ -25,6 +25,8 @@ import { PlayCircle } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import type { CampHue } from "@/lib/campHue"
 import { importProviderLabel, type ImportJob } from "@/services/importService"
 
 /**
@@ -50,6 +52,22 @@ const STATUS: Record<string, { label: string; tone: keyof typeof TONE }> = {
   failed: { label: "Failed", tone: "danger" },
   cancelled: { label: "Cancelled", tone: "neutral" },
   rolled_back: { label: "Rolled back", tone: "neutral" },
+}
+
+/**
+ * Each tool's colour, one map: where the history lists every provider's
+ * imports, a small square in it marks which tool each came from. Eight tools,
+ * six hues, so two pairs share one; the name always sits beside it.
+ */
+export const PROVIDER_HUE: Record<string, CampHue> = {
+  asana: "berry",
+  clickup: "dusk",
+  jira: "sky",
+  linear: "lake",
+  monday: "sun",
+  notion: "moss",
+  todoist: "berry",
+  trello: "sky",
 }
 
 /** Where an import stands, as a tinted word. Shared by the Slack import card. */
@@ -112,6 +130,7 @@ export function ImportJobRow({ job: j, showProvider, onPlan, onDiscard, onCancel
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          {showProvider && <IdentityMark hue={PROVIDER_HUE[j.provider] ?? "sun"} variant="square" size={10} />}
           <span className="truncate text-sm font-medium">
             {showProvider && <span className="font-normal text-muted-foreground">{importProviderLabel(j.provider)} · </span>}
             {j.source_workspace_name}
