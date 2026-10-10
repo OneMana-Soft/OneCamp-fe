@@ -23,6 +23,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { ShieldCheck, ShieldAlert } from "@/lib/icons"
+import { SettingsSection } from "@/components/ui/settingsSection"
 import {
     listEvidenceReceipts,
     evidencePageHref,
@@ -94,24 +95,26 @@ export const EvidenceReceipts: React.FC = () => {
 
     if (receipts.length === 0) return null
 
+    // A section inside the audit log's section, at its level 3: it was a block
+    // under a rule inside the log's card, a box in a box.
     return (
-        <section className="mt-5 border-t border-border/60 pt-4">
-            <h3 className="text-sm font-medium">Monthly receipts</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-                What each completed month&apos;s pack said, recorded while its rows were intact. A pack
-                rebuilt later over the same month is a weaker document, and this is how you can tell.
-            </p>
-            <ul className="mt-3 flex flex-col divide-y divide-border/60">
+        <SettingsSection
+            level={3}
+            className="pt-5"
+            title="Monthly receipts"
+            description="What each completed month's pack said, recorded while its rows were intact. A pack rebuilt later over the same month is a weaker document, and this is how you can tell."
+        >
+            <ul aria-label="Monthly receipts" className="divide-y divide-border rounded-lg border border-border">
                 {receipts.map((r) => (
                     <li key={r.id}>
                         <Link
                             href={evidencePageHref(r)}
-                            className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 -mx-2 px-2 rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
                         >
                             {r.chain_ok ? (
-                                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success-ink" aria-hidden="true" />
+                                <ShieldCheck className="size-4 shrink-0 text-success-ink" aria-hidden="true" />
                             ) : (
-                                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-danger-ink" aria-hidden="true" />
+                                <ShieldAlert className="size-4 shrink-0 text-danger-ink" aria-hidden="true" />
                             )}
                             <span className="text-sm font-medium">{receiptLabel(r)}</span>
                             <span className="text-xs text-muted-foreground">{receiptSummary(r)}</span>
@@ -122,7 +125,7 @@ export const EvidenceReceipts: React.FC = () => {
                     </li>
                 ))}
             </ul>
-        </section>
+        </SettingsSection>
     )
 }
 

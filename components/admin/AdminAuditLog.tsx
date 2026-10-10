@@ -9,13 +9,21 @@ import Link from "next/link"
 import EvidenceReceipts from "@/components/admin/EvidenceReceipts"
 import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { usePlan } from "@/hooks/usePlan"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, ShieldCheck, Download, FileArchive } from "@/lib/icons"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { StatusWord } from "@/components/ui/statusWord"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { RefreshCw, ShieldCheck, Download, FileArchive, ChevronDown, Filter } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { fullDateTime, shortDateTime } from "@/lib/utils/date/shortDate"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -54,7 +62,17 @@ const CATEGORY_HUE: Record<string, CampHue> = {
     agent: "dusk",
 }
 
-const CHIP = "inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-2xs font-medium capitalize"
+const CHIP = "inline-flex max-w-full items-center truncate rounded-sm px-1.5 py-0.5 text-2xs font-medium capitalize"
+
+/**
+ * The category's own column, as wide as the widest chip ("integration"), so
+ * every summary starts on one line whatever its category. The chip led the row
+ * at its own width, and the summaries started anywhere from 575 to 599px.
+ */
+export const CHIP_COLUMN = "w-[5.5rem] shrink-0"
+
+/** A list of rows between hairlines, as every list on the admin page is drawn. */
+const LIST = "divide-y divide-border rounded-lg border border-border"
 
 // Unknown categories still render, in a neutral style. A category the server starts
 // recording is more useful shown plainly than omitted, and omitting it is precisely
@@ -64,12 +82,18 @@ function categoryChipClass(category: string): string {
     return hue ? cn(CHIP, HUE_CLASS[hue], "bg-hue-tint text-hue-ink") : cn(CHIP, "bg-muted text-muted-foreground")
 }
 
-// The filter in use is the current selection, so it takes the selection's
-// soft accent ground, as the app marks a current place. Not the filled accent:
-// that is the one primary action on this card (Evidence pack), and a filled
-// orange chip beside it made two.
+// "Nobody watching" is on or off, and when on it is the current selection, so
+// it takes the selection's soft accent ground, as the app marks a current
+// place. Not the filled accent: that is the one primary action here (Evidence
+// pack). The categories are a choice of one, so they are the segmented control.
 const FILTER_ON = "bg-brand-muted text-foreground border-brand/40 hover:bg-brand-muted"
 const FILTER_OFF = "text-muted-foreground"
+
+/** "integration" as a person reads it: "Integration". */
+const categoryLabel = (c: string) => (c === ALL ? "All" : c.charAt(0).toUpperCase() + c.slice(1))
+
+/** What the server said, when it answered; a network failure keeps ErrorState's own words. */
+const serverReason = (e: unknown) => (apiErrorStatus(e) ? apiErrorMessage(e) : undefined)
 
 // The filter list the component starts with, replaced by whatever the server
 // reports. Kept as a seed so the buttons render on the very first paint instead of
@@ -98,8 +122,10 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
     const hasDetail = Boolean(meta && (meta.malformed || detailFields.length > 0))
 
     return (
-        <div className="flex items-start gap-3 px-2 py-2.5">
-            <span className={categoryChipClass(entry.category)}>{entry.category}</span>
+        <li className="flex items-start gap-3 px-4 py-3">
+            <span data-audit-chip-column="" className={CHIP_COLUMN}>
+                <span className={categoryChipClass(entry.category)}>{entry.category}</span>
+            </span>
             <div className="min-w-0 flex-1">
                 <p className="text-sm text-foreground">{entry.summary}</p>
 
@@ -168,7 +194,7 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                     </details>
                 )}
             </div>
-        </div>
+        </li>
     )
 }
 
@@ -191,28 +217,36 @@ function AuditTime({ iso }: { iso: string }) {
     )
 }
 
-/** The rows the log is about to show, so nothing moves when they arrive. */
-function AuditSkeleton() {
+/**
+ * The rows the log is about to show, in the list's own frame, padding and
+ * columns, so nothing moves when they arrive. Its rows sat 8px further in than
+ * the loaded ones, which were pulled out by a margin the skeleton didn't have.
+ */
+export function AuditSkeleton() {
     return (
-        <div aria-busy="true" aria-label="Loading the audit log" className="divide-y divide-border/60">
-            {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-3 px-2 py-2.5" aria-hidden="true">
-                    <Skeleton className="h-5 w-16 shrink-0" />
-                    <div className="min-w-0 flex-1 space-y-1.5">
+        <ul role="status" aria-busy="true" aria-label="Loading the audit log" className={LIST}>
+            {Array.from({ length: 6 }).map((_, i) => (
+                <li key={i} className="flex items-start gap-3 px-4 py-3" aria-hidden="true">
+                    <span className={CHIP_COLUMN}>
+                        <Skeleton className="h-5 w-16" />
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
                         <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/5" : "w-1/2")} />
                         <Skeleton className="h-3 w-2/5" />
                     </div>
-                </div>
+                </li>
             ))}
-        </div>
+        </ul>
     )
 }
 
 export default function AdminAuditLog() {
     const [entries, setEntries] = useState<AuditEntry[]>([])
     const [loading, setLoading] = useState(true)
-    // A failed read is not an empty log: said as such, with Try again.
+    // A failed read is not an empty log: said as such, with Try again, and
+    // with the server's reason when it gave one.
     const [failed, setFailed] = useState(false)
+    const [failure, setFailure] = useState<string | undefined>(undefined)
     // Whether the server may hold entries past the ones shown.
     const [hasOlder, setHasOlder] = useState(false)
     const [loadingOlder, setLoadingOlder] = useState(false)
@@ -237,6 +271,7 @@ export default function AdminAuditLog() {
     const load = (cat: string, unattended: boolean = unattendedOnly) => {
         setLoading(true)
         setFailed(false)
+        setFailure(undefined)
         getAdminAuditLog(cat === ALL ? undefined : cat, PAGE, 0, unattended ? UNATTENDED : undefined)
             .then((page) => {
                 setEntries(page.entries)
@@ -246,12 +281,13 @@ export default function AdminAuditLog() {
                 if (page.categories.length > 0) setCategories(page.categories)
                 if (page.initiators.length > 0) setInitiators(page.initiators)
             })
-            .catch(() => {
+            .catch((e) => {
                 // It said "No audit entries yet", which a reviewer reads as a fact
                 // about the workspace rather than a request that failed.
                 setEntries([])
                 setHasOlder(false)
                 setFailed(true)
+                setFailure(serverReason(e))
             })
             .finally(() => setLoading(false))
     }
@@ -327,168 +363,187 @@ export default function AdminAuditLog() {
         }
     }
 
-    return (
-        <Card className="border-border/60">
-            <CardHeader>
-                {/* Wraps: on a phone the title and its actions do not fit one row. */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-semibold">Audit log</CardTitle>
-                        {verifyResult && (
-                            <Badge
-                                variant="outline"
-                                className={`text-2xs ${verifyResult.ok ? "text-success-ink border-success/30" : "text-danger-ink border-destructive/30"}`}
-                                title={verifyResult.message}
-                            >
-                                {verifyResult.ok
-                                    ? `${verifyResult.partial ? "Recent" : "Whole chain"} verified · ${verifyResult.checked}`
-                                    : "Tampering detected"}
-                            </Badge>
-                        )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleVerify("recent")} disabled={verifying}>
-                            <ShieldCheck className={`h-3.5 w-3.5 ${verifying ? "animate-pulse" : ""}`} />
-                            Verify
-                        </Button>
-                        {!exportLocked && (<>
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleExport("csv")} disabled={exporting}>
-                            <Download className="h-3.5 w-3.5" />
-                            CSV
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleExport("json")} disabled={exporting}>
-                            <Download className="h-3.5 w-3.5" />
-                            JSON
-                        </Button>
-                        {/* READ FIRST, DOWNLOAD SECOND, and that order is the point.
-                            The pack was assembled, fingerprinted and honest about its
-                            own limits, and the only way to meet it was a .json file.
-                            Nobody hands an auditor a JSON file; the primary action is
-                            now the document, with the file beside it for the reader
-                            who is going to verify the digests. */}
-                        {/* A LINK, not a button with a push. The pack is a document
-                            somebody sends to somebody else, so open-in-new-tab and
-                            copy-link have to work, and a router push gives neither. */}
-                        <Button asChild variant="default" size="sm" className="h-8 gap-1.5 text-xs">
-                            <Link
-                                href="/app/admin/evidence"
-                                title="The log, the chain recomputation, what each agent was told, and a manifest fingerprinting every section, as one document you can read, print or send"
-                            >
-                                <FileArchive className="h-3.5 w-3.5" />
-                                Evidence pack
-                            </Link>
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1.5 text-xs"
-                            onClick={handleEvidencePack}
-                            disabled={exporting}
-                            title="The same pack as a file. The fingerprint is a digest of these bytes, so verification happens against the file."
-                        >
-                            <Download className="h-3.5 w-3.5" />
-                            Pack file
-                        </Button>
-                        </>)}
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh the log">
-                            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                        </Button>
-                    </div>
-                </div>
-                <CardDescription>
-                    Every change admins make to settings, and what agents did for people. Each entry is chained to the one before, so Verify shows whether any was altered or removed. Secret values are never recorded, only that they changed.
-                </CardDescription>
-                {exportLocked && <PlanLockedNotice what="Exporting the audit log" upgradeUrl={plan.upgradeUrl} className="mt-2" />}
-                {/* Offered only AFTER a windowed check comes back, and only when it
-                    passed. Verify is bounded by default because the log only grows
-                    and a full walk on a year-old workspace is the moment the button
-                    stops answering at all. The fast result is the useful one; this is
-                    for the reader who needs the claim to cover everything, and it is
-                    labelled as the slower thing so nobody clicks it by reflex. */}
-                {verifyResult?.ok && verifyResult.partial && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                        Checked the most recent {verifyResult.checked.toLocaleString()} entries
-                        {verifyResult.from_seq ? ` (from #${verifyResult.from_seq} onwards)` : ""}, not the whole log.{" "}
-                        <button
-                            type="button"
-                            onClick={() => handleVerify("full")}
-                            disabled={verifying}
-                            className="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
-                        >
-                            Check the whole chain
-                        </button>{" "}
-                        (slower, because it starts from the first entry ever written).
-                    </p>
-                )}
-            </CardHeader>
-            <CardContent>
-                {/* One filter per category the SERVER records, not a list kept here.
-                    role=group with an accessible name so the set reads as one control
-                    rather than a run of unrelated buttons, and aria-pressed so the
-                    active filter is announced rather than only coloured. */}
-                <div className="flex flex-wrap gap-1.5 mb-3" role="group" aria-label="Filter audit entries by category">
-                    {[ALL, ...categories].map((f) => (
-                        <Button
-                            key={f}
-                            size="sm"
-                            variant="outline"
-                            className={cn("h-7 px-2.5 text-xs capitalize", filter === f ? FILTER_ON : FILTER_OFF)}
-                            aria-pressed={filter === f}
-                            onClick={() => setFilter(f)}
-                        >
-                            {f}
-                        </Button>
-                    ))}
-                    {/* Separate from the categories because it cuts across them: an
-                        unattended run is in the agent category and the refusal it
-                        earned is too, and this asks a different question of both. */}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className={cn("h-7 px-2.5 text-xs ml-auto", unattendedOnly ? FILTER_ON : FILTER_OFF)}
-                        aria-pressed={unattendedOnly}
-                        title="Only what ran on somebody's authority while they were away: scheduled runs, event-triggered runs, and work one agent handed to another"
-                        onClick={() => setUnattendedOnly((v) => !v)}
-                    >
-                        Nobody watching
-                    </Button>
-                </div>
+    const filtered = filter !== ALL || unattendedOnly
+    const showAll = () => {
+        setFilter(ALL)
+        setUnattendedOnly(false)
+    }
 
-                {/* The failure is checked before the empty case: both leave the
-                    list empty, and only one of them is true. */}
-                {loading && entries.length === 0 ? (
-                    <AuditSkeleton />
-                ) : failed && entries.length === 0 ? (
-                    <ErrorState subject="the audit log" onRetry={() => load(filter)} retrying={loading} />
-                ) : entries.length === 0 && (filter !== ALL || unattendedOnly) ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">No entries match this filter.</div>
-                ) : entries.length === 0 ? (
-                    // Nothing recorded yet: the inbox, in the workspace group's hue.
-                    <EmptyState
-                        illustration={<SpotInbox hue={ADMIN_GROUP_HUE.workspace} />}
-                        title="No audit entries yet"
-                        description="Changes to settings, and what agents do for people, are recorded here as they happen."
-                    />
-                ) : (
-                    // No scroller of its own: the admin page's tab region scrolls,
-                    // so the log grows with the page instead of inside a box.
-                    <div className="-mx-2">
-                        <div className="divide-y divide-border/60">
-                            {entries.map((e) => (
-                                <AuditRow key={e.id} entry={e} unattendedKinds={unattendedKinds} />
-                            ))}
-                        </div>
-                        {hasOlder && (
-                            <div className="px-2 pt-3">
-                                <Button variant="outline" size="sm" onClick={loadOlder} disabled={loadingOlder}>
-                                    {loadingOlder ? "Loading older entries…" : "Show older entries"}
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                )}
-                <EvidenceReceipts />
-            </CardContent>
-        </Card>
+    return (
+        <SettingsSection
+            id="audit-log"
+            title="Audit log"
+            description="Every change admins make to settings, and what agents did for people. Each entry is chained to the one before, so Verify shows whether any was altered or removed. Secret values are never recorded, only that they changed."
+            action={
+                <>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(sectionActionClass, "gap-1.5")}
+                        onClick={() => handleVerify("recent")}
+                        disabled={verifying}
+                    >
+                        <ShieldCheck className={verifying ? "animate-pulse" : undefined} />
+                        Verify
+                    </Button>
+                    {!exportLocked && (
+                        <>
+                            {/* The three files in one menu: the log as rows (CSV, JSON)
+                                and the pack as the file its fingerprint is a digest of.
+                                Four outline buttons and the pack in a row squeezed the
+                                description beside them to a few words a line. */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className={cn(sectionActionClass, "gap-1.5")} disabled={exporting}>
+                                        <Download />
+                                        Export
+                                        <ChevronDown className="text-muted-foreground" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onSelect={() => void handleExport("csv")}>The log as CSV</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => void handleExport("json")}>The log as JSON</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        onSelect={() => void handleEvidencePack()}
+                                        title="The same pack as a file. The fingerprint is a digest of these bytes, so verification happens against the file."
+                                    >
+                                        The evidence pack file
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            {/* READ FIRST, DOWNLOAD SECOND, and that order is the point.
+                                Nobody hands an auditor a JSON file; the primary action is
+                                the document, with the file in the menu beside it for the
+                                reader who is going to verify the digests. A LINK, not a
+                                button with a push: the pack is a document somebody sends
+                                to somebody else, so open-in-new-tab and copy-link work. */}
+                            <Button asChild size="sm" className={cn(sectionActionClass, "gap-1.5")}>
+                                <Link
+                                    href="/app/admin/evidence"
+                                    title="The log, the chain recomputation, what each agent was told, and a manifest fingerprinting every section, as one document you can read, print or send"
+                                >
+                                    <FileArchive />
+                                    Evidence pack
+                                </Link>
+                            </Button>
+                        </>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-11 md:size-8"
+                        onClick={() => load(filter)}
+                        aria-label="Refresh the log"
+                    >
+                        <RefreshCw className={loading ? "animate-spin" : undefined} />
+                    </Button>
+                </>
+            }
+        >
+            {exportLocked && <PlanLockedNotice what="Exporting the audit log" upgradeUrl={plan.upgradeUrl} />}
+
+            {/* What Verify found, said as a state in words (never by colour
+                alone), with how far it reached. */}
+            {verifyResult && (
+                <p data-verify-result="" className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
+                    <StatusWord tone={verifyResult.ok ? "success" : "danger"} className="font-medium">
+                        {verifyResult.ok ? `${verifyResult.partial ? "Recent" : "Whole chain"} verified` : "Tampering detected"}
+                    </StatusWord>
+                    <span className="text-muted-foreground" title={verifyResult.message}>
+                        {verifyResult.ok
+                            ? `· ${verifyResult.checked.toLocaleString()} ${verifyResult.checked === 1 ? "entry" : "entries"}`
+                            : `· ${verifyResult.message}`}
+                    </span>
+                </p>
+            )}
+            {/* Offered only AFTER a windowed check comes back, and only when it
+                passed. Verify is bounded by default because the log only grows
+                and a full walk on a year-old workspace is the moment the button
+                stops answering at all. The fast result is the useful one; this is
+                for the reader who needs the claim to cover everything, and it is
+                labelled as the slower thing so nobody clicks it by reflex. */}
+            {verifyResult?.ok && verifyResult.partial && (
+                <p className="text-xs text-muted-foreground">
+                    Checked the most recent {verifyResult.checked.toLocaleString()} entries
+                    {verifyResult.from_seq ? ` (from #${verifyResult.from_seq} onwards)` : ""}, not the whole log.{" "}
+                    <button
+                        type="button"
+                        onClick={() => handleVerify("full")}
+                        disabled={verifying}
+                        className="rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50"
+                    >
+                        Check the whole chain
+                    </button>{" "}
+                    (slower, because it starts from the first entry ever written).
+                </p>
+            )}
+
+            {/* One choice of category, from the ones the SERVER records rather
+                than a list kept here, as the segmented control every other choice
+                of one uses; and, apart from it because it cuts across them, the
+                one question an auditor asks first: what ran while nobody watched. */}
+            <div data-audit-filters="" className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                    aria-label="Filter audit entries by category"
+                    value={filter}
+                    onValueChange={setFilter}
+                    options={[ALL, ...categories].map((c) => ({ value: c, label: categoryLabel(c) }))}
+                />
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className={cn("ml-auto h-11 md:h-9", unattendedOnly ? FILTER_ON : FILTER_OFF)}
+                    aria-pressed={unattendedOnly}
+                    title="Only what ran on somebody's authority while they were away: scheduled runs, event-triggered runs, and work one agent handed to another"
+                    onClick={() => setUnattendedOnly((v) => !v)}
+                >
+                    Nobody watching
+                </Button>
+            </div>
+
+            {/* The failure is checked before the empty case: both leave the
+                list empty, and only one of them is true. */}
+            {loading && entries.length === 0 ? (
+                <AuditSkeleton />
+            ) : failed && entries.length === 0 ? (
+                <ErrorState compact subject="the audit log" detail={failure} onRetry={() => load(filter)} retrying={loading} />
+            ) : entries.length === 0 && filtered ? (
+                <EmptyState
+                    icon={Filter}
+                    hue={ADMIN_GROUP_HUE.workspace}
+                    title="No entries match this filter"
+                    description="Nothing recorded in this category, or while nobody was watching, in the entries read so far."
+                    action={
+                        <Button variant="outline" size="sm" onClick={showAll}>
+                            Show every entry
+                        </Button>
+                    }
+                />
+            ) : entries.length === 0 ? (
+                // Nothing recorded yet, a first run: the inbox, in the workspace group's hue.
+                <EmptyState
+                    illustration={<SpotInbox hue={ADMIN_GROUP_HUE.workspace} />}
+                    title="No audit entries yet"
+                    description="Changes to settings, and what agents do for people, are recorded here as they happen."
+                />
+            ) : (
+                // No scroller of its own: the admin page's tab region scrolls,
+                // so the log grows with the page instead of inside a box.
+                <>
+                    <ul aria-label="Audit entries" className={LIST}>
+                        {entries.map((e) => (
+                            <AuditRow key={e.id} entry={e} unattendedKinds={unattendedKinds} />
+                        ))}
+                    </ul>
+                    {hasOlder && (
+                        <Button variant="outline" size="sm" onClick={loadOlder} disabled={loadingOlder}>
+                            {loadingOlder ? "Loading older entries…" : "Show older entries"}
+                        </Button>
+                    )}
+                </>
+            )}
+            <EvidenceReceipts />
+        </SettingsSection>
     )
 }

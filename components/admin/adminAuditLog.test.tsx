@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
-import AdminAuditLog from "@/components/admin/AdminAuditLog"
+import AdminAuditLog, { AuditSkeleton, CHIP_COLUMN } from "@/components/admin/AdminAuditLog"
 import type { AuditEntry, AuditLogPage } from "@/services/settingsService"
 
 // The audit log says when it could not be read (it said "No audit entries
@@ -83,11 +83,17 @@ describe("the audit log", () => {
     getAdminAuditLog.mockResolvedValue(page([entry(1)]))
     render(<AdminAuditLog />)
     await screen.findByText("Change 1")
-    // The selection's soft accent ground, as the app marks a current place;
-    // the filled accent stays with the card's one primary action.
-    const all = screen.getByRole("button", { name: "all", pressed: true })
-    expect(all.className).toMatch(/bg-brand-muted/)
+    // The category is a choice of one: the app's segmented control, its choice
+    // raised on the card colour, never the filled accent, which stays with the
+    // section's one primary action. (It was a row of pressed buttons.)
+    const categories = screen.getByRole("radiogroup", { name: "Filter audit entries by category" })
+    const all = within(categories).getByRole("radio", { name: "All" })
+    expect(all.getAttribute("aria-checked")).toBe("true")
+    expect(all.className).toMatch(/data-\[state=checked\]:bg-card/)
     expect(all.className).not.toMatch(/bg-primary/)
+    await act(async () => void fireEvent.click(within(categories).getByRole("radio", { name: "Agent" })))
+    expect(getAdminAuditLog.mock.calls.at(-1)?.[0]).toBe("agent")
+    // The selection's soft accent ground, as the app marks a current place.
     const nobody = screen.getByRole("button", { name: /nobody watching/i })
     await act(async () => void fireEvent.click(nobody))
     expect(nobody.getAttribute("aria-pressed")).toBe("true")
@@ -130,5 +136,79 @@ describe("the audit log", () => {
     // Day before month, as everywhere in the app ("10 Oct, 8:42 AM" in the
     // runner's zone), never the browser's "Oct 10, 08:42 AM".
     expect(time?.textContent).toMatch(/^\d{1,2} Oct, \d{1,2}:\d{2} (AM|PM)$/)
+  })
+})
+
+// One frame for every admin tab: the log was a bordered Card with a p-4 header,
+// its title a div in Inter 17px right and down of every other tab's title.
+describe("the audit log's frame", () => {
+  it("is a section titled by a level 2 heading, with no card around it", async () => {
+    getAdminAuditLog.mockResolvedValue(page([entry(1)]))
+    const { container } = render(<AdminAuditLog />)
+    await screen.findByText("Change 1")
+    const region = screen.getByRole("region", { name: "Audit log" })
+    expect(screen.getByRole("heading", { level: 2, name: "Audit log" })).toBeTruthy()
+    expect(region.id).toBe("audit-log")
+    expect(container.querySelector(".rounded-xl")).toBeNull()
+    // Verify and the evidence pack sit on the title's row, in its action slot.
+    const actions = region.querySelector("[data-section-action]") as HTMLElement
+    expect(within(actions).getByRole("button", { name: "Verify" })).toBeTruthy()
+    expect(within(actions).getByRole("link", { name: /evidence pack/i })).toBeTruthy()
+  })
+
+  // The chip led each row at its own width, so summaries started anywhere
+  // from 575 to 599px. A column as wide as the widest chip lines them up.
+  it("starts every summary on one line, whatever its category", async () => {
+    getAdminAuditLog.mockResolvedValue({
+      entries: [entry(1, { category: "app" }), entry(2, { category: "integration" }), entry(3, { category: "security" })],
+      categories: ["app", "integration", "security"],
+      initiators: [],
+    })
+    render(<AdminAuditLog />)
+    await screen.findByText("Change 3")
+    const rows = within(screen.getByRole("list", { name: "Audit entries" })).getAllByRole("listitem")
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      const column = row.firstElementChild as HTMLElement
+      expect(column.className).toBe(CHIP_COLUMN)
+      expect(column.className).toContain("w-[5.5rem]")
+      expect(column.className).toContain("shrink-0")
+      expect(row.className).toContain("px-4")
+    }
+  })
+
+  // Its rows sat 8px further in than the loaded ones, which a margin pulled out.
+  it("draws its loading rows in the list's own frame, padding and columns", () => {
+    render(<AuditSkeleton />)
+    const list = screen.getByRole("status", { name: "Loading the audit log" })
+    expect(list.className).toContain("rounded-lg")
+    expect(list.className).toContain("border")
+    const rows = list.querySelectorAll("li")
+    expect(rows.length).toBe(6)
+    for (const row of rows) {
+      expect(row.className).toContain("px-4 py-3")
+      expect((row.firstElementChild as HTMLElement).className).toBe(CHIP_COLUMN)
+    }
+  })
+
+  it("says nothing matches a filter, with the tile and a way back to every entry", async () => {
+    getAdminAuditLog.mockResolvedValueOnce(page([entry(1)])).mockResolvedValue(page([]))
+    render(<AdminAuditLog />)
+    await screen.findByText("Change 1")
+    await act(async () => void fireEvent.click(screen.getByRole("radio", { name: "Agent" })))
+    expect(await screen.findByText("No entries match this filter")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration]")).toBeNull()
+    expect(document.querySelector(".hue-sun")).toBeTruthy()
+    getAdminAuditLog.mockResolvedValue(page([entry(2)]))
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Show every entry" })))
+    expect(await screen.findByText("Change 2")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "All" }).getAttribute("aria-checked")).toBe("true")
+  })
+
+  it("says the server's reason when it refused, under the title", async () => {
+    getAdminAuditLog.mockRejectedValueOnce({ response: { status: 403, data: { msg: "Only admins can read the audit log." } } })
+    render(<AdminAuditLog />)
+    expect(await screen.findByText("Only admins can read the audit log.")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 2, name: "Audit log" })).toBeTruthy()
   })
 })
