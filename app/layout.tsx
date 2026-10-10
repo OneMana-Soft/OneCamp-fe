@@ -80,6 +80,12 @@ export const viewport: Viewport = {
   // (16px) on mobile with md:text-sm, and the tiptap composer inherits the 16px
   // root, so nothing here trips iOS's <16px auto-zoom.
   viewportFit: "cover",
+  // The on-screen keyboard resizes the page, so 100dvh is the room it leaves
+  // and a composer on the bottom edge sits on top of it. Chrome on Android
+  // stopped doing that by default in version 108 (the keyboard now covers the
+  // page), which put every composer behind it. iOS ignores this and is
+  // handled in lib/ui/visualViewport.ts.
+  interactiveWidget: "resizes-content",
   // Light is the default mode, so this is the correct pre-hydration value; it
   // matches the manifest's theme_color and background_color, so the install
   // splash doesn't flash a different colour into the app shell. ThemeColorMeta

@@ -33,7 +33,9 @@ export function MobileNavigationBar({
 
     return (
         <>
-            <div className="flex flex-col h-dvh overscroll-none">
+            {/* The app's frame: fitted to what the keyboard leaves while it is
+                up (lib/ui/visualViewport.ts, globals.css). */}
+            <div data-app-viewport="" className="flex flex-col h-dvh overscroll-none">
                 <MobileTopNavigationBar/>
 
                 {/* Notices sit ABOVE the page's scroller, not inside it. A channel,
