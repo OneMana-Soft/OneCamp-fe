@@ -32,11 +32,8 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import {getTimeRemaining} from "@/lib/utils/status/memberStatus";
-import {Separator} from "@/components/ui/separator";
 import CustomExpirationCalendarDialog from "@/components/dialog/customExpirationCalendarDialog";
 import {addHours} from "date-fns";
-import { X } from "@/lib/icons";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {usePost} from "@/hooks/usePost";
@@ -44,6 +41,8 @@ import {clearUserEmojiStatus, updateUserEmojiStatus} from "@/store/slice/userSli
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { browserTZ } from "@/lib/utils/timeZone"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 
 const DEFAULT_STATUSES: UserEmojiStatus[] = [
@@ -74,7 +73,22 @@ const DEFAULT_STATUSES: UserEmojiStatus[] = [
   }
 ]
 
+// When a status clears, in words. The menu said "30m", "this week" and "This
+// Week" for the same choices in two places.
+const EXPIRY_WORDS: Record<string, string> = {
+  '30m': '30 minutes',
+  '1h': '1 hour',
+  '4h': '4 hours',
+  today: 'Today',
+  this_week: 'This week',
+  custom: 'Pick a time…',
+}
 
+/** When a status clears, as a person says it: "30 minutes", "This week", "Until 12 Oct, 5:00 PM". Pure. */
+export function expiryWords(code: string | null | undefined, at?: Date): string {
+  if (code === 'custom' && at && !Number.isNaN(at.getTime())) return `Until ${shortDateTime(at)}`
+  return EXPIRY_WORDS[code ?? ''] ?? ''
+}
 
 interface updateUserStatusDialogProps {
   dialogOpenState: boolean;
@@ -92,21 +106,21 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
     message: '',
     expiration_setting: '30m' as StatusTime,
     expires_at: undefined,
-    pause_notifications: false
   }
 
   const post = usePost()
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  const selfId = selfProfile.data?.data.user_uuid || ''
 
   const dispatch = useDispatch()
-  const userStatusState = useSelector((state: RootState) => state.users.usersStatus[selfProfile.data?.data.user_uuid||''] || {} as UserEmojiStatus);
+  const userStatusState = useSelector((state: RootState) => state.users.usersStatus[selfId] || {} as UserEmojiStatus);
   const memberStatus = userStatusState.emojiStatus?.status_user_emoji_id ? userStatusState.emojiStatus : null;
 
   const memberStatusIsExpired = useStatusIsExpired(memberStatus)
   const recentStatusesResp = useFetch<UserStatusRespInterface>(GetEndpointUrl.GetUserStatuses)
   const currentStatus = memberStatusIsExpired ? undefined : memberStatus
 
-  const [emoji, setEmoji] = useState( defaultState.emoji)
+  const [emoji, setEmoji] = useState(defaultState.emoji)
   const [message, setMessage] = useState(defaultState.message)
   const [expiresIn, setExpiresIn] = useState<StatusTime | null>(defaultState.expiration_setting)
   const [expiresAt, setExpiresAt] = useState<Date | undefined>(defaultState.expires_at)
@@ -114,33 +128,25 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
 
   const emojiData = useEmojiMartData()
 
-
-
-
-  useEffect(()=>{
-
-    if(memberStatus) {
-      findEmojiMartEmojiByEmojiID(emojiData.data, currentStatus?.status_user_emoji_id ?? defaultState.emoji)
-      setEmoji(currentStatus?.status_user_emoji_id ??defaultState.emoji)
-      setMessage(currentStatus?.status_user_emoji_desc ?? defaultState.message)
-      setExpiresIn(currentStatus?.status_user_emoji_expiry_in ?? defaultState.expiration_setting)
-      setExpiresAt(currentStatus?.status_user_emoji_expiry_at ? new Date(currentStatus.status_user_emoji_expiry_at) : defaultState.expires_at)
-    }
-
-
-  },[memberStatus?.status_user_emoji_id])
+  // The status the person has now, in the fields, so it can be changed.
+  useEffect(() => {
+    if (!currentStatus) return
+    setEmoji(currentStatus.status_user_emoji_id ?? defaultState.emoji)
+    setMessage(currentStatus.status_user_emoji_desc ?? defaultState.message)
+    setExpiresIn(currentStatus.status_user_emoji_expiry_in ?? defaultState.expiration_setting)
+    setExpiresAt(currentStatus.status_user_emoji_expiry_at ? new Date(currentStatus.status_user_emoji_expiry_at) : defaultState.expires_at)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStatus?.status_user_emoji_id, dialogOpenState])
 
   const hasStatus = Boolean(currentStatus)
 
   const { isMobile } = useMedia()
 
   const suggestedStatuses = useMemo(() => {
-
     const presets = [
       ...(recentStatusesResp.data?.data?.filter((status) => status.status_user_emoji_expiry_in !== 'custom') ?? []),
       ...DEFAULT_STATUSES
     ]
-
     const filteredStatuses = Array.from(
         new Map(
             presets.map((status: UserEmojiStatus) => [
@@ -148,112 +154,68 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
               status,
             ])
         ).values());
-
-    return uniqueBy(filteredStatuses, (filteredStatuses) => filteredStatuses)
-        .slice(0, 5)
-        .reverse()
+    return uniqueBy(filteredStatuses, (s) => s).slice(0, 5)
   }, [recentStatusesResp.data])
-
-  function onSave() {
-
-      post.makeRequest<UpdateUserEmojiStatusReq>({apiEndpoint: PostEndpointUrl.UpdateUserEmojiStatus, showToast:true, payload:{
-          emoji_expiry_time_at: (expiresAt ? Math.floor(expiresAt.getTime() / 1000).toString() : ""),
-          emoji_expiry_time_in: expiresIn || '',
-          emoji_id: emoji,
-          emoji_status_desc: message,
-          emoji_timezone: browserTZ()
-        }})
-          .then(()=>{
-            dispatch(updateUserEmojiStatus({userUUID: selfProfile.data?.data.user_uuid || '', status: {
-                status_user_emoji_expiry_in: expiresIn || undefined,
-                status_user_emoji_desc: message,
-                status_user_emoji_expiry_at: (expiresAt ? Math.floor(expiresAt.getTime() / 1000).toString() : ""),
-                status_user_emoji_id: emoji
-
-              }}));
-            closeModal()
-          })
-  }
-
-
-  function resetStateToDefaults() {
-
-    post.makeRequest<UpdateUserEmojiStatusReq>({apiEndpoint: PostEndpointUrl.ClearEmojiStatus})
-        .then(()=>{
-          setEmoji(defaultState.emoji)
-          setMessage(defaultState.message)
-          setExpiresIn(defaultState.expiration_setting)
-          setExpiresAt(defaultState.expires_at)
-          // Explicit clear-intent: route through the dedicated reducer
-          // so the empty payload actually wipes Redux state. The
-          // generic updateUserEmojiStatus reducer ignores empty
-          // payloads to defend against profile-fetch clobbers.
-          dispatch(clearUserEmojiStatus({userUUID: selfProfile.data?.data.user_uuid || ''}));
-        })
-  }
-
-  const timeRemaining = getTimeRemaining(currentStatus?.status_user_emoji_expiry_at)
 
   const closeModal = useCallback(() => {
     setCustomExpirationCalendarDialogOpen(false);
     setOpenState(false)
   }, [setOpenState])
 
-  const selectedEmoji = findEmojiMartEmojiByEmojiID(emojiData.data, emoji)?.skins[0].native
+  // Saved at once: the status shows beside the name as the dialog closes, and
+  // goes back to what it was if the server refuses it (the request says why).
+  function onSave() {
+    if (!message.trim()) return
+    const previous = currentStatus
+    const expiryAt = expiresAt ? Math.floor(expiresAt.getTime() / 1000).toString() : ""
+    dispatch(updateUserEmojiStatus({userUUID: selfId, status: {
+        status_user_emoji_expiry_in: expiresIn || undefined,
+        status_user_emoji_desc: message.trim(),
+        status_user_emoji_expiry_at: expiryAt,
+        status_user_emoji_id: emoji,
+      }}));
+    closeModal()
+    post.makeRequest<UpdateUserEmojiStatusReq>({apiEndpoint: PostEndpointUrl.UpdateUserEmojiStatus, showErrorToast: true, payload: {
+        emoji_expiry_time_at: expiryAt,
+        emoji_expiry_time_in: expiresIn || '',
+        emoji_id: emoji,
+        emoji_status_desc: message.trim(),
+        emoji_timezone: browserTZ()
+      }})
+        .catch(() => {
+          if (previous) dispatch(updateUserEmojiStatus({userUUID: selfId, status: previous}))
+          else dispatch(clearUserEmojiStatus({userUUID: selfId}))
+        })
+  }
 
+  function clearStatus() {
+    const previous = currentStatus
+    // Explicit clear-intent: the dedicated reducer, so the empty payload
+    // actually wipes the status (the generic one ignores empty payloads).
+    dispatch(clearUserEmojiStatus({userUUID: selfId}));
+    setEmoji(defaultState.emoji)
+    setMessage(defaultState.message)
+    setExpiresIn(defaultState.expiration_setting)
+    setExpiresAt(defaultState.expires_at)
+    closeModal()
+    post.makeRequest<UpdateUserEmojiStatusReq>({apiEndpoint: PostEndpointUrl.ClearEmojiStatus, showErrorToast: true})
+        .catch(() => {
+          if (previous) dispatch(updateUserEmojiStatus({userUUID: selfId, status: previous}))
+        })
+  }
+
+  const selectedEmoji = findEmojiMartEmojiByEmojiID(emojiData.data, emoji)?.skins[0].native
 
   return (
       <>
-    <Dialog  open={dialogOpenState} >
-      {/*<DialogTrigger asChild>*/}
-      {/*    <Button variant="secondary">Save</Button>*/}
-      {/*</DialogTrigger>*/}
-      <DialogContent className="max-w-[95vw] md:max-w-[30vw] [&>button]:hidden">
-        <button
-            onClick={closeModal}
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground !block"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
+    <Dialog open={dialogOpenState} onOpenChange={(open) => { if (!open) closeModal() }}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className='text-start'>Status</DialogTitle>
-          <DialogDescription>
-          </DialogDescription>
+          <DialogTitle className='text-start'>Set a status</DialogTitle>
+          <DialogDescription className='text-start'>People see it beside your name until it clears.</DialogDescription>
         </DialogHeader>
-        <div className='scrollbar-hide flex max-h-[40vh] flex-1 flex-col  px-2 py-3'>
-          {suggestedStatuses?.map((preset, i) => {
-            const emojiFound = findEmojiMartEmojiByEmojiID(emojiData.data, preset.status_user_emoji_id)
 
-            return (
-                <Button
-                    variant='ghost'
-                    key={i}
-                    className=' flex h-10 cursor-pointer justify-start gap-1.5 rounded-lg px-2 py-3 text-sm'
-                    onClick={() => {
-
-
-                      setEmoji(preset.status_user_emoji_id)
-                      setMessage(preset.status_user_emoji_desc)
-                      setExpiresIn(preset.status_user_emoji_expiry_in ?? defaultState.expiration_setting)
-
-                      // closeModal()
-                    }}
-                >
-                <span className='flex h-6 w-6 items-center justify-center text-center font-["emoji"]'>
-                  {emojiFound?.skins[0].native}
-                </span>
-                  <span className='line-clamp-1'>{preset.status_user_emoji_desc}</span>
-                  <span className='text-muted-foreground text-sm'>{preset.status_user_emoji_expiry_in?.replace('_', ' ')}</span>
-                </Button>
-            )
-          })}
-        </div>
-        <Separator
-            orientation="horizontal"
-            className=""
-        />
-        <div className='flex flex-col gap-3  '>
+        <div className='flex flex-col gap-3'>
           <div className='relative'>
             <div className='absolute left-1.5 top-1.5 z-[var(--z-popover)]'>
               <ReactionPicker
@@ -265,8 +227,6 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
               >
                 <Button aria-label="Choose a status emoji"
                     variant='ghost'
-                    // accessibilityLabel='Update status emoji'
-                    className='group/emoji'
                     size={'icon'}
                 >
                   <span className='text-lg'>{selectedEmoji}</span>
@@ -276,11 +236,11 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
             <Input
                 autoFocus={!isMobile}
                 value={message}
-                onChange={(e) => {
-                  setMessage(e.target.value)
-                }}
+                onChange={(e) => setMessage(e.target.value)}
                 placeholder='What’s your status?'
-                className='bg-transparent rounded-md text-base md:text-sm h-12 dark:bg-transparent pl-12 pr-24'
+                aria-label="Status"
+                autoComplete="off"
+                className='h-12 rounded-md bg-transparent pl-12 text-base md:text-sm dark:bg-transparent'
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
@@ -288,73 +248,75 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                   }
                 }}
             />
-            {message && (
-                <div className='absolute right-1.5 top-1.5 '>
-
-
-                  <Select onValueChange={(value) => {
-
-                    if (value === 'custom') {
-                      setCustomExpirationCalendarDialogOpen(true)
-                      return
-                    }
-                    setExpiresIn(value as StatusTime)
-                    setExpiresAt(defaultState.expires_at)
-                  }}
-                          defaultValue={'30m'}
-                          value={expiresIn ?? '30m'}
-                  >
-                    <SelectTrigger className="mr-2 decoration-0 border-0" aria-hidden={false}>
-                      <SelectValue aria-hidden={false}>
-                        {expiresIn && expiresIn === 'custom'
-                            ? getTimeRemaining(expiresAt?.toISOString())
-                            : (expiresIn?.replace('_', ' ') ?? timeRemaining)}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent aria-hidden={false}>
-                      <SelectItem value="30m">30m</SelectItem>
-                      <SelectItem value="1h">1h</SelectItem>
-                      <SelectItem value="4h">4h</SelectItem>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="this_week">This Week</SelectItem>
-                      <SelectItem value="custom" aria-hidden={false}>Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                </div>
-            )}
           </div>
 
-
+          {/* A label and its value on one line, as in the task panel. */}
+          <div className={fieldRow("center", "")}>
+            <span className={fieldLabel} id="status-clears-label">Clear after</span>
+            <Select
+                onValueChange={(value) => {
+                  if (value === 'custom') {
+                    setCustomExpirationCalendarDialogOpen(true)
+                    return
+                  }
+                  setExpiresIn(value as StatusTime)
+                  setExpiresAt(defaultState.expires_at)
+                }}
+                value={expiresIn ?? '30m'}
+            >
+              <SelectTrigger className="h-8 w-full sm:w-56" aria-labelledby="status-clears-label">
+                <SelectValue>{expiryWords(expiresIn ?? '30m', expiresAt)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(['30m', '1h', '4h', 'today', 'this_week', 'custom'] as const).map((code) => (
+                    <SelectItem key={code} value={code}>{EXPIRY_WORDS[code]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <DialogFooter className="!flex-row">
-          <div className='flex-1'>
-            <Button variant='secondary' onClick={closeModal}>
+        <div className='flex flex-col gap-1'>
+          <p className={fieldLabel}>Suggestions</p>
+          <div className='scrollbar-hide -mx-2 flex max-h-[40vh] flex-col'>
+            {suggestedStatuses?.map((preset) => {
+              const emojiFound = findEmojiMartEmojiByEmojiID(emojiData.data, preset.status_user_emoji_id)
+              return (
+                  <button
+                      type="button"
+                      key={`${preset.status_user_emoji_id}|${preset.status_user_emoji_desc}`}
+                      className='flex h-9 items-center gap-2.5 rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70'
+                      onClick={() => {
+                        setEmoji(preset.status_user_emoji_id)
+                        setMessage(preset.status_user_emoji_desc)
+                        setExpiresIn(preset.status_user_emoji_expiry_in ?? defaultState.expiration_setting)
+                        setExpiresAt(defaultState.expires_at)
+                      }}
+                  >
+                    <span className='flex h-6 w-6 shrink-0 items-center justify-center font-["emoji"]' aria-hidden="true">
+                      {emojiFound?.skins[0].native}
+                    </span>
+                    <span className='min-w-0 flex-1 truncate'>{preset.status_user_emoji_desc}</span>
+                    <span className='shrink-0 text-xs text-muted-foreground'>{expiryWords(preset.status_user_emoji_expiry_in)}</span>
+                  </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <DialogFooter className="!flex-row items-center gap-2 sm:justify-between">
+          {hasStatus ? (
+              <Button variant='ghost' onClick={clearStatus}>
+                Clear status
+              </Button>
+          ) : <span />}
+          <div className='flex gap-2'>
+            <Button variant='outline' onClick={closeModal}>
               Cancel
             </Button>
-          </div>
-          <div>
-            {hasStatus &&  (
-                <Button
-                    onClick={() => {
-                      // deleteStatus.mutate({ org: `${scope}` })
-                      resetStateToDefaults()
-                    }}
-                >
-                  Clear current status
-                </Button>
-            )}
-
-            {( !hasStatus) && (
-                <Button
-                    onClick={onSave}
-                    // disabled={updateStatus.isPending || !isDirty || !message}
-                    disabled={!message}
-                >
-                  Update status
-                </Button>
-            )}
-
+            <Button onClick={onSave} disabled={!message.trim()}>
+              {hasStatus ? 'Save' : 'Set status'}
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>
