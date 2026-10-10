@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import authService from "@/services/auth/AuthService"
 import Link from "next/link"
-import { AuthField, AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
+import { AuthField, AuthHeading, AuthShell, authControl, authLink } from "@/components/auth/AuthShell"
+import { cn } from "@/lib/utils/helpers/cn"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -73,7 +74,7 @@ export default function ForgotPasswordPage() {
           </form>
 
           <p className="mt-6 text-sm">
-            <Link href="/" className="inline-flex items-center gap-1.5 rounded-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+            <Link href="/" className={cn(authLink, "rounded-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline")}>
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to sign in
             </Link>
           </p>

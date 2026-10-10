@@ -48,3 +48,17 @@ describe("the signed-out frame", () => {
     expect(art.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
+
+// A link on its own line is a touch target on a phone; "Back to sign in" and
+// "Manage notification settings" were 17 to 20px tall at 390.
+describe("standalone links on the signed-out pages", () => {
+  it("are 44px tall on a phone", async () => {
+    const { authLink } = await import("@/components/auth/AuthShell")
+    expect(authLink).toContain("min-h-11")
+    expect(authLink).toContain("md:min-h-0")
+    const { readFileSync } = await import("node:fs")
+    for (const f of ["app/forgot-password/page.tsx", "app/unsubscribe/page.tsx", "components/auth/TwoFactorPrompt.tsx"]) {
+      expect(readFileSync(f, "utf8"), f).toMatch(/cn\(authLink/)
+    }
+  })
+})

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "@/lib/icons"
-import { AuthHeading, authControl } from "@/components/auth/AuthShell"
+import { AuthHeading, authControl, authLink } from "@/components/auth/AuthShell"
+import { cn } from "@/lib/utils/helpers/cn"
 import { TwoFactorCodeField } from "@/components/auth/TwoFactorCodeField"
 
 /**
@@ -133,7 +134,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
             <div className="flex items-center justify-between text-sm">
                 <button
                     type="button"
-                        className="rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                        className={cn(authLink, "rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70")}
                     onClick={() => {
                         setUsingRecoveryCode((v) => !v)
                         setCode("")
@@ -144,7 +145,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                 </button>
                 <button
                     type="button"
-                    className="rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    className={cn(authLink, "rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70")}
                     onClick={onCancel}
                 >
                     Back to sign in
