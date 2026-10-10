@@ -274,9 +274,13 @@ export function DesktopNavigationBar({
             v =  (path.length > 3 && path[3] == u) ? "sidebarActive" : "ghost"
         }
 
+        const isGroup = dm_participants.length > 1
         dmNavGrp.push({
-            title: dm_participants.length == 0 ? displayNameOf(userSideNav.data?.data) || '' : dm_participants.map((item) => userDisplayName(item)).join(","),
-            userParticipants: dm_participants.length > 1 ? dm_participants : [],
+            title: dm_participants.length == 0 ? displayNameOf(userSideNav.data?.data) || '' : dm_participants.map((item) => userDisplayName(item)).join(", "),
+            // A group is drawn as a team is: the people glyph in its own hue.
+            // Its stacked faces were 32px wide and started its name at 56,
+            // where every other row's starts at 40.
+            ...(isGroup ? { icon: Users, hue_id: d.dm_grouping_id } : {}),
             unread_count: d?.dm_unread,
             userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),
             path: p,
@@ -534,26 +538,28 @@ export function DesktopNavigationBar({
                         <div className="flex-1 overflow-y-scroll pb-4">
                             <DesktopSideNavigationBar isCollapsed={isCollapsed} links={secondaryNavLinks} />
                         </div>
-                        <div className="h-9 flex items-center justify-start px-3">
+                        {/* On the icons' column (centred on 24px) and the names'
+                            line (40px), open or as the rail. */}
+                        <div className={cn("h-9 flex items-center justify-start", isCollapsed ? "px-1.5" : "px-2")}>
                             {isCollapsed ? (
                                 <button
                                     onClick={() => {
                                         sidebarPanelRef.current?.expand()
                                     }}
-                                    className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                    className="h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                     title="Expand sidebar"
                                 >
-                                    <PanelLeftOpen className="h-4 w-4" />
+                                    <PanelLeftOpen className="h-4 w-4" strokeWidth={1.75} />
                                 </button>
                             ) : (
                                 <button
                                     onClick={() => {
                                         sidebarPanelRef.current?.collapse()
                                     }}
-                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent"
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 h-7 px-2 rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                     title="Collapse sidebar"
                                 >
-                                    <PanelLeftClose className="h-3.5 w-3.5" />
+                                    <PanelLeftClose className="h-4 w-4" strokeWidth={1.75} />
                                     <span>Collapse</span>
                                 </button>
                             )}

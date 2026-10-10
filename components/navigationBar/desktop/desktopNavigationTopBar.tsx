@@ -36,8 +36,11 @@ export default function DesktopNavigationTopBar() {
 
     return (
         // Equal sides keep the search centred when something joins the right
-        // (the focus pill), instead of sliding it over.
-        <div className="w-full h-12 flex px-3 gap-3 items-center bg-canvas sticky top-0 z-[var(--z-sticky)]">
+        // (the focus pill), instead of sliding it over. 8px in at both ends:
+        // the logo then centres on the sidebar's icon column (24px), and the
+        // avatar ends on the sheet's right edge, where at 12px in they sat 4px
+        // off both.
+        <div className="w-full h-12 flex px-2 gap-3 items-center bg-canvas sticky top-0 z-[var(--z-sticky)]">
             <div className="flex flex-1 basis-0 items-center">
                 <DesktopNavigationOrgProfile/>
             </div>
