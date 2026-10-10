@@ -82,9 +82,11 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
       <div className="flex items-center gap-1.5 px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
         <Sparkles className="h-3 w-3" /> AI teammates
       </div>
-      <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60">
+      {/* Rows between hairlines, in the dialog's own column: a bordered box
+          here was a card inside the dialog's card. */}
+      <div data-ai-teammates="" className="flex flex-col divide-y divide-border/60 border-y border-border/60">
         {options.map((opt) => (
-          <div key={opt.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+          <div key={opt.id} className="flex items-center justify-between gap-3 px-1 py-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-agent-muted text-agent">
                 <Sparkles className="h-3.5 w-3.5" />

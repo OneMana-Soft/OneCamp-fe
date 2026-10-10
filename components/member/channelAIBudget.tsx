@@ -99,7 +99,8 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
       <div className="flex items-center gap-1.5 px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
         <Zap className="h-3 w-3" /> AI settings
       </div>
-      <div className="flex flex-col gap-3 rounded-xl border border-border/60 px-3 py-2.5">
+      {/* Between hairlines in the dialog's column, not a box inside it. */}
+      <div data-ai-budget="" className="flex flex-col gap-3 border-y border-border/60 px-1 py-3">
         {/* Per-channel default model (empty = workspace default).
             Applies to ALL AI work in this channel — agent runs, channel summaries, and
             @mention answers. It used to reach only agent runs, which made the setting
