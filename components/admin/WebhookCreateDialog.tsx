@@ -25,7 +25,7 @@ import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
-import { cn } from "@/lib/utils/helpers/cn"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 
 export const FALLBACK_EVENT_TYPES = [
   "post.created", "post.updated", "post.deleted",
@@ -103,6 +103,11 @@ const blankForm = {
 
 const NO_CHANNEL_VALUE = "__none__"
 
+const KIND_OPTIONS = [
+  { value: "incoming", label: "Incoming" },
+  { value: "outgoing", label: "Outgoing" },
+] as const satisfies readonly { value: WebhookType; label: string }[]
+
 const TYPE_HELP: Record<WebhookType, string> = {
   incoming: "A script or another service posts messages into a channel here.",
   outgoing: "OneCamp tells another service when something happens here.",
@@ -179,30 +184,18 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
           <DialogDescription>{TYPE_HELP[form.type]}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          {/* Two choices of one, so a segmented radio group, not a select whose
-              options were sentences. */}
+          {/* Two choices of one, so the app's segmented control, not a select
+              whose options were sentences. It marked the choice with the page
+              colour alone, 1.03:1 against its well. */}
           <div className="grid gap-2">
             <p id="wh-type-label" className="text-sm font-medium">Kind</p>
-            <div role="radiogroup" aria-labelledby="wh-type-label" className="inline-flex w-fit gap-1 rounded-md bg-muted p-1">
-              {(["incoming", "outgoing"] as const).map((t) => {
-                const on = form.type === t
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setForm((f) => ({ ...f, type: t }))}
-                    className={cn(
-                      "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                      on ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {t === "incoming" ? "Incoming" : "Outgoing"}
-                  </button>
-                )
-              })}
-            </div>
+            <SegmentedControl
+              aria-labelledby="wh-type-label"
+              value={form.type}
+              onValueChange={(t) => setForm((f) => ({ ...f, type: t }))}
+              options={KIND_OPTIONS}
+              className="w-fit"
+            />
           </div>
           <Field label="Name" required error={errors.name}>
             <Input

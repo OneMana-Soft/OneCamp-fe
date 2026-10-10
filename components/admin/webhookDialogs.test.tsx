@@ -26,6 +26,18 @@ const chooseOutgoing = async () => {
 }
 
 describe("new webhook", () => {
+  // The kind was a hand-made radio pair that marked the choice with the page
+  // colour alone (1.03:1 against its well); it is the app's segmented control.
+  it("picks its kind with the app's segmented control", () => {
+    render(<WebhookCreateDialog open onOpenChange={() => {}} onSuccess={() => {}} />)
+    const group = screen.getByRole("radiogroup", { name: "Kind" })
+    const incoming = screen.getByRole("radio", { name: "Incoming" })
+    expect(group.contains(incoming)).toBe(true)
+    expect(incoming.getAttribute("data-state")).toBe("checked")
+    expect(incoming.className).toContain("data-[state=checked]:bg-card")
+    expect(incoming.className).not.toMatch(/(^|\s)bg-background(\s|$)/)
+  })
+
   it("is titled in sentence case", () => {
     render(<WebhookCreateDialog open onOpenChange={() => {}} onSuccess={() => {}} />)
     expect(screen.getByRole("heading", { name: "New webhook" })).toBeTruthy()
