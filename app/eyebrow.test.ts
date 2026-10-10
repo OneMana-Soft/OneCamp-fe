@@ -67,4 +67,35 @@ describe("uppercase section labels come from one place", () => {
         "or cn(eyebrowClass, …) when the element cannot be a span (FormLabel and friends).",
     ).toEqual([])
   })
+
+  // The pattern above leaves out tracking-wide, which other areas still use.
+  // Admin, settings, sign-in, guest and state pages have none, and keep none:
+  // a label there is the Eyebrow, or quiet sentence case like the task panel's.
+  it("has none at any tracking in admin, settings, sign-in, guest and state pages", () => {
+    const AREA = [
+      "components/admin", "app/app/admin", "app/app/settings", "components/profile", "components/auth",
+      "components/guest", "app/guest", "components/onboarding", "components/error", "app/admin-setup",
+      "app/signup", "app/reset-password", "app/forgot-password", "app/unsubscribe", "app/connect",
+      "app/logout", "app/error",
+    ]
+    const ANY_TRACKING = /className="[^"]*(?:uppercase[^"]*tracking-wide\b|tracking-wide\b[^"]*uppercase)[^"]*"/g
+    const holders: string[] = []
+    for (const dir of AREA) {
+      let inDir: string[] = []
+      try {
+        inDir = walk(resolve(root, dir))
+      } catch {
+        continue
+      }
+      for (const file of inDir) {
+        const n = (readFileSync(file, "utf8").match(ANY_TRACKING) || []).length
+        if (n > 0) holders.push(`${file.slice(root.length + 1)} (${n})`)
+      }
+    }
+    for (const page of ["app/page.tsx", "app/not-found.tsx", "app/global-error.tsx"]) {
+      const n = (readFileSync(resolve(root, page), "utf8").match(ANY_TRACKING) || []).length
+      if (n > 0) holders.push(`${page} (${n})`)
+    }
+    expect(holders).toEqual([])
+  })
 })
