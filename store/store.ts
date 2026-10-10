@@ -45,7 +45,24 @@ const rootPersistConfig = {
 // both run by the session-end hook at the bottom of this file.
 export const RESET_STORE_ACTION = "store/RESET"
 
-// Manually compose root reducer to avoid combineReducers type complexity
+// Every slice, under the name its state lives at.
+const SLICES = [
+    userSlice, refreshSlice, channelSlice, uiSlice, projectAttachmentSlice,
+    createTaskDialogSlice, createTaskCommentSlice, taskInfoSlice, reactionSlice,
+    chatSlice, groupChatSlice, fwdMessageSlice, desktopRightPanelSlice, typingSlice,
+    taskFilterSlice, createDocCommentSlice, channelCommentSlice, chatCommentSlice,
+    mentionSlice, recentItemsSlice, messageResyncSlice, commandSlice, nudgeSlice,
+    pendingActionSlice, splitSlice,
+] as const
+
+type AnyReducer = (state: unknown, action: unknown) => unknown
+
+// Composed by hand to avoid combineReducers' type complexity, and like
+// combineReducers it returns the same state object when no slice changed.
+// It used to build a new one for every action, so every useSelector in the app
+// ran again on every dispatch, a typing sweep every 2 seconds among them, and
+// any selector returning a fresh value re-rendered its component each time.
+// store/rootReducer.test.ts holds it.
 const rootReducer = (
     state: RootState | undefined,
     action: any
@@ -56,63 +73,15 @@ const rootReducer = (
     if (action?.type === RESET_STORE_ACTION) {
         state = undefined
     }
-    if (!state) {
-        return {
-            [userSlice.name]: userSlice.reducer(undefined, action),
-            [refreshSlice.name]: refreshSlice.reducer(undefined, action),
-            [channelSlice.name]: channelSlice.reducer(undefined, action),
-            [uiSlice.name]: uiSlice.reducer(undefined, action),
-            [projectAttachmentSlice.name]: projectAttachmentSlice.reducer(undefined, action),
-            [createTaskDialogSlice.name]: createTaskDialogSlice.reducer(undefined, action),
-            [createTaskCommentSlice.name]: createTaskCommentSlice.reducer(undefined, action),
-            [taskInfoSlice.name]: taskInfoSlice.reducer(undefined, action),
-            [reactionSlice.name]: reactionSlice.reducer(undefined, action),
-            [chatSlice.name]: chatSlice.reducer(undefined, action),
-            [groupChatSlice.name]: groupChatSlice.reducer(undefined, action),
-            [fwdMessageSlice.name]: fwdMessageSlice.reducer(undefined, action),
-            [desktopRightPanelSlice.name]: desktopRightPanelSlice.reducer(undefined, action),
-            [typingSlice.name]: typingSlice.reducer(undefined, action),
-            [taskFilterSlice.name]: taskFilterSlice.reducer(undefined, action),
-            [createDocCommentSlice.name]: createDocCommentSlice.reducer(undefined, action),
-            [channelCommentSlice.name]: channelCommentSlice.reducer(undefined, action),
-            [chatCommentSlice.name]: chatCommentSlice.reducer(undefined, action),
-            [mentionSlice.name]: mentionSlice.reducer(undefined, action),
-            [recentItemsSlice.name]: recentItemsSlice.reducer(undefined, action),
-            [messageResyncSlice.name]: messageResyncSlice.reducer(undefined, action),
-            [commandSlice.name]: commandSlice.reducer(undefined, action),
-            [nudgeSlice.name]: nudgeSlice.reducer(undefined, action),
-            [pendingActionSlice.name]: pendingActionSlice.reducer(undefined, action),
-            [splitSlice.name]: splitSlice.reducer(undefined, action),
-        } as RootState
+    let changed = state === undefined
+    const next: Record<string, unknown> = {}
+    for (const slice of SLICES) {
+        const before = (state as Record<string, unknown> | undefined)?.[slice.name]
+        const after = (slice.reducer as AnyReducer)(before, action)
+        next[slice.name] = after
+        if (after !== before) changed = true
     }
-
-    return {
-        [userSlice.name]: userSlice.reducer(state[userSlice.name], action),
-        [refreshSlice.name]: refreshSlice.reducer(state[refreshSlice.name], action),
-        [channelSlice.name]: channelSlice.reducer(state[channelSlice.name], action),
-        [uiSlice.name]: uiSlice.reducer(state[uiSlice.name], action),
-        [projectAttachmentSlice.name]: projectAttachmentSlice.reducer(state[projectAttachmentSlice.name], action),
-        [createTaskDialogSlice.name]: createTaskDialogSlice.reducer(state[createTaskDialogSlice.name], action),
-        [createTaskCommentSlice.name]: createTaskCommentSlice.reducer(state[createTaskCommentSlice.name], action),
-        [taskInfoSlice.name]: taskInfoSlice.reducer(state[taskInfoSlice.name], action),
-        [reactionSlice.name]: reactionSlice.reducer(state[reactionSlice.name], action),
-        [chatSlice.name]: chatSlice.reducer(state[chatSlice.name], action),
-        [groupChatSlice.name]: groupChatSlice.reducer(state[groupChatSlice.name], action),
-        [fwdMessageSlice.name]: fwdMessageSlice.reducer(state[fwdMessageSlice.name], action),
-        [desktopRightPanelSlice.name]: desktopRightPanelSlice.reducer(state[desktopRightPanelSlice.name], action),
-        [typingSlice.name]: typingSlice.reducer(state[typingSlice.name], action),
-        [taskFilterSlice.name]: taskFilterSlice.reducer(state[taskFilterSlice.name], action),
-        [createDocCommentSlice.name]: createDocCommentSlice.reducer(state[createDocCommentSlice.name], action),
-        [channelCommentSlice.name]: channelCommentSlice.reducer(state[channelCommentSlice.name], action),
-        [chatCommentSlice.name]: chatCommentSlice.reducer(state[chatCommentSlice.name], action),
-        [mentionSlice.name]: mentionSlice.reducer(state[mentionSlice.name], action),
-        [recentItemsSlice.name]: recentItemsSlice.reducer(state[recentItemsSlice.name], action),
-        [messageResyncSlice.name]: messageResyncSlice.reducer(state[messageResyncSlice.name], action),
-        [commandSlice.name]: commandSlice.reducer(state[commandSlice.name], action),
-        [nudgeSlice.name]: nudgeSlice.reducer(state[nudgeSlice.name], action),
-        [pendingActionSlice.name]: pendingActionSlice.reducer(state[pendingActionSlice.name], action),
-        [splitSlice.name]: splitSlice.reducer(state[splitSlice.name], action),
-    } as RootState
+    return changed ? (next as RootState) : (state as RootState)
 }
 
 export type RootState = {
