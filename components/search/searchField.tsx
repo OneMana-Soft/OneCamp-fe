@@ -8,6 +8,8 @@ import { sanitizeFilterQuery } from "@/lib/utils/sanitizeFilterQuery"
 
 interface SearchFieldProps {
     placeholder: string
+    /** The field's name for a screen reader; the placeholder without its "…" when not given. */
+    ariaLabel?: string
     value: string
     onChange: (value: string) => void
     className?: string
@@ -15,6 +17,7 @@ interface SearchFieldProps {
 
 export const SearchField: React.FC<SearchFieldProps> = ({
     placeholder,
+    ariaLabel,
     value,
     onChange,
     className,
@@ -44,6 +47,8 @@ export const SearchField: React.FC<SearchFieldProps> = ({
                 ref={searchRef}
                 type="search"
                 placeholder={placeholder}
+                // A placeholder is not a name: it is gone once something is typed.
+                aria-label={ariaLabel ?? placeholder.replace(/(…|\.\.\.)$/, "")}
                 value={value}
                 onChange={handleChange}
                 className={cn(
