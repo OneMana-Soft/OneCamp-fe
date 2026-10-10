@@ -96,4 +96,10 @@ describe("a link to the AI filter on a server without AI", () => {
     render(<ActivityListTabs />)
     expect(screen.queryByText("other activity")).toBeNull()
   })
+
+  // What reaches you is decided in settings, which Activity didn't link to.
+  it("links to the notification settings", () => {
+    render(<ActivityListTabs />)
+    expect(screen.getByRole("link", { name: "Notification settings" }).getAttribute("href")).toBe("/app/settings/notifications")
+  })
 })

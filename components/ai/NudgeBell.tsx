@@ -14,6 +14,9 @@ import { RootState } from "@/store/store"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ToastAction } from "@/components/ui/toast"
+import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
     Bell, Sparkles, Check, Clock, GitPullRequest, HelpCircle, CalendarClock,
@@ -25,6 +28,9 @@ import {
 } from "@/services/nudgeService"
 import { setNudges, removeNudge, clearAllNudges } from "@/store/slice/nudgeSlice"
 import { withAI } from "@/components/common/withFeature"
+
+/** How long "Clear all" waits for an Undo before it reaches the server. */
+const UNDO_MS = 5000
 
 const KIND_ICON: Record<NudgeKind, React.ComponentType<{ className?: string }>> = {
     overdue_commitment: CalendarClock,
@@ -40,6 +46,7 @@ function NudgeBell() {
     const router = useRouter()
     const [open, setOpen] = useState(false)
     const [busyId, setBusyId] = useState<string | null>(null)
+    const { toast } = useToast()
 
     const nudges = useSelector((s: RootState) => s.nudge.nudges)
     const openCount = useSelector((s: RootState) => s.nudge.openCount)
@@ -93,11 +100,32 @@ function NudgeBell() {
         finally { setBusyId(null) }
     }
 
-    const handleDismissAll = async () => {
+    // Clearing every nudge can't be taken back on the server, so it waits a
+    // few seconds behind an Undo: the list empties at once, and the request
+    // goes only if nobody asks for them back.
+    const handleDismissAll = () => {
+        const kept = { nudges, openCount }
         dispatch(clearAllNudges())
-        try {
-            await dismissAllNudges()
-        } catch { /* swallow — optimistic */ }
+        let undone = false
+        const send = setTimeout(() => {
+            if (undone) return
+            dismissAllNudges().catch(() => dispatch(setNudges(kept)))
+        }, UNDO_MS)
+        toast({
+            title: "Nudges cleared",
+            action: (
+                <ToastAction
+                    altText="Bring the nudges back"
+                    onClick={() => {
+                        undone = true
+                        clearTimeout(send)
+                        dispatch(setNudges(kept))
+                    }}
+                >
+                    Undo
+                </ToastAction>
+            ),
+        })
     }
 
     const hasNudges = nudges.length > 0
@@ -149,13 +177,25 @@ function NudgeBell() {
                     )}
                 </div>
 
-                {!hasNudges ? (
+                {!hasNudges && !hydrated ? (
+                    // Not known yet: "You're all caught up" over a list that
+                    // hadn't loaded was a promise nothing had checked.
+                    <div className="space-y-3 px-4 py-4" role="status" aria-label="Loading nudges">
+                        {[0, 1].map((i) => (
+                            <div key={i} className="flex gap-3">
+                                <Skeleton className="mt-0.5 h-4 w-4 shrink-0 rounded-sm" />
+                                <div className="flex-1 space-y-1.5">
+                                    <Skeleton className="h-4 w-3/4" />
+                                    <Skeleton className="h-3 w-1/2" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : !hasNudges ? (
                     <div className="px-4 py-8">
                         <p className="text-sm font-medium">You&apos;re all caught up</p>
                         <p className="text-xs text-muted-foreground">
-                            {hydrated
-                                ? "OneCamp will nudge you here when something needs your attention."
-                                : "Loading…"}
+                            OneCamp will nudge you here when something needs your attention.
                         </p>
                     </div>
                 ) : (
