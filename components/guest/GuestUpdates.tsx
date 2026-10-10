@@ -30,7 +30,7 @@ export function GuestUpdates({ updates }: { updates: GuestUpdate[] }) {
         </article>
       ))}
       {updates.length > 1 && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="self-start text-xs font-medium text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start rounded-sm text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
           {all ? "Show only the latest update" : `Show ${updates.length - 1} earlier ${updates.length === 2 ? "update" : "updates"}`}
         </button>
       )}
