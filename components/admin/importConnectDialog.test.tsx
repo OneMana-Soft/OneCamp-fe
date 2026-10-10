@@ -10,7 +10,8 @@ vi.mock("@/services/importService", async (orig) => ({
     if (refusal) throw refusal
   }),
 }))
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+const toast = vi.fn()
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 
 const { ImportConnectDialog } = await import("./ImportConnectDialog")
 
@@ -18,6 +19,7 @@ afterEach(() => {
   cleanup()
   sent.length = 0
   refusal = null
+  toast.mockReset()
 })
 
 const fill = (label: RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
@@ -43,5 +45,30 @@ describe("connecting a provider", () => {
     await waitFor(() => expect(onConnected).toHaveBeenCalledOnce())
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(sent[1]).toMatchObject({ access_token: "scoped-token", metadata: { email: "ada@acme.com", site_url: "https://acme.atlassian.net" } })
+  })
+})
+
+describe("what a connection is missing", () => {
+  // Each missing field was a red toast ("Token required", "Atlassian site URL
+  // required…"), away from the field and gone in five seconds.
+  it("says it under the field, takes the cursor there, and sends nothing", () => {
+    render(<ImportConnectDialog provider="jira" open onOpenChange={() => {}} onConnected={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+    const site = screen.getByLabelText(/Atlassian site URL/)
+    expect(site.getAttribute("aria-invalid")).toBe("true")
+    expect(screen.getByText("Enter your Atlassian site's address, like https://acme.atlassian.net.")).toBeTruthy()
+    expect(screen.getByText("Enter the email you sign in to Jira with.")).toBeTruthy()
+    expect(screen.getByText("Paste the Jira API token.")).toBeTruthy()
+    expect(document.activeElement).toBe(site)
+    expect(sent).toHaveLength(0)
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it("lets a field's message go once it is filled", () => {
+    render(<ImportConnectDialog provider="asana" open onOpenChange={() => {}} onConnected={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+    expect(screen.getByText("Paste the access token.")).toBeTruthy()
+    fill(/Access token/, "1/123:abc")
+    expect(screen.queryByText("Paste the access token.")).toBeNull()
   })
 })
