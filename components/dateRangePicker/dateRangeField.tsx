@@ -16,8 +16,19 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DateRange } from "react-day-picker";
-import { format } from "date-fns";
 import { useMedia } from "@/context/MediaQueryContext";
+import { shortDate } from "@/lib/utils/date/shortDate";
+
+/**
+ * A range as the app writes days: "10 Sep to 10 Oct", with the year only when
+ * it isn't this one. It was "Sep 10, 2026 - Oct 10, 2026", the US order with
+ * the year twice, in a 260px box 48px tall.
+ */
+export function dateRangeLabel(range: DateRange | undefined, now: Date = new Date()): string {
+  if (!range?.from) return "Pick dates";
+  if (!range.to) return shortDate(range.from, now);
+  return `${shortDate(range.from, now)} to ${shortDate(range.to, now)}`;
+}
 
 interface DateRangeFieldProps {
   dateRange?: DateRange;
@@ -41,27 +52,17 @@ export const DateRangeField: React.FC<
               <Button
                 variant={"outline"}
                 className={cn(
-                  "w-full md:w-auto min-w-[3rem] justify-start text-left font-normal h-10 md:h-12 px-3",
+                  // A finger's 44px on a phone.
+                  "w-full justify-start text-left font-normal h-11 px-3",
                   !dateRange && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "LLL dd, y")} -{" "}
-                      {format(dateRange.to, "LLL dd, y")}
-                    </>
-                  ) : (
-                    format(dateRange.from, "LLL dd, y")
-                  )
-                ) : (
-                  <span>Pick a date</span>
-                )}
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                {dateRangeLabel(dateRange)}
               </Button>
             </DrawerTrigger>
             <DrawerContent>
-              <DrawerTitle className="sr-only">Select Date Range</DrawerTitle>
+              <DrawerTitle className="sr-only">Pick dates</DrawerTitle>
               <div className="mt-4 border-t pt-4 pb-4">
                 <Calendar
                   initialFocus
@@ -99,23 +100,13 @@ export const DateRangeField: React.FC<
                 id="date"
                 variant={"outline"}
                 className={cn(
-                  "w-[260px] justify-start text-left font-normal h-10 md:h-12",
+                  // A header control's height (h-9), as wide as its words.
+                  "w-auto justify-start text-left font-normal h-9 px-3",
                   !dateRange && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "LLL dd, y")} -{" "}
-                      {format(dateRange.to, "LLL dd, y")}
-                    </>
-                  ) : (
-                    format(dateRange.from, "LLL dd, y")
-                  )
-                ) : (
-                  <span>Pick a date</span>
-                )}
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                {dateRangeLabel(dateRange)}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
