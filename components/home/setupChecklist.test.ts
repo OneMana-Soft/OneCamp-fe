@@ -55,7 +55,9 @@ describe("shouldShowChecklist", () => {
     })
 
     it("shows nothing while the state has not loaded", () => {
-        // A dashboard must not reserve space for a card that may never appear.
+        // The card itself waits for the state. Whether Home holds its place
+        // meanwhile is holdChecklistPlace's call (setupChecklistCard.test.tsx),
+        // which holds it only where this browser expects the card to come.
         expect(shouldShowChecklist(true, false, null)).toBe(false)
     })
 })
