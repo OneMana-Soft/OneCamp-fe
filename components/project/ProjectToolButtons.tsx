@@ -78,7 +78,7 @@ export function ProjectToolButtons(props: { projectId: string; projectName?: str
   return (
     <>
       {tools.map(({ key, label, Icon, open }) => (
-        <Button key={key} size="icon" variant="ghost" className="h-9 w-9" aria-label={label} title={label} onClick={open}>
+        <Button key={key} size="icon" variant="ghost" className="h-11 w-11" aria-label={label} title={label} onClick={open}>
           <Icon className="h-4 w-4" />
         </Button>
       ))}

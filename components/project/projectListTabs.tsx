@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SectionTabs, SectionTabsContent } from "@/components/ui/sectionTabs"
 import { ProjectListTabContent } from "@/components/project/projectListTabContent"
 import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
@@ -13,7 +13,8 @@ import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useTabInAddress } from "@/components/task/keptTabs"
 import { app_task_path } from "@/types/paths"
 
 /**
@@ -25,14 +26,50 @@ import { app_task_path } from "@/types/paths"
  */
 type Tab = "task" | "board" | "timeline" | "updates" | "attachment"
 
+// ?tab= names the desktop's tabs (list, kanban, attachments) or the phone's
+// own; a link to a project's board opens its board on a phone too. The
+// phone used to open on Tasks whatever the link said.
+const FROM_ADDRESS: Record<string, Tab> = {
+    list: "task",
+    task: "task",
+    kanban: "board",
+    board: "board",
+    timeline: "timeline",
+    updates: "updates",
+    attachments: "attachment",
+    attachment: "attachment",
+}
+const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", timeline: "timeline", updates: "updates", attachment: "attachments" }
+
 export function ProjectListTabs({ projectId }: { projectId: string }) {
-    const [selectedTab, setSelectedTab] = useState<Tab>("task")
+    const params = useSearchParams()
+    const [selectedTab, setSelectedTab] = useState<Tab>(() => FROM_ADDRESS[params?.get("tab") ?? ""] ?? "task")
+    const tabInAddress = useTabInAddress()
+    useEffect(() => tabInAddress("tab", TO_ADDRESS[selectedTab]), [selectedTab, tabInAddress])
     const router = useRouter()
     // The same request the desktop header makes, so SWR shares it.
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
     const info = projectInfo.data?.data
 
     return (
+        // The project's header block sits above the tabs, so every tab keeps
+        // it: its line, its tools, its health and its goal. It was inside the
+        // Tasks tab only, so a switch to any other tab jumped the content up
+        // 86px and the project's tools vanished.
+        <div className="flex h-full flex-col">
+            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
+                <div className="flex items-center gap-1">
+                    <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 truncate" />
+                    <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
+                </div>
+                {/* Each piece loads on its own, so each has its place from the
+                    first paint: the chips in a row of their own that scrolls
+                    sideways rather than wrapping. */}
+                <div className="flex h-8 items-center gap-2 overflow-x-auto no-scrollbar [&>*]:shrink-0">
+                    <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} />
+                    <ProjectGoalChip projectId={projectId} />
+                </div>
+            </div>
         <SectionTabs
             tabs={[
                 { value: "task", label: "Tasks" },
@@ -43,35 +80,20 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             ]}
             value={selectedTab}
             onValueChange={(v) => setSelectedTab(v as Tab)}
-            className="h-full"
+            className="min-h-0 flex-1"
         >
             <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none flex flex-col">
-                {/* Each piece loads on its own, so each has its place from the
-                    first paint: the line beside the tools, one line high, and
-                    the chips in a row of their own that scrolls sideways rather
-                    than wrapping. Wrapping as they arrived pushed the list down
-                    about 100px on a phone. */}
-                <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
-                    <div className="flex items-center gap-1">
-                        <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 truncate" />
-                        <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
-                    </div>
-                    <div className="flex h-8 items-center gap-2 overflow-x-auto no-scrollbar [&>*]:shrink-0">
-                        <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} />
-                        <ProjectGoalChip projectId={projectId} />
-                    </div>
-                </div>
                 <ProjectListTabContent selectedTab="task" projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="board" className="flex-1 min-h-0 outline-none">
-                <ProjectTaskKanban projectId={projectId} />
+                <ProjectTaskKanban projectId={projectId} className="px-4 pt-3" />
             </SectionTabsContent>
             <SectionTabsContent value="timeline" className="flex-1 min-h-0 outline-none">
                 <ProjectTimeline
                     key={projectId}
                     compact
                     projectId={projectId}
-                    className="px-3 pt-3 pb-3"
+                    className="px-4 pt-3 pb-3"
                     onOpenTask={(taskUUID) => router.push(`${app_task_path}/${taskUUID}`)}
                 />
             </SectionTabsContent>
@@ -82,5 +104,6 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 <ProjectListTabContent selectedTab="attachment" projectId={projectId} />
             </SectionTabsContent>
         </SectionTabs>
+        </div>
     )
 }

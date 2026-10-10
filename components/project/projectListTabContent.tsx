@@ -38,7 +38,7 @@ export const ProjectListTabContent = ({
             <SearchField
                 onChange={handleSearchChange}
                 value={inputValue}
-                placeholder={`Search ${selectedTab}...`}
+                placeholder={selectedTab === "task" ? "Search tasks…" : "Search attachments…"}
             />
             {/* The task list is virtual and scrolls itself, so it needs a real
                 height. Inside a plain scrolling block its viewport measured next
