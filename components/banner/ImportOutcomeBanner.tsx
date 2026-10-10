@@ -12,20 +12,29 @@
 // dismisses it on every device. An import's progress event (MQTT) refreshes it
 // the moment it ends; the five-minute refresh covers a missed event.
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, CheckCircle2, X } from "@/lib/icons"
+import dynamic from "next/dynamic"
+import { AlertTriangle, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { ImportInviteDialog } from "@/components/admin/ImportInviteDialog"
+import { SpotImported } from "@/components/ui/graphics"
+import { celebrate } from "@/lib/celebrate"
 import {
   IMPORT_OUTCOMES_KEY,
   importProviderLabel,
   markImportOutcomeSeen,
   type ImportOutcome,
 } from "@/services/importService"
+
+// Loaded when it is opened: the banner sits in the app shell, and the invite
+// dialog came down there for every member before anyone opened it.
+const ImportInviteDialog = dynamic(
+  () => import("@/components/admin/ImportInviteDialog").then((m) => m.ImportInviteDialog),
+  { ssr: false },
+)
 
 /** What the banner says about one import. Pure. */
 export function outcomeText(o: ImportOutcome): string {
@@ -51,6 +60,25 @@ export function ImportOutcomeBanner({ isAdmin }: { isAdmin?: boolean }) {
   const outcomes = (data?.outcomes ?? []).filter((o) => !dismissed.has(o.job_id))
   const outcome = outcomes[0]
 
+  // A finished import is one of the playful layer's two moments of
+  // celebration, so its spot bursts once: when the news arrives while the
+  // person is in the app (the progress event or the refresh), never for news
+  // already waiting at the first load (after a reload, say).
+  const spotRef = useRef<HTMLSpanElement>(null)
+  const atFirstLoad = useRef<Set<string> | null>(null)
+  const burst = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!data) return
+    if (atFirstLoad.current === null) {
+      atFirstLoad.current = new Set((data.outcomes ?? []).map((o) => o.job_id))
+      return
+    }
+    if (!outcome || outcome.status !== "completed") return
+    if (atFirstLoad.current.has(outcome.job_id) || burst.current.has(outcome.job_id)) return
+    burst.current.add(outcome.job_id)
+    celebrate(spotRef.current)
+  }, [data, outcome])
+
   const dismiss = async (o: ImportOutcome) => {
     setDismissed((prev) => new Set(prev).add(o.job_id))
     await markImportOutcomeSeen(o.job_id).catch(() => undefined)
@@ -72,7 +100,9 @@ export function ImportOutcomeBanner({ isAdmin }: { isAdmin?: boolean }) {
           {outcome.status === "failed" ? (
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success-ink" aria-hidden="true" />
+            <span ref={spotRef} className="flex shrink-0">
+              <SpotImported size={40} hue="moss" />
+            </span>
           )}
           <p className="min-w-0 flex-1 break-words">
             {outcomeText(outcome)}
@@ -90,9 +120,10 @@ export function ImportOutcomeBanner({ isAdmin }: { isAdmin?: boolean }) {
               {outcome.status === "failed" ? "Open imports" : "See imports"}
             </Link>
             <button
+              type="button"
               onClick={() => void dismiss(outcome)}
               aria-label="Dismiss"
-              className="rounded p-0.5 hover:bg-foreground/10"
+              className="rounded-sm p-0.5 hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
