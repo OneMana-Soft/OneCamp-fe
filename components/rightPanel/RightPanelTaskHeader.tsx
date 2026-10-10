@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { celebrate } from "@/lib/celebrate"
 import { Button } from "@/components/ui/button"
 import {
     ArrowRightToLine,
@@ -72,7 +73,12 @@ export function RightPanelTaskHeader({
         copyToClipboard.copy(`${baseUrl}${newPath}`, "Link copied")
     }, [taskUUID, copyToClipboard])
 
-    const handleMarkComplete = useCallback(() => {
+    // Completing a task is one of the few moments the playful layer
+    // celebrates: sparks burst from the button, and it stays a moment as
+    // "Completed" with its check springing in. This button only shows on a
+    // task that isn't done, so reopening one never celebrates.
+    const handleMarkComplete = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+        celebrate(e.currentTarget)
         try {
             if (animationTimeoutRef.current) {
                 clearTimeout(animationTimeoutRef.current)
@@ -120,17 +126,17 @@ export function RightPanelTaskHeader({
             )}
         >
             <div className="flex items-center gap-2 min-w-0">
-                {canMarkComplete && (
+                {(canMarkComplete || isAnimating) && (
                     <Button
                         variant="outline"
                         size="sm"
                         className="h-8 gap-1.5"
-                        onClick={handleMarkComplete}
-                        disabled={!isAdmin}
-                        aria-label="Mark task as complete"
+                        onClick={canMarkComplete ? handleMarkComplete : undefined}
+                        disabled={!isAdmin || !canMarkComplete}
+                        aria-label={canMarkComplete ? "Mark task as complete" : "Task completed"}
                     >
-                        <CircleCheck className="h-3.5 w-3.5" />
-                        <span>Mark complete</span>
+                        <CircleCheck className={cn("h-3.5 w-3.5", !canMarkComplete && "animate-spring text-success")} />
+                        <span>{canMarkComplete ? "Mark complete" : "Completed"}</span>
                     </Button>
                 )}
             </div>

@@ -56,7 +56,8 @@ import { moveKeyOf, spotLabel, stepSpot } from "@/lib/board/keyMove"
 import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
-import { colorDot, type StatusOption } from "@/lib/taskStatus"
+import { colorDot, isClosedStatus, type StatusOption } from "@/lib/taskStatus"
+import { celebrate } from "@/lib/celebrate"
 import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
 import { useRowState } from "@/hooks/useListSelection"
@@ -264,7 +265,15 @@ export function TaskBoard({
         // Save on the next frame, so the drop animation starts first: the
         // optimistic update copies every cached task list it touches.
         const ls = lanesRef.current
+        // Into a done column from an open status: a task completed, which the
+        // playful layer celebrates, from the card where it lands. Never on
+        // the way back out.
+        const toDone = visible.find((v) => v.value === splitCell(drop.column).column)?.category === "done" && !isClosedStatus(task.task_status)
         requestAnimationFrame(() => {
+            if (toDone) {
+                const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === task.task_uuid)
+                celebrate(card)
+            }
             if (!ls) return onMove(task, drop)
             const to = splitCell(drop.column)
             onMove(task, { ...drop, column: to.column }, { from: ls.laneOf(task), to: to.lane })
