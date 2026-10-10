@@ -1,5 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Input } from "@/components/ui/input"
+import { Search } from "@/lib/icons"
 
 /**
  * The frame every tab of a task view draws in: a project's List, Board,
@@ -43,6 +45,32 @@ export function WorkState({ children, className }: { children: React.ReactNode; 
   return (
     <div data-work-state="" className={cn("flex justify-center", className)}>
       {children}
+    </div>
+  )
+}
+
+/**
+ * A search in a toolbar row: a 32px field with its magnifier, the height of
+ * the controls beside it. SearchField is a list's own row (52px with its
+ * padding), which made a toolbar that held it taller than its neighbours'.
+ */
+export function ToolbarSearch({
+  value,
+  onChange,
+  placeholder,
+  label,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  label: string
+  className?: string
+}) {
+  return (
+    <div className={cn("relative w-56", className)}>
+      <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} className="h-8 pl-8" />
     </div>
   )
 }
