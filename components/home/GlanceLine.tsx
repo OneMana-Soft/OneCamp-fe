@@ -33,7 +33,7 @@ export function GlanceLine({ items, className }: { items: GlanceItem[]; classNam
           <Link
             href={i.href}
             scroll={false}
-            className="rounded-sm text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="rounded-sm text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
           >
             <span className="tabular-nums font-medium">{i.count}</span> {i.count === 1 ? i.one : i.many}
           </Link>

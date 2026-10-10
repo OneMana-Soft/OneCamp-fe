@@ -87,7 +87,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                         onClick={onToggleCollapse}
                         aria-label={`Expand ${name}`}
                         title={`Expand ${name}`}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                     >
                         <Maximize2 className="h-3.5 w-3.5" />
                     </button>
@@ -117,7 +117,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                         "[contain:layout]",
                         "bg-card border border-border/60",
                         "transition-colors duration-150",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     ],
                     hover && "bg-accent/40",
                     placeholder && [
@@ -146,7 +146,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                                     onClick={onToggleCollapse}
                                     aria-label={`Collapse ${name}`}
                                     title={`Collapse ${name}`}
-                                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 group-hover/column:opacity-100"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 group-hover/column:opacity-100"
                                 >
                                     <Minimize2 className="h-3.5 w-3.5" />
                                 </button>

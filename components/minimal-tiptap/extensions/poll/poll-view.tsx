@@ -60,7 +60,7 @@ export function PollView({ node }: NodeViewProps) {
                       onClick={() => act(o.id, () => votePoll(poll.id, nextChoice(poll, o.id)))}
                       className={cn(
                         "relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-default",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:cursor-default",
                         mine ? "border-primary/60" : "border-border hover:border-foreground/30",
                       )}
                     >

@@ -107,7 +107,7 @@ export function MobileHomeSearchBar() {
                         "h-10 w-full pl-9 pr-9",
                         "rounded-full bg-secondary border-transparent",
                         "placeholder:text-muted-foreground",
-                        "focus-visible:ring-1 focus-visible:ring-ring/40 focus-visible:bg-background focus-visible:border-border",
+                        "focus-visible:ring-1 focus-visible:ring-ring/70 focus-visible:bg-background focus-visible:border-border",
                         "transition-colors",
                         "[&::-webkit-search-cancel-button]:appearance-none",
                     )}
@@ -180,7 +180,7 @@ export function MobileHomeSearchBar() {
                                             className={cn(
                                                 "w-full flex items-center gap-3 p-2.5 rounded-lg text-left cursor-pointer",
                                                 "transition-colors hover:bg-accent active:bg-accent",
-                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                             )}
                                         >
                                             <div

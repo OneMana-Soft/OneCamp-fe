@@ -637,7 +637,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     aria-pressed={appliedTemplate?.id === t.id}
                     onClick={() => applyTemplate(t)}
                     className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                      "rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                       appliedTemplate?.id === t.id
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",

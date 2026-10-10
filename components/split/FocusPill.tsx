@@ -29,7 +29,7 @@ export function FocusPill() {
         type="button"
         onClick={() => run({ type: "focus" })}
         title="Show every view (Ctrl+Alt+Enter)"
-        className="rounded-full px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="rounded-full px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
       >
         Show all
       </button>

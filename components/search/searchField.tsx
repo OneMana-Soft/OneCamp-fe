@@ -50,7 +50,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({
                     "h-9 w-full pl-8 pr-8 rounded-md",
                     "bg-muted/40 border-transparent shadow-none",
                     "placeholder:text-muted-foreground/80 text-sm",
-                    "focus-visible:ring-1 focus-visible:ring-ring/40 focus-visible:bg-background focus-visible:border-border",
+                    "focus-visible:ring-1 focus-visible:ring-ring/70 focus-visible:bg-background focus-visible:border-border",
                     "transition-colors",
                     "[&::-webkit-search-cancel-button]:appearance-none",
                 )}

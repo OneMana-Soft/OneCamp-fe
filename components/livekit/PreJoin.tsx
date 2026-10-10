@@ -130,7 +130,7 @@ export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "J
                   maxLength={40}
                   placeholder="Your name"
                   aria-label="Your name"
-                  className="w-full rounded-md border border-border bg-background px-3 h-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="w-full rounded-md border border-border bg-background px-3 h-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
               />
           )}
           <Button

@@ -166,7 +166,7 @@ export function DesktopDashboard() {
                                                 key={`${item.type}-${item.id}`}
                                                 href={item.path}
                                                 scroll={false}
-                                                className="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                                className="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                             >
                                                 <ListRow
                                                     density="default"
@@ -215,7 +215,7 @@ export function DesktopDashboard() {
                                                 className={cn(
                                                     "flex items-center gap-2.5 rounded-md px-2 py-2",
                                                     "transition-colors duration-100 hover:bg-foreground/[0.04]",
-                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                                 )}
                                             >
                                                 <ChannelIcon className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
@@ -282,7 +282,7 @@ export function DesktopDashboard() {
                                                 "flex items-center gap-2.5 rounded-md px-2 py-1.5",
                                                 "transition-colors duration-100",
                                                 "hover:bg-foreground/[0.04]",
-                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                             )}
                                         >
                                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted">
@@ -318,7 +318,7 @@ function QuickAction({ icon: Icon, label, onClick, active = false }: { icon: typ
             onClick={onClick}
             className={cn(
                 "w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                 active ? "bg-brand-muted" : "hover:bg-foreground/[0.04]",
             )}
         >

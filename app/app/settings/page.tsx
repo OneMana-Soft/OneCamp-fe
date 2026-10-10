@@ -18,7 +18,7 @@ export default function SettingsPage() {
           <Link
             key={s.href}
             href={s.href}
-            className="flex items-center gap-4 px-4 py-3.5 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="flex items-center gap-4 px-4 py-3.5 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
           >
             <s.icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="min-w-0 flex-1">

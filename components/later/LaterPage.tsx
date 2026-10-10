@@ -128,7 +128,7 @@ function LaterRow({ item, done }: { item: LaterItem; done: boolean }) {
         <Link
           href={item.link}
           className={cn(
-            "block truncate text-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded",
+            "block truncate text-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 rounded",
             done && "text-muted-foreground line-through decoration-muted-foreground/50",
           )}
         >

@@ -549,7 +549,7 @@ body {
 }
 
 @utility focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70;
 }
 
 /* ELEVATION RULE — a shadow means "this surface floats above the page". Nothing

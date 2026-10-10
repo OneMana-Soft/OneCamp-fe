@@ -145,7 +145,7 @@ function BoardCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col gap-2 rounded-lg border border-border/50 bg-card/30 p-3 text-left transition-colors hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+      className="group flex flex-col gap-2 rounded-lg border border-border/50 bg-card/30 p-3 text-left transition-colors hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
       data-board-uuid={uuid}
     >
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-muted/60">

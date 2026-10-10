@@ -17,7 +17,7 @@ export function ColorPicker({ value, onChange, disabled }: { value: string; onCh
           type="button"
           disabled={disabled}
           aria-label={`Colour: ${value}`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
           <span className={cn("h-3 w-3 rounded-full", colorDot(value))} />
         </button>

@@ -420,7 +420,7 @@ export const BaseMessageCard = React.memo(({
                 <button
                   type="button"
                   onClick={handleUserClick}
-                  className="text-sm font-semibold text-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded"
+                  className="text-sm font-semibold text-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 rounded"
                 >
                   {authorName}
                 </button>

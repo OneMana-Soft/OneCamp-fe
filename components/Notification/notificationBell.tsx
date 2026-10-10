@@ -86,7 +86,7 @@ export const NotificationBell = ({
                     "p-2 rounded-md text-foreground",
                     "transition-colors duration-100",
                     "active:bg-accent",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     "disabled:opacity-50 disabled:pointer-events-none",
                 )}
             >

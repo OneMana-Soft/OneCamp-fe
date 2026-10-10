@@ -29,7 +29,7 @@ export default function DesktopNavigationOrgProfile() {
       // Names the destination, not the picture: a reader hears where the link
       // goes rather than "workspace, link", which says nothing about activating it.
       aria-label={orgName ? `${orgName}: go to home` : "Go to home"}
-      className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+      className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
     >
       <OrgAvatarNav />
     </Link>

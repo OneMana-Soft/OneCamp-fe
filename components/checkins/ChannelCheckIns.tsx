@@ -83,7 +83,7 @@ function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave:
                 aria-pressed={on}
                 onClick={() => toggle(i + 1)}
                 className={cn(
-                  "h-8 w-11 rounded-md border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "h-8 w-11 rounded-md border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                   on ? "border-transparent bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground hover:bg-accent",
                 )}
               >

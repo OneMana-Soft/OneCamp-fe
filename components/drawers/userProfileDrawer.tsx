@@ -71,7 +71,7 @@ function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps
                 destructive
                     ? "text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10"
                     : "text-foreground hover:bg-accent/60 focus-visible:bg-accent/60",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             )}
         >
             <Icon

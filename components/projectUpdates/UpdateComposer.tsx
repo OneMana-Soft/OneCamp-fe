@@ -216,7 +216,7 @@ export function UpdateComposer({
         aria-checked={on}
         onClick={() => setHealth(h.value)}
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+          "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
           on ? cn("border-transparent", h.pill) : "border-border/70 text-muted-foreground hover:bg-accent hover:text-foreground",
         )}
       >

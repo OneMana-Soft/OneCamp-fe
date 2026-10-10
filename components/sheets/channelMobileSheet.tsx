@@ -140,7 +140,7 @@ export function ChannelMobileSheet({ open, onOpenChange, channelId }: SidePanelP
                                     "flex justify-center items-center text-muted-foreground",
                                     "hover:bg-accent hover:text-foreground hover:border-border",
                                     "transition-colors",
-                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                 )}
                             >
                                 <Plus className="h-4 w-4" />

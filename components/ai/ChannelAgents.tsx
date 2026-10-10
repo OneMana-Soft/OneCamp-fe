@@ -58,7 +58,7 @@ function ChannelAgents({ channelId, isMember }: { channelId: string; isMember: b
             type="button"
             onClick={() => open(a.bot_user_id)}
             title={a.description || `About ${a.name}`}
-            className="truncate rounded-sm text-foreground/80 underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="truncate rounded-sm text-foreground/80 underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
           >
             {a.name}
           </button>

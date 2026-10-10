@@ -85,7 +85,7 @@ export function SectionTabs({
                                     "group relative inline-flex items-center justify-center gap-1.5",
                                     "h-full px-3 md:px-4 text-sm font-medium whitespace-nowrap",
                                     "text-muted-foreground hover:text-foreground transition-colors",
-                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-inset",
+                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-inset",
                                     "data-[state=active]:text-foreground data-[state=active]:font-semibold",
                                     "after:content-[''] after:absolute after:left-3 after:right-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent",
                                     "data-[state=active]:after:bg-primary",

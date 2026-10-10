@@ -53,7 +53,7 @@ function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
 }
 
 const barButton =
-  "inline-flex h-6 w-6 items-center justify-center rounded-md hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+  "inline-flex h-6 w-6 items-center justify-center rounded-md hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
 
 /**
  * One pane of the split view: the same channel, chat, doc, project or task

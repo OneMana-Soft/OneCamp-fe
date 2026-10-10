@@ -61,7 +61,7 @@ function TapSurface({
             className={cn(
                 "text-left transition-colors duration-150 ease-out",
                 "active:bg-accent data-[pressed=true]:bg-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                 className,
             )}
         >

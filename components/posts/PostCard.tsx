@@ -46,7 +46,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
                 "transition-colors duration-150 ease-out",
                 "hover:bg-accent/40 active:bg-accent",
                 "data-[pressed=true]:bg-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             )}
             role="button"
             tabIndex={0}
