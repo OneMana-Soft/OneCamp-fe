@@ -21,8 +21,8 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
-vi.mock("@/components/activity/activityListTabContent", () => ({
-  ActivityListTabContent: () => <div>other activity</div>,
+vi.mock("@/components/activity/activityFeedList", () => ({
+  ActivityFeedList: () => <div>other activity</div>,
 }))
 
 import { ActivityListTabs } from "@/components/activity/activityListTabs"

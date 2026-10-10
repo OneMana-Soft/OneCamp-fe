@@ -168,6 +168,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
 
     const row = (
         <ListRow
+            data-feed-row=""
             density="comfortable"
             leading={leading}
             title={titleNode}
