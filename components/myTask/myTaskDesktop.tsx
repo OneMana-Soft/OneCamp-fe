@@ -66,7 +66,7 @@ export const MyTaskDesktop = () => {
                             <MyTaskTable />
                         </KeptTab>
                         <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="h-full mt-0 outline-none">
-                            <MyTaskKanban />
+                            <MyTaskKanban className="px-0 pt-0" />
                         </KeptTab>
                     </div>
                 </Tabs>

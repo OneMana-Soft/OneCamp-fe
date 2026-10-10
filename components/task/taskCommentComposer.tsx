@@ -45,7 +45,10 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
     hasAttachments = false,
 }: TaskCommentComposerProps) {
     return (
-        <div className="flex-shrink-0 border-t p-4">
+        // Tighter on a phone, where the task page has no bottom bar: clear of
+        // the home indicator (safe-area inset), and less of the screen spent
+        // on an empty box above the task's own fields.
+        <div className="flex-shrink-0 border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:p-4">
             <MinimalTiptapTextInput
                 throttleDelay={300}
                 attachmentOnclick={onAttachmentClick}
