@@ -570,6 +570,7 @@ export enum PostEndpointUrl {
     SetAIPIIPatterns = "/admin/ai/pii-patterns",
     SetAIMeetingRecap = "/admin/ai/meeting-recap",
     SaveMyTranscript = "/livekit/my-transcript",
+    ReportTranscriptionCapability = "/livekit/my-capability",
     SetAIMeetingRecapInstructions = "/admin/ai/meeting-recap/instructions",
     SetAIWebSearch = "/admin/ai/web-search",
     SetAISandbox = "/admin/ai/sandbox",
