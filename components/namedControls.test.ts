@@ -15,12 +15,11 @@ import { describe, expect, it } from "vitest"
 // A ratchet, not a ban. The number may fall freely and any rise fails, so
 // adding an unnamed control is a deliberate act rather than an oversight.
 //
-// The four still counted are the call buttons in the channel, chat and group
-// headers: each sits inside a <Link aria-label=...>, so the link is the control
-// and it is named, which this scanner cannot see from the button tag it is
-// looking at. Verified individually. Lowering the number means proving the same
-// of whatever remains, one at a time.
-const ALLOWED = 4
+// Zero, and it stays zero. A name may come from the button's own aria-label,
+// from an sr-only child, or from the element wrapping it: the call buttons sit
+// inside a <Link aria-label=...>, where the link is the control and the button
+// is its contents. All three count, so there is nothing left to excuse.
+const ALLOWED = 0
 
 const ROOT = join(__dirname, "..")
 const SEARCH = ["app", "components"]
@@ -44,6 +43,23 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
         acc.push(full)
     }
     return acc
+}
+
+/**
+ * Does an open element immediately wrapping this one name it? The call buttons
+ * sit inside `<Link aria-label=...>`, where the link is the control a person
+ * actually activates and the button is just what it looks like.
+ */
+function wrappedByANamedElement(src: string, tagStart: number): boolean {
+    const before = src.lastIndexOf("<", tagStart - 1)
+    if (before < 0) return false
+    const close = src.indexOf(">", before)
+    if (close < 0 || close > tagStart) return false
+    const wrapper = src.slice(before, close + 1)
+    // A sibling that closed itself is not a wrapper.
+    if (wrapper.endsWith("/>")) return false
+    if (wrapper.startsWith("</")) return false
+    return wrapper.includes("aria-label")
 }
 
 /** The end of the JSX tag that owns an attribute at `from`, ignoring braces. */
@@ -73,6 +89,7 @@ describe("icon-only controls", () => {
                     if (tag.includes("aria-label")) continue
                     // A name may also come from an sr-only child just inside it.
                     if (src.slice(end, end + 400).match(/sr-only|aria-label/)) continue
+                    if (wrappedByANamedElement(src, start)) continue
                     found.push(`${file.slice(ROOT.length + 1)}:${src.slice(0, start).split("\n").length}`)
                 }
             }
