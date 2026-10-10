@@ -124,4 +124,112 @@ describe("apps", () => {
     fireEvent.click(oauth)
     expect(oauth.getAttribute("aria-checked")).toBe("true")
   })
+
+  // The tab is one section like every other: an h2, and its action in the
+  // header's slot at the shared height.
+  it("is a section titled by an h2, with Add your own app in the header's slot", async () => {
+    vi.mocked(listApps).mockResolvedValue([giphy] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    const heading = await screen.findByRole("heading", { level: 2, name: "Apps" })
+    const action = heading.closest("section")?.querySelector("[data-section-action]") as HTMLElement
+    const button = screen.getByRole("button", { name: "Add your own app" })
+    expect(action.contains(button)).toBe(true)
+    expect(button.className).toContain("md:h-8")
+    expect(button.className).toContain("h-11")
+  })
+
+  // What is installed was under the whole directory, a long scroll down; it
+  // is the shorter list and the one an admin comes back to manage.
+  it("lists the installed apps before the directory", async () => {
+    vi.mocked(listApps).mockResolvedValue([giphy] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    const installed = await screen.findByRole("heading", { level: 3, name: "Installed apps" })
+    const directory = screen.getByRole("heading", { level: 3, name: "App directory" })
+    expect(installed.compareDocumentPosition(directory) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  // Under All, each category had its own two-column grid, so a category of
+  // one app left half a row empty, four times over. One grid now, and each
+  // card says its category.
+  it("lays every app of the directory in one grid, each card naming its category", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([
+      { slug: "zoom", name: "Zoom", description: "Calls", category: "Video", commands: ["zoom"], installed: false },
+      { slug: "figma", name: "Figma", description: "Files", category: "Design", commands: ["figma"], installed: false },
+      { slug: "linear", name: "Linear", description: "Issues", category: "Productivity", commands: ["linear"], installed: false },
+    ] as never)
+    render(<AppsCard />, { wrapper: fresh })
+    await screen.findByText("Zoom")
+    const grids = document.querySelectorAll("[data-app-grid]")
+    expect(grids).toHaveLength(1)
+    expect(grids[0].children).toHaveLength(3)
+    expect(screen.queryByRole("heading", { level: 4 })).toBeNull()
+    const zoom = screen.getByText("Zoom").closest("[data-app-card]") as HTMLElement
+    expect(zoom.querySelector("[data-app-category]")?.textContent).toBe("Video")
+  })
+
+  it("draws the installed list's own rows while it loads", async () => {
+    vi.mocked(listApps).mockReturnValue(new Promise(() => {}) as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    const status = await screen.findByRole("status", { name: "Loading the installed apps" })
+    expect(status.className).toContain("divide-y")
+    expect(status.querySelectorAll("[data-app-skeleton-row]").length).toBe(3)
+  })
+
+  it("says a connection with the app's status word, and a command without an icon the slash already says", async () => {
+    vi.mocked(listApps).mockResolvedValue([giphy, { ...giphy, id: "a2", name: "Linear", is_connected: false }] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    const connected = await screen.findByText("Connected")
+    expect(connected.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+    expect(screen.getByText("Not connected").closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("neutral")
+    const chip = screen.getAllByText("/giphy")[0]
+    expect(chip.querySelector("svg")).toBeNull()
+  })
+
+  it("draws the first run's plug at the muted size", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    await screen.findByText("No apps installed yet")
+    const spot = document.querySelector("[data-empty-illustration]") as HTMLElement
+    expect(spot.className).toContain("[&>svg]:size-16")
+  })
+
+  // A search with no match was a centred line of grey text with no way back.
+  it("says a search found nothing, with a way to clear it", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([
+      { slug: "zoom", name: "Zoom", description: "Calls", category: "Video", commands: [], installed: false },
+    ] as never)
+    render(<AppsCard />, { wrapper: fresh })
+    await screen.findByText("Zoom")
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the app directory" }), { target: { value: "jira" } })
+    expect(await screen.findByText(/No apps match/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    expect(await screen.findByText("Zoom")).toBeTruthy()
+  })
+
+  it("picks a new app's kind with the app's segmented control", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    fireEvent.click(await screen.findByRole("button", { name: "Add your own app" }))
+    const external = await screen.findByRole("radio", { name: "External" })
+    expect(external.getAttribute("data-state")).toBe("checked")
+    expect(external.className).toContain("data-[state=checked]:bg-card")
+  })
+
+  it("folds an installed app's controls under its words on a phone", async () => {
+    vi.mocked(listApps).mockResolvedValue([giphy] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    const row = (await screen.findByRole("switch", { name: "Use Giphy" })).closest("[data-app-row]") as HTMLElement
+    const body = row.children[1] as HTMLElement
+    expect(body.className).toContain("flex-col")
+    expect(body.className).toContain("sm:flex-row")
+  })
 })
