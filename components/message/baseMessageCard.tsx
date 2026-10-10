@@ -12,6 +12,7 @@ import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
 import React, { useCallback, useMemo, useRef, useState } from "react"
+import { useTouchReveal } from "@/hooks/useTouchReveal"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
 import type { UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface } from "@/types/user"
@@ -32,7 +33,7 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
-import { SendStatus } from "@/components/message/sendStatus"
+import { SendStatus, SendingNote } from "@/components/message/sendStatus"
 import { usePrimeActions } from "@/components/message/primeActions"
 import { quoteBarClass } from "@/components/message/quoteBar"
 import type { SendState } from "@/lib/chat/pendingSend"
@@ -230,6 +231,8 @@ export const BaseMessageCard = React.memo(({
   continued = false,
 }: BaseMessageCardProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  // On a tablet, which cannot hover, a tap on the message shows its toolbar.
+  const touchReveal = useTouchReveal()
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   // The pointer is over this message, or focus is inside it.
   const [actionsWanted, setActionsWanted] = useState(false)
@@ -390,7 +393,7 @@ export const BaseMessageCard = React.memo(({
   // about 600 components a message, and two dozen invisible tab stops.
   // A message the server has not confirmed has no id to react to, reply to or
   // forward yet: its row offers only what its status line says.
-  const showActions = !isMessageEditEnabled && !message.sendState && (actionsWanted || isDropdownOpen || isEmojiPickerOpen)
+  const showActions = !isMessageEditEnabled && !message.sendState && (actionsWanted || isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed)
   // The first row on the page builds the toolbar once, hidden, when the
   // browser is idle, so the first hover is not its first run (primeActions).
   const primingActions = usePrimeActions()
@@ -404,6 +407,9 @@ export const BaseMessageCard = React.memo(({
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActionsWanted(false)
       }}
+      // A touch or a pen has no hover: a tap on the message shows its
+      // actions (hooks/useTouchReveal), as the pointer does.
+      onPointerUp={touchReveal.onPointerUp}
       className={cn(
         // py-1.5, not 2.5: a message is a line of a conversation, and the
         // extra 8px on every row (plus a margin under every body) made a
@@ -414,11 +420,11 @@ export const BaseMessageCard = React.memo(({
         continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5",
         "transition-colors duration-100",
         "hover:bg-accent/40",
-        (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40",
+        (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) && "bg-accent/40",
       )}
     >
         {continued && !isMessageEditEnabled ? (
-          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} />
+          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} sending={message.sendState === "sending"} />
         ) : (
           <>
         {/* A second, mouse-only way to the profile the name already opens: the
@@ -442,7 +448,7 @@ export const BaseMessageCard = React.memo(({
         )}
         <div className="flex-1 min-w-0">
           {!isMessageEditEnabled && !continued && (
-            <div className="flex items-baseline gap-2">
+            <div data-name-line="" className="flex h-5 items-center gap-2">
               {relayed ? (
                 // A guest or Slack person has no profile to open: the name is only a name.
                 <span className="text-sm font-semibold text-foreground truncate">{authorName}</span>
@@ -467,6 +473,7 @@ export const BaseMessageCard = React.memo(({
               >
                 {formatTimeForPostOrComment(message.createdAt, true)}
               </time>
+              {message.sendState === "sending" && <SendingNote />}
             </div>
           )}
           {message.replyTo && !isMessageEditEnabled && (
@@ -505,8 +512,8 @@ export const BaseMessageCard = React.memo(({
           >
             {showErrorBoundary ? (
               <LocalizedErrorBoundary
-                fallbackTitle="Editor Error"
-                fallbackDescription="The rich text editor encountered an issue."
+                fallbackTitle="This message could not be shown"
+                fallbackDescription="Something in it could not be drawn. Reload the page to try again."
               >
                 {editor}
               </LocalizedErrorBoundary>

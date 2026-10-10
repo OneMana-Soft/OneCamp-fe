@@ -145,7 +145,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                     variant="ghost"
                     className={cn(
                         "h-6 w-6 -mr-1 -mt-0.5 shrink-0 text-muted-foreground hover:text-foreground",
-                        "md:opacity-0 pointer-events-none md:group-hover:opacity-100 group-hover:pointer-events-auto md:focus-visible:opacity-100 transition-opacity",
+                        "md:opacity-0 pointer-events-none md:group-hover:opacity-100 group-hover:pointer-events-auto md:focus-visible:opacity-100 transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
                     )}
                     aria-label="Open task"
                     onPointerDown={(e) => e.stopPropagation()}

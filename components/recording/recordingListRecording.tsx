@@ -77,13 +77,13 @@ export const RecordingListRecording = ({
                 {onDelete && (
                     <button
                         onClick={handleDelete}
-                        className="h-8 w-8 rounded-full flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity hover:bg-destructive/10 text-danger-ink"
+                        className="h-8 w-8 rounded-full flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity hover:bg-destructive/10 text-danger-ink [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                         title="Delete recording"
                     >
                         <Trash2 size={16} />
                     </button>
                 )}
-                <div className="hidden sm:flex self-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+                <div className="hidden sm:flex self-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
                      <div className="h-8 w-8 rounded-full flex items-center justify-center bg-primary/10 text-primary">
                         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="translate-x-0.5">
                             <path d="M3.24182 2.32181C2.9063 2.15603 2.5 2.40453 2.5 2.78359V12.2164C2.5 12.5955 2.9063 12.844 3.24182 12.6782L12.7443 7.96181C13.0852 7.79284 13.0852 7.20716 12.7443 7.03819L3.24182 2.32181Z" fill="currentColor"></path>

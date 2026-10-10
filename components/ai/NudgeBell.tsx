@@ -237,7 +237,7 @@ function NudgeBell() {
                                                 <button
                                                     aria-label="Dismiss"
                                                     onClick={(e) => handleDismiss(e, n)}
-                                                    className="shrink-0 rounded-sm text-2xs text-muted-foreground opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto hover:text-foreground transition-opacity"
+                                                    className="shrink-0 rounded-sm text-2xs text-muted-foreground opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto hover:text-foreground transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                                                 >
                                                     Dismiss
                                                 </button>

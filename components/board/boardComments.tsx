@@ -481,7 +481,7 @@ function ThreadMessageRow({
                 <button
                   type="button"
                   onClick={() => setPickerOpen((o) => !o)}
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border/60 text-muted-foreground opacity-0 transition-opacity hover:bg-accent/50 group-hover/msg:opacity-100"
+                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border/60 text-muted-foreground opacity-0 transition-opacity hover:bg-accent/50 group-hover/msg:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto extend-touch-target"
                   title="Add reaction"
                 >
                   <SmilePlus className="h-3 w-3" />

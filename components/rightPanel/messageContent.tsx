@@ -27,6 +27,7 @@ import {AgentResultCards} from "@/components/message/AgentResultCards";
 import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
+import { useTouchReveal } from "@/hooks/useTouchReveal";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {SaveToMemoryButton} from "@/components/ai/SaveToMemoryButton";
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
@@ -80,6 +81,8 @@ export const MessageContent = ({
     // reply or focus is inside it, as on a channel's rows. Built for every
     // reply, hidden, they cost each one a toolbar of tooltips.
     const [actionsWanted, setActionsWanted] = useState(false)
+    // On a tablet, which cannot hover, a tap on the reply shows its toolbar.
+    const touchReveal = useTouchReveal();
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -110,7 +113,7 @@ export const MessageContent = ({
     const tagKind = relayed ? relayed.kind : "guest"
     const body = relayed ? relayed.body : content
 
-    const showActions = !isMessageEditEnabled && !isGuest && (actionsWanted || isDropdownOpen || isEmojiPickerOpen)
+    const showActions = !isMessageEditEnabled && !isGuest && (actionsWanted || isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed)
 
     const handleEmojiClick = (emojiId: string) => {
         if(userSelectedOption.emojiId == emojiId) {
@@ -165,8 +168,9 @@ export const MessageContent = ({
         // name and an orange hover, so a reply looked like a different kind of
         // thing from the message it answered.
         <div
-            className={cn("group relative flex gap-3 px-2 transition-colors duration-100 hover:bg-accent/40", continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5", (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40")}
+            className={cn("group relative flex gap-3 px-2 transition-colors duration-100 hover:bg-accent/40", continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5", (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) && "bg-accent/40")}
             onPointerEnter={() => setActionsWanted(true)}
+            onPointerUp={touchReveal.onPointerUp}
             onPointerLeave={() => setActionsWanted(false)}
             onFocus={() => setActionsWanted(true)}
             onBlur={(e) => {
@@ -192,7 +196,7 @@ export const MessageContent = ({
             )}
             <div className="flex-1 min-w-0">
                 {!(continued && !isMessageEditEnabled) && (
-                <div className="flex items-baseline gap-2">
+                <div data-name-line="" className="flex h-5 items-center gap-2">
                     {asGuest ? (
                         <span className="text-sm font-semibold text-foreground truncate">{guestDisplayName}</span>
                     ) : (
@@ -303,7 +307,7 @@ export const MessageContent = ({
             {showActions && <div
                 className={cn(
                     "absolute -top-0.5 right-2 transition-opacity duration-150 z-[var(--z-dropdown)]",
-                    (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
+                    (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) || "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
                 )}
             >
                 <MessageDesktopHoverOptionsForRightPanelChatAndChannel

@@ -181,7 +181,7 @@ function DependencyGroup({
               onClick={() => onRemove(t.task_uuid)}
               disabled={busy}
               aria-label={removeLabel(t.task_name)}
-              className="pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-danger-ink focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+              className="pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-danger-ink focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
             >
               <X className="h-3.5 w-3.5" />
             </button>

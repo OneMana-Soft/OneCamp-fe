@@ -117,7 +117,7 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
                   </span>
                   {!e.billable && <span className="rounded bg-muted px-1.5 text-2xs text-muted-foreground">not billable</span>}
                   {e.mine && e.ended_at && (
-                    <span className="flex shrink-0 gap-0.5 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100">
+                    <span className="flex shrink-0 gap-0.5 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
                       <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Change this time" onClick={() => setEditing(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
