@@ -43,6 +43,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useStoredState } from "@/hooks/useStoredState"
 import type { TimelineTask } from "@/lib/timeline"
 import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 // A board changes slower than a conversation.
@@ -127,11 +128,10 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
         </GuestTypeTile>
         <h1 className="min-w-0 flex-1 truncate font-semibold sm:flex-none">{view.project}</h1>
         <span className="shrink-0 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
-        <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto" aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-muted sm:w-24 sm:flex-none" aria-hidden>
-            <div className="h-full rounded-sm bg-foreground/70 transition-[width]" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="tabular-nums">{view.done_tasks} of {view.total_tasks} done</span>
+        <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto">
+          {/* The app's progress bar, which the workspace's theme colours. */}
+          <Progress value={pct} aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`} className="h-1.5 flex-1 sm:w-24 sm:flex-none" />
+          <span className="tabular-nums" aria-hidden="true">{view.done_tasks} of {view.total_tasks} done</span>
         </div>
       </header>
       <GuestTroubleNote trouble={trouble} />

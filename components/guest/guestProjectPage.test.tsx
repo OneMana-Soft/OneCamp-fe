@@ -126,3 +126,17 @@ describe("a client's task panel, once the task is in", () => {
     expect(close.querySelector("svg.lucide-x")).not.toBeNull()
   })
 })
+
+describe("a client's project header", () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as typeof window.matchMedia
+    getGuestProject.mockReset().mockResolvedValue({ ok: true, data: { ...view, total_tasks: 4, done_tasks: 1 } })
+  })
+  afterEach(() => cleanup())
+
+  it("shows how far along it is with the app's progress bar, named for screen readers", async () => {
+    await open()
+    const bar = screen.getByRole("progressbar", { name: "1 of 4 tasks done" })
+    expect(bar.querySelector(".bg-progress")).not.toBeNull()
+  })
+})
