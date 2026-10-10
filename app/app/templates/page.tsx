@@ -49,8 +49,12 @@ export default function TemplatesPage() {
   const [selected, setSelected] = React.useState<MarketplaceTemplate | null>(null)
 
   const query = kind ? `${GetEndpointUrl.GetMarketplaceTemplates}?kind=${kind}` : GetEndpointUrl.GetMarketplaceTemplates
-  const { data, isLoading, isError, mutate } = useFetch<{ data: MarketplaceTemplate[] }>(query)
+  // A newly chosen kind keeps the last grid on screen until its own arrives:
+  // each switch drew six skeleton cards about 94px tall where the cards are
+  // about 170px, and the grid jumped twice.
+  const { data, isLoading, isError, mutate } = useFetch<{ data: MarketplaceTemplate[] }>(query, undefined, { keepPreviousData: true })
   const templates = data?.data || []
+  const firstLoad = isLoading && !data
 
   const [busyId, setBusyId] = React.useState<string | null>(null)
 
@@ -115,12 +119,13 @@ export default function TemplatesPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        // Mirrors the real grid, including the badge line each card carries.
+      {firstLoad ? (
+        // Mirrors the real grid and its cards' height, badge line included.
         <div role="status" aria-label="Loading templates">
           <SkeletonCards
             cards={6}
             gridClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            cardClassName="min-h-[10.5rem] rounded-xl border border-border/60 p-4"
             meta
           />
         </div>
@@ -137,7 +142,9 @@ export default function TemplatesPage() {
         <EmptyState
           tone="accent"
           icon={Sparkles}
-          title="No templates yet"
+          // An empty kind names itself: "No templates yet" under Tables read as
+          // though the whole gallery were empty.
+          title={kind ? `No ${KIND_META[kind].label.toLowerCase()} templates yet` : "No templates yet"}
           description="Publish an agent, automation, or table you built so your team can install it in one click."
           className="rounded-2xl border border-border/60 px-6 py-16"
         />
@@ -153,7 +160,7 @@ export default function TemplatesPage() {
                 className="flex flex-col gap-2 rounded-xl border border-border/60 p-4 text-left transition-colors hover:border-border"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">{t.icon || <Icon className="h-5 w-5 text-primary" />}</span>
+                  <span className="text-lg">{t.icon || <Icon className="h-5 w-5 text-muted-foreground" />}</span>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
                     {meta?.label || t.kind}
                   </span>
