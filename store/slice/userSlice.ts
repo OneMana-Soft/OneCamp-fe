@@ -220,6 +220,12 @@ const userSlice = createSlice({
     updateUserInfoStatus: (state, action: {payload: UpdateUserInfoInterface}) => {
       const { userUUID, status, profileKey, userName } = action.payload;
 
+      // Presence events repeat what is known (every heartbeat, every message
+      // row that mounts). Writing anyway made a new object each time and woke
+      // every selector on that person; nothing to change, nothing written.
+      const known = state.usersStatus[userUUID]
+      if (known && known.status === status && known.profileKey === profileKey && known.userName === userName) return
+
       if(!state.usersStatus[userUUID]) {
         state.usersStatus[userUUID] = {} as UserEmojiInterface
       }
