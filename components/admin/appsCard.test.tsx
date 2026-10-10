@@ -89,6 +89,23 @@ describe("apps", () => {
     expect(toastSpy).not.toHaveBeenCalled()
   })
 
+  // A category is a thing with a colour: the chosen filter shows its camp
+  // hue's tint and ink, never the accent; "All" stays neutral.
+  it("shows the chosen category in its own hue, not the accent", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([
+      { slug: "zoom", name: "Zoom", description: "Calls", category: "Video", commands: [], installed: false } as never,
+    ])
+    render(<AppsCard />, { wrapper: fresh })
+    const video = await screen.findByRole("button", { name: "Video" })
+    fireEvent.click(video)
+    expect(video.getAttribute("aria-pressed")).toBe("true")
+    expect(video.className).toMatch(/\bhue-(sky|moss|sun|dusk|berry|lake)\b/)
+    expect(video.className).toMatch(/bg-hue-tint/)
+    expect(video.className).not.toMatch(/bg-primary/)
+    expect(screen.getByRole("button", { name: "All" }).className).not.toMatch(/hue-/)
+  })
+
   // The type was two buttons, the chosen one filled in the accent.
   it("chooses the app's type from a radio group", async () => {
     vi.mocked(listApps).mockResolvedValue([])

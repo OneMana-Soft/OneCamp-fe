@@ -8,6 +8,8 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/helpers/cn";
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues";
+import type { CampHue } from "@/lib/campHue";
 import { Switch } from "@/components/ui/switch";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
@@ -54,7 +56,11 @@ function StateWord({ tone, children }: { tone: "off" | "bad"; children: React.Re
     );
 }
 
-const WorkflowsCard = () => {
+/**
+ * `hue` is the colour of the place it is shown in: the admin page's AI and
+ * automation group by default; a settings page passes its own section's.
+ */
+const WorkflowsCard = ({ hue = ADMIN_GROUP_HUE.ai }: { hue?: CampHue } = {}) => {
     const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
     const { toast } = useToast();
     const confirm = useConfirm();
@@ -156,6 +162,7 @@ const WorkflowsCard = () => {
                 ) : workflows.length === 0 ? (
                     <EmptyState
                         icon={Zap}
+                        hue={hue}
                         title="No workflows yet"
                         description="For example: when a message mentioning “bug” is posted in #support, create a task and reply “Thanks, we’re on it.”"
                     />
