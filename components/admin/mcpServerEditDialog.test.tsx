@@ -63,6 +63,9 @@ describe("the MCP server dialog", () => {
     fireEvent.click(bearer)
     expect(bearer.getAttribute("aria-checked")).toBe("true")
     expect(screen.getByRole("radiogroup", { name: "How it signs in" })).toBeTruthy()
+    // The house segmented control: the choice raised on the card colour with a
+    // hairline, where this copy marked it with bg-background alone (1.03:1).
+    expect(bearer.className).toContain("data-[state=checked]:bg-card")
   })
 
   it("shows the tested tools as 4px chips, not pills", async () => {
