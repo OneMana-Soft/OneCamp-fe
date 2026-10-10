@@ -27,11 +27,12 @@ import { BUILT_IN_STATUSES, statusPatch } from "@/lib/taskStatus"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 import { KeyboardList } from "@/components/task/KeyboardList"
 import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
+import { cn } from "@/lib/utils/helpers/cn"
 
 const EMPTY: TaskInfoInterface[] = []
 
 /** My Tasks as a board: the tasks assigned to me across projects. */
-export const MyTaskKanban = () => {
+export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
     const { t } = useTranslation()
     const dispatch = useDispatch()
     const moveTask = useMoveTask()
@@ -71,19 +72,21 @@ export const MyTaskKanban = () => {
     const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
 
     return (
-        <div className="flex flex-col h-full p-4 overflow-hidden">
-            <div className="flex mb-4 justify-between">
-                <div className="flex space-x-2">
+        // The project board's toolbar and gutter: the board lines up with the
+        // page title, Create task is the one filled button, View is quiet.
+        <div className={cn("flex flex-col h-full p-4 overflow-hidden", className)}>
+            <div className="flex flex-wrap gap-2 mb-2 justify-between">
+                <div className="flex flex-wrap gap-2">
                     <TaskKanbanProjectFilter activeList={activeProject} updateList={setActiveProject} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                 </div>
-                <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
-                        <CirclePlus className="h-4 w-4" /> {t("createTask")}
+                <div className="flex flex-wrap gap-2">
+                    <Button size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
+                        <CirclePlus className="h-3.5 w-3.5" /> {t("createTask")}
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex">
+                            <Button variant="ghost" size="sm" className="ml-auto hidden h-8 text-muted-foreground hover:text-foreground lg:flex">
                                 <MixerHorizontalIcon className="mr-2 h-4 w-4" />
                                 {t("view")}
                             </Button>
