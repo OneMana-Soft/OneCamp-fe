@@ -30,7 +30,7 @@ vi.mock("@/components/profile/ChangePasswordSection", () => ({ ChangePasswordSec
 vi.mock("@/components/profile/TwoFactorSection", () => ({ TwoFactorSection: () => null }))
 vi.mock("@/components/profile/PasskeySection", () => ({ PasskeySection: () => null }))
 vi.mock("@/components/dialog/appLanguageCombobox", () => ({ AppLanguageCombobox: () => null }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn(async () => ({ data: {} })), post: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn(async () => ({ data: {} })), post: vi.fn() }, OWN_ERRORS: { suppressErrorToast: true } }))
 
 import EditProfileDialog from "./editProfileDailog"
 
