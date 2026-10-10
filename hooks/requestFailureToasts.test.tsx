@@ -17,6 +17,7 @@ vi.mock("@/hooks/use-toast", () => {
 const { default: axiosInstance } = await import("@/lib/axiosInstance")
 const { usePost } = await import("@/hooks/usePost")
 const { PostEndpointUrl } = await import("@/services/endPoints")
+const connectivity = await import("@/lib/connectivity")
 
 /** The server's answer to every request in a test; status 0 means no answer at all. */
 function serverAnswers(status: number, data: unknown = {}) {
@@ -37,6 +38,7 @@ let restore: () => void = () => {}
 afterEach(() => {
   restore()
   toasts.length = 0
+  connectivity.noteNetworkOk()
 })
 
 async function deleteProject(opts: { showToast?: boolean; showErrorToast?: boolean } = { showToast: true }) {
@@ -83,5 +85,31 @@ describe("a request that fails", () => {
     restore = serverAnswers(200, { data: {} })
     await deleteProject()
     expect(toasts).toEqual([expect.objectContaining({ title: "Project deleted" })])
+  })
+})
+
+describe("a request that gets no answer, outside usePost's toasts", () => {
+  it("says a change wasn't saved when it was a write", async () => {
+    restore = serverAnswers(0)
+    await axiosInstance.post("/updateThing", {}).catch(() => undefined)
+    expect(toasts).toEqual([expect.objectContaining({ title: "Couldn't reach the server", variant: "destructive" })])
+  })
+
+  it("leaves a read to the offline notice, without a toast", async () => {
+    restore = serverAnswers(0)
+    await axiosInstance.get("/someList").catch(() => undefined)
+    expect(toasts).toEqual([])
+  })
+
+  it("marks the server unreachable after two misses, and reachable again on the next answer", async () => {
+    restore = serverAnswers(0)
+    await axiosInstance.get("/a").catch(() => undefined)
+    expect(connectivity.isServerUnreachable()).toBe(false)
+    await axiosInstance.get("/b").catch(() => undefined)
+    expect(connectivity.isServerUnreachable()).toBe(true)
+    restore()
+    restore = serverAnswers(200, { data: [] })
+    await axiosInstance.get("/c")
+    expect(connectivity.isServerUnreachable()).toBe(false)
   })
 })

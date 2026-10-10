@@ -5,6 +5,7 @@ import store from "@/store/store"
 import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
 import {loadingBus} from "@/lib/utils/loadingBus";
 import { toast } from "@/hooks/use-toast";
+import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity";
 
 declare module "axios" {
     interface AxiosRequestConfig {
@@ -201,12 +202,24 @@ axiosInstance.interceptors.request.use(async req => {
     return req
 })
 
+/**
+ * What a write that got no answer at all says. A read stays quiet: the
+ * offline notice says the server can't be reached, once, and a page of
+ * failed reads would otherwise raise a toast each. A write is the person's
+ * own change, and it must not vanish without a word.
+ */
+const NO_ANSWER_TO_A_WRITE = {
+    title: "Couldn't reach the server",
+    description: "Your change wasn't saved. Check your connection and try again.",
+}
+
 axiosInstance.interceptors.response.use(
     (response) => {
         // @ts-ignore
         if (!response.config.silent) {
             loadingBus.end();
         }
+        noteNetworkOk();
         return response;
     },
     async (error) => {
@@ -219,6 +232,18 @@ axiosInstance.interceptors.response.use(
         // Don't process anything if we're logging out
         if (isLoggingOut) {
             return Promise.reject(error);
+        }
+
+        // Any answer, even an error status, means the server is there. No
+        // answer at all (and not a request this app cancelled) is a miss.
+        if (error.response) {
+            noteNetworkOk();
+        } else if (!axios.isCancel(error) && error.code !== "ERR_CANCELED") {
+            noteNetworkFailure();
+            const method = String(error.config?.method || "get").toLowerCase();
+            if (method !== "get" && method !== "head" && !error.config?.suppressErrorToast && !shownRecently(NO_ANSWER_TO_A_WRITE)) {
+                toast({ variant: "destructive", ...NO_ANSWER_TO_A_WRITE });
+            }
         }
 
         // Standardized Error Toasting (excluding 401 refresh attempts).

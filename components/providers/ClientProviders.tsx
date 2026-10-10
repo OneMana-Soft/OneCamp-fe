@@ -10,6 +10,7 @@ import { ThemeSync } from "@/components/activeTheme/ThemeSync";
 import { ThemeColorMeta } from "@/components/activeTheme/ThemeColorMeta";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { Toaster } from "@/components/ui/toaster";
+import { OfflineNotice } from "@/components/error/OfflineNotice";
 
 export function ClientProviders({
   children,
@@ -33,6 +34,8 @@ export function ClientProviders({
                   providers held it, so a toast on a guest page, the invoice
                   page or a signed-out page drew nothing. */}
               <Toaster />
+              {/* Says when the network or the server is gone, on every page. */}
+              <OfflineNotice />
             </MediaQueryProvider>
           </Provider>
         </PersistGate>
