@@ -41,6 +41,16 @@ describe("Seen under your latest message", () => {
     expect(screen.queryByText(/Seen/)).toBeNull()
   })
 
+  // Under the message's words (the text column, 64px in), not at the row's
+  // right edge a screen's width away.
+  it("sits under the message's words, at the text column", () => {
+    receipts = { data: { on: true, seen: [{ user_uuid: "maya", seen_at: "2026-10-08T09:05:00Z" }] } }
+    render(<SeenReceiptLine target={{ kind: "dm", otherUUID: "maya" }} latest={msg("me", "2026-10-08T09:00:00Z")} />)
+    const line = screen.getByText("Seen").closest("p")!
+    expect(line.className).toContain("pl-16")
+    expect(line.className).not.toContain("justify-end")
+  })
+
   it("names who in a group, leaving out the agent", () => {
     receipts = { data: { on: true, seen: [{ user_uuid: "jonas", seen_at: "2026-10-08T09:05:00Z" }, { user_uuid: "maya", seen_at: "2026-10-08T09:02:00Z" }] } }
     render(<SeenReceiptLine target={{ kind: "group", grpId: "g1" }} latest={msg("me", "2026-10-08T09:00:00Z")} />)
