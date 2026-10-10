@@ -287,7 +287,7 @@ export function TaskBoard({
                     badgeFor={badgeFor}
                 />
             ) : (
-            <div ref={boardRef} className="flex h-full gap-4 pb-4 overflow-x-auto snap-x snap-mandatory sm:snap-none" data-board-scroll="">
+            <div ref={boardRef} className="-mx-2 flex h-full pb-4 overflow-x-auto snap-x snap-mandatory sm:snap-none" data-board-scroll="">
                 {visible.map((status) => (
                     <BoardColumn
                         key={status.value}
@@ -360,8 +360,10 @@ const BoardColumn = memo(function BoardColumn({
             ref={setNodeRef}
             label={id}
             title={status.label}
-            icon={status.icon}
-            swatchClass={status.swatch ? colorDot(status.swatch) : undefined}
+            // A status column is marked by its dot, as its tasks are in the
+            // list; the category's icon beside a custom status's dot said it twice.
+            icon={status.swatch || status.dot ? undefined : status.icon}
+            swatchClass={status.swatch ? colorDot(status.swatch) : status.dot}
             count={Math.max(total ?? 0, tasks.length)}
             scrollable
             hover={lineAt !== null}

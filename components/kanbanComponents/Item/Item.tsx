@@ -1,4 +1,5 @@
 "use client"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 import React from "react"
 import type { DraggableSyntheticListeners } from "@dnd-kit/core"
@@ -15,7 +16,6 @@ import { format, isToday, isTomorrow, isYesterday } from "date-fns"
 import { useDispatch } from "react-redux"
 import { TaskInfoInterface } from "@/types/task"
 import { priorities } from "@/types/table"
-import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ColorIcon } from "@/components/colorIcon/colorIcon"
@@ -68,14 +68,14 @@ interface Props {
 }
 
 /**
- * Format a due date as a short relative chip (e.g. "Today", "Tomorrow",
- * "Mon 02 Jun"). Keeps the card meta footer compact at narrow widths.
+ * A due date as the card says it: "Today", "Tomorrow", "Yesterday", else
+ * "2 Jun". Whole words: "Tmrw" and "Yday" saved two letters and cost a read.
  */
 function formatDueShort(d: Date): string {
     if (isToday(d)) return "Today"
-    if (isTomorrow(d)) return "Tmrw"
-    if (isYesterday(d)) return "Yday"
-    return format(d, "dd MMM")
+    if (isTomorrow(d)) return "Tomorrow"
+    if (isYesterday(d)) return "Yesterday"
+    return shortDate(d)
 }
 
 /**
@@ -95,7 +95,6 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
     const isOverdue = dueDate && dueDate < new Date() && !isClosedStatus(task.task_status)
     // How long it has sat in this status; finished work is not waiting on anyone.
     const inStatus = isClosedStatus(task.task_status) ? null : timeInStatus(task.task_status_since, task.task_created_at, Date.now())
-    const descPreview = task.task_description ? removeHtmlTags(task.task_description) : ""
     const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label) || Boolean(statusBadge)
     const openTask = () => {
         dispatch(
@@ -136,7 +135,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                 fades in on hover for desktop). The button stops
                 pointer events so it cannot start a drag. */}
             <div className="flex items-start gap-2 min-w-0">
-                <div className="text-sm font-medium text-foreground leading-snug line-clamp-3 flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground leading-snug line-clamp-2 flex-1 min-w-0" title={task.task_name}>
                     {task.task_name}
                 </div>
                 <Button
@@ -159,12 +158,8 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                 </Button>
             </div>
 
-            {/* Description preview */}
-            {descPreview && (
-                <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
-                    {descPreview}
-                </div>
-            )}
+            {/* No description preview: two grey lines under every title made a
+                column of six cards a page of text. The panel shows it whole. */}
 
             {/* The project's own fields its board shows on cards. */}
             <CardFields values={task.task_fields} />
@@ -182,9 +177,9 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
 
                 {/* Meta cluster on the right, allowed to wrap. */}
                 <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-2xs text-muted-foreground min-w-0">
-                    {taskP && (
-                        // A dot and the word, as in the list: the card's one colour
-                        // besides an overdue date.
+                    {taskP?.value === "high" && (
+                        // Only High: it is the priority that asks for attention.
+                        // Low and Medium on every card were words nobody read.
                         <span className="inline-flex items-center gap-1" title={`Priority: ${taskP.label}`}>
                             <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", taskP.dot)} />
                             {taskP.label}
@@ -342,7 +337,7 @@ export const Item = React.memo(
                             // select-none: pressing to drag must not start selecting the
                             // card's words, which also scrolled the column under the pointer.
                             "group flex flex-col gap-1.5 px-3 py-2.5 w-full min-w-0 select-none",
-                            "rounded-md bg-card border border-border/60",
+                            "rounded-lg bg-card border border-border/60",
                             "transition-[border-color,box-shadow,background-color] duration-150",
                             "hover:border-border",
                             !handle && "cursor-pointer",

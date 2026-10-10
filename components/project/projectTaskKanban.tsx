@@ -58,7 +58,7 @@ function PriorityMark({ value }: { value: string }) {
     )
 }
 
-export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) => {
+export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: string; className?: string }) => {
     const { t } = useTranslation()
     const dispatch = useDispatch()
     const moveTask = useMoveTask()
@@ -174,22 +174,22 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
     const canEdit = useCallback(() => isAdmin, [isAdmin])
 
     return (
-        <div className="flex flex-col h-full p-4 overflow-hidden">
+        <div className={cn("flex flex-col h-full p-4 overflow-hidden", className)}>
             {/* Wraps when narrow (side by side, or a side panel open) instead of
                 pushing its last buttons out of sight. */}
-            <div className="flex flex-wrap gap-2 mb-4 justify-between">
+            <div className="flex flex-wrap gap-2 mb-2 justify-between">
                 <div className="flex flex-wrap gap-2">
                     <ProjectTaskKanbanAssigneeFilter activeList={assigneeFilter} updateList={setAssigneeFilter} members={p?.project_members} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                     <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
-                        <CirclePlus className="h-4 w-4" /> {t("createTask")}
+                    <Button size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
+                        <CirclePlus className="h-3.5 w-3.5" /> {t("createTask")}
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex">
+                            <Button variant="ghost" size="sm" className="ml-auto hidden h-8 text-muted-foreground hover:text-foreground lg:flex">
                                 <MixerHorizontalIcon className="mr-2 h-4 w-4" />
                                 {t("view")}
                             </Button>
