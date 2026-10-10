@@ -21,7 +21,6 @@ import {DesktopNavigationEmojiStatus} from "@/components/navigationBar/desktop/d
 import { memo } from "react";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
-import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {useMedia} from "@/context/MediaQueryContext";
 import {CallActiveIndicator} from "@/components/callIndicator/CallActiveIndicator";
 import { hueFor } from "@/lib/campHue";
@@ -59,15 +58,15 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                 isActive ? "nav-active font-medium" : "nav-idle",
             )}
         >
-            {ch.userProfile && <DesktopNavigationChatAvatar userInfo={ch.userProfile}/>}
-            {ch.userParticipants && (
-                <GroupedAvatar
-                    users={ch.userParticipants}
-                    max={2}
-                    overlap={isMobile ? 12 : 8}
-                    size={isMobile ? 24 : 20}
-                    className={'!pr-0'}
-                />
+            {/* A person's face in the icons' 16px column: the 20px avatar
+                hangs 2px into the gap on each side, so the name starts where
+                every other row's does (40px). It took 20px of the row and
+                pushed the name to 52. A group's faces don't fit the column;
+                a group is drawn as a team is, the people glyph in its hue. */}
+            {ch.userProfile && (
+                <span data-sidebar-avatar="" className="-mx-0.5 flex shrink-0">
+                    <DesktopNavigationChatAvatar userInfo={ch.userProfile}/>
+                </span>
             )}
             {ch.icon && (
                 <ch.icon
@@ -75,7 +74,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                     strokeWidth={1.75}
                 />
             )}
-            {!ch.icon && !ch.userProfile && !ch.userParticipants && !ch.project_uuid && link.icon && (
+            {!ch.icon && !ch.userProfile && !ch.project_uuid && link.icon && (
                 <link.icon
                     className={cn("shrink-0 h-4 w-4", glyph)}
                     strokeWidth={1.75}
@@ -89,7 +88,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
             <span
                 className={cn(
                     "truncate flex-1 min-w-0",
-                    (ch.userParticipants || ch.userProfile) && "capitalize",
+                    ch.userProfile && "capitalize",
                     hasUnread && !isActive && "font-semibold text-foreground",
                 )}
             >
@@ -190,7 +189,11 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
         >
             {/* minmax(0,1fr): a grid column otherwise grows to its longest unbreakable
                 name, and every row, unread badge and all, then runs past the panel. */}
-            <nav className="grid grid-cols-[minmax(0,1fr)] gap-0.5 px-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-2">
+            {/* The rail's 36px items sit 6px in, so their icons centre on 24px:
+                the column the open sidebar's icons, the logo above them and the
+                collapse control below all centre on. At 8px in they centred on
+                26, and toggling the rail nudged every icon sideways. */}
+            <nav className="grid grid-cols-[minmax(0,1fr)] gap-0.5 px-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-1.5">
                 {links.map((link, index) =>
                         isCollapsed ? !link.children && (
                             <CollapsedNavItem key={index} link={link} />
@@ -255,7 +258,11 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                 </Button>
                                             ) : <div className="h-6 w-6 shrink-0" />}
                                         </div>
-                                        <CollapsibleContent className="space-y-px">
+                                        {/* Rows 2px apart, as the primary rows above
+                                            them (gap-0.5): one rhythm down the
+                                            sidebar, where the groups stepped 29px
+                                            and the primary rows 30px. */}
+                                        <CollapsibleContent className="space-y-0.5">
                                             {link.inlineCreator}
                                             {link.children.map((ch,chIn)=>{
                                                 return <SideNavLink key={chIn} ch={ch} link={link} />
