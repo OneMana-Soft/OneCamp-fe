@@ -129,7 +129,8 @@ export function RightPanelTaskHeader({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-1.5"
+                        // 44px on a touch screen (the task page on a phone), 32 with a mouse.
+                        className="h-8 gap-1.5 pointer-coarse:h-11"
                         onClick={canMarkComplete ? handleMarkComplete : undefined}
                         disabled={!isAdmin || !canMarkComplete}
                         aria-label={canMarkComplete ? "Mark task as complete" : "Task completed"}
