@@ -1,9 +1,8 @@
 "use client"
 
-import { Bot } from "lucide-react"
+import { Bot } from "@/lib/icons"
 
 import { withAI } from "@/components/common/withFeature"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { type AgentOutcome, sumOutcomes } from "@/services/agentService"
@@ -46,17 +45,11 @@ function AgentWorkCardInner() {
     const items = activity?.data ?? []
     const kept = sumOutcomes(outcomes?.data)
 
-    if (isLoading) {
-        return (
-            <section className="ai-panel">
-                <div className="px-4 py-3.5 space-y-2" role="status" aria-label="Loading your agents' work">
-                    <Skeleton className="h-3 w-1/3 rounded" />
-                    <Skeleton className="h-2.5 w-11/12 rounded" />
-                    <Skeleton className="h-2.5 w-3/5 rounded" />
-                </div>
-            </section>
-        )
-    }
+    // Nothing while loading. Most people have no agents, so a placeholder
+    // here usually collapsed to nothing a moment later, and Home jumped up by
+    // its height. Home renders this card after its own lists, so arriving
+    // late moves nothing above it.
+    if (isLoading) return null
 
     // Nothing has run and nothing was decided: there is no story to tell yet.
     if (items.length === 0 && kept.decided === 0) return null

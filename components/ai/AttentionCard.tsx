@@ -36,6 +36,7 @@ import {
   Loader2,
 } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
+import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
 import { Skeleton } from "@/components/ui/skeleton"
 import { dueLabel } from "@/lib/utils/dueLabel"
 
@@ -279,7 +280,21 @@ function AttentionCard() {
 // Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
 // whenever an admin has switched AI off. Wrapping the export covers every place this
 // is rendered, desktop and mobile, instead of asking each of them to remember.
-export default withAI(AttentionCard)
+//
+// While the server's config is still on its way, whether AI is on is unknown,
+// and the gate rendered nothing: the card then arrived and pushed everything
+// under it down (most of Home's layout shift on the demo). It holds its place
+// in that moment instead; only a server that turns out to have AI off sees the
+// placeholder go.
+const GatedAttentionCard = withAI(AttentionCard)
+
+function AttentionCardSlot() {
+  const ai = useFeatureState(FEATURE_AI)
+  if (ai === "unknown") return <AttentionCardSkeleton />
+  return <GatedAttentionCard />
+}
+
+export default AttentionCardSlot
 
 function AttentionCardSkeleton() {
   return (

@@ -2,6 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 // fireEvent rather than user-event: the latter is not a dependency of this
 // project, and a click is all these tests need.
 import { render, screen, waitFor, fireEvent, act, cleanup } from "@testing-library/react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { setTTL } from "@/lib/utils/helpers/ttlStorage"
 
 /**
  * The card's contract is mostly about restraint: it must state the size of the
@@ -18,6 +20,7 @@ let sidebar: {
 } = { userChannels: [], userChats: [] }
 let aiEnabled: boolean | undefined = true
 let statusLoading = false
+let aiState: "unknown" | "available" | "unavailable" = "available"
 
 vi.mock("react-redux", () => ({
   useSelector: (fn: (s: unknown) => unknown) =>
@@ -42,9 +45,10 @@ vi.mock("@/components/ai/MarkdownMessage", () => ({
 // precondition. Without it these tests assert against an intentionally empty render.
 vi.mock("@/hooks/useClientConfig", () => ({
   FEATURE_AI: "ai",
-  useFeature: () => true,
-  useAIAvailable: () => true,
-  useClientConfig: () => ({ features: { ai: true } }),
+  useFeature: () => aiState === "available",
+  useFeatureState: () => aiState,
+  useAIAvailable: () => aiState === "available",
+  useClientConfig: () => ({ features: { ai: aiState === "available" } }),
 }))
 
 import WhileYouWereAwayCard from "./WhileYouWereAwayCard"
@@ -72,6 +76,7 @@ describe("WhileYouWereAwayCard", () => {
     localStorage.clear()
     aiEnabled = true
     statusLoading = false
+    aiState = "available"
     withUnread([])
   })
 
@@ -117,11 +122,34 @@ describe("WhileYouWereAwayCard", () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it("stays hidden until the AI status is known, so the button cannot appear then vanish", () => {
+  it("holds its place without a button until the AI status is known, so nothing appears then vanishes", () => {
     withUnread([40])
     statusLoading = true
+    render(<WhileYouWereAwayCard />)
+    expect(screen.getByRole("status", { name: /loading your recap/i })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /catch me up/i })).toBeNull()
+  })
+
+  // Home's layout shift on the demo: the card rendered nothing until the
+  // server's config said AI was on, then arrived and pushed the page down.
+  it("holds its place while it isn't yet known whether AI is on", () => {
+    withUnread([40])
+    aiState = "unknown"
+    render(<WhileYouWereAwayCard />)
+    expect(screen.getByRole("status", { name: /loading your recap/i })).toBeTruthy()
+  })
+
+  it("renders nothing at all on a server without AI", () => {
+    withUnread([40])
+    aiState = "unavailable"
     const { container } = render(<WhileYouWereAwayCard />)
     expect(container.firstChild).toBeNull()
+  })
+
+  it("is absent from its very first render once dismissed, rather than showing and then leaving", () => {
+    withUnread([40])
+    setTTL("away_recap_dismissed_", "home", 60 * 60 * 1000)
+    expect(renderToStaticMarkup(<WhileYouWereAwayCard />)).toBe("")
   })
 
   it("stands down when the search index says there is nothing to recap", async () => {

@@ -42,7 +42,7 @@
  * and would punish weekends and leave.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { Button } from "@/components/ui/button"
@@ -54,7 +54,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { isTTLActive, setTTL } from "@/lib/utils/helpers/ttlStorage"
 import { Sparkles, X, RefreshCw } from "@/lib/icons"
 import { ReadBoundary } from "@/components/ai/ReadBoundary"
-import { withAI } from "@/components/common/withFeature"
+import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
 
 // One dismissal key, not one per scope: this card is about the workspace, so
 // there is a single thing to dismiss. TTL matches the per-conversation
@@ -81,24 +81,25 @@ function WhileYouWereAwayCard({
 }) {
   const channels = useSelector((s: RootState) => s.users.userSidebar.userChannels)
   const chats = useSelector((s: RootState) => s.users.userSidebar.userChats)
+  // Whether this server has AI at all: unknown while its config is on the way.
+  const ai = useFeatureState(FEATURE_AI)
   // /ai/status is an in-memory config read on the server (no DB, no model
   // call), and SWR dedupes it across the app — so gating on it is effectively
   // free and stops us offering a button that would silently do nothing when an
   // admin has AI switched off.
   const { data: aiStatus, isLoading: statusLoading } =
-    useFetchOnlyOnce<AIStatus>(GetEndpointUrl.AIStatus)
+    useFetchOnlyOnce<AIStatus>(ai === "available" ? GetEndpointUrl.AIStatus : "")
   const { catchUp, isLoading } = useCatchUp()
 
-  const [dismissed, setDismissed] = useState(false)
+  // Read before the first render: it used to be read after it, so a recap
+  // dismissed an hour ago showed for a moment and then left, and Home moved
+  // twice. Home renders only in the browser, after the session is known.
+  const [dismissed, setDismissed] = useState(() => typeof window !== "undefined" && isTTLActive(DISMISS_PREFIX, DISMISS_ID, DISMISS_TTL_MS))
   const [summary, setSummary] = useState("")
   // Held beside the summary, not derived from it: the recap and the boundary it
   // was produced under are one answer, and they must appear and clear together.
   const [scopesAllowed, setScopesAllowed] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (isTTLActive(DISMISS_PREFIX, DISMISS_ID, DISMISS_TTL_MS)) setDismissed(true)
-  }, [])
 
   // The whole resting state, derived from data already in the store. Counting
   // conversations as well as messages matters: "38 unread" is a number, "38
@@ -157,13 +158,15 @@ function WhileYouWereAwayCard({
     }
   }, [catchUp])
 
-  // Hide until we know AI is on, so the button never appears and then vanishes.
-  if (statusLoading) return null
-  if (!aiStatus?.data?.enabled) return null
-  if (dismissed) return null
+  if (ai === "unavailable" || dismissed) return null
   // Genuinely caught up, or a trivial backlog: no card. Consistent with the
   // other two home cards, which also self-hide rather than say "nothing here".
+  // Known at once from the sidebar, so it is decided before anything loads.
   if (unreadTotal < threshold) return null
+  // There will very likely be a card: hold its place while AI is confirmed,
+  // rather than appear late and push Home down.
+  if (ai === "unknown" || statusLoading) return <AwaySkeleton />
+  if (!aiStatus?.data?.enabled) return null
 
   return (
     <section
@@ -241,7 +244,23 @@ function WhileYouWereAwayCard({
   )
 }
 
-// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
-// whenever an admin has switched AI off. Wrapping the export covers every place this
-// is rendered, desktop and mobile, instead of asking each of them to remember.
-export default withAI(WhileYouWereAwayCard)
+// Gated on the AI subsystem inside (useFeatureState), not by withAI: the wrapper
+// rendered nothing while the config loaded, and the card then arrived late. The
+// AI-free v1 edition doesn't carry this file; on v2 with AI off it renders nothing.
+export default WhileYouWereAwayCard
+
+/** The card's own shape, header and one line, while AI is confirmed. */
+function AwaySkeleton() {
+  return (
+    <section className="ai-panel" role="status" aria-label="Loading your recap">
+      <div className="ai-panel-head">
+        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+        <h2 className="text-sm font-medium text-foreground">While you were away</h2>
+      </div>
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <Skeleton className="h-4 flex-1 rounded" />
+        <Skeleton className="h-8 w-28 shrink-0 rounded-md" />
+      </div>
+    </section>
+  )
+}

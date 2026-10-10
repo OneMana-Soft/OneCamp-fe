@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
-import { GlanceLine } from "@/components/home/GlanceLine"
+import { GlanceLine, glanceLoading } from "@/components/home/GlanceLine"
 
 /**
  * The glance line replaced four stat tiles that mostly read 0. The two ways it
@@ -21,5 +21,26 @@ describe("GlanceLine", () => {
   it("says so when everything is zero", () => {
     const { container } = render(<GlanceLine items={[item(0, "channel"), item(0, "task")]} />)
     expect(container.textContent).toBe("All caught up.")
+  })
+
+  // Every count reads 0 until the sidebar arrives: a first visit was told
+  // "All caught up." over a backlog.
+  it("holds the line's place, saying nothing, while the counts aren't in", () => {
+    const { container } = render(<GlanceLine loading items={[item(0, "channel"), item(0, "task")]} />)
+    expect(container.textContent).not.toContain("All caught up")
+    expect(screen.getByRole("status", { name: "Counting what's new" })).toBeTruthy()
+  })
+})
+
+describe("glanceLoading", () => {
+  it("waits for the sidenav answer", () => {
+    expect(glanceLoading(undefined, {})).toBe(true)
+  })
+  it("waits the one render between the answer and the store", () => {
+    expect(glanceLoading({ user_channels: [{}], user_dms: [] }, { userChannels: [], userChats: [] })).toBe(true)
+    expect(glanceLoading({ user_channels: [{}], user_dms: [] }, { userChannels: [{}], userChats: [] })).toBe(false)
+  })
+  it("is ready at once for a member with no channels or messages", () => {
+    expect(glanceLoading({ user_channels: [], user_dms: [] }, { userChannels: [], userChats: [] })).toBe(false)
   })
 })
