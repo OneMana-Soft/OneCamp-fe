@@ -9,6 +9,9 @@ import { Loader2, Plus, Trash2, Check, X } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Field } from "@/components/ui/field"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
   EvalScenario,
   EvalScore,
@@ -65,13 +68,21 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
   const [mustContain, setMustContain] = React.useState("")
   const [expectedTools, setExpectedTools] = React.useState("")
   const [adding, setAdding] = React.useState(false)
+  // Said under the field, with the cursor there: "Name and prompt are
+  // required" was a toast tied to neither.
+  const [errors, setErrors] = React.useState<{ name?: string; prompt?: string }>({})
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const promptRef = React.useRef<HTMLInputElement>(null)
+  // A failed read left the list empty, which said "No saved tests yet".
+  const [failed, setFailed] = React.useState(false)
 
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
       setScenarios(await listEvalScenarios(agentId))
+      setFailed(false)
     } catch {
-      // interceptor surfaces the error
+      setFailed(true)
     } finally {
       setLoading(false)
     }
@@ -82,10 +93,12 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
   }, [load])
 
   const handleAdd = async () => {
-    if (!name.trim() || !prompt.trim()) {
-      toast({ title: "Name and prompt are required" })
-      return
-    }
+    const next: typeof errors = {}
+    if (!name.trim()) next.name = "Give the test a name."
+    if (!prompt.trim()) next.prompt = "Enter the prompt to run the agent with."
+    setErrors(next)
+    if (next.name) return nameRef.current?.focus()
+    if (next.prompt) return promptRef.current?.focus()
     setAdding(true)
     try {
       const created = await createEvalScenario(agentId, {
@@ -115,9 +128,9 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
   const handleDelete = (id: string) => {
     const scenario = scenarios.find((s) => s.id === id)
     confirm({
-      title: scenario?.name ? `Delete the scenario "${scenario.name}"?` : "Delete this scenario?",
-      description: "The scenario and its expectations are removed. This can't be undone.",
-      confirmText: "Delete scenario",
+      title: scenario?.name ? `Delete the test "${scenario.name}"?` : "Delete this test?",
+      description: "The test and what it expects are removed. This can't be undone.",
+      confirmText: "Delete test",
       destructive: true,
       onConfirm: () => {
         void deleteScenario(id)
@@ -140,8 +153,8 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
     try {
       const res = await runEvalScenario(id)
       setResults((r) => ({ ...r, [id]: res.result }))
-    } catch {
-      toast({ title: "Test run failed", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't run the test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunningId(null)
     }
@@ -155,8 +168,8 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
       res.scenarios.forEach((s) => (next[s.scenario_id] = s.result))
       setResults(next)
       setSuite({ passed: res.passed, scored: res.scored, total: res.total })
-    } catch {
-      toast({ title: "Suite run failed", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't run the tests", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunningAll(false)
     }
@@ -167,14 +180,14 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
       <div className="flex items-center justify-between">
         <div>
           <Label className="text-sm">Saved tests</Label>
-          <p className="text-2xs text-muted-foreground">
-            Save what a good answer looks like, then run them to catch regressions before shipping.
+          <p className="text-xs text-muted-foreground">
+            Save what a good answer looks like, then run the tests after a change to catch anything it broke.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {suite && (
-            <span className="text-2xs text-muted-foreground">
-              {suite.scored > 0 ? `${Math.round((suite.passed / suite.scored) * 100)}% passing` : "no verdict"} ({suite.passed}/{suite.scored})
+            <span className="text-xs text-muted-foreground">
+              {suite.scored > 0 ? `${Math.round((suite.passed / suite.scored) * 100)}% passing (${suite.passed} of ${suite.scored})` : "No result yet"}
             </span>
           )}
           <Button variant="outline" size="sm" onClick={handleRunAll} disabled={runningAll || scenarios.length === 0}>
@@ -183,9 +196,16 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-4 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+      {loading && scenarios.length === 0 ? (
+        <div role="status" aria-label="Loading the saved tests">
+          <SkeletonRows rows={2} avatar={false} />
+        </div>
+      ) : failed ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the saved tests.</p>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => void load()}>
+            Try again
+          </Button>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
@@ -193,17 +213,17 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
             <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{s.name}</div>
-                <div className="truncate text-2xs text-muted-foreground">{s.prompt}</div>
+                <div className="truncate text-xs text-muted-foreground">{s.prompt}</div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <ScoreBadge score={results[s.id]} />
-                <Button variant="ghost" size="sm" onClick={() => handleRunOne(s.id)} disabled={runningId === s.id}>
+                <Button variant="ghost" size="sm" aria-label={`Run ${s.name}`} onClick={() => handleRunOne(s.id)} disabled={runningId === s.id}>
                   {runningId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Run"}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Delete this evaluation"
+                  aria-label={`Delete ${s.name}`}
                   className="h-7 w-7 text-danger-ink hover:text-danger-ink"
                   onClick={() => handleDelete(s.id)}
                   title="Delete test"
@@ -214,17 +234,47 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
             </div>
           ))}
           {scenarios.length === 0 && (
-            <p className="py-2 text-2xs text-muted-foreground">No saved tests yet. Add one below.</p>
+            <p className="py-2 text-xs text-muted-foreground">No saved tests yet. Add one below.</p>
           )}
         </div>
       )}
 
-      <div className="mt-1 grid gap-1.5 rounded-lg bg-muted/20 p-2.5">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Test name, e.g. 'Creates a task for a blocker'" maxLength={120} />
-        <Input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Prompt to run the agent with" maxLength={4000} />
-        <Input value={mustContain} onChange={(e) => setMustContain(e.target.value)} placeholder="Answer must mention (comma separated, optional)" />
-        <Input value={expectedTools} onChange={(e) => setExpectedTools(e.target.value)} placeholder="Tools it should use (comma separated, optional)" />
-        <Button size="sm" onClick={handleAdd} disabled={adding} className="justify-self-start">
+      {/* Labelled fields: placeholders alone vanish as you type. */}
+      <div className="mt-1 grid gap-3 rounded-lg bg-muted/20 p-2.5">
+        <Field label="Test name" error={errors.name}>
+          <Input
+            ref={nameRef}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              if (errors.name) setErrors((er) => ({ ...er, name: undefined }))
+            }}
+            placeholder="Creates a task for a blocker…"
+            maxLength={120}
+            autoComplete="off"
+          />
+        </Field>
+        <Field label="Prompt" error={errors.prompt}>
+          <Input
+            ref={promptRef}
+            value={prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value)
+              if (errors.prompt) setErrors((er) => ({ ...er, prompt: undefined }))
+            }}
+            placeholder="What to ask the agent…"
+            maxLength={4000}
+            autoComplete="off"
+          />
+        </Field>
+        <Field label="Answer must mention (optional)" help="Separated by commas.">
+          <Input value={mustContain} onChange={(e) => setMustContain(e.target.value)} autoComplete="off" />
+        </Field>
+        <Field label="Tools it should use (optional)" help="Separated by commas.">
+          <Input value={expectedTools} onChange={(e) => setExpectedTools(e.target.value)} spellCheck={false} autoComplete="off" />
+        </Field>
+        {/* Outline: the dialog's one primary action is Save changes. */}
+        <Button size="sm" variant="outline" onClick={handleAdd} disabled={adding} className="justify-self-start">
           {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
           Add test
         </Button>
