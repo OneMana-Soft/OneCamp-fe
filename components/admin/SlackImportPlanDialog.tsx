@@ -289,7 +289,8 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
                       disabled={running}
                       aria-invalid={capError ? true : undefined}
                       aria-describedby={`${ids}-cap-desc${capError ? ` ${ids}-cap-error` : ""}`}
-                      className="h-8 w-28"
+                      // The prefix field's width, so the list's two fields start on one line.
+                      className="h-8 w-40"
                     />
                     {capError && (
                       <p id={`${ids}-cap-error`} className="text-xs font-medium text-danger-ink">
