@@ -19,6 +19,8 @@ vi.mock("@/hooks/useFetch", () => ({
   }),
 }))
 vi.mock("@/lib/utils/file/downloadFile", () => ({ downloadFile: vi.fn() }))
+// The emoji data loads late and set state after the test had ended.
+vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => <a href={href} {...rest}>{children}</a> }))
@@ -74,7 +76,7 @@ describe("the reactions under a message", () => {
     const { container } = render(
       <Provider store={store}>
         <TooltipProvider>
-          <BottomMenu reactions={{ fire: ["Jonas Weber"] }} handleEmojiClick={() => {}} />
+          <BottomMenu reactions={{ fire: ["Jonas Weber"] }} handleEmojiClick={() => {}} selectedEmojiId="" />
         </TooltipProvider>
       </Provider>,
     )
