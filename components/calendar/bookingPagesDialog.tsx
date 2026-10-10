@@ -12,8 +12,9 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Check, Copy, ExternalLink, Loader2, Plus, Trash2 } from "@/lib/icons"
+import { Check, Copy, ExternalLink, Link2, Loader2, Plus, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { RESOURCE_ROW, ResourceListEmpty, ResourceListSkeleton } from "@/components/dialog/resourceListParts"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
@@ -127,16 +128,16 @@ function PageList({
 
   return (
     <div className="grid gap-3">
+      {/* The list reads as a doc's Viewed by does: rows on the dialog's
+          ground, its own rows while it loads, an icon over its empty line. */}
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <ResourceListSkeleton label="Loading booking pages" rows={2} />
       ) : pages.length === 0 ? (
-        <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
-          No booking pages yet. Make one for intro calls, office hours or interviews.
-        </p>
+        <ResourceListEmpty icon={Link2} title="No booking pages yet" description="Make one for intro calls, office hours or interviews." />
       ) : (
-        <ul className="grid gap-2">
+        <ul className="-mx-2 grid">
           {pages.map((p) => (
-            <li key={p.id} className="flex items-center gap-2 rounded-md border p-3">
+            <li key={p.id} className={RESOURCE_ROW}>
               <button type="button" onClick={() => onEdit(p)} className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:underline">
                 <span className="block truncate text-sm font-medium">
                   {p.title}
@@ -248,7 +249,7 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
                 aria-pressed={on}
                 onClick={() => setHours({ days: on ? p.hours.days.filter((x) => x !== i) : [...p.hours.days, i].sort() })}
                 className={cn(
-                  "h-8 rounded-full border px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "h-8 rounded-md border px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent",
                 )}
               >
@@ -277,7 +278,7 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
         <p className="text-xs text-muted-foreground">Times you already have events, here or on Google Calendar, are never offered.</p>
       </fieldset>
 
-      <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+      <label className="flex items-center justify-between gap-3 text-sm">
         <span>
           Taking bookings
           <span className="block text-xs text-muted-foreground">Turn off to pause the link without deleting it.</span>
@@ -302,9 +303,7 @@ function Choice({ label, value, options, onChange }: { label: string; value: num
   const id = React.useId()
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id} className="text-xs">
-        {label}
-      </Label>
+      <Label htmlFor={id}>{label}</Label>
       <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
         <SelectTrigger id={id} className="h-9">
           <SelectValue />
