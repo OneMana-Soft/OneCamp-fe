@@ -50,3 +50,39 @@ describe("a Slack export's way forward", () => {
     expect(screen.getByRole("button", { name: "Plan again" })).toBeTruthy()
   })
 })
+
+describe("how a Slack import's row reads", () => {
+  // "Errors" showed on every row, nothing logged or not.
+  it("offers the error log only when something was logged, and counts right", () => {
+    row(job("completed"))
+    expect(screen.queryByRole("button", { name: /error/i })).toBeNull()
+    cleanup()
+    row(job("completed", { errors_total: 1 }))
+    expect(screen.getByRole("button", { name: "1 error" })).toBeTruthy()
+  })
+
+  // "ID 11111111 · started —": a fragment of a uuid and an em dash.
+  it("says when it started in plain words, with no id", () => {
+    row(job("completed", { started_at: "2026-10-09T09:01:00Z" }))
+    expect(screen.getByText("Started")).toBeTruthy()
+    expect(screen.queryByText(/\bID\b/)).toBeNull()
+    cleanup()
+    const { container } = row(job("validating"))
+    expect(container.textContent).not.toMatch(/\u2014/)
+  })
+
+  it("counts progress in parts and items, not chunks", () => {
+    row(job("running", { chunks_total: 10, chunks_done: 4, items_imported: 12400 }))
+    expect(screen.getByText("4 of 10 parts")).toBeTruthy()
+    expect(screen.getByText("12,400 items")).toBeTruthy()
+    expect(screen.queryByText(/chunk/i)).toBeNull()
+  })
+
+  // One primary action per view: Run, Plan and Invite were filled orange on
+  // every row that offered them.
+  it("offers each row's next step as an outline button, its status in tokens", () => {
+    const { container } = row(job("planned"))
+    expect(screen.getByRole("button", { name: /^Run$/ }).className).not.toContain("bg-primary")
+    expect(container.innerHTML).not.toMatch(/(?:bg|text|border)-(?:blue|indigo|purple|gray)-\d/)
+  })
+})
