@@ -1,34 +1,42 @@
-"use client";
-import {useEffect} from "react";
-import {useLogout} from "@/hooks/useLogout";
-import {Separator} from "@/components/ui/separator";
-import {Button} from "@/components/ui/button";
+"use client"
 
-export default function Logout(){
-    const { logout } = useLogout();
+import { useEffect, useRef } from "react"
+import Link from "next/link"
+import { useLogout } from "@/hooks/useLogout"
+import { AuthHeading, AuthShell } from "@/components/auth/AuthShell"
 
-    useEffect(() => {
-        logout();
-    }, []);
+/**
+ * The page shown while signing out, in the frame the other signed-out pages
+ * share. useLogout ends the session and then loads the sign-in page; the link
+ * is there for the moment that takes, or in case it doesn't happen.
+ *
+ * It was a large centred "OneCamp | Logging you out…" with a "Go to login
+ * page" button that navigated by script, so it couldn't be opened in a new tab
+ * or read as a link.
+ */
+export default function LogoutPage() {
+  const { logout } = useLogout()
+  // Once: logout is a new function on every render, and a second call would
+  // send a second logout request.
+  const started = useRef(false)
 
-    return (
-        <div
-            className="flex flex-col md:flex-row justify-center items-center h-[100vh] text-xl md:text-3xl space-y-4 md:space-y-0 md:space-x-4 p-4">
-            <div className="text-center md:text-left">OneCamp</div>
-            <Separator
-                orientation="vertical"
-                className="hidden md:block h-10"
-            />
-            <Separator
-                orientation="horizontal"
-                className="block md:hidden w-16"
-            />
-            <div className="text-center md:text-left">
-                Logging you out…
-            </div>
-            <Button onClick={() => window.location.href = '/'}>
-                Go to login page
-            </Button>
-        </div>
-    )
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    void logout()
+  }, [logout])
+
+  return (
+    <AuthShell>
+      <div role="status" aria-live="polite">
+        <AuthHeading title="Signing you out…">You&apos;ll be on the sign-in page in a moment.</AuthHeading>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Still here?{" "}
+        <Link href="/" className="font-medium text-foreground underline-offset-4 hover:underline">
+          Go to sign in
+        </Link>
+      </p>
+    </AuthShell>
+  )
 }
