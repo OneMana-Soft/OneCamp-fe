@@ -221,8 +221,11 @@ function BoardCanvas({
   const applyingRemoteRef = React.useRef(false)
   // The fingerprint of the scene as last sent or received (sceneSignature). A
   // change that leaves it alone (a pan, a zoom, or the echo of a remote change
-  // just applied) sends nothing and schedules no thumbnail.
-  const lastSignatureRef = React.useRef("")
+  // just applied) sends nothing and schedules no thumbnail. It starts as the
+  // empty scene's, so Excalidraw's first call, before the drawing arrives, is
+  // not a change either: it scheduled a thumbnail that then exported and
+  // uploaded the drawing ten seconds after the board was merely opened.
+  const lastSignatureRef = React.useRef(sceneSignature([]))
   // fileIds we have already uploaded (local) or resolved (remote), so we never
   // re-upload or re-fetch the same image.
   const seenFilesRef = React.useRef<Set<string>>(new Set())
