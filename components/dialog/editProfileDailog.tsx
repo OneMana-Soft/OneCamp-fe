@@ -224,7 +224,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <label
                                     htmlFor="imageUpload"
                                     aria-hidden="true"
-                                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/40 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
                                 >
                                     <Camera className="h-5 w-5 text-white" />
                                 </label>
