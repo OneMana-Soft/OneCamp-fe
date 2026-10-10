@@ -40,6 +40,12 @@ interface EmptyStateProps {
    * panel can tighten it. tailwind-merge lets the caller's max-w win.
    */
   descriptionClassName?: string
+  /**
+   * The title's heading level, so the empty state sits right in the page's
+   * outline: 2 when it is the page's main content under the page title, 3
+   * (the default, as before) inside a section, 4 inside a card in a section.
+   */
+  headingLevel?: 2 | 3 | 4 | 5 | 6
   tone?: EmptyStateTone
 }
 
@@ -50,9 +56,11 @@ export function EmptyState({
   action,
   className,
   descriptionClassName,
+  headingLevel = 3,
   tone = "muted",
 }: EmptyStateProps) {
   const accent = tone === "accent"
+  const Heading = `h${headingLevel}` as "h2" | "h3" | "h4" | "h5" | "h6"
   return (
     <div
       className={cn(
@@ -79,7 +87,7 @@ export function EmptyState({
         />
       )}
       <div className={cn("space-y-1", accent && "max-w-sm")}>
-        <h3 className={cn("font-medium text-foreground text-balance", accent ? "text-base" : "text-sm")}>{title}</h3>
+        <Heading className={cn("font-medium text-foreground text-balance", accent ? "text-base" : "text-sm")}>{title}</Heading>
         {description && (
           <p
             className={cn(
