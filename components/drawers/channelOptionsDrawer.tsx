@@ -1,6 +1,6 @@
 "use client"
 
-import { Clapperboard, MessageSquare, Pencil, Users, Video } from "@/lib/icons"
+import { Bell, Clapperboard, MessageSquare, Pencil, Users, Video } from "@/lib/icons"
 import {
     Drawer,
     DrawerContent,
@@ -8,7 +8,8 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
 import { useEffect, useState } from "react"
 import { usePost } from "@/hooks/usePost"
 import { getNextNotification } from "@/lib/utils/getNextNotification"
@@ -18,7 +19,6 @@ import {
     ChannelNotificationInterface,
     NotificationType,
 } from "@/types/channel"
-import { NotificationBell } from "@/components/Notification/notificationBell"
 import { openUI } from "@/store/slice/uiSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { app_channel_call } from "@/types/paths"
@@ -66,6 +66,7 @@ export function ChannelOptionsDrawer({
     const router = useRouter()
 
     const closeDrawer = () => setOpenState(false)
+    const callActive = useSelector((state: RootState) => state.channel.channelCallStatus[channelId]?.active || false) || !!channelInfo.data?.channel_info.ch_call_active
 
     const notificationDescription =
         channelNotification === NotificationType.NotificationAll
@@ -84,17 +85,14 @@ export function ChannelOptionsDrawer({
                     <DrawerDescription>Channel options</DrawerDescription>
                 </DrawerHeader>
                 <div className="p-3 pb-6 space-y-0.5">
+                    {/* An icon like every other row: it had none, so its words
+                        started where the others' icons do, and its bell was a
+                        second button inside the row's own. */}
                     <DrawerItem
+                        icon={Bell}
                         label="Notifications"
                         description={notificationDescription}
                         onClick={updateNotification}
-                        trailing={
-                            <NotificationBell
-                                notificationType={channelNotification}
-                                isLoading={postNotification.isSubmitting}
-                                onNotCLick={updateNotification}
-                            />
-                        }
                     />
 
                     {channelInfo.data?.channel_info.ch_is_admin && (
@@ -146,7 +144,9 @@ export function ChannelOptionsDrawer({
                     <FeatureGate feature={FEATURE_CALLS}>
                     <DrawerItem
                         icon={Video}
-                        label="Join call"
+                        // As the desktop header says it: "Join call" offered to
+                        // join a call nobody had started.
+                        label={callActive ? "Join the call in progress" : "Start a call"}
                         onClick={() => {
                             closeDrawer()
                             router.push(app_channel_call + "/" + channelId)
