@@ -9,6 +9,8 @@ import { formatRange } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cancelBooking, getBooking, type BookingView } from "@/services/bookingService"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ManageBooking({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -28,7 +30,18 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
     })
   }, [token])
 
-  if (state === "loading") return <Centered><Loader2 className="h-7 w-7 animate-spin text-primary" /></Centered>
+  // The page's own shape while it loads, not a spinner in the accent.
+  if (state === "loading") {
+    return (
+      <Centered>
+        <div role="status" aria-label="Loading your booking" className="flex flex-col items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-lg" />
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+      </Centered>
+    )
+  }
   if (state === "missing" || !booking) {
     return (
       <Centered>
@@ -42,8 +55,17 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
   const past = new Date(booking.end) < new Date()
   return (
     <Centered>
-      {booking.cancelled ? <CalendarX className="h-10 w-10 text-muted-foreground" /> : <CalendarCheck className="h-10 w-10 text-primary" />}
-      <h1 className="text-2xl font-semibold tracking-tight">{booking.cancelled ? "Cancelled" : `${booking.title} with ${booking.owner_name}`}</h1>
+      {/* On a hue tile, as the app's icons sit: the accent is for the one
+          action, and here that is Cancel. */}
+      {booking.cancelled ? (
+        <Tile hue="sky" size="lg" className="opacity-70"><CalendarX aria-hidden="true" /></Tile>
+      ) : (
+        <Tile hue="moss" size="lg"><CalendarCheck aria-hidden="true" /></Tile>
+      )}
+      <h1 className="text-2xl font-semibold tracking-tight">{booking.cancelled ? "Cancelled" : booking.title}</h1>
+      {/* Who it is with, on a line of its own: the title often names them
+          already, and "Intro call with Sam with Sam Rivera" read twice. */}
+      <p className="text-sm text-muted-foreground">With {booking.owner_name}</p>
       <p className="text-sm">
         <span className={booking.cancelled ? "line-through" : "font-medium"}>{formatRange(booking.start, booking.end, tz)}</span>
       </p>

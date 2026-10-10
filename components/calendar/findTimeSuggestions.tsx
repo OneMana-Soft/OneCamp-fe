@@ -52,7 +52,9 @@ export function FindTimeSuggestions({
   }
 
   return (
-    <div className="grid gap-2 rounded-md border border-dashed p-3">
+    // A step of the form, not a box in it: it was a dashed card inside the
+    // dialog's frame.
+    <div className="grid gap-2" data-find-time="">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {participants.length > 0 ? "Times everyone is free this week, 9 to 5 your time." : "Times you're free this week, 9 to 5."}
@@ -66,18 +68,22 @@ export function FindTimeSuggestions({
       {slots && slots.length > 0 && (
         <div className="grid max-h-48 gap-2 overflow-y-auto">
           {groupByDay(slots, tz).map((d) => (
-            <div key={d.day} className="flex flex-wrap items-center gap-1.5">
-              <span className="w-20 shrink-0 text-xs font-medium">{formatDay(d.day)}</span>
-              {d.slots.map((s) => (
-                <button
-                  key={s.start}
-                  type="button"
-                  onClick={() => onPick(new Date(s.start), new Date(s.end))}
-                  className="rounded-full border px-2.5 py-0.5 text-xs tabular-nums hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {formatTime(s.start, tz)}
-                </button>
-              ))}
+            // The day in a column of its own, so a second line of times starts
+            // under the first time, not under the day's name.
+            <div key={d.day} className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-2">
+              <span className="pt-1 text-xs font-medium tabular-nums">{formatDay(d.day)}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {d.slots.map((s) => (
+                  <button
+                    key={s.start}
+                    type="button"
+                    onClick={() => onPick(new Date(s.start), new Date(s.end))}
+                    className="extend-touch-target h-7 rounded-md border px-2.5 text-xs tabular-nums transition-colors hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {formatTime(s.start, tz)}
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
         </div>
