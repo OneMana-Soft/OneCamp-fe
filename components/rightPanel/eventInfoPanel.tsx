@@ -1,6 +1,4 @@
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
@@ -10,8 +8,17 @@ import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2, CalendarClock } from "@/lib/icons";
-import { Edit2, ArrowRightToLine, BellOff } from "@/lib/icons";
+import { X, Plus, Trash2, LogOut } from "@/lib/icons";
+import { Edit2 } from "@/lib/icons";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { SpotError } from "@/components/ui/graphics";
+import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
+import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fieldLabel, fieldRow, inlineAdd, sectionTitle } from "@/lib/ui/fieldRow";
+import { cn } from "@/lib/utils/helpers/cn";
+import { isAllDay } from "@/components/calendar/calendarLayout";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
 import { Button } from "@/components/ui/button";
@@ -21,8 +28,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem";
@@ -136,11 +141,41 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId]);
 
-    if (isLoading) return <div className="p-6 text-sm text-muted-foreground animate-pulse">Loading event details…</div>;
-    if (!event) return <div className="p-6 text-sm text-muted-foreground">Event not found.</div>;
+    // In the right panel the shared header carries the view's actions and the
+    // close button; on the phone's own page the app bar has the way back.
+    const inPanel = !onClose;
+    const close = () => (onClose ? onClose() : dispatch(closeRightPanel()));
+
+    if (isLoading) {
+        return (
+            <EventPanelFrame inPanel={inPanel}>
+                <EventPanelSkeleton />
+            </EventPanelFrame>
+        );
+    }
+    if (!event) {
+        return (
+            <EventPanelFrame inPanel={inPanel}>
+                <EmptyState
+                    illustration={<SpotError />}
+                    title="This event isn't available"
+                    description="It may have been deleted, or moved out of the month on screen."
+                    action={
+                        <Button variant="outline" size="sm" onClick={close}>
+                            Close
+                        </Button>
+                    }
+                    className="pt-10"
+                />
+            </EventPanelFrame>
+        );
+    }
 
     const start = parseISO(event.event_start_time);
     const end = parseISO(event.event_end_time);
+    // An all-day event ends at the next day's midnight: its last day is the one before.
+    const allDay = isAllDay(start, end);
+    const lastMoment = allDay ? new Date(end.getTime() - 60_000) : end;
 
     const handleSave = async (values: FormValues) => {
         try {
@@ -168,13 +203,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             console.error("Failed to update event", e);
         }
     };
-    const handleClose = () => {
-        if (onClose) {
-            onClose();
-        } else {
-            dispatch(closeRightPanel());
-        }
-    }
+    const handleClose = close;
 
     // refreshEvents re-pulls the calendar after a mutation (reschedule, etc.),
     // mirroring handleSave's revalidation of every cached events query.
@@ -249,235 +278,243 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         }));
     };
 
+    // Which calendar it is on, in that calendar's hue, the way the calendar
+    // draws it: dot and word under the title, as a task's status sits under its.
+    const onGoogle = event.event_uuid.startsWith("gcal-");
+    const quietIcon = "h-8 w-8 text-muted-foreground hover:text-foreground";
+
+    const actions = isEditing ? (
+        <>
+            <Button variant="ghost" size="sm" className="h-8" onClick={() => setIsEditing(false)}>
+                Cancel
+            </Button>
+            <Button size="sm" className="h-8" onClick={form.handleSubmit(handleSave)}>
+                Save
+            </Button>
+        </>
+    ) : (
+        <>
+            {isCreator ? (
+                <>
+                    {/* Red only when it is about to act: at rest it is one of
+                        the row's quiet buttons. */}
+                    <Button aria-label="Delete event" title="Delete event" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink" onClick={handleDelete}>
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button aria-label="Edit event" title="Edit event" variant="ghost" size="icon" className={quietIcon} onClick={() => setIsEditing(true)}>
+                        <Edit2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                </>
+            ) : isParticipant ? (
+                <Button aria-label="Leave event" title="Leave event" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink" onClick={handleLeave}>
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                </Button>
+            ) : null}
+        </>
+    );
+
     return (
-        <ScrollArea className="h-full">
-            <div className="p-6 space-y-6 flex flex-col h-full bg-background relative">
-                <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline" className={cn(eyebrowClass, "text-2xs font-medium text-primary border-primary/20")}>Personal Event</Badge>
-                    {!isEditing ? (
-                        <div className="flex items-center gap-2">
-                            {isCreator ? (
-                                <>
-                                    <Button aria-label="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-danger-ink hover:bg-destructive/10" onClick={handleDelete}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                    <Button aria-label="Edit event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(true)}>
-                                        <Edit2 className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
-                                    </Button>
-                                </>
-                            ) : isParticipant ? (
-                                <Button variant="outline" size="sm" className="h-7 text-2xs px-2 border-destructive/30 text-danger-ink hover:bg-destructive/10" onClick={handleLeave}>
-                                    Leave
-                                </Button>
-                            ) : null}
-                            <Button size="icon" variant="ghost" onClick={handleClose} aria-label="Close panel" className="hidden md:flex">
-                                <ArrowRightToLine/>
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-1">
-                            <Button aria-label="Cancel editing" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(false)}>
-                                <X className="h-4 w-4 text-danger-ink" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={form.handleSubmit(handleSave)}>
-                                {/* Was `className="h-4 w-4 statusColors.success.text"` — a member
-                                    expression never wrapped in ${…}, so "statusColors.success.text"
-                                    was emitted as a literal class name and the save tick rendered
-                                    with no colour at all, indistinguishable from the cancel X
-                                    beside it. The token class is what that was reaching for. */}
-                                <Check className="h-4 w-4 text-success-ink" />
-                            </Button>
-                        </div>
-                    )}
-                </div>
-
+        <EventPanelFrame inPanel={inPanel} actions={actions}>
                 {!isEditing ? (
-                    <div className="space-y-6">
-                        <div className="space-y-2">
-                            <h2 className="text-2xl font-medium tracking-tight text-foreground">{event.event_title}</h2>
-                            
-                            <div className="space-y-1.5 mt-4">
-                                <div className="flex items-center gap-3 text-muted-foreground">
-                                    <Calendar className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm font-medium">{format(start, "EEEE d MMMM yyyy")}</span>
-                                </div>
-                                
-                                <div className="flex items-center gap-3 text-muted-foreground">
-                                    <Clock className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">
-                                        {isSameDay(start, end) ? (
-                                            <>
-                                                {shortTime(start)} - {shortTime(end)}
-                                            </>
-                                        ) : (
-                                            <div className="flex flex-col gap-0.5">
-                                                <span>{shortDateTime(start)}</span>
-                                                <span className="text-2xs opacity-70">to {shortDateTime(end)}</span>
-                                            </div>
-                                        )}
-                                    </span>
-                                </div>
+                    // As the task panel reads: the title, what it is under it,
+                    // quiet labels in one column with each value on one line,
+                    // then sections that a heading and space set apart.
+                    <div data-event-view="">
+                        <h2 className="text-xl font-medium tracking-tight text-foreground text-balance sm:text-2xl">{event.event_title}</h2>
+                        <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
+                            <IdentityMark variant="dot" hue={onGoogle ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp} />
+                            {onGoogle ? "Google Calendar" : "Personal event"}
+                        </p>
+
+                        <dl className="mt-6">
+                            <div className={fieldRow()}>
+                                <dt className={fieldLabel}>Date</dt>
+                                <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">
+                                    {isSameDay(start, lastMoment) ? format(start, "EEEE d MMMM yyyy") : `${format(start, "EEE d MMM")} to ${format(lastMoment, "EEE d MMM yyyy")}`}
+                                </dd>
                             </div>
-
-                            {event.event_is_away && (
-                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
-                                    <CalendarClock className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Away: {displayNameOf(event.event_created_by) || "its owner"}&apos;s working days here count out of their workload</span>
-                                </div>
-                            )}
-
+                            <div className={fieldRow()}>
+                                <dt className={fieldLabel}>Time</dt>
+                                <dd className="flex min-h-8 min-w-0 items-center truncate text-sm tabular-nums text-foreground">
+                                    {allDay ? "All day" : isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
+                                </dd>
+                            </div>
                             {event.event_is_focus && (
-                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
-                                    <BellOff className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Focus time: {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications pause while it runs</span>
+                                <div className={fieldRow()}>
+                                    <dt className={fieldLabel}>Focus time</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">Pauses {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications</dd>
                                 </div>
                             )}
-
+                            {event.event_is_away && (
+                                <div className={fieldRow()}>
+                                    <dt className={fieldLabel}>Away</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">Out of {displayNameOf(event.event_created_by) || "its owner"}&apos;s workload</dd>
+                                </div>
+                            )}
                             {event.event_created_by && (
-                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
-                                    <User className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Created by {displayNameOf(event.event_created_by) || "Unknown"}</span>
+                                <div className={fieldRow()}>
+                                    <dt className={fieldLabel}>Created by</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center gap-2 text-sm text-foreground">
+                                        <IdentityMark
+                                            variant="avatar"
+                                            size={20}
+                                            id={event.event_created_by.user_uuid}
+                                            label={displayNameOf(event.event_created_by) || "Unknown"}
+                                            src={event.event_created_by.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${event.event_created_by.user_profile_object_key}` : undefined}
+                                        />
+                                        <span className="truncate">{displayNameOf(event.event_created_by) || "Unknown"}</span>
+                                    </dd>
                                 </div>
                             )}
-                        </div>
+                        </dl>
 
-                        <div className="space-y-2 pt-4 border-t border-border/50">
-                            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 lowercase">
-                                <AlignLeft className="h-3.5 w-3.5" />
-                                notes
-                            </div>
+                        <section className="mt-6 space-y-2">
+                            <h3 className={sectionTitle}>Notes</h3>
                             {event.event_description ? (
                                 <SafeHtml
                                     as="div"
                                     sanitizer={sanitizeRichHtml}
                                     html={event.event_description}
-                                    className="text-sm leading-relaxed text-muted-foreground pl-5 transition prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
+                                    className="text-sm leading-relaxed text-foreground max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
                                 />
                             ) : (
-                                <p className="text-xs text-muted-foreground italic pl-5">No additional notes.</p>
+                                <p className="text-sm text-muted-foreground">No notes.</p>
                             )}
-                        </div>
+                        </section>
 
-                        <div className="space-y-3 pt-4 border-t border-border/50">
-                            <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 lowercase">
-                                    <Users className="h-3.5 w-3.5" />
-                                    participants
-                                </div>
-                                <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
-                                    {event.event_participants?.length || 0}
-                                </span>
-                            </div>
-                            
-                            <div className="space-y-2 pl-5">
-                                {event.event_participants?.length ? (
-                                    event.event_participants.map((participant) => (
-                                        <div key={participant.user_uuid} className="flex items-center gap-3 group">
-                                            <Avatar className="h-7 w-7 border border-border/50">
-                                                <AvatarImage src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : ""} />
-                                                <AvatarFallback className="text-3xs">
-                                                    {(displayNameOf(participant) || "U").charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-medium text-foreground/90 leading-none">{displayNameOf(participant)}</span>
-                                                {addressOrHandleOf(participant) && (
-                                                    <span className="text-2xs text-muted-foreground">{addressOrHandleOf(participant)}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-xs text-muted-foreground italic">No participants added yet.</p>
-                                )}
-                            </div>
-                        </div>
+                        <section className="mt-6 space-y-2">
+                            <h3 className={cn(sectionTitle, "flex items-baseline gap-1.5")}>
+                                Guests
+                                <span className="text-xs font-normal tabular-nums text-muted-foreground">{event.event_participants?.length || 0}</span>
+                            </h3>
+                            {event.event_participants?.length ? (
+                                <ul>
+                                    {event.event_participants.map((participant) => (
+                                        <li key={participant.user_uuid} className="flex h-9 min-w-0 items-center gap-2.5 text-sm">
+                                            <IdentityMark
+                                                variant="avatar"
+                                                size={24}
+                                                id={participant.user_uuid}
+                                                label={displayNameOf(participant) || "Someone"}
+                                                src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : undefined}
+                                            />
+                                            <span className="truncate text-foreground">{displayNameOf(participant)}</span>
+                                            {addressOrHandleOf(participant) && (
+                                                <span className="truncate text-xs text-muted-foreground">{addressOrHandleOf(participant)}</span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">No guests yet.</p>
+                            )}
+                        </section>
                     </div>
                 ) : (
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleSave)} className="space-y-5">
+                        {/* The same label column as the facts above it, so a
+                            field opens for editing where its value was. */}
+                        <form onSubmit={form.handleSubmit(handleSave)} data-event-edit="">
                             <FormField
                                 control={form.control}
                                 name="title"
                                 render={({ field }) => (
-                                    <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Title</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} className="h-9 focus-visible:ring-primary/30" />
-                                        </FormControl>
-                                        <FormMessage />
+                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal")}>Title</FormLabel>
+                                        <div className="min-w-0">
+                                            <FormControl>
+                                                <Input {...field} className="h-9" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </div>
                                     </FormItem>
                                 )}
                             />
-                            
-                            <div className="grid grid-cols-2 gap-3">
-                                <FormField
-                                    control={form.control}
-                                    name="startTime"
-                                    render={({ field }) => (
-                                        <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Start</FormLabel>
+                            <FormField
+                                control={form.control}
+                                name="startTime"
+                                render={({ field }) => (
+                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal")}>Start</FormLabel>
+                                        <div className="min-w-0">
                                             <FormControl>
-                                                <DateTimePicker 
-                                                    value={field.value ? new Date(field.value) : undefined} 
-                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))} 
+                                                <DateTimePicker
+                                                    value={field.value ? new Date(field.value) : undefined}
+                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
                                                 />
                                             </FormControl>
                                             <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="endTime"
-                                    render={({ field }) => (
-                                        <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-medium text-muted-foreground uppercase">End</FormLabel>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="endTime"
+                                render={({ field }) => (
+                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal")}>End</FormLabel>
+                                        <div className="min-w-0">
                                             <FormControl>
-                                                <DateTimePicker 
-                                                    value={field.value ? new Date(field.value) : undefined} 
-                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))} 
+                                                <DateTimePicker
+                                                    value={field.value ? new Date(field.value) : undefined}
+                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
                                                 />
                                             </FormControl>
                                             <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control}
                                 name="description"
                                 render={({ field }) => (
-                                    <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Notes</FormLabel>
-                                        <FormControl>
-                                            <Textarea {...field} className="min-h-[100px] resize-none text-sm focus-visible:ring-primary/30" />
-                                        </FormControl>
-                                        <FormMessage />
+                                    <FormItem className={cn(fieldRow("start"), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal sm:pt-2.5")}>Notes</FormLabel>
+                                        <div className="min-w-0">
+                                            <FormControl>
+                                                <Textarea {...field} className="min-h-[100px] resize-none text-sm" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </div>
                                     </FormItem>
                                 )}
                             />
 
-                            <div className="space-y-2">
-                                <FormLabel className="text-xs font-medium text-muted-foreground uppercase flex items-center justify-between">
-                                    Participants
+                            <div className={fieldRow("start")}>
+                                <span className={cn(fieldLabel, "sm:pt-2")}>Guests</span>
+                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                    {participants.map((p) => (
+                                        <span key={p.user_uuid} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-muted pl-1.5 pr-1 text-sm">
+                                            <IdentityMark variant="avatar" size={20} id={p.user_uuid} label={displayNameOf(p) || "Someone"} />
+                                            <span className="max-w-[10rem] truncate">{displayNameOf(p)}</span>
+                                            <button
+                                                type="button"
+                                                aria-label={`Remove ${displayNameOf(p) || "this guest"}`}
+                                                className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-highlight hover:text-danger-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                                onClick={() => setParticipants(participants.filter((pt) => pt.user_uuid !== p.user_uuid))}
+                                            >
+                                                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                            </button>
+                                        </span>
+                                    ))}
                                     <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
                                         <PopoverTrigger asChild>
-                                            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-2xs text-primary hover:bg-primary/10">
-                                                <Plus className="h-3 w-3 mr-1" /> Add
+                                            <Button type="button" variant="ghost" size="sm" className={cn(inlineAdd, participants.length > 0 && "ml-0")}>
+                                                <Plus className="h-4 w-4" aria-hidden="true" /> Add a guest
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent portalled={false} className="w-[240px] p-0 shadow-xl border-border/50" align="end">
+                                        <PopoverContent portalled={false} className="w-[240px] p-0" align="start">
                                             <Command shouldFilter={false}>
                                                 <CommandInput
-                                                    placeholder="Search user…"
+                                                    placeholder="Search people…"
                                                     className="h-9"
                                                     value={searchQuery}
                                                     onValueChange={setSearchQuery}
                                                 />
                                                 <CommandList>
-                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type to search…" : "No user found"}</CommandEmpty>
+                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type a name to search" : "Nobody by that name"}</CommandEmpty>
                                                     <CommandGroup>
                                                         {searchResults.map((user) => (
                                                             <UserComboboxItem
@@ -503,43 +540,73 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                             </Command>
                                         </PopoverContent>
                                     </Popover>
-                                </FormLabel>
-                                <div className="flex flex-wrap gap-2">
-                                    {participants.map((p) => (
-                                        <Badge key={p.user_uuid} variant="secondary" className="gap-1 px-2 py-0.5 text-2xs">
-                                            {displayNameOf(p)}
-                                            <X 
-                                                className="h-2 w-2 cursor-pointer hover:text-danger-ink" 
-                                                onClick={() => setParticipants(participants.filter(pt => pt.user_uuid !== p.user_uuid))}
-                                            />
-                                        </Badge>
-                                    ))}
                                 </div>
                             </div>
 
-                            <FocusTimeCheckbox
-                                checked={focus}
-                                onChange={(checked) => {
-                                    setFocus(checked);
-                                    if (checked) setAway(false);
-                                }}
-                            />
-                            <AwayCheckbox
-                                checked={away}
-                                onChange={(checked) => {
-                                    setAway(checked);
-                                    if (!checked) return;
-                                    setFocus(false);
-                                    // Time off is whole days.
-                                    const days = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
-                                    form.setValue("startTime", format(days.start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
-                                    form.setValue("endTime", format(days.end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
-                                }}
-                            />
+                            <div className="mt-4 space-y-3">
+                                <FocusTimeCheckbox
+                                    checked={focus}
+                                    onChange={(checked) => {
+                                        setFocus(checked);
+                                        if (checked) setAway(false);
+                                    }}
+                                />
+                                <AwayCheckbox
+                                    checked={away}
+                                    onChange={(checked) => {
+                                        setAway(checked);
+                                        if (!checked) return;
+                                        setFocus(false);
+                                        // Time off is whole days.
+                                        const days = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
+                                        form.setValue("startTime", format(days.start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                        form.setValue("endTime", format(days.end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                    }}
+                                />
+                            </div>
                         </form>
                     </Form>
                 )}
+        </EventPanelFrame>
+    );
+}
+
+/**
+ * The panel's frame in every state (loading, missing, read, edited), so its
+ * header and its body's inset never move between them. In the desktop right
+ * panel the shared 48px header carries "Event", the view's actions and the
+ * close button; on the phone's own page the app bar already says where you
+ * are and has the way back, so the actions take a row of their own.
+ */
+function EventPanelFrame({ inPanel, actions, children }: { inPanel: boolean; actions?: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <div className="flex h-full min-h-0 flex-col bg-background" data-event-panel="">
+            {inPanel ? (
+                <RightPanelHeader titleKey="event" actions={actions} />
+            ) : actions ? (
+                <div className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-border/60 px-3">{actions}</div>
+            ) : null}
+            <ScrollArea className="min-h-0 flex-1">
+                <div className="px-6 pb-8 pt-5">{children}</div>
+            </ScrollArea>
+        </div>
+    );
+}
+
+/** The panel's shape while the event loads: a title, its calendar, three facts. */
+function EventPanelSkeleton() {
+    return (
+        <div role="status" aria-label="Loading the event">
+            <Skeleton className="h-7 w-3/5" />
+            <Skeleton className="mt-3 h-4 w-28" />
+            <div className="mt-6 space-y-2" aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                    <div key={i} className={fieldRow()}>
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className={cn("h-4", i === 1 ? "w-28" : "w-40")} />
+                    </div>
+                ))}
             </div>
-        </ScrollArea>
+        </div>
     );
 }
