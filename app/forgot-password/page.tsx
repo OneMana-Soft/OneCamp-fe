@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
         setError(result.msg)
       }
     } catch {
-      setError("Something went wrong. Please try again.")
+      setError("The link wasn't sent. Try again.")
     } finally {
       setIsLoading(false)
     }

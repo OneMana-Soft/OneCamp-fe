@@ -143,7 +143,7 @@ function SignupForm() {
         setError(result.msg)
       }
     } catch {
-      setError("Something went wrong. Please try again.")
+      setError("Your account wasn't created. Try again.")
     } finally {
       setIsLoading(false)
     }

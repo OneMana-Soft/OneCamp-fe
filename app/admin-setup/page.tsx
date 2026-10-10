@@ -83,7 +83,7 @@ export default function AdminSetupPage() {
         setError(result.msg)
       }
     } catch {
-      setError("Something went wrong. Please try again.")
+      setError("The admin account wasn't created. Try again.")
     } finally {
       setIsLoading(false)
     }
