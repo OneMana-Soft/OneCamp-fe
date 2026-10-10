@@ -31,7 +31,7 @@ const CommandDialog = ({ children, ...props }: DialogProps) => {
         <DialogDescription className="sr-only">
           Search and execute commands using the command palette.
         </DialogDescription>
-        <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+        <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-2 [&_[cmdk-item]_svg]:h-4 [&_[cmdk-item]_svg]:w-4">
           {children}
         </Command>
       </DialogContent>
@@ -39,12 +39,17 @@ const CommandDialog = ({ children, ...props }: DialogProps) => {
   )
 }
 
+/**
+ * `hint` is optional: a key chip or short note shown at the input's right
+ * edge (the palette's shortcut), kept out of the placeholder so it never
+ * reads as part of the query.
+ */
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
-  <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-    <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & { hint?: React.ReactNode }
+>(({ className, hint, ...props }, ref) => (
+  <div className="flex items-center gap-2 border-b px-3" cmdk-input-wrapper="">
+    <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
@@ -53,6 +58,7 @@ const CommandInput = React.forwardRef<
       )}
       {...props}
     />
+    {hint}
   </div>
 ))
 
