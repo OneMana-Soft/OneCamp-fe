@@ -283,6 +283,50 @@
   max-width: 37rem;
 }
 
+/* What is wide reads better wide. A code block, an embedded table, an image,
+   a chart, a recording or a diff breaks out of the reading column to the
+   width the column had before (48rem, so 44rem inside its padding), centred
+   on the text, as far as the doc's pane allows with its gutters. When the
+   column went to 37rem, these narrowed with the prose, and tables and embeds
+   in existing docs lost a quarter of their width. Prose, headings, lists,
+   callouts and the title stay at the reading measure. The pane (docInput's
+   scroll area, .doc-scroll) is the size container, so 100cqi is its width. */
+.doc-scroll {
+  container-type: inline-size;
+}
+
+.doc-measure .doc-editor:not(.full-width) .ProseMirror > :is(pre, .node-tableEmbed, .node-image, .node-chartEmbed, .node-recordingEmbed, .node-diffEmbed, [data-type="table-embed"], [data-type="chart"], [data-type="diff"], [data-type="recording-embed"]) {
+  --doc-wide: min(44rem, 100cqi - 4rem);
+  width: var(--doc-wide);
+  max-width: none;
+  margin-inline: calc((100% - var(--doc-wide)) / 2);
+}
+
+/* An image narrower than that keeps its own width, centred in it. */
+.doc-measure .doc-editor:not(.full-width) .ProseMirror > .node-image > [data-node-view-wrapper] > div {
+  margin-inline: auto;
+}
+
+/* The same image in the doc's first, static paint (before the editor has the
+   live copy): at most as wide, centred on the text. */
+.doc-measure .doc-editor:not(.full-width) .ProseMirror > img {
+  display: block;
+  position: relative;
+  left: 50%;
+  max-width: min(44rem, 100cqi - 4rem);
+  transform: translateX(-50%);
+}
+
+@media (max-width: 768px) {
+  /* The phone's padding is 1rem a side. */
+  .doc-measure .doc-editor:not(.full-width) .ProseMirror > :is(pre, .node-tableEmbed, .node-image, .node-chartEmbed, .node-recordingEmbed, .node-diffEmbed, [data-type="table-embed"], [data-type="chart"], [data-type="diff"], [data-type="recording-embed"]) {
+    --doc-wide: min(44rem, 100cqi - 2rem);
+  }
+  .doc-measure .doc-editor:not(.full-width) .ProseMirror > img {
+    max-width: min(44rem, 100cqi - 2rem);
+  }
+}
+
 /* Doc editor layout */
 /* Doc editor layout — scoped to avoid leaking into chat/comment contexts */
 .minimal-tiptap-editor.doc-editor {
