@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { pageTitle, type TitleLookups } from "@/lib/utils/pageTitle"
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 const byId = <T,>(items: T[] | undefined, id: (t: T) => string | undefined, name: (t: T) => string | undefined) => {
   const out: Record<string, string> = {}
@@ -25,7 +26,7 @@ export function DocumentTitle() {
     const people: Record<string, string> = {}
     for (const chat of sidebar.userChats || []) {
       for (const p of chat?.dm_participants || []) {
-        const name = p?.user_name || p?.user_full_name || ""
+        const name = userDisplayName(p)
         if (p?.user_uuid && name) people[p.user_uuid] = name
       }
     }
