@@ -42,7 +42,7 @@ export const DocListTabContent = ({selectedTab}: {selectedTab: string}) => {
     return (
         <div className="flex flex-col flex-1 min-h-0">
             <div className="border-b border-border/60">
-                <SearchField onChange={handleChSearchOnChange} value={inputValue} placeholder={"Search via doc title…"}/>
+                <SearchField onChange={handleChSearchOnChange} value={inputValue} placeholder={"Search docs by title…"}/>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{renderTabs}</div>
         </div>
