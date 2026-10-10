@@ -150,3 +150,22 @@ describe("the steps it lists", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't set that step aside. Try again.")
   })
 })
+
+describe("the checklist's heading", () => {
+  it("sits beside a moss tile, as Home's other cards sit beside theirs", async () => {
+    svc.getOnboardingStatus.mockResolvedValue(status([step("invite")]))
+    await show()
+    const heading = screen.getByRole("heading", { name: "Finish setting up your workspace" })
+    const row = heading.parentElement!.parentElement!
+    const tile = row.querySelector("span.hue-moss")
+    expect(tile).not.toBeNull()
+    expect(tile!.querySelector("svg")).not.toBeNull()
+  })
+
+  it("holds the tile's place while it loads", async () => {
+    svc.getOnboardingStatus.mockReturnValue(new Promise(() => {}))
+    await show()
+    const placeholder = screen.getByRole("status", { name: "Loading the setup checklist" })
+    expect(placeholder.querySelector(".size-8")).not.toBeNull()
+  })
+})
