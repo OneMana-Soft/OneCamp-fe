@@ -1,5 +1,6 @@
 // src/components/channel/ChannelMessages.tsx
 import { withContinuation } from "@/lib/messageGrouping"
+import { rowKey } from "@/lib/chat/pendingSend"
 import { useEffect, useMemo, useRef, useCallback, useState} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import type {ChatTarget} from "@/lib/chat/conversation";
@@ -262,7 +263,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
         const items: Array<FlatItem<ChatInfo>> = [];
         Object.keys(groupedChats).forEach((date) => {
             items.push({ type: "separator", date, key:  "separator"+date});
-            groupedChats[date].forEach((chat) => items.push({ type: "item", data: chat, key: chat.chat_uuid}));
+            groupedChats[date].forEach((chat) => items.push({ type: "item", data: chat, key: rowKey(chat.chat_local_id, chat.chat_uuid)}));
         });
         // Same author within five minutes: drawn as one turn (lib/messageGrouping).
         return withContinuation(items, (c) => ({ author: c.chat_from?.user_uuid, at: c.chat_created_at, isBot: !!c.chat_from?.is_bot, standalone: !!(c.chat_reply_to || c.chat_fwd_msg_post || c.chat_fwd_msg_chat) }))

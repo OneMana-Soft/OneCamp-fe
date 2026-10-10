@@ -5,12 +5,11 @@ import { displayNameOf } from "@/lib/personName"
 import { useMedia } from "@/context/MediaQueryContext";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
-import { usePost } from "@/hooks/usePost";
 import { useScheduleMessage } from "@/hooks/useScheduledMessages";
 import { ScheduleSendContext } from "@/context/ScheduleSendContext";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useStore } from "react-redux";
 import { RootState } from "@/store/store";
-import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { ChatIdMobile } from "@/components/chat/chatIdMobile";
 import { ChatIdDesktop } from "@/components/chat/chatIdDesktop";
 import {
@@ -21,14 +20,19 @@ import {
 } from "@/types/chat";
 import {
   AddUserInChatList,
+  addPendingChat,
   clearChatInputState,
+  confirmPendingChat,
+  failPendingChat,
+  removePendingChat,
   restoreUnsentChatMessage,
-  createChat, updateChatCallStatus,
+  retryPendingChat,
+  updateChatCallStatus,
   updateChatScrollToBottom,
   UpdateMessageInChatList,
   UpdateUnreadCountToZero,
 } from "@/store/slice/chatSlice";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addUserToUserChatList, resetUserChatUnread } from "@/store/slice/userSlice";
 import { clearChatUnread } from "@/services/unreadCache";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
@@ -37,40 +41,47 @@ import { NotificationType } from "@/types/channel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Lock } from "@/lib/icons";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { newLocalId } from "@/lib/chat/pendingSend";
+import { appMutate } from "@/lib/swrMutate";
+import { PendingSendContext } from "@/components/message/sendStatus";
+import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
+import { useSWRConfig } from "swr";
+import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
+import axiosInstance from "@/lib/axiosInstance";
 import { useToast } from "@/hooks/use-toast";
 import { NOT_SENT_TOAST, type Draft } from "@/lib/chat/unsentMessage";
 
+const EMPTY_INPUT_STATE: Partial<RootState["chat"]["chatInputState"][string]> = {};
+
 export function ChatView({ chatId }: { chatId: string }) {
 
-  const post = usePost();
   const scheduleMessage = useScheduleMessage();
-  const dispatch = useDispatch();
   const { toast } = useToast();
+  const dispatch = useDispatch();
+  const store = useStore<RootState>();
+  const { cache } = useSWRConfig();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
     GetEndpointUrl.SelfProfile
   );
 
-  const EMPTY_CHATS: ChatInfo[] = [];
-  const EMPTY_INPUT_STATE = {};
-
-  const chatMessageState = useSelector(
-    (state: RootState) => state.chat.chatMessages[chatId] || EMPTY_CHATS
-  );
+  // How many were unread on opening, read once (see ChannelView).
+  const [unreadOnOpen] = useState(() => {
+    const self = store.getState().users.userSidebar.userChats
+    const me = selfProfile.data?.data.user_uuid
+    if (!me) return 0
+    const grpId = getGroupingId(chatId, me)
+    return self.find((chat) => chat.dm_grouping_id === grpId)?.dm_unread || 0
+  });
 
   const { isMobile, isDesktop } = useMedia();
-
-  const chatState = useSelector(
-    (state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE
-  );
 
   const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(
     chatId ? `${GetEndpointUrl.SelfProfile}/${chatId}` : ''
   );
 
-  const latestMsg = useFetch<CreateChatMessagePaginationResRaw>(
-    chatId ? GetEndpointUrl.GetChatLatestMessage + "/" + chatId : ''
-  );
+  const latestKey = chatId ? GetEndpointUrl.GetChatLatestMessage + "/" + chatId : '';
 
   useEffect(() => {
     if (otherUserInfo.data?.data && selfProfile.data?.data) {
@@ -99,8 +110,50 @@ export function ChatView({ chatId }: { chatId: string }) {
     }
   }, [otherUserInfo.data?.data]);
 
+  // A message is in the conversation the moment Send is pressed (lib/chat/pendingSend).
+  const { send, actions } = usePendingSend<ChatInfo, CreateOrUpdateChatsReq, CreateChatRes>({
+    endpoint: PostEndpointUrl.CreateChatMessage,
+    add: (chat) => addPendingChat({ dmId: chatId, chat }),
+    confirm: (localId, res) => confirmPendingChat({ dmId: chatId, localId, chatUUID: res?.uuid || '', createdAt: res?.chat_created_at }),
+    fail: (localId) => failPendingChat({ dmId: chatId, localId }),
+    retry: (localId) => retryPendingChat({ dmId: chatId, localId }),
+    remove: (localId) => removePendingChat({ dmId: chatId, localId }),
+    find: (state, localId) => state.chat.chatMessages[chatId]?.find((c) => c.chat_local_id === localId),
+    payloadOf: (chat) => ({
+      media_attachments: chat.chat_attachments,
+      to_uuid: chatId,
+      text_html: chat.chat_body_text,
+      ...(chat.chat_reply_to?.chat_uuid ? { reply_to_uuid: chat.chat_reply_to.chat_uuid } : {}),
+    }),
+    draftOf: (chat) => ({
+      html: chat.chat_body_text,
+      files: chat.chat_attachments || [],
+      previews: [],
+      replyToUuid: chat.chat_reply_to?.chat_uuid,
+      replyToAuthorName: chat.chat_reply_to?.chat_from?.user_name,
+      replyToText: chat.chat_reply_to?.chat_body_text,
+    }),
+    restore: (unsent) => restoreUnsentChatMessage({ chatUUID: chatId, unsent }),
+    onSent: (chat, res) => {
+      // The DM list's preview names the message once the server has it.
+      const me = selfProfile.data?.data
+      dispatch(
+        UpdateMessageInChatList({
+          name: displayNameOf(me) || "",
+          msgTime: res?.chat_created_at || chat.chat_created_at,
+          attachments: chat.chat_attachments,
+          msg: chat.chat_body_text,
+          chatUuid: res?.uuid || '',
+          grpId: getGroupingId(chatId, me?.user_uuid || ""),
+        })
+      );
+      void appMutate(latestKey);
+    },
+  });
+
   // Send later: the same body Send would post, handed to the scheduler.
-  const handleSchedule = async (latestContent: string | undefined, at: Date) => {
+  const handleSchedule = useStableCallback(async (latestContent: string | undefined, at: Date) => {
+    const chatState = store.getState().chat.chatInputState[chatId] || EMPTY_INPUT_STATE;
     const body = removeEmptyPTags(latestContent ?? chatState.chatBody);
     if (body.length == 0 && !chatState.filesUploaded?.length) return false;
     if (isExternalUser(otherUserInfo.data?.data)) return false;
@@ -113,39 +166,28 @@ export function ChatView({ chatId }: { chatId: string }) {
     }, at);
     if (ok) dispatch(clearChatInputState({ chatUUID: chatId }));
     return ok;
-  };
+  });
 
-  const handleSend = (latestContent?: string) => {
-    // Prefer the editor's latest HTML (passed in by the input wrapper after
-    // it flushed the pending throttle window) over the Redux snapshot —
-    // the snapshot lags by 1 keystroke when the user clicks Send before
-    // the throttle's trailing-edge has fired, which would otherwise drop
-    // the most recently typed character.
-    const rawBody = latestContent ?? chatState.chatBody;
-    const body = removeEmptyPTags(rawBody);
+  // Sends the message in the box. True when it is the sender's first message
+  // in this DM, which the composer celebrates (lib/chat/firstMessage).
+  const handleSend = useStableCallback((latestContent?: string): boolean => {
+    // The draft as it is now, read when sending rather than subscribed to.
+    const chatState = store.getState().chat.chatInputState[chatId] || EMPTY_INPUT_STATE;
+    // Prefer the editor's latest HTML (flushed past the throttle window) over
+    // the store's copy, which can lag one keystroke behind.
+    const body = removeEmptyPTags(latestContent ?? chatState.chatBody);
+    const files = chatState.filesUploaded || [];
 
-    if (body.length == 0) return;
+    // Words, or files on their own: a message of only a photo is a message.
+    if (body.length == 0 && files.length == 0) return false;
 
     // Defence-in-depth: never POST a DM to an external recipient even if
     // the UI somehow reaches this code path. The server also enforces
     // this; we just save a round-trip and a confusing toast.
-    if (isExternalUser(otherUserInfo.data?.data)) return;
+    if (isExternalUser(otherUserInfo.data?.data)) return false;
 
-    // Kept until the server has it. The composer empties now, so the next
-    // message can be typed, and this goes back into it if the send fails.
-    const unsent: Draft = {
-      html: body,
-      files: chatState.filesUploaded ?? [],
-      previews: chatState.filesPreview ?? [],
-      replyToUuid: chatState.replyToUuid,
-      replyToAuthorName: chatState.replyToAuthorName,
-      replyToText: chatState.replyToText,
-    };
-
-    // Discord-style inline reply: carry the armed reply target (if any) so the
-    // backend sets the reply edge, and build an optimistic parent preview.
     const replyToUuid = chatState.replyToUuid;
-    const optimisticReplyTo: ChatInfo | undefined = replyToUuid
+    const replyTo: ChatInfo | undefined = replyToUuid
       ? {
           chat_uuid: replyToUuid,
           chat_body_text: chatState.replyToText || "",
@@ -157,64 +199,52 @@ export function ChatView({ chatId }: { chatId: string }) {
         }
       : undefined;
 
-    post
-      .makeRequest<CreateOrUpdateChatsReq, CreateChatRes>({
-        apiEndpoint: PostEndpointUrl.CreateChatMessage,
-        payload: {
-          media_attachments: chatState.filesUploaded,
-          to_uuid: chatId,
-          text_html: body,
-          ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
-        },
-      })
-      .then((res) => {
-        if (
-          res &&
-          latestMsg.data?.data &&
-          latestMsg.data?.data?.chats?.[0]?.chat_uuid ==
-            chatMessageState[chatMessageState.length - 1]?.chat_uuid
-        ) {
-          dispatch(
-            createChat({
-              dmId: chatId,
-              chatCreatedAt: res?.chat_created_at,
-              chatBy:
-                selfProfile.data?.data || ({} as UserProfileDataInterface),
-              chatText: body,
-              attachments: chatState.filesUploaded,
-              chatId: res?.uuid,
-              chatTo:
-                otherUserInfo.data?.data || ({} as UserProfileDataInterface),
-              replyTo: optimisticReplyTo,
-              addedLocally: true,
-            })
-          );
+    dispatch(clearChatInputState({ chatUUID: chatId }));
 
-          dispatch(
-            UpdateMessageInChatList({
-              name: displayNameOf(selfProfile.data?.data) || "",
-              msgTime: res?.chat_created_at,
-              attachments: chatState.filesUploaded,
-              msg: body,
-              chatUuid: res?.uuid || '',
-              grpId: getGroupingId(
-                chatId,
-                selfProfile.data?.data.user_uuid || ""
-              ),
-            })
-          );
-
-          latestMsg.mutate();
-          dispatch(
-            updateChatScrollToBottom({ chatId: chatId, scrollToBottom: true })
-          );
-        }
-      }, () => {
+    // Parked on an older message from a link, the latest are not loaded, so
+    // there is nowhere to show it yet: it is sent as it was, and goes back in
+    // the message box if it does not go.
+    if (viewingLinkedMessage("messageId")) {
+      const unsent: Draft = { html: body, files, previews: chatState.filesPreview ?? [], replyToUuid, replyToAuthorName: chatState.replyToAuthorName, replyToText: chatState.replyToText };
+      axiosInstance.post(PostEndpointUrl.CreateChatMessage, {
+        media_attachments: files,
+        to_uuid: chatId,
+        text_html: body,
+        ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
+      }, SEND_QUIETLY).then(() => void appMutate(latestKey), () => {
         dispatch(restoreUnsentChatMessage({ chatUUID: chatId, unsent }));
         toast(NOT_SENT_TOAST);
       });
-    dispatch(clearChatInputState({ chatUUID: chatId }));
-  };
+      return false;
+    }
+
+    // The sender's first message here: none of theirs among the messages held,
+    // and the latest page from the server is all there is.
+    const self = selfProfile.data?.data?.user_uuid;
+    const held = store.getState().chat.chatMessages[chatId] || [];
+    const page = cache.get(latestKey)?.data as CreateChatMessagePaginationResRaw | undefined;
+    const first = !!self && isFirstMessage({
+      mine: held.some((c) => c.chat_from?.user_uuid === self),
+      wholeHistory: page?.data?.has_more === false,
+    }) && claimFirstMessage(`dm:${chatId}`);
+
+    const localId = newLocalId();
+    send(localId, {
+      chat_uuid: localId,
+      chat_local_id: localId,
+      chat_send_state: "sending",
+      chat_added_locally: true,
+      chat_from: selfProfile.data?.data || ({} as UserProfileDataInterface),
+      chat_to: otherUserInfo.data?.data || ({} as UserProfileDataInterface),
+      chat_created_at: new Date().toISOString(),
+      chat_body_text: body,
+      chat_attachments: files,
+      chat_reply_to: replyTo,
+      chat_comment_count: 0,
+    });
+    dispatch(updateChatScrollToBottom({ chatId: chatId, scrollToBottom: true }));
+    return first;
+  });
 
   useEffect(() => {
     if(!chatId || !selfProfile.data?.data.user_uuid) return;
@@ -230,6 +260,8 @@ export function ChatView({ chatId }: { chatId: string }) {
     // a payload recorded before the read. See services/unreadCache.ts.
     clearChatUnread(grplclId);
   }, [chatId, selfProfile.data?.data.user_uuid]);
+
+  const schedule = useMemo(() => ({ kind: "dm" as const, target: chatId, schedule: handleSchedule }), [chatId, handleSchedule]);
 
   if(!chatId) return
 
@@ -250,12 +282,12 @@ export function ChatView({ chatId }: { chatId: string }) {
   }
 
   return (
-    <>
-      <ScheduleSendContext.Provider value={{ kind: "dm", target: chatId, schedule: handleSchedule }}>
-      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} />}
+    <PendingSendContext.Provider value={actions}>
+      <ScheduleSendContext.Provider value={schedule}>
+      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
 
-      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} />}
+      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
       </ScheduleSendContext.Provider>
-    </>
+    </PendingSendContext.Provider>
   );
 }

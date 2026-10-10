@@ -30,6 +30,7 @@ import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
 import {setChatReplyTarget} from "@/store/slice/chatSlice";
 import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
 import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
+import { SendStatus } from "@/components/message/sendStatus";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
@@ -190,11 +191,14 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
     }
 
+    // Not yet on the server: no thread to open and no actions, only its status.
+    const pending = !!chatInfo.chat_send_state
+
     const handleOnCLick = useCallback((e: React.MouseEvent) => {
         // Prevent navigation if clicking on interactive elements
-        if ((e.target as HTMLElement).closest('button, a, .interactive')) return;
+        if (pending || (e.target as HTMLElement).closest('button, a, .interactive')) return;
         router.push(`${app_chat_path}/${otherUserUUID}/${chatInfo.chat_uuid}`);
-    }, [router, otherUserUUID, chatInfo.chat_uuid]);
+    }, [router, otherUserUUID, chatInfo.chat_uuid, pending]);
 
 
 
@@ -205,7 +209,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             wrap={(c) => (
                 <div onClick={handleOnCLick}>{c}</div>
             )}>
-        <div id={messageDomId(chatInfo.chat_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...longPressEvent} >
+        <div id={messageDomId(chatInfo.chat_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)} >
 
             {continued && !isMessageEditEnabled ? (
                 <ContinuedGutter createdAt={chatInfo.chat_created_at} authorName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)} />
@@ -309,7 +313,8 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
                 {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at} participants={chatInfo.chat_comments.map((c) => ({ uuid: c.comment_by?.user_uuid || "", name: displayNameOf(c.comment_by) || "", profileKey: c.comment_by?.user_profile_object_key }))}/></div>}
 
-                { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
+                <SendStatus state={chatInfo.chat_send_state} localId={chatInfo.chat_local_id} />
+                { !isMessageEditEnabled && !pending && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
 
 
 
