@@ -8,6 +8,8 @@ import type { GenericResponse } from "@/types/genericRes"
 
 import type { AxiosError } from "axios"
 import { offlineQueue } from "@/lib/offlineQueue"
+import { errorToastCopy } from "@/lib/utils/errorToast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 interface UsePostOptions<T> {
     apiEndpoint: PostEndpointUrl
@@ -17,6 +19,18 @@ interface UsePostOptions<T> {
     onSuccess?: () => void
     showToast?: boolean
     showErrorToast?: boolean // Specific control for error toasts
+    /**
+     * No toast at all, neither this hook's nor the global error toast: for a
+     * request whose outcome the screen says itself, or nobody needs (signing
+     * out, which leaves for the sign-in page at once).
+     */
+    quiet?: boolean
+    /**
+     * What didn't happen, for this call: "Couldn't deactivate Priya Raman"
+     * where the endpoint's own words can only say "Couldn't deactivate user".
+     * The server's reason still goes under it.
+     */
+    failureTitle?: string
     useQueueIfOffline?: boolean
     description?: string // Description for the offline queue toast
     method?: HttpMethod
@@ -26,6 +40,22 @@ interface UsePostOptions<T> {
 interface ErrorResponse {
     msg?: string
     message?: string
+    code?: string
+}
+
+/**
+ * The words a toast leads with, from this file's messages: what didn't
+ * happen ("Couldn't create team"), or what did ("Team created"). The messages
+ * were written as sentences for a toast titled "Error" or "Success", which
+ * said nothing the colour hadn't; now they are the title, and the server's
+ * reason is the line under it. Pure.
+ */
+export function failureTitle(message: string): string {
+    return message.replace(/^Failed to /, "Couldn't ").replace(/\.$/, "")
+}
+
+export function successTitle(message: string): string {
+    return message.replace(/ successfully\.?$/, "").replace(/\.$/, "")
 }
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
@@ -622,9 +652,14 @@ export const usePost = () => {
 
         // Get success and error messages based on the API endpoint
         const { success: successMessage, error: errorMessage } = endpointMessages[apiEndpoint] || {
-            success: "Operation completed successfully.",
-            error: "An error occurred.",
+            success: "Done.",
+            error: "Couldn't finish that.",
         }
+        // When this hook says what went wrong, the global error toast stands
+        // down for the request: there is one toast on screen at a time, and
+        // the two used to replace each other, the vaguer one last.
+        const ownsErrorToast = !options.quiet && !!(showToast || options.showErrorToast)
+        const config = ownsErrorToast || options.quiet ? { suppressErrorToast: true } : undefined
 
         setIsSubmitting(true)
         try {
@@ -633,22 +668,19 @@ export const usePost = () => {
             
             let response;
             if (method === "GET") {
-                response = await axiosInstance.get(url)
+                response = await axiosInstance.get(url, config)
             } else if (method === "DELETE") {
-                response = await axiosInstance.delete(url)
+                response = await axiosInstance.delete(url, config)
             } else if (method === "PUT") {
-                response = await axiosInstance.put(url, payload)
+                response = await axiosInstance.put(url, payload, config)
             } else if (method === "PATCH") {
-                response = await axiosInstance.patch(url, payload)
+                response = await axiosInstance.patch(url, payload, config)
             } else {
-                response = await axiosInstance.post(url, payload)
+                response = await axiosInstance.post(url, payload, config)
             }
 
-            if (showToast) {
-                toast({
-                    title: "Success",
-                    description: successMessage,
-                })
+            if (showToast && !options.quiet) {
+                toast({ title: successTitle(successMessage) })
             }
             if (onSuccess) {
                 onSuccess()
@@ -657,17 +689,15 @@ export const usePost = () => {
         } catch (e) {
             const error = e as AxiosError<ErrorResponse>
             
-            // Show toast if general showToast is true OR specific showErrorToast is true
-            if (showToast || options.showErrorToast) {
-                // Safely extract error message from response, handling undefined cases
-                const serverMessage = error.response?.data?.msg || error.response?.data?.message || ""
-                const fullMessage = serverMessage ? `${errorMessage}: ${serverMessage}` : errorMessage
-
-                toast({
-                    title: "Error",
-                    description: fullMessage || error.message,
-                    variant: "destructive",
-                })
+            // One toast: what didn't happen, in the person's words, and why, in
+            // the server's (or what its status means when its message is a bare
+            // "no"), or that nothing answered at all.
+            if (ownsErrorToast) {
+                const data = error.response?.data
+                const description = error.response
+                    ? errorToastCopy(error.response.status, data?.msg || data?.message).description
+                    : apiErrorMessage(e, "Try again in a moment.")
+                toast({ title: options.failureTitle || failureTitle(errorMessage), description, variant: "destructive" })
             }
             
             // Handle Offline Queueing if enabled
