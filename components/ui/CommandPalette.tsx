@@ -880,7 +880,9 @@ function ShortcutHint() {
     setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent))
   }, [])
   return (
-    <kbd className="hidden shrink-0 rounded-sm border bg-muted px-1.5 font-sans text-2xs text-muted-foreground sm:inline-block" aria-label={mac ? "Command K" : "Control K"}>
+    // mr-9: clear of the dialog's close button, which sits over the end of
+    // the input row (paletteHint.test.ts); the two overlapped.
+    <kbd className="mr-9 hidden shrink-0 rounded-sm border bg-muted px-1.5 font-sans text-2xs text-muted-foreground sm:inline-block" aria-label={mac ? "Command K" : "Control K"}>
       {mac ? "⌘\u00a0K" : "Ctrl\u00a0K"}
     </kbd>
   )
