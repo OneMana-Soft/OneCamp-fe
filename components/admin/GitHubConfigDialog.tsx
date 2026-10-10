@@ -9,18 +9,22 @@
 //   - leaving a secret field blank keeps the existing value (omit=keep).
 //   - the source ("db" | "env" | "none") is surfaced so an admin understands
 //     whether they're overriding an env-provided default.
+//
+// Every field is named for a screen reader, a failed read says so in place
+// with Try again (it used to be a toast over an empty form), and a failed
+// save keeps the server's reason.
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertTriangle } from "@/lib/icons"
 import axiosInstance from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { cn } from "@/lib/utils/helpers/cn"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 interface GitHubConfigStatus {
@@ -32,30 +36,32 @@ interface GitHubConfigStatus {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
-    db: "Saved here",
-    env: "From environment",
-    none: "Not configured",
+    db: "saved here",
+    env: "from the server's environment",
 }
 
 export default function GitHubConfigDialog({
-    open, onOpenChange, onSaved,
+    open, onOpenChange, onSaved, reason,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSaved?: () => void
+    /** Why the dialog opened, when something other than the admin opened it. */
+    reason?: string
 }) {
     const { toast } = useToast()
     const [status, setStatus] = useState<GitHubConfigStatus | null>(null)
     const [loading, setLoading] = useState(false)
+    const [loadFailed, setLoadFailed] = useState(false)
     const [saving, setSaving] = useState(false)
 
     const [clientId, setClientId] = useState("")
     const [clientSecret, setClientSecret] = useState("")
     const [webhookSecret, setWebhookSecret] = useState("")
 
-    useEffect(() => {
-        if (!open) return
+    const load = useCallback(() => {
         setLoading(true)
+        setLoadFailed(false)
         axiosInstance
             .get(GetEndpointUrl.GetGitHubConfig)
             .then((res) => {
@@ -65,9 +71,13 @@ export default function GitHubConfigDialog({
                 setClientSecret("")
                 setWebhookSecret("")
             })
-            .catch(() => toast({ title: "Couldn't load GitHub config", variant: "destructive" }))
+            .catch(() => setLoadFailed(true))
             .finally(() => setLoading(false))
-    }, [open, toast])
+    }, [])
+
+    useEffect(() => {
+        if (open) load()
+    }, [open, load])
 
     const handleSave = async () => {
         setSaving(true)
@@ -85,86 +95,108 @@ export default function GitHubConfigDialog({
             setWebhookSecret("")
             toast({ title: "GitHub credentials saved" })
             onSaved?.()
-        } catch {
-            toast({ title: "Failed to save credentials", variant: "destructive" })
+        } catch (e) {
+            toast({
+                title: "Couldn't save the GitHub credentials",
+                description: apiErrorMessage(e, "Check the values and try again."),
+                variant: "destructive",
+            })
         } finally {
             setSaving(false)
         }
     }
 
+    const source = status ? SOURCE_LABEL[status.source] : undefined
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>GitHub App credentials</DialogTitle>
+                    <DialogTitle>GitHub app credentials</DialogTitle>
                     <DialogDescription>
-                        Enter your GitHub OAuth App credentials. Secrets are encrypted at rest and never shown again.
+                        The client ID and secret of your GitHub OAuth app. Secrets are encrypted when saved and never shown again.
                     </DialogDescription>
                 </DialogHeader>
 
-                {status && (
-                    <div className="flex items-center gap-2 text-xs">
-                        {status.configured ? (
-                            <Badge className="gap-1 bg-success/10 text-success-ink border-success/20">
-                                <CheckCircle2 className="h-3 w-3" /> Configured
-                            </Badge>
-                        ) : (
-                            <Badge variant="outline" className="gap-1">
-                                <AlertTriangle className="h-3 w-3" /> Not configured
-                            </Badge>
-                        )}
-                        <span className="text-muted-foreground">Source: {SOURCE_LABEL[status.source]}</span>
-                    </div>
-                )}
+                {reason && <p className="rounded-md bg-info/10 px-3 py-2 text-sm text-info-ink">{reason}</p>}
 
-                <div className="space-y-4 py-2">
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Client ID</Label>
-                        <Input
-                            value={clientId}
-                            onChange={(e) => setClientId(e.target.value)}
-                            placeholder="Iv1.xxxxxxxxxxxx"
-                            disabled={loading}
-                        />
+                {loadFailed ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                        <p className="text-sm text-muted-foreground">Couldn&apos;t load the GitHub credentials.</p>
+                        <Button variant="outline" size="sm" className="h-8" onClick={load}>Try again</Button>
                     </div>
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">
-                            Client Secret
-                            {status?.has_client_secret && (
-                                <span className="text-muted-foreground font-normal ml-1.5">· set: leave blank to keep</span>
-                            )}
-                        </Label>
-                        <Input
-                            type="password"
-                            value={clientSecret}
-                            onChange={(e) => setClientSecret(e.target.value)}
-                            placeholder={status?.has_client_secret ? "••••••••" : "client secret"}
-                            disabled={loading}
-                        />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">
-                            Webhook Secret
-                            {status?.has_webhook_secret && (
-                                <span className="text-muted-foreground font-normal ml-1.5">· set: leave blank to keep</span>
-                            )}
-                        </Label>
-                        <Input
-                            type="password"
-                            value={webhookSecret}
-                            onChange={(e) => setWebhookSecret(e.target.value)}
-                            placeholder={status?.has_webhook_secret ? "••••••••" : "webhook secret (optional)"}
-                            disabled={loading}
-                        />
-                        <p className="text-2xs text-muted-foreground">
-                            Used to verify incoming GitHub webhook signatures.
-                        </p>
-                    </div>
-                </div>
+                ) : (
+                    <>
+                        {status && (
+                            // Words, not a pill with an icon: set up or not, and from where.
+                            <p className="text-xs">
+                                <span className={cn("font-medium", status.configured ? "text-success-ink" : "text-muted-foreground")}>
+                                    {status.configured ? "Set up" : "Not set up"}
+                                </span>
+                                {source && <span className="text-muted-foreground">, {source}</span>}
+                            </p>
+                        )}
+
+                        <div className="space-y-4 py-2">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="github-client-id" className="text-xs text-muted-foreground">Client ID</Label>
+                                <Input
+                                    id="github-client-id"
+                                    value={clientId}
+                                    onChange={(e) => setClientId(e.target.value)}
+                                    placeholder="Iv1.xxxxxxxxxxxx"
+                                    disabled={loading}
+                                    spellCheck={false}
+                                    autoComplete="off"
+                                    className="h-8"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="github-client-secret" className="text-xs text-muted-foreground">Client secret</Label>
+                                {/* new-password: a browser never fills the admin's own
+                                    saved password into a secret field. */}
+                                <Input
+                                    id="github-client-secret"
+                                    type="password"
+                                    value={clientSecret}
+                                    onChange={(e) => setClientSecret(e.target.value)}
+                                    placeholder={status?.has_client_secret ? "••••••••" : "From your OAuth app"}
+                                    disabled={loading}
+                                    autoComplete="new-password"
+                                    aria-describedby={status?.has_client_secret ? "github-client-secret-help" : undefined}
+                                    className="h-8"
+                                />
+                                {status?.has_client_secret && (
+                                    <p id="github-client-secret-help" className="text-xs text-muted-foreground">
+                                        Saved. Leave it blank to keep it.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="github-webhook-secret" className="text-xs text-muted-foreground">Webhook secret</Label>
+                                <Input
+                                    id="github-webhook-secret"
+                                    type="password"
+                                    value={webhookSecret}
+                                    onChange={(e) => setWebhookSecret(e.target.value)}
+                                    placeholder={status?.has_webhook_secret ? "••••••••" : "Optional"}
+                                    disabled={loading}
+                                    autoComplete="new-password"
+                                    aria-describedby="github-webhook-secret-help"
+                                    className="h-8"
+                                />
+                                <p id="github-webhook-secret-help" className="text-xs text-muted-foreground">
+                                    Checks that webhook deliveries really come from GitHub.
+                                    {status?.has_webhook_secret ? " Saved. Leave it blank to keep it." : ""}
+                                </p>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={saving || loading || !clientId.trim()}>
+                    <Button onClick={() => void handleSave()} disabled={saving || loading || loadFailed || !clientId.trim()}>
                         {saving ? "Saving…" : "Save credentials"}
                     </Button>
                 </DialogFooter>
