@@ -13,6 +13,23 @@ interface Jump {
   label: string
 }
 
+/**
+ * Scrolls to the section and puts focus on its heading.
+ *
+ * Smooth only when the person hasn't asked for less motion: it always
+ * scrolled smoothly. And focus follows the jump, so the next Tab carries on
+ * from the section rather than from the jump row back at the top.
+ */
+function jumpTo(id: string) {
+  const target = document.getElementById(id)
+  if (!target) return
+  const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" })
+  const heading = target.querySelector<HTMLElement>("h2, h3") ?? target
+  if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1")
+  heading.focus({ preventScroll: true })
+}
+
 export function SectionJumps({ jumps }: { jumps: Jump[] }) {
   return (
     <nav aria-label="On this page" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -21,7 +38,7 @@ export function SectionJumps({ jumps }: { jumps: Jump[] }) {
         <button
           key={j.id}
           type="button"
-          onClick={() => document.getElementById(j.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onClick={() => jumpTo(j.id)}
           className="rounded-sm text-foreground underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {j.label}
