@@ -8,22 +8,29 @@
  * configured." or "No archive jobs have been run yet.", claims about the
  * workspace with nothing to do. Each kind has its own hued tile (one map,
  * archiveEntities), the same in the counts, its rule and its history, where
- * the icons sat in grey chips. Runs say where they stand in the status tokens,
- * as words with no icon: they were raw blue and grey, with a spinning icon
- * while running. Rules and runs are hairline rows in one list each, and the
- * card no longer scrolls inside itself.
+ * the icons sat in grey chips. Runs say where they stand as a dot and a word
+ * (StatusWord), the way the task panel says a status. Rules and runs are
+ * hairline rows in one list each.
+ *
+ * One flat section like every other admin tab: it was a bordered Card with a
+ * p-4 header, its title 17px right and down of every other tab's, and its
+ * three parts are sections inside it (level 3), not boxes in a box.
  */
 
 import React, { useMemo, useState } from "react"
 import { useDispatch } from "react-redux"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
 import { Tile } from "@/components/ui/graphics/Tile"
-import { RefreshCw, RotateCcw, Undo2 } from "@/lib/icons"
-import { PlayCircle } from "lucide-react"
+import { History, RefreshCw, RotateCcw, Undo2 } from "@/lib/icons"
+// Already a direct importer (PlayCircle), so Archive adds no file to the icon guard's count.
+import { Archive, PlayCircle } from "lucide-react"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
@@ -57,15 +64,7 @@ interface ArchiveStats {
 // Entity types that do not support job-level undo.
 const UNSUPPORTED_UNDO: string[] = ["docs", "recordings"]
 
-const TONE = {
-  info: "border-info/20 bg-info/10 text-info-ink",
-  success: "border-success/20 bg-success/10 text-success-ink",
-  warning: "border-warning/20 bg-warning/10 text-warning-ink",
-  danger: "border-destructive/20 bg-destructive/10 text-danger-ink",
-  neutral: "border-border bg-muted text-muted-foreground",
-} as const
-
-const STATUS: Record<string, { label: string; tone: keyof typeof TONE }> = {
+const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   pending: { label: "Waiting", tone: "warning" },
   running: { label: "Archiving", tone: "info" },
   completed: { label: "Done", tone: "success" },
@@ -73,19 +72,60 @@ const STATUS: Record<string, { label: string; tone: keyof typeof TONE }> = {
   cancelled: { label: "Cancelled", tone: "neutral" },
 }
 
-function StatusChip({ status }: { status: string }) {
+/** Where a run stands: a dot and a word, as the task panel says a status. It was a tinted pill. */
+function RunStatus({ status }: { status: string }) {
   const s = STATUS[status] ?? STATUS.pending
-  return <span className={cn("inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-2xs font-medium", TONE[s.tone])}>{s.label}</span>
+  return (
+    <StatusWord tone={s.tone} className="text-xs">
+      {s.label}
+    </StatusWord>
+  )
 }
 
 const n = (v: number) => v.toLocaleString("en")
 const items = (v: number) => `${n(v)} ${v === 1 ? "item" : "items"}`
 
-/** How long a finished run took: "108ms", "2s"; nothing for one still going. */
-function duration(job: ArchiveJob): string {
+/** The server's reason for a failed read, when it answered with one. */
+const reasonOf = (e: unknown) => (e && apiErrorStatus(e) ? apiErrorMessage(e) : undefined)
+
+/**
+ * How long a finished run took, as a person says it: "108ms", "41s", "1m 48s",
+ * "6m". Nothing for one still going. Runs over a minute read "373s".
+ */
+export function duration(job: Pick<ArchiveJob, "started_at" | "completed_at">): string {
   if (!job.completed_at || !job.started_at) return ""
   const ms = new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()
-  return ms < 1000 ? `${ms}ms` : `${Math.round(ms / 1000)}s`
+  if (!Number.isFinite(ms) || ms < 0) return ""
+  if (ms < 1000) return `${ms}ms`
+  const secs = Math.round(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const rest = secs % 60
+  return rest ? `${m}m ${rest}s` : `${m}m`
+}
+
+/** A list of rows between hairlines, as every list on the admin page is drawn. */
+const LIST = "divide-y divide-border rounded-lg border border-border"
+
+/** A row's buttons: 44px touch targets on a phone, 32px from md up. */
+const ROW_ACTION = "h-11 md:h-8"
+
+/** Loading rows in the list's own shape: a tile, two lines, and the row's end. */
+function RowsSkeleton({ label, rows = 3, actions = true }: { label: string; rows?: number; actions?: boolean }) {
+  return (
+    <ul role="status" aria-label={label} className={LIST}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <li key={i} aria-hidden="true" className="flex items-center gap-3 px-4 py-3">
+          <Skeleton className="size-8 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-1/3" : "w-1/4")} />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+          {actions && <Skeleton className="hidden h-8 w-28 md:block" />}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 const ArchiveCard = () => {
@@ -145,34 +185,37 @@ const ArchiveCard = () => {
   const policies = policiesFetch.data?.policies ?? []
 
   return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <CardTitle className="text-base font-semibold">Archive</CardTitle>
-            <CardDescription className="mt-1 text-sm text-muted-foreground">
-              Old posts, messages, tasks and files move to the archive by these rules. Archived items are hidden, not
-              deleted, and can be restored, unless a rule deletes files for good.
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 self-start" onClick={() => dispatch(openUI({ key: "archiveRestore" }))}>
-            <RotateCcw className="h-3.5 w-3.5" />
-            Restore items
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-8">
-        <section aria-labelledby="archive-counts" className="space-y-3">
-          <h3 id="archive-counts" className="text-sm font-medium">Archived so far</h3>
+    <SettingsSection
+      title="Archive"
+      description="Old posts, messages, tasks and files move to the archive by these rules. Archived items are hidden, not deleted, and can be restored, unless a rule deletes files for good."
+      action={
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(sectionActionClass, "gap-1.5")}
+          onClick={() => dispatch(openUI({ key: "archiveRestore" }))}
+        >
+          <RotateCcw />
+          Restore items
+        </Button>
+      }
+    >
+      <div className="space-y-8">
+        <SettingsSection level={3} title="Archived so far">
           {statsFetch.isLoading && !stats ? (
-            <div role="status" aria-label="Loading the counts" className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <ul role="status" aria-label="Loading the counts" className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
               {ARCHIVE_ENTITY_ORDER.map((t) => (
-                <Skeleton key={t} className="h-12" />
+                <li key={t} aria-hidden="true" className="flex items-center gap-3">
+                  <Skeleton className="size-8 shrink-0 rounded-lg" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-3.5 w-12" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </li>
               ))}
-            </div>
+            </ul>
           ) : statsFetch.isError && !stats ? (
-            <ErrorState subject="the counts" onRetry={() => void statsFetch.mutate()} />
+            <ErrorState compact subject="the counts" detail={reasonOf(statsFetch.isError)} onRetry={() => void statsFetch.mutate()} />
           ) : (
             <ul aria-label="Archived so far" className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
               {ARCHIVE_ENTITY_ORDER.map((type) => {
@@ -192,28 +235,35 @@ const ArchiveCard = () => {
               })}
             </ul>
           )}
-        </section>
+        </SettingsSection>
 
-        <section aria-labelledby="archive-rules" className="space-y-3">
-          <h3 id="archive-rules" className="text-sm font-medium">Archive rules</h3>
+        <SettingsSection level={3} title="Archive rules">
           {policiesFetch.isLoading && !policiesFetch.data ? (
-            <div role="status" aria-label="Loading the archive rules" className="rounded-lg border border-border px-3 py-1">
-              <SkeletonRows rows={3} avatar={false} />
-            </div>
+            <RowsSkeleton label="Loading the archive rules" />
           ) : policiesFetch.isError && !policiesFetch.data ? (
-            <ErrorState subject="the archive rules" onRetry={() => void policiesFetch.mutate()} />
+            <ErrorState
+              compact
+              subject="the archive rules"
+              detail={reasonOf(policiesFetch.isError)}
+              onRetry={() => void policiesFetch.mutate()}
+            />
           ) : policies.length === 0 ? (
-            <p className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">No archive rules are set up on this server.</p>
+            <EmptyState
+              icon={Archive}
+              hue={ADMIN_GROUP_HUE.workspace}
+              title="No archive rules on this server"
+              description="Rules say how old posts, messages, tasks and files must be before they move to the archive."
+            />
           ) : (
-            <ul aria-label="Archive rules" className="divide-y divide-border rounded-lg border border-border">
+            <ul aria-label="Archive rules" className={LIST}>
               {policies.map((policy) => {
                 const e = archiveEntity(policy.entity_type)
                 const Icon = e.icon
                 const purge = purgeLine(policy)
                 return (
-                  <li key={policy.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <li key={policy.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
-                      <Tile hue={e.hue} size="sm">
+                      <Tile hue={e.hue} size="md">
                         <Icon />
                       </Tile>
                       <div className="min-w-0">
@@ -224,17 +274,17 @@ const ArchiveCard = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1.5 self-start sm:self-auto">
+                    <div className="flex shrink-0 items-center gap-1.5 pl-11 sm:pl-0">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-1.5"
+                        className={cn(ROW_ACTION, "gap-1.5")}
                         onClick={() => dispatch(openUI({ key: "archiveRunJob", data: { entityLabel: e.label, entityType: policy.entity_type } }))}
                       >
-                        <PlayCircle className="h-3.5 w-3.5" />
+                        <PlayCircle />
                         Archive now
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8" onClick={() => dispatch(openUI({ key: "archiveEditPolicy", data: policy }))}>
+                      <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => dispatch(openUI({ key: "archiveEditPolicy", data: policy }))}>
                         Edit
                       </Button>
                     </div>
@@ -243,49 +293,62 @@ const ArchiveCard = () => {
               })}
             </ul>
           )}
-        </section>
+        </SettingsSection>
 
-        <section aria-labelledby="archive-history" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 id="archive-history" className="text-sm font-medium">Archive history</h3>
-            <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={() => void jobsFetch.mutate()}>
-              <RefreshCw className="h-3.5 w-3.5" />
+        <SettingsSection
+          level={3}
+          title="Archive history"
+          action={
+            <Button variant="ghost" size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => void jobsFetch.mutate()}>
+              <RefreshCw />
               Refresh
             </Button>
-          </div>
+          }
+        >
           {jobsFetch.isLoading && !jobsFetch.data ? (
-            <div role="status" aria-label="Loading the archive history" className="rounded-lg border border-border px-3 py-1">
-              <SkeletonRows rows={3} avatar={false} />
-            </div>
+            <RowsSkeleton label="Loading the archive history" actions={false} />
           ) : jobsFetch.isError && !jobsFetch.data ? (
-            <ErrorState subject="the archive history" onRetry={() => void jobsFetch.mutate()} />
+            <ErrorState compact subject="the archive history" detail={reasonOf(jobsFetch.isError)} onRetry={() => void jobsFetch.mutate()} />
           ) : jobs.length === 0 ? (
-            <p className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">Nothing has been archived yet.</p>
+            <EmptyState
+              icon={History}
+              hue={ADMIN_GROUP_HUE.workspace}
+              title="Nothing archived yet"
+              description="Each run is listed here, by a rule's hourly pass or by Archive now, with what it moved and how to put it back."
+            />
           ) : (
-            <ul aria-label="Archive history" className="divide-y divide-border rounded-lg border border-border">
+            <ul aria-label="Archive history" className={LIST}>
               {jobs.slice(0, 20).map((job) => {
                 const e = archiveEntity(job.entity_type)
                 const Icon = e.icon
                 const took = duration(job)
+                const meta = [
+                  shortDateTime(new Date(job.created_at)),
+                  job.items_archived > 0 ? `${n(job.items_archived)} archived` : "",
+                ].filter(Boolean)
                 return (
-                  <li key={job.id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <Tile hue={e.hue} size="sm">
-                        <Icon />
-                      </Tile>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium">{e.label}</span>
-                          <StatusChip status={job.status} />
-                        </div>
-                        <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                          <span>{shortDateTime(new Date(job.created_at))}</span>
-                          {job.items_archived > 0 && <span>{n(job.items_archived)} archived</span>}
-                          {job.items_failed > 0 && <span className="text-danger-ink">{n(job.items_failed)} failed</span>}
-                          {took && <span className="font-mono">{took}</span>}
-                        </p>
-                        {job.error_message && <p className="mt-1 break-words text-xs text-danger-ink">{job.error_message}</p>}
+                  <li key={job.id} className="flex items-center gap-3 px-4 py-3">
+                    <Tile hue={e.hue} size="md">
+                      <Icon />
+                    </Tile>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-sm font-medium">{e.label}</span>
+                        <RunStatus status={job.status} />
                       </div>
+                      {/* One line of facts, a quiet dot between them, as every
+                          row's meta line reads. The failures stay in danger ink. */}
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {meta.join(" · ")}
+                        {job.items_failed > 0 && (
+                          <>
+                            {" · "}
+                            <span className="text-danger-ink">{n(job.items_failed)} failed</span>
+                          </>
+                        )}
+                        {took && <span className="tabular-nums">{` · took ${took}`}</span>}
+                      </p>
+                      {job.error_message && <p className="mt-1 break-words text-xs text-danger-ink">{job.error_message}</p>}
                     </div>
                     {job.status === "completed" && !UNSUPPORTED_UNDO.includes(job.entity_type) && (
                       <Button
@@ -293,11 +356,11 @@ const ArchiveCard = () => {
                         size="icon"
                         aria-label="Restore what this run archived"
                         title="Restore what this run archived"
-                        className="h-8 w-8 shrink-0 self-start sm:self-auto"
+                        className="size-11 shrink-0 md:size-8"
                         onClick={() => handleUndoJob(job.id)}
                         disabled={undoingJobId === job.id}
                       >
-                        {undoingJobId === job.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                        {undoingJobId === job.id ? <RefreshCw className="animate-spin" /> : <Undo2 />}
                       </Button>
                     )}
                   </li>
@@ -305,9 +368,9 @@ const ArchiveCard = () => {
               })}
             </ul>
           )}
-        </section>
-      </CardContent>
-    </Card>
+        </SettingsSection>
+      </div>
+    </SettingsSection>
   )
 }
 

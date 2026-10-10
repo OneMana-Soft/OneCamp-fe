@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 type Answer = { data?: unknown; isLoading?: boolean; isError?: unknown }
 let answers: Record<string, Answer> = {}
@@ -15,7 +15,7 @@ vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => po
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast: (...a: unknown[]) => toast(...a) }))
 
-const ArchiveCard = (await import("./ArchiveCard")).default
+const { default: ArchiveCard, duration } = await import("./ArchiveCard")
 
 const POLICIES = "/admin/archive/policies"
 const JOBS = "/admin/archive/jobs"
@@ -103,5 +103,81 @@ describe("the archive card", () => {
         expect.objectContaining({ title: "Couldn't restore what this run archived", description: "Archiving is running right now. Try again when it finishes." }),
       ),
     )
+  })
+})
+
+// One frame for every admin tab: Archive was a bordered Card with a p-4
+// header, its title 17px right and down of every other tab's, and its three
+// parts sat in it as boxes.
+describe("the archive section's frame", () => {
+  const loaded = () => ({
+    [POLICIES]: { data: { policies: [policy] } },
+    [JOBS]: { data: { jobs: [job("j1", "completed", { completed_at: "2026-10-05T02:01:48Z", items_failed: 4 })] } },
+    [STATS]: { data: { stats } },
+  })
+
+  it("is a section with its title, one action on the title's row, and its parts as sections inside it", () => {
+    answers = loaded()
+    const { container } = render(<ArchiveCard />)
+    const region = screen.getByRole("region", { name: "Archive" })
+    expect(screen.getByRole("heading", { level: 2, name: "Archive" })).toBeTruthy()
+    expect(container.querySelector(".rounded-xl")).toBeNull()
+    const action = region.querySelector("[data-section-action]") as HTMLElement
+    expect(within(action).getByRole("button", { name: "Restore items" })).toBeTruthy()
+    for (const name of ["Archived so far", "Archive rules", "Archive history"]) {
+      expect(screen.getByRole("heading", { level: 3, name })).toBeTruthy()
+    }
+  })
+
+  // The bar's status: a dot and a word, where a run was a tinted pill.
+  it("says where a run stands as a dot and a word, and its facts on one dotted line", () => {
+    answers = loaded()
+    render(<ArchiveCard />)
+    const history = screen.getByRole("list", { name: "Archive history" })
+    const done = within(history).getByText("Done")
+    expect(done.getAttribute("data-status-word")).toBe("success")
+    expect(done.className).not.toMatch(/border|bg-success\/10/)
+    const meta = history.querySelector("li p") as HTMLElement
+    expect(meta.textContent).toMatch(/4,186 archived · 4 failed · took 1m 48s/)
+    expect(within(history).getByText("4 failed").className).toContain("text-danger-ink")
+  })
+
+  it("puts each rule's and run's tile at the list rows' one size", () => {
+    answers = loaded()
+    render(<ArchiveCard />)
+    for (const name of ["Archive rules", "Archive history"]) {
+      const row = screen.getByRole("list", { name }).querySelector("li") as HTMLElement
+      expect(row.className).toContain("px-4 py-3")
+      expect(row.querySelector(".size-8")).toBeTruthy()
+    }
+  })
+
+  it("says nothing has been archived yet with the workspace's tile, not a boxed line", () => {
+    answers = { [POLICIES]: { data: { policies: [] } }, [JOBS]: { data: { jobs: [] } }, [STATS]: { data: { stats } } }
+    render(<ArchiveCard />)
+    expect(screen.getByText("No archive rules on this server")).toBeTruthy()
+    expect(screen.getByText("Nothing archived yet")).toBeTruthy()
+    expect(document.querySelectorAll(".hue-sun").length).toBeGreaterThanOrEqual(2)
+    expect(document.querySelector("p.rounded-lg")).toBeNull()
+  })
+
+  it("says the server's reason for a failed read", () => {
+    answers = {
+      [POLICIES]: { isError: { response: { status: 403, data: { msg: "Only admins can see the archive rules." } } } },
+      [JOBS]: { data: { jobs: [] } },
+      [STATS]: { data: { stats } },
+    }
+    render(<ArchiveCard />)
+    expect(screen.getByText("Only admins can see the archive rules.")).toBeTruthy()
+  })
+
+  it("says how long a run took as a person says it", () => {
+    const at = (s: number) => new Date(Date.UTC(2026, 9, 5, 2, 0, s)).toISOString()
+    expect(duration({ started_at: at(0), completed_at: new Date(Date.UTC(2026, 9, 5, 2, 0, 0, 108)).toISOString() })).toBe("108ms")
+    expect(duration({ started_at: at(0), completed_at: at(41) })).toBe("41s")
+    expect(duration({ started_at: at(0), completed_at: at(108) })).toBe("1m 48s")
+    expect(duration({ started_at: at(0), completed_at: at(373) })).toBe("6m 13s")
+    expect(duration({ started_at: at(0), completed_at: at(360) })).toBe("6m")
+    expect(duration({ started_at: at(0) })).toBe("")
   })
 })
