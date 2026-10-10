@@ -1,4 +1,4 @@
-import { displayNameOf } from "@/lib/personName"
+import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -286,6 +286,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
 function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInterface, role: string, onRemove: () => void, isOwner: boolean }) {
     const {src: imageSrc} = useUserAvatar(user.user_profile_object_key);
+    const secondLine = addressOrHandleOf(user);
     return (
         <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors group">
             <div className="flex items-center gap-3">
@@ -295,7 +296,7 @@ function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInter
                 </Avatar>
                 <div className="flex flex-col">
                     <span className="text-sm font-medium leading-none">{displayNameOf(user)}</span>
-                    <span className="text-xs text-muted-foreground">{user.user_email_id}</span> 
+                    {secondLine && <span className="text-xs text-muted-foreground">{secondLine}</span>}
                 </div>
             </div>
             <div className="flex items-center gap-4">

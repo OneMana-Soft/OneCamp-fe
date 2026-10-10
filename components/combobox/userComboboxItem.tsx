@@ -9,7 +9,7 @@ import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { useBotKind } from "@/hooks/useBotKinds"
 import { botSubtitle } from "@/lib/botCopy"
-import { personSearchValue } from "@/lib/personName"
+import { addressOrHandleOf, personSearchValue } from "@/lib/personName"
 
 interface UserComboboxItemProps {
     userUuid: string
@@ -37,6 +37,7 @@ export function UserComboboxItem({
 }: UserComboboxItemProps) {
     const {src: imageSrc} = useUserAvatar(userProfileObjectKey)
     const botKind = useBotKind(userUuid, isBot)
+    const secondLine = isBot ? botSubtitle(botKind) : addressOrHandleOf({ user_email_id: userEmail, user_handle: userHandle })
 
     return (
         <CommandItem
@@ -60,7 +61,7 @@ export function UserComboboxItem({
                         <BotTag userUUID={userUuid} />
                     )}
                 </span>
-                <span className="text-2xs text-muted-foreground truncate font-medium">{isBot ? botSubtitle(botKind) : userEmail}</span>
+                {secondLine && <span className="text-2xs text-muted-foreground truncate font-medium">{secondLine}</span>}
             </div>
             <Check
                 className={cn(

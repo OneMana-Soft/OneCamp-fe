@@ -1,6 +1,6 @@
 "use client"
 
-import { displayNameOf } from "@/lib/personName"
+import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import React from "react"
 import { Crown, LogOut } from "@/lib/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -42,6 +42,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
     const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
     const botKind = useBotKind(userInfo.user_uuid, userInfo.is_bot)
     const nameInitial = getNameInitials(displayNameOf(userInfo))
+    const secondLine = userInfo.is_bot ? botSubtitle(botKind) : addressOrHandleOf(userInfo)
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
         GetEndpointUrl.SelfProfile,
@@ -119,9 +120,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 </span>
                             )}
                         </div>
-                        <span className="truncate text-xs text-muted-foreground">
-                            {userInfo.is_bot ? botSubtitle(botKind) : userInfo.user_email_id}
-                        </span>
+                        {secondLine && <span className="truncate text-xs text-muted-foreground">{secondLine}</span>}
                     </div>
                 </div>
 

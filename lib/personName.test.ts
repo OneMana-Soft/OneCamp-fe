@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
 import { describe, expect, it } from "vitest"
 import {
+  addressOrHandleOf,
   displayNameOf,
   handleOf,
   matchesPerson,
@@ -45,6 +46,21 @@ describe("secondaryNameOf", () => {
     expect(secondaryNameOf({ user_name: "", user_full_name: "Samuel Rivera" })).toBe("")
     expect(secondaryNameOf({ user_name: "samuel rivera", user_full_name: "Samuel Rivera" })).toBe("")
     expect(secondaryNameOf({ user_name: "Sam" })).toBe("")
+  })
+})
+
+describe("addressOrHandleOf: the line under a name in a people list", () => {
+  it("is the address when there is one", () => {
+    expect(addressOrHandleOf({ user_email_id: " maya@example.com ", user_handle: "maya" })).toBe("maya@example.com")
+  })
+  it("is the handle when the address is blank, as the demo's visitor sees other members", () => {
+    expect(addressOrHandleOf({ user_email_id: "", user_handle: "maya" })).toBe("@maya")
+    expect(addressOrHandleOf({ user_email_id: "  ", user_handle: "@maya" })).toBe("@maya")
+  })
+  it("is empty with neither, so no line is shown", () => {
+    expect(addressOrHandleOf({ user_email_id: "", user_handle: "" })).toBe("")
+    expect(addressOrHandleOf({})).toBe("")
+    expect(addressOrHandleOf(null)).toBe("")
   })
 })
 

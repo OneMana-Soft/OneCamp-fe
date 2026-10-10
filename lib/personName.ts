@@ -48,6 +48,18 @@ export function handleOf(user?: PersonNameFields | null): string {
   return trimmed(user?.user_handle).replace(/^@+/, "")
 }
 
+/**
+ * The line under a member's name in a people list: their address, else their
+ * "@handle", else "" (show no line at all). An address can be blank: the
+ * demo's shared visitor is not shown other members' addresses.
+ */
+export function addressOrHandleOf(user?: PersonNameFields | null): string {
+  const address = trimmed(user?.user_email_id)
+  if (address) return address
+  const handle = handleOf(user)
+  return handle ? `@${handle}` : ""
+}
+
 /** A search box's text, ready to compare: trimmed, lower case, one leading "@" dropped. */
 export function normalizePersonQuery(query?: string | null): string {
   return trimmed(query).replace(/^@/, "").trim().toLowerCase()
