@@ -2,7 +2,7 @@
 // here so the UI components don't repeat URL construction. All calls
 // require an admin session.
 
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 // Mirrors backend adapter.JobOptions. Keep types pessimistic — backend
@@ -124,7 +124,9 @@ export async function planSlackImport(
 
 /**
  * Start the import. Returns 202 immediately; live progress arrives via
- * the admin MQTT broadcast topic.
+ * the admin MQTT broadcast topic. The caller says what went wrong itself
+ * (importProblemOf): a refusal comes in `error`, which the global toast does
+ * not read, so it added "Already changed" beside the caller's own.
  */
 export async function runSlackImport(
   jobId: string,
@@ -133,6 +135,7 @@ export async function runSlackImport(
   await axiosInstance.post(
     `${PostEndpointUrl.SlackImportRun}/${encodeURIComponent(jobId)}`,
     options ? { options } : {},
+    OWN_ERRORS,
   )
 }
 

@@ -141,10 +141,11 @@ export const ImportPlanDialog: React.FC<Props> = ({
       toast({ title: "Import started" })
       onStarted()
       onOpenChange(false)
-    } catch (err: any) {
+    } catch (err) {
+      // The request shows no toast of its own: this is the one.
       toast({
         title: "Could not start",
-        description: err?.response?.data?.error || err?.message,
+        description: importProblemOf(err).message,
         variant: "destructive",
       })
     } finally {
