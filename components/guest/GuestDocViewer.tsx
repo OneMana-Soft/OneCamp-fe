@@ -94,7 +94,7 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
   return (
     <EditorContent
       editor={editor}
-      className="minimal-tiptap-editor prose prose-sm dark:prose-invert max-w-none px-1 py-2"
+      className="minimal-tiptap-editor max-w-none px-1 py-2"
     />
   )
 }

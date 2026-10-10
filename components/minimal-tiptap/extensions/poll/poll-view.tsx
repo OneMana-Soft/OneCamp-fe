@@ -37,10 +37,9 @@ export function PollView({ node }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="my-2 max-w-md" data-drag-handle={false} contentEditable={false}>
-      {/* not-prose: the message body's typography would give the options list
-          bullets and margins. The question itself is the "Poll:" line the
-          message carries above this block, so it is named here, not repeated. */}
-      <div className="not-prose rounded-xl border border-border bg-card p-3" role="group" aria-label={poll ? `Poll: ${poll.question}` : "Poll"}>
+      {/* The question itself is the "Poll:" line the message carries above
+          this block, so it is named here, not repeated. */}
+      <div className="rounded-xl border border-border bg-card p-3" role="group" aria-label={poll ? `Poll: ${poll.question}` : "Poll"}>
         {!poll ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
