@@ -2,7 +2,7 @@
 
 import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
@@ -23,6 +23,10 @@ export default function AdminSetupPage() {
   const [error, setError] = useState("")
   // Which field the error is about; null for the form as a whole (the server's answer).
   const [errorField, setErrorField] = useState<"email" | "password" | "confirm" | null>(null)
+  // The field an error is about gets the cursor, so the fix starts there.
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const confirmRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -45,24 +49,28 @@ export default function AdminSetupPage() {
     if (!emailRegex.test(email)) {
       setError("Enter an email address like you@company.com.")
       setErrorField("email")
+      emailRef.current?.focus()
       return
     }
 
     if (password.length < 8) {
       setError("Use at least 8 characters.")
       setErrorField("password")
+      passwordRef.current?.focus()
       return
     }
 
     if (password.length > 72) {
       setError("Use 72 characters or fewer.")
       setErrorField("password")
+      passwordRef.current?.focus()
       return
     }
 
     if (password !== confirmPassword) {
       setError("The two passwords are different. Type the same one in both.")
       setErrorField("confirm")
+      confirmRef.current?.focus()
       return
     }
 
@@ -101,6 +109,7 @@ export default function AdminSetupPage() {
 
       <form onSubmit={handleSetup} className="space-y-4" noValidate>
         <AuthField
+          ref={emailRef}
           id="email"
           name="email"
           label="Your email"
@@ -133,6 +142,7 @@ export default function AdminSetupPage() {
         />
 
         <PasswordField
+          ref={passwordRef}
           id="password"
           name="new-password"
           label="Password"
@@ -148,6 +158,7 @@ export default function AdminSetupPage() {
         />
 
         <AuthField
+          ref={confirmRef}
           id="confirm-password"
           name="confirm-password"
           label="Type it again"

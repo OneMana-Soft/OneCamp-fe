@@ -163,3 +163,25 @@ describe("an invitation that couldn't be checked", () => {
     expect(screen.getByText("This invitation has expired. Ask Sam Rivera to send it again.")).toBeTruthy()
   })
 })
+
+// The error is said under the field it is about, and the cursor goes there, so
+// the fix starts where the problem is rather than on the button just pressed.
+describe("a field that needs fixing", () => {
+  it("takes the cursor to a password that is too short", async () => {
+    render(<SignupPage />)
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Ana" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "short" } })
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Create account" })))
+    expect(screen.getByRole("alert").textContent).toBe("Use at least 8 characters.")
+    expect(document.activeElement).toBe(screen.getByLabelText("Password"))
+  })
+
+  it("takes the cursor to a name the rule refuses", async () => {
+    render(<SignupPage />)
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "<b>bold</b>" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Create account" })))
+    expect(document.activeElement).toBe(screen.getByLabelText("Your name"))
+  })
+})
+

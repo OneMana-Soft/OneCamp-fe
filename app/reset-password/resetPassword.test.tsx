@@ -73,3 +73,17 @@ describe("a link that works", () => {
     expect(screen.getByLabelText("New password")).toBeTruthy()
   })
 })
+
+describe("a field that needs fixing", () => {
+  it("takes the cursor to the second field when the two differ", async () => {
+    await choose("a-new-password", "a-new-passw0rd")
+    expect(document.activeElement).toBe(screen.getByLabelText("Type it again"))
+    expect(sent).toEqual([])
+  })
+
+  it("takes the cursor to a password that is too short", async () => {
+    await choose("short")
+    expect(document.activeElement).toBe(screen.getByLabelText("New password"))
+  })
+})
+

@@ -2,7 +2,7 @@
 
 import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { useState, Suspense } from "react"
+import { useRef, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -22,6 +22,9 @@ function ResetPasswordForm() {
   const [error, setError] = useState("")
   // Which field the error is about; null for the form as a whole (the server's answer).
   const [errorField, setErrorField] = useState<"password" | "confirm" | null>(null)
+  // The field an error is about gets the cursor, so the fix starts there.
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const confirmRef = useRef<HTMLInputElement>(null)
 
   if (!token) {
     return (
@@ -42,18 +45,21 @@ function ResetPasswordForm() {
     if (password !== confirmPassword) {
       setError("The two passwords are different. Type the same one in both.")
       setErrorField("confirm")
+      confirmRef.current?.focus()
       return
     }
 
     if (password.length < 8) {
       setError("Use at least 8 characters.")
       setErrorField("password")
+      passwordRef.current?.focus()
       return
     }
 
     if (password.length > 72) {
       setError("Use 72 characters or fewer.")
       setErrorField("password")
+      passwordRef.current?.focus()
       return
     }
 
@@ -110,6 +116,7 @@ function ResetPasswordForm() {
 
       <form onSubmit={handleReset} className="space-y-4">
         <PasswordField
+          ref={passwordRef}
           id="password"
           name="new-password"
           label="New password"
@@ -125,6 +132,7 @@ function ResetPasswordForm() {
         />
 
         <AuthField
+          ref={confirmRef}
           id="confirm-password"
           name="confirm-password"
           label="Type it again"
