@@ -37,7 +37,7 @@ export default function GuestBoardPage({ params }: { params: Promise<{ token: st
                 </div>
                 <div className="flex items-center gap-3">
                     <MadeWithOneCamp surface="guest-board" className="hidden sm:block" />
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
                         <Eye className="h-3 w-3" /> Read only
                     </span>
                 </div>

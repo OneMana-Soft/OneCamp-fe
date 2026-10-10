@@ -49,7 +49,7 @@ function optionColorClass(color?: string): string {
 
 function Chip({ label, color }: { label: string; color?: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium ${optionColorClass(color)}`}>
+    <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-medium ${optionColorClass(color)}`}>
       {label}
     </span>
   )
@@ -161,7 +161,7 @@ export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
             sortedRows.map((row) => {
               const values = parseRowValues(row)
               return (
-                <tr key={row.id} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
+                <tr key={row.id} className="border-b border-border/60 last:border-0 transition-colors hover:bg-highlight">
                   {sortedFields.map((f) => (
                     <td key={f.id} className="px-3 py-2 align-top">
                       <CellValue field={f} value={values[f.id]} />
