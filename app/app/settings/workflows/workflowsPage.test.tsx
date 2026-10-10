@@ -27,7 +27,7 @@ describe("the settings Workflows page", () => {
   it("puts New workflow in the page's header, and the card draws no title of its own", () => {
     render(<WorkflowsSettingsPage />)
     const button = screen.getByRole("button", { name: "New workflow" })
-    expect(cardProps.last?.header).toBe(false)
+    expect(cardProps.last?.withTitle).toBe(false)
     expect(cardProps.last?.creating).toBe(false)
     fireEvent.click(button)
     expect(cardProps.last?.creating).toBe(true)
