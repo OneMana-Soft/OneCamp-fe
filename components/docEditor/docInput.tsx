@@ -42,7 +42,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useUploadFile } from '@/hooks/useUploadFile'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { SafeHtml } from '@/components/safeHtml/SafeHtml'
-import { sanitizeRichHtml } from '@/lib/sanitizeHtml'
+import { snapshotHtml } from '@/components/docEditor/snapshotHtml'
+
+/** The live editor while the saved copy stands in for it: mounted, out of the layout. */
+const HIDDEN: React.CSSProperties = { display: 'none' }
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
 import { shortTime } from '@/lib/utils/date/shortDate'
 import { useDocCounts } from '@/components/docEditor/docCounts'
@@ -689,17 +692,20 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                         {/* Until the live copy arrives (the first sync over the
                             socket, two round trips after the page shows), the
                             doc's saved text shows, read-only and drawn as the
-                            editor draws it, so opening a doc doesn't wait on the
-                            socket. The editor stays mounted underneath and takes
-                            over once it has the text. Nothing goes into the shared
-                            document: the server builds that from the same HTML. */}
+                            editor draws it (snapshotHtml gives its blocks the
+                            editor's classes, so each sits where the editor will
+                            put it), so opening a doc doesn't wait on the socket.
+                            The editor stays mounted, out of the layout, and takes
+                            the copy's place once it has the text. Nothing goes
+                            into the shared document: the server builds that from
+                            the same HTML. */}
                         {snapshot && (
                             <div
                                 aria-busy="true"
                                 data-doc-snapshot=""
                                 className={cn('minimal-tiptap-editor doc-editor flex-1', isFullWidth && 'full-width', editorContentClassName)}
                             >
-                                <SafeHtml html={value as string} sanitizer={sanitizeRichHtml} className="ProseMirror" />
+                                <SafeHtml html={value as string} sanitizer={snapshotHtml} className="ProseMirror" />
                             </div>
                         )}
                         <EditorContent
@@ -707,9 +713,13 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                             className={cn(
                                 'minimal-tiptap-editor doc-editor flex-1 cursor-text',
                                 isFullWidth && 'full-width',
-                                snapshot && 'hidden',
                                 editorContentClassName
                             )}
+                            // Inline, not the hidden class: .doc-editor's own
+                            // display: flex (minimal-tiptap/styles) is outside the
+                            // utility layer and beat it, so an empty editor sat
+                            // under the copy and jumped up when the copy went.
+                            style={snapshot ? HIDDEN : undefined}
                         />
                     </div>
                 </div>

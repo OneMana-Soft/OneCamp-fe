@@ -66,3 +66,19 @@
   margin-top: 0.25rem;
   padding-left: 1.5rem;
 }
+
+/* A checklist item in a doc's saved copy, shown until the live editor takes
+   over (docEditor/snapshotHtml.ts): a box the size and place of the editor's
+   checkbox, so the text beside it does not move when the editor arrives. */
+.minimal-tiptap-editor .ProseMirror ul.task-list li.task-item > label > .doc-snapshot-check {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+  background: var(--background);
+}
+
+.minimal-tiptap-editor .ProseMirror ul.task-list li.task-item[data-checked="true"] > label > .doc-snapshot-check {
+  border-color: var(--primary);
+  background: var(--primary);
+}
