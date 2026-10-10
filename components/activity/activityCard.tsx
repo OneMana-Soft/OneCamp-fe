@@ -1,5 +1,6 @@
 import { displayNameOf } from "@/lib/personName"
 import React, { useMemo } from "react";
+import Link from "next/link";
 import { UnifiedActivityItem } from "@/types/activity";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageSquare, AtSign } from "@/lib/icons";
@@ -12,13 +13,13 @@ import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction";
 import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
 import { cn } from "@/lib/utils/helpers/cn";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
-import { useActivityNavigation } from "@/hooks/activity/useActivityNavigation";
+import { activityHref } from "@/lib/activity/activityHref";
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { ListRow } from "@/components/ui/listRow";
 
 interface ActivityCardProps {
     activity: UnifiedActivityItem;
-    onClick: () => void;
+    onClick?: () => void;
 }
 
 interface ActivityMeta {
@@ -32,7 +33,6 @@ interface ActivityMeta {
 
 export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick }) => {
     const emojiData = useEmojiMartData();
-    const { handleNavigation } = useActivityNavigation();
 
     const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(
         GetEndpointUrl.SelfProfile,
@@ -119,10 +119,10 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         [meta.content],
     );
 
-    const handleClick = () => {
-        handleNavigation(activity, currentUserId);
-        if (onClick) onClick();
-    };
+    // A real link: it opens where the row points (lib/activity/activityHref),
+    // in a new tab on a modifier click, and next/link fetches the destination
+    // before the click.
+    const href = activityHref(activity, currentUserId);
 
     const leading = (
         <div className="relative shrink-0">
@@ -168,22 +168,25 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         </span>
     );
 
-    return (
+    const row = (
         <ListRow
             density="comfortable"
             leading={leading}
             title={titleNode}
             meta={formattedTime || undefined}
             subtitle={cleanContent || null}
-            onClick={handleClick}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleClick();
-                }
-            }}
+            className={href ? undefined : "cursor-default"}
         />
+    );
+
+    if (!href) return row;
+    return (
+        <Link
+            href={href}
+            onClick={onClick}
+            className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+        >
+            {row}
+        </Link>
     );
 };
