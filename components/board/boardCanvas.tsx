@@ -30,6 +30,7 @@ import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/li
 import { sceneSignature, whenSceneReady } from "@/lib/board/scene"
 import { collaboratorColour } from "@/components/board/boardColours"
 import "@excalidraw/excalidraw/index.css"
+import "@/components/board/excalidrawTheme.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
 import type {

@@ -1,0 +1,28 @@
+/* The board's canvas wears the app's colour theme, not Excalidraw's own
+   lavender: its selected tool, its focus, the selection around shapes and its
+   active buttons were its lavender in every theme, the one purple-blue on a
+   screen whose accent is orange (or blue, or green, as the person chose).
+   --brand resolves on <body>, where the theme class sets it, so these follow a
+   theme change live. Doubled class: Excalidraw declares its own on .excalidraw
+   and .excalidraw.theme--dark. In dark its shades run lighter, not darker. */
+.excalidraw.excalidraw {
+  --color-primary: var(--brand);
+  --color-primary-darker: color-mix(in oklab, var(--brand) 86%, black);
+  --color-primary-darkest: color-mix(in oklab, var(--brand) 74%, black);
+  --color-primary-hover: color-mix(in oklab, var(--brand) 90%, black);
+  --color-primary-light: color-mix(in oklab, var(--brand) 16%, var(--background));
+  --color-primary-light-darker: color-mix(in oklab, var(--brand) 26%, var(--background));
+  --color-surface-primary-container: color-mix(in oklab, var(--brand) 18%, var(--background));
+  --color-on-primary-container: color-mix(in oklab, var(--brand) 55%, black);
+}
+
+.excalidraw.excalidraw.theme--dark {
+  --color-primary: var(--brand);
+  --color-primary-darker: color-mix(in oklab, var(--brand) 86%, white);
+  --color-primary-darkest: color-mix(in oklab, var(--brand) 74%, white);
+  --color-primary-hover: color-mix(in oklab, var(--brand) 90%, white);
+  --color-primary-light: color-mix(in oklab, var(--brand) 22%, var(--background));
+  --color-primary-light-darker: color-mix(in oklab, var(--brand) 30%, var(--background));
+  --color-surface-primary-container: color-mix(in oklab, var(--brand) 28%, var(--background));
+  --color-on-primary-container: color-mix(in oklab, var(--brand) 45%, white);
+}
