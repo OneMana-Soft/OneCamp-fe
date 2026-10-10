@@ -9,6 +9,7 @@
 // in ("Join #general", which opens it with the message box ready) and the list
 // of channels to browse.
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
 import Link from "next/link"
@@ -35,18 +36,27 @@ export function NoChannelsYet() {
   const none = loaded && (sidenav.data?.data?.user_channels ?? []).length === 0 && (inSidebar ?? []).length === 0
   const suggested = useFetch<{ data: SuggestedChannel | null }>(none ? GetEndpointUrl.SuggestedChannel : "")
   const join = usePost()
+  const [joinFailed, setJoinFailed] = useState(false)
 
   if (!none) return null
   const channel = suggested.data?.data ?? null
 
   const joinSuggested = async () => {
     if (!channel) return
-    await join.makeRequest<ChannelJoinInterface>({
-      apiEndpoint: PostEndpointUrl.JoinChannel,
-      payload: { channel_uuid: channel.ch_uuid },
-      // Into the channel with the message box ready, as a new member lands.
-      onSuccess: () => router.push(`/app/channel/${channel.ch_uuid}?compose=1`),
-    })
+    setJoinFailed(false)
+    try {
+      await join.makeRequest<ChannelJoinInterface>({
+        apiEndpoint: PostEndpointUrl.JoinChannel,
+        payload: { channel_uuid: channel.ch_uuid },
+        // Into the channel with the message box ready, as a new member lands.
+        onSuccess: () => router.push(`/app/channel/${channel.ch_uuid}?compose=1`),
+      })
+    } catch {
+      // Said beside the button, which stays to try again. A server's own
+      // refusal also shows as its toast; a request that never arrived
+      // showed nothing at all.
+      setJoinFailed(true)
+    }
   }
 
   return (
@@ -63,6 +73,11 @@ export function NoChannelsYet() {
           <Link href="/app/channel?tab=join">Browse channels</Link>
         </Button>
       </div>
+      {joinFailed && channel && (
+        <p role="alert" className="mt-2 text-xs font-medium text-danger-ink">
+          Couldn&apos;t join #{channel.ch_name}. Try again.
+        </p>
+      )}
     </section>
   )
 }

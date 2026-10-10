@@ -66,3 +66,14 @@ describe("Home for a member in no channel", () => {
     expect(fetched.urls.every((u) => u === "")).toBe(true)
   })
 })
+
+describe("joining the suggested channel fails", () => {
+  it("says so beside the button, which stays to try again", async () => {
+    join.makeRequest.mockReset().mockRejectedValue(new Error("Network Error"))
+    render(<NoChannelsYet />)
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Join #general" })))
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't join #general. Try again.")
+    expect(router.push).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Join #general" })).toBeEnabled()
+  })
+})
