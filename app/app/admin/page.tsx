@@ -5,8 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import UserCard from "@/components/admin/userCard"
-import { SectionJumps } from "@/components/admin/SectionJumps"
+import { SectionJumpMenu } from "@/components/admin/SectionJumps"
 import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { AdminScrollContext } from "@/components/admin/adminScroll"
@@ -200,7 +201,14 @@ const AI_JUMPS = [
 
 const AdminPage = () => {
   const searchParams = useSearchParams()
-  const {isDesktop } = useMedia();
+  const { isDesktop, isTablet } = useMedia()
+  // The side menu needs room beside the content, so it starts at lg. It used to
+  // start at sm, but the menu and the content only sat side by side from lg: on
+  // a tablet or a half-width window (640 to 1023px) the 19-item menu, 920px
+  // tall, stacked above every tab, so the first member was at y 1090, and being
+  // sticky it stayed pinned over the content as it scrolled. Below lg the
+  // section picker is the platform's own select, as on a phone.
+  const sideMenu = isDesktop && !isTablet
   const { toast } = useToast()
   // Two tabs exist only when the server has the subsystem behind them, and the
   // page cannot know that until the config request answers. It used to read the
@@ -245,11 +253,22 @@ const AdminPage = () => {
   const processed = useRef(false)
   // The page's one scroller, for lists that draw only the rows in view.
   const scrollRef = useRef<HTMLDivElement>(null)
-  // Groups with at least one tab this server offers, in menu order.
-  const visibleGroups = TAB_GROUPS.map((g) => ({
+  // What the server has said about a section's subsystem: AI & agents and
+  // Transcription exist only on servers that have AI and calls.
+  const gateOf = (value: string) => (value === "ai-models" ? aiState : value === "transcription" ? callsState : "available")
+  // Groups in menu order, with every section this server offers, and a held
+  // place for one it hasn't answered about yet. The two gated sections used to
+  // join the menu only when the config answered, pushing Connections and System
+  // 72px down under the pointer.
+  const menuGroups = TAB_GROUPS.map((g) => ({
     ...g,
-    tabs: g.tabs.filter((t) => visibleTabs.some((v) => v.value === t.value)),
+    tabs: g.tabs.filter((t) => gateOf(t.value) !== "unavailable"),
   })).filter((g) => g.tabs.length > 0)
+  // While a deep link waits on that answer, nothing is chosen yet: the menu is
+  // drawn, no section is marked, and the content holds a section's skeleton.
+  const shownTab = waitingOnRequestedTab ? requestedTab : activeTab
+  // The jumps of the open section, when it is long enough to have them.
+  const jumps = shownTab === "ai-models" && !waitingOnRequestedTab ? AI_JUMPS : null
 
   // Choosing a section updates the address, so a refresh or Back returns here.
   // replaceState rather than the router: the page is already showing the tab.
@@ -309,22 +328,27 @@ const AdminPage = () => {
       id="main-content"
       className="flex flex-col h-full min-h-0 bg-background"
     >
-      {/* Header: desktop only. A phone's top bar already says Admin, and the
-          section picker below is the first thing that is needed there. */}
+      {/* Header: from sm up. A phone's top bar already says Admin, and the
+          section picker below is the first thing that is needed there. A long
+          section's jumps sit here, in view however far it scrolls. */}
       {isDesktop && (
       <div className="shrink-0 border-b border-border px-4 py-5 sm:px-6 lg:px-8">
-        <PageHeader eyebrow="Workspace" title="Admin" className="mx-auto w-full max-w-6xl" />
+        <PageHeader
+          eyebrow="Workspace"
+          title="Admin"
+          className="mx-auto w-full max-w-6xl"
+          actions={jumps ? <SectionJumpMenu jumps={jumps} /> : undefined}
+        />
       </div>
       )}
 
-      {/* Content */}
-      {waitingOnRequestedTab ? (
-        <div role="status" aria-label="Loading admin settings" className="flex-1 min-h-0" />
-      ) : (
+      {/* Content. The menu is always drawn; while a deep link to a gated
+          section waits on the server, the content holds a section's skeleton
+          and no section is marked, rather than opening on Members and moving. */}
       <Tabs
-        value={activeTab}
+        value={shownTab}
         onValueChange={chooseTab}
-        orientation={isDesktop ? "vertical" : "horizontal"}
+        orientation={sideMenu ? "vertical" : "horizontal"}
         className="flex-1 min-h-0 flex flex-col"
       >
         {/* Per-tab content. THIS IS THE ONLY SCROLL CONTAINER ON THE PAGE.
@@ -349,14 +373,14 @@ const AdminPage = () => {
           <AdminScrollContext.Provider value={scrollRef}>
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
-              {isDesktop ? (
+              {sideMenu ? (
                 // Sticky within the one scroller rather than a second scroller of
                 // its own: the whole menu fits, and one scrollbar keeps one meaning.
                 <TabsList
                   aria-label="Admin sections"
                   className="sticky top-0 flex h-auto w-52 shrink-0 flex-col items-stretch gap-0.5 rounded-none bg-transparent p-0"
                 >
-                  {visibleGroups.map((group, gi) => (
+                  {menuGroups.map((group, gi) => (
                     <React.Fragment key={group.label}>
                       <p
                         role="presentation"
@@ -368,7 +392,19 @@ const AdminPage = () => {
                       >
                         {group.label}
                       </p>
-                      {group.tabs.map(({ value, label, icon: Icon }) => (
+                      {group.tabs.map(({ value, label, icon: Icon }) =>
+                        gateOf(value) === "unknown" ? (
+                          // Its place, held at a row's height until the server says.
+                          <div
+                            key={value}
+                            aria-hidden="true"
+                            data-menu-placeholder=""
+                            className="flex items-center gap-2.5 rounded-md px-3 py-1.5"
+                          >
+                            <Skeleton className="size-6 shrink-0 rounded-md" />
+                            <Skeleton className="h-3.5 w-24" />
+                          </div>
+                        ) : (
                         <TabsTrigger
                           key={value}
                           value={value}
@@ -388,34 +424,43 @@ const AdminPage = () => {
                           </Tile>
                           {label}
                         </TabsTrigger>
-                      ))}
+                        ),
+                      )}
                     </React.Fragment>
                   ))}
                 </TabsList>
               ) : (
-                // A phone gets the platform's own picker, grouped the same way:
-                // seventeen tabs do not fit a strip at this width, and a native
-                // select is the control every phone already knows.
-                <label className="mb-5 block">
-                  <span className="sr-only">Admin section</span>
-                  <select
-                    value={activeTab}
-                    onChange={(e) => chooseTab(e.target.value)}
-                    className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-medium"
-                  >
-                    {visibleGroups.map((group) => (
-                      <optgroup key={group.label} label={group.label}>
-                        {group.tabs.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
+                // Below lg the platform's own picker, grouped the same way: the
+                // menu does not fit beside the content there, and a native select
+                // is the control every phone already knows. On a phone, a long
+                // section's jumps sit beside it at its height.
+                <div className="mb-5 flex items-center gap-2">
+                  <label className="min-w-0 flex-1">
+                    <span className="sr-only">Admin section</span>
+                    <select
+                      value={shownTab}
+                      onChange={(e) => chooseTab(e.target.value)}
+                      className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-medium"
+                    >
+                      {menuGroups.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.tabs.map((t) => (
+                            <option key={t.value} value={t.value} disabled={gateOf(t.value) === "unknown"}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                  {!isDesktop && jumps && <SectionJumpMenu compact jumps={jumps} />}
+                </div>
               )}
               <div className="min-w-0 flex-1">
+              {waitingOnRequestedTab ? (
+                <AdminCardSkeleton />
+              ) : (
+              <>
               <TabsContent value="teams" className="mt-0 outline-none">
                 <TeamsCard />
               </TabsContent>
@@ -493,7 +538,6 @@ const AdminPage = () => {
               {aiAvailable && (
               <TabsContent value="ai-models" className="mt-0 outline-none">
                 <div className={ADMIN_SECTION_STACK}>
-                  <SectionJumps jumps={AI_JUMPS} />
                   <section id="ai-models-models" className="scroll-mt-4"><AIModelsCard /></section>
                   {/* Right after the allowlist, because routing chooses from it. */}
                   <section id="ai-models-routing" className="scroll-mt-4"><ModelRoutingCard /></section>
@@ -542,13 +586,14 @@ const AdminPage = () => {
                   <ImportCard />
                 </div>
               </TabsContent>
+              </>
+              )}
               </div>
             </div>
           </div>
           </AdminScrollContext.Provider>
         </div>
       </Tabs>
-      )}
     </main>
   )
 }
