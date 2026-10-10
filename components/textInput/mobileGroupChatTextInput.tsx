@@ -1,6 +1,6 @@
 "use client"
 
-import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
+import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";

@@ -1,6 +1,6 @@
 "use client"
 
-import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
+import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholders";
 import { displayNameOf } from "@/lib/personName";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";

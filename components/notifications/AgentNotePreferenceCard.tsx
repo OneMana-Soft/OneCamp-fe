@@ -6,7 +6,7 @@
  */
 
 import * as React from "react"
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { getAgentNoteEnabled, setAgentNoteEnabled } from "@/services/agentNoteService"

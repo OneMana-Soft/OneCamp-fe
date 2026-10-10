@@ -7,7 +7,7 @@
  */
 
 import * as React from "react"
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance from "@/lib/axiosInstance"

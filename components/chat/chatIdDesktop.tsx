@@ -1,5 +1,5 @@
 import { useOpenBeside } from "@/hooks/useSplitView";
-import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
+import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholders";
 import { displayNameOf } from "@/lib/personName";
 import { useMedia } from "@/context/MediaQueryContext";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";

@@ -1,6 +1,6 @@
 "use client"
 
-import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
+import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
