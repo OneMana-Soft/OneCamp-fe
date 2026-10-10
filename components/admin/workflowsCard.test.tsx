@@ -76,7 +76,7 @@ describe("workflows", () => {
   // one action; the card repeated both under it.
   it("draws no title and no button of its own on a settings page, and opens the editor when the page asks", () => {
     fetchState.value = { data: { data: [wf] }, isLoading: false, isError: undefined, mutate: vi.fn() }
-    render(<WorkflowsCard header={false} creating={false} onCreatingChange={() => {}} />)
+    render(<WorkflowsCard withTitle={false} creating={false} onCreatingChange={() => {}} />)
     expect(screen.queryByRole("heading", { name: "Workflows" })).toBeNull()
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull()
     expect(screen.getByRole("switch", { name: "Run Bug triage" })).toBeTruthy()

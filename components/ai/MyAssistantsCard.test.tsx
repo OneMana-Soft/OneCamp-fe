@@ -24,13 +24,13 @@ afterEach(() => {
 describe("MyAssistantsCard", () => {
   it("says so when the workspace keeps outside assistants out, and offers no steps", () => {
     state.open = false
-    render(<MyAssistantsCard />)
+    render(<MyAssistantsCard withTitle={false} />)
     expect(screen.getByText(/has not let outside assistants into this workspace/)).toBeTruthy()
     expect(screen.queryByRole("tablist")).toBeNull()
   })
 
   it("leads with named assistants and shows steps for the one picked", () => {
-    render(<MyAssistantsCard />)
+    render(<MyAssistantsCard withTitle={false} />)
     const tabs = screen.getAllByRole("tab")
     expect(tabs.slice(0, 3).map((t) => t.textContent)).toEqual(["ChatGPT", "Claude & Cowork", "Grok Bot"])
     expect(tabs[tabs.length - 1].textContent).toBe("Any MCP client")
@@ -42,7 +42,7 @@ describe("MyAssistantsCard", () => {
     state.connections = [
       { id: "g1", client_name: "ChatGPT", agent_id: "a1", agent_name: "Priya's ChatGPT", scopes: ["tasks:read"], created_at: new Date().toISOString() },
     ]
-    render(<MyAssistantsCard />)
+    render(<MyAssistantsCard withTitle={false} />)
     expect(screen.getByText(/acting as Priya's ChatGPT/)).toBeTruthy()
     expect(screen.getByText(/not used yet/)).toBeTruthy()
 
@@ -59,7 +59,7 @@ describe("MyAssistantsCard", () => {
   // It was a bordered Card titled "Your AI assistants" again under the page's
   // h1 of the same name, at 18px with a bare icon.
   it("is flat sections under the page's title, with no card and no second title", () => {
-    const { container } = render(<MyAssistantsCard />)
+    const { container } = render(<MyAssistantsCard withTitle={false} />)
     expect(screen.queryByRole("heading", { name: "Your AI assistants" })).toBeNull()
     expect(container.querySelector(".rounded-xl.border")).toBeNull()
     expect(screen.getByRole("heading", { level: 2, name: "Connect an assistant" })).toBeTruthy()
@@ -70,7 +70,7 @@ describe("MyAssistantsCard", () => {
   // two false things, and no way to try again.
   it("says it couldn't load, with Try again, before saying anything about the workspace or the list", () => {
     state.error = { response: { status: 503, data: { msg: "The assistants could not be read." } } }
-    render(<MyAssistantsCard />)
+    render(<MyAssistantsCard withTitle={false} />)
     expect(screen.getByText("Couldn't load your AI assistants")).toBeTruthy()
     expect(screen.getByText("The assistants could not be read.")).toBeTruthy()
     expect(screen.queryByText(/has not let outside assistants/)).toBeNull()
@@ -81,7 +81,7 @@ describe("MyAssistantsCard", () => {
 
   // The promises' icons were orange, the colour of the one action.
   it("draws the promises on the section's tiles, nothing in orange, no box around each", () => {
-    const { container } = render(<MyAssistantsCard />)
+    const { container } = render(<MyAssistantsCard withTitle={false} />)
     expect(container.querySelector("svg.text-primary")).toBeNull()
     const promise = screen.getByText("It acts as you").closest("li") as HTMLElement
     expect(promise.className).not.toMatch(/\bborder\b/)
@@ -89,7 +89,7 @@ describe("MyAssistantsCard", () => {
   })
 
   it("says nothing is connected as the empty state on the section's tile, inside the list's box", () => {
-    render(<MyAssistantsCard />)
+    render(<MyAssistantsCard withTitle={false} />)
     const none = screen.getByText("Nothing connected yet")
     expect(none.closest(".rounded-lg.border")).toBeTruthy()
   })

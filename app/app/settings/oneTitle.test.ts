@@ -13,11 +13,13 @@ describe("a settings section names itself once", () => {
     ["app/app/settings/workflows/page.tsx", "components/admin/WorkflowsCard.tsx", "Workflows"],
     ["app/app/settings/assistants/page.tsx", "components/ai/MyAssistantsCard.tsx", "Your AI assistants"],
   ])("%s", (page, card, name) => {
-    expect(read(page)).toMatch(/<SectionHeader /)
+    expect(read(page)).toMatch(/<SectionHeader\s/)
     expect(read(page)).toMatch(/withTitle=\{false\}/)
     const src = read(card)
     // The card's own title is drawn only when it's asked for.
-    const title = src.indexOf(`${name}\n`) >= 0 ? src.lastIndexOf("withTitle &&", src.indexOf(name)) : src.lastIndexOf("withTitle &&", src.indexOf(`>${name}<`))
-    expect(title).toBeGreaterThan(0)
+    // Either a guarded title, or a variant that returns before drawing one.
+    const guarded = src.lastIndexOf("withTitle &&", src.indexOf(`>${name}<`)) > 0
+    const earlyReturn = /if \(!withTitle\) \{[\s\S]{0,200}return/.test(src)
+    expect(guarded || earlyReturn).toBe(true)
   })
 })
