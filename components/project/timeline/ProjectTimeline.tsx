@@ -537,15 +537,18 @@ export function ProjectTimeline({
             {/* Weekends, week lines, today and where a dragged task would land. */}
             <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: nameWidth, width: gridWidth }}>
               {weekShade && (
+                // One quiet step for weekends: at 70% of --muted they striped
+                // the whole chart, loudest in dark mode, where muted is a
+                // full surface step above the page.
                 <div
-                  className="absolute inset-0 opacity-70"
+                  className="absolute inset-0 opacity-50 dark:opacity-40"
                   style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${5 * dayWidth}px, var(--muted) ${5 * dayWidth}px ${7 * dayWidth}px)` }}
                 />
               )}
-              {gridLines?.map((left) => <div key={left} className="absolute inset-y-0 w-px bg-border/60" style={{ left }} />)}
+              {gridLines?.map((left) => <div key={left} className="absolute inset-y-0 w-px bg-border/50" style={{ left }} />)}
               {dropBox && <div className="absolute inset-y-0 border-x border-dashed border-primary bg-primary/10" style={dropBox} />}
               {todayLeft >= 0 && todayLeft < gridWidth && (
-                <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-primary/70" style={{ left: todayLeft + dayWidth / 2 }} />
+                <div className="absolute inset-y-0 w-px bg-primary" style={{ left: todayLeft + dayWidth / 2 }} />
               )}
             </div>
 
@@ -581,12 +584,12 @@ export function ProjectTimeline({
               const top = item.start - HEADER_HEIGHT
               if (row.kind === "group") {
                 return (
-                  <div key={row.key} className="absolute left-0 flex border-b bg-muted/40" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
+                  <div key={row.key} className="absolute left-0 flex border-b border-border/60 bg-muted/30" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
                     <button
                       type="button"
                       aria-expanded={!row.collapsed}
                       onClick={() => toggleGroup(row.id)}
-                      className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r bg-muted px-2 text-left text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r bg-muted px-2 text-left text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                       style={{ width: nameWidth }}
                     >
                       {row.collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
@@ -625,6 +628,7 @@ export function ProjectTimeline({
                       left={box.left}
                       width={box.width}
                       color={barColor(task, statuses)}
+                      mark={dotColor(task, statuses)}
                       label={spanLabel(span, today)}
                       dragLabel={moving ? spanLabel(span, today) : undefined}
                       late={!moving && isLate(task, today)}

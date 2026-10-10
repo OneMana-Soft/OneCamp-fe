@@ -21,7 +21,7 @@ import {
   startOfYear,
 } from "date-fns"
 import { NO_ASSIGNEE, groupByAssignee } from "@/lib/board/groupBy"
-import { isClosedStatus, statusOptionOf, type StatusCategory, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
+import { colorDot, isClosedStatus, statusOptionOf, type StatusCategory, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
 import { endsOf, wayKept, wayOf, type DependencyFacets } from "@/lib/tasks/dependency"
 
 /** A task as GET /project/{id}/timeline sends it. */
@@ -412,65 +412,38 @@ type TimelineRow =
   | { kind: "task"; key: string; task: TimelineTask; span: Span }
 
 /**
- * A bar's colour: its status's, as the board's chips have it, with a fill
- * and text that read at 4.5:1 or better (WCAG AA for the 12 px name): white
- * on the darker fills, near-black on the light ones. Done is a pale fill, so
- * finished work steps back without fading its name. Literal classes, so the
- * stylesheet keeps them.
+ * A bar's fill: one neutral graphite step for every status, so a timeline of
+ * twenty tasks is not twenty saturated blocks in five hues. The status is
+ * carried by the dot beside the task's name and the mark at the bar's start
+ * (barMark); finished work steps back to a fainter fill and muted name. Both
+ * fills hold the name at well over 4.5:1 in light and dark.
  */
-const BAR: Record<StatusCategory, string> = {
-  backlog: "bg-zinc-400 text-zinc-950",
-  todo: "bg-slate-500 text-white",
-  inProgress: "bg-blue-600 text-white",
-  inReview: "bg-amber-500 text-zinc-950",
-  done: "bg-emerald-200 text-emerald-950 dark:bg-emerald-900 dark:text-emerald-50",
-  canceled: "bg-rose-600 text-white",
-}
+const BAR_OPEN = "bg-muted-foreground/25 text-foreground dark:bg-muted-foreground/35"
+const BAR_DONE = "bg-muted-foreground/10 text-muted-foreground"
 
-/** A project's own status's bar, by its palette colour (lib/taskStatus STATUS_COLORS). */
-const HUE: Record<string, string> = {
-  slate: "bg-slate-500 text-white",
-  red: "bg-red-600 text-white",
-  orange: "bg-orange-500 text-zinc-950",
-  amber: "bg-amber-500 text-zinc-950",
-  yellow: "bg-yellow-500 text-zinc-950",
-  lime: "bg-lime-500 text-zinc-950",
-  green: "bg-green-500 text-zinc-950",
-  emerald: "bg-emerald-500 text-zinc-950",
-  teal: "bg-teal-500 text-zinc-950",
-  cyan: "bg-cyan-500 text-zinc-950",
-  sky: "bg-sky-500 text-zinc-950",
-  blue: "bg-blue-600 text-white",
-  indigo: "bg-indigo-600 text-white",
-  violet: "bg-violet-600 text-white",
-  purple: "bg-purple-600 text-white",
-  pink: "bg-pink-600 text-white",
-  rose: "bg-rose-600 text-white",
-}
-
-/** A status's dot, beside a task's name and a group's: the full colour, done's included. */
+/** A built-in status's dot: the status tokens the task list's dots use (types/table). */
 const DOT: Record<StatusCategory, string> = {
-  backlog: "bg-zinc-400",
-  todo: "bg-slate-500",
-  inProgress: "bg-blue-600",
-  inReview: "bg-amber-500",
-  done: "bg-emerald-500",
-  canceled: "bg-rose-600",
+  backlog: "bg-faint-foreground",
+  todo: "bg-muted-foreground",
+  inProgress: "bg-info",
+  inReview: "bg-warning",
+  done: "bg-success",
+  canceled: "bg-faint-foreground",
 }
 
 /** A status's colour on the timeline: a bar's fill and text. */
 function statusColor(o: StatusOption | undefined): string {
-  if (o?.custom) return HUE[o.swatch ?? "slate"] ?? HUE.slate
-  return BAR[o?.category ?? "todo"] ?? BAR.todo
+  const category = o?.category ?? "todo"
+  return category === "done" || category === "canceled" ? BAR_DONE : BAR_OPEN
 }
 
-/** A status's dot. */
+/** A status's dot: a project's own status in the colour its admins chose. */
 function statusDot(o: StatusOption | undefined): string {
-  if (o?.custom) return HUE[o.swatch ?? "slate"] ?? HUE.slate
+  if (o?.custom) return colorDot(o.swatch ?? "slate")
   return DOT[o?.category ?? "todo"] ?? DOT.todo
 }
 
-/** A bar's colour: its status's. */
+/** A bar's fill and text: neutral, quieter once done. */
 export const barColor = (t: TaskStatusFields, options: StatusOption[]) => statusColor(statusOptionOf(t, options))
 
 /** The dot beside a task's name: its status's. */
