@@ -38,12 +38,14 @@ import {
 import { withAI } from "@/components/common/withFeature"
 import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tile } from "@/components/ui/graphics/Tile"
+import type { CampHue } from "@/lib/campHue"
 import { dueLabel } from "@/lib/utils/dueLabel"
 
-// Per-source icon so each row's origin is recognisable at a glance. The icon
-// does that alone; colour is kept for the one row type that waits on you (an
-// approval). Every task used to carry a red icon whether or not it was late,
-// which read as an error; lateness is said in words, in red, on the row itself.
+// Per-source icon so each row's origin is recognisable at a glance, on a tile
+// of the source's camp hue. The hue names the kind of thing, never its state:
+// lateness is said in words, in red, on the row itself (every task used to
+// carry a red icon whether or not it was late, which read as an error).
 const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   approval: Inbox,
   task: CircleCheck,
@@ -51,8 +53,12 @@ const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   question: HelpCircle,
   calendar: Calendar,
 }
-const SOURCE_TINT: Record<string, string> = {
-  approval: "text-primary",
+const SOURCE_HUE: Record<string, CampHue> = {
+  approval: "sun",
+  task: "moss",
+  commitment: "dusk",
+  question: "berry",
+  calendar: "sky",
 }
 
 function AttentionCard() {
@@ -160,7 +166,7 @@ function AttentionCard() {
     return (
       <div className="ai-panel" role="status">
         <div className="ai-panel-head">
-          <CircleCheck className="h-4 w-4 shrink-0 text-success-ink" strokeWidth={1.75} aria-hidden="true" />
+          <Tile hue="moss" size="sm"><CircleCheck strokeWidth={1.75} /></Tile>
           <h2 className="text-sm font-medium text-foreground">Nothing needs you right now</h2>
         </div>
         <p className="px-4 pb-3 text-xs text-muted-foreground">
@@ -184,15 +190,15 @@ function AttentionCard() {
   return (
     <div className="ai-panel">
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+        <Tile hue="sun" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
-        <span className="text-xs text-muted-foreground">{items.length}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
       </div>
 
       <ul className="divide-y divide-border/40">
         {items.map((it, i) => {
           const Icon = SOURCE_ICON[it.source] || Sparkles
-          const tint = SOURCE_TINT[it.source] || "text-muted-foreground"
+          const hue = SOURCE_HUE[it.source] ?? "lake"
           const clickable = !!it.url
           const overdue = it.kind.toLowerCase().startsWith("overdue")
           // Said once and in the reader's zone when the exact moment is known;
@@ -202,7 +208,7 @@ function AttentionCard() {
           const rowBusy = it.ref_id ? !!busy[it.ref_id] : false
           const Row = (
             <span className="w-full text-left flex items-start gap-2.5 px-4 py-2.5 hover:bg-accent/40 transition-colors">
-              <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${tint}`} />
+              <Tile hue={hue} size="sm" className="-mt-0.5"><Icon /></Tile>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm leading-snug truncate">{it.title}</span>
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
@@ -230,7 +236,7 @@ function AttentionCard() {
             return (
               <li key={`${it.source}-${it.ref_id || i}`}>
                 <div className="flex items-start gap-1.5 px-4 py-2.5">
-                  <Inbox className={`h-4 w-4 mt-0.5 shrink-0 ${tint}`} />
+                  <Tile hue="sun" size="sm" className="-mt-0.5"><Inbox /></Tile>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-snug">{it.title}</span>
                     <span className="text-2xs text-muted-foreground">{it.subtitle || it.kind}</span>
@@ -300,11 +306,11 @@ function AttentionCardSkeleton() {
   return (
     <div className="ai-panel" role="status" aria-label="Loading what needs you">
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+        <Tile hue="sun" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
       </div>
       <div className="flex items-start gap-2.5 px-4 py-2.5">
-        <Skeleton className="h-4 w-4 mt-0.5 rounded-full" />
+        <Skeleton className="-mt-0.5 size-6 rounded-md" />
         <span className="flex-1 space-y-1.5">
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="h-3 w-1/3" />

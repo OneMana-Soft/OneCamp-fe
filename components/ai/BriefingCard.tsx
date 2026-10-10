@@ -36,6 +36,7 @@ import {
   Mail,
 } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
+import { Tile } from "@/components/ui/graphics/Tile"
 import { localDay } from "@/lib/utils/timeZone"
 
 interface SelfProfile {
@@ -186,7 +187,7 @@ function BriefingCard() {
   return (
     <div className="ai-panel">
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+        <Tile hue="lake" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">Your briefing</h2>
         <button
           type="button"

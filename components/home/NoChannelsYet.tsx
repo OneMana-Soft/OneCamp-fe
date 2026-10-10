@@ -15,11 +15,15 @@ import { useSelector } from "react-redux"
 import Link from "next/link"
 import { RootState } from "@/store/store"
 import { Button } from "@/components/ui/button"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { Hash } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { ChannelJoinInterface } from "@/types/channel"
+import { cn } from "@/lib/utils/helpers/cn"
+import { homeGap, homeInset } from "@/components/home/homeLines"
 
 interface SuggestedChannel {
   ch_uuid: string
@@ -60,7 +64,10 @@ export function NoChannelsYet() {
   }
 
   return (
-    <section aria-labelledby="no-channels-title" className="rounded-lg border border-border/60 p-4">
+    // On Home's two lines (homeLines), as every other Home card.
+    <section aria-labelledby="no-channels-title" className={cn("hover-lift flex items-start rounded-lg border border-border/60 py-4", homeInset, homeGap)}>
+      <Tile hue="sky" size="sm" className="-mt-0.5"><Hash strokeWidth={1.75} /></Tile>
+      <div className="min-w-0">
       <h2 id="no-channels-title" className="text-sm font-semibold">You&apos;re not in any channels yet</h2>
       <p className="mt-1 text-sm text-muted-foreground">Channels are where your team talks. Join one to see what&apos;s going on.</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -78,6 +85,7 @@ export function NoChannelsYet() {
           Couldn&apos;t join #{channel.ch_name}. Try again.
         </p>
       )}
+      </div>
     </section>
   )
 }

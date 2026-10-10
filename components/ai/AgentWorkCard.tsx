@@ -3,6 +3,7 @@
 import { Bot } from "@/lib/icons"
 
 import { withAI } from "@/components/common/withFeature"
+import { Tile } from "@/components/ui/graphics/Tile"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { type AgentOutcome, sumOutcomes } from "@/services/agentService"
@@ -57,7 +58,7 @@ function AgentWorkCardInner() {
     return (
         <section className="ai-panel" aria-labelledby="agent-work-heading">
             <div className="ai-panel-head">
-                <Bot className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+                <Tile hue="dusk" size="sm"><Bot strokeWidth={1.75} /></Tile>
                 <h2 id="agent-work-heading" className="text-sm font-medium text-foreground">
                     Your agents
                 </h2>

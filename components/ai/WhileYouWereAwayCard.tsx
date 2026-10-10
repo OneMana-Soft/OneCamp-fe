@@ -47,6 +47,7 @@ import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tile } from "@/components/ui/graphics/Tile"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { useCatchUp } from "@/services/aiService"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -174,7 +175,7 @@ function WhileYouWereAwayCard({
       aria-labelledby="away-recap-heading"
     >
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+        <Tile hue="sky" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 id="away-recap-heading" className="text-sm font-medium text-foreground">
           While you were away
         </h2>
@@ -254,7 +255,7 @@ function AwaySkeleton() {
   return (
     <section className="ai-panel" role="status" aria-label="Loading your recap">
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+        <Tile hue="sky" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">While you were away</h2>
       </div>
       <div className="flex items-center gap-3 px-4 py-3.5">
