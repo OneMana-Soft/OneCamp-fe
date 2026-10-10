@@ -14,7 +14,7 @@ afterEach(() => cleanup())
 describe("the workspace menu", () => {
   it("sets Teams, Projects and Admin on tiles in their places' hues", () => {
     render(<OrgDrawer drawerOpenState={true} setOpenState={() => {}} />)
-    for (const [name, path] of [["Teams", "/app/team"], ["Projects", "/app/project"], ["Admin control", "/app/admin"]]) {
+    for (const [name, path] of [["Teams", "/app/team"], ["Projects", "/app/project"], ["Admin", "/app/admin"]]) {
       const tile = screen.getByRole("button", { name: new RegExp(`^${name}`) }).querySelector("span[aria-hidden='true']")
       expect(tile?.className, name).toContain(`hue-${destinationHue(path)}`)
     }

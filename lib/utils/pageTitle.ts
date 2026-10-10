@@ -21,7 +21,7 @@ const SECTIONS: Record<string, string> = {
   channel: "Channels",
   chat: "DMs",
   inbox: "Inbox",
-  myTask: "My Tasks",
+  myTask: "My tasks",
   task: "Task",
   activity: "Activity",
   later: "Later",

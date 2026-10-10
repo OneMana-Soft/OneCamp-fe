@@ -11,7 +11,7 @@ describe("pageTitle", () => {
   })
   it("falls back to the section, and to the product", () => {
     expect(pageTitle("/app/channel/unknown", lookups)).toBe("Channels · OneCamp")
-    expect(pageTitle("/app/myTask")).toBe("My Tasks · OneCamp")
+    expect(pageTitle("/app/myTask")).toBe("My tasks · OneCamp")
     expect(pageTitle("/app/something-new")).toBe("OneCamp")
   })
   it("counts what is waiting for you", () => {

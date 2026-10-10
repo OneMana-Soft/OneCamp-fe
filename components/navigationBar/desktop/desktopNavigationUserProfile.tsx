@@ -97,7 +97,7 @@ export default function DesktopNavigationUserProfile() {
                 <DropdownMenuItem
                     onClick={logout}
                 >
-                    Log out
+                    Sign out
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
