@@ -35,12 +35,21 @@ const CardHeader = React.forwardRef<
 ))
 CardHeader.displayName = "CardHeader"
 
+/**
+ * A card's title. A div by default, as before. Pass `as="h2" | "h3" | "h4"`
+ * when the card is a section of the page, so the title is a heading a
+ * screen-reader user can jump to and the outline stays in order. The look
+ * does not change with the level (h2 and h3 pick up the display face, as
+ * every heading does).
+ */
 const CardTitle = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
+  React.HTMLAttributes<HTMLDivElement> & { as?: "div" | "h2" | "h3" | "h4" }
+>(({ className, as: Tag = "div", ...props }, ref) => (
+  <Tag
+    // The ref type stays HTMLDivElement so existing callers' refs still
+    // type-check; at runtime it is whichever element was rendered.
+    ref={ref as React.Ref<HTMLDivElement & HTMLHeadingElement>}
     className={cn("font-medium leading-none", className)}
     {...props}
   />
