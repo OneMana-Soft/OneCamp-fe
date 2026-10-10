@@ -6,19 +6,28 @@ import { cn } from "@/lib/utils/helpers/cn"
 
 // States, in one place: hover is a fill step, press settles the button down a
 // pixel (feedback that the click landed, without a scale that blurs the
-// label), keyboard focus is the accent ring with a gap so it reads on a
-// filled button too, and disabled fades. aria-busy (a caller's loading state)
+// label), keyboard focus is the accent ring, and disabled fades.
+//
+// Focus on a FILLED button (default, destructive) is a thin outline standing
+// 2px off the fill instead. A 2px ring pressed against an orange fill read as
+// one thick orange slab, most visibly on the primary button a dialog opens
+// with. The gap is what makes the ring read as a ring (web-design-guidelines:
+// visible focus; WCAG 2.4.7), and 1.5px keeps it from shouting. Outline, not
+// box-shadow, so forced-colours mode still draws it. aria-busy (a caller's loading state)
 // dims the label and blocks a second press while the request runs.
 // Timing is the house default (120ms, see globals.css), on named properties.
+const FILLED_FOCUS =
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-solid focus-visible:outline-[1.5px] focus-visible:outline-offset-2"
+
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,opacity,transform] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90",
+          "bg-primary text-primary-foreground hover:bg-primary/90 " + FILLED_FOCUS + " focus-visible:outline-ring",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 " + FILLED_FOCUS + " focus-visible:outline-destructive",
         outline:
           "border border-input bg-background hover:bg-highlight hover:text-accent-foreground",
         secondary:
