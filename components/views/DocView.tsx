@@ -508,7 +508,9 @@ export function DocView({ docId }: { docId: string }) {
                         className='w-full h-full'
                         editorContentClassName="pb-8"
                         output="html"
-                        onChange={handleBodyChange}
+                        // A collaborative doc is saved through its socket, so
+                        // the editor need not turn it into HTML at all.
+                        onChange={collaborationConfig?.enabled ? undefined : handleBodyChange}
                         value={docInfo.doc_body}
                         editable={hasEditAccess}
                         editorClassName="focus:outline-none"

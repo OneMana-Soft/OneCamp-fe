@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from 'react'
-import type { Editor } from '@tiptap/react'
+import { useEditorState, type Editor } from '@tiptap/react'
 import type { Level } from '@tiptap/extension-heading'
 import type { FormatAction } from '../../types'
 import type { VariantProps } from 'class-variance-authority'
@@ -76,6 +76,15 @@ interface SectionOneProps extends VariantProps<typeof toggleVariants> {
 
 export const SectionOne: React.FC<SectionOneProps> = React.memo(
   ({ editor, activeLevels = [1, 2, 3, 4, 5, 6], size, variant }) => {
+    // Follows the caret's block itself: the editor's frame does not render
+    // again on every keystroke (see docInput), so reading the editor while
+    // rendering would show the block the caret was in when it last did.
+    // Renders only when the block under the caret changes.
+    useEditorState({
+      editor,
+      selector: ({ editor: e }) =>
+        `${e.isActive('heading') ? e.getAttributes('heading').level ?? 0 : 'p'}${e.isActive('codeBlock') ? 'c' : ''}`
+    })
     const filteredActions = React.useMemo(
       () => formatActions.filter(action => !action.level || activeLevels.includes(action.level)),
       [activeLevels]

@@ -44,6 +44,27 @@ import ReferenceMentionNodeView from '../extensions/reference-mention/ReferenceM
 import { makeReferenceSuggestion } from '../extensions/reference-mention/referenceMentionList'
 import { RecordingEmbed } from '../extensions/recording-embed/recording-embed'
 import { ChartEmbed } from '../extensions/chart-embed/chart-embed'
+import { hueFor } from '@/lib/campHue'
+import { HUE_CLASS } from '@/components/ui/graphics/hues'
+
+/** A collaborator as their awareness state describes them (their colour is ignored). */
+type CollaboratorUser = { id?: string; name?: string; [field: string]: unknown }
+
+/** Someone else's caret and name tag: their identity hue, by their id. */
+export function collaboratorCaret(user: CollaboratorUser): HTMLElement {
+  const caret = document.createElement('span')
+  caret.className = `collaboration-cursor__caret ${HUE_CLASS[hueFor(user.id || user.name)]}`
+  const label = document.createElement('div')
+  label.className = 'collaboration-cursor__label'
+  label.textContent = user.name || ''
+  caret.append(label)
+  return caret
+}
+
+/** Someone else's selection, washed in their identity hue. */
+export function collaboratorSelection(user: CollaboratorUser) {
+  return { class: `ProseMirror-yjs-selection ${HUE_CLASS[hueFor(user.id || user.name)]}`, style: '' }
+}
 
 // Distinct plugin keys so the #-channel and +-work-item suggestion plugins
 // don't collide with each other or with the @-user mention plugin.
@@ -92,6 +113,15 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   extraExtensions?: any[]
   slashCommands?: SlashCommandItem[]
   showOnlyCurrentPlaceholder?: boolean
+  /**
+   * Whether the component holding the editor renders again on every
+   * transaction (every keystroke). Tiptap's default, kept for the composers
+   * that read the editor while rendering. A host that subscribes to what it
+   * shows (useEditorState) passes false: the doc editor does, because on a
+   * long doc re-rendering its whole toolbar and footer per key was most of the
+   * time a keystroke took.
+   */
+  shouldRerenderOnTransaction?: boolean
 }
 
 const createExtensions = (
@@ -436,6 +466,11 @@ const createExtensions = (
           id: collaboration.userId || collaboration.documentId,
           profileKey: collaboration.profileKey,
         },
+        // Someone else's caret, name tag and selection, in their identity
+        // hue (lib/campHue), worked out here from their id so every screen
+        // shows them in the same colour as their avatar.
+        render: collaboratorCaret,
+        selectionRender: collaboratorSelection,
       })
     )
   }
@@ -466,7 +501,7 @@ export const useMinimalTiptapEditor = ({
   slashCommands,
   showOnlyCurrentPlaceholder,
   throttleRef,
-  shouldRerenderOnTransaction,
+  shouldRerenderOnTransaction = true,
   ...props
 }: UseMinimalTiptapEditorProps) => {
   const onUpdateRef = React.useRef(onUpdate)
@@ -487,7 +522,12 @@ export const useMinimalTiptapEditor = ({
     providerRef.current = externalProvider
   })
 
-  const throttledSetValue = useThrottle((value: Content) => onUpdateRef.current?.(value), throttleDelay)
+  // The throttle is handed the editor, not its output: the output (the whole
+  // document as HTML) is worked out when the throttled call actually runs, at
+  // most once per throttleDelay, rather than on every keystroke and thrown
+  // away by the throttle. On a long doc that serialisation was a few
+  // milliseconds a key.
+  const throttledSetValue = useThrottle((ed: Editor) => onUpdateRef.current?.(getOutput(ed, output)), throttleDelay)
   const { toast } = useToast()
   
   const provider = externalProvider;
@@ -511,8 +551,13 @@ export const useMinimalTiptapEditor = ({
   }, [throttleRef, throttledSetValue])
 
   const handleUpdate = React.useCallback(
-    (editor: Editor) => throttledSetValue(getOutput(editor, output)),
-    [output, throttledSetValue]
+    (editor: Editor) => {
+      // Nobody listening (a collaborative doc saves through its socket): no
+      // output to work out.
+      if (!onUpdateRef.current) return
+      throttledSetValue(editor)
+    },
+    [throttledSetValue]
   )
 
   const handleCreate = React.useCallback(
@@ -588,10 +633,6 @@ export const useMinimalTiptapEditor = ({
     onCreate: ({ editor }) => handleCreate(editor),
     onBlur: ({ editor }) => handleBlur(editor),
     immediatelyRender: false,
-    // Tiptap re-renders the component holding the editor on every transaction
-    // unless told not to: a keystroke re-rendered the whole composer around
-    // it. A host that reads editor state while rendering subscribes to that
-    // state (useEditorState) and passes false; the default is unchanged.
     shouldRerenderOnTransaction,
     editable,
     editorProps: {
