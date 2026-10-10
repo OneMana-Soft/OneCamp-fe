@@ -2,13 +2,13 @@
 
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
-import { useRef, memo, useCallback } from "react"
+import { useRef, memo, useCallback, useMemo } from "react"
 import { X, Search, Eye } from "@/lib/icons";
 import { SearchResult } from "@/services/searchService"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { useSearch } from "@/hooks/useSearch"
-import { getIcon, getHighlightedTitle, getContext, isResultPreviewable } from "@/lib/utils/helpers/search"
+import { getIcon, getHighlightedTitle, getContext, isResultPreviewable, searchResultKeys } from "@/lib/utils/helpers/search"
 
 const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchResult, onClick: (result: SearchResult) => void, onPreview: (result: SearchResult) => void }) => {
     const isPreviewable = isResultPreviewable(result)
@@ -68,6 +68,7 @@ export default function DesktopNavigationSearch() {
         handlePreview,
         handleSearchSubmit
     } = useSearch()
+    const keys = useMemo(() => searchResultKeys(results), [results])
 
     // Note: Ctrl+K now opens the global Command Palette instead of focusing this input.
 
@@ -144,7 +145,11 @@ export default function DesktopNavigationSearch() {
                                     <div className="space-y-1">
                                         {results.map((result, idx) => (
                                             <SearchResultItem
-                                                key={idx}
+                                                // By what it is, not where it sits: a
+                                                // refined query reorders the list, and
+                                                // keyed by position every row re-rendered
+                                                // as somebody else's.
+                                                key={keys[idx]}
                                                 result={result}
                                                 onClick={handleResultClick}
                                                 onPreview={handlePreview}
