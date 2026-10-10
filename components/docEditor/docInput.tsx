@@ -475,7 +475,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                                 ? "bg-warning"
                                                 : "bg-destructive"
                                         )} />
-                                        <span className="capitalize opacity-80 text-2xs font-medium tracking-tight">
+                                        <span className="capitalize opacity-80 text-2xs font-medium">
                                             {collabStatus === 'synced' ? 'connected' : collabStatus}
                                         </span>
                                     </div>

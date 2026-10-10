@@ -128,7 +128,7 @@ const RecordingsPage = () => {
                             <Video size={18} />
                         </div>
                         <div>
-                            <h1 className="text-base md:text-lg font-semibold tracking-tight text-foreground">Recordings</h1>
+                            <h1 className="text-base md:text-lg font-semibold text-foreground">Recordings</h1>
                             <p className={cn(eyebrowClass, "text-2xs opacity-80")}>
                                 Global Meeting History
                             </p>

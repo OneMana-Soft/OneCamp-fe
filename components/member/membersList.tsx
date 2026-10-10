@@ -59,7 +59,7 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
                         <div className="bg-primary/10 p-3 rounded-full mb-4">
                             <Search className="h-6 w-6 text-primary" />
                         </div>
-                        <h3 className="text-lg font-semibold tracking-tight">No members found</h3>
+                        <h3 className="text-lg font-semibold">No members found</h3>
                         <p className="text-sm text-muted-foreground mt-1 max-w-xs">
                             Add members to collaborate on projects.
                         </p>

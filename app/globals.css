@@ -424,7 +424,6 @@ body {
      font-sans, which is a deliberate act and reads as one. */
   h1, h2, h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.005em;
   }
 
   html {
@@ -451,7 +450,14 @@ body {
        what Inter is designed for and gives the app a tighter, premium feel. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.011em;
+    /* No letter-spacing on text. It was -0.011em here, which computes to a
+       fixed -0.154px and is inherited by every element at every size. Where
+       glyphs are placed on whole pixels (Chrome on Linux at 1x, which is how
+       the demo was screenshotted), that fraction tipped word gaps under the
+       threshold and words ran together: "the Q4 launchis up", "Fixthe signup".
+       Inter's own spacing is right at 13 to 15px. app/tracking.test.ts keeps
+       negative tracking off text under 20px. */
+    letter-spacing: normal;
     /* 14/20 is the default; anything that sets no size of its own reads at the
        size of a list row, not of a paragraph on the web. */
     @apply bg-background text-foreground text-sm;
@@ -476,16 +482,9 @@ body {
     @apply opacity-60 md:opacity-100;
   }
 
-  /* Display tracking for semantic headings: barely negative, because Inter
-     Tight is a tight cut already and -0.02em on top of it ran words together.
-     Element selectors keep specificity low, so any explicit tracking-* utility
-     still overrides this. */
-  h1,
-  h2,
-  h3,
-  h4 {
-    letter-spacing: -0.005em;
-  }
+  /* Headings take no extra tracking: Inter Tight is a tight cut already, and
+     an h3 is often 14px, where negative tracking runs words together. A large
+     title that wants it says so with a tracking-* utility. */
 }
 
 @utility border-grid {

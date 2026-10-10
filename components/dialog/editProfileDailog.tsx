@@ -284,7 +284,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                     {/* Left Sidebar - Profile Summary */}
                     <div className="w-full md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-b md:border-b-0 md:border-r">
                         <DialogHeader className="w-full mb-8">
-                            <DialogTitle className="text-base font-semibold tracking-tight">Profile</DialogTitle>
+                            <DialogTitle className="text-base font-semibold">Profile</DialogTitle>
                             <DialogDescription className="text-xs">{t('editProfile')}</DialogDescription>
                         </DialogHeader>
                         

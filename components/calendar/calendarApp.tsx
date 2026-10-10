@@ -554,7 +554,7 @@ export function CalendarApp() {
             <main className="flex-1 flex flex-col h-full overflow-hidden">
                 <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-border/60 bg-background z-10 sticky top-0">
                     <div className="flex items-center gap-3 min-w-0">
-                        <h1 className="hidden sm:flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
+                        <h1 className="hidden sm:flex items-center gap-2 text-lg font-semibold text-foreground">
                             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                             Calendar
                         </h1>
@@ -587,7 +587,7 @@ export function CalendarApp() {
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
-                            <span className="text-base font-semibold tracking-tight text-foreground truncate">
+                            <span className="text-base font-semibold text-foreground truncate">
                                 {view === "week"
                                     ? `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`
                                     : format(currentMonth, "MMMM yyyy")}

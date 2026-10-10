@@ -57,7 +57,7 @@ export default function SearchPage() {
                     >
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <h1 className="font-display text-lg md:text-xl font-semibold tracking-tight text-foreground truncate">
+                    <h1 className="font-display text-lg md:text-xl font-semibold text-foreground truncate">
                         {query ? `Results for “${query}”` : "Search"}
                     </h1>
                 </div>

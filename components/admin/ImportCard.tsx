@@ -299,7 +299,7 @@ const ImportCard: React.FC = () => {
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold tracking-tight">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
               <Database className="h-5 w-5 text-primary" />
               Import from Asana, monday.com, ClickUp, Jira, Linear, Trello, Notion, Todoist
             </CardTitle>

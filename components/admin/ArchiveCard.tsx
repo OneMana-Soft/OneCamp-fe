@@ -130,7 +130,7 @@ const ArchiveCard = () => {
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <div className="bg-primary/10 p-1.5 rounded-md"><Archive className="h-4 w-4 text-primary" /></div>
-              <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">Data Archiving</CardTitle>
+              <CardTitle className="text-lg sm:text-xl font-semibold">Data Archiving</CardTitle>
             </div>
             <CardDescription className="text-sm text-muted-foreground">Configure retention policies and manage data archiving across all OneCamp data stores.</CardDescription>
           </div>
