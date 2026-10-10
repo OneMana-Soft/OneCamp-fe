@@ -1,4 +1,5 @@
 import type { ReactElement } from "react"
+import type { UserProfileDataInterface } from "@/types/user"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render } from "@testing-library/react"
 import { Provider } from "react-redux"
@@ -42,6 +43,7 @@ const { TaskCommentFileUpload } = await import("@/components/fileUpload/taskComm
 const { MyTaskTable } = await import("@/components/myTask/myTaskTable")
 const { ProjectTaskTable } = await import("@/components/project/projectTaskTable")
 const { createListForTaskInfo } = await import("@/store/slice/taskInfoSlice")
+const { addChannelTyping } = await import("@/store/slice/typingSlice")
 
 // A list answered without its tasks (the server leaves an empty list out):
 // the store holds no list at all, and the tables fall back to an empty one.
@@ -52,12 +54,17 @@ afterEach(() => {
   h.selectors.length = 0
 })
 
+let elsewhere = 0
+
 /** What each selector `ui` uses gives for the store now, and after a change elsewhere in it. */
 function selectionsAcross(ui: ReactElement) {
   h.state = store.getState()
   render(<Provider store={store}>{ui}</Provider>)
   const before = h.state
-  store.dispatch({ type: "test/somethingElse" })
+  // A real change in a slice none of these read: someone starts typing in a
+  // channel. An action no slice handles no longer counts, since the store
+  // keeps its state when nothing changed (store/rootReducer.test.ts).
+  store.dispatch(addChannelTyping({ channelId: `elsewhere-${++elsewhere}`, user: { user_uuid: "someone" } as UserProfileDataInterface }))
   const after = store.getState()
   expect(after).not.toBe(before)
   return h.selectors.map((select) => [select(before), select(after)] as const)

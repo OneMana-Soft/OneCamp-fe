@@ -31,19 +31,6 @@ function CreateButton({ label, onClick, children }: { label: string; onClick: ()
     )
 }
 
-/**
- * The one way a list says "make another": a 44px "+" named for what it makes.
- * Channels, projects and teams said "New" in the accent, DMs and docs drew a
- * "+", so the bar's right end changed shape from tab to tab.
- */
-function CreateButton({ label, onClick, children }: { label: string; onClick: () => void; children?: ReactNode }) {
-    return (
-        <Button aria-label={label} variant='ghost' size='icon' className="h-11 w-11" onClick={onClick}>
-            {children ?? <Plus className='h-5'/>}
-        </Button>
-    )
-}
-
 export function MobileTopNavigationBarThird() {
 
 

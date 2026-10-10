@@ -69,9 +69,11 @@ const UploadingAttachmentIcon = ({
                 aria-valuenow={progress}
                 className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full bg-highlight"
             >
+                {/* Moves by transform, as the shared Progress does: growing its
+                    width laid the tile out again on every step. */}
                 <div
-                    className="h-full rounded-full bg-foreground/50 transition-[width] duration-200 ease-out motion-reduce:transition-none"
-                    style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+                    className="h-full w-full rounded-full bg-foreground/50 transition-transform duration-200 ease-out motion-reduce:transition-none"
+                    style={{ transform: `translateX(-${100 - Math.max(0, Math.min(100, progress))}%)` }}
                 />
             </div>
         </div>

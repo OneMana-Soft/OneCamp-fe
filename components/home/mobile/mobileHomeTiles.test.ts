@@ -18,8 +18,10 @@ describe("phone Home tiles", () => {
   })
 
   it("marks recent things and channels with their identity hue", () => {
-    expect(src).toMatch(/leading=\{<IdentityMark variant="tile" size=\{24\} id=\{item\.id\}/)
-    expect(src).toMatch(/leading=\{<IdentityMark variant="tile" size=\{24\} id=\{channel\.ch_uuid\}/)
+    // The rows are Home's own (HomeRow, from the hub pass), which take the
+    // mark as their icon.
+    expect(src).toMatch(/<IdentityMark variant="tile" size=\{24\} id=\{item\.id\}/)
+    expect(src).toMatch(/<IdentityMark variant="tile" size=\{24\} id=\{channel\.ch_uuid\}/)
   })
 
   it("keeps the accent off the AI row's icon", () => {

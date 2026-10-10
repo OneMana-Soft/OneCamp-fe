@@ -3,10 +3,10 @@
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
 import { X, Search, Eye } from "@/lib/icons";
-import { useRef, useCallback, useEffect } from "react"
+import { useRef, useCallback, useEffect, useMemo } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSearch } from "@/hooks/useSearch"
-import { getIcon, getHighlightedTitle, getContext, isResultPreviewable } from "@/lib/utils/helpers/search"
+import { getIcon, getHighlightedTitle, getContext, isResultPreviewable, searchResultKeys } from "@/lib/utils/helpers/search"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 /**
@@ -43,6 +43,7 @@ export function MobileHomeSearchBar() {
     } = useSearch()
 
     const isOpen = open && inputValue.length > 0
+    const keys = useMemo(() => searchResultKeys(results), [results])
 
     const onClear = useCallback(() => {
         handleClear()
@@ -166,7 +167,7 @@ export function MobileHomeSearchBar() {
                                         // could navigate instead, inconsistently across browsers.
                                         // role="option" is also what the parent role="listbox" wants.
                                         <div
-                                            key={idx}
+                                            key={keys[idx]}
                                             role="option"
                                             aria-selected={false}
                                             tabIndex={0}

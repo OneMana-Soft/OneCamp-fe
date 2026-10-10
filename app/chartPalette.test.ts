@@ -97,16 +97,16 @@ for (const [mode, palette] of [["light", LIGHT], ["dark", DARK]] as const) {
 }
 
 /**
- * The series SvgChart actually draws: the camp hues in the playful layer's
- * order (components/charts SERIES_HUES). Measured with the dataviz skill's
- * validator, whose floors are the ones held here: adjacent pairs at 15 or more
- * under normal vision (a hard floor), and 6 or more under protanopia and
- * deuteranopia, which it allows only with secondary encoding (SvgChart draws a
- * legend for two series or more, and gaps between fills). 8 is the target;
- * moss beside sun (6.3, protan, light) and berry beside lake (6.5, deutan,
- * dark) sit in the band below it.
+ * The series SvgChart actually draws, on every chart in the app: the camp hues
+ * in the one chart order (components/charts SERIES_HUES), the colour-blind-safe
+ * one. Measured with the dataviz skill's validator, at its targets: adjacent
+ * pairs at 15 or more under normal vision, and 8 or more under protanopia and
+ * deuteranopia, with the first three apart as a set for a pie. The playful
+ * layer's first order (sky, moss, sun, dusk, berry, lake) only reached 6 (moss
+ * beside sun, 6.3, protan, light; berry beside lake, 6.5, deutan, dark), so
+ * the app takes this one (10 Oct 2026).
  */
-const SERIES = ["sky", "moss", "sun", "dusk", "berry", "lake"] as const
+const SERIES = ["sky", "berry", "sun", "lake", "dusk", "moss"] as const
 function campTokens(block: string): string[] {
   return SERIES.map((h) => {
     const m = block.match(new RegExp(`--camp-${h}:\\s*(#[0-9a-fA-F]{6})`))
@@ -116,16 +116,23 @@ function campTokens(block: string): string[] {
 }
 for (const [mode, palette] of [["light", campTokens(rootBlock)], ["dark", campTokens(darkBlock)]] as const) {
   describe(`chart series (camp hues), ${mode}`, () => {
-    it("draws them in the playful layer's order", async () => {
+    it("draws them in the chart order", async () => {
       const { SERIES_HUES } = await import("@/components/charts/SvgChart")
       expect([...SERIES_HUES]).toEqual([...SERIES])
     })
     it("keeps adjacent series apart under normal vision (dE >= 15)", () => {
       for (const [i, j] of adjacent(6)) expect(dE(palette[i], palette[j]), `${SERIES[i]} vs ${SERIES[j]}`).toBeGreaterThanOrEqual(15)
     })
-    it("keeps adjacent series at least at the colour-blind floor (dE >= 6, with the legend and gaps)", () => {
+    it("keeps adjacent series apart under protanopia and deuteranopia (dE >= 8)", () => {
       for (const [i, j] of adjacent(6)) for (const k of ["protan", "deutan"] as const)
-        expect(dE(palette[i], palette[j], k), `${SERIES[i]} vs ${SERIES[j]} (${k})`).toBeGreaterThanOrEqual(6)
+        expect(dE(palette[i], palette[j], k), `${SERIES[i]} vs ${SERIES[j]} (${k})`).toBeGreaterThanOrEqual(8)
+    })
+    it("keeps the first three apart as a set, for a pie", () => {
+      for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+        expect(dE(palette[i], palette[j]), `${SERIES[i]} vs ${SERIES[j]}`).toBeGreaterThanOrEqual(15)
+        for (const k of ["protan", "deutan"] as const)
+          expect(dE(palette[i], palette[j], k), `${SERIES[i]} vs ${SERIES[j]} (${k})`).toBeGreaterThanOrEqual(8)
+      }
     })
     it("holds 3:1 against the card, and none is the brand accent's hue", () => {
       for (const h of palette) {

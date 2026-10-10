@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { createRef, useCallback } from "react"
 import { act, cleanup, render } from "@testing-library/react"
 import type { VListHandle } from "virtua"
-import type { FlatItem } from "@/types/virtual"
+import type { FlatItem, RowMeta } from "@/types/virtual"
 import { MessageListVirtua } from "./MessaageListVirtua"
 
 // A message row re-draws only when what it draws changes. Its memo compared
@@ -18,9 +18,9 @@ const item = (n: number): FlatItem<Msg> => ({ type: "item", key: `m${n}`, data: 
 
 function List({ items, drawn }: { items: FlatItem<Msg>[]; drawn: Map<string, number> }) {
   const renderItem = useCallback(
-    (m: Msg, index: number, total: number) => {
+    (m: Msg, meta: RowMeta) => {
       drawn.set(m.id, (drawn.get(m.id) ?? 0) + 1)
-      return <div data-newest={index >= total - 5 ? "" : undefined}>{m.text}</div>
+      return <div data-newest={meta.priority ? "" : undefined}>{m.text}</div>
     },
     [drawn],
   )
