@@ -361,7 +361,15 @@
 /* Inline, not inline-block: an inline-block chip with vertical padding made
    its line taller than the lines around it, so a message that opened with a
    mention had a gap under its first line. */
+/* In the mentioned person's hue (components/message/tintMentions adds their
+   hue-* class): their tint behind, their ink on it, the colour their avatar
+   is. A mention with no hue keeps the neutral chip. */
 .static-rich span[data-type="mention"] {
-  @apply bg-sidebar-accent text-foreground hover:bg-input/60 rounded-sm px-1 py-px font-medium cursor-pointer transition-colors select-none;
+  @apply rounded-sm px-1 py-px font-medium cursor-pointer transition-colors select-none;
+  background-color: var(--hue-tint, var(--sidebar-accent));
+  color: var(--hue-ink, var(--foreground));
   box-decoration-break: clone;
+}
+.static-rich span[data-type="mention"]:hover {
+  background-color: color-mix(in oklab, var(--hue-tint, var(--sidebar-accent)) 82%, var(--hue, var(--foreground)) 18%);
 }

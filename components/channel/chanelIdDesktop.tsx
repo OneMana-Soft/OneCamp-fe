@@ -15,6 +15,7 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { statusColors } from "@/lib/colors";
 import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X, MoreHorizontal, MessageSquare } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
@@ -265,7 +266,10 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                 holds all three to it now. */}
             <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
                 <div className='flex items-center gap-2.5 min-w-0'>
-                    <Hash className='h-4 w-4 shrink-0 text-muted-foreground'/>
+                    {/* The channel's own colour (lib/campHue, by its uuid): the same
+                        mark it has in the channel list, so it is recognised before
+                        its name is read. */}
+                    <IdentityMark id={channelId} variant="tile" size={32} icon={<Hash />} />
                     <div className='flex flex-col min-w-0'>
                         <span className='text-sm font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
                         {/* The second line keeps this header the same height as a

@@ -9,6 +9,7 @@ import { usePost } from "@/hooks/usePost"
 import { useDispatch } from "react-redux"
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice"
 import { cn } from "@/lib/utils/helpers/cn"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 
 export function MobileTopNavigationBarSecondChannel({ channelUUID }: { channelUUID: string }) {
     const dispatch = useDispatch()
@@ -49,6 +50,8 @@ export function MobileTopNavigationBarSecondChannel({ channelUUID }: { channelUU
 
     return (
         <div className="flex justify-center items-center gap-2 min-w-0 px-2">
+            {/* The channel's colour, as in the channel list and on desktop. */}
+            <IdentityMark id={channelUUID} variant="dot" size={8} />
             <span className="text-base font-semibold text-foreground truncate">
                 {channelInfo.data?.channel_info.ch_name}
             </span>
