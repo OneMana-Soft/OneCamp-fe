@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Loader2 } from "@/lib/icons"
+import { clearUnsaved, markUnsaved } from "@/lib/unsavedChanges"
 
 export function SettingsSection({
   title,
@@ -147,6 +148,15 @@ export function SaveBar({
   /** What is unsaved, as a noun: "email changes". */
   what?: string
 }) {
+  // While there is something to save, say so to anything that leads away:
+  // the guard on in-app links and the admin page's section menu ask first.
+  const id = useId()
+  useEffect(() => {
+    if (!dirty) return
+    markUnsaved(id, what)
+    return () => clearUnsaved(id)
+  }, [dirty, what, id])
+
   useEffect(() => {
     if (!dirty) return
     const warn = (e: BeforeUnloadEvent) => {

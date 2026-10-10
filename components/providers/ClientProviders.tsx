@@ -11,6 +11,7 @@ import { ThemeColorMeta } from "@/components/activeTheme/ThemeColorMeta";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { Toaster } from "@/components/ui/toaster";
 import { OfflineNotice } from "@/components/error/OfflineNotice";
+import { UnsavedChangesGuard } from "@/components/ui/UnsavedChangesGuard";
 
 export function ClientProviders({
   children,
@@ -36,6 +37,8 @@ export function ClientProviders({
               <Toaster />
               {/* Says when the network or the server is gone, on every page. */}
               <OfflineNotice />
+              {/* Asks before an in-app link leaves a SaveBar's changes unsaved. */}
+              <UnsavedChangesGuard />
             </MediaQueryProvider>
           </Provider>
         </PersistGate>

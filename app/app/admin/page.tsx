@@ -10,6 +10,8 @@ import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
 import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { AdminScrollContext } from "@/components/admin/adminScroll"
+import { unsavedWhat } from "@/lib/unsavedChanges"
+import { useConfirm } from "@/hooks/useConfirm"
 import dynamic from "next/dynamic"
 import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
@@ -251,7 +253,26 @@ const AdminPage = () => {
 
   // Choosing a section updates the address, so a refresh or Back returns here.
   // replaceState rather than the router: the page is already showing the tab.
+  const confirm = useConfirm()
+  // Switching section unmounts the card, so its unsaved edits would go
+  // without a word: ask first, naming them.
   const chooseTab = (value: string) => {
+    const what = unsavedWhat()
+    if (what && value !== activeTab) {
+      confirm({
+        title: "Leave without saving?",
+        description: `Your unsaved ${what} will be lost.`,
+        confirmText: "Leave",
+        cancelText: "Stay",
+        destructive: true,
+        onConfirm: () => selectTab(value),
+      })
+      return
+    }
+    selectTab(value)
+  }
+
+  const selectTab = (value: string) => {
     setActiveTab(value)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href)
