@@ -65,15 +65,15 @@ export function KeyboardTip() {
     <aside
       role="complementary"
       aria-label="Keyboard tips"
-      className="fixed bottom-4 left-4 z-[var(--z-toast)] w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-background p-4 shadow-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
+      className="fixed bottom-4 left-4 z-[var(--z-toast)] w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-background p-4 shadow-overlay motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="pt-1.5 text-sm font-semibold">Three keys worth knowing</p>
         <button
           type="button"
           onClick={done}
-          aria-label="Dismiss"
-          className="-mr-2 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          aria-label="Close the keyboard tips"
+          className="-mr-2 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-highlight hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <X className="h-4 w-4" />
         </button>
@@ -83,12 +83,12 @@ export function KeyboardTip() {
           <Fragment key={r.does}>
             <dt className="flex items-center gap-1">
               {r.keys.map((k) => (
-                <kbd key={k} className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">
+                <kbd key={k} className="rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                   {k}
                 </kbd>
               ))}
             </dt>
-            <dd className="text-muted-foreground">{r.does}</dd>
+            <dd className="text-foreground">{r.does}</dd>
           </Fragment>
         ))}
       </dl>
@@ -103,7 +103,9 @@ export function KeyboardTip() {
         >
           See all shortcuts
         </Button>
-        <Button size="sm" onClick={done}>
+        {/* Outline: the tip floats over a page whose own primary action is
+            the one filled button on screen. */}
+        <Button size="sm" variant="outline" onClick={done}>
           Got it
         </Button>
       </div>
