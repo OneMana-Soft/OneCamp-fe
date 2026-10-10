@@ -16,6 +16,17 @@ afterEach(() => {
 })
 
 describe("the updates card", () => {
+  // At 390 the button sat beside the description and squeezed it to two or
+  // three words a line.
+  it("puts its button under the words on a phone, beside them from sm up", () => {
+    render(<UpdatesCard />)
+    const header = screen.getByRole("button", { name: "Check for updates" }).parentElement as HTMLElement
+    const cls = header.className.split(/\s+/)
+    expect(cls).toContain("flex-col")
+    expect(cls).toContain("sm:flex-row")
+    expect(cls).not.toContain("flex-row")
+  })
+
   // "An update is available" drew its icon in the accent, which means "press
   // me", beside words nobody can press. It is news, in the info colour.
   it("marks an available update in the info colour, not the accent", async () => {
