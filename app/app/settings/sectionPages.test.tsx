@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 // The settings pages that depend on a permission or on the server's AI. Each
 // opens with its section's header at once and holds its place until the answer
@@ -17,6 +17,8 @@ vi.mock("@/components/admin/McpServersCard", () => ({ default: () => null }))
 vi.mock("@/components/admin/DataSourcesCard", () => ({ default: () => null }))
 vi.mock("@/components/ai/MyAIActivityCard", () => ({ default: () => <div data-testid="my-activity" /> }))
 vi.mock("@/components/ai/MyAssistantsCard", () => ({ default: () => <div data-testid="assistants-card" /> }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }) }))
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
 import WorkflowsSettingsPage from "./workflows/page"
 import AgentsSettingsPage from "./agents/page"
@@ -97,5 +99,16 @@ describe("your AI assistants", () => {
   it("shows the assistants when there is AI", () => {
     render(<AssistantsSettingsPage />)
     expect(screen.getByTestId("assistants-card")).toBeInTheDocument()
+  })
+})
+
+describe("API tokens", () => {
+  it("puts New token, the page's one primary action, in its header, and it opens the dialog", async () => {
+    const { default: ApiTokensSettingsPage } = await import("./api-tokens/page")
+    render(<ApiTokensSettingsPage />)
+    const header = screen.getByRole("banner")
+    expect(h1()).toHaveAccessibleName("API tokens")
+    fireEvent.click(within(header).getByRole("button", { name: "New token" }))
+    expect(await screen.findByRole("dialog")).toBeInTheDocument()
   })
 })

@@ -1,11 +1,29 @@
 "use client"
 
+import { useState } from "react"
 import ApiTokensCard from "@/components/admin/ApiTokensCard"
+import { Button } from "@/components/ui/button"
+import { Plus } from "@/lib/icons"
+import { SectionHeader } from "../SectionHeader"
 
 export default function ApiTokensSettingsPage() {
+  // The page's one primary action sits in its header and opens the card's dialog.
+  const [creating, setCreating] = useState(false)
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
-      <ApiTokensCard />
+    <div className="space-y-10">
+      <SectionHeader
+        href="/app/settings/api-tokens"
+        actions={
+          <Button onClick={() => setCreating(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New token
+          </Button>
+        }
+      >
+        A token acts as you, limited to the scopes you grant, for scripts and outside tools. Send it as{" "}
+        <code className="rounded-sm bg-muted px-1 font-mono text-xs" translate="no">Authorization: Bearer …</code>.
+      </SectionHeader>
+      <ApiTokensCard creating={creating} onCreatingChange={setCreating} />
     </div>
   )
 }
