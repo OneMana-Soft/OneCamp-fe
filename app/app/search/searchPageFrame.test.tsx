@@ -64,7 +64,7 @@ describe("the search page", () => {
     const row = document.querySelector("[data-search-title-row]")!
     expect(row.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "sm:flex"]))
     // The empty state's heading says what to do, not the page's name again.
-    expect(screen.queryByRole("heading", { name: "Search", exact: true, level: 2 })).toBeNull()
+    expect(screen.queryByRole("heading", { name: /^Search$/, level: 2 })).toBeNull()
   })
 
   it("says nothing was found and that there is nothing yet in one frame", () => {

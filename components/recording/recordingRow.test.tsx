@@ -71,16 +71,28 @@ describe("the recordings' date range", () => {
   })
 })
 
-describe("the recordings page", () => {
-  // The code, not its comments (which say what it replaced).
-  const src = readFileSync(resolve(__dirname, "../../app/app/recordings/page.tsx"), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "")
-  it("is the app's page: a title with its range, the lists' column, and its states where Activity's are", () => {
-    expect(src).toMatch(/<PageHeader title="Recordings" actions=\{range\}>/)
+describe("the one recordings UI", () => {
+  const code = (f: string) =>
+    readFileSync(resolve(__dirname, "../..", f), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+  it.each([
+    "app/app/recordings/page.tsx",
+    "components/channel/channelRecording.tsx",
+    "components/chat/ChatRecording.tsx",
+    "components/chat/GroupChatRecording.tsx",
+  ])("%s draws it, with no frame of its own", (f) => {
+    const src = code(f)
+    expect(src).toMatch(/<RecordingsView/)
+    expect(src).not.toMatch(/statusColors|SkeletonRows|StatePlaceholder|VirtualInfiniteScroll|md:w-\[45vw\]/)
+  })
+  it("is a title with its range, the lists' column, a skeleton in the rows' frame and states where Activity's are", () => {
+    const src = code("components/recording/RecordingsView.tsx")
+    expect(src).toMatch(/<PageHeader title="Recordings" actions=\{rangeField\}>/)
     expect(src).toMatch(/<PageContainer className="flex min-h-0 flex-1 flex-col">/)
     expect(src).toMatch(/illustration=\{<SpotCalendar \/>\}/)
     expect(src).toMatch(/className="flex justify-center pt-4 md:pt-10"/)
-    expect(src).not.toMatch(/Global Meeting History|statusColors|Gathering your recordings/)
+    expect(src).toMatch(/mt-0\.5 h-\[18px\]/)
+    expect(src).not.toMatch(/Global Meeting History|Gathering your recordings/)
   })
 })
