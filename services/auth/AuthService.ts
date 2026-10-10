@@ -74,6 +74,15 @@ export interface SignupOutcome {
     name?: string;
 }
 
+/** What setting a new password from an emailed link came to (see resetPassword). */
+export type ResetOutcome =
+    | { status: 'reset' }
+    /** The link is old, already used or unknown: ask for a new one. */
+    | { status: 'link_refused' }
+    /** The account signs in with single sign-on and has no password here. */
+    | { status: 'sso_managed' }
+    | { status: 'failed'; msg: string };
+
 /** What checking an invitation's link found (see validateInvitationToken). */
 export interface InvitationCheck {
     valid: boolean;
@@ -273,7 +282,16 @@ class AuthService {
         }
     }
 
-    static async resetPassword(token: string, password: string): Promise<{ ok: boolean; msg: string }> {
+    /**
+     * Sets a new password from an emailed link.
+     *
+     * `link_refused` is a link that is old, already used or unknown: the server
+     * answers 400 "invalid or expired reset token", and no password typed into
+     * the form will ever get past it, so the page offers a new link instead of
+     * the form. `sso_managed` is an account that signs in with single sign-on
+     * (403), which has no password here to reset.
+     */
+    static async resetPassword(token: string, password: string): Promise<ResetOutcome> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/reset-password`,
@@ -285,10 +303,14 @@ class AuthService {
                 }
             );
             const data = await res.json();
-            return { ok: res.ok, msg: data.msg || '' };
+            if (res.ok) return { status: 'reset' };
+            const msg = typeof data?.msg === 'string' ? data.msg : '';
+            if (res.status === 400 && /reset token/i.test(msg)) return { status: 'link_refused' };
+            if (res.status === 403) return { status: 'sso_managed' };
+            return { status: 'failed', msg };
         } catch (error) {
             console.error('Reset password failed:', error);
-            return { ok: false, msg: 'Network error. Please try again.' };
+            return { status: 'failed', msg: 'Network error. Please try again.' };
         }
     }
 
