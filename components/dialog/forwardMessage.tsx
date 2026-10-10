@@ -120,6 +120,9 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
                     output="html"
                     placeholder={"Add a message, if you'd like…"}
                     editable={true}
+                    // Folded behind one Formatting button, as every message box
+                    // is: the dialog showed all thirteen formatting icons.
+                    toggleToolbar
                     editorClassName="focus:outline-none px-2 py-2"
                     onChange={(content ) => {
                         const t = content as string
