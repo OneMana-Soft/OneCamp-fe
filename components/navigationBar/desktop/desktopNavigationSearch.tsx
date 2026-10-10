@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { useSearch } from "@/hooks/useSearch"
 import { getIcon, getHighlightedTitle, getContext, isResultPreviewable, searchResultKeys } from "@/lib/utils/helpers/search"
+import { moveListFocus } from "@/lib/search/listFocus"
 
 const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchResult, onClick: (result: SearchResult) => void, onPreview: (result: SearchResult) => void }) => {
     const isPreviewable = isResultPreviewable(result)
@@ -18,13 +19,14 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
         // result could be clicked but never reached from the keyboard. The type
         // is said by the icon and the line under the title ("Task assigned
         // to…"), not again in a capitals badge above it; the hover is a neutral step, not the accent.
-        <div className="group flex items-center gap-1 rounded-md hover:bg-muted/60 focus-within:bg-muted/60 transition-colors">
+        <div className="group flex items-center gap-1 rounded-md hover:bg-highlight focus-within:bg-highlight transition-colors">
             <button
                 type="button"
+                data-search-result=""
                 onClick={() => onClick(result)}
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
             >
-                <span className="shrink-0 text-muted-foreground" aria-hidden="true">
+                <span className="shrink-0" aria-hidden="true">
                     {getIcon(result)}
                 </span>
                 <span className="flex-1 min-w-0">
@@ -42,7 +44,7 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
                         e.stopPropagation()
                         onPreview(result)
                     }}
-                    className="mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                    className="mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                     aria-label="Preview attachment"
                     title="Preview attachment"
                 >
@@ -56,11 +58,13 @@ SearchResultItem.displayName = "SearchResultItem"
 
 export default function DesktopNavigationSearch() {
     const searchRef = useRef<HTMLInputElement>(null)
+    const listRef = useRef<HTMLDivElement>(null)
     const {
         inputValue,
         setInputValue,
         results,
         isLoading,
+        isRefreshing,
         open,
         setOpen,
         handleClear,
@@ -77,11 +81,29 @@ export default function DesktopNavigationSearch() {
         searchRef.current?.focus()
     }, [handleClear])
 
+    // Down from the box into the results and back up out of them, as in the
+    // palette: the dropdown could be reached only with Tab, row by row.
     const handleKeyDownCapture = useCallback((e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
             handleSearchSubmit()
+        } else if (e.key === "ArrowDown" && listRef.current) {
+            e.preventDefault()
+            moveListFocus(listRef.current, 1)
+        } else if (e.key === "Escape") {
+            setOpen(false)
         }
-    }, [handleSearchSubmit])
+    }, [handleSearchSubmit, setOpen])
+
+    const onListKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === "Escape") {
+            setOpen(false)
+            searchRef.current?.focus()
+            return
+        }
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return
+        e.preventDefault()
+        if (!moveListFocus(e.currentTarget, e.key === "ArrowDown" ? 1 : -1) && e.key === "ArrowUp") searchRef.current?.focus()
+    }, [setOpen])
 
     return (
         <div className="w-full max-w-[500px] font-sans">
@@ -142,7 +164,7 @@ export default function DesktopNavigationSearch() {
                                         <SkeletonRows rows={4} lines={1} />
                                     </div>
                                 ) : results.length > 0 ? (
-                                    <div className="space-y-1">
+                                    <div ref={listRef} onKeyDown={onListKeyDown} aria-busy={isRefreshing || undefined} className={cn("space-y-1 transition-opacity duration-150", isRefreshing && "opacity-60")}>
                                         {results.map((result, idx) => (
                                             <SearchResultItem
                                                 // By what it is, not where it sits: a
@@ -157,6 +179,7 @@ export default function DesktopNavigationSearch() {
                                         ))}
                                         <button
                                             type="button"
+                                            data-search-result=""
                                             onClick={() => handleSearchSubmit()}
                                             className="block w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-primary border-t border-border/50 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                         >

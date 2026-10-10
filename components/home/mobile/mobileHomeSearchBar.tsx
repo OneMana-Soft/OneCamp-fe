@@ -2,7 +2,6 @@
 
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Badge } from "@/components/ui/badge"
 import { X, Search, Eye } from "@/lib/icons";
 import { useRef, useCallback, useEffect } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -34,6 +33,7 @@ export function MobileHomeSearchBar() {
         setInputValue,
         results,
         isLoading,
+        isRefreshing,
         open,
         setOpen,
         handleClear,
@@ -105,7 +105,7 @@ export function MobileHomeSearchBar() {
                     onFocus={() => inputValue && setOpen(true)}
                     className={cn(
                         "h-10 w-full pl-9 pr-9",
-                        "rounded-full bg-secondary border-transparent",
+                        "rounded-md bg-secondary border-transparent",
                         "placeholder:text-muted-foreground",
                         "focus-visible:ring-1 focus-visible:ring-ring/70 focus-visible:bg-background focus-visible:border-border",
                         "transition-colors",
@@ -158,7 +158,7 @@ export function MobileHomeSearchBar() {
                                     <SkeletonRows rows={3} lines={2} />
                                 </div>
                             ) : results.length > 0 ? (
-                                <div className="space-y-1.5">
+                                <div className={cn("space-y-1.5 transition-opacity duration-150", isRefreshing && "opacity-60")} aria-busy={isRefreshing || undefined}>
                                     {results.map((result, idx) => (
                                         // A div with role="option", not a <button>. The row contains
                                         // its own Preview button, and a <button> inside a <button> is
@@ -194,11 +194,6 @@ export function MobileHomeSearchBar() {
                                                 {getIcon(result)}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-0.5">
-                                                    <Badge variant="secondary" size="sm" caps className="rounded">
-                                                        {result.type}
-                                                    </Badge>
-                                                </div>
                                                 <div className="text-sm font-medium text-foreground line-clamp-1">
                                                     {getHighlightedTitle(result)}
                                                 </div>
@@ -214,7 +209,7 @@ export function MobileHomeSearchBar() {
                                                         handlePreview(result)
                                                     }}
                                                     aria-label="Preview"
-                                                    className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
+                                                    className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
                                                 >
                                                     <Eye className="h-4 w-4" />
                                                 </button>

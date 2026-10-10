@@ -32,20 +32,23 @@ export const useSearch = ({
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const dispatch = useDispatch()
 
-    const searching = debouncedValue.length >= 2
-    // The last answer stays up while the next word's is on its way. Each new
+    const searching = debouncedValue.trim().length >= 2
+    // The last answer stays up while the next one is on its way. Each new
     // query was a new key with nothing in it, so the results blinked to a
     // skeleton and back on every pause in typing, and the command palette
     // swapped its commands in and out under the cursor.
     const { data: searchData, isLoading } = useFetch<any>(
         searching ? GlobalSearchGet(debouncedValue) : "",
         undefined,
-        { keepPreviousData: true },
+        { keepPreviousData: true, revalidateOnFocus: false },
     )
 
+    // One empty list, so a list with nothing in it is the same list each render.
     const results: SearchResult[] = (searching && searchData?.data?.page) || NO_RESULTS
-    // Waiting with nothing to show yet: a first search, not a refinement.
-    const isSearching = isLoading && searching && !searchData
+    // Waiting with nothing to show yet (a first search, not a refinement), and
+    // refreshing while an older answer shows, which lists dim.
+    const isSearching = searching && isLoading && results.length === 0
+    const isRefreshing = searching && isLoading && results.length > 0
 
     useEffect(() => {
         if (inputValue && debouncedValue) {
@@ -159,6 +162,7 @@ export const useSearch = ({
         debouncedValue,
         results,
         isLoading: isSearching,
+        isRefreshing,
         open,
         setOpen,
         handleClear,
