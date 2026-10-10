@@ -138,9 +138,11 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           minSize={30}
           id="main-panel"
           order={1}
+          // No transition on its size: flex-basis is layout, and animating
+          // it laid the whole page out again on every frame the right panel
+          // took to open. The panel's content slides in instead (below).
           className={cn(
             "h-full relative w-full min-w-0",
-            isDragging ? "transition-none" : "transition-[flex-basis] duration-75 ease-out",
             !shows(-1) && "hidden"
           )}
         >
@@ -178,7 +180,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           id="right-panel"
           order={10}
           className={`relative overflow-x-hidden flex justify-end ${
-            isDragging ? "transition-none" : "transition-[flex-basis,opacity] duration-75 ease-out"
+            isDragging ? "transition-none" : "transition-opacity duration-75"
           } ${
             rightPanelState.isOpen ? "opacity-100" : "opacity-0"
           }`}

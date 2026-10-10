@@ -393,7 +393,6 @@ export function DesktopNavigationBar({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pathname])
 
-    const [isDragging, setIsDragging] = useState(false);
 
     useEffect(() => {
         // Read the collapsed state cookie
@@ -485,11 +484,12 @@ export function DesktopNavigationBar({
                                 document.cookie = `react-resizable-root-panels:collapsed=${JSON.stringify(false)}; path=/; max-age=31536000`
                             }, 0)
                         }}
+                        // Its width snaps when it folds or opens. flex-basis is
+                        // layout: animating it laid the whole app out again on
+                        // every frame, and will-change on it promoted a layer
+                        // that could not help (motionCost.test.ts).
                         className={cn(
-                            "flex flex-col overflow-hidden will-change-[flex-basis]",
-                            // Disable transitions only when actively dragging AND fully expanded, 
-                            // to ensure the snap animation to/from collapsed state is smooth.
-                            isDragging && !isCollapsed ? "transition-none" : "transition-[flex-basis] duration-100 ease-out",
+                            "flex flex-col overflow-hidden",
                             isCollapsed && "min-w-[0.5rem]"
                         )}
                     >
@@ -527,7 +527,7 @@ export function DesktopNavigationBar({
                             )}
                         </div>
                     </ResizablePanel>
-                    <ResizableHandle onDragging={setIsDragging} className="w-2 bg-transparent" />
+                    <ResizableHandle className="w-2 bg-transparent" />
                     <ResizablePanel defaultSize={panelSizes[1]} minSize={20} className="overflow-hidden w-full min-w-0 pb-2 pr-2">
                         {/* The work sits on the sheet; the canvas around it is the chrome. */}
                         <div className="app-sheet h-full overflow-hidden">{children}</div>
