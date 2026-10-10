@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { X, ChevronLeft, ChevronRight, Download, Maximize2, Minimize2, RotateCcw, Loader2 } from "@/lib/icons"
-import { File as FileIcon, ZoomIn, ZoomOut } from "@/lib/icons"
+import { File as FileIcon, ZoomIn, ZoomOut, Sparkles } from "@/lib/icons"
 import { AttachmentMediaReq, AttachmentType } from "@/types/attachment"
 import { useMediaFetch } from "@/hooks/useFetch"
 import { GetMediaURLRes } from "@/types/file"
@@ -695,7 +695,7 @@ export function MediaLightboxDialog({
                                         disabled={analyzing}
                                         className="gap-1.5 shrink-0"
                                     >
-                                        <span aria-hidden>✨</span>
+                                        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                                         {analyzing ? "Analyzing…" : aiResult ? "Re-analyze" : "Analyze with AI"}
                                     </Button>
                                 )}
@@ -709,7 +709,7 @@ export function MediaLightboxDialog({
                                             disabled={analyzingDoc}
                                             className="gap-1.5 shrink-0"
                                         >
-                                            <span aria-hidden>✨</span>
+                                            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                                             {analyzingDoc ? "Reading…" : aiResult ? "Re-summarize" : "Summarize with AI"}
                                         </Button>
                                     )}

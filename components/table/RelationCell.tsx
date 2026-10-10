@@ -152,7 +152,7 @@ export function RelationCell({
               // With links in the cell, the add control sits at its right edge
               // and shows on the row under the pointer, so two links stay on one
               // line instead of pushing the row to twice its height.
-              refs.length > 0 && "absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+              refs.length > 0 && "absolute right-1 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto",
             )}
           >
             <Plus className="h-3 w-3" /> {refs.length === 0 ? "Link" : ""}
