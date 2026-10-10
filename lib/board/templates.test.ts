@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { BOARD_TEMPLATES, centreAt, skeletonBounds, wrapLabel } from "./templates"
+import { BOARD_TEMPLATES, STICKY_COLOURS, centreAt, skeletonBounds, wrapLabel } from "./templates"
 import { selectedNotes } from "./notes"
 
 describe("board templates", () => {
@@ -68,5 +70,28 @@ describe("selected notes", () => {
   })
   it("ignores deleted elements", () => {
     expect(selectedNotes([{ ...scene[0], isDeleted: true }, scene[1]], { r1: true })).toEqual([])
+  })
+})
+
+describe("a template's notes", () => {
+  const css = readFileSync(join(__dirname, "../../app/globals.css"), "utf8")
+  // The light theme's value of a camp token, as the stylesheet defines it.
+  const token = (name: string) => css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`))?.[1]?.toUpperCase()
+  const HUE: Record<string, string> = { yellow: "sun", green: "moss", red: "berry", blue: "sky", purple: "dusk" }
+
+  it("are the camp palette's tint, with the hue's ink for words and a hairline of its strong cut", () => {
+    for (const [colour, hue] of Object.entries(HUE)) {
+      const c = STICKY_COLOURS[colour as keyof typeof STICKY_COLOURS]
+      expect(c.fill.toUpperCase()).toBe(token(`camp-${hue}-tint`))
+      expect(c.ink.toUpperCase()).toBe(token(`camp-${hue}-ink`))
+      expect(c.edge.toUpperCase()).toBe(token(`camp-${hue}`))
+    }
+  })
+
+  it("draw their words in the note's ink, on a clean edge", () => {
+    const retro = BOARD_TEMPLATES.find((t) => t.id === "retro")!.build("t")
+    const note = retro.find((s) => s.type === "rectangle")
+    expect(note && note.type === "rectangle" && note.label.strokeColor).toBe(STICKY_COLOURS.green.ink)
+    expect(note && note.type === "rectangle" && note.roughness).toBe(0)
   })
 })
