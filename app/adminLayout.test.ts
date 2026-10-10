@@ -148,7 +148,10 @@ describe("admin page honours a deep link to a gated tab", () => {
         expect(rawSource, "an uncontrolled Tabs cannot change its mind when the config arrives").not.toMatch(
             /<Tabs[\s\S]{0,200}defaultValue=/,
         )
-        expect(rawSource).toMatch(/<Tabs[\s\S]{0,200}value=\{activeTab\}/)
+        // Controlled by the section shown: the requested one while the server
+        // hasn't answered (so nothing is marked), the chosen one after.
+        expect(rawSource).toMatch(/<Tabs[\s\S]{0,200}value=\{shownTab\}/)
+        expect(rawSource).toMatch(/const shownTab = waitingOnRequestedTab \? requestedTab : activeTab/)
     })
 
     it("asks the three-state hook, not the two-state one, for the gated tab", () => {
