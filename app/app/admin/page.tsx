@@ -262,7 +262,7 @@ const AdminPage = () => {
       confirm({
         title: "Leave without saving?",
         description: `Your unsaved ${what} will be lost.`,
-        confirmText: "Leave",
+        confirmText: "Leave without saving",
         cancelText: "Stay",
         destructive: true,
         onConfirm: () => selectTab(value),

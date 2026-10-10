@@ -62,7 +62,7 @@ const ExternalUsersCard = () => {
       title: `Unlink ${name} from GitHub?`,
       description:
         "Their work here stays, but their account is no longer matched to their GitHub account, so new GitHub activity is not tied to them.",
-      confirmText: "Unlink",
+      confirmText: "Unlink from GitHub",
       destructive: true,
       onConfirm: () => unlink(userUUID, name),
     })

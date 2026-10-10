@@ -325,9 +325,9 @@ const ImportCard: React.FC = () => {
     if (!selectedProvider) return
     const name = importProviderLabel(selectedProvider)
     confirm({
-      title: `Disconnect ${name}?`,
+      title: `Disconnect your ${name} account?`,
       description: `OneCamp stops reading from ${name}. Imports already made stay. You can connect it again later.`,
-      confirmText: "Disconnect",
+      confirmText: "Disconnect account",
       destructive: true,
       onConfirm: async () => {
         try {

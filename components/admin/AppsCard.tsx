@@ -114,9 +114,9 @@ export default function AppsCard() {
     // first and says what stops. It used to happen on one click.
     const handleDisconnect = (app: AppView) =>
         confirm({
-            title: `Disconnect ${app.name}?`,
+            title: `Disconnect the ${app.name} app?`,
             description: `Its commands stop working until someone connects ${app.name} again. Its settings stay.`,
-            confirmText: "Disconnect",
+            confirmText: "Disconnect app",
             destructive: true,
             onConfirm: async () => {
                 try {

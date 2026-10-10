@@ -152,7 +152,7 @@ const SlackBridgeCard: React.FC = () => {
             title: "Disconnect Slack?",
             description:
                 "Every linked channel stops bridging, in both directions. Messages already bridged stay in both apps.",
-            confirmText: "Disconnect",
+            confirmText: "Disconnect Slack",
             destructive: true,
             onConfirm: () => void disconnect(),
         })
@@ -195,11 +195,11 @@ const SlackBridgeCard: React.FC = () => {
 
     const askUnlink = (l: SlackBridgeLink) =>
         confirm({
-            title: `Unlink #${l.slack_channel_name}?`,
+            title: `Unlink the #${l.slack_channel_name} channel?`,
             description: `Messages stop going between #${l.slack_channel_name} in Slack and ${
                 l.channel_name ? `#${l.channel_name}` : "the deleted channel"
             } here. Past messages stay where they are.`,
-            confirmText: "Unlink",
+            confirmText: "Unlink channel",
             destructive: true,
             onConfirm: () => void unlink(l.id),
         })

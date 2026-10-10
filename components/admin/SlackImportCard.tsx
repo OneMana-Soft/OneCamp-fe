@@ -259,7 +259,7 @@ const SlackImportCard: React.FC = () => {
     confirm({
       title: "Delete the uploaded export?",
       description: `The Slack file for ${job.slack_workspace_name} is removed from storage. What was imported stays; to import it again, you would upload the file again.`,
-      confirmText: "Delete file",
+      confirmText: "Delete export",
       destructive: true,
       onConfirm: async () => {
         try {

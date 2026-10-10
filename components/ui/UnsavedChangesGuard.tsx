@@ -35,7 +35,7 @@ export function UnsavedChangesGuard() {
       confirm({
         title: "Leave without saving?",
         description: `Your unsaved ${what} will be lost.`,
-        confirmText: "Leave",
+        confirmText: "Leave without saving",
         cancelText: "Stay",
         destructive: true,
         onConfirm: () => router.push(url.pathname + url.search + url.hash),
