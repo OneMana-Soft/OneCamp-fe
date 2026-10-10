@@ -1,4 +1,4 @@
-import { displayNameOf } from "@/lib/personName"
+import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils/helpers/cn"
 import React, { useState, useRef } from 'react';
@@ -392,7 +392,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                             </Avatar>
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-medium text-foreground/90 leading-none">{displayNameOf(participant)}</span>
-                                                <span className="text-2xs text-muted-foreground">{participant.user_email_id}</span>
+                                                {addressOrHandleOf(participant) && (
+                                                    <span className="text-2xs text-muted-foreground">{addressOrHandleOf(participant)}</span>
+                                                )}
                                             </div>
                                         </div>
                                     ))

@@ -7,6 +7,7 @@ import AddDmMemberCombobox from "@/components/combobox/addDmMemberCombobox";
 import {cn} from "@/lib/utils/helpers/cn";
 import {ChatUserListUserAvatar} from "@/components/chat/chatUserListUserAvatar";
 import {Badge} from "@/components/ui/badge";
+import { addressOrHandleOf } from "@/lib/personName";
 import {DmMemberUpdateInterface} from "@/types/chat";
 import {useRouter} from "next/navigation";
 import {app_grp_chat_path} from "@/types/paths";
@@ -115,7 +116,9 @@ const DmMemberContent: React.FC<memberContentProp> = ({grpId}) => {
                                         <p className="font-medium text-sm text-foreground truncate">{userDisplayName(user)}</p>
 
                                     </div>
-                                    <p className="text-xs text-muted-foreground truncate mb-1">{user.user_email_id}</p>
+                                    {addressOrHandleOf(user) && (
+                                        <p className="text-xs text-muted-foreground truncate mb-1">{addressOrHandleOf(user)}</p>
+                                    )}
                                     <div className="flex gap-1">
                                         {user.user_job_title && <Badge variant="secondary" className="text-xs">
                                             {user.user_job_title}

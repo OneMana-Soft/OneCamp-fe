@@ -1,6 +1,6 @@
 "use client"
 
-import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
+import { addressOrHandleOf, displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
 import { Check, Search, User, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
@@ -172,7 +172,9 @@ export function SelectUserToMessageDropdown({
                                         {isSelected &&
                                             <Check className="h-4 w-4 text-primary flex-shrink-0"/>}
                                     </div>
-                                    <p className="text-xs text-muted-foreground truncate mb-1">{user.user_email_id}</p>
+                                    {addressOrHandleOf(user) && (
+                                        <p className="text-xs text-muted-foreground truncate mb-1">{addressOrHandleOf(user)}</p>
+                                    )}
                                     <div className="flex gap-1">
                                         {user.user_job_title && <Badge variant="secondary" className="text-xs">
                                             {user.user_job_title}

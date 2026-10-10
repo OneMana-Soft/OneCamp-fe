@@ -1,6 +1,6 @@
 "use client"
 
-import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
+import { addressOrHandleOf, displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
@@ -51,6 +51,9 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const isBot = profileInfo.data?.data?.is_bot === true;
     // Same classification as the desktop dialog; see lib/botCopy.ts.
     const botCopy = botProfileCopy(profileInfo.data?.data?.user_bot_kind);
+    // The address; without one the handle, unless the line above shows it.
+    const contactLine = isBot ? botCopy.subtitle : addressOrHandleOf(profileInfo.data?.data);
+    const showContactLine = !!contactLine && contactLine !== `@${handle}`;
 
     return (
         <div className="flex flex-col h-full bg-background w-full">
@@ -114,9 +117,9 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
                             </p>
                         )}
-                        <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
-                            {isBot ? botCopy.subtitle : (profileInfo.data?.data?.user_email_id || "\u00A0")}
-                        </p>
+                        {showContactLine && (
+                            <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">{contactLine}</p>
+                        )}
                         {/*
                           External users are read-only contacts. OneCamp users
                           are not allowed to start a DM with them, so the

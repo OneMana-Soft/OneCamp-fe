@@ -1,6 +1,6 @@
 "use client"
 
-import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
+import { addressOrHandleOf, displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import {
     Dialog,
     DialogContent,
@@ -97,6 +97,9 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
     const shownName = (isBot && profileInfo.data?.data?.user_full_name?.trim()) || displayNameOf(profileInfo.data?.data);
     const fullName = isBot ? "" : secondaryNameOf(profileInfo.data?.data);
     const handle = isBot ? "" : handleOf(profileInfo.data?.data);
+    // The address; without one the handle, unless the line above shows it.
+    const contactLine = isBot ? botCopy.subtitle : addressOrHandleOf(profileInfo.data?.data);
+    const showContactLine = !!contactLine && contactLine !== `@${handle}`;
     const userSeed = shownName || "User";
     const nameIntial = getNameInitials(userSeed);
 
@@ -169,9 +172,9 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
                                 </p>
                             )}
-                            <p className="text-sm text-muted-foreground truncate max-w-[260px]">
-                                {isBot ? botCopy.subtitle : (profileInfo.data?.data?.user_email_id || "\u00A0")}
-                            </p>
+                            {showContactLine && (
+                                <p className="text-sm text-muted-foreground truncate max-w-[260px]">{contactLine}</p>
+                            )}
                         </div>
                         {/*
                           External users are read-only contacts (e.g. GitHub
