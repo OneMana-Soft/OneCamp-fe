@@ -29,10 +29,12 @@ export function GoalProgress({
         aria-valuemax={100}
         aria-valuenow={pct}
         aria-label={`${goal.title}: ${pct}% of the way${tick !== undefined ? `, with ${tick}% of its time gone` : ""}`}
-        className="relative h-1.5 w-full min-w-16 rounded-full bg-muted"
+        className="relative h-1.5 w-full min-w-16 rounded-full bg-highlight"
       >
+        {/* The theme's progress fill (the logo's gradient in the house theme),
+            success once it's there, a neutral for a goal no longer open. */}
         <div
-          className={cn("h-full rounded-full", done ? "bg-success" : goal.status === "open" ? "bg-foreground/70" : "bg-muted-foreground/60")}
+          className={cn("h-full rounded-full", done ? "bg-success" : goal.status === "open" ? "bg-progress" : "bg-muted-foreground/60")}
           style={{ width: `${pct}%` }}
         />
         {tick !== undefined && tick > 0 && tick < 100 && (

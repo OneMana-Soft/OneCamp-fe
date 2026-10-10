@@ -39,7 +39,8 @@ import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { workToolbar } from "@/components/task/workFrame"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { useStoredState } from "@/hooks/useStoredState"
 import type { TimelineTask } from "@/lib/timeline"
 import { Textarea } from "@/components/ui/textarea"
@@ -93,6 +94,21 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
   const [view, setView] = useState<GuestProjectView | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [mode, setMode] = useStoredState<GuestMode>(`oc_guest_view:${token}`, "board", isMode)
+  // Board or Timeline: the first control in the view's 32px toolbar row.
+  const modeSwitch = (
+    // The shared segmented control, 44px on a phone; from md its well is
+    // trimmed to p-0.5 so it is the toolbar row's 32px.
+    <SegmentedControl
+      value={mode}
+      onValueChange={(v) => isMode(v) && setMode(v)}
+      aria-label="Show the tasks as"
+      className="md:p-0.5"
+      options={[
+        { value: "board", label: "Board" },
+        { value: "timeline", label: "Timeline" },
+      ]}
+    />
+  )
   const narrow = useNarrow()
   const timelineTasks = useMemo(() => timelineTasksOf(view), [view])
 
@@ -143,27 +159,19 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
           <div className="max-w-3xl">
             <GuestUpdates updates={view.updates ?? []} />
           </div>
-          {view.total_tasks > 0 && (
-            <ToggleGroup
-              type="single"
-              size="sm"
-              value={mode}
-              onValueChange={(v) => isMode(v) && setMode(v)}
-              aria-label="Show the tasks as"
-              className="mb-4 w-fit rounded-md border p-0.5"
-            >
-              <ToggleGroupItem value="board" className="h-7 px-2.5 text-xs">Board</ToggleGroupItem>
-              <ToggleGroupItem value="timeline" className="h-7 px-2.5 text-xs">Timeline</ToggleGroupItem>
-            </ToggleGroup>
-          )}
           {view.total_tasks === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">No tasks here yet.</p>
           ) : mode === "timeline" ? (
             <div className="h-[calc(100dvh-13rem)] min-h-[24rem]">
-              <ProjectTimeline projectId="" viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} />
+              <ProjectTimeline projectId="" viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} leading={modeSwitch} />
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-flow-col md:auto-cols-[minmax(14rem,1fr)]">
+            <>
+            {/* The switch leads one 32px toolbar row on both views, as the
+                timeline's own row does: the timeline started 44px lower under
+                two stacked rows. */}
+            <div data-work-toolbar="" className={workToolbar}>{modeSwitch}</div>
+            <div className="mt-4 grid gap-4 md:grid-flow-col md:auto-cols-[minmax(14rem,1fr)]">
               {view.columns.map((col) => (
                 <section key={col.status} aria-label={col.label} className="flex min-w-0 flex-col gap-2">
                   <h2 className="flex items-baseline gap-2 px-1 text-sm font-medium text-foreground">
@@ -207,6 +215,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
                 </section>
               ))}
             </div>
+            </>
           )}
           <MadeWithOneCamp surface="guest-project" className="mt-8" />
           </div>

@@ -86,12 +86,11 @@ export function ProjectsTimeline({ projects, compact = false }: { projects: Proj
                           className="absolute top-3 h-4 overflow-hidden rounded-sm bg-hue-tint ring-1 ring-inset ring-hue/30 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           style={{ left: box.left, width: box.width }}
                         >
-                          {/* The project's own colour, as on its board and its
-                              timeline: its tint for the span, its strong cut for
-                              how much is done. Progress is not the accent's job
-                              (DESIGN.md), and health has the dot by the name.
-                              Finished reads in the success token. */}
-                          <span aria-hidden className={cn("block h-full", pct === 100 ? "bg-success" : "bg-hue")} style={{ width: `${pct}%` }} />
+                          {/* The span in the project's own colour (its tint, as
+                              on its timeline), and how much is done in the
+                              theme's progress fill; health has the dot by the
+                              name, and finished reads in the success token. */}
+                          <span aria-hidden className={cn("block h-full", pct === 100 ? "bg-success" : "bg-progress")} style={{ width: `${pct}%` }} />
                         </Link>
                         <span aria-hidden className="pointer-events-none absolute top-3 flex h-4 items-center text-xs tabular-nums text-muted-foreground" style={{ left: box.left + box.width + 6 }}>
                           {pct}%

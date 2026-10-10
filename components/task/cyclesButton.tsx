@@ -145,8 +145,8 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { proj
             : `${p.done} of ${p.total} done`}
         </span>
         {!cycle.completed_at && (
-          <span className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${cycleLabel(cycle)} progress`}>
-            <span className="block h-full rounded-full bg-foreground/70" style={{ width: `${pct}%` }} />
+          <span className="h-1.5 overflow-hidden rounded-full bg-highlight" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${cycleLabel(cycle)} progress`}>
+            <span className="block h-full rounded-full bg-progress" style={{ width: `${pct}%` }} />
           </span>
         )}
       </button>

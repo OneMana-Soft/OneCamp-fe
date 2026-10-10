@@ -35,8 +35,6 @@ import {
   type ProjectOverview,
 } from "@/lib/projectsOverview"
 import { cn } from "@/lib/utils/helpers/cn"
-import { hueFor } from "@/lib/campHue"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { projectGlanceParts } from "@/lib/utils/projectGlance"
 import { daysAgo } from "@/lib/utils/relativeTime"
@@ -69,18 +67,18 @@ function Progress({ p, className }: { p: ProjectOverview; className?: string }) 
   if (p.open + p.done === 0) return null
   const pct = Math.round(progressOf(p) * 100)
   return (
-    // In the project's own colour: its tint for the track, its strong cut for
-    // what's done (never the accent), success once it's all done.
-    <div className={cn(HUE_CLASS[hueFor(p.project_uuid)], "flex items-center gap-2", className)}>
+    // The theme's progress fill (the logo's gradient in the house theme) on a
+    // neutral track, success once it's all done.
+    <div className={cn("flex items-center gap-2", className)}>
       <div
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
         aria-label={`${p.project_name}: ${pct}% of tasks done`}
-        className="h-1.5 w-full min-w-16 overflow-hidden rounded-full bg-hue-tint"
+        className="h-1.5 w-full min-w-16 overflow-hidden rounded-full bg-highlight"
       >
-        <div className={cn("h-full rounded-full", pct === 100 ? "bg-success" : "bg-hue")} style={{ width: `${pct}%` }} />
+        <div className={cn("h-full rounded-full", pct === 100 ? "bg-success" : "bg-progress")} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{pct}%</span>
     </div>
