@@ -31,4 +31,14 @@ describe("Home's cards and lists", () => {
       expect(src).toMatch(/<IdentityMark variant="tile" size=\{24\} id=\{channel\.ch_uuid\}/)
     },
   )
+
+  it.each(["components/home/desktop/desktopDashboard.tsx", "components/home/mobile/mobileHome.tsx"])(
+    "%s greets on the theme's wash, its one band",
+    (file) => {
+      const src = read(file)
+      expect(src.match(/<GreetingBand/g)).toHaveLength(1)
+      expect(src.indexOf("<GreetingBand")).toBeLessThan(src.indexOf("<PageHeader"))
+      expect(read("components/home/GreetingBand.tsx")).toMatch(/bg-brand-wash/)
+    },
+  )
 })
