@@ -2,12 +2,12 @@
 
 import { NotificationPreferencesCard } from "@/components/notifications/NotificationPreferencesCard"
 import { ReadReceiptsCard } from "@/components/notifications/ReadReceiptsCard"
-import { PageHeader } from "@/components/ui/pageHeader"
+import { SectionHeader } from "../SectionHeader"
 
 export default function NotificationSettingsPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-10 px-4 pb-16 pt-4">
-      <PageHeader title="Notifications" />
+    <div className="space-y-10">
+      <SectionHeader href="/app/settings/notifications" />
       <NotificationPreferencesCard />
       <ReadReceiptsCard />
     </div>
