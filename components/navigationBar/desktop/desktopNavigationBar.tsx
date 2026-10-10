@@ -32,6 +32,7 @@ import {isExternalUser} from "@/lib/utils/isExternalUser";
 import {buildPrimaryNavLinks} from "@/lib/nav/primaryNavLinks";
 import {FOCUS_SECTION_KEY, FOCUS_SECTION_TITLE, FOLDED_NAV_TITLES, partitionByTitle} from "@/lib/nav/focusMode";
 import {useSidebarDisclosure} from "@/lib/nav/sidebarDisclosure";
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 
 export function DesktopNavigationBar({
@@ -245,7 +246,7 @@ export function DesktopNavigationBar({
         }
 
         dmNavGrp.push({
-            title: dm_participants.length == 0 ? userSideNav.data?.data.user_name || '' : dm_participants.map((item) => item?.user_name).join(","),
+            title: dm_participants.length == 0 ? userSideNav.data?.data.user_name || '' : dm_participants.map((item) => userDisplayName(item)).join(","),
             userParticipants: dm_participants.length > 1 ? dm_participants : [],
             unread_count: d?.dm_unread,
             userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),

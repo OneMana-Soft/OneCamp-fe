@@ -20,6 +20,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { statusColors } from "@/lib/colors"
 import { ChatUserEmojiStatus } from "@/components/chat/chatUserEmojiStatus"
 import { cn } from "@/lib/utils/helpers/cn"
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 export function MobileTopNavigationBarSecondChat({ chatUUID }: { chatUUID: string }) {
     const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(
@@ -68,7 +69,7 @@ export function MobileTopNavigationBarSecondChat({ chatUUID }: { chatUUID: strin
     const isOnline =
         currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0
 
-    const userName = userStatusState.userName || otherUserInfo.data?.data.user_name
+    const userName = userStatusState.userName || userDisplayName(otherUserInfo.data?.data)
 
     return (
         <button

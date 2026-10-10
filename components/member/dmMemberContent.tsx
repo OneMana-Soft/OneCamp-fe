@@ -15,6 +15,7 @@ import {RootState} from "@/store/store";
 import {LocallyCreatedGrpInfoInterface} from "@/store/slice/groupChatSlice";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {openUI} from "@/store/slice/uiSlice";
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 
 interface memberContentProp {
@@ -106,12 +107,12 @@ const DmMemberContent: React.FC<memberContentProp> = ({grpId}) => {
                                     "bg-card hover:bg-accent border-border"
                                 )}
                             >
-                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={user.user_name} />
+                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={userDisplayName(user)} />
 
 
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <p className="font-medium text-sm text-foreground truncate">{user.user_name}</p>
+                                        <p className="font-medium text-sm text-foreground truncate">{userDisplayName(user)}</p>
 
                                     </div>
                                     <p className="text-xs text-muted-foreground truncate mb-1">{user.user_email_id}</p>
