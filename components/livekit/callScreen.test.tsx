@@ -112,3 +112,16 @@ describe("the guest meeting page", () => {
     expect(src).toMatch(/onClick=\{\(\) => setPhase\("prejoin"\)\}>\s*Join again/)
   })
 })
+
+describe("the call stage's frame", () => {
+  // QA_BACKLOG "Tab consistency": Calls, Speaker vs Grid.
+  it("is one frame for speaker and grid, clear of the dock", async () => {
+    const { readFileSync } = await import("node:fs")
+    const { resolve } = await import("node:path")
+    const src = readFileSync(resolve(__dirname, "VideoConference.tsx"), "utf8")
+    expect(src.match(/STAGE_FRAME\)/g)?.length).toBe(2)
+    expect(src).not.toMatch(/p-2 pb-24 gap-2"|pb-20 @3xl:pb-24/)
+    const { STAGE_FRAME } = await import("@/components/livekit/VideoConference")
+    expect(STAGE_FRAME.split(" ")).toEqual(expect.arrayContaining(["pb-24", "@3xl:pb-24", "p-2", "@3xl:p-4"]))
+  })
+})
