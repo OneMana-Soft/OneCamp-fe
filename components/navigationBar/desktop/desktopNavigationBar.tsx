@@ -43,7 +43,11 @@ import { userDisplayName } from "@/lib/utils/userDisplayName"
  * must not re-render the whole sidebar.
  */
 function useWindowWidth(): number {
-    const [width, setWidth] = useState(0);
+    // Read at once: the shell mounts only in the browser (after the profile
+    // loads), and the first render's sizes are the ones the saved layout is
+    // applied against. Starting at 0 gave the old percentages for a frame,
+    // so a tablet's rail could be collapsed to 4% before the pixel sizes came.
+    const [width, setWidth] = useState(() => (typeof window === "undefined" ? 0 : window.innerWidth));
     useEffect(() => {
         const update = () => setWidth((w) => (w === window.innerWidth ? w : window.innerWidth));
         update();

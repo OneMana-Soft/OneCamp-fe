@@ -36,5 +36,8 @@ describe("sidebarSizes", () => {
     expect(nav).toContain("const navCollapsedSize = sizes.rail;")
     expect(nav).toContain("startsAsRail(window.innerWidth)")
     expect(nav).not.toMatch(/minSize=\{15\}|maxSize=\{18\}/)
+    // The first render already knows the width: starting at 0 gave the old
+    // percentages for a frame, and the saved state was applied against them.
+    expect(nav).toMatch(/useState\(\(\) => \(typeof window === "undefined" \? 0 : window\.innerWidth\)\)/)
   })
 })
