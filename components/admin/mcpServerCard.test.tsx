@@ -58,4 +58,51 @@ describe("external agent access", () => {
       process.env.NEXT_PUBLIC_BACKEND_URL = base
     }
   })
+
+  it("loads in its list's shape and fails compactly with the server's reason", async () => {
+    vi.mocked(getAIMCPServer).mockReturnValue(new Promise(() => {}))
+    const { unmount } = render(<MCPServerCard />)
+    expect(screen.getByRole("status", { name: /Loading/ }).hasAttribute("data-section-list-skeleton")).toBe(true)
+    unmount()
+    vi.mocked(getAIMCPServer).mockRejectedValue({ response: { status: 403, data: { msg: "Only admins can read this." } } })
+    const { container } = render(<MCPServerCard />)
+    expect(await screen.findByText("Only admins can read this.")).toBeTruthy()
+    expect(container.querySelector("[data-empty-illustration]")).toBeTruthy()
+  })
+
+  // "Everything" sat in a bordered box beside unboxed checkboxes for the same
+  // job, and "Connecting an agent" was a box holding more boxes.
+  it("draws every group choice the same way, and the how-to as a section, not a box", async () => {
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL
+    process.env.NEXT_PUBLIC_BACKEND_URL = "https://api.example.com/"
+    try {
+      vi.mocked(getAIMCPServer).mockResolvedValue({ ...closed, enabled: true, tool_groups: "tasks" } as never)
+      render(<MCPServerCard />)
+      const everything = await screen.findByRole("checkbox", { name: "Everything" })
+      expect(everything.closest(".rounded-md.border")).toBeNull()
+      const how = screen.getByRole("heading", { level: 3, name: "Connecting an agent" })
+      expect(how.closest("section")?.className ?? "").not.toMatch(/rounded-lg|border/)
+    } finally {
+      process.env.NEXT_PUBLIC_BACKEND_URL = base
+    }
+  })
+
+  // Every client's tab was numbered steps except this one, which opened with a
+  // code block, then prose, then a second block.
+  it("gives scripts and other clients the same numbered steps as every other tab", async () => {
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL
+    process.env.NEXT_PUBLIC_BACKEND_URL = "https://api.example.com/"
+    try {
+      vi.mocked(getAIMCPServer).mockResolvedValue({ ...closed, enabled: true, tool_groups: "tasks" } as never)
+      render(<MCPServerCard />)
+      fireEvent.mouseDown(await screen.findByRole("tab", { name: "Scripts & other clients" }))
+      const panel = await screen.findByRole("tabpanel")
+      const first = panel.firstElementChild as HTMLElement
+      expect(first.tagName).toBe("OL")
+      expect(first.className).toContain("list-decimal")
+      expect(first.querySelectorAll(":scope > li").length).toBeGreaterThanOrEqual(3)
+    } finally {
+      process.env.NEXT_PUBLIC_BACKEND_URL = base
+    }
+  })
 })
