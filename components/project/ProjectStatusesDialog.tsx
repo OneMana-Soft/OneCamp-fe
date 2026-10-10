@@ -164,7 +164,7 @@ function StatusRow({
     <div className="ml-6 rounded-md border border-border/60">
       <div className="flex items-center gap-1 p-1">
         <ColorPicker value={status.color} disabled={busy} onChange={(color) => save({ color })} />
-        <Input
+        <Input dense
           value={name}
           maxLength={40}
           aria-label="Status name"

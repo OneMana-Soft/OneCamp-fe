@@ -371,3 +371,39 @@ test.describe("accent themes reach the components", () => {
     }
   })
 })
+
+/**
+ * Input's height, as rendered. components/ui/input.tsx (inputSizing) gives a
+ * field `h-11 md:h-9` when its caller sets no height, and `max-md:h-11` beside
+ * a caller's own height, which then holds from md up as written; a `dense`
+ * field keeps the caller's height at every width. input.test.tsx holds those
+ * class lists; this measures them in Chromium. The default used to win over a
+ * caller's h-8 from md up (tailwind-merge kept md:h-9), so 87 fields that asked
+ * for 28, 32 or 40px drew 36px on every computer.
+ */
+test.describe("Input heights, as rendered", () => {
+  const heightOf = (page: Page, classes: string) =>
+    page.evaluate((cls) => {
+      const el = document.createElement("input")
+      el.className = cls
+      document.body.appendChild(el)
+      const h = el.getBoundingClientRect().height
+      el.remove()
+      return h
+    }, classes)
+
+  test("from md up, a caller's h-8 is 32px and a field with no height of its own 36px", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await heightOf(page, "max-md:h-11 h-8")).toBe(32)
+    expect(await heightOf(page, "h-11 md:h-9")).toBe(36)
+  })
+
+  test("below md both are 44px, and a dense field keeps its own height", async ({ page }) => {
+    await page.setViewportSize(MOBILE)
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await heightOf(page, "max-md:h-11 h-8")).toBe(44)
+    expect(await heightOf(page, "h-11 md:h-9")).toBe(44)
+    expect(await heightOf(page, "h-8")).toBe(32)
+  })
+})

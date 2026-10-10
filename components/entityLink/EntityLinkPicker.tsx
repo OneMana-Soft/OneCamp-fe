@@ -81,7 +81,7 @@ export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPicke
       <PopoverContent align="start" className="w-[20rem] p-0 overflow-hidden">
         <div className="flex items-center gap-2 border-b px-3 py-2">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <Input
+          <Input dense
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
