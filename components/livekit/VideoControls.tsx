@@ -221,34 +221,34 @@ export function VideoControls({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="mb-4 w-56 p-2">
                 <DropdownMenuItem onClick={toggleScreenShare} className="py-3">
-                    {isScreenShareEnabled ? <MonitorOff className="mr-2 h-4 w-4" /> : <MonitorUp className="mr-2 h-4 w-4" />}
+                    {isScreenShareEnabled ? <MonitorOff className="h-4 w-4" /> : <MonitorUp className="h-4 w-4" />}
                     {isScreenShareEnabled ? "Stop sharing" : "Share screen"}
                 </DropdownMenuItem>
 
                 {onToggleRecording && (
                     <DropdownMenuItem onClick={onToggleRecording} className="py-3 text-danger-ink focus:text-danger-ink">
-                         <Disc className="mr-2 h-4 w-4" />
+                         <Disc className="h-4 w-4" />
                          {isRecording ? "Stop recording" : "Record call"}
                     </DropdownMenuItem>
                 )}
 
                 {onToggleCaptions && (
                     <DropdownMenuItem onClick={onToggleCaptions} className="py-3">
-                        {showCaptions ? <CaptionsOff className="mr-2 h-4 w-4" /> : <Captions className="mr-2 h-4 w-4" />}
+                        {showCaptions ? <CaptionsOff className="h-4 w-4" /> : <Captions className="h-4 w-4" />}
                         {showCaptions ? "Hide captions" : "Show captions"}
                     </DropdownMenuItem>
                 )}
 
                 {onToggleAI && (
                     <DropdownMenuItem onClick={onToggleAI} className="py-3">
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles className="h-4 w-4" />
                         {isAIOpen ? "Hide OneCamp AI" : "Ask AI"}
                     </DropdownMenuItem>
                 )}
 
                 {onLayoutChange && (
                     <DropdownMenuItem onClick={() => onLayoutChange(layout === 'grid' ? 'speaker' : 'grid')} className="py-3">
-                        {layout === 'grid' ? <LayoutGrid className="mr-2 h-4 w-4" /> : <SquareUser className="mr-2 h-4 w-4" />}
+                        {layout === 'grid' ? <LayoutGrid className="h-4 w-4" /> : <SquareUser className="h-4 w-4" />}
                         {layout === 'grid' ? "Switch to speaker view" : "Switch to grid view"}
                     </DropdownMenuItem>
                 )}

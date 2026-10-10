@@ -110,7 +110,7 @@ export function SaveForLaterButton({
           </DropdownMenuLabel>
           {!saved && (
             <DropdownMenuItem onSelect={() => saveWith(null)}>
-              <Bookmark className="mr-2 h-4 w-4" />
+              <Bookmark className="h-4 w-4" />
               Save, no reminder
             </DropdownMenuItem>
           )}
@@ -120,30 +120,30 @@ export function SaveForLaterButton({
           </DropdownMenuLabel>
           {reminderChoices(now).map((c) => (
             <DropdownMenuItem key={c.key} onSelect={() => saveWith(c.at)}>
-              <Clock className="mr-2 h-4 w-4" />
+              <Clock className="h-4 w-4" />
               <span className="flex-1">{c.label}</span>
               <span className="ml-3 text-xs tabular-nums text-muted-foreground">{c.hint}</span>
             </DropdownMenuItem>
           ))}
           <DropdownMenuItem onSelect={() => setPicking(true)}>
-            <CalendarClock className="mr-2 h-4 w-4" />
+            <CalendarClock className="h-4 w-4" />
             Pick a date and time…
           </DropdownMenuItem>
           {saved && (
             <>
               {saved.remind_at && (
                 <DropdownMenuItem onSelect={() => run(() => remind(saved.id, null))}>
-                  <Clock className="mr-2 h-4 w-4" />
+                  <Clock className="h-4 w-4" />
                   Remove the reminder
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => run(() => done(saved.id, true))}>
-                <Check className="mr-2 h-4 w-4" />
+                <Check className="h-4 w-4" />
                 Mark done
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => run(() => remove(saved.id))}>
-                <Trash2 className="mr-2 h-4 w-4" />
+                <Trash2 className="h-4 w-4" />
                 Remove from Later
               </DropdownMenuItem>
             </>

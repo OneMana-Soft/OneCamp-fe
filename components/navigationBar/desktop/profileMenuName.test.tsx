@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const push = vi.fn()
 const dispatched: unknown[] = []
@@ -65,5 +66,39 @@ describe("the profile menu", () => {
     openMenu()
     fireEvent.click(screen.getByRole("menuitem", { name: "Settings" }))
     expect(push).toHaveBeenCalledWith("/app/settings")
+  })
+
+  // Only Pause had an icon, so the menu's words started at three places: 8px
+  // in after no icon, 40px after Pause's (its margin doubled the gap) and 32px
+  // for the theme choices. Every item has its icon now, so all start at 32px.
+  it("gives every item an icon, so every item's words start on one line", () => {
+    render(<DesktopNavigationUserProfile />)
+    const trigger = screen.getByRole("button", { name: "Profile and settings" })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.keyDown(trigger, { key: "Enter" })
+    const items = screen.getAllByRole("menuitem")
+    expect(items.map((i) => i.textContent?.trim())).toEqual(["Set a status…", "Pause notifications", "Your profile", "Settings", "Sign out"])
+    for (const item of items) expect(item.firstElementChild?.tagName.toLowerCase()).toBe("svg")
+  })
+})
+
+describe("a menu item's icon", () => {
+  // The item's gap spaces the icon from its words. 35 items carried shadcn's
+  // old `mr-2` on top of it, so their words sat 8px further in than their
+  // neighbours'; the item drops any margin an icon brings.
+  it("is spaced by the item's gap alone, whatever margin it was given", () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>
+            <svg className="mr-2 h-4 w-4" />
+            Rename
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    )
+    const item = screen.getByRole("menuitem", { name: "Rename" })
+    expect(item.className.split(" ")).toEqual(expect.arrayContaining(["gap-2", "[&>svg]:mr-0"]))
   })
 })

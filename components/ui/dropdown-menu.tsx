@@ -27,7 +27,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-highlight data-[state=open]:bg-highlight [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-highlight data-[state=open]:bg-highlight [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&>svg]:mr-0",
       inset && "pl-8",
       className
     )}
@@ -93,7 +93,12 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-highlight focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
+      // The gap spaces an icon from its words, so an icon's own margin is
+      // dropped ([&>svg]:mr-0): 35 items still carried shadcn's old `mr-2`,
+      // which doubled the gap, so in one menu the words started 8px further
+      // in after one icon than after another (the profile menu: 1241 and 1249)
+      // and a radio item's words, at pl-8, matched neither.
+      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-highlight focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:mr-0",
       variant === "destructive" && "text-danger-ink focus:bg-destructive/10 focus:text-danger-ink [&>svg]:text-danger-ink",
       inset && "pl-8",
       className
