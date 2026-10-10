@@ -3,7 +3,7 @@
 import { LaterDrawerItems } from "@/components/later/LaterDrawerItems";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 import * as React from "react"
-import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, ListTodo } from "@/lib/icons";
+import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, ListTodo, SmilePlus } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
 
 import {
@@ -14,8 +14,6 @@ import {
     DrawerTitle,
 } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
-import Image from "next/image"
-import addEmojiIconSrc from "@/assets/addEmoji.svg"
 import {Separator} from "@/components/ui/separator";
 import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiConst";
 import {DrawerActionCard} from "@/components/drawerActionCard/drawerActionCard";
@@ -162,13 +160,7 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, make
                                 aria-label="Pick another reaction"
                                 onClick={() => onAddEmoji()}
                             >
-                                <Image
-                                    src={addEmojiIconSrc || "/placeholder.svg?height=28&width=28"}
-                                    alt=""
-                                    width={22}
-                                    height={22}
-                                    className="opacity-70 transition-opacity"
-                                />
+                                <SmilePlus aria-hidden="true" className="h-[22px] w-[22px] text-muted-foreground" strokeWidth={1.75} />
                             </Button>
                         </div>
 
