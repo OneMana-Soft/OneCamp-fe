@@ -52,7 +52,9 @@ export function InvitationOutcome({ answer, email }: Props) {
 
   return (
     <div className="grid gap-2 py-2">
-      <p role={sent ? "status" : "alert"} className={sent ? "text-sm text-muted-foreground" : "text-sm text-danger-ink"}>
+      {/* Not sent is a warning, not a failure: the invitation exists and the
+          link below works, only the email didn't go. */}
+      <p role={sent ? "status" : "alert"} className={sent ? "text-sm text-muted-foreground" : "text-sm text-warning-ink"}>
         {message}
       </p>
       {link && (

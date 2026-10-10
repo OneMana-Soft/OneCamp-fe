@@ -67,3 +67,13 @@ describe.each(dialogs)("%s", (_, open) => {
     expect(screen.queryByRole("heading", { name: "Email sent" })).toBeNull()
   })
 })
+
+describe("an invitation whose email couldn't go", () => {
+  it("says so in the warning tone: the invitation exists, only the email didn't go", async () => {
+    const { InvitationOutcome } = await import("./InvitationOutcome")
+    render(<InvitationOutcome answer={{ email_sent: false, email_error: "the day's sending limit was reached", invite_link: LINK }} email="ana@example.com" />)
+    const said = screen.getByText(/^Couldn't email it/)
+    expect(said.className).toMatch(/\btext-warning-ink\b/)
+    expect(said.className).not.toMatch(/danger/)
+  })
+})
