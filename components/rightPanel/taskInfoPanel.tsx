@@ -1,13 +1,10 @@
 "use client"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Separator} from "@/components/ui/separator"
-import {Label} from "@/components/ui/label"
 import { TagPicker } from "@/components/tags/TagPicker"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import {Button, buttonVariants} from "@/components/ui/button"
 import Link from "next/link"
-import MinimalTiptapTextInput from "@/components/textInput/textInput"
-import type {Content} from "@tiptap/core"
 import {useDispatch, useSelector} from "react-redux"
 import type {RootState} from "@/store/store"
 import {priorities, type prioritiesInterface} from "@/types/table"
@@ -16,11 +13,9 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch"
 import {
     addTaskComments,
-    clearTaskCommentInputState, createNewTaskComment,
-    createOrUpdateTaskCommentBody,
     createTaskCommentReaction,
     removeTaskComment,
-    removeTaskCommentReaction, TaskCommentInputState,
+    removeTaskCommentReaction,
     updateTaskComment,
     updateTaskCommentReaction,
 } from "@/store/slice/createTaskCommentSlice"
@@ -56,7 +51,7 @@ import {
 import {useUploadFile} from "@/hooks/useUploadFile"
 import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader"
 import {openUI} from "@/store/slice/uiSlice"
-import {TaskCommentComposer} from "@/components/task/taskCommentComposer"
+import {TaskCommentBox} from "@/components/task/taskCommentComposer"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import {DateField} from "@/components/task/taskDateField"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
@@ -75,12 +70,13 @@ import GitHubActivityTab from "@/components/task/GitHubActivityTab"
 import {ColorIcon} from "@/components/colorIcon/colorIcon"
 import type {AttachmentMediaReq} from "@/types/attachment"
 import {SubtasksSection} from "@/components/task/subtasksSection"
+import {TaskDescription} from "@/components/task/taskDescription"
 import {TaskDependencies} from "@/components/task/TaskDependencies"
 import {useRouter} from "next/navigation"
 import {app_project_path, app_task_path, app_team_path} from "@/types/paths"
 import {useMedia} from "@/context/MediaQueryContext"
 import {CreateOrUpdateCommentReaction} from "@/types/reaction";
-import {CommentInfoInterface, CreateCommentResInterface} from "@/types/comment";
+import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {useTranslation} from "react-i18next";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
@@ -127,14 +123,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const [taskLabel, setTaskLabel] = useState<string>("")
     const [managingStatuses, setManagingStatuses] = useState(false)
     const [taskName, setTaskName] = useState<UpdateTaskName>({} as UpdateTaskName)
-    const [taskDescription, setTaskDescription] = useState<string>("")
-    // True only when the description was changed by USER input (handleDescriptionChange),
-    // false when it was programmatically re-hydrated from server data. The
-    // debounced autosave fires only for user edits, so a transient empty
-    // re-hydration during a partial task refresh (e.g. an agent's status change
-    // or another member's update right after assignment) can never overwrite the
-    // saved description with "".
-    const descUserEditedRef = useRef(false)
     // The task's status as it stands (category and custom status); the option
     // shown is derived from it and the project's statuses, which may load later.
     const [statusFields, setStatusFields] = useState<TaskStatusFields>({})
@@ -146,7 +134,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const [taskAttachments, setTaskAttachments] = useState<AttachmentMediaReq[]>([])
 
     const taskNameUpdateDebounce = useDebounce(taskName, CONSTANTS.DEBOUNCE_DELAY)
-    const taskDescriptionDebounce = useDebounce(taskDescription, CONSTANTS.DEBOUNCE_DELAY)
     const taskLabelDebounce = useDebounce(taskLabel, CONSTANTS.DEBOUNCE_DELAY)
 
     const taskInfo = useFetch<TaskInfoRawInterface>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
@@ -213,9 +200,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         }, delayMs)
     }, [taskInfo.data?.data?.task_project?.project_uuid, revalidateTaskKeys])
 
-    const commentState = useSelector(
-        (state: RootState) => state.createTaskComment.taskCommentInputState[taskUUID] || ({} as TaskCommentInputState),
-    )
     const taskInputState = useSelector(
         (state: RootState) => state.TaskInfo.taskInfoInputState[taskUUID] || ({} as TaskInfoInputState),
     )
@@ -376,41 +360,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [isAdmin, post, taskUUID, taskInfo.data, dispatch, optimisticUpdateTask],
     )
 
-    const updateTaskDesc = useCallback(
-        (desc: string) => {
-            if (
-                !taskInfo.data ||
-                taskInfo.isLoading
-            ) {
-                return
-            }
-            // Normalize empty HTML paragraphs to empty string to prevent false positives
-            const normalizeDesc = (s: string | undefined | null): string => {
-                if (!s) return ""
-                const trimmed = s.trim()
-                if (trimmed === "<p></p>" || trimmed === "<p><br></p>") return ""
-                return trimmed
-            }
-            if (normalizeDesc(desc) === normalizeDesc(taskInfo.data.data.task_description)) {
-                return
-            }
-
-            post
-                .makeRequest<CreateTaskInterface>({
-                    apiEndpoint: PostEndpointUrl.UpdateTaskDesc,
-                    payload: {
-                        task_description: desc,
-                        task_uuid: taskUUID,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
-                    },
-                })
-                .then(() => {
-                    // should we do something ?
-                })
-        },
-        [post, taskUUID, taskInfo],
-    )
-
     const updateTaskStartDate = useCallback(
         (date: Date | undefined, id: string) => {
             if (!id || !taskInfo.data?.data.task_project.project_uuid) return
@@ -561,35 +510,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [isAdmin, uploadFile, taskUUID, taskInfo.data?.data.task_project.project_uuid],
     )
 
-    const createComment = useCallback((latestContent?: string) => {
-        const rawBody = latestContent ?? commentState?.commentBody
-        const trimmedBody = removeEmptyPTags(rawBody)
-        const hasAttachments = (commentState?.filesUploaded?.length || 0) > 0
-        if ((!trimmedBody && !hasAttachments) || post.isSubmitting) return
-
-        post.makeRequest<CreateTaskCommentInterface, CreateCommentResInterface>({
-                apiEndpoint: PostEndpointUrl.CreateTaskComment,
-                payload: {
-                    task_comment_body: trimmedBody,
-                    task_uuid: taskUUID,
-                    task_comment_attachments: commentState?.filesUploaded || [],
-                },
-            })
-            .then((res) => {
-                if(res && selfProfile.data?.data) {
-                    dispatch(createNewTaskComment({
-                        commentBy: selfProfile.data?.data,
-                        taskId: taskUUID,
-                        commentText: trimmedBody,
-                        attachments: commentState?.filesUploaded || [],
-                        commentId: res?.comment_id,
-                        commentCreatedAt: res?.comment_created_at
-                    }))
-                }
-
-                dispatch(clearTaskCommentInputState({ taskUUID }))
-            })
-    }, [commentState, taskUUID, post, dispatch, selfProfile.data?.data])
+    const openCommentFiles = useCallback(() => dispatch(openUI({ key: 'taskCommentFileUpload' })), [dispatch])
 
     const handleAttachmentIconClick = useCallback(
         (attachmentMedia: AttachmentMediaReq) => {
@@ -669,11 +590,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [post, taskUUID, taskInfo],
     )
 
-    // Another task's panel starts with nothing typed, so its description loads.
-    useEffect(() => {
-        descUserEditedRef.current = false
-    }, [taskUUID])
-
     useEffect(() => {
         if (!taskInfo.data?.data) return
 
@@ -693,14 +609,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         setSelectedPriority(priorities.find((p) => p.value === data.task_priority))
         setTaskSubTasks(data.task_sub_tasks||[])
         setTaskLabel(data.task_label || "")
-        // A description still being typed isn't replaced by the server's copy:
-        // this data also refreshes when a teammate moves the task's dates (they
-        // arrive live), and that mustn't take the person's unsaved words. When
-        // nothing is being typed, the server's copy is shown, and as it isn't a
-        // user edit the debounced autosave below doesn't fire for it.
-        if (!descUserEditedRef.current) {
-            setTaskDescription(data.task_description || "")
-        }
         setTaskIsDeleted(!isZeroEpoch(data.task_deleted_at || ''))
         setTaskAttachments(data.task_attachments || [])
     }, [taskInfo.data?.data, taskUUID, dispatch])
@@ -714,16 +622,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taskInputState, taskUUID])
-
-    useEffect(() => {
-        // Persist only genuine user edits. A re-hydration from server data
-        // (descUserEditedRef === false) must never trigger a save, otherwise a
-        // transient empty value during a partial task refresh would clobber the
-        // saved description with "".
-        if (!descUserEditedRef.current) return
-        updateTaskDesc(taskDescriptionDebounce)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [taskDescriptionDebounce])
 
     useEffect(() => {
         updateTaskLabel(taskLabelDebounce)
@@ -756,26 +654,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     )
 
 
-    const handleDescriptionChange = useCallback(
-        (content: Content) => {
-            if (!isAdmin) return
-            descUserEditedRef.current = true
-            setTaskDescription(content?.toString() || "")
-        },
-        [isAdmin],
-    )
-
-    const handleCommentBodyChange = useCallback(
-        (content: Content) => {
-            dispatch(
-                createOrUpdateTaskCommentBody({
-                    body: content?.toString() || "",
-                    taskUUID,
-                }),
-            )
-        },
-        [dispatch, taskUUID],
-    )
     const createOrUpdateCommentReaction = (emojiId:string, reactionId:string, commentId:string, commentIdx: number) => {
         post.makeRequest<CreateOrUpdateCommentReaction, CreateOrUpdateCommentReaction>({apiEndpoint: PostEndpointUrl.CreateOrUpdateTaskCommentReaction,
             payload :{
@@ -1085,21 +963,13 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         </div>
                     </div>
 
-                    <div className="grid gap-2 mb-4">
-                        <Label>Description</Label>
-                        <MinimalTiptapTextInput
-                            throttleDelay={CONSTANTS.THROTTLE_DELAY}
-                            className={cn("rounded-lg h-auto border bg-muted/30")}
-                            editorContentClassName="overflow-auto min-h-[7rem]"
-                            output="html"
-                            content={taskInfo.data?.data.task_description || ""}
-                            value={taskInfo.data?.data.task_description || ""}
-                            placeholder="Add a description…"
-                            editable={isAdmin}
-                            editorClassName="focus:outline-none"
-                            onChange={handleDescriptionChange}
-                        />
-                    </div>
+                    {/* Its own component: typing renders the editor, not the panel. */}
+                    <TaskDescription
+                        taskUUID={taskUUID}
+                        projectUUID={taskInfo.data?.data.task_project?.project_uuid || ""}
+                        html={taskInfo.data?.data.task_description || ""}
+                        canEdit={isAdmin}
+                    />
 
                     {taskInfo.data?.data && (
                         <div className="mb-4">
@@ -1317,14 +1187,10 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                 <AgentWorkStrip entityId={taskUUID} revalidateKey={taskCommentState.length} />
             </div>
 
-            <TaskCommentComposer
+            <TaskCommentBox
                 taskUUID={taskUUID}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
-                commentBody={commentState?.commentBody}
-                hasAttachments={(commentState?.filesUploaded?.length ?? 0) > 0}
-                onChange={handleCommentBodyChange}
-                onSend={createComment}
-                onAttachmentClick={() => dispatch(openUI({ key: 'taskCommentFileUpload' }))}
+                onAttachmentClick={openCommentFiles}
                 onActionFiles={async (files) => {
                     if (!files?.length || !taskInfo.data?.data.task_project.project_uuid) return;
                     const dt = new DataTransfer();
