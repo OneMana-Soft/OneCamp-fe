@@ -5,15 +5,7 @@ import type { Editor } from '@tiptap/react'
 import type { FormatAction } from '../../types'
 import type { toggleVariants } from '@/components/ui/toggle'
 import type { VariantProps } from 'class-variance-authority'
-import {
-  CodeIcon,
-  DotsHorizontalIcon,
-  FontBoldIcon,
-  FontItalicIcon,
-  StrikethroughIcon,
-  TextNoneIcon,
-  UnderlineIcon
-} from '@radix-ui/react-icons'
+import { Bold, Code, Italic, MoreHorizontal, RemoveFormatting, Strikethrough, Underline } from '@/lib/icons'
 import { ToolbarSection } from '../toolbar-section'
 
 type TextStyleAction = 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'clearFormatting'
@@ -26,7 +18,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'bold',
     label: 'Bold',
-    icon: <FontBoldIcon className="size-5" />,
+    icon: <Bold className="size-4" strokeWidth={1.75} />,
     action: editor => editor.chain().focus().toggleBold().run(),
     isActive: editor => editor.isActive('bold'),
     canExecute: editor => editor.can().chain().toggleBold().run() && !editor.isActive('codeBlock'),
@@ -35,7 +27,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'italic',
     label: 'Italic',
-    icon: <FontItalicIcon className="size-5" />,
+    icon: <Italic className="size-4" strokeWidth={1.75} />,
     action: editor => editor.chain().focus().toggleItalic().run(),
     isActive: editor => editor.isActive('italic'),
     canExecute: editor => editor.can().chain().toggleItalic().run() && !editor.isActive('codeBlock'),
@@ -44,7 +36,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'underline',
     label: 'Underline',
-    icon: <UnderlineIcon className="size-5" />,
+    icon: <Underline className="size-4" strokeWidth={1.75} />,
     action: editor => editor.chain().focus().toggleUnderline().run(),
     isActive: editor => editor.isActive('underline'),
     canExecute: editor => editor.can().chain().toggleUnderline().run() && !editor.isActive('codeBlock'),
@@ -53,7 +45,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'strikethrough',
     label: 'Strikethrough',
-    icon: <StrikethroughIcon className="size-5" />,
+    icon: <Strikethrough className="size-4" strokeWidth={1.75} />,
     action: editor => editor.chain().focus().toggleStrike().run(),
     isActive: editor => editor.isActive('strike'),
     canExecute: editor => editor.can().chain().toggleStrike().run() && !editor.isActive('codeBlock'),
@@ -62,7 +54,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'code',
     label: 'Code',
-    icon: <CodeIcon className="size-5" />,
+    icon: <Code className="size-4" strokeWidth={1.75} />,
     action: editor => editor.chain().focus().toggleCode().run(),
     isActive: editor => editor.isActive('code'),
     canExecute: editor => editor.can().chain().toggleCode().run() && !editor.isActive('codeBlock'),
@@ -71,7 +63,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'clearFormatting',
     label: 'Clear formatting',
-    icon: <TextNoneIcon className="size-5" />,
+    icon: <RemoveFormatting className="size-4" strokeWidth={1.75} />,
     action: editor => editor.chain().focus().unsetAllMarks().run(),
     isActive: () => false,
     canExecute: editor => editor.can().chain().unsetAllMarks().run() && !editor.isActive('codeBlock'),
@@ -98,7 +90,7 @@ export const SectionTwo: React.FC<SectionTwoProps> = ({
       actions={formatActions}
       activeActions={activeActions}
       mainActionCount={mainActionCount}
-      dropdownIcon={<DotsHorizontalIcon className="size-5" />}
+      dropdownIcon={<MoreHorizontal className="size-4" strokeWidth={1.75} />}
       dropdownTooltip="More formatting"
       dropdownClassName="w-8"
       size={size}

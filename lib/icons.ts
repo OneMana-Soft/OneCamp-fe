@@ -137,6 +137,9 @@ export {
   CircleCheck,
   Quote,
   Code,
+  // A code block, told apart from inline code; and clearing a selection's marks.
+  SquareCode,
+  RemoveFormatting,
   Image as ImageIcon,
   Paperclip,
   Link,
