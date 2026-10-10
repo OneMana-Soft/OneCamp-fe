@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react"
 import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
+import { NoticeBar } from "@/components/banner/NoticeBar"
 
 /**
  * The app's offline state: one quiet notice while the network is gone or the
@@ -16,10 +17,23 @@ import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib
  * (lib/connectivity, fed by the axios layer) are the server or a proxy in
  * front of it, which a person can't fix, so it says it is trying again.
  *
- * Placed where it covers nothing being used: bottom left from sm up (toasts
- * are bottom right, the message box is in the middle), and above the bottom
- * navigation on a phone.
+ * Inside the signed-in app it is a line in the shell's notice slot, above the
+ * page, taking its own height: it covers nothing. Floating bottom left, it sat
+ * on the sidebar's Collapse button (and over the sheet's edge); on a phone it
+ * floated over the page above the tab bar. Outside the app (sign-in, a shared
+ * form) there is no slot, and the root's copy floats as before. The root's
+ * copy stands down while the shell's is mounted, so it is said once.
  */
+
+// How many shells are showing the notice inline right now.
+let inlineHosts = 0
+const hostListeners = new Set<() => void>()
+const subscribeHosts = (fn: () => void) => {
+  hostListeners.add(fn)
+  return () => hostListeners.delete(fn)
+}
+const hostedInline = () => inlineHosts > 0
+const notHosted = () => false
 
 function subscribeOnline(onChange: () => void) {
   window.addEventListener("online", onChange)
@@ -36,7 +50,17 @@ const assumeReachable = () => false
 /** How often the server is asked again while it doesn't answer. */
 const PROBE_EVERY_MS = 15_000
 
-export function OfflineNotice() {
+export function OfflineNotice({ inline = false }: { inline?: boolean } = {}) {
+  const hosted = useSyncExternalStore(subscribeHosts, hostedInline, notHosted)
+  useEffect(() => {
+    if (!inline) return
+    inlineHosts++
+    hostListeners.forEach((fn) => fn())
+    return () => {
+      inlineHosts--
+      hostListeners.forEach((fn) => fn())
+    }
+  }, [inline])
   const online = useSyncExternalStore(subscribeOnline, browserOnline, assumeOnline)
   const unreachable = useSyncExternalStore(subscribeConnectivity, isServerUnreachable, assumeReachable)
 
@@ -64,11 +88,20 @@ export function OfflineNotice() {
   }, [online, unreachable])
 
   if (online && !unreachable) return null
+  if (!inline && hosted) return null
 
   const title = online ? "Can't reach the server" : "You're offline"
   const line = online
     ? "Trying again. Nothing you've saved is lost."
     : "Changes you make won't be saved until you're back."
+
+  if (inline) {
+    return (
+      <NoticeBar tone="offline">
+        <span className="font-medium">{title}.</span> {line}
+      </NoticeBar>
+    )
+  }
 
   return (
     <div

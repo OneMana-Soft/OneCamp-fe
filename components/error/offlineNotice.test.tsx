@@ -46,6 +46,27 @@ describe("the offline notice", () => {
     expect(screen.queryByRole("status")).toBeNull()
   })
 
+  // Floating bottom left, it sat on the sidebar's Collapse button and over
+  // the sheet's edge. In the app it is a line in the shell's notice slot.
+  it("in the app, is a line above the page, said once, not a floating card", () => {
+    render(
+      <>
+        <OfflineNotice />
+        <OfflineNotice inline />
+      </>,
+    )
+    act(() => setOnline(false))
+    const notices = screen.getAllByRole("status")
+    expect(notices).toHaveLength(1)
+    expect(notices[0].getAttribute("data-notice")).toBe("offline")
+    expect(notices[0].className).not.toMatch(/\bfixed\b/)
+  })
+
+  it("puts the line in both shells' notice slots", () => {
+    const layout = readFileSync(join(__dirname, "..", "..", "app", "app", "LayoutContent.tsx"), "utf8")
+    expect(layout.match(/<OfflineNotice inline \/>/g)).toHaveLength(2)
+  })
+
   it("is mounted once, at the root, so every page has it", () => {
     const root = readFileSync(join(__dirname, "..", "providers", "ClientProviders.tsx"), "utf8")
     expect(root).toMatch(/<OfflineNotice\s*\/>/)

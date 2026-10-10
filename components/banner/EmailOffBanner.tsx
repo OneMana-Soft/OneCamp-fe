@@ -22,7 +22,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, X } from "lucide-react"
+import { NoticeBar } from "@/components/banner/NoticeBar"
 import { useClientConfig } from "@/hooks/useClientConfig"
 
 const DISMISSED_KEY = "onecamp:email-off-banner-dismissed"
@@ -53,26 +53,13 @@ export function EmailOffBanner({ isAdmin }: { isAdmin?: boolean }) {
     }
 
     return (
-        <div
-            role="status"
-            className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-warning-ink"
-        >
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <p className="flex-1">
-                This workspace cannot send email, so password resets and invitations will fail
-                silently.{" "}
-                <Link href="/app/admin?tab=email-settings" className="font-medium underline underline-offset-2">
-                    Add a sending key in Admin settings
-                </Link>
-                .
-            </p>
-            <button
-                onClick={dismiss}
-                aria-label="Dismiss"
-                className="shrink-0 rounded p-0.5 hover:bg-warning/20"
-            >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-        </div>
+        <NoticeBar tone="warning" onDismiss={dismiss}>
+            {/* Says what an admin sees happen, then the one fix. */}
+            This workspace can&apos;t send email yet, so invitations and password resets won&apos;t arrive.{" "}
+            <Link href="/app/admin?tab=email-settings" className="font-medium underline underline-offset-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
+                Add a sending key in Admin settings
+            </Link>
+            .
+        </NoticeBar>
     )
 }

@@ -97,6 +97,7 @@ export {
   AlertCircle,
   AlertTriangle,
   Info,
+  WifiOff,
   HelpCircle,
   Circle,
   CircleDot,
