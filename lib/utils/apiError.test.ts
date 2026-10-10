@@ -94,6 +94,32 @@ describe("apiErrorStatus", () => {
   })
 })
 
+describe("apiErrorMessage for an answer with no words of its own", () => {
+  // Admin cards showed axios's "Request failed with status code 403" as their
+  // error: the machinery, not the problem.
+  const answered = (status: number, data: unknown = {}) => ({ response: { status, data }, message: `Request failed with status code ${status}` })
+
+  it("says what the status means", () => {
+    expect(apiErrorMessage(answered(403), "fallback")).toBe("You don't have permission to do that.")
+    expect(apiErrorMessage(answered(404), "fallback")).toBe("It may have been deleted or moved.")
+    expect(apiErrorMessage(answered(502), "fallback")).toBe("The server hit a problem. Try again in a moment.")
+  })
+
+  it("says what the status means over a bare no", () => {
+    expect(apiErrorMessage(answered(403, { msg: "unauthorized" }), "fallback")).toBe("You don't have permission to do that.")
+  })
+
+  it("uses the caller's words for a status with none of its own, and never axios's", () => {
+    expect(apiErrorMessage(answered(418), "The check could not be run.")).toBe("The check could not be run.")
+    expect(apiErrorMessage(answered(418))).toBe("Try again in a moment.")
+    expect(apiErrorMessage(answered(401))).not.toMatch(/status code/)
+  })
+
+  it("still prefers the server's own words", () => {
+    expect(apiErrorMessage(answered(403, { msg: "Only the workspace owner can run the check." }))).toBe("Only the workspace owner can run the check.")
+  })
+})
+
 describe("apiErrorMessage without a server answer", () => {
   it("puts axios's transport words into a sentence a person can act on", () => {
     const msg = apiErrorMessage({ message: "Network Error" }, "fallback")

@@ -18,6 +18,8 @@
  * make.
  */
 
+import { isBareNo, statusWords } from "./errorToast"
+
 /** The error-carrying subset of a OneCamp response envelope. */
 interface ApiErrorEnvelope {
   msg?: unknown
@@ -60,7 +62,13 @@ function envelopeOf(error: unknown): ApiErrorEnvelope | undefined {
  */
 export function apiErrorMessage(error: unknown, fallback = ""): string {
   const msg = envelopeOf(error)?.msg
-  if (typeof msg === "string" && msg !== "") return msg
+  if (typeof msg === "string" && msg !== "" && !isBareNo(msg)) return msg
+
+  // An answer with no words of its own, or only a bare "no": what its status
+  // means. Axios's message for it, "Request failed with status code 403",
+  // names the machinery, not the problem, and reached admin cards as it was.
+  const status = apiErrorStatus(error)
+  if (status) return statusWords(status) ?? (fallback || "Try again in a moment.")
 
   const transport = (error as { message?: unknown } | null | undefined)?.message
   if (typeof transport === "string" && transport !== "") return TRANSPORT_WORDS[transport] ?? transport
