@@ -21,6 +21,7 @@ import { Search, UserPlus } from "@/lib/icons"
 import { seatSummary } from "@/lib/utils/seatSummary"
 import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 
 /**
  * A hundred at a time, every page in turn, in the background. It was twenty,
@@ -185,6 +186,11 @@ const UserCard = () => {
     searchRef.current?.focus()
   })
 
+  const deactivated = useMemo(
+    () => allUsers.reduce((n, u) => (isZeroEpoch(u.user_deleted_at || "") ? n : n + 1), 0),
+    [allUsers],
+  )
+
   const normalisedSearch = normalizePersonQuery(query)
   const filteredUsers = useMemo(() => {
     if (!normalisedSearch) return allUsers
@@ -207,7 +213,12 @@ const UserCard = () => {
               </span>
             </div>
             <CardDescription className="text-sm text-muted-foreground">
-              Everyone with an account here.
+              {/* The count above includes deactivated people; the plan line
+                  below counts only those who use a place. Said once everyone is
+                  loaded, so the number never moves while the pages arrive. */}
+              {!hasMore && deactivated > 0
+                ? `Everyone with an account here, ${deactivated} of them deactivated.`
+                : "Everyone with an account here."}
             </CardDescription>
             {seats && (
               <p

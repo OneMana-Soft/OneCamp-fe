@@ -128,6 +128,32 @@ describe("the members list", () => {
 
   // A failed first page used to leave the skeleton up for good, and a failed
   // later page left "loading" up for good: neither said anything went wrong.
+  // The header said "Members 15" over "Free plan: 14 of 25 people": the list
+  // counts a deactivated account, the plan doesn't. The header now says so.
+  it("says how many in the count are deactivated, once everyone is loaded", () => {
+    const saved = state.people.map((p) => p.user_deleted_at)
+    state.people[3].user_deleted_at = "2026-09-30T10:00:00Z"
+    state.people[400].user_deleted_at = "2026-10-01T10:00:00Z"
+    try {
+      render(<UserCard />)
+      expect(screen.getByText("Everyone with an account here, 2 of them deactivated.")).toBeInTheDocument()
+    } finally {
+      state.people.forEach((p, i) => { p.user_deleted_at = saved[i] })
+    }
+  })
+
+  it("says nothing about deactivated people while the rest are loading", () => {
+    state.answeredPages = 1
+    const saved = state.people[3].user_deleted_at
+    state.people[3].user_deleted_at = "2026-09-30T10:00:00Z"
+    try {
+      render(<UserCard />)
+      expect(screen.getByText("Everyone with an account here.")).toBeInTheDocument()
+    } finally {
+      state.people[3].user_deleted_at = saved
+    }
+  })
+
   it("says when the members couldn't be loaded, and tries again", () => {
     state.failingPages = 0
     render(<UserCard />)
