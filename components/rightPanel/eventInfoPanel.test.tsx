@@ -8,6 +8,7 @@ import { cleanup, render, screen, within } from "@testing-library/react"
 const SAM = { user_uuid: "289b6b5d-c30c-427a-bcec-634cb294f285", user_name: "Sam Rivera", user_full_name: "Sam Rivera", user_profile_object_key: "" }
 const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-000000000002", user_name: "Maya", user_full_name: "Maya Chen", user_profile_object_key: "" }
 let participants: (typeof SAM)[] = []
+let times = { event_start_time: "2026-09-28T09:30:00", event_end_time: "2026-09-28T09:45:00" }
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({
     data: {
@@ -15,8 +16,7 @@ vi.mock("@/hooks/useFetch", () => ({
         {
           event_uuid: "e1",
           event_title: "Standup",
-          event_start_time: "2026-09-28T09:30:00",
-          event_end_time: "2026-09-28T09:45:00",
+          ...times,
           event_created_by: SAM,
           event_participants: participants,
         },
@@ -38,6 +38,7 @@ import EventInfoPanel from "./eventInfoPanel"
 afterEach(() => {
   cleanup()
   participants = []
+  times = { event_start_time: "2026-09-28T09:30:00", event_end_time: "2026-09-28T09:45:00" }
 })
 
 function panel() {
@@ -88,4 +89,14 @@ describe("an event in the side panel", () => {
       expect(b.innerHTML).not.toMatch(/hover:text-primary/)
     }
   })
+
+  it("says All day for an all-day event, on its one day", () => {
+    times = { event_start_time: "2026-10-12T00:00:00", event_end_time: "2026-10-13T00:00:00" }
+    panel()
+    const facts = screen.getAllByRole("term")[0].closest("dl")!
+    const row = (label: string) => within(facts).getByText(label).nextElementSibling as HTMLElement
+    expect(row("Time").textContent).toBe("All day")
+    expect(row("Date").textContent).toBe("Monday 12 October 2026")
+  })
 })
+

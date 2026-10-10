@@ -64,3 +64,30 @@ describe("the phone's agenda with nothing coming up", () => {
     expect(screen.getByRole("button", { name: /New event/ })).toBeTruthy()
   })
 })
+
+describe("the phone's agenda rows", () => {
+  const day = new Date(2026, 9, 12)
+  const iso = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).toISOString()
+  const row = (item: Record<string, unknown>) => {
+    render(
+      <CalendarAgenda
+        days={[{ day, items: [{ event_uuid: "x", event_title: "Item", event_start_time: iso(12, 9), event_end_time: iso(12, 10), ...item } as never] }]}
+        onOpen={vi.fn()}
+        onCreate={vi.fn()}
+      />,
+    )
+    return screen.getByRole("button", { name: /Item|Focus time|Launch day|Offsite/ }).textContent
+  }
+
+  it("says All day for an all-day event, not 12:00 AM to 12:00 AM", () => {
+    expect(row({ event_title: "Launch day", event_start_time: iso(12, 0), event_end_time: iso(13, 0) })).toContain("All day")
+    cleanup()
+    expect(row({ event_title: "Offsite", event_start_time: iso(12, 0), event_end_time: iso(15, 0) })).toContain("All day, until 14 Oct")
+  })
+
+  it("does not say Focus time twice for a block called Focus time", () => {
+    const text = row({ event_title: "Focus time", event_is_focus: true, event_start_time: iso(12, 13), event_end_time: iso(12, 15) })
+    expect(text?.match(/Focus time/g)).toHaveLength(1)
+  })
+})
+

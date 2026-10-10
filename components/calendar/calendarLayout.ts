@@ -125,3 +125,14 @@ export function layoutWeek<T extends DatedItem>(weekStart: Date, placed: readonl
 export function monthGridRange(anchor: Date): { start: Date; end: Date } {
   return { start: startOfWeek(startOfMonth(anchor)), end: endOfWeek(endOfMonth(anchor)) }
 }
+
+/**
+ * An all-day item: it starts at midnight and ends at a later midnight, the
+ * way an all-day event is stored (the end is the next day's start). Shown
+ * as "All day", never "12:00 AM to 12:00 AM".
+ */
+export function isAllDay(start: Date, end: Date): boolean {
+  const midnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0
+  return midnight(start) && midnight(end) && end.getTime() - start.getTime() >= 23 * 3600 * 1000
+}
+
