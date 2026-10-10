@@ -11,7 +11,7 @@
 // its members never opened to them.
 
 import { serverMessage } from "@/lib/http/serverMessage"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
@@ -30,17 +30,6 @@ export function sameChoice(a: string[], b: string[]): boolean {
 /** The server's refusal, in its own words, or a plain fallback. */
 const refusal = (err: unknown) => serverMessage(err, "Try again in a moment.")
 
-/**
- * An unsaved choice, kept while the admin looks at another section: the admin
- * page shows one section at a time, so leaving General unmounted this card and
- * the ticks were gone when they came back. They come back now, with the bar.
- */
-let keptChoice: string[] | null = null
-/** For tests: start each one with nothing kept. */
-export function forgetKeptChoice() {
-    keptChoice = null
-}
-
 export default function DefaultChannelsCard() {
     const { toast } = useToast()
     const [view, setView] = useState<DefaultChannels | null>(null)
@@ -49,19 +38,16 @@ export default function DefaultChannelsCard() {
     const [picked, setPicked] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
 
-    const show = (next: DefaultChannels | null, choice?: string[] | null) => {
+    const show = (next: DefaultChannels | null) => {
         setView(next)
-        setPicked(choice ?? next?.channels.map((c) => c.ch_uuid) ?? [])
+        setPicked(next?.channels.map((c) => c.ch_uuid) ?? [])
     }
 
     const load = () => {
         setLoading(true)
         setFailed(false)
         getDefaultChannels()
-            .then((next) => {
-                show(next, keptChoice)
-                keptChoice = null
-            })
+            .then(show)
             .catch(() => setFailed(true))
             .finally(() => setLoading(false))
     }
@@ -73,13 +59,6 @@ export default function DefaultChannelsCard() {
 
     const saved = useMemo(() => view?.channels.map((c) => c.ch_uuid) ?? [], [view])
     const changed = !!view && !sameChoice(saved, picked)
-
-    // The choice as it is at unmount, kept only while it differs from what's saved.
-    const latest = useRef({ picked, changed })
-    latest.current = { picked, changed }
-    useEffect(() => () => {
-        keptChoice = latest.current.changed ? latest.current.picked : null
-    }, [])
 
     const toggle = (id: string, on: boolean) =>
         setPicked((cur) => (on ? (cur.includes(id) ? cur : [...cur, id]) : cur.filter((x) => x !== id)))

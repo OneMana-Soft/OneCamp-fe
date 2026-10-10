@@ -17,7 +17,7 @@ vi.mock("@/services/settingsService", () => ({
   setDefaultChannels: api.set,
 }))
 
-import DefaultChannelsCard, { forgetKeptChoice, sameChoice } from "./DefaultChannelsCard"
+import DefaultChannelsCard, { sameChoice } from "./DefaultChannelsCard"
 
 const general = { ch_uuid: "g", ch_name: "general" }
 const news = { ch_uuid: "n", ch_name: "news" }
@@ -33,7 +33,6 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
-  forgetKeptChoice()
   toast.mockReset()
   api.get.mockReset()
   api.set.mockReset()
@@ -61,15 +60,6 @@ describe("choosing where new members start", () => {
     const { container } = render(<DefaultChannelsCard />)
     expect(screen.getByLabelText("Loading the channels new members join")).toBeTruthy()
     expect(container.querySelector(".animate-spin")).toBeNull()
-  })
-
-  it("keeps an unsaved choice when the admin switches to another section and back", async () => {
-    const first = render(<DefaultChannelsCard />)
-    fireEvent.click(await screen.findByRole("checkbox", { name: "news" }))
-    first.unmount()
-    render(<DefaultChannelsCard />)
-    await waitFor(() => expect(screen.getByRole("checkbox", { name: "news" }).getAttribute("data-state")).toBe("checked"))
-    expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeTruthy()
   })
 
   it("saves the channels picked, in the order the list shows", async () => {

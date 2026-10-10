@@ -4,10 +4,9 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 // The General tab's workspace settings. An allow-list entry can name a domain
 // (@example.com), which lets in only Google Workspace accounts that domain
 // manages; the admin is told exactly that, and why a public domain like
-// @gmail.com is refused, beside the field. Edits wait in a save bar, survive a
-// switch to another admin section, and a settings read that failed offers no
-// form to save over: saving an empty allow-list makes the workspace
-// invite-only.
+// @gmail.com is refused, beside the field. Edits wait in a save bar, and a
+// settings read that failed offers no form to save over: saving an empty
+// allow-list makes the workspace invite-only.
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
@@ -17,7 +16,7 @@ vi.mock("@/services/settingsService", () => ({
   updateWorkspaceSettings: service.update,
 }))
 
-const { default: WorkspaceSettingsCard, forgetKeptDraft } = await import("./WorkspaceSettingsCard")
+const { default: WorkspaceSettingsCard } = await import("./WorkspaceSettingsCard")
 
 const saved = { upload_limit_mb: 10, upload_limit_source: "default", allowed_users: ["@acme.example"], allowed_users_source: "db" }
 
@@ -25,7 +24,6 @@ afterEach(() => {
   cleanup()
   service.get.mockReset()
   service.update.mockReset()
-  forgetKeptDraft()
 })
 
 const saveBar = () => screen.getByRole("region", { name: "Unsaved changes" })
@@ -77,16 +75,6 @@ describe("saving workspace settings", () => {
     fireEvent.click(within(saveBar()).getByRole("button", { name: "Discard" }))
     expect(list.value).toBe("@acme.example")
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
-  })
-
-  it("keeps an unsaved edit when the admin switches to another section and back", async () => {
-    service.get.mockResolvedValue(saved)
-    const first = render(<WorkspaceSettingsCard />)
-    fireEvent.change(await screen.findByLabelText(/Who can join without an invitation/), { target: { value: "@kestrel.studio" } })
-    first.unmount()
-    render(<WorkspaceSettingsCard />)
-    expect(await screen.findByDisplayValue("@kestrel.studio")).toBeTruthy()
-    expect(saveBar()).toBeTruthy()
   })
 
   it("labels the upload limit, and says a bad size under it instead of saving", async () => {
