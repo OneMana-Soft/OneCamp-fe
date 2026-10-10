@@ -16,6 +16,7 @@ import Link from "next/link"
 import { AlertTriangle, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { formatBytesShort } from "@/lib/purgeLine"
 
@@ -39,10 +40,14 @@ const dismissedAt = () => {
 }
 
 export function DiskBanner({ isAdmin }: { isAdmin?: boolean }) {
-  const { data } = useFetch<{ data: DiskInfo }>(isAdmin ? GetEndpointUrl.GetAdminDisk : "", undefined, {
-    refreshInterval: 10 * 60 * 1000,
-    revalidateOnFocus: false,
-  })
+  // A hint, asked for in the background every ten minutes: when it can't be
+  // read there is no banner, and no toast about a request nobody made.
+  const { data } = useFetch<{ data: DiskInfo }>(
+    isAdmin ? GetEndpointUrl.GetAdminDisk : "",
+    undefined,
+    { refreshInterval: 10 * 60 * 1000, revalidateOnFocus: false },
+    OWN_ERRORS,
+  )
   const [snoozedAt, setSnoozedAt] = useState(() => (typeof window === "undefined" ? 0 : dismissedAt()))
   const disk = data?.data
   if (!isAdmin || !disk?.available || !disk.level || disk.level === "ok") return null
