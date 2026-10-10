@@ -15,7 +15,8 @@ export function channelComposerPlaceholder(
   const base = `Message #${channelName}`
   const agent = agentNames.find((n) => n.trim() !== "")?.trim()
   if (!agent) return base
-  return compact ? `Message, or ask @${agent}` : `${base}, or ask @${agent}`
+  // No comma when short: "Message, or ask" read as a word dropped before it.
+  return compact ? `Message or ask @${agent}` : `${base}, or ask @${agent}`
 }
 
 // The other composers' placeholders, which every edition has, are in

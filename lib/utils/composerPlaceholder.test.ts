@@ -10,7 +10,7 @@ describe("channelComposerPlaceholder", () => {
   })
   it("drops the channel name on a phone, where the header shows it", () => {
     expect(channelComposerPlaceholder("engineering", ["Release Captain"], { compact: true })).toBe(
-      "Message, or ask @Release Captain",
+      "Message or ask @Release Captain",
     )
     expect(channelComposerPlaceholder("engineering", [], { compact: true })).toBe("Message #engineering")
   })
