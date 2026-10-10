@@ -17,6 +17,8 @@ import {DocInfoResponse} from "@/types/doc";
 import { MessageCircle, Loader2, Download, Keyboard, Maximize, Minimize, Ellipsis, History, Eye } from "@/lib/icons";
 import { WifiOff } from "lucide-react";
 import {Button} from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -371,7 +373,22 @@ export function DocView({ docId }: { docId: string }) {
     }
 
     if (!docInfo) {
-         return <div className="flex items-center justify-center h-full">Document not found or access denied.</div>;
+        // A doc that was deleted, or one this person can't open, is the same
+        // dead end from where they stand; it needs a way back, not a sentence
+        // floating in the middle of an empty page.
+        return (
+            <EmptyState
+                title="This doc isn't available"
+                description="It may have been deleted, or it hasn't been shared with you. Ask whoever sent the link to share it."
+                headingLevel={2}
+                className="h-full"
+                action={
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/app/doc">Back to docs</Link>
+                    </Button>
+                }
+            />
+        );
     }
 
     const editorCollaborationProp = collaborationConfig
@@ -379,7 +396,7 @@ export function DocView({ docId }: { docId: string }) {
         : undefined;
 
     return (
-        <div className={cn('flex flex-col h-full transition duration-300', focusMode && 'bg-background')}>
+        <div className={cn('flex flex-col h-full', focusMode && 'bg-background')}>
             {/* Desktop top bar — hidden in focus mode */}
             {!focusMode && isDesktop && (
                 <div className='h-14 items-center flex justify-between p-2 pl-4 pr-4 border-b shrink-0 bg-background z-10'>
@@ -403,14 +420,22 @@ export function DocView({ docId }: { docId: string }) {
                             size="sm"
                             onClick={() => setFocusMode(!focusMode)}
                             className="gap-1.5 text-muted-foreground hover:text-foreground"
+                            aria-label={focusMode ? 'Exit focus mode' : 'Focus mode'}
                             title={focusMode ? 'Exit focus mode' : 'Focus mode'}
                         >
                             {focusMode ? <Minimize className='h-4 w-4'/> : <Maximize className='h-4 w-4'/>}
                         </Button>
 
-                        <Button variant='ghost' size="sm" onClick={handleCommentClick} className="gap-1.5">
-                            <MessageCircle className='h-4 w-4'/>
-                            <span className="text-sm">{docCommentCount || 0}</span>
+                        <Button
+                            variant='ghost'
+                            size="sm"
+                            onClick={handleCommentClick}
+                            className="gap-1.5 text-muted-foreground hover:text-foreground"
+                            aria-label={`Comments, ${docCommentCount || 0}`}
+                            title="Comments"
+                        >
+                            <MessageCircle className='h-4 w-4' aria-hidden="true"/>
+                            <span className="text-sm tabular-nums">{docCommentCount || 0}</span>
                         </Button>
 
                         {/* Export and shortcuts are occasional, so they live here
@@ -488,7 +513,7 @@ export function DocView({ docId }: { docId: string }) {
                         variant="secondary"
                         size="sm"
                         onClick={() => setFocusMode(false)}
-                        className="shadow-lg border opacity-80 hover:opacity-100 transition-opacity"
+                        className="border shadow-overlay"
                         title="Exit focus mode (Esc)"
                     >
                         <Minimize className="h-4 w-4 mr-1.5" />
