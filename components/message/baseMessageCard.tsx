@@ -371,6 +371,9 @@ export const BaseMessageCard = React.memo(({
       buttonOnclick={handleEditComplete}
       SecondaryButtonIcon={X}
       secondaryButtonOnclick={handleEditCancel}
+      // Editing folds its formatting behind one button, as the message box
+      // does: thirteen icons opened under the line being corrected.
+      toggleToolbar={isMessageEditEnabled}
       editorClassName="focus:outline-none "
       onChange={(content) => {
         const s = content as string
@@ -486,6 +489,15 @@ export const BaseMessageCard = React.memo(({
               message.sendState === "sending" && "opacity-60 delay-300",
             )}
             onClickCapture={handleInternalLinkClick}
+            // Escape leaves an edit unchanged, as in every chat app; a popover
+            // inside the editor (mentions, emoji) takes it first.
+            onKeyDown={(e) => {
+              if (isMessageEditEnabled && e.key === "Escape" && !e.defaultPrevented) {
+                e.preventDefault()
+                e.stopPropagation()
+                handleEditCancel()
+              }
+            }}
           >
             {showErrorBoundary ? (
               <LocalizedErrorBoundary
@@ -496,6 +508,11 @@ export const BaseMessageCard = React.memo(({
               </LocalizedErrorBoundary>
             ) : (
               editor
+            )}
+            {isMessageEditEnabled && (
+              <p className="-mt-1 mb-1 text-2xs text-muted-foreground">
+                <kbd className="font-sans font-medium text-foreground">Escape</kbd> to cancel · <kbd className="font-sans font-medium text-foreground">Enter</kbd> to save
+              </p>
             )}
           </div>
 
