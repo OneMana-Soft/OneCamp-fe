@@ -353,9 +353,11 @@ export default function BoardPage() {
           />
         )}
 
-        {/* Mobile share + options affordance (desktop uses the header). */}
+        {/* Mobile share + options affordance (desktop uses the header). Low on
+            the right, above the canvas's own footer: at the top they sat on
+            Excalidraw's tool row and covered its last three tools. */}
         {isMobile && (
-          <div className="absolute right-3 top-3 z-20 flex items-center gap-2">
+          <div className="absolute bottom-[4.5rem] right-3 z-20 flex items-center gap-2" data-board-phone-actions="">
             {hasEditAccess && (
               <Button
                 variant={commentMode ? "default" : "secondary"}

@@ -324,8 +324,10 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
 
       <div
         className={cn(
-          "pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2",
-          isMobile ? "top-2" : "bottom-4",
+          "pointer-events-none absolute left-1/2 z-20 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-col items-center gap-2",
+          // On a phone, above the canvas's footer and the board's own buttons:
+          // at the top it covered Excalidraw's tool row.
+          isMobile ? "bottom-[7.5rem]" : "bottom-4",
         )}
       >
         {/* Presenting. */}
@@ -397,7 +399,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
                     : results.length > 0 && `: “${notes.find((n) => n.id === results[0].id)?.text ?? ""}” leads`}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent side={isMobile ? "bottom" : "top"} className="w-72 p-2">
+              <PopoverContent side="top" className="w-72 p-2">
                 {results.length === 0 ? (
                   <p className="p-2 text-sm text-muted-foreground">Nobody voted.</p>
                 ) : (
@@ -462,7 +464,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
         {editable && (!timer || !voting || !presenting) && (
           <Bar subtle>
             {!timer && (
-              <Choice icon={<Timer className="h-3.5 w-3.5" />} label="Timer" options={TIMER_MINUTES.map((m) => ({ label: `${m} min`, onPick: () => startTimer(m) }))} side={isMobile ? "bottom" : "top"} />
+              <Choice icon={<Timer className="h-3.5 w-3.5" />} label="Timer" options={TIMER_MINUTES.map((m) => ({ label: `${m} min`, onPick: () => startTimer(m) }))} side="top" />
             )}
             {!voting && (
               <Choice
@@ -470,7 +472,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
                 label="Vote"
                 heading="Votes for each person"
                 options={VOTES_EACH.map((n) => ({ label: `${n} ${n === 1 ? "vote" : "votes"}`, onPick: () => startVoting(n) }))}
-                side={isMobile ? "bottom" : "top"}
+                side="top"
               />
             )}
             {!presenting && (

@@ -177,7 +177,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
     return (
         <Dialog open={dialogOpenState} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden bg-background border-border">
+            <DialogContent className="sm:max-w-md grid-cols-[minmax(0,1fr)] gap-0 p-0 overflow-hidden bg-background border-border">
                 <DialogHeader className="p-6 pb-4 text-start">
                     <DialogTitle className="text-base font-semibold">Share document</DialogTitle>
                     <DialogDescription className="text-muted-foreground mt-1">
@@ -220,10 +220,10 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                     {/* General Access */}
                     <div className="flex flex-col gap-3 pt-4 border-t border-border">
                         <Label className={eyebrowClass}>General access</Label>
-                        <div className="flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
+                        <div className="flex min-w-0 items-center justify-between group">
+                            <div className="flex min-w-0 items-center gap-3">
                                 <GeneralAccessMark restricted={!!permissions?.doc_private} />
-                                <div className="flex flex-col">
+                                <div className="flex min-w-0 flex-col">
                                     <Select 
                                         value={generalAccessValue} 
                                         onValueChange={handlePrivacyChange}
