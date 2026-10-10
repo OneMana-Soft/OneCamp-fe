@@ -39,7 +39,7 @@ export const ChainPair: React.FC<{
 
     return (
         <div
-            className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[0.7rem] text-muted-foreground ${className || ""}`}
+            className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-2xs text-muted-foreground ${className || ""}`}
         >
             {seq ? <span className="tabular-nums">#{seq}</span> : null}
             <span title={prevHash || "nothing: this is the first entry in the chain"}>

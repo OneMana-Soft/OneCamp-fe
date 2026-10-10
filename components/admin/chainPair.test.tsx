@@ -108,3 +108,14 @@ describe("who started it, on a feed row", () => {
         expect(c2.textContent).not.toMatch(/person|schedule|nobody watching/)
     })
 })
+
+describe("the chain pair's type", () => {
+    // A size from the scale, the one meta and timestamps use: it was an
+    // arbitrary text-[0.7rem], a size nobody chose (typeScale.test.ts).
+    it("is set at the timestamp size, not an arbitrary one", () => {
+        const { container } = render(<ChainPair seq={1412} prevHash={PREV} entryHash={THIS} />)
+        const row = container.firstElementChild as HTMLElement
+        expect(row.className).toMatch(/\btext-2xs\b/)
+        expect(row.className).not.toMatch(/text-\[/)
+    })
+})
