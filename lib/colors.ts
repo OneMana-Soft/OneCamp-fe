@@ -66,51 +66,5 @@ export const statusColors = {
 } as const;
 
 // ─── Calendar Colors ────────────────────────────────────────
-
-// Tasks and events are a real category, so they differ: tasks take the accent
-// (they are yours to do), events a neutral ink. As soft tinted blocks with the
-// page's own text, not saturated blue and indigo bars with white text, which
-// made the calendar the loudest and only cold screen in a warm, one-accent
-// product. `solid` is for the small marks (a dot, an agenda bar).
-export const calendarColors = {
-  task: {
-    solid: "bg-brand",
-    block: "bg-brand/15 text-foreground",
-    blockHover: "bg-brand/25 text-foreground",
-    border: "border-brand/30",
-    dot: "bg-brand/70",
-  },
-  event: {
-    solid: "bg-foreground/55",
-    block: "bg-foreground/[0.08] text-foreground",
-    blockHover: "bg-foreground/[0.14] text-foreground",
-    border: "border-foreground/15",
-    dot: "bg-foreground/45",
-  },
-  // Focus time: hatched, so a protected block reads differently from a meeting
-  // at a glance without adding a hue. The tokens are oklch: hsl(var(--x)) is
-  // invalid CSS and silently draws nothing.
-  focus: {
-    solid: "bg-foreground/30",
-    block: "bg-[repeating-linear-gradient(135deg,color-mix(in_oklch,var(--foreground)_9%,transparent)_0_5px,transparent_5px_11px)] text-foreground ring-1 ring-inset ring-foreground/15",
-    blockHover: "bg-foreground/[0.1] text-foreground",
-    border: "border-foreground/20",
-    dot: "bg-foreground/30",
-  },
-  // Time off: muted, with a dashed edge, so it reads as an absence rather than
-  // something to attend.
-  away: {
-    solid: "bg-muted-foreground/40",
-    block: "bg-muted/60 text-muted-foreground border border-dashed border-foreground/25",
-    blockHover: "bg-muted text-foreground",
-    border: "border-dashed border-foreground/25",
-    dot: "bg-muted-foreground/40",
-  },
-} as const;
-
-/** Which calendar palette an item uses: a task, time off, focus time, or an event. */
-export function calendarTone(item: { isTask?: boolean; isFocus?: boolean; isAway?: boolean }) {
-  if (item.isTask) return calendarColors.task;
-  if (item.isAway) return calendarColors.away;
-  return item.isFocus ? calendarColors.focus : calendarColors.event;
-}
+// The calendar colours its items by their calendar or their project's hue
+// (the camp palette): see components/calendar/calendarTones.

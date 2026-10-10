@@ -1,10 +1,11 @@
 "use client";
 
 import { format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
+import { shortTime } from "@/lib/utils/date/shortDate";
 import { ChevronRight, Plus } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { calendarTone } from "@/lib/colors";
+import { toneOf } from "@/components/calendar/calendarTones";
 import { cn } from "@/lib/utils/helpers/cn";
 
 // The phone calendar: the days that have something on them, one row per event
@@ -18,6 +19,7 @@ interface AgendaItem {
   isTask?: boolean;
   event_is_focus?: boolean;
   event_is_away?: boolean;
+  task_project?: { project_uuid?: string } | null;
 }
 
 function dayLabel(day: Date): string {
@@ -30,11 +32,11 @@ function itemDetail(item: AgendaItem, day: Date): string {
   const start = parseISO(item.event_start_time);
   const end = parseISO(item.event_end_time);
   // A task sits under its due day, so the heading already says when.
-  if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task · due ${format(end, "d MMM")}`;
+  if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task, due ${format(end, "d MMM")}`;
   if (item.event_is_away) return isSameDay(start, day) ? `Away until ${format(subMinutes(end, 1), "d MMM")}` : "Away";
-  if (item.event_is_focus) return `Focus time · ${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
+  if (item.event_is_focus) return `Focus time, ${shortTime(start)} to ${shortTime(end)}`;
   if (!isSameDay(start, day)) return "Continues";
-  return `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
+  return `${shortTime(start)} to ${shortTime(end)}`;
 }
 
 export function CalendarAgenda({
@@ -89,7 +91,7 @@ export function CalendarAgenda({
                     aria-hidden
                     className={cn(
                       "h-9 w-1 shrink-0 rounded-full",
-                      calendarTone({ isTask: item.isTask, isFocus: item.event_is_focus, isAway: item.event_is_away }).solid,
+                      toneOf(item).solid,
                     )}
                   />
                   <span className="min-w-0 flex-1">

@@ -28,7 +28,8 @@ import { UserInfoRawInterface } from "@/types/user";
 import { GetEventsResponse } from "@/types/calendar";
 import { TaskInfoInterface } from "@/types/task";
 import { cn } from "@/lib/utils/helpers/cn";
-import { calendarColors, calendarTone } from "@/lib/colors";
+import { CALENDAR_HUE, toneOf } from "@/components/calendar/calendarTones";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { useDispatch } from "react-redux";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { CreateCalendarEventDialog } from "@/components/calendar/createCalendarEventDialog";
@@ -363,7 +364,7 @@ export function CalendarApp() {
                                                             >
                                                                 <div className={cn(
                                                                     "w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
-                                                                    calendarTone({ isTask: event.isTask, isFocus: event.event_is_focus, isAway: event.event_is_away }).solid,
+                                                                    toneOf(event).solid,
                                                                 )} />
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="text-2xs font-semibold truncate text-foreground group-hover:text-primary transition-colors">
@@ -396,7 +397,7 @@ export function CalendarApp() {
                                 const isHovered = hoveredEventUUID === event.event_uuid;
                                 const startTime = parseISO(event.event_start_time);
                                 const timePrefix = event.colSpan === 1 ? format(startTime, "h:mm ") : "";
-                                const tone = calendarTone({ isTask: event.isTask, isFocus: event.event_is_focus, isAway: event.event_is_away });
+                                const tone = toneOf(event);
                                 
                                 return (
                                     <div
@@ -435,13 +436,13 @@ export function CalendarApp() {
                                         }}
                                         className={cn(
                                             // No lift on hover: a bar on the grid does not float. The
-                                            // tone comes from calendarTone, so focus time and time off
+                                            // tone comes from toneOf, so focus time and time off
                                             // look the same here as in the week view and agenda.
                                             "absolute h-5 px-1.5 py-0 text-2xs font-medium truncate cursor-pointer transition-colors flex items-center z-20 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                                             isHovered && "z-30",
-                                            isHovered ? tone.blockHover : tone.block,
+                                            tone.block, isHovered && "ring-1 ring-inset ring-current/40",
                                             isStartOfWeek ? "rounded-l-[4px]" : "",
-                                            isEndOfWeek ? "rounded-r-[4px]" : "border-r " + tone.border
+                                            isEndOfWeek ? "rounded-r-[4px]" : ""
                                         )}
                                     >
                                         <span className="truncate leading-none">
@@ -514,7 +515,7 @@ export function CalendarApp() {
                                     </div>
                                     {hasItems && !isSameDay(date, new Date()) && (
                                         <div className="absolute bottom-[2px] left-1/2 -translate-x-1/2 flex gap-[2px]">
-                                            <div className={cn("w-[3px] h-[3px] rounded-full", calendarColors.event.dot)} />
+                                            <div className="w-[3px] h-[3px] rounded-full bg-muted-foreground" />
                                         </div>
                                     )}
                                 </div>
@@ -548,7 +549,7 @@ export function CalendarApp() {
                                     Personal events
                                 </span>
                                 {/* The swatch is the legend: it says which colour on the grid is which. */}
-                                <span aria-hidden="true" className={cn("ml-auto h-2.5 w-2.5 rounded-sm", calendarColors.event.solid)} />
+                                <IdentityMark hue={CALENDAR_HUE.onecamp} variant="square" className="ml-auto" />
                             </label>
                             <label className="flex items-center gap-2.5 text-sm cursor-pointer group">
                                 <Checkbox
@@ -558,7 +559,7 @@ export function CalendarApp() {
                                 <span className="text-foreground/90 group-hover:text-foreground transition-colors">
                                     Assigned tasks
                                 </span>
-                                <span aria-hidden="true" className={cn("ml-auto h-2.5 w-2.5 rounded-sm", calendarColors.task.solid)} />
+                                <span aria-hidden="true" className="ml-auto text-2xs text-muted-foreground">by project</span>
                             </label>
                         </div>
                     </div>

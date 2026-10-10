@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { addDays, format, isSameDay, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
-import { calendarTone } from "@/lib/colors";
+import { toneOf } from "@/components/calendar/calendarTones";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
 
@@ -214,7 +214,7 @@ export function WeekView({
                 onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
                 className={cn(
                   "block w-full truncate rounded px-1.5 py-0.5 text-left text-2xs font-medium",
-                  calendarTone(it).block,
+                  toneOf({ ...it, event_uuid: it.uuid, event_is_focus: it.isFocus, event_is_away: it.isAway }).block,
                 )}
               >
                 {it.title}
@@ -286,7 +286,7 @@ export function WeekView({
                     }}
                     className={cn(
                       "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-2xs font-medium leading-tight",
-                      calendarTone(it).block,
+                      toneOf({ ...it, event_uuid: it.uuid, event_is_focus: it.isFocus, event_is_away: it.isAway }).block,
                     )}
                   >
                     <span className="block truncate font-semibold">{it.title}</span>
