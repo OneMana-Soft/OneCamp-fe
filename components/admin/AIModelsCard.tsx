@@ -14,7 +14,7 @@
  * Single-tenant: one global config. Everything is wired to /admin/ai/*.
  */
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useId, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,9 +24,14 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SaveBar, SettingsList, SwitchRow } from "@/components/ui/settingsSection"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { ErrorState } from "@/components/ui/error-state"
+import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { RefreshCw, Save, Plus, Lightbulb } from "@/lib/icons"
+import { RefreshCw, Save, Plus, Lightbulb, Check } from "@/lib/icons"
 import {
   AIConfig,
   ModelView,
@@ -84,6 +89,7 @@ import {
   deleteModel,
 } from "@/services/aiModelService"
 import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { RunnerTestStatus, type RunnerProbe } from "@/components/admin/ai/RunnerTestStatus"
 import { ProviderEditor } from "@/components/admin/ai/ProviderEditor"
 import { SystemStatsBar } from "@/components/admin/ai/SystemStatsBar"
@@ -112,8 +118,8 @@ const AIModelsCard = () => {
       const cfg = await getAIConfig()
       setConfig(cfg)
       return cfg
-    } catch {
-      toast({ title: "Error", description: "Failed to load AI configuration", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't load the AI settings", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
       return null
     }
   }, [toast])
@@ -188,8 +194,8 @@ const AIModelsCard = () => {
         // an admin and names the provider, so it is shown as-is.
         const keyUnreadable = apiErrorCode(e) === "provider_key_unreadable"
         toast({
-          title: keyUnreadable ? "This provider's API key needs re-entering" : "Could not list models",
-          description: apiErrorMessage(e, "Provider unreachable"),
+          title: keyUnreadable ? "This provider's API key needs re-entering" : "Couldn't list the models",
+          description: apiErrorMessage(e, "The provider didn't answer. Check its address and key."),
           variant: "destructive",
         })
       } finally {
@@ -202,15 +208,18 @@ const AIModelsCard = () => {
   useEffect(() => {
     ;(async () => {
       setLoading(true)
-      const cfg = await refreshConfig()
-      await refreshStats()
-      await pollReindex()
-      await pollBackfill()
-      try {
-        setUsage(await getAIUsage())
-      } catch {
-        // Non-fatal; the usage row simply won't render.
-      }
+      // Started together: none of these needs another's answer, and awaiting
+      // them one after another held the whole tab on a loading line for the
+      // sum of five round trips.
+      const [cfg] = await Promise.all([
+        refreshConfig(),
+        refreshStats(),
+        pollReindex(),
+        pollBackfill(),
+        getAIUsage().then(setUsage, () => {
+          // Non-fatal; the usage row simply won't render.
+        }),
+      ])
       setLoading(false)
       // Eagerly load catalogs for the active chat + embedding providers.
       if (cfg?.chat_provider_id) loadModels(cfg.chat_provider_id)
@@ -226,9 +235,9 @@ const AIModelsCard = () => {
     try {
       await setAIEnabled(enabled)
       setConfig((c) => (c ? { ...c, enabled } : c))
-      toast({ title: enabled ? "AI enabled" : "AI disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle AI", variant: "destructive" })
+      toast({ title: enabled ? "Workspace AI is on" : "Workspace AI is off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn workspace AI ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -239,9 +248,9 @@ const AIModelsCard = () => {
     try {
       await setMeetingRecapEnabled(enabled)
       setConfig((c) => (c ? { ...c, meeting_recap_enabled: enabled } : c))
-      toast({ title: enabled ? "Meeting Recap enabled" : "Meeting Recap disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle Meeting Recap", variant: "destructive" })
+      toast({ title: enabled ? "Meeting recaps are on" : "Meeting recaps are off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn meeting recaps ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -252,9 +261,9 @@ const AIModelsCard = () => {
     try {
       await setMeetingNotesDocEnabled(enabled)
       setConfig((c) => (c ? { ...c, meeting_notes_doc_enabled: enabled } : c))
-      toast({ title: enabled ? "Meeting notes document enabled" : "Meeting notes document disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle the meeting notes document", variant: "destructive" })
+      toast({ title: enabled ? "The meeting notes document is on" : "The meeting notes document is off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn the meeting notes document ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -266,8 +275,8 @@ const AIModelsCard = () => {
       await setMeetingRecapInstructions(instructions)
       setConfig((c) => (c ? { ...c, meeting_recap_instructions: instructions } : c))
       toast({ title: "Recap instructions saved" })
-    } catch {
-      toast({ title: "Error", description: "Failed to save recap instructions", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't save the recap instructions", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -279,13 +288,13 @@ const AIModelsCard = () => {
       await setAIReasoning(enabled)
       setConfig((c) => (c ? { ...c, reasoning_enabled: enabled } : c))
       toast({
-        title: enabled ? "Reasoning enabled" : "Reasoning disabled",
+        title: enabled ? "Reasoning mode is on" : "Reasoning mode is off",
         description: enabled
           ? "Reasoning models will think before answering (higher quality, slower)."
           : "Faster responses; reasoning models skip their chain-of-thought.",
       })
-    } catch {
-      toast({ title: "Error", description: "Failed to update reasoning", variant: "destructive" })
+    } catch (e) {
+      toast({ title: `Couldn't turn reasoning mode ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -298,15 +307,15 @@ const AIModelsCard = () => {
       await setAILocalOnly(enabled)
       setConfig((c) => (c ? { ...c, local_only_mode: enabled } : c))
       toast({
-        title: enabled ? "Local-only AI enabled" : "Local-only AI disabled",
+        title: enabled ? "Local-only AI is on" : "Local-only AI is off",
         description: enabled
           ? "No workspace content will leave this server. Cloud providers are blocked at the network layer."
           : "Cloud AI providers (OpenAI, Anthropic, …) can be used again.",
       })
     } catch (e: unknown) {
       toast({
-        title: "Error",
-        description: apiErrorMessage(e, "Failed to update local-only mode"),
+        title: `Couldn't turn local-only AI ${enabled ? "on" : "off"}`,
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -321,15 +330,15 @@ const AIModelsCard = () => {
       await setAIPIIRedaction(enabled)
       setConfig((c) => (c ? { ...c, pii_redaction_enabled: enabled } : c))
       toast({
-        title: enabled ? "PII redaction enabled" : "PII redaction disabled",
+        title: enabled ? "Redacting personal details is on" : "Redacting personal details is off",
         description: enabled
           ? "Detected PII is scrubbed from prompts before they reach any cloud model."
           : "Prompts are sent to cloud models without PII redaction.",
       })
     } catch (e: unknown) {
       toast({
-        title: "Error",
-        description: apiErrorMessage(e, "Failed to update PII redaction"),
+        title: `Couldn't turn redacting personal details ${enabled ? "on" : "off"}`,
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -343,9 +352,9 @@ const AIModelsCard = () => {
     try {
       await setMemoryLayerEnabled(enabled)
       setConfig((c) => (c ? { ...c, memory_layer_enabled: enabled } : c))
-      toast({ title: enabled ? "Workspace Memory enabled" : "Workspace Memory disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle Workspace Memory", variant: "destructive" })
+      toast({ title: enabled ? "Workspace memory is on" : "Workspace memory is off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn workspace memory ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -356,9 +365,9 @@ const AIModelsCard = () => {
     try {
       await setTeamReportEnabled(enabled)
       setConfig((c) => (c ? { ...c, team_report_enabled: enabled } : c))
-      toast({ title: enabled ? "Team Report enabled" : "Team Report disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle Team Report", variant: "destructive" })
+      toast({ title: enabled ? "Weekly team reports are on" : "Weekly team reports are off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn weekly team reports ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -374,15 +383,15 @@ const AIModelsCard = () => {
     try {
       const res = await runTeamReportNow()
       toast({
-        title: "Team report run",
+        title: "The team report ran",
         description:
           res.msg ||
           (res.posted === 0
             ? "No channels have turned the weekly report on yet. A channel moderator enables it in the channel's settings."
-            : `Posted ${res.posted} report(s).`),
+            : `Posted ${res.posted} ${res.posted === 1 ? "report" : "reports"}.`),
       })
     } catch (e: unknown) {
-      toast({ title: "Could not run team report", description: apiErrorMessage(e, "failed"), variant: "destructive" })
+      toast({ title: "Couldn't run the team report", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunningReport(false)
     }
@@ -396,7 +405,7 @@ const AIModelsCard = () => {
       const msg = await sendTestDigest()
       toast({ title: "Test digest sent", description: msg })
     } catch (e: unknown) {
-      toast({ title: "Could not send test digest", description: apiErrorMessage(e, "failed"), variant: "destructive" })
+      toast({ title: "Couldn't send the test digest", description: apiErrorMessage(e, "Check the email settings, then try again."), variant: "destructive" })
     } finally {
       setSendingDigest(false)
     }
@@ -407,9 +416,9 @@ const AIModelsCard = () => {
     try {
       await setNudgesEnabled(enabled)
       setConfig((c) => (c ? { ...c, nudges_enabled: enabled } : c))
-      toast({ title: enabled ? "Proactive Nudges enabled" : "Proactive Nudges disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle Proactive Nudges", variant: "destructive" })
+      toast({ title: enabled ? "Proactive nudges are on" : "Proactive nudges are off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn proactive nudges ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -420,9 +429,9 @@ const AIModelsCard = () => {
     try {
       await setCoworkerEnabled(enabled)
       setConfig((c) => (c ? { ...c, coworker_enabled: enabled } : c))
-      toast({ title: enabled ? "AI Coworker enabled" : "AI Coworker disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle AI Coworker", variant: "destructive" })
+      toast({ title: enabled ? "The AI coworker is on" : "The AI coworker is off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn the AI coworker ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -433,9 +442,9 @@ const AIModelsCard = () => {
     try {
       await setIssueTriageEnabled(enabled)
       setConfig((c) => (c ? { ...c, issue_triage_enabled: enabled } : c))
-      toast({ title: enabled ? "GitHub auto-review enabled" : "GitHub auto-review disabled" })
-    } catch {
-      toast({ title: "Error", description: "Failed to toggle GitHub auto-review", variant: "destructive" })
+      toast({ title: enabled ? "GitHub auto-review is on" : "GitHub auto-review is off" })
+    } catch (e) {
+      toast({ title: `Couldn't turn GitHub auto-review ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -452,30 +461,34 @@ const AIModelsCard = () => {
       setBackfill({ state: "running", started_at: Math.floor(Date.now() / 1000) })
       pollBackfill()
     } catch (e: unknown) {
-      const msg = apiErrorMessage(e, "Failed to start rebuild")
-      toast({ title: "Could not start rebuild", description: msg, variant: "destructive" })
+      const msg = apiErrorMessage(e, "Try again in a moment.")
+      toast({ title: "Couldn't start the memory rebuild", description: msg, variant: "destructive" })
     }
   }
 
+  // The shape of what is coming: the heading, then hairline groups of rows,
+  // so the tab doesn't jump from one line of text to 2,000px of settings.
   if (loading) {
     return (
-      <Card className="w-full border-none shadow-none bg-transparent">
-        <CardContent className="p-0 pt-10 text-sm text-muted-foreground animate-pulse">
-          Loading AI configuration…
-        </CardContent>
-      </Card>
+      <div role="status" aria-label="Loading the AI settings" className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-3.5 w-full max-w-md" />
+        </div>
+        {[3, 2, 3].map((rows, i) => (
+          <div key={i} className="space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <div className="rounded-lg border border-border px-4 py-1">
+              <SkeletonRows rows={rows} avatar={false} />
+            </div>
+          </div>
+        ))}
+      </div>
     )
   }
 
   if (!config) {
-    return (
-      <Card className="w-full border-none shadow-none bg-transparent">
-        <CardContent className="p-0 pt-10 text-sm text-muted-foreground">
-          AI configuration unavailable.
-          <Button variant="link" onClick={refreshConfig}>Retry</Button>
-        </CardContent>
-      </Card>
-    )
+    return <ErrorState subject="the AI settings" onRetry={() => void refreshConfig()} />
   }
 
   return (
@@ -483,11 +496,17 @@ const AIModelsCard = () => {
       <CardHeader className="px-0 pt-0 pb-6">
         <div className="flex items-center gap-2 mb-1">
           <CardTitle className="text-base font-semibold">Models</CardTitle>
-          <Badge variant="outline" className="ml-2 text-muted-foreground">
-            {config.enabled ? "Enabled" : "Disabled"}
-          </Badge>
+          {/* States, so a dot and a word rather than badges; and words a
+              person uses, not "circuit: half_open". */}
+          <span className="ml-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${config.enabled ? "bg-success" : "bg-faint-foreground"}`} />
+            {config.enabled ? "On" : "Off"}
+          </span>
           {config.circuit_state && config.circuit_state !== "closed" && (
-            <Badge variant="destructive">circuit: {config.circuit_state}</Badge>
+            <span className="inline-flex items-center gap-1.5 text-xs text-danger-ink">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-destructive" />
+              {config.circuit_state === "half_open" ? "Trying the provider again after errors" : "Paused after the provider kept failing"}
+            </span>
           )}
         </div>
         <CardDescription className="text-sm text-muted-foreground">
@@ -513,96 +532,76 @@ const AIModelsCard = () => {
         {/* Global config — grouped so an admin can scan: behavior, cost
             governance, and model tuning are separate clusters. */}
         <section className="space-y-6">
-          {/* General */}
+          {/* General: one hairline list of switches, each saved the moment
+              it is touched. Each used to be a bordered box of its own, a
+              stack of five boxes inside the card. */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">
-              General
-            </h3>
-            <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-              <div>
-                <h4 className="text-sm font-semibold">Workspace AI</h4>
-                <p className="text-xs text-muted-foreground">Turn the AI assistant and RAG on or off for everyone.</p>
-              </div>
-              <Switch checked={config.enabled} disabled={saving} onCheckedChange={handleToggleEnabled} />
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-foreground">General</h3>
+              <p className="text-xs text-muted-foreground">Changes save as you make them.</p>
             </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-              <div className="pr-4">
-                <h4 className="text-sm font-semibold">Reasoning mode</h4>
-                <p className="text-xs text-muted-foreground">
-                  Let reasoning models (gemma4, DeepSeek-R1, Qwen3, …) think before answering.
-                  Better answers on hard questions, but noticeably slower, especially on CPU-only
-                  servers. Leave off for fastest responses. Other models ignore this.
-                </p>
-              </div>
-              <Switch
+            <SettingsList>
+              <SwitchRow
+                label="Workspace AI"
+                description="Turn the AI assistant, and its answers from your workspace, on or off for everyone."
+                checked={config.enabled}
+                disabled={saving}
+                onChange={handleToggleEnabled}
+              />
+              <SwitchRow
+                label="Reasoning mode"
+                description="Let reasoning models (gemma4, DeepSeek-R1, Qwen3 and others) think before answering. Better answers on hard questions, but noticeably slower, especially on servers without a GPU. Other models ignore this."
                 checked={config.reasoning_enabled}
                 disabled={saving || !config.enabled}
-                onCheckedChange={handleToggleReasoning}
+                onChange={handleToggleReasoning}
               />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-              <div className="pr-4">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  Local-only AI
-                  {config.local_only_pinned_by_env && (
-                    <Badge variant="secondary" className="text-2xs">Locked by env</Badge>
-                  )}
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  No workspace content leaves this server. Blocks every cloud AI provider
-                  (OpenAI, Anthropic, hosted endpoints) at the network layer so prompts and
-                  documents can only ever reach local models on your own infrastructure. Enable
-                  only after your active chat, vision, and embedding models all run locally.
-                  {config.local_only_pinned_by_env &&
-                    " Enforced by an environment variable on this server, so it cannot be turned off here."}
-                </p>
-              </div>
-              <Switch
+              <SwitchRow
+                label={
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    Local-only AI
+                    {config.local_only_pinned_by_env && (
+                      <span className="text-xs font-normal text-muted-foreground">Set by whoever runs this server</span>
+                    )}
+                  </span>
+                }
+                description={
+                  <>
+                    No workspace content leaves this server: every cloud AI provider (OpenAI, Anthropic, hosted
+                    endpoints) is blocked at the network layer, so prompts and documents only ever reach local models.
+                    Turn it on only once your chat, vision and embedding models all run locally.
+                    {config.local_only_pinned_by_env &&
+                      " It is set by an environment variable on this server, so it can't be turned off here."}
+                  </>
+                }
                 checked={config.local_only_mode}
                 disabled={saving || config.local_only_pinned_by_env}
-                onCheckedChange={handleToggleLocalOnly}
+                onChange={handleToggleLocalOnly}
               />
-            </div>
-
-            <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="pr-4">
-                  <h4 className="text-sm font-semibold">PII redaction before cloud models</h4>
-                  <p className="text-xs text-muted-foreground">
-                    When a prompt is sent to a cloud model, scrub detected PII first
-                    (email, phone, credit card, government ID, IBAN, plus your own
-                    patterns). Local models receive unmodified content, since nothing
-                    leaves the server. Has no effect while Local-only AI is on (cloud is
-                    already blocked).
-                  </p>
-                </div>
-                <Switch
-                  checked={config.pii_redaction_enabled}
-                  disabled={saving || config.local_only_mode}
-                  onCheckedChange={handleTogglePIIRedaction}
-                />
-              </div>
-
+              <SwitchRow
+                label="Redact personal details before cloud models"
+                description="When a prompt goes to a cloud model, emails, phone numbers, card numbers, government IDs, IBANs and your own patterns are removed first. Local models get the content as it is, since nothing leaves the server. No effect while Local-only AI is on."
+                checked={config.pii_redaction_enabled}
+                disabled={saving || config.local_only_mode}
+                onChange={handleTogglePIIRedaction}
+              />
               {config.pii_redaction_enabled && !config.local_only_mode && (
-                <PIIPatternsEditor
-                  initial={config.pii_custom_patterns}
-                  onSave={async (patterns) => {
-                    await setAIPIIPatterns(patterns)
-                    setConfig((c) => (c ? { ...c, pii_custom_patterns: patterns } : c))
-                    toast({ title: "Custom PII patterns saved" })
-                  }}
-                />
+                <div className="px-4 py-3">
+                  <PIIPatternsEditor
+                    initial={config.pii_custom_patterns}
+                    onSave={async (patterns) => {
+                      await setAIPIIPatterns(patterns)
+                      setConfig((c) => (c ? { ...c, pii_custom_patterns: patterns } : c))
+                      toast({ title: "Your patterns are saved" })
+                    }}
+                  />
+                </div>
               )}
-            </div>
+            </SettingsList>
           </div>
 
           {/* Usage & limits */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">
-              Usage &amp; limits
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">Usage and limits</h3>
             <RateLimitRow
               initial={config.rate_limit_per_min}
               onSave={async (n) => {
@@ -703,56 +702,139 @@ const AIModelsCard = () => {
 
         <Separator />
 
-        {/* Ambient agents */}
+        {/* Ambient agents: the switches that save at once, in one hairline
+            list, each with what it needs under it; then the three services
+            whose settings wait for their own save bar. They used to be one
+            stack of bordered boxes, the instant switches and the staged ones
+            looking alike. */}
         <section className="space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold flex items-center gap-2">Ambient agents</h3>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">Ambient agents</h3>
             <p className="text-xs text-muted-foreground">
-              Automations that run in the background using the active models.
+              Automations that run in the background on the active models. The switches save as you make them.
             </p>
           </div>
-          <div className="rounded-lg border border-border bg-card/50 p-4">
-            <div className="flex items-center justify-between">
-              <div className="pr-4">
-                <h4 className="text-sm font-medium">Meeting Recap</h4>
-                <p className="text-xs text-muted-foreground">
-                  When a call ends, post a recap (summary, decisions, action items) from the transcript
-                  to the channel or chat where the call happened. Recording the call is not required.
-                  Calls too short to have said anything are skipped, and so is a call where transcription
-                  was off. The meeting can be in any language; the recap is always written in English.
-                </p>
-              </div>
-              <Switch
-                checked={config.meeting_recap_enabled}
-                disabled={saving || !config.enabled}
-                onCheckedChange={handleToggleRecap}
-              />
-            </div>
+          <SettingsList>
+            <SwitchRow
+              label="Meeting recaps"
+              description="When a call ends, post a recap (summary, decisions, action items) from its transcript where the call happened. The call doesn't need to be recorded. Very short calls are skipped, and so are calls with transcription off. Any language in; the recap is in English."
+              checked={config.meeting_recap_enabled}
+              disabled={saving || !config.enabled}
+              onChange={handleToggleRecap}
+            />
             {config.meeting_recap_enabled && (
-              <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
-                <div className="pr-4">
-                  <h4 className="text-sm font-medium">Also write a notes document</h4>
-                  <p className="text-2xs text-muted-foreground">
-                    Put the recap and the full transcript in a document the people on the call can edit,
-                    as well as posting it. The document is private to whoever was in the call, not to the
-                    whole channel, so share it if anyone else needs it.
-                  </p>
-                </div>
-                <Switch
-                  checked={config.meeting_notes_doc_enabled}
+              <SwitchRow
+                label="Also write a notes document"
+                description="Put the recap and the full transcript in a document the people on the call can edit, as well as posting it. It is private to whoever was in the call, so share it if anyone else needs it."
+                checked={config.meeting_notes_doc_enabled}
+                disabled={saving || !config.enabled}
+                onChange={handleToggleNotesDoc}
+              />
+            )}
+            {config.meeting_recap_enabled && (
+              <div className="px-4 py-3">
+                <RecapInstructionsField
+                  initial={config.meeting_recap_instructions || ""}
                   disabled={saving || !config.enabled}
-                  onCheckedChange={handleToggleNotesDoc}
+                  onSave={handleSaveRecapInstructions}
                 />
               </div>
             )}
-            {config.meeting_recap_enabled && (
-              <RecapInstructionsField
-                initial={config.meeting_recap_instructions || ""}
-                disabled={saving || !config.enabled}
-                onSave={handleSaveRecapInstructions}
-              />
+            <SwitchRow
+              label="Workspace memory"
+              description="Keep pulling lasting decisions, commitments and open questions out of meetings, channels, direct messages and project threads into a searchable memory. It answers questions like “what did we decide, who owns it, what's still open”."
+              checked={config.memory_layer_enabled}
+              disabled={saving || !config.enabled}
+              onChange={handleToggleMemory}
+            />
+            {/* Rebuild memory: backfill over historical content. Only useful
+                once the layer is enabled (live worker handles new content). */}
+            {config.memory_layer_enabled && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium">Rebuild from history</p>
+                  <p className="text-xs text-muted-foreground">
+                    {backfill?.state === "running"
+                      ? `Reading… ${backfill.scopes_done ?? 0} of ${backfill.scopes_total ?? 0} places, ${backfill.items_extracted ?? 0} items so far`
+                      : backfill?.state === "completed"
+                        ? `Last rebuild: ${backfill.items_extracted ?? 0} items from ${backfill.scopes_done ?? 0} places${backfill.error ? ". It stopped part way: run it again to continue." : ""}`
+                        : backfill?.state === "failed"
+                          ? `The last rebuild stopped: ${backfill.error || "no reason was given"}. Try it again.`
+                          : "Read existing channels, direct messages and projects into memory, once."}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  disabled={backfill?.state === "running" || !config.enabled}
+                  onClick={handleRebuildMemory}
+                >
+                  <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
+                  {backfill?.state === "running" ? "Rebuilding…" : "Rebuild"}
+                </Button>
+              </div>
             )}
-          </div>
+            <SwitchRow
+              label="Weekly team report"
+              description="Allow a weekly report in a channel: open decisions, commitments with their owners, and unanswered questions, from workspace memory. A channel stays quiet until its moderator turns the report on in its settings. Needs workspace memory."
+              checked={config.team_report_enabled}
+              disabled={saving || !config.enabled || !config.memory_layer_enabled}
+              onChange={handleToggleTeamReport}
+            />
+            {/* Verify: the report POSTS INTO CHANNELS on a weekly schedule; the
+                email path is the opt-in per-user digest. These buttons let an
+                admin confirm both now instead of waiting for the schedule. */}
+            <div className="space-y-2 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={runningReport || !config.enabled || !config.memory_layer_enabled}
+                  onClick={handleRunTeamReport}
+                >
+                  <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${runningReport ? "animate-spin" : ""}`} />
+                  {runningReport ? "Running…" : "Post this week's reports now"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  disabled={sendingDigest || !config.enabled || !config.memory_layer_enabled}
+                  onClick={handleSendTestDigest}
+                >
+                  <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
+                  {sendingDigest ? "Sending…" : "Email me a test digest"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The report posts into channels, not email. The only email is each member&apos;s own open-items digest,
+                which they choose in their notification settings; &quot;Email me a test digest&quot; sends one to you now.
+              </p>
+            </div>
+            <SwitchRow
+              label="Proactive nudges"
+              description="Tell the right person, without being asked, about an overdue commitment or a question left open: it appears in their notifications as it happens. Needs workspace memory."
+              checked={config.nudges_enabled}
+              disabled={saving || !config.enabled || !config.memory_layer_enabled}
+              onChange={handleToggleNudges}
+            />
+            <SwitchRow
+              label="AI coworker (@mention)"
+              description="Let members @mention the AI in a channel and get an answer there, from that channel's recent messages and only what the person asking can see. It only replies when mentioned."
+              checked={config.coworker_enabled}
+              disabled={saving || !config.enabled}
+              onChange={handleToggleCoworker}
+            />
+            <SwitchRow
+              label="GitHub auto-review"
+              description="When an issue or pull request is opened on a linked repository, the AI reviews it against the code and comments on the linked task: a proposed fix for an issue, a review for a pull request. Nothing is pushed to GitHub. Off by default, since it uses one AI call per issue or pull request."
+              checked={config.issue_triage_enabled}
+              disabled={saving || !config.enabled}
+              onChange={handleToggleIssueTriage}
+            />
+          </SettingsList>
 
           <WebSearchSection config={config} onChanged={refreshConfig} />
 
@@ -765,149 +847,6 @@ const AIModelsCard = () => {
             onEnsureModels={loadModels}
           />
           <CodePRReliabilityCard />
-
-          <div className="rounded-lg border border-border bg-card/50 p-4">
-            <div className="flex items-center justify-between">
-              <div className="pr-4">
-                <h4 className="text-sm font-medium">Workspace Memory</h4>
-                <p className="text-xs text-muted-foreground">
-                  Continuously extract durable decisions, commitments, and open questions from meetings, channels,
-                  DMs, and project threads into a structured, searchable memory. Powers precise answers like
-                  &quot;what did we decide / who owns it / what&apos;s still open&quot; and the workspace knowledge view.
-                </p>
-              </div>
-              <Switch
-                checked={config.memory_layer_enabled}
-                disabled={saving || !config.enabled}
-                onCheckedChange={handleToggleMemory}
-              />
-            </div>
-
-            {/* Rebuild memory: backfill over historical content. Only useful
-                once the layer is enabled (live worker handles new content). */}
-            {config.memory_layer_enabled && (
-              <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium">Rebuild from history</p>
-                  <p className="text-xs text-muted-foreground">
-                    {backfill?.state === "running"
-                      ? `Scanning… ${backfill.scopes_done ?? 0}/${backfill.scopes_total ?? 0} scopes · ${backfill.items_extracted ?? 0} items`
-                      : backfill?.state === "completed"
-                        ? `Last rebuild: ${backfill.items_extracted ?? 0} items from ${backfill.scopes_done ?? 0} scopes${backfill.error ? " (partial: re-run to continue)" : ""}`
-                        : backfill?.state === "failed"
-                          ? `Last rebuild failed: ${backfill.error || "unknown error"}`
-                          : "Extract knowledge from existing channels, DMs, and projects (one-time)."}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={backfill?.state === "running" || !config.enabled}
-                  onClick={handleRebuildMemory}
-                >
-                  <Lightbulb className="h-3.5 w-3.5 mr-1.5" />
-                  {backfill?.state === "running" ? "Rebuilding…" : "Rebuild"}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-lg border border-border bg-card/50 p-4">
-            <div className="flex items-center justify-between">
-              <div className="pr-4">
-                <h4 className="text-sm font-medium">Weekly Team Report</h4>
-                <p className="text-xs text-muted-foreground">
-                  Allow a weekly &quot;state of the channel&quot; report: open decisions, commitments (with owners),
-                  and unresolved questions, grounded in workspace memory. This permits it; each channel stays
-                  silent until a channel moderator turns it on in that channel&apos;s settings. Requires
-                  Workspace Memory.
-                </p>
-              </div>
-              <Switch
-                checked={config.team_report_enabled}
-                disabled={saving || !config.enabled || !config.memory_layer_enabled}
-                onCheckedChange={handleToggleTeamReport}
-              />
-            </div>
-
-            {/* Verify: the report POSTS INTO CHANNELS on a weekly schedule; the
-                email path is the opt-in per-user digest. These buttons let an
-                admin confirm both now instead of waiting for the schedule. */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={runningReport || !config.enabled || !config.memory_layer_enabled}
-                onClick={handleRunTeamReport}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${runningReport ? "animate-spin" : ""}`} />
-                {runningReport ? "Running…" : "Run now (post to channels)"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={sendingDigest || !config.enabled || !config.memory_layer_enabled}
-                onClick={handleSendTestDigest}
-              >
-                <Lightbulb className="h-3.5 w-3.5 mr-1.5" />
-                {sendingDigest ? "Sending…" : "Email me a test digest"}
-              </Button>
-            </div>
-            <p className="mt-2 text-2xs text-muted-foreground">
-              The report posts into channels (not email). The only email is the per-user open-items digest, which
-              each member opts into under their notification settings: &quot;Email me a test digest&quot; sends one to you now.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-            <div className="pr-4">
-              <h4 className="text-sm font-medium">Proactive Nudges</h4>
-              <p className="text-xs text-muted-foreground">
-                Surface short, actionable nudges to the right person without being asked: overdue commitments
-                and stale open questions appear in their bell in real time. The &quot;push&quot; arm of the
-                workspace AI. Requires Workspace Memory.
-              </p>
-            </div>
-            <Switch
-              checked={config.nudges_enabled}
-              disabled={saving || !config.enabled || !config.memory_layer_enabled}
-              onCheckedChange={handleToggleNudges}
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-            <div className="pr-4">
-              <h4 className="text-sm font-medium">AI Coworker (@mention)</h4>
-              <p className="text-xs text-muted-foreground">
-                Let members @mention the AI in a channel to get an answer posted right there, grounded only in
-                that channel&apos;s recent messages and the asker&apos;s access. It only ever replies when
-                explicitly mentioned, so it stays quiet otherwise.
-              </p>
-            </div>
-            <Switch
-              checked={config.coworker_enabled}
-              disabled={saving || !config.enabled}
-              onCheckedChange={handleToggleCoworker}
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-            <div className="pr-4">
-              <h4 className="text-sm font-medium">GitHub auto-review (issues &amp; PRs)</h4>
-              <p className="text-xs text-muted-foreground">
-                When a new issue or pull request is opened on a linked repo, the AI reviews it against the repo
-                code and posts its findings (a proposed fix for issues, a review for PRs) as a comment on the
-                linked task. Read-only: nothing is pushed back to GitHub. Off by default since it uses one AI
-                call per opened issue or PR.
-              </p>
-            </div>
-            <Switch
-              checked={config.issue_triage_enabled}
-              disabled={saving || !config.enabled}
-              onCheckedChange={handleToggleIssueTriage}
-            />
-          </div>
         </section>
 
         <Separator />
@@ -937,8 +876,11 @@ const AIModelsCard = () => {
 
         <Separator />
 
-        {/* MCP servers — connect external tool servers to agents */}
-        <McpServersCard />
+        {/* MCP servers — connect external tool servers to agents. Anchored so
+            the tab's jump row can reach it by its own name. */}
+        <div id="ai-models-mcp-servers" className="scroll-mt-4">
+          <McpServersCard />
+        </div>
       </CardContent>
     </Card>
   )
@@ -990,13 +932,14 @@ const UsageMeterBar: React.FC<{ label: string; used: number; limit: number }> = 
           {l > 0 ? ` / ${fmt(l)}` : " tokens"}
         </span>
       </div>
+      {/* The shared progress bar, in the theme's colour; only near the cap
+          does it turn to the warning colour, which is what it is for. */}
       {l > 0 && (
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className={`h-full rounded-full transition ${near ? "bg-warning" : "bg-primary"}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+        <Progress
+          value={pct}
+          aria-label={`${label}: ${pct}% of today's cap`}
+          className={near ? "h-1.5 [&>div]:bg-warning" : "h-1.5"}
+        />
       )}
     </div>
   )
@@ -1018,10 +961,10 @@ const UsageRow: React.FC<{ usage: AIUsage }> = ({ usage }) => {
       <UsageMeterBar label="You" used={me.used} limit={me.limit} />
       {noCaps && (
         <p className="text-xs text-muted-foreground">
-          No daily caps set. Set AI_WORKSPACE_DAILY_TOKEN_BUDGET and/or AI_USER_DAILY_TOKEN_BUDGET to limit spend.
+          No daily caps yet. Set one below to limit spend.
         </p>
       )}
-      <p className="border-t border-border/50 pt-2 text-2xs leading-relaxed text-muted-foreground">
+      <p className="border-t border-border/50 pt-2 text-xs leading-relaxed text-muted-foreground">
         Counts both prompt (input) and response (output) tokens, combined. They use
         each provider&apos;s reported token usage where available and a calibrated
         estimate otherwise, are best-effort (a brief metering outage isn&apos;t
@@ -1387,26 +1330,34 @@ const CodeAnalysisRow: React.FC<{
     }
   }
 
+  // A choice of one, saved the moment it is picked: a segmented radio group
+  // like the app's others, saying so under its name. It was a strip of buttons
+  // with no radio semantics.
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4">
-      <Label className="text-sm font-semibold">Code analysis depth</Label>
-      <p className="text-xs text-muted-foreground mb-3">
-        How many repo files the bug-analysis agent reviews per run. More is better grounded but slower. Cost stays
-        bounded by your model&apos;s context window.
+      <p id="code-depth-label" className="text-sm font-semibold">Code analysis depth</p>
+      <p id="code-depth-help" className="mb-3 text-xs text-muted-foreground">
+        How many files of a repository the bug-analysis agent reads per run. More is better grounded but slower, and
+        the cost stays within your model&apos;s context window. Saves when you pick one.
       </p>
-      <div className="inline-flex rounded-md border border-border overflow-hidden">
+      <div
+        role="radiogroup"
+        aria-labelledby="code-depth-label"
+        aria-describedby="code-depth-help"
+        className="inline-flex w-fit gap-1 rounded-md bg-muted p-1"
+      >
         {CODE_DEPTH_PRESETS.map((p) => (
           <button
             key={p.value}
             type="button"
+            role="radio"
+            aria-checked={p.value === current}
             disabled={busy}
             onClick={() => pick(p.value)}
             title={p.hint}
             className={
-              "px-3 py-1.5 text-xs font-medium transition-colors border-r border-border last:border-r-0 " +
-              (p.value === current
-                ? "bg-primary text-primary-foreground"
-                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")
+              "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50 " +
+              (p.value === current ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground")
             }
           >
             {p.label}
@@ -1678,6 +1629,7 @@ const ModelSelectorRow: React.FC<{
   saving,
   extra,
 }) => {
+  const id = useId()
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
       <div>
@@ -1686,9 +1638,9 @@ const ModelSelectorRow: React.FC<{
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[180px]">
-          <Label className="text-xs">Provider</Label>
+          <Label htmlFor={`${id}-provider`} className="text-xs">Provider</Label>
           <Select value={providerId} onValueChange={onProviderChange}>
-            <SelectTrigger className="h-9"><SelectValue placeholder="Select provider" /></SelectTrigger>
+            <SelectTrigger id={`${id}-provider`} className="h-9"><SelectValue placeholder="Choose a provider" /></SelectTrigger>
             <SelectContent>
               {providers.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
@@ -1703,9 +1655,10 @@ const ModelSelectorRow: React.FC<{
             <button
               type="button"
               onClick={onRefreshModels}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              aria-label="Refresh the list of models"
+              className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
             >
-              <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> refresh
+              <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} aria-hidden="true" /> Refresh
             </button>
           </div>
           {/* Real combobox: a clickable dropdown of available models plus a
@@ -1854,16 +1807,38 @@ function WebSearchSection({
   const [apiKey, setApiKey] = useState("")
   const [enabled, setEnabled] = useState(config.web_search_enabled)
   const [saving, setSaving] = useState(false)
+  const [baseError, setBaseError] = useState("")
+  const baseRef = useRef<HTMLInputElement>(null)
+  const id = useId()
 
   const realProvider = provider === "none" ? "" : provider
   const needsKey = realProvider === "tavily" || realProvider === "brave"
   const needsBase = realProvider === "searxng"
 
+  // The switch and the fields wait for Save, so the save bar says so while
+  // anything differs from what is stored. They used to look like the switches
+  // above, which save the moment they are touched, and an admin who turned
+  // web search on and left had changed nothing.
+  const dirty =
+    provider !== (config.web_search_provider || "none") ||
+    baseURL !== (config.web_search_base_url || "") ||
+    apiKey !== "" ||
+    enabled !== config.web_search_enabled
+  const reset = () => {
+    setProvider(config.web_search_provider || "none")
+    setBaseURL(config.web_search_base_url || "")
+    setApiKey("")
+    setEnabled(config.web_search_enabled)
+    setBaseError("")
+  }
+
   const save = async () => {
     if (needsBase && enabled && !baseURL.trim()) {
-      toast({ title: "A base URL is required for SearXNG", variant: "destructive" })
+      setBaseError("Enter your SearXNG address.")
+      baseRef.current?.focus()
       return
     }
+    setBaseError("")
     setSaving(true)
     try {
       await setWebSearch({
@@ -1873,12 +1848,12 @@ function WebSearchSection({
         enabled: realProvider !== "" && enabled,
       })
       setApiKey("")
-      toast({ title: "Web search updated" })
+      toast({ title: "Web search saved" })
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to update web search",
+        title: "Couldn't save web search",
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -1898,6 +1873,7 @@ function WebSearchSection({
           </p>
         </div>
         <Switch
+          aria-label="Use web search"
           checked={enabled && realProvider !== ""}
           disabled={saving || realProvider === ""}
           onCheckedChange={setEnabled}
@@ -1906,13 +1882,13 @@ function WebSearchSection({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <Label className="text-xs">Provider</Label>
+          <Label htmlFor={`${id}-provider`} className="text-xs">Provider</Label>
           <Select value={provider} onValueChange={setProvider}>
-            <SelectTrigger>
+            <SelectTrigger id={`${id}-provider`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Disabled</SelectItem>
+              <SelectItem value="none">Off</SelectItem>
               <SelectItem value="searxng">SearXNG (self-hosted)</SelectItem>
               <SelectItem value="tavily">Tavily</SelectItem>
               <SelectItem value="brave">Brave Search</SelectItem>
@@ -1921,35 +1897,46 @@ function WebSearchSection({
         </div>
         {(needsBase || realProvider !== "") && (
           <div className="space-y-1">
-            <Label className="text-xs">
-              Base URL{needsBase ? "" : " (optional)"}
+            <Label htmlFor={`${id}-base`} className="text-xs">
+              Address{needsBase ? "" : " (optional)"}
             </Label>
             <Input
+              ref={baseRef}
+              id={`${id}-base`}
+              type="url"
+              spellCheck={false}
+              autoComplete="off"
               value={baseURL}
-              onChange={(e) => setBaseURL(e.target.value)}
-              placeholder={needsBase ? "https://searx.example.com" : "Override the default endpoint"}
+              aria-invalid={baseError ? true : undefined}
+              aria-describedby={baseError ? `${id}-base-error` : undefined}
+              onChange={(e) => {
+                setBaseURL(e.target.value)
+                if (baseError) setBaseError("")
+              }}
+              placeholder={needsBase ? "https://searx.example.com…" : "Leave empty for the provider's own…"}
             />
+            {baseError && (
+              <p id={`${id}-base-error`} className="text-xs font-medium text-danger-ink" aria-live="polite">{baseError}</p>
+            )}
           </div>
         )}
       </div>
 
       {needsKey && (
         <div className="space-y-1">
-          <Label className="text-xs">API key</Label>
+          <Label htmlFor={`${id}-key`} className="text-xs">API key</Label>
           <Input
+            id={`${id}-key`}
             type="password"
+            autoComplete="new-password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={config.has_web_search_key ? "•••••••• (stored: leave blank to keep)" : "Enter the provider API key"}
+            placeholder={config.has_web_search_key ? "Saved: leave empty to keep it" : "The provider's API key…"}
           />
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={save} disabled={saving} className="gap-1.5">
-          <Save className="h-3.5 w-3.5" /> Save
-        </Button>
-      </div>
+      <SaveBar dirty={dirty} saving={saving} what="web search changes" onSave={() => void save()} onDiscard={reset} />
     </div>
   )
 }
@@ -1981,17 +1968,45 @@ function SandboxSection({
   const [testing, setTesting] = useState(false)
   const [probe, setProbe] = useState<RunnerProbe | null>(null)
   const [killing, setKilling] = useState(false)
+  const [urlError, setUrlError] = useState("")
+  const urlRef = useRef<HTMLInputElement>(null)
+  const id = useId()
 
   const num = (v: string) => {
     const n = parseInt(v, 10)
     return Number.isFinite(n) && n > 0 ? n : 0
   }
 
+  // Everything here waits for Save; the save bar says so while anything
+  // differs from what is stored, and offers to put it back.
+  const dirty =
+    enabled !== config.sandbox_enabled ||
+    runnerURL !== (config.sandbox_runner_url || "") ||
+    runnerToken !== "" ||
+    imageDigest !== (config.sandbox_image_digest || "") ||
+    wsSeconds !== String(config.sandbox_workspace_daily_seconds || 0) ||
+    wsRuns !== String(config.sandbox_workspace_daily_runs || 0) ||
+    chSeconds !== String(config.sandbox_channel_daily_seconds || 0) ||
+    chRuns !== String(config.sandbox_channel_daily_runs || 0)
+  const reset = () => {
+    setEnabled(config.sandbox_enabled)
+    setRunnerURL(config.sandbox_runner_url || "")
+    setRunnerToken("")
+    setImageDigest(config.sandbox_image_digest || "")
+    setWsSeconds(String(config.sandbox_workspace_daily_seconds || 0))
+    setWsRuns(String(config.sandbox_workspace_daily_runs || 0))
+    setChSeconds(String(config.sandbox_channel_daily_seconds || 0))
+    setChRuns(String(config.sandbox_channel_daily_runs || 0))
+    setUrlError("")
+  }
+
   const save = async () => {
     if (enabled && !runnerURL.trim()) {
-      toast({ title: "A runner URL is required to enable the sandbox", variant: "destructive" })
+      setUrlError("Enter the runner's address to turn the sandbox on.")
+      urlRef.current?.focus()
       return
     }
+    setUrlError("")
     setSaving(true)
     try {
       await setSandboxConfig({
@@ -2005,12 +2020,12 @@ function SandboxSection({
         channel_daily_runs: num(chRuns),
       })
       setRunnerToken("")
-      toast({ title: "Sandbox updated" })
+      toast({ title: "Sandbox settings saved" })
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to update sandbox",
+        title: "Couldn't save the sandbox settings",
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2031,9 +2046,9 @@ function SandboxSection({
         variant: res.ok ? "default" : "destructive",
       })
     } catch (e) {
-      const message = apiErrorMessage(e, "Failed to run sandbox self-test")
+      const message = apiErrorMessage(e, "The runner didn't answer. Check its address and token.")
       setProbe({ ok: false, message, at: new Date() })
-      toast({ title: "Error", description: message, variant: "destructive" })
+      toast({ title: "Couldn't run the sample analysis", description: message, variant: "destructive" })
     } finally {
       setTesting(false)
     }
@@ -2044,12 +2059,12 @@ function SandboxSection({
     try {
       await setSandboxEnabled(false)
       setEnabled(false)
-      toast({ title: "Sandbox disabled" })
+      toast({ title: "The sandbox is off" })
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to disable sandbox",
+        title: "Couldn't turn the sandbox off",
+        description: apiErrorMessage(e, "Try again now."),
         variant: "destructive",
       })
     } finally {
@@ -2069,43 +2084,61 @@ function SandboxSection({
             budgets below.
           </p>
         </div>
-        <Switch checked={enabled} disabled={saving || !runnerURL.trim()} onCheckedChange={setEnabled} />
+        <Switch aria-label="Use the code analysis sandbox" checked={enabled} disabled={saving || !runnerURL.trim()} onCheckedChange={setEnabled} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <Label className="text-xs">Runner URL</Label>
+          <Label htmlFor={`${id}-url`} className="text-xs">Runner address</Label>
           <Input
+            ref={urlRef}
+            id={`${id}-url`}
+            type="url"
+            spellCheck={false}
+            autoComplete="off"
             value={runnerURL}
-            onChange={(e) => setRunnerURL(e.target.value)}
-            placeholder="http://code-runner:9099/run"
+            aria-invalid={urlError ? true : undefined}
+            aria-describedby={urlError ? `${id}-url-error` : undefined}
+            onChange={(e) => {
+              setRunnerURL(e.target.value)
+              if (urlError) setUrlError("")
+            }}
+            placeholder="http://code-runner:9099/run…"
           />
+          {urlError && (
+            <p id={`${id}-url-error`} className="text-xs font-medium text-danger-ink" aria-live="polite">{urlError}</p>
+          )}
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Runner token</Label>
+          <Label htmlFor={`${id}-token`} className="text-xs">Runner token</Label>
           <Input
+            id={`${id}-token`}
             type="password"
+            autoComplete="new-password"
             value={runnerToken}
             onChange={(e) => setRunnerToken(e.target.value)}
             placeholder={
-              config.has_sandbox_runner_token ? "•••••••• (stored: leave blank to keep)" : "Shared auth token"
+              config.has_sandbox_runner_token ? "Saved: leave empty to keep it" : "The token the runner shares…"
             }
           />
         </div>
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs">Image digest (optional)</Label>
+        <Label htmlFor={`${id}-digest`} className="text-xs">Image digest (optional)</Label>
         <Input
+          id={`${id}-digest`}
+          spellCheck={false}
+          autoComplete="off"
           value={imageDigest}
           onChange={(e) => setImageDigest(e.target.value)}
-          placeholder="sha256:… (pin the runner image for auditability)"
+          placeholder="sha256:… pins the runner image, for the record"
         />
       </div>
 
       <div className="pt-1">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground">Daily budgets (0 = unlimited)</p>
+          <p className="text-xs font-medium text-muted-foreground">Daily limits (0 means no limit)</p>
           <p className="text-xs text-muted-foreground">
             Used today: {config.sandbox_used_today_runs} run{config.sandbox_used_today_runs === 1 ? "" : "s"},{" "}
             {config.sandbox_used_today_seconds}s
@@ -2113,20 +2146,20 @@ function SandboxSection({
         </div>
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="space-y-1">
-            <Label className="text-xs">Workspace seconds</Label>
-            <Input type="number" min={0} value={wsSeconds} onChange={(e) => setWsSeconds(e.target.value)} />
+            <Label htmlFor={`${id}-ws-s`} className="text-xs">Workspace seconds</Label>
+            <Input id={`${id}-ws-s`} type="number" inputMode="numeric" min={0} value={wsSeconds} onChange={(e) => setWsSeconds(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Workspace runs</Label>
-            <Input type="number" min={0} value={wsRuns} onChange={(e) => setWsRuns(e.target.value)} />
+            <Label htmlFor={`${id}-ws-r`} className="text-xs">Workspace runs</Label>
+            <Input id={`${id}-ws-r`} type="number" inputMode="numeric" min={0} value={wsRuns} onChange={(e) => setWsRuns(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Channel seconds</Label>
-            <Input type="number" min={0} value={chSeconds} onChange={(e) => setChSeconds(e.target.value)} />
+            <Label htmlFor={`${id}-ch-s`} className="text-xs">Channel seconds</Label>
+            <Input id={`${id}-ch-s`} type="number" inputMode="numeric" min={0} value={chSeconds} onChange={(e) => setChSeconds(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Channel runs</Label>
-            <Input type="number" min={0} value={chRuns} onChange={(e) => setChRuns(e.target.value)} />
+            <Label htmlFor={`${id}-ch-r`} className="text-xs">Channel runs</Label>
+            <Input id={`${id}-ch-r`} type="number" inputMode="numeric" min={0} value={chRuns} onChange={(e) => setChRuns(e.target.value)} />
           </div>
         </div>
       </div>
@@ -2140,14 +2173,13 @@ function SandboxSection({
           </Button>
           {config.sandbox_enabled && (
             <Button size="sm" variant="destructive" onClick={killNow} disabled={killing}>
-              {killing ? "Disabling…" : "Disable now"}
+              {killing ? "Turning off…" : "Turn off now"}
             </Button>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={save} disabled={saving} className="gap-1.5">
-          <Save className="h-3.5 w-3.5" /> Save
-        </Button>
       </div>
+
+      <SaveBar dirty={dirty} saving={saving} what="sandbox changes" onSave={() => void save()} onDiscard={reset} />
     </div>
   )
 }
@@ -2208,8 +2240,8 @@ function CodePRSection({
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to update the code-run model",
+        title: "Couldn't change the code-run model",
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2226,8 +2258,8 @@ function CodePRSection({
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to clear the code-run model",
+        title: "Couldn't go back to the chat model",
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2251,6 +2283,43 @@ function CodePRSection({
   const [killing, setKilling] = useState(false)
   const [testing, setTesting] = useState(false)
   const [probe, setProbe] = useState<RunnerProbe | null>(null)
+  const [urlError, setUrlError] = useState("")
+  const urlRef = useRef<HTMLInputElement>(null)
+  const wallRef = useRef<HTMLInputElement>(null)
+  const id = useId()
+
+  // Everything but the code-run model (which has its own button) waits for
+  // Save. The two switches below looked like the ones that save at once; the
+  // save bar now says when something is waiting, and offers to put it back.
+  const storedEgress = (config.code_pr_egress_allowlist || []).join(", ")
+  const dirty =
+    enabled !== config.code_pr_enabled ||
+    runnerURL !== (config.code_pr_runner_url || "") ||
+    runnerToken !== "" ||
+    egress !== storedEgress ||
+    policy !== (config.code_pr_out_of_scope_policy || "flag_open") ||
+    draftOnRed !== config.code_pr_draft_on_red ||
+    allowUnlinked !== config.code_pr_allow_unlinked ||
+    wallMinutes !== String(config.code_pr_wall_minutes || 0) ||
+    wsMinutes !== String(config.code_pr_workspace_daily_minutes || 0) ||
+    wsRuns !== String(config.code_pr_workspace_daily_runs || 0) ||
+    chMinutes !== String(config.code_pr_channel_daily_minutes || 0) ||
+    chRuns !== String(config.code_pr_channel_daily_runs || 0)
+  const reset = () => {
+    setEnabled(config.code_pr_enabled)
+    setRunnerURL(config.code_pr_runner_url || "")
+    setRunnerToken("")
+    setEgress(storedEgress)
+    setPolicy(config.code_pr_out_of_scope_policy || "flag_open")
+    setDraftOnRed(config.code_pr_draft_on_red)
+    setAllowUnlinked(config.code_pr_allow_unlinked)
+    setWallMinutes(String(config.code_pr_wall_minutes || 0))
+    setWsMinutes(String(config.code_pr_workspace_daily_minutes || 0))
+    setWsRuns(String(config.code_pr_workspace_daily_runs || 0))
+    setChMinutes(String(config.code_pr_channel_daily_minutes || 0))
+    setChRuns(String(config.code_pr_channel_daily_runs || 0))
+    setUrlError("")
+  }
 
   const testRunner = async () => {
     setTesting(true)
@@ -2263,9 +2332,9 @@ function CodePRSection({
         variant: res.ok ? "default" : "destructive",
       })
     } catch (e) {
-      const message = apiErrorMessage(e, "Failed to test the coding runner")
+      const message = apiErrorMessage(e, "The runner didn't answer. Check its address and token.")
       setProbe({ ok: false, message, at: new Date() })
-      toast({ title: "Error", description: message, variant: "destructive" })
+      toast({ title: "Couldn't test the coding runner", description: message, variant: "destructive" })
     } finally {
       setTesting(false)
     }
@@ -2283,15 +2352,15 @@ function CodePRSection({
       .filter(Boolean)
 
   const save = async () => {
+    // Said under the field, with the cursor there, not in a toast.
     if (enabled && !runnerURL.trim()) {
-      toast({ title: "A runner URL is required to enable code PRs", variant: "destructive" })
+      setUrlError("Enter the coding runner's address to turn code pull requests on.")
+      urlRef.current?.focus()
       return
     }
+    setUrlError("")
     if (wallInvalid) {
-      toast({
-        title: `Coding time limit must be 0 (default) or between ${CODE_PR_MIN_WALL_MINUTES} and ${CODE_PR_MAX_WALL_MINUTES} minutes`,
-        variant: "destructive",
-      })
+      wallRef.current?.focus()
       return
     }
     setSaving(true)
@@ -2311,12 +2380,12 @@ function CodePRSection({
         channel_daily_runs: num(chRuns),
       })
       setRunnerToken("")
-      toast({ title: "Code PR settings updated" })
+      toast({ title: "Code pull request settings saved" })
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to update code PR settings",
+        title: "Couldn't save the code pull request settings",
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2329,12 +2398,12 @@ function CodePRSection({
     try {
       await setCodePREnabled(false)
       setEnabled(false)
-      toast({ title: "Code PRs disabled" })
+      toast({ title: "Code pull requests are off" })
       await onChanged()
     } catch (e) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to disable code PRs",
+        title: "Couldn't turn code pull requests off",
+        description: apiErrorMessage(e, "Try again now."),
         variant: "destructive",
       })
     } finally {
@@ -2354,49 +2423,68 @@ function CodePRSection({
             coding runner and point this at it. Metered against the budgets below.
           </p>
         </div>
-        <Switch checked={enabled} disabled={saving || !runnerURL.trim()} onCheckedChange={setEnabled} />
+        <Switch aria-label="Use code pull requests" checked={enabled} disabled={saving || !runnerURL.trim()} onCheckedChange={setEnabled} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <Label className="text-xs">Runner URL</Label>
+          <Label htmlFor={`${id}-url`} className="text-xs">Runner address</Label>
           <Input
+            ref={urlRef}
+            id={`${id}-url`}
+            type="url"
+            spellCheck={false}
+            autoComplete="off"
             value={runnerURL}
-            onChange={(e) => setRunnerURL(e.target.value)}
-            placeholder="http://code-runner-coding:9099"
+            aria-invalid={urlError ? true : undefined}
+            aria-describedby={urlError ? `${id}-url-error` : undefined}
+            onChange={(e) => {
+              setRunnerURL(e.target.value)
+              if (urlError) setUrlError("")
+            }}
+            placeholder="http://code-runner-coding:9099…"
           />
+          {urlError && (
+            <p id={`${id}-url-error`} className="text-xs font-medium text-danger-ink" aria-live="polite">{urlError}</p>
+          )}
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Runner token</Label>
+          <Label htmlFor={`${id}-token`} className="text-xs">Runner token</Label>
           <Input
+            id={`${id}-token`}
             type="password"
+            autoComplete="new-password"
             value={runnerToken}
             onChange={(e) => setRunnerToken(e.target.value)}
             placeholder={
-              config.has_code_pr_runner_token ? "•••••••• (stored: leave blank to keep)" : "Shared auth token"
+              config.has_code_pr_runner_token ? "Saved: leave empty to keep it" : "The token the runner shares…"
             }
           />
         </div>
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs">Egress allowlist (hosts the runner may reach)</Label>
+        <Label htmlFor={`${id}-egress`} className="text-xs">Hosts the runner may reach</Label>
         <Input
+          id={`${id}-egress`}
+          spellCheck={false}
+          autoComplete="off"
           value={egress}
+          aria-describedby={`${id}-egress-help`}
           onChange={(e) => setEgress(e.target.value)}
-          placeholder="github.com, api.github.com"
+          placeholder="github.com, api.github.com…"
         />
-        <p className="text-2xs text-muted-foreground">
-          Comma-separated. The runner is default-deny; only these hosts (your git host, plus any package registry
-          your builds need) are reachable.
+        <p id={`${id}-egress-help`} className="text-xs text-muted-foreground">
+          Separated by commas. The runner can reach nothing else: list your git host, and any package registry your
+          builds need.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <Label className="text-xs">If a change exceeds the task&apos;s scope</Label>
+          <Label htmlFor={`${id}-policy`} className="text-xs">If a change goes beyond the task</Label>
           <Select value={policy} onValueChange={setPolicy}>
-            <SelectTrigger>
+            <SelectTrigger id={`${id}-policy`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2407,25 +2495,25 @@ function CodePRSection({
         </div>
         <div className="flex items-end justify-between gap-3 pb-1">
           <div className="pr-2">
-            <Label className="text-xs">Draft PR when it can&apos;t verify</Label>
-            <p className="text-2xs text-muted-foreground">
-              Open a clearly-labeled draft instead of nothing when the build/tests can&apos;t be made to pass.
+            <Label htmlFor={`${id}-draft`} className="text-xs">Open a draft when it can&apos;t verify</Label>
+            <p id={`${id}-draft-help`} className="text-xs text-muted-foreground">
+              A clearly labelled draft instead of nothing, when the build or tests can&apos;t be made to pass.
             </p>
           </div>
-          <Switch checked={draftOnRed} onCheckedChange={setDraftOnRed} />
+          <Switch id={`${id}-draft`} aria-describedby={`${id}-draft-help`} checked={draftOnRed} onCheckedChange={setDraftOnRed} />
         </div>
       </div>
 
       <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-background/40 p-3">
         <div className="pr-2">
-          <Label className="text-xs">Allow any repository the agent can access</Label>
-          <p className="text-2xs text-muted-foreground">
-            When on, the agent can open a PR on any repo the connected GitHub account can reach (access is verified
-            per run), not only repos linked to a project. Leave off to restrict it to linked repositories: the safer
-            default when the connected account can see repos beyond this workspace.
+          <Label htmlFor={`${id}-unlinked`} className="text-xs">Allow any repository the agent can access</Label>
+          <p id={`${id}-unlinked-help`} className="text-xs text-muted-foreground">
+            When on, the agent can open a pull request on any repository the connected GitHub account can reach
+            (checked on every run), not only those linked to a project. Leave it off to keep it to linked
+            repositories: the safer choice when that account can see repositories beyond this workspace.
           </p>
         </div>
-        <Switch checked={allowUnlinked} onCheckedChange={setAllowUnlinked} />
+        <Switch id={`${id}-unlinked`} aria-describedby={`${id}-unlinked-help`} checked={allowUnlinked} onCheckedChange={setAllowUnlinked} />
       </div>
 
       <div className="space-y-2 rounded-md border border-border bg-background/40 p-3">
@@ -2470,6 +2558,7 @@ function CodePRSection({
           Coding time limit (minutes per run)
         </Label>
         <Input
+          ref={wallRef}
           id="code-pr-wall"
           type="number"
           min={0}
@@ -2480,21 +2569,21 @@ function CodePRSection({
           aria-invalid={wallInvalid}
           className="w-32"
         />
-        <p id="code-pr-wall-hint" className="text-2xs text-muted-foreground">
+        <p id="code-pr-wall-hint" className="text-xs text-muted-foreground">
           How long one coding run may work before it wraps up and hands back whatever it finished: partial work is
-          still pushed to a branch. Use 0 for the default, or {CODE_PR_MIN_WALL_MINUTES}–{CODE_PR_MAX_WALL_MINUTES}{" "}
+          still pushed to a branch. Use 0 for the default, or {CODE_PR_MIN_WALL_MINUTES} to {CODE_PR_MAX_WALL_MINUTES}{" "}
           minutes. In force now: {config.code_pr_effective_wall_minutes} min.
         </p>
         {wallInvalid && (
-          <p className="text-2xs text-danger-ink">
-            Use 0 (default) or a value between {CODE_PR_MIN_WALL_MINUTES} and {CODE_PR_MAX_WALL_MINUTES}.
+          <p className="text-xs font-medium text-danger-ink" aria-live="polite">
+            Use 0 for the default, or a number from {CODE_PR_MIN_WALL_MINUTES} to {CODE_PR_MAX_WALL_MINUTES}.
           </p>
         )}
       </div>
 
       <div className="pt-1">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground">Daily budgets (0 = unlimited)</p>
+          <p className="text-xs font-medium text-muted-foreground">Daily limits (0 means no limit)</p>
           <p className="text-xs text-muted-foreground">
             Used today: {config.code_pr_used_today_runs} run{config.code_pr_used_today_runs === 1 ? "" : "s"},{" "}
             {config.code_pr_used_today_minutes} min
@@ -2502,20 +2591,20 @@ function CodePRSection({
         </div>
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="space-y-1">
-            <Label className="text-xs">Workspace minutes</Label>
-            <Input type="number" min={0} value={wsMinutes} onChange={(e) => setWsMinutes(e.target.value)} />
+            <Label htmlFor={`${id}-ws-m`} className="text-xs">Workspace minutes</Label>
+            <Input id={`${id}-ws-m`} type="number" inputMode="numeric" min={0} value={wsMinutes} onChange={(e) => setWsMinutes(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Workspace runs</Label>
-            <Input type="number" min={0} value={wsRuns} onChange={(e) => setWsRuns(e.target.value)} />
+            <Label htmlFor={`${id}-ws-r`} className="text-xs">Workspace runs</Label>
+            <Input id={`${id}-ws-r`} type="number" inputMode="numeric" min={0} value={wsRuns} onChange={(e) => setWsRuns(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Channel minutes</Label>
-            <Input type="number" min={0} value={chMinutes} onChange={(e) => setChMinutes(e.target.value)} />
+            <Label htmlFor={`${id}-ch-m`} className="text-xs">Channel minutes</Label>
+            <Input id={`${id}-ch-m`} type="number" inputMode="numeric" min={0} value={chMinutes} onChange={(e) => setChMinutes(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Channel runs</Label>
-            <Input type="number" min={0} value={chRuns} onChange={(e) => setChRuns(e.target.value)} />
+            <Label htmlFor={`${id}-ch-r`} className="text-xs">Channel runs</Label>
+            <Input id={`${id}-ch-r`} type="number" inputMode="numeric" min={0} value={chRuns} onChange={(e) => setChRuns(e.target.value)} />
           </div>
         </div>
       </div>
@@ -2526,7 +2615,7 @@ function CodePRSection({
         <div className="flex items-center gap-2">
           {config.code_pr_enabled && (
             <Button size="sm" variant="destructive" onClick={killNow} disabled={killing}>
-              {killing ? "Disabling…" : "Disable now"}
+              {killing ? "Turning off…" : "Turn off now"}
             </Button>
           )}
           <Button
@@ -2540,10 +2629,9 @@ function CodePRSection({
             {testing ? "Testing…" : "Test runner"}
           </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={save} disabled={saving || wallInvalid} className="gap-1.5">
-          <Save className="h-3.5 w-3.5" /> Save
-        </Button>
       </div>
+
+      <SaveBar dirty={dirty} saving={saving} what="code pull request changes" onSave={() => void save()} onDiscard={reset} />
     </div>
   )
 }
@@ -2638,28 +2726,28 @@ function CodePRReliabilityCard() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Metric
               label="Merge rate"
-              value={data.outcome_known > 0 ? pct(data.merge_rate) : "—"}
+              value={data.outcome_known > 0 ? pct(data.merge_rate) : "None yet"}
               sub={`${data.merged + data.merged_with_edits}/${data.outcome_known} known`}
             />
             <Metric label="Opened a PR" value={pct(data.open_rate)} sub={`${data.opened}/${data.total}`} />
             <Metric
               label="Verified"
-              value={data.opened > 0 ? pct(data.verify_rate) : "—"}
+              value={data.opened > 0 ? pct(data.verify_rate) : "None yet"}
               sub={`${data.verified}/${data.opened}`}
             />
             <Metric
               label="Had tests"
-              value={data.opened > 0 ? pct(data.with_tests / data.opened) : "—"}
+              value={data.opened > 0 ? pct(data.with_tests / data.opened) : "None yet"}
               sub={`${data.with_tests}/${data.opened}`}
             />
             <Metric
               label="In scope"
-              value={data.opened > 0 ? pct(data.in_scope_rate) : "—"}
+              value={data.opened > 0 ? pct(data.in_scope_rate) : "None yet"}
               sub={`${data.in_scope}/${data.opened}`}
             />
             <Metric
               label="Drafts"
-              value={data.opened > 0 ? pct(data.draft_rate) : "—"}
+              value={data.opened > 0 ? pct(data.draft_rate) : "None yet"}
               sub={`${data.draft}/${data.opened}`}
             />
             <Metric
@@ -2700,26 +2788,26 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
       case "ok":
         return {
           label: run.draft ? "Draft PR" : "PR opened",
-          cls: "bg-blue-500/15 text-info-ink",
+          cls: "bg-info/15 text-info-ink",
         }
       case "blocked":
         return { label: "Needs input", cls: "bg-warning/15 text-warning-ink" }
       case "no_green":
         return { label: "Unverified", cls: "bg-warning/15 text-warning-ink" }
       default:
-        return { label: run.status || "—", cls: "bg-muted text-muted-foreground" }
+        return { label: run.status || "Unknown", cls: "bg-muted text-muted-foreground" }
     }
   })()
   const when = (() => {
     const d = new Date(run.created_at)
-    return isNaN(d.getTime()) ? "" : d.toLocaleString()
+    return isNaN(d.getTime()) ? "" : shortDateTime(d)
   })()
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Badge className={`${badge.cls} border-transparent`}>{badge.label}</Badge>
-          <span className="truncate font-medium">{run.repo || "—"}</span>
+          <span className="truncate font-medium">{run.repo || "No repository"}</span>
         </div>
         {run.message ? (
           <p className="mt-0.5 truncate text-2xs text-muted-foreground">{run.message}</p>
@@ -2727,11 +2815,13 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
       </div>
       <div className="flex shrink-0 items-center gap-3 text-2xs text-muted-foreground">
         {run.all_passed ? (
-          <span className="text-success-ink" title="Build & tests passed in the sandbox">
-            ✓ verified
+          <span className="inline-flex items-center gap-1 text-success-ink" title="The build and tests passed in the sandbox">
+            <Check className="h-3 w-3" aria-hidden="true" /> Verified
           </span>
         ) : null}
-        {run.diff_files > 0 ? <span className="tabular-nums" title="Files changed">{run.diff_files}f</span> : null}
+        {run.diff_files > 0 ? (
+          <span className="tabular-nums">{run.diff_files} {run.diff_files === 1 ? "file" : "files"}</span>
+        ) : null}
         {run.pr_url ? (
           <a
             href={run.pr_url}
