@@ -92,7 +92,7 @@ export const ActivityAllListResult = ({
     )
 
     const renderItem = (activity: UnifiedActivityItem) => (
-        <ActivityCard activity={activity} onClick={() => {}} />
+        <ActivityCard activity={activity} />
     )
 
     // Advance the cursor to the oldest loaded item's time to fetch the next

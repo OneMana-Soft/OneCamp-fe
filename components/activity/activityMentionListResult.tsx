@@ -40,7 +40,7 @@ export const ActivityMentionListResult = () => {
             time: activity.mention_created_at,
             mention: activity,
         }
-        return <ActivityCard activity={item} onClick={() => {}} />
+        return <ActivityCard activity={item} />
     }
 
     const onLoadMore = () => {
