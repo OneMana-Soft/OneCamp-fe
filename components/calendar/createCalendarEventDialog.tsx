@@ -9,18 +9,16 @@ import * as z from "zod";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl } from "@/services/endPoints";
 import { CreateEventPayload } from "@/types/calendar";
-import { CalendarIcon, Clock } from "@/lib/icons";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DateAndTimePicker } from "@/components/dateAndTimePicker/dateAndTimePicker";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
 import { FindTimeSuggestions } from "@/components/calendar/findTimeSuggestions";
-import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
+import { AwayCheckbox, EventOptionCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { UserProfileInterface } from "@/types/user";
@@ -51,8 +49,6 @@ interface Props {
 export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defaultStartDate, isGCalConnected }: Props) {
     const post = usePost();
     const [submitting, setSubmitting] = useState(false);
-    const [startPickerOpen, setStartPickerOpen] = useState(false);
-    const [endPickerOpen, setEndPickerOpen] = useState(false);
     const [guests, setGuests] = useState<PickedPerson[]>([]);
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
 
@@ -132,14 +128,6 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
     const [watchedStart, watchedEnd] = form.watch(["startTime", "endTime"]);
     const durationMinutes = Math.round((new Date(watchedEnd).getTime() - new Date(watchedStart).getTime()) / 60000) || 30;
 
-    const formatDateDisplay = (dateStr: string) => {
-        if (!dateStr) return "Select date & time";
-        try {
-            return format(new Date(dateStr), "MMM d, yyyy · h:mm a");
-        } catch {
-            return "Select date & time";
-        }
-    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -172,29 +160,12 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 render={({ field }) => (
                                     <FormItem className="flex flex-col">
                                         <FormLabel>Start</FormLabel>
-                                        <Popover open={startPickerOpen} onOpenChange={setStartPickerOpen}>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="w-full justify-start text-left font-normal h-auto py-2 px-3"
-                                                >
-                                                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                                                    <span className="text-xs truncate">
-                                                        {formatDateDisplay(field.value)}
-                                                    </span>
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-3" align="start">
-                                                <DateAndTimePicker
-                                                    value={field.value ? new Date(field.value) : new Date()}
-                                                    onChange={(date) => {
-                                                        field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"));
-                                                        setStartPickerOpen(false);
-                                                    }}
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
+                                        <FormControl>
+                                            <DateTimePicker
+                                                value={field.value ? new Date(field.value) : undefined}
+                                                onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
+                                            />
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -205,29 +176,12 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 render={({ field }) => (
                                     <FormItem className="flex flex-col">
                                         <FormLabel>End</FormLabel>
-                                        <Popover open={endPickerOpen} onOpenChange={setEndPickerOpen}>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="w-full justify-start text-left font-normal h-auto py-2 px-3"
-                                                >
-                                                    <Clock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                                                    <span className="text-xs truncate">
-                                                        {formatDateDisplay(field.value)}
-                                                    </span>
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-3" align="start">
-                                                <DateAndTimePicker
-                                                    value={field.value ? new Date(field.value) : new Date()}
-                                                    onChange={(date) => {
-                                                        field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"));
-                                                        setEndPickerOpen(false);
-                                                    }}
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
+                                        <FormControl>
+                                            <DateTimePicker
+                                                value={field.value ? new Date(field.value) : undefined}
+                                                onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
+                                            />
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -303,24 +257,12 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 control={form.control}
                                 name="syncToGoogleCalendar"
                                 render={({ field }) => (
-                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                                        <FormControl>
-                                            <input
-                                                type="checkbox"
-                                                checked={field.value}
-                                                onChange={field.onChange}
-                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                        </FormControl>
-                                        <div className="space-y-1 leading-none">
-                                            <FormLabel>
-                                                Sync with Google Calendar
-                                            </FormLabel>
-                                            <p className="text-xs text-muted-foreground">
-                                                This event will be added to your Google Calendar.
-                                            </p>
-                                        </div>
-                                    </FormItem>
+                                    <EventOptionCheckbox
+                                        label="Add to Google Calendar too"
+                                        hint="It goes on your Google Calendar as well as here."
+                                        checked={field.value}
+                                        onChange={field.onChange}
+                                    />
                                 )}
                             />
                         )}
