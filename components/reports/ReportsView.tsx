@@ -44,6 +44,7 @@ import {
 } from "@/lib/reports"
 import { downloadTextFile } from "@/lib/utils/file/downloadTextFile"
 import { cn } from "@/lib/utils/helpers/cn"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { app_project_path } from "@/types/paths"
 
@@ -201,6 +202,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
               onCheckedChange={() => toggle(p.project_uuid)}
               onSelect={(e) => e.preventDefault()}
             >
+              <IdentityMark id={p.project_uuid} variant="square" />
               <span className="truncate">{p.project_name}</span>
             </DropdownMenuCheckboxItem>
           ))}
@@ -334,9 +336,12 @@ export function ReportsView({ compact }: { compact?: boolean }) {
                 {report.projects.map((p) => (
                   <li key={p.project_uuid} className="grid gap-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <Link href={`${app_project_path}/${p.project_uuid}`} className="truncate text-sm font-medium hover:underline">
-                        {p.project_name}
-                      </Link>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <IdentityMark id={p.project_uuid} variant="square" />
+                        <Link href={`${app_project_path}/${p.project_uuid}`} className="truncate text-sm font-medium hover:underline">
+                          {p.project_name}
+                        </Link>
+                      </span>
                       <Counts counts={p} weeks={weeks} />
                     </div>
                     <StackedBar counts={p} max={projectMax} />

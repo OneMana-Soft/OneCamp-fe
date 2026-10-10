@@ -52,6 +52,8 @@ import {
   spanOf,
 } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
+import { hueFor } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { HEADER_HEIGHT, TimelineHeader } from "./TimelineHeader"
 import { TimelineBar } from "./TimelineBar"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
@@ -444,7 +446,8 @@ export function ProjectTimeline({
       : null
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col gap-3", className)}>
+    // The project's hue, which every open bar is drawn in (lib/timeline BAR_OPEN).
+    <div className={cn(HUE_CLASS[hueFor(projectId)], "flex h-full min-h-0 flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="h-8" onClick={goToday}>
