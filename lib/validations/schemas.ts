@@ -13,14 +13,6 @@ const UserProfileDataSchema = z.object({
   user_job_title: z.string().optional(),
 }).passthrough();
 
-const AttachmentMediaSchema = z.object({
-  attachment_uuid: z.string().uuid().optional(),
-  attachment_name: z.string(),
-  attachment_obj_key: z.string(),
-  attachment_type: z.string(),
-  attachment_size: z.number().optional(),
-}).passthrough();
-
 // --- Module Schemas ---
 
 const ChannelInfoSchema = z.object({
@@ -34,16 +26,6 @@ const ChannelInfoSchema = z.object({
   ch_created_at: z.string().optional(),
 }).passthrough();
 
-const DocInfoSchema = z.object({
-  doc_uuid: z.string().uuid(),
-  doc_title: z.string(),
-  doc_body: z.any().optional(), // Can be JSON/HTML
-  doc_created_by: UserProfileDataSchema.optional(),
-  doc_mqtt_topic: z.string().optional(),
-  doc_comment_count: z.number().default(0),
-  doc_edit_access: z.number().default(0),
-}).passthrough();
-
 // --- Response Wrappers ---
 
 const GenericResponseSchema = z.object({
@@ -53,14 +35,6 @@ const GenericResponseSchema = z.object({
 
 export const UserProfileResponseSchema = GenericResponseSchema.extend({
   data: UserProfileDataSchema,
-});
-
-const ChannelListResponseSchema = GenericResponseSchema.extend({
-  data: z.array(ChannelInfoSchema),
-});
-
-const DocInfoResponseSchema = GenericResponseSchema.extend({
-  data: DocInfoSchema,
 });
 
 export const ChannelInfoListSchema = z.object({

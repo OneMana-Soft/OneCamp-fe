@@ -23,11 +23,3 @@ export const CONTAINER_STYLES = {
     shadows: 'shadow-sm', // Use shadcn/ui shadow classes
     rounded: 'rounded-md' // Use shadcn/ui rounded classes
 }
-
-const ALL_CONTAINER_STYLES = cn(
-    CONTAINER_STYLES.base,
-    CONTAINER_STYLES.borders,
-    CONTAINER_STYLES.background,
-    CONTAINER_STYLES.shadows,
-    CONTAINER_STYLES.rounded
-)

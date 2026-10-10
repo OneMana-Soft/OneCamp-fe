@@ -40,4 +40,3 @@ export const SkeletonRows: React.FC<{
   </div>
 )
 
-export default SkeletonRows

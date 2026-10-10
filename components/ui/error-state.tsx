@@ -67,4 +67,3 @@ export function ErrorState({
   )
 }
 
-export default ErrorState

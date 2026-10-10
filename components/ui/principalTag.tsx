@@ -107,4 +107,3 @@ export function PrincipalTag({
   )
 }
 
-export default PrincipalTag
