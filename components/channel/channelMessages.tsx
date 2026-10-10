@@ -37,6 +37,8 @@ import type { RootState } from "@/store/store"
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen"
+import { ConversationEmpty } from "@/components/message/conversationEmpty"
+import { hueFor } from "@/lib/campHue"
 
 interface ChannelMessagesProps {
     posts: PostsRes[]
@@ -78,6 +80,8 @@ export const ChannelMessages = ({
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const channelScrollToBottom = useSelector((state: RootState) => state.channel.channelScrollToBottom[channelId] || EMPTY_SCROLL_TO_BOTTOM)
+    // For an empty channel's words: its name, as the sidebar knows it.
+    const channelName = useSelector((state: RootState) => state.users.userSidebar.userChannels?.find((c) => c.ch_uuid === channelId)?.ch_name)
 
     // Who wrote what is on screen, for avatars and names elsewhere: told to the
     // store once per person, not once per person on every new message.
@@ -432,6 +436,13 @@ export const ChannelMessages = ({
             initialTopMostItemIndex={initialIndex}
             initialScrollOffsetFromTop={scrollPosition?.offset}
             onScroll={debouncedHandleScroll}
+            empty={
+                <ConversationEmpty
+                    hue={hueFor(channelId)}
+                    title={channelName ? `No messages in #${channelName} yet` : "No messages yet"}
+                    description="What you write below starts the conversation."
+                />
+            }
         />
     )
 }

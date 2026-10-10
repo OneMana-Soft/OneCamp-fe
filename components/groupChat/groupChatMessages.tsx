@@ -31,6 +31,8 @@ import {GroupChatMessage} from "@/components/groupChat/groupChatMessage";
 import {ScrollToBottom} from "@/store/slice/channelSlice";
 import {GroupChatMessageMobile} from "@/components/groupChat/groupChatMessageMobile";
 import { useStableCallback } from "@/hooks/useStableCallback";
+import { ConversationEmpty } from "@/components/message/conversationEmpty";
+import { hueFor } from "@/lib/campHue";
 
 
 interface ChannelMessagesProps {
@@ -373,6 +375,13 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
         initialTopMostItemIndex={initialIndex}
         initialScrollOffsetFromTop={scrollPosition?.offset}
         onScroll={debouncedHandleScroll}
+        empty={
+            <ConversationEmpty
+                hue={hueFor(grpId)}
+                title="No messages in this group yet"
+                description="What you write below starts the conversation."
+            />
+        }
         />
 
 

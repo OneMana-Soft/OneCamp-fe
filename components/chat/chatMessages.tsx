@@ -33,6 +33,9 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen";
+import { ConversationEmpty } from "@/components/message/conversationEmpty";
+import { hueFor } from "@/lib/campHue";
+import { userDisplayName } from "@/lib/utils/userDisplayName";
 
 // Stable empty object reference to prevent unnecessary re-renders
 const EMPTY_SCROLL_TO_BOTTOM = { shouldScrollToBottom: false } as const;
@@ -62,6 +65,11 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     const dispatch = useDispatch();
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    // Who the conversation is with, for an empty one's words and colour: the
+    // profile the header already fetched (SWR answers it from cache). Their
+    // hue is their avatar's, which is seeded by the name.
+    const otherProfile = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
+    const otherName = userDisplayName(otherProfile.data?.data) || ""
 
     // Use a memoized selector with custom equality to prevent unnecessary re-renders
     const channelScrollToBottom = useSelector(
@@ -432,6 +440,13 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         initialTopMostItemIndex={initialIndex}
         initialScrollOffsetFromTop={scrollPosition?.offset}
         onScroll={debouncedHandleScroll}
+        empty={
+            <ConversationEmpty
+                hue={hueFor(otherName)}
+                title={otherName ? `This is the start of your conversation with ${otherName}` : "No messages yet"}
+                description="Messages you send here are between the two of you."
+            />
+        }
         />
     );
 };
