@@ -22,6 +22,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SettingsList } from "@/components/ui/settingsSection"
 import { Tile } from "@/components/ui/graphics/Tile"
+import { SpotPlug } from "@/components/ui/graphics/spots"
 import { hueFor, type CampHue } from "@/lib/campHue"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { listConnectors, startConnect, disconnectConnector } from "@/services/connectorService"
@@ -137,8 +138,7 @@ export default function ConnectorsCard() {
             ) : !connectors || connectors.length === 0 ? (
                 <EmptyState
                     tone="accent"
-                    icon={Plug}
-                    hue={SECTION_HUE}
+                    illustration={<SpotPlug hue={SECTION_HUE} />}
                     title="No connectors are set up on this server"
                     description="They appear here once an admin sets up Google or GitHub sign-in, under Admin, Integrations."
                 />

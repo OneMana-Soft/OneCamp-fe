@@ -78,11 +78,13 @@ describe("the connectors list", () => {
     )
   })
 
-  it("says what an empty server needs, on a tile in the section's hue", async () => {
+  // The playful layer's plug spot, in the section's hue, for nothing to connect.
+  it("says what an empty server needs, under the plug in the section's hue", async () => {
     list.mockResolvedValue([])
     renderCard()
     expect(await screen.findByText("No connectors are set up on this server")).toBeInTheDocument()
-    expect(document.querySelector("[class*='hue-lake']")).not.toBeNull()
+    expect(document.querySelector("[data-empty-illustration] svg")).not.toBeNull()
+    expect(document.querySelector("[data-empty-illustration] [class*='hue-lake']")).not.toBeNull()
     expect(screen.getByText(/Admin, Integrations/)).toBeInTheDocument()
   })
 })
