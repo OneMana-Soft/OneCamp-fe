@@ -186,4 +186,17 @@ describe("the name fields", () => {
       fetched.data.data = before
     }
   })
+
+  // The fields asked for h-10 and the language picker beside them is h-11
+  // md:h-9: once a field's own height held from md up, the grid mixed 40px
+  // fields with a 36px picker (the bar's one control height per group).
+  it("keeps every field of the grid at one height, the language picker's", async () => {
+    open()
+    const picker = await screen.findByRole("combobox")
+    expect(picker.className).toContain("md:h-9")
+    for (const input of document.querySelectorAll<HTMLInputElement>("#profile-edit-form input:not([type=file])")) {
+      expect(input.className, input.name).not.toMatch(/(^|\s)h-10(\s|$)/)
+      expect(input.className, input.name).toContain("md:h-9")
+    }
+  })
 })

@@ -231,7 +231,10 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const handle = handleOf(profileInfo.data?.data);
     const nameIntial = getNameInitials(shownName || "Unknown");
 
-    const field = "h-10"
+    // The fields take the input's own height, the language picker's: 44px on
+    // a phone, 36px from md up. They asked for h-10, which drew 40px beside the
+    // 36px picker once a field's own height held on a computer.
+    const field = undefined
 
     return (
         <Dialog onOpenChange={(open) => { if (!open) requestClose() }} open={dialogOpenState}>
