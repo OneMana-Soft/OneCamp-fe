@@ -59,7 +59,9 @@ export function MobileTopNavigationBarSecondChannel({ channelUUID }: { channelUU
                 type="button"
                 onClick={toggleFavourite}
                 aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-                className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                // Drawn 28px beside the name, touched as 44: the box around it
+                // reaches 8px further on every side without moving the title.
+                className="relative shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors after:absolute after:-inset-2 after:content-['']"
             >
                 <Star
                     className={cn(

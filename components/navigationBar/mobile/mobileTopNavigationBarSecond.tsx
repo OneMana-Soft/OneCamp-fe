@@ -190,7 +190,8 @@ export function MobileTopNavigationBarSecond() {
     };
 
     return (
-        <div className='font-medium text-base text-center min-w-0 truncate'>
+        // Semibold, as the bar titles a channel, a person or a project.
+        <div className='font-semibold text-base text-center min-w-0 truncate'>
             {renderPageName()}
         </div>
     );

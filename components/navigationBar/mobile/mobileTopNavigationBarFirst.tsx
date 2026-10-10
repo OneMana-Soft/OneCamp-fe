@@ -86,6 +86,10 @@ export function MobileTopNavigationBarFirst() {
 
             case "doc":
             case "board":
+                // The lists are top-level places (the More menu's Docs and
+                // Boards), as Tables is: the workspace's mark, not Back.
+                return path.length < 4 ? <OrgButton/> : <BackButton/>
+
             case "task":
             case "calls":
             case "posts":
