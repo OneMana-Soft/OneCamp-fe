@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Send, RotateCcw, Copy, Check, Type, ArrowLeft, MessageSquarePlus } from "@/lib/icons";
 import { Scissors, MousePointer2, Wand2, CornerDownLeft, ArrowRightToLine } from "lucide-react";
 import { useDocAI, DocAIAction } from '@/services/aiService';
+import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
 import { cn } from '@/lib/utils/helpers/cn';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -213,6 +214,12 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
 
   return (
     <div className={cn("h-full flex flex-col ", isSidebar && "border-l ")}>
+      {/* In the right panel it opens under the panel's one 48px header, as a
+          thread, a task or the AI chat do; its own 65px header moved the
+          panel's top when it switched from one of them. */}
+      {isSidebar && !onClose ? (
+        <RightPanelHeader titleKey="ai" title="OneCamp AI" />
+      ) : (
       <div className="flex justify-between items-center px-5 py-4 border-b ">
          <div className="flex items-center gap-2 font-medium">
            <Sparkles className="h-4 w-4 text-primary " />
@@ -224,12 +231,13 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
             </Button>
          )}
       </div>
+      )}
 
       <ScrollArea className="flex-1">
         <div className="p-5">
         {selectedText && !streamText && !hookIsStreaming && (
           <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 mb-5">
-            <span className={cn(eyebrowClass, "text-2xs mb-1 block")}>Context Selection</span>
+            <span className={cn(eyebrowClass, "text-2xs mb-1 block")}>Selected text</span>
             <div className="line-clamp-2 text-xs text-muted-foreground italic">"{selectedText}"</div>
           </div>
         )}
