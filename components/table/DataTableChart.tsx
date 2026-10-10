@@ -13,6 +13,7 @@ import SvgChart from "@/components/charts/SvgChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import { aggregateTable, type AggregateOp, type AggregateResult, type TableField, isComputed, computedOf } from "@/services/tableService"
 import { partialNote } from "@/lib/tables/chartNote"
+import { TABLE_CHART_PALETTE } from "@/components/table/tableChartPalette"
 
 // DataTableChart — a Notion-style "chart view" for a table. The user picks a
 // column to group by, an aggregation (count / sum / avg / min / max) and a chart
@@ -250,7 +251,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                     </div>
                 ) : chart ? (
                     <>
-                        <SvgChart chart={chart} />
+                        <SvgChart chart={chart} palette={TABLE_CHART_PALETTE} />
                         {note && <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p>}
                     </>
                 ) : (

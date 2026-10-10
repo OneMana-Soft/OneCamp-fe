@@ -128,3 +128,18 @@ describe("two quick edits to one row", () => {
     expect(updateRow).toHaveBeenLastCalledWith("t", "r0", expect.objectContaining({ item: "Booth", cost: 900 }), 0)
   })
 })
+
+describe("ticking a box in the grid", () => {
+  it("springs the box that was ticked, and not one that was ticked when the table opened", () => {
+    updateRow.mockResolvedValue({})
+    const rows = rowsOf(2)
+    rows[0] = { ...rows[0], values: JSON.stringify({ item: "Line 0", cost: 1, paid: true }) }
+    render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} />)
+    const [already, box] = screen.getAllByRole("checkbox", { name: "Paid" }) as HTMLInputElement[]
+    expect(already.className).not.toMatch(/animate-spring/)
+    fireEvent.click(box)
+    expect(box.className).toMatch(/animate-spring/)
+    fireEvent.animationEnd(box)
+    expect(box.className).not.toMatch(/animate-spring/)
+  })
+})

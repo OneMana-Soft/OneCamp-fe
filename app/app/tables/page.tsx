@@ -147,7 +147,7 @@ export default function TablesPage() {
                 onClick={() => router.push(`/app/tables/${t.id}`)}
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
-                <TableGlyph icon={t.icon} />
+                <TableGlyph icon={t.icon} id={t.id} />
                 <div className="min-w-0 sm:flex sm:items-baseline sm:gap-3">
                   <p className="truncate text-sm font-medium">{t.name}</p>
                   {t.description && <p className="truncate text-xs text-muted-foreground">{t.description}</p>}

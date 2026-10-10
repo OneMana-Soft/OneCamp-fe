@@ -195,7 +195,7 @@ export default function TableDetailPage() {
           <Button variant="ghost" size="icon" aria-label="Back to tables" className="h-8 w-8 shrink-0" onClick={() => router.push("/app/tables")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <TableGlyph size="lg" icon={t.icon} />
+          <TableGlyph size="lg" icon={t.icon} id={t.id} />
           {bundle.can_manage ? (
             <input
               value={name}
