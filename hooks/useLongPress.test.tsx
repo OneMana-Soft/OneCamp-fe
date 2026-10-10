@@ -18,6 +18,16 @@ function Row({ onLongPress }: { onLongPress: () => void }) {
 
 const at = (x = 120, y = 200) => ({ touches: [{ clientX: x, clientY: y }] })
 
+/** A row that opens on a tap (a message opens its thread) and has a menu on a hold. */
+function TapRow({ onLongPress, onTap }: { onLongPress: () => void; onTap: () => void }) {
+  const press = useLongPress(onLongPress, { threshold: 500 })
+  return (
+    <div data-testid="row" {...press} onClick={onTap}>
+      message
+    </div>
+  )
+}
+
 // The page's clock, moved by hand: a busy main thread is time passing while
 // no timer gets to run.
 let clock = 0
@@ -37,6 +47,43 @@ afterEach(() => {
 })
 
 describe("useLongPress", () => {
+  it("swallows the click that releasing a hold sends, and keeps the next tap's", () => {
+    const open = vi.fn()
+    const tap = vi.fn()
+    render(<TapRow onLongPress={open} onTap={tap} />)
+    const row = screen.getByTestId("row")
+    fireEvent.touchStart(row, at())
+    act(() => vi.advanceTimersByTime(520))
+    expect(open).toHaveBeenCalledTimes(1)
+    busyFor(300)
+    fireEvent.touchEnd(row)
+    // The phone's click for the lifted finger lands on the row when the menu
+    // has not drawn over it yet: it opened the thread behind the menu.
+    fireEvent.click(row)
+    expect(tap, "releasing the hold also opened the row").not.toHaveBeenCalled()
+    // A tap after it is a tap.
+    fireEvent.touchStart(row, at())
+    busyFor(80)
+    fireEvent.touchEnd(row)
+    fireEvent.click(row)
+    expect(tap).toHaveBeenCalledTimes(1)
+    expect(open).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets a tap's click through", () => {
+    const open = vi.fn()
+    const tap = vi.fn()
+    render(<TapRow onLongPress={open} onTap={tap} />)
+    const row = screen.getByTestId("row")
+    fireEvent.touchStart(row, at())
+    act(() => vi.advanceTimersByTime(80))
+    busyFor(80)
+    fireEvent.touchEnd(row)
+    fireEvent.click(row)
+    expect(open).not.toHaveBeenCalled()
+    expect(tap).toHaveBeenCalledTimes(1)
+  })
+
   it("opens after a still hold", () => {
     const open = vi.fn()
     render(<Row onLongPress={open} />)
