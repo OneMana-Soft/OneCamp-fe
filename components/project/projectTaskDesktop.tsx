@@ -17,6 +17,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
 import { ProjectHeaderLine } from "@/components/project/ProjectHeaderLine"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ChartGantt } from "@/lib/icons"
@@ -80,7 +81,15 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
             <PageHeader
                 className="px-8 pt-8"
                 eyebrow={projectInfo.data?.data.project_team?.team_name ? `Project · ${projectInfo.data.data.project_team.team_name}` : "Project"}
-                title={projectInfo.data?.data.project_name || "\u00a0"}
+                title={
+                    // The project's own colour beside its name, from the first
+                    // paint (it comes from the id), as in the sidebar and on its
+                    // cards and timeline bars.
+                    <span className="inline-flex items-center gap-2.5">
+                        <IdentityMark id={projectId} variant="square" size={14} />
+                        {projectInfo.data?.data.project_name || "\u00a0"}
+                    </span>
+                }
                 actions={(isMember || isAdmin) && (
                     <div className="flex items-center gap-1">
                         {/* Any member chooses their own notifications; the server

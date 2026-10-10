@@ -7,6 +7,7 @@ import { CopyCheck, FileDiff } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { formatDistanceToNow } from "date-fns"
 
 interface GitHubTaskActivity {
@@ -123,7 +124,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
               {activity.github_avatar_url ? (
                 <Avatar className="h-5 w-5">
                   <AvatarImage src={activity.github_avatar_url} className="rounded-full" />
-                  <AvatarFallback className="text-3xs">{activity.github_login?.[0]}</AvatarFallback>
+                  <AvatarFallback className={`text-3xs ${getAvatarFallbackClass(activity.github_login)}`}>{activity.github_login?.[0]}</AvatarFallback>
                 </Avatar>
               ) : (
                 <Github className="h-4 w-4 text-muted-foreground" />

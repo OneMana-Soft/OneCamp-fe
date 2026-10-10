@@ -18,6 +18,7 @@ import {useDispatch} from "react-redux";
 import Link from "next/link";
 import {app_project_path} from "@/types/paths";
 import { BlockedBadge } from "@/components/task/BlockedBadge"
+import { ColorIcon } from "@/components/colorIcon/colorIcon"
 
 
 
@@ -146,6 +147,8 @@ export const useMyTaskColumn = () => {
             cell: ({ row }) => (
 
                 <>{row.original?.task_project ? <Link href={`${app_project_path}/${row.original?.task_project.project_uuid}`} className="flex min-w-0 max-w-[12rem] items-center gap-2 hover:underline pointer-events-auto group cursor-pointer">
+        {/* The project's own colour, as beside its name in the sidebar and on a phone. */}
+        <ColorIcon name={row.original.task_project.project_uuid} size="dot" />
         <div className="truncate whitespace-nowrap">{row.original?.task_project.project_name}</div>
                     </Link>:
                     null}</>

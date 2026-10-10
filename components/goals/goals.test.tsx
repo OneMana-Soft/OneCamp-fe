@@ -207,3 +207,15 @@ describe("a number goal's check-in", () => {
     expect(post.mock.calls[0][0]).not.toHaveProperty("value")
   })
 })
+
+describe("a goal's owner", () => {
+  it("without a photo, wears their own colour, as everywhere else they appear", async () => {
+    const { GoalOwner } = await import("@/components/goals/GoalOwner")
+    const { hueFor } = await import("@/lib/campHue")
+    const { HUE_CLASS } = await import("@/components/ui/graphics/hues")
+    render(<GoalOwner owner={{ user_uuid: "u1", user_full_name: "Maya Chen" }} />)
+    const initials = screen.getByText("MC")
+    expect(initials.className).toContain(HUE_CLASS[hueFor("Maya Chen")])
+    expect(initials.className).toContain("bg-hue-tint")
+  })
+})
