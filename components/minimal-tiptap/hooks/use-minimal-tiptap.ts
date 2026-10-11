@@ -1,6 +1,7 @@
 import * as React from 'react'
 import type { Editor } from '@tiptap/react'
 import type { Content, UseEditorOptions } from '@tiptap/react'
+import { EmojiSuggest } from '@/components/minimal-tiptap/extensions/emoji-suggest/emojiSuggest'
 import { StarterKit } from '@tiptap/starter-kit'
 import { useEditor, mergeAttributes, Extension } from '@tiptap/react'
 import { SlashCommand } from '../extensions/slash-command/slashCommandExtension'
@@ -51,13 +52,22 @@ import { HUE_CLASS } from '@/components/ui/graphics/hues'
 /** A collaborator as their awareness state describes them (their colour is ignored). */
 type CollaboratorUser = { id?: string; name?: string; [field: string]: unknown }
 
-/** Someone else's caret and name tag: their identity hue, by their id. */
+/**
+ * Someone else's caret and name flag: their identity hue, by their id. The
+ * flag says their first name (the whole name is its title); an agent's keeps
+ * its name and gets a spark (data-agent). See index.css for the flag's look
+ * and how it folds to a dot when they pause.
+ */
 export function collaboratorCaret(user: CollaboratorUser): HTMLElement {
   const caret = document.createElement('span')
   caret.className = `collaboration-cursor__caret ${HUE_CLASS[hueFor(user.id || user.name)]}`
+  const name = (user.name || '').trim()
+  const agent = user.kind === 'agent' || user.isAgent === true || user.is_agent === true
+  if (agent) caret.dataset.agent = ''
+  caret.title = name
   const label = document.createElement('div')
   label.className = 'collaboration-cursor__label'
-  label.textContent = user.name || ''
+  label.textContent = agent ? name : name.split(/\s+/)[0] || ''
   caret.append(label)
   return caret
 }
@@ -154,6 +164,8 @@ const createExtensions = (
       history: false // Disable history in favor of Y.js history
     }),
     Link,
+    // ":" and two letters offers a row of emoji (design v3 chat, C43).
+    EmojiSuggest,
     // Polls render in messages (read-only editors) and survive a re-edit.
     Poll,
     Mention.extend({
@@ -383,7 +395,7 @@ const createExtensions = (
           return `Heading ${node.attrs.level}`
         }
         if (node.type.name === 'paragraph') {
-          return "Type '/' for commands"
+          return "Type / for blocks, @ for people"
         }
         if (node.type.name === 'blockquote') {
           return 'Empty quote'

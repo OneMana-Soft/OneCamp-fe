@@ -18,7 +18,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'bold',
     label: 'Bold',
-    icon: <Bold className="size-4" strokeWidth={1.75} />,
+    icon: <Bold className="size-4" />,
     action: editor => editor.chain().focus().toggleBold().run(),
     isActive: editor => editor.isActive('bold'),
     canExecute: editor => editor.can().chain().toggleBold().run() && !editor.isActive('codeBlock'),
@@ -27,7 +27,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'italic',
     label: 'Italic',
-    icon: <Italic className="size-4" strokeWidth={1.75} />,
+    icon: <Italic className="size-4" />,
     action: editor => editor.chain().focus().toggleItalic().run(),
     isActive: editor => editor.isActive('italic'),
     canExecute: editor => editor.can().chain().toggleItalic().run() && !editor.isActive('codeBlock'),
@@ -36,7 +36,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'underline',
     label: 'Underline',
-    icon: <Underline className="size-4" strokeWidth={1.75} />,
+    icon: <Underline className="size-4" />,
     action: editor => editor.chain().focus().toggleUnderline().run(),
     isActive: editor => editor.isActive('underline'),
     canExecute: editor => editor.can().chain().toggleUnderline().run() && !editor.isActive('codeBlock'),
@@ -45,7 +45,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'strikethrough',
     label: 'Strikethrough',
-    icon: <Strikethrough className="size-4" strokeWidth={1.75} />,
+    icon: <Strikethrough className="size-4" />,
     action: editor => editor.chain().focus().toggleStrike().run(),
     isActive: editor => editor.isActive('strike'),
     canExecute: editor => editor.can().chain().toggleStrike().run() && !editor.isActive('codeBlock'),
@@ -54,7 +54,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'code',
     label: 'Code',
-    icon: <Code className="size-4" strokeWidth={1.75} />,
+    icon: <Code className="size-4" />,
     action: editor => editor.chain().focus().toggleCode().run(),
     isActive: editor => editor.isActive('code'),
     canExecute: editor => editor.can().chain().toggleCode().run() && !editor.isActive('codeBlock'),
@@ -63,7 +63,7 @@ const formatActions: TextStyle[] = [
   {
     value: 'clearFormatting',
     label: 'Clear formatting',
-    icon: <RemoveFormatting className="size-4" strokeWidth={1.75} />,
+    icon: <RemoveFormatting className="size-4" />,
     action: editor => editor.chain().focus().unsetAllMarks().run(),
     isActive: () => false,
     canExecute: editor => editor.can().chain().unsetAllMarks().run() && !editor.isActive('codeBlock'),
@@ -73,7 +73,7 @@ const formatActions: TextStyle[] = [
 
 // Built once: ToolbarSection is memoised, and an icon or list made in render
 // is a new prop every time, which re-rendered it anyway.
-const DROPDOWN_ICON = <MoreHorizontal className="size-4" strokeWidth={1.75} />
+const DROPDOWN_ICON = <MoreHorizontal className="size-4" />
 const ALL_ACTIONS = formatActions.map(action => action.value)
 
 interface SectionTwoProps extends VariantProps<typeof toggleVariants> {

@@ -261,7 +261,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                         <>
                             {/* In the app's one chart order, as every chart is; on
                                 the frame's ground, without a second border. */}
-                            <SvgChart chart={chart} className="my-0 border-0 p-0" />
+                            <SvgChart chart={chart} className="my-0" />
                             {note && <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p>}
                         </>
                     ) : (
@@ -276,7 +276,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
 /** A chart's shape while it is worked out: an axis and bars, where a spinner sat alone in the box. */
 function ChartSkeleton() {
     return (
-        <div role="status" aria-label="Building the chart" className="flex h-[18rem] items-end gap-6 border-b border-l border-border/60 px-6 pb-px">
+        <div role="status" aria-label="Building the chart" className="flex h-[18rem] items-end gap-6 px-6 pb-px">
             {[62, 88, 45, 70, 30].map((h, i) => (
                 <Skeleton key={i} className="w-full max-w-12 rounded-b-none" style={{ height: `${h}%` }} />
             ))}

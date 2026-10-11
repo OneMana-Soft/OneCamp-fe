@@ -1,0 +1,62 @@
+/* The calendar's own moments (content.md C08, C11, C13). Transform and
+   opacity only, except the running focus block's drift, which moves a
+   background (listed in app/motionCost.test.ts as cheap: one small block). */
+
+/* The now line's disc breathes: a ring around it grows and fades, 3 s. */
+.now-disc::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--brand) 20%, transparent);
+  animation: calendar-now-breathe 3s var(--ease-in-out) infinite;
+}
+@keyframes calendar-now-breathe {
+  0%, 100% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+/* A running focus block's hatch drifts very slowly: time passing, protected. */
+.focus-running {
+  animation: calendar-hatch-drift 8s linear infinite;
+}
+@keyframes calendar-hatch-drift {
+  from { background-position: 0 0; }
+  to { background-position: 12px 0; }
+}
+
+/* A block being moved lifts: e3 and a little larger (no tilt on a time grid). */
+.calendar-lift {
+  transform: scale(1.02);
+  box-shadow: var(--e3);
+  z-index: 40;
+  cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-lift { transform: none; }
+  .focus-running, .now-disc::after { animation: none; }
+}
+
+/* The view switcher's thumb slides under the chosen view (transform only). */
+.calendar-thumb {
+  transition: transform var(--duration-pop, 180ms) var(--ease-out), width 0s;
+}
+
+/* The loading dot beside the period title. */
+.calendar-loading-dot {
+  animation: calendar-dot 1.2s var(--ease-in-out) infinite;
+}
+@keyframes calendar-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-loading-dot { animation: none; }
+}
+
+/* Weekends in dark: --sunken (#0F1012) sits barely below the dark sheet
+   (#131416), so a weekend column didn't read as set apart. In dark it steps
+   further down, still a neutral (never a hue). Light keeps --sunken. */
+.dark [data-weekend].bg-sunken {
+  background-color: color-mix(in oklab, var(--sheet) 62%, black);
+}

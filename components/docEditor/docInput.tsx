@@ -4,20 +4,15 @@ import * as React from 'react'
 import '@/components/minimal-tiptap/styles/index.css'
 
 import type { Content, Editor } from '@tiptap/react'
-import type { Level } from '@tiptap/extension-heading'
 import type { UseMinimalTiptapEditorProps } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { EditorContent } from '@tiptap/react'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils/helpers/cn'
 import { useClientConfig } from '@/hooks/useClientConfig'
 import { exceedsUploadLimit, uploadLimitMessage } from '@/lib/utils/uploadLimit'
-import { SectionOne } from '@/components/minimal-tiptap/components/section/one'
-import { SectionTwo } from '@/components/minimal-tiptap/components/section/two'
-import { SectionThree } from '@/components/minimal-tiptap/components/section/three'
-import { SectionFour } from '@/components/minimal-tiptap/components/section/four'
-import { SectionFive } from '@/components/minimal-tiptap/components/section/five'
 import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/link-bubble-menu'
-import { SelectionAiBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/selection-ai-bubble-menu'
+import { SelectionBar } from '@/components/docEditor/SelectionBar'
+import { DocAccessoryBar } from '@/components/docEditor/DocAccessoryBar'
+import { celebrate } from '@/lib/celebrate'
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { Callout } from '@/components/minimal-tiptap/extensions/callout/callout'
 import { Collapsible } from '@/components/minimal-tiptap/extensions/collapsible/collapsible'
@@ -33,9 +28,7 @@ import { MeasuredContainer } from '@/components/minimal-tiptap/components/measur
 import { useDispatch, useSelector } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
-import { Drawer } from 'vaul'
-import { Image as ImageIcon, Loader2, Check, Sparkles, Maximize2, Minimize2 } from "@/lib/icons";
-import { CloudOff } from "lucide-react";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
 import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
@@ -46,9 +39,8 @@ import { snapshotHtml } from '@/components/docEditor/snapshotHtml'
 
 /** The live editor while the saved copy stands in for it: mounted, out of the layout. */
 const HIDDEN: React.CSSProperties = { display: 'none' }
-import type { SaveStatus } from '@/hooks/useDocAutoSave'
-import { shortTime } from '@/lib/utils/date/shortDate'
-import { readingLine, useDocCounts } from '@/components/docEditor/docCounts'
+import { useDocCounts } from '@/components/docEditor/docCounts'
+import { useNewDocArrival } from '@/components/docEditor/newDocArrival'
 
 interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -62,253 +54,73 @@ interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate
     onTitleChange?: (title: string) => void
     onTitleBlur?: () => void
     editableTitle?: boolean
-    saveStatus?: SaveStatus
-    lastSavedAt?: Date | null
-    lastEditedAt?: string
     lastEditedRelative?: string
     focusMode?: boolean
+    /** The page at 1,040 px instead of the 720 px reading measure (the More menu's "Full width"). */
+    fullWidth?: boolean
+    /** Who wrote it, for the meta line under the title. */
+    authorName?: string
+    /** The editor, once, for what the page shows from it (the word count in More). */
+    onEditor?: (editor: Editor | null) => void
+    /** Comment, from the selection bar. */
+    onComment?: () => void
 }
 
-// Hoisted, so the memoised sections below are not handed a new array (and so
-// rendered again) every time the toolbar renders.
-const DOC_HEADING_LEVELS: Level[] = [1, 2, 3]
-// Bold, italic, underline, strike, code: the order every editor has. Italic came first.
-const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ['bold', 'italic', 'underline', 'strikethrough', 'code', 'clearFormatting'];
-const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ['bulletList', 'orderedList'];
-const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ['blockquote', 'codeBlock', 'horizontalRule'];
-
-const TOOLBAR_TEXT_BUTTON = cn(
-    "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground",
-    "transition-colors hover:bg-accent hover:text-foreground",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-)
-
-// The words beside the toolbar's two text buttons, only where the toolbar has
-// room: beside the comments panel (an 810px editor at 1440) the row ran 44px
-// past its edge and "Write with AI" was cut in half behind a scroll with no cue.
-const TOOLBAR_LABEL = "hidden @[56rem]/toolbar:inline"
-
-// Memoised: it renders when a selection starts or ends. Each section inside
-// follows the editor itself (useEditorState), so a keystroke re-renders only
-// a section whose buttons actually changed.
-const Toolbar = React.memo(function Toolbar({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClick: () => void; hasSelection: boolean }) {
+/**
+ * The line under the title (content.md D06): who wrote it, when it was last
+ * edited and how long it takes to read: "Sam Rivera · Edited 2h ago · 4 min
+ * read". It replaces the footer's reading line. It follows the editor's counts
+ * itself (useDocCounts waits for a pause), so the frame doesn't render for it.
+ */
+const DocMeta = React.memo(function DocMeta({ editor, authorName, lastEditedRelative, padded }: { editor: Editor; authorName?: string; lastEditedRelative?: string; padded: string }) {
+    const { minutes } = useDocCounts(editor)
+    const parts = [
+        authorName ? <span key="a" className="hover:text-ink-2">{authorName}</span> : null,
+        // Mid-sentence: "Edited yesterday", not "Edited Yesterday".
+        lastEditedRelative ? <span key="e">Edited {lastEditedRelative.replace(/^(Just|Yesterday)/, (w) => w.toLowerCase())}</span> : null,
+        minutes > 0 ? <span key="m">{minutes} min read</span> : null,
+    ].filter(Boolean)
+    if (!parts.length) return null
     return (
-    <div className="flex w-max items-center gap-px">
-            <SectionOne editor={editor} activeLevels={DOC_HEADING_LEVELS} variant="default" />
-
-            <Separator orientation="vertical" className="mx-1.5 h-5" />
-
-            <SectionTwo
-                editor={editor}
-                activeActions={SECTION_2_ACTIONS}
-                mainActionCount={5}
-                variant="default"
-            />
-
-            <Separator orientation="vertical" className="mx-1.5 h-5" />
-
-            <SectionThree editor={editor} variant="default" />
-
-            <Separator orientation="vertical" className="mx-1.5 h-5" />
-
-            <SectionFour
-                editor={editor}
-                activeActions={SECTION_4_ACTIONS}
-                mainActionCount={2}
-                variant="default"
-            />
-
-            <Separator orientation="vertical" className="mx-1.5 h-5" />
-
-            <SectionFive
-                editor={editor}
-                activeActions={SECTION_5_ACTIONS}
-                mainActionCount={3}
-                variant="default"
-            />
-
-            <Separator orientation="vertical" className="mx-1.5 h-5" />
-
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    editor.chain().focus().toggleImage().run();
-                }}
-                className={TOOLBAR_TEXT_BUTTON}
-                aria-label="Insert image"
-                title="Insert image"
-                type="button"
-            >
-                <ImageIcon className="size-4" aria-hidden="true" />
-                <span className={TOOLBAR_LABEL}>Image</span>
-            </button>
-
-            <Separator orientation="vertical" className="mx-1.5 h-5" />
-
-            {/* The AI action is a toolbar control like the rest: one accent per
-                view belongs to the page's primary action, and a tinted pill with
-                an emoji was the loudest thing on a page meant for reading. */}
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    onAIClick();
-                }}
-                className={TOOLBAR_TEXT_BUTTON}
-                title={hasSelection ? "Rewrite the selected text with AI" : "Write with AI"}
-                aria-label={hasSelection ? "Rewrite with AI" : "Write with AI"}
-                type="button"
-            >
-                <Sparkles className="size-4" aria-hidden="true" />
-                <span className={TOOLBAR_LABEL}>{hasSelection ? "Rewrite" : "Write with AI"}</span>
-            </button>
-        </div>
+        <p data-doc-meta="" className={cn("mt-1 flex flex-wrap items-center gap-x-1.5 text-ui-sm text-ink-3 tabular-nums", padded)}>
+            {parts.map((p, i) => (
+                <React.Fragment key={i}>
+                    {i > 0 && <span aria-hidden="true">·</span>}
+                    {p}
+                </React.Fragment>
+            ))}
+        </p>
     )
 })
 
-const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; lastSavedAt?: Date | null }) => {
-    if (!status || status === 'idle') return null
-
-    const formatTime = (d: Date) => shortTime(d)
-
-    switch (status) {
-        case 'saving':
-            return (
-                <span className="flex items-center gap-1 text-muted-foreground">
-                    <Loader2 className="size-3 animate-spin" />
-                    <span className="text-2xs font-medium">Saving…</span>
-                </span>
-            )
-        case 'saved':
-            return (
-                <span className="flex items-center gap-1 text-muted-foreground">
-                    <Check className="size-3 text-success-ink" aria-hidden="true" />
-                    <span className="text-2xs font-medium">
-                        {lastSavedAt ? `Saved at ${formatTime(lastSavedAt)}` : 'Saved'}
-                    </span>
-                </span>
-            )
-        case 'error':
-            return (
-                <span className="flex items-center gap-1 text-danger-ink">
-                    <CloudOff className="size-3" />
-                    <span className="text-2xs font-medium">Save failed</span>
-                </span>
-            )
-        case 'offline':
-            return (
-                <span className="flex items-center gap-1 text-warning-ink">
-                    <CloudOff className="size-3" />
-                    <span className="text-2xs font-medium">Offline</span>
-                </span>
-            )
-        default:
-            return null
-    }
-}
-
-type CollabStatus = 'connecting' | 'connected' | 'disconnected' | 'synced' | 'offline'
-
 /**
- * Whether a collaborative doc has changes the server has not confirmed for
- * more than a moment. Changes are normally confirmed in a few milliseconds, so
- * this stays false (and renders nothing new) while someone types; "Saving…"
- * only shows when the server is genuinely slow to take them.
+ * Checking the last open item in a to-do list is a "list done" moment: one
+ * small spark burst from that checkbox. Single checks never fire it.
  */
-function useSlowSave(provider: HocuspocusProvider | undefined, afterMs = 1500): boolean {
-    const [slow, setSlow] = React.useState(false)
+function useChecklistDone(editor: Editor | null) {
     React.useEffect(() => {
-        if (!provider) return
-        let timer: ReturnType<typeof setTimeout> | null = null
-        const onUnsynced = ({ number }: { number: number }) => {
-            if (number > 0) {
-                if (!timer) timer = setTimeout(() => setSlow(true), afterMs)
-                return
-            }
-            if (timer) clearTimeout(timer)
-            timer = null
-            setSlow(false)
+        if (!editor) return
+        const dom = editor.view.dom as HTMLElement
+        const onChange = (e: Event) => {
+            const input = e.target as HTMLInputElement
+            if (input?.type !== 'checkbox' || !input.checked) return
+            // After the editor has applied the check.
+            window.setTimeout(() => {
+                const list = input.closest('ul.task-list')
+                if (!list) return
+                const items = Array.from(list.children).filter((c) => c.matches('li.task-item'))
+                if (items.length > 1 && items.every((li) => li.getAttribute('data-checked') === 'true')) {
+                    celebrate(input, { count: 6 })
+                }
+            }, 0)
         }
-        provider.on('unsyncedChanges', onUnsynced)
-        return () => {
-            provider.off('unsyncedChanges', onUnsynced)
-            if (timer) clearTimeout(timer)
-        }
-    }, [provider, afterMs])
-    return slow
+        dom.addEventListener('change', onChange)
+        return () => dom.removeEventListener('change', onChange)
+    }, [editor])
 }
-
-/**
- * The doc's footer: its length, whether it is saved, and the width toggle. A component of its own that follows the editor itself,
- * so the rest of the editor's frame does not render again per keystroke.
- */
-const DocFooter = React.memo(function DocFooter({
-    editor,
-    isFullWidth,
-    onToggleWidth,
-    lastEditedRelative,
-    saveStatus,
-    lastSavedAt,
-    provider,
-    collabStatus,
-}: {
-    editor: Editor
-    isFullWidth: boolean
-    onToggleWidth: () => void
-    lastEditedRelative?: string
-    saveStatus?: SaveStatus
-    lastSavedAt?: Date | null
-    /** Only for a collaborative doc. */
-    provider?: HocuspocusProvider
-    collabStatus: CollabStatus
-}) {
-    const { words, minutes } = useDocCounts(editor)
-    const slowSave = useSlowSave(provider)
-    // A collaborative doc saves as it is written, so the footer says so
-    // quietly, and only speaks up when that stops being true. Who else is
-    // here shows once, as faces in the top bar.
-    const live = provider
-        ? collabStatus === 'offline'
-            ? <span className="font-medium text-warning-ink">Offline</span>
-            : collabStatus === 'disconnected'
-            ? <span className="font-medium text-warning-ink">Reconnecting…</span>
-            : collabStatus === 'synced' || collabStatus === 'connected'
-            ? <span>{slowSave ? 'Saving…' : 'Saved'}</span>
-            : null
-        : null
-    // One line, never wrapped: the length of the doc on the left, whether it
-    // is saved on the right. It had six items in the reading column's width
-    // (words, characters, minutes, the caret's block, when it was edited, the
-    // connection), so each wrapped onto two lines; the characters and the
-    // block (which the toolbar already shows) went.
-    return (
-        <div className="shrink-0 z-10 bg-background border-t border-border w-full">
-            <div className={cn("mx-auto flex items-center justify-between gap-3 whitespace-nowrap px-4 py-1.5 text-2xs tabular-nums text-muted-foreground select-none md:px-8", isFullWidth ? "max-w-none" : "doc-measure")}>
-                <span className="hidden sm:inline">
-                    {readingLine({ words, minutes })}
-                </span>
-                <div className="flex items-center gap-3 ml-auto sm:ml-0">
-                    {lastEditedRelative && (
-                        <span className="hidden md:inline">Edited {lastEditedRelative}</span>
-                    )}
-                    <SaveStatusIndicator status={saveStatus} lastSavedAt={lastSavedAt} />
-                    {live}
-                    <button
-                        onClick={onToggleWidth}
-                        className="hidden sm:inline-flex size-6 items-center justify-center rounded-sm transition-colors hover:bg-highlight hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        aria-label={isFullWidth ? 'Reading width' : 'Full width'}
-                        title={isFullWidth ? 'Reading width' : 'Full width'}
-                        type="button"
-                    >
-                        {isFullWidth ? <Minimize2 className="size-3.5" aria-hidden="true" /> : <Maximize2 className="size-3.5" aria-hidden="true" />}
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-})
 
 const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
-    ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, title, onTitleChange, onTitleBlur, editableTitle = true, collaboration, saveStatus, lastSavedAt, lastEditedAt, lastEditedRelative, focusMode, ...props }, ref) => {
+    ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, title, onTitleChange, onTitleBlur, editableTitle = true, collaboration, lastEditedRelative, focusMode, fullWidth = false, authorName, onEditor, onComment, ...props }, ref) => {
         const { toast } = useToast()
         const uploadFile = useUploadFile()
         const clientConfig = useClientConfig()
@@ -416,6 +228,10 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             shouldRerenderOnTransaction: false,
         })
 
+        // A doc made a moment ago: the title ready to type over, and a
+        // template's body once the live copy has synced (newDocArrival.ts).
+        useNewDocArrival({ editor, synced: !!providerSynced || !collaboration, titleRef, canEditTitle: editableTitle && title !== undefined })
+
         const handleTitleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             if (e.key === 'Enter') {
                 e.preventDefault()
@@ -430,25 +246,17 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
         const suppressOverlays = isDrawerOpen || docAiOpen
         const [selectedText, setSelectedText] = React.useState('')
-        const [hasSelection, setHasSelection] = React.useState(false)
-        const [isFullWidth, setIsFullWidth] = React.useState(false)
-        const toggleFullWidth = React.useCallback(() => setIsFullWidth((w) => !w), [])
+        const isFullWidth = fullWidth
         // The saved text stands in until a collaborative editor's first sync.
         const snapshot = !!provider && !providerSynced && typeof value === 'string' && value.trim() !== ''
         const undoDataRef = React.useRef<{ originalText: string; from: number; replacedLength: number } | null>(null)
 
-        // Track selection state
+        // The page reads the word count from the editor (More menu); hand it over once.
         React.useEffect(() => {
-            if (!editor) return
+            onEditor?.(editor ?? null)
+        }, [editor, onEditor])
 
-            const handleSelectionUpdate = () => {
-                const { from, to } = editor.state.selection
-                setHasSelection(from !== to)
-            }
-
-            editor.on('selectionUpdate', handleSelectionUpdate)
-            return () => { editor.off('selectionUpdate', handleSelectionUpdate) }
-        }, [editor])
+        useChecklistDone(editor ?? null)
 
         const handleInsert = React.useCallback((text: string) => {
             if (!editor) return
@@ -545,6 +353,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             const onSlashAI = (e: any) => {
                 if (!editor) return
                 const action = e.detail?.action as string
+                // A prompt typed in the slash menu ("Ask AI to write …") goes with the action.
+                const prompt = typeof e.detail?.prompt === 'string' && e.detail.prompt.trim() ? e.detail.prompt.trim() : undefined
                 if (!action) return
 
                 const { from, to } = editor.state.selection
@@ -571,13 +381,18 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                             selectedText: text,
                             docId: docId || '',
                             surroundingContext,
-                            initialAction: action,
+                            initialAction: prompt ? undefined : action,
                         }
                     }))
+                    if (prompt) {
+                        setTimeout(() => {
+                            window.dispatchEvent(new CustomEvent('doc-ai-initial-action', { detail: { action, prompt } }))
+                        }, 150)
+                    }
                 } else {
                     setIsDrawerOpen(true)
                     setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('doc-ai-initial-action', { detail: { action } }))
+                        window.dispatchEvent(new CustomEvent('doc-ai-initial-action', { detail: { action, prompt } }))
                     }, 100)
                 }
             }
@@ -625,20 +440,6 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             }
         }, [editor, creatingTable])
 
-        const [collabStatus, setCollabStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'synced' | 'offline'>('connecting')
-
-        React.useEffect(() => {
-            if (!provider) return
-            const updateStatus = ({ status }: { status: any }) => {
-                if (status === 'connected' || status === 'synced') setCollabStatus(status)
-                else if (status === 'disconnected') setCollabStatus('disconnected')
-                else if (status === 'offline') setCollabStatus('offline')
-                else setCollabStatus('connecting')
-            }
-            provider.on('status', updateStatus)
-            return () => { provider.off('status', updateStatus) }
-        }, [provider])
-
         if (!editor) {
             return null
         }
@@ -656,17 +457,10 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     className
                 )}
             >
-                {/* Toolbar: for someone who can edit, and not in focus mode. A
-                    reader was shown every formatting control, none of which
-                    could do anything. */}
-                {!focusMode && canEdit && (
-                    <div className="@container/toolbar shrink-0 z-10 bg-background border-b border-border w-full overflow-x-auto" data-doc-toolbar="">
-                        <div className="px-4 md:px-8 py-2">
-                            <Toolbar editor={editor} onAIClick={handleAIClick} hasSelection={hasSelection} />
-                        </div>
-                    </div>
-                )}
-
+                {/* No toolbar row (content.md D08): formatting appears on a
+                    selection (SelectionBar), blocks come from "/" and the
+                    block handle. A phone gets a bar above its keyboard while
+                    the editor has focus. */}
                 {/* Content area — scrollable body */}
                 <div 
                     // doc-scroll: the size container that wide blocks measure
@@ -674,10 +468,10 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     className="doc-scroll w-full relative flex-1 min-h-0 overflow-y-auto overflow-x-clip cursor-text"
                 >
                     <div 
-                        className={cn("w-full min-h-full flex flex-col", !isFullWidth && "doc-measure mx-auto")}
+                        className={cn("w-full min-h-full flex flex-col mx-auto", isFullWidth ? "doc-measure-full" : "doc-measure")}
                     >
                         {title !== undefined && (
-                            <>
+                            <div className={cn("pt-6 pb-6 md:pt-14", focusMode && "md:pt-20")} data-doc-title-block="">
                                 <textarea
                                     ref={titleRef}
                                     value={title}
@@ -686,15 +480,22 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                     onKeyDown={handleTitleKeyDown}
                                     disabled={!editableTitle}
                                     placeholder="Untitled"
+                                    aria-label="Title"
                                     rows={1}
+                                    data-doc-title=""
                                     className={cn(
-                                        "w-full resize-none overflow-hidden bg-transparent font-display font-semibold text-foreground placeholder:text-faint-foreground focus:outline-none focus:ring-0 border-none leading-tight tracking-[-0.02em] text-balance cursor-text",
-                                        "pt-10 pb-2",
-                                        isFullWidth ? "px-4 md:px-12" : "px-4 md:px-8",
-                                        "text-[1.75rem] md:text-[2rem]"
+                                        "doc-title block w-full resize-none overflow-hidden border-none bg-transparent focus:outline-none focus:ring-0 disabled:opacity-100",
+                                        editableTitle ? "cursor-text" : "cursor-default",
+                                        isFullWidth ? "px-5 md:px-12" : "px-5 md:px-8",
                                     )}
                                 />
-                            </>
+                                <DocMeta
+                                    editor={editor}
+                                    authorName={authorName}
+                                    lastEditedRelative={lastEditedRelative}
+                                    padded={isFullWidth ? "px-5 md:px-12" : "px-5 md:px-8"}
+                                />
+                            </div>
                         )}
                         {/* Until the live copy arrives (the first sync over the
                             socket, two round trips after the page shows), the
@@ -731,37 +532,27 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     </div>
                 </div>
 
-                <DocFooter
-                    editor={editor}
-                    isFullWidth={isFullWidth}
-                    onToggleWidth={toggleFullWidth}
-                    lastEditedRelative={lastEditedRelative}
-                    saveStatus={saveStatus}
-                    lastSavedAt={lastSavedAt}
-                    provider={collaboration?.enabled ? provider : undefined}
-                    collabStatus={collabStatus}
-                />
                 <LinkBubbleMenu editor={editor} hide={suppressOverlays} />
-                <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} hide={suppressOverlays} />
+                {canEdit && !isMobile && (
+                    <SelectionBar editor={editor} onAIClick={handleAIClick} onComment={onComment} hide={suppressOverlays} />
+                )}
+                {canEdit && isMobile && !focusMode && <DocAccessoryBar editor={editor} onAIClick={handleAIClick} />}
 
                 {/* Mobile AI Drawer */}
-                <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-                    <Drawer.Portal>
-                        <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[var(--z-modal-backdrop)]" />
-                        <Drawer.Content className="bg-background flex flex-col rounded-t-2xl h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-[var(--z-modal)] outline-none border-t border-border">
-                            <Drawer.Title className="sr-only">OneCamp AI</Drawer.Title>
-                            <Drawer.Description className="sr-only">AI powered document assistant for writing and transforming text.</Drawer.Description>
-                            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted my-4" />
-                            <div className="flex-1 overflow-y-auto">
-                                <DocAiAssistantPanel 
-                                    selectedText={selectedText} 
-                                    docId={docId || ''} 
-                                    onClose={() => setIsDrawerOpen(false)}
-                                />
-                            </div>
-                        </Drawer.Content>
-                    </Drawer.Portal>
-                </Drawer.Root>
+                {/* The phone's AI sheet: the shared sheet at its large detent
+                    (mobile C7), which pushes the page back and keeps the
+                    grabber and the home-indicator strip. */}
+                <Drawer detent="large" open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                    <DrawerContent>
+                        <DrawerTitle className="sr-only">OneCamp AI</DrawerTitle>
+                        <DrawerDescription className="sr-only">AI powered document assistant for writing and transforming text.</DrawerDescription>
+                        <DocAiAssistantPanel
+                            selectedText={selectedText}
+                            docId={docId || ''}
+                            onClose={() => setIsDrawerOpen(false)}
+                        />
+                    </DrawerContent>
+                </Drawer>
 
                 <TableEmbedPickerDialog
                     open={embedTableOpen}

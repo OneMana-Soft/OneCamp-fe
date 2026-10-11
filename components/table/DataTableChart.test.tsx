@@ -51,10 +51,11 @@ describe("a table's chart controls", () => {
       expect(row.contains(trigger)).toBe(true)
       expect(trigger.className).toMatch(/\bh-7\b/)
     }
-    // The chart scrolls in the frame, as the grid does, with no second border.
+    // The chart scrolls in the frame, as the grid does, on the sheet with no
+    // border of its own (SvgChart draws none by default).
     const body = document.querySelector("[data-table-chart]") as HTMLElement
     expect(body.className).toMatch(/overflow-auto/)
     await waitFor(() => expect(body.querySelector("figure")).toBeTruthy())
-    expect(body.querySelector("figure")?.className).toMatch(/border-0/)
+    expect(body.querySelector("figure")?.className).not.toMatch(/\bborder\b/)
   })
 })

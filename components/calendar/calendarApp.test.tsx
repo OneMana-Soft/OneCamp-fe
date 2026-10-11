@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 // What the calendar asks the server for, by URL, and what each answers.
 const asked: string[] = []
@@ -7,29 +7,32 @@ let connected = false
 let loading = false
 let failing = false
 let free = false
+let mobile = false
 const now = new Date()
 const iso = (d: number, h: number) => new Date(now.getFullYear(), now.getMonth(), d, h).toISOString()
+const standup = () => ({ event_uuid: "e1", event_title: "Standup", event_start_time: iso(now.getDate(), 9), event_end_time: iso(now.getDate(), 10), event_created_by: { user_uuid: "me", user_name: "Sam" } })
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
     if (loading && (url.includes("/event/getEvents") || url.includes("assignedTaskList"))) return { data: undefined, isLoading: true, mutate: vi.fn() }
     if (failing && url.includes("/event/getEvents")) return { data: undefined, isLoading: false, isError: new Error("502"), mutate: vi.fn() }
-    if (url.includes("/event/getEvents"))
-      return { data: { data: free ? [] : [{ event_uuid: "e1", event_title: "Standup", event_start_time: iso(now.getDate(), 9), event_end_time: iso(now.getDate(), 10) }] }, isLoading: false, mutate: vi.fn() }
+    if (url.includes("/event/getEvents")) return { data: { data: free ? [] : [standup()] }, isLoading: false, mutate: vi.fn() }
     if (url.includes("assignedTaskList")) return { data: { data: { user_tasks: [] } }, isLoading: false, mutate: vi.fn() }
+    if (url.includes("bookingPages")) return { data: { data: [{}, {}] }, isLoading: false, mutate: vi.fn() }
     return { data: { data: { isConnected: connected } }, isLoading: false, mutate: vi.fn() }
   },
+  useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(), isSubmitting: false }) }))
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
-vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: mobile, isDesktop: !mobile }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock("@/components/calendar/createCalendarEventDialog", () => ({ CreateCalendarEventDialog: () => null }))
-vi.mock("@/components/calendar/bookingPagesDialog", () => ({ BookingPagesDialog: () => null }))
 
-import { CalendarApp } from "./calendarApp"
+import { CalendarApp, periodTitle } from "./calendarApp"
 
 afterEach(() => {
   cleanup()
@@ -39,92 +42,126 @@ afterEach(() => {
   loading = false
   failing = false
   free = false
+  mobile = false
 })
 
 const ranges = () => new Set(asked.filter((u) => u.includes("/event/getEvents")))
+const views = () => screen.getAllByRole("button", { pressed: false }).concat(screen.getAllByRole("button", { pressed: true })).filter((b) => b.closest("[data-calendar-views]"))
 
 describe("the calendar", () => {
-  it("switches between month, week and day without asking for anything new, and without a spinner", () => {
+  it("has one sidebar: no second calendar sidebar, the calendars behind one button", () => {
     render(<CalendarApp />)
-    const first = ranges()
-    expect(first.size).toBe(1)
-    fireEvent.click(screen.getByRole("button", { name: "week" }))
-    expect(screen.getByText("All day")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "day" }))
-    expect(screen.getByRole("button", { name: "Previous day" })).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "month" }))
-    expect(ranges()).toEqual(first)
-    expect(screen.queryByText(/Syncing calendar/)).toBeNull()
+    expect(document.querySelector("aside")).toBeNull()
+    expect(document.querySelector(".w-64")).toBeNull()
+    expect(screen.getByRole("button", { name: /Calendars/ })).toBeTruthy()
   })
 
-  it("shows the month grid's days while its items load, not a spinner in their place", () => {
-    loading = true
+  it("lists Google Calendar and the booking pages in the calendars popover", () => {
     render(<CalendarApp />)
-    expect(screen.getAllByText("15").length).toBeGreaterThan(0)
-    expect(screen.queryByText(/Syncing calendar/)).toBeNull()
-    expect(screen.getByRole("status").textContent).toBe("Loading…")
+    fireEvent.click(screen.getByRole("button", { name: /Calendars/ }))
+    expect(screen.getByRole("button", { name: /Connect Google Calendar/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Booking pages/ })).toBeTruthy()
+    expect(screen.getByRole("checkbox", { name: "Personal" })).toBeTruthy()
   })
 
   it("asks before disconnecting Google Calendar", () => {
     connected = true
     render(<CalendarApp />)
-    // In the sidebar's calendars on a wide screen, in the header below it.
-    fireEvent.click(screen.getAllByRole("button", { name: "Disconnect Google Calendar" })[0])
+    fireEvent.click(screen.getByRole("button", { name: /Calendars/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect Google Calendar" }))
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Disconnect Google Calendar?", destructive: true }))
   })
 
-  it("colours a personal event by its calendar", () => {
+  it("has one primary action, New event", () => {
     render(<CalendarApp />)
-    const bar = document.querySelector('[data-event-uuid="e1"]') as HTMLElement
-    expect(bar.getAttribute("data-hue")).toBe("sky")
-    expect(bar.className).toMatch(/hue-sky/)
+    const primaries = screen.getAllByRole("button").filter((b) => /\bbg-brand\b/.test(b.className))
+    expect(primaries.map((b) => b.textContent)).toEqual(["New eventC"])
   })
 
-  it("keeps the view switch in one place whatever the view, away from the title that changes width", () => {
+  it("switches views with four buttons over one sliding thumb, asking for nothing new", () => {
     render(<CalendarApp />)
-    const views = document.querySelector("[data-calendar-views]") as HTMLElement
-    const title = screen.getByText(/\d{4}$/, { selector: "[aria-live]" })
-    // Not in the title's group, and first in its own: nothing before it changes with the view.
-    expect(views.parentElement?.contains(title)).toBe(false)
-    expect(views.parentElement?.firstElementChild).toBe(views)
-    fireEvent.click(screen.getByRole("button", { name: "week" }))
-    expect(document.querySelector("[data-calendar-views]")?.parentElement?.firstElementChild).toBe(document.querySelector("[data-calendar-views]"))
+    const first = ranges()
+    expect(views().map((b) => b.textContent).sort()).toEqual(["Agenda", "Day", "Month", "Week"])
+    expect(document.querySelectorAll("[data-calendar-views] [data-thumb]")).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "Week", pressed: true })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Month" }))
+    const thumb = document.querySelector("[data-thumb]") as HTMLElement
+    expect(thumb.style.transform).toBe("translateX(128px)")
+    fireEvent.click(screen.getByRole("button", { name: "Day" }))
+    expect(screen.getByRole("button", { name: "Previous day" })).toBeTruthy()
+    expect(ranges()).toEqual(first)
   })
 
-  it("says it is loading along the header's edge, moving nothing in its rows", () => {
+  it("takes D, W, M, A, T, J and K from the keyboard, but not while typing", () => {
+    render(<CalendarApp />)
+    act(() => void fireEvent.keyDown(window, { key: "m" }))
+    expect(screen.getByRole("button", { name: "Month", pressed: true })).toBeTruthy()
+    act(() => void fireEvent.keyDown(window, { key: "a" }))
+    expect(screen.getByRole("button", { name: "Agenda", pressed: true })).toBeTruthy()
+    act(() => void fireEvent.keyDown(window, { key: "d" }))
+    const title = () => document.querySelector("[aria-live]")?.textContent
+    const today = title()
+    act(() => void fireEvent.keyDown(window, { key: "j" }))
+    expect(title()).not.toBe(today)
+    act(() => void fireEvent.keyDown(window, { key: "k" }))
+    expect(title()).toBe(today)
+    act(() => void fireEvent.keyDown(window, { key: "j" }))
+    act(() => void fireEvent.keyDown(window, { key: "t" }))
+    expect(title()).toBe(today)
+    fireEvent.click(screen.getByRole("button", { name: "Search events" }))
+    const box = screen.getByRole("textbox", { name: "Search events" })
+    fireEvent.keyDown(box, { key: "w" })
+    expect(screen.getByRole("button", { name: "Day", pressed: true })).toBeTruthy()
+  })
+
+  it("says it is loading with a dot beside the period, not a bar", () => {
     loading = true
     render(<CalendarApp />)
     const status = screen.getByRole("status")
-    expect(status.className).toMatch(/\babsolute\b/)
-    expect(status.closest("[data-calendar-views]")).toBeNull()
-    expect(status.parentElement?.hasAttribute("data-calendar-header")).toBe(true)
+    expect(status.textContent).toBe("Loading…")
+    expect(status.hasAttribute("data-calendar-loading")).toBe(true)
+    expect(document.querySelector(".animate-pulse.bg-primary\\/70")).toBeNull()
   })
 
-  it("says a free month is free, as a free week does", () => {
+  it("says a free month is free", () => {
     free = true
     render(<CalendarApp />)
-    expect(screen.getByText("Nothing on this month")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Month" }))
+    expect(screen.getByText("Nothing this month")).toBeTruthy()
   })
 
   it("says a failed load failed, rather than showing an empty month", () => {
     failing = true
     render(<CalendarApp />)
     expect(screen.getByRole("heading", { name: "Couldn't load your calendar" })).toBeTruthy()
-    expect(screen.queryByText("Nothing on this month")).toBeNull()
   })
 
-  it("shows a month bar's time only where the bar has room for it", () => {
+  it("colours a personal event by its calendar", () => {
     render(<CalendarApp />)
+    fireEvent.click(screen.getByRole("button", { name: "Month" }))
     const bar = document.querySelector('[data-event-uuid="e1"]') as HTMLElement
-    const time = [...bar.querySelectorAll("span")].find((s) => /am|pm/.test(s.textContent || "") && s.textContent !== bar.textContent)
-    expect(time?.className).toMatch(/hidden @\[\d+rem\]\/month:inline/)
-    expect(bar.textContent).toContain("Standup")
+    expect(bar.getAttribute("data-hue")).toBe("sky")
   })
 
-  it("lists Google Calendar and the booking pages with the calendars on a wide screen", () => {
+  it("opens an event as a popover beside it, not the panel", () => {
     render(<CalendarApp />)
-    const aside = document.querySelector("aside") as HTMLElement
-    expect(aside.textContent).toContain("Connect Google Calendar")
-    expect(aside.textContent).toContain("Booking pages")
+    fireEvent.click(screen.getByRole("button", { name: "Month" }))
+    fireEvent.click(document.querySelector('[data-event-uuid="e1"]') as HTMLElement, { detail: 0 })
+    expect(screen.getByRole("dialog", { name: "Standup" })).toBeTruthy()
+  })
+
+  it("opens on the agenda on a phone, with a strip of the week's days", () => {
+    mobile = true
+    render(<CalendarApp />)
+    expect(screen.getByRole("button", { name: "agenda", pressed: true })).toBeTruthy()
+    expect(document.querySelectorAll("[data-week-strip] button")).toHaveLength(7)
+    expect(screen.getByRole("button", { name: "New event" })).toBeTruthy()
+  })
+
+  it("titles each period", () => {
+    const d = new Date(2026, 9, 15)
+    expect(periodTitle("month", d)).toBe("October 2026")
+    expect(periodTitle("week", d)).toBe("12 – 18 Oct 2026")
+    expect(periodTitle("day", d)).toBe("Thu 15 Oct")
   })
 })

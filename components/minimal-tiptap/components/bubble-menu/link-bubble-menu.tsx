@@ -103,6 +103,9 @@ export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor, hide }) 
       shouldShow={shouldShow}
       tippyOptions={{
         placement: 'bottom-start',
+        offset: [0, 8],
+        duration: 0,
+        maxWidth: 'none',
         onHidden: () => setShowEdit(false),
         zIndex: 50,
       }}
@@ -113,7 +116,7 @@ export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor, hide }) 
           defaultText={selectedText}
           defaultIsNewTab={linkAttrs.target === '_blank'}
           onSave={onSetLink}
-          className="w-full min-w-80 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none"
+          className="content-float w-80 rounded-xl bg-pop p-3 text-ink shadow-e3 outline-none"
         />
       ) : (
         <LinkPopoverBlock onClear={onUnsetLink} url={linkAttrs.href} onEdit={handleEdit} />

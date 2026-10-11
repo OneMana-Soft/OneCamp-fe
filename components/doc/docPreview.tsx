@@ -2,263 +2,81 @@ import React from 'react';
 import { cn } from '@/lib/utils/helpers/cn';
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import { SafeHtml } from '@/components/safeHtml/SafeHtml';
+import { FileText } from '@/lib/icons';
 
 interface DocPreviewProps {
     content: string;
+    /** The doc's title, set at the top of the page as the doc sets it. */
+    title?: string;
+    /** The thumbnail size of a phone row: a small page, no text. */
+    compact?: boolean;
     className?: string;
 }
 
-export const DocPreview: React.FC<DocPreviewProps> = ({ content, className }) => {
-    const hasContent = content && content.trim().length > 0 && !content.includes('Empty document');
+/**
+ * A doc's first lines as a page (content.md D02): a sheet on the sunken
+ * ground, bleeding off the bottom into a 24 px fade, holding the real title
+ * and opening text in the doc's own type. The text is set at twice the size
+ * and scaled by half, so it stays crisp instead of being restyled inline at
+ * 9 px. Under the card's pointer the page rises 2 px, as if picked up.
+ */
+export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, compact, className }) => {
+    const hasContent = !!content && content.trim().length > 0 && !content.includes('Empty document');
 
     return (
-        <div className={cn(
-            "relative w-full h-full flex items-start justify-center pt-3 px-3 pb-0",
-            "bg-muted/40",
-            className
-        )}>
-            {/* White page with shadow — the actual preview */}
-            <div 
-                // The page is the card surface with a hairline, so it follows the
-                // theme: a hard-coded white sheet glared out of the dark list.
-                className="bg-card ring-1 ring-border/70 overflow-hidden"
-                style={{ 
-                    width: '85%',
-                    aspectRatio: '1 / 1.294',
-                    maxHeight: 'calc(100% - 4px)'
-                }}
+        <div className={cn("relative h-full w-full overflow-hidden bg-sunken", compact ? "px-1.5 pt-1.5" : "px-4 pt-4", className)}>
+            <div
+                data-doc-page=""
+                className={cn(
+                    "relative h-full overflow-hidden bg-sheet shadow-e1 transition-transform duration-[140ms] ease-[var(--ease-out)] group-hover:-translate-y-0.5 motion-reduce:transform-none",
+                    compact ? "rounded-t-[3px]" : "rounded-t-md"
+                )}
             >
-                {hasContent ? (
-                    <SafeHtml
-                        as="div"
-                        className="w-full h-full overflow-hidden"
-                        sanitizer={sanitizePreviewContent}
-                        html={content}
-                    />
+                {compact ? null : hasContent || title ? (
+                    <div className="pointer-events-none w-[200%] origin-top-left scale-50 px-7 pt-6 text-ink select-none" aria-hidden="true">
+                        {title ? <div className="mb-2 text-lg font-semibold leading-[26px] text-ink">{title}</div> : null}
+                        {hasContent ? (
+                            <SafeHtml
+                                as="div"
+                                className={cn(
+                                    "text-sm leading-[22px] text-ink-2",
+                                    "[&_h1]:mb-1 [&_h1]:mt-3 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-ink",
+                                    "[&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-ink",
+                                    "[&_h3]:mb-1 [&_h3]:mt-2 [&_h3]:font-semibold [&_h3]:text-ink",
+                                    "[&_p]:mb-1 [&_strong]:font-semibold [&_strong]:text-ink [&_a]:text-brand-text",
+                                    "[&_ul]:mb-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5",
+                                    "[&_img]:hidden [&_table]:hidden [&_pre]:hidden"
+                                )}
+                                sanitizer={sanitizePreviewContent}
+                                html={content}
+                            />
+                        ) : null}
+                    </div>
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-2xs text-muted-foreground font-medium">Blank</span>
+                    <div className="flex h-full w-full items-center justify-center text-ink-4" aria-hidden="true">
+                        <FileText className="size-5" />
                     </div>
                 )}
             </div>
+            {!compact ? <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent to-sunken" /> : null}
         </div>
     );
 };
 
 /**
- * Prepare HTML content for miniature preview display.
- * Renders at native small sizes for sharp text (no CSS scale transforms).
- *
- * SECURITY: the styling logic below operates on a detached DOM, then
- * the result is reattached via dangerouslySetInnerHTML. Without
- * sanitisation a script tag in the doc body would execute when the
- * preview is rendered. We pass everything through sanitizeRichHtml
- * first, then run the cosmetic styling on the cleaned subtree.
+ * The doc's HTML, cleaned (a script in a doc body must never run here) and
+ * cut to its opening: a preview shows a few lines, so 2,500 characters is
+ * plenty and keeps a long doc's card cheap.
  */
-function sanitizePreviewContent(html: string): string {
+export function sanitizePreviewContent(html: string): string {
     if (!html) return '';
-
-    // A list hit carries a plain-text snippet, not the doc's HTML. Without a
-    // paragraph around it none of the miniature's sizes below applied, and the
-    // snippet drew at the page's 14px: a thumbnail of five words a line.
+    // A list hit carries a plain-text snippet, not the doc's HTML.
     const source = /<[a-z][\s\S]*>/i.test(html)
         ? html
         : `<p>${html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;
-
-    // First-pass strip of any dangerous tags / attributes.
-    const cleaned = sanitizeRichHtml(source);
-
-    if (typeof document === 'undefined') {
-        // Basic fallback for Server-Side Rendering — return the
-        // sanitised HTML wrapped in our preview container.
-        return `<div style="padding:10px 12px 0 12px; font-size: 9px; color: var(--foreground);">${cleaned}</div>`;
-    }
-
-    const temp = document.createElement('div');
-    temp.innerHTML = cleaned;
-
-    // Remove task checkbox attributes
-    temp.querySelectorAll('li[data-checked]').forEach(item => {
-        item.removeAttribute('data-checked');
-    });
-
-    // Base font for all text
-    const allElements = temp.querySelectorAll('*');
-    allElements.forEach(el => {
-        const style = (el as HTMLElement).style;
-        style.color = 'var(--foreground)';
-        style.fontFamily = 'inherit';
-    });
-
-    // Headings — Google Docs style sizes at preview scale
-    const headings = temp.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    headings.forEach(heading => {
-        const el = heading as HTMLElement;
-        const tag = heading.tagName.toLowerCase();
-        el.style.color = 'var(--foreground)';
-        el.style.fontWeight = tag === 'h1' ? '700' : '600';
-        el.style.fontSize = tag === 'h1' ? '11px' : tag === 'h2' ? '10px' : '9px';
-        el.style.lineHeight = '1.35';
-        el.style.margin = '0 0 4px 0';
-        el.style.letterSpacing = '-0.1px';
-    });
-
-    // Paragraphs
-    temp.querySelectorAll('p').forEach(p => {
-        const el = p as HTMLElement;
-        el.style.color = 'var(--foreground)';
-        el.style.fontSize = '9px';
-        el.style.lineHeight = '1.55';
-        el.style.margin = '0 0 3px 0';
-    });
-
-    // Lists
-    temp.querySelectorAll('ul, ol').forEach(list => {
-        const el = list as HTMLElement;
-        el.style.margin = '0 0 3px 0';
-        el.style.paddingLeft = '12px';
-        el.style.color = 'var(--foreground)';
-    });
-
-    temp.querySelectorAll('li').forEach(item => {
-        const el = item as HTMLElement;
-        el.style.fontSize = '9px';
-        el.style.lineHeight = '1.45';
-        el.style.margin = '0 0 1px 0';
-        el.style.color = 'var(--foreground)';
-    });
-
-    // Blockquotes
-    temp.querySelectorAll('blockquote').forEach(bq => {
-        const el = bq as HTMLElement;
-        el.style.borderLeft = '1.5px solid var(--border)';
-        el.style.paddingLeft = '8px';
-        el.style.margin = '0 0 3px 0';
-        el.style.color = 'var(--muted-foreground)';
-        el.style.fontSize = '9px';
-        el.style.fontStyle = 'italic';
-    });
-
-    // Code blocks
-    temp.querySelectorAll('pre').forEach(pre => {
-        const el = pre as HTMLElement;
-        el.style.background = 'var(--muted)';
-        el.style.padding = '3px 5px';
-        el.style.borderRadius = '3px';
-        el.style.fontSize = '8px';
-        el.style.margin = '0 0 3px 0';
-        el.style.overflow = 'hidden';
-        el.style.color = 'var(--foreground)';
-        el.style.fontFamily = 'ui-monospace, monospace';
-    });
-
-    // Inline code
-    temp.querySelectorAll('code:not(pre code)').forEach(code => {
-        const el = code as HTMLElement;
-        el.style.background = 'var(--muted)';
-        el.style.padding = '0.5px 3px';
-        el.style.borderRadius = '2px';
-        el.style.fontSize = '8px';
-        el.style.color = 'var(--foreground)';
-        el.style.fontFamily = 'ui-monospace, monospace';
-    });
-
-    // HR
-    temp.querySelectorAll('hr').forEach(hr => {
-        const el = hr as HTMLElement;
-        el.style.border = 'none';
-        el.style.borderTop = '0.5px solid var(--border)';
-        el.style.margin = '4px 0';
-    });
-
-    // Links — keep blue but remove interaction
-    temp.querySelectorAll('a').forEach(link => {
-        link.removeAttribute('href');
-        const el = link as HTMLElement;
-        el.style.color = 'var(--primary)';
-        el.style.textDecoration = 'none';
-    });
-
-    // Callouts
-    temp.querySelectorAll('[class*="callout"]').forEach(callout => {
-        const el = callout as HTMLElement;
-        el.style.background = 'var(--muted)';
-        el.style.borderRadius = '4px';
-        el.style.padding = '4px 6px';
-        el.style.margin = '0 0 3px 0';
-        el.style.border = '0.5px solid var(--border)';
-    });
-
-    // Collapsible / Toggle
-    temp.querySelectorAll('[class*="collapsible"]').forEach(col => {
-        const el = col as HTMLElement;
-        el.style.background = 'var(--muted)';
-        el.style.borderRadius = '4px';
-        el.style.padding = '3px 6px';
-        el.style.margin = '0 0 3px 0';
-    });
-
-    // Bold
-    temp.querySelectorAll('strong, b').forEach(el => {
-        (el as HTMLElement).style.color = 'var(--foreground)';
-        (el as HTMLElement).style.fontWeight = '600';
-    });
-
-    // Italic
-    temp.querySelectorAll('em, i').forEach(el => {
-        (el as HTMLElement).style.color = 'var(--foreground)';
-    });
-
-    // Strikethrough
-    temp.querySelectorAll('s, strike, del').forEach(el => {
-        (el as HTMLElement).style.color = 'var(--muted-foreground)';
-        (el as HTMLElement).style.textDecoration = 'line-through';
-    });
-
-    // Tables
-    temp.querySelectorAll('table').forEach(table => {
-        const el = table as HTMLElement;
-        el.style.width = '100%';
-        el.style.borderCollapse = 'collapse';
-        el.style.fontSize = '8px';
-        el.style.margin = '0 0 3px 0';
-    });
-    temp.querySelectorAll('td, th').forEach(cell => {
-        const el = cell as HTMLElement;
-        el.style.border = '0.5px solid var(--border)';
-        el.style.padding = '2px 4px';
-        el.style.fontSize = '8px';
-    });
-    temp.querySelectorAll('th').forEach(th => {
-        const el = th as HTMLElement;
-        el.style.background = 'var(--muted)';
-        el.style.fontWeight = '600';
-    });
-
-    // Task lists
-    temp.querySelectorAll('.task-list').forEach(list => {
-        const el = list as HTMLElement;
-        el.style.listStyle = 'none';
-        el.style.paddingLeft = '0';
-    });
-    temp.querySelectorAll('.task-item').forEach(item => {
-        const el = item as HTMLElement;
-        el.style.display = 'flex';
-        el.style.alignItems = 'flex-start';
-        el.style.gap = '4px';
-        el.style.fontSize = '9px';
-        el.style.margin = '0 0 1px 0';
-    });
-
-    let result = temp.innerHTML;
-    
-    // Truncate if too long
+    let result = sanitizeRichHtml(source);
     if (result.length > 2500) {
-        result = result.substring(0, 2500);
-        result = result.replace(/<[^>]*$/, ''); 
-        result += '<span style="color:var(--muted-foreground);font-size:8px;">…</span>';
+        result = result.substring(0, 2500).replace(/<[^>]*$/, '');
     }
-
-    // Wrap in padded container
-    return `<div style="padding:10px 12px 0 12px;">${result}</div>`;
+    return result;
 }

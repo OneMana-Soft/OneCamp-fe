@@ -3,96 +3,89 @@
 import * as React from 'react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
+import type { LucideIcon } from 'lucide-react'
+import { AlertTriangle, CircleCheck, Info, Lightbulb, MessageSquare, Sparkles } from '@/lib/icons'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils/helpers/cn'
 
-const CALLOUT_COLORS: Record<string, { bg: string; border: string }> = {
-  blue: { bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800' },
-  green: { bg: 'bg-success/10', border: 'border-success/30' },
-  yellow: { bg: 'bg-warning/10', border: 'border-warning/30' },
-  red: { bg: 'bg-destructive/10', border: 'border-destructive/30' },
-  purple: { bg: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-purple-200 dark:border-purple-800' },
-  gray: { bg: 'bg-gray-50 dark:bg-gray-900/50', border: 'border-gray-200 dark:border-gray-700' },
+/**
+ * A callout (content.md D11): a camp tint, r10, no border, with a Lucide
+ * icon in the tone's ink, never an emoji. The tone is the node's stored
+ * colour (older docs carry an emoji too; it is kept, not drawn), so every
+ * existing callout keeps its meaning: blue is a note, yellow a warning, red
+ * a risk, green done, purple an idea, gray a remark.
+ */
+interface Tone {
+  label: string
+  icon: LucideIcon
+  className: string
 }
 
-const CALLOUT_EMOJIS = ['💡', '⚠️', '🔴', '🟢', '🔵', '🟣', '⭐', '📌', '❓', '💬', '🔥', '✅']
+const TONES: Record<string, Tone> = {
+  blue: { label: 'Note', icon: Info, className: 'bg-camp-sky-tint [--callout-ink:var(--camp-sky-ink)]' },
+  yellow: { label: 'Warning', icon: AlertTriangle, className: 'bg-camp-sun-tint [--callout-ink:var(--camp-sun-ink)]' },
+  red: { label: 'Risk', icon: AlertTriangle, className: 'bg-camp-berry-tint [--callout-ink:var(--camp-berry-ink)]' },
+  green: { label: 'Done', icon: CircleCheck, className: 'bg-camp-moss-tint [--callout-ink:var(--camp-moss-ink)]' },
+  purple: { label: 'Idea', icon: Lightbulb, className: 'bg-camp-dusk-tint [--callout-ink:var(--camp-dusk-ink)]' },
+  gray: { label: 'Remark', icon: MessageSquare, className: 'bg-sunken [--callout-ink:var(--ink-2)]' },
+  agent: { label: 'From AI', icon: Sparkles, className: 'bg-agent-muted [--callout-ink:var(--agent-ink)]' },
+}
 
 export const CalloutView: React.FC<NodeViewProps> = ({ node, updateAttributes, editor }) => {
-  const { emoji, color } = node.attrs
-  const colors = CALLOUT_COLORS[color] || CALLOUT_COLORS.blue
-  const [showEmojiPicker, setShowEmojiPicker] = React.useState(false)
-  const pickerRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        setShowEmojiPicker(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const cycleColor = () => {
-    const colorKeys = Object.keys(CALLOUT_COLORS)
-    const currentIndex = colorKeys.indexOf(color)
-    const nextColor = colorKeys[(currentIndex + 1) % colorKeys.length]
-    updateAttributes({ color: nextColor })
-  }
+  const color: string = node.attrs.color in TONES ? node.attrs.color : 'blue'
+  const tone = TONES[color]
+  const Icon = tone.icon
+  const [open, setOpen] = React.useState(false)
 
   return (
     <NodeViewWrapper
-      className={`callout my-3 rounded-lg border p-4 ${colors.bg} ${colors.border}`}
+      className={cn('callout my-3 rounded-[10px] px-4 py-3', tone.className)}
       data-type="callout"
+      data-tone={color}
     >
       <div className="flex gap-3">
-        {/* Emoji picker */}
-        <div className="relative shrink-0" ref={pickerRef}>
-          <button
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="text-lg leading-none hover:scale-110 transition-transform cursor-pointer select-none"
-            contentEditable={false}
-            type="button"
-          >
-            {emoji}
-          </button>
-          {showEmojiPicker && (
-            <div
-              className="absolute top-full left-0 z-50 mt-1 grid grid-cols-4 gap-1 rounded-lg border bg-popover p-2 shadow-lg"
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
               contentEditable={false}
+              disabled={!editor.isEditable}
+              aria-label={`${tone.label} callout. Change its kind`}
+              className="mt-[3px] inline-flex size-5 shrink-0 select-none items-center justify-center rounded-md text-[var(--callout-ink)] outline-none transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default disabled:hover:bg-transparent dark:hover:bg-white/10"
             >
-              {CALLOUT_EMOJIS.map(e => (
+              <Icon className="size-[18px]" aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" sideOffset={6} className="content-float w-44 rounded-xl p-1 shadow-e3" contentEditable={false}>
+            {Object.entries(TONES).map(([key, t]) => {
+              const TIcon = t.icon
+              return (
                 <button
-                  key={e}
-                  onClick={() => {
-                    updateAttributes({ emoji: e })
-                    setShowEmojiPicker(false)
-                  }}
-                  className="rounded p-1 text-lg hover:bg-accent transition-colors"
+                  key={key}
                   type="button"
+                  onClick={() => {
+                    updateAttributes({ color: key })
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-ui-sm text-ink outline-none hover:bg-hover focus-visible:bg-press',
+                    key === color && 'bg-press',
+                  )}
                 >
-                  {e}
+                  <span className={cn('inline-flex size-5 items-center justify-center rounded-md text-[var(--callout-ink)]', t.className)}>
+                    <TIcon className="size-3.5" aria-hidden="true" />
+                  </span>
+                  {t.label}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
+              )
+            })}
+          </PopoverContent>
+        </Popover>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1 text-ink">
           <NodeViewContent className="callout-content" />
         </div>
-
-        {/* Color cycle button (visible on hover/focus) */}
-        <button
-          onClick={cycleColor}
-          className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 shrink-0 self-start rounded p-1 text-xs text-muted-foreground hover:bg-accent transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
-          contentEditable={false}
-          title="Change color"
-          type="button"
-        >
-          <div className={`w-3 h-3 rounded-full border`} style={{ backgroundColor: 'currentColor' }} />
-        </button>
       </div>
     </NodeViewWrapper>
   )
 }
-

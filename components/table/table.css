@@ -1,0 +1,211 @@
+/* The table grid on the v3 material (content.md T06–T10). Imported by
+   DataTableGrid. Everything that moves here moves by transform or opacity:
+   the gliding cell ring, the frozen column's shadow (a pseudo-element's
+   opacity), the column rule on header hover. */
+
+/* ---- frame: hairline rows only, a sticky header ------------------------- */
+
+.v3-grid {
+  --grid-gutter: 44px;
+  --grid-frozen-shadow: rgb(16 18 26 / 0.12);
+}
+.dark .v3-grid {
+  --grid-frozen-shadow: rgb(0 0 0 / 0.6);
+}
+
+.v3-grid thead th {
+  background: var(--sheet);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.v3-grid tbody td,
+.v3-grid tbody th {
+  border-bottom: 1px solid var(--line);
+}
+.v3-grid tbody tr:hover > * {
+  background-color: color-mix(in oklab, var(--sheet), var(--ink) 4%);
+}
+.v3-grid tbody tr[data-selected="true"] > * {
+  background-color: color-mix(in oklab, var(--sheet), var(--ink) 5.5%);
+}
+
+/* The row-number gutter and the primary column stay put sideways. */
+.v3-grid [data-gutter] {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--sheet);
+}
+.v3-grid [data-frozen] {
+  position: sticky;
+  left: var(--grid-gutter);
+  z-index: 2;
+  background: var(--sheet);
+}
+.v3-grid thead [data-gutter],
+.v3-grid thead [data-frozen] {
+  z-index: 4;
+}
+/* Its shadow appears once the grid scrolls sideways. The pseudo-element
+   exists only then: every frozen cell of every row carrying a blurred
+   shadow layer at opacity 0 cost paint while scrolling down. */
+.v3-grid[data-scrolled-x="true"] [data-frozen]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -12px;
+  width: 12px;
+  pointer-events: none;
+  box-shadow: inset 8px 0 12px -8px var(--grid-frozen-shadow);
+  animation: content-tint-in 140ms var(--ease-out);
+}
+@keyframes content-tint-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* A focused cell sits on --raised under the ring. */
+.v3-grid tbody td:focus-within {
+  background-color: var(--raised) !important;
+}
+
+/* ---- the active-cell ring: one element, gliding ------------------------- */
+
+.v3-cell-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 2px var(--brand);
+  opacity: 0;
+  transition:
+    transform 90ms var(--ease-out),
+    opacity 90ms var(--ease-out);
+  will-change: transform;
+}
+.v3-cell-ring[data-on="true"] {
+  opacity: 1;
+}
+/* A frozen cell's ring rides with the frozen column. */
+.v3-cell-ring[data-in-frozen="true"] {
+  z-index: 5;
+}
+
+/* ---- the column rule on header hover ------------------------------------ */
+
+.v3-col-rule {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 1px;
+  pointer-events: none;
+  background: var(--line-2);
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out);
+}
+.v3-col-rule[data-on="true"] {
+  opacity: 1;
+}
+.v3-col-rule[data-resizing="true"] {
+  width: 2px;
+  background: var(--brand);
+  opacity: 1;
+  transition: none;
+}
+
+/* ---- the v3 checkbox: 16 px r5, moss when ticked, never the brand ------- */
+
+.v3-check {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-radius: 5px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--line-3);
+  cursor: pointer;
+  transition: background-color 90ms var(--ease-out), box-shadow 90ms var(--ease-out);
+}
+.v3-check::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 26%, 86% 12%, 38% 72%);
+  transform: scale(0);
+  transition: transform 220ms var(--ease-spring);
+}
+.v3-check:checked {
+  background: var(--camp-moss);
+  box-shadow: none;
+}
+.v3-check:checked::before {
+  transform: scale(1);
+}
+.v3-check:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.v3-check:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ---- cells -------------------------------------------------------------- */
+
+/* A number column's percent bar: 48 × 4 on --press, filled in ink-3. */
+.v3-pct-bar {
+  position: relative;
+  width: 48px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--press);
+}
+.v3-pct-bar > span {
+  position: absolute;
+  inset: 0;
+  background: var(--ink-3);
+  transform-origin: left center;
+}
+
+/* A computed value still being worked out. */
+.v3-calc {
+  width: 40px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--press);
+}
+
+/* Wavy danger under a formula's failing part. */
+.v3-wavy {
+  text-decoration: underline wavy var(--destructive);
+  text-underline-offset: 3px;
+}
+
+/* ---- the phone list ----------------------------------------------------- */
+
+.v3-grid-list > li + li {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+/* ---- a column menu's sub-page slides in from the right ----------------- */
+
+@keyframes table-sub-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.table-sub-in {
+  animation: table-sub-in var(--content-float-in-duration, 180ms) var(--ease-out) both;
+}

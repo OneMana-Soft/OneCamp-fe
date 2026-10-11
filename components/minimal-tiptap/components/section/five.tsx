@@ -17,7 +17,7 @@ const formatActions: InsertElement[] = [
   {
     value: 'codeBlock',
     label: 'Code block',
-    icon: <SquareCode className="size-4" strokeWidth={1.75} />,
+    icon: <SquareCode className="size-4" />,
     action: editor => editor.chain().focus().toggleCodeBlock().run(),
     isActive: editor => editor.isActive('codeBlock'),
     canExecute: editor => editor.can().chain().toggleCodeBlock().run(),
@@ -26,7 +26,7 @@ const formatActions: InsertElement[] = [
   {
     value: 'blockquote',
     label: 'Blockquote',
-    icon: <Quote className="size-4" strokeWidth={1.75} />,
+    icon: <Quote className="size-4" />,
     action: editor => editor.chain().focus().toggleBlockquote().run(),
     isActive: editor => editor.isActive('blockquote'),
     canExecute: editor => editor.can().chain().toggleBlockquote().run(),
@@ -35,7 +35,7 @@ const formatActions: InsertElement[] = [
   {
     value: 'horizontalRule',
     label: 'Divider',
-    icon: <Minus className="size-4" strokeWidth={1.75} />,
+    icon: <Minus className="size-4" />,
     action: editor => editor.chain().focus().setHorizontalRule().run(),
     isActive: () => false,
     canExecute: editor => editor.can().chain().setHorizontalRule().run(),
@@ -47,8 +47,8 @@ const formatActions: InsertElement[] = [
 // is a new prop every time, which re-rendered it anyway.
 const DROPDOWN_ICON = (
   <>
-    <Plus className="size-4" strokeWidth={1.75} />
-    <ChevronDown className="size-4" strokeWidth={1.75} />
+    <Plus className="size-4" />
+    <ChevronDown className="size-4" />
   </>
 )
 const ALL_ACTIONS = formatActions.map(action => action.value)

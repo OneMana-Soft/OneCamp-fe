@@ -2,6 +2,9 @@
 
 import React, { useMemo, useState } from "react"
 import { NodeViewWrapper } from "@tiptap/react"
+import { FileCode } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
+import { EmbedCard } from "@/components/minimal-tiptap/components/embed-card"
 
 /**
  * Renders a unified diff as reviewable rows: additions, removals, hunk headers
@@ -86,11 +89,11 @@ export function countChanges(rows: Row[]): { added: number; removed: number } {
 // top costs contrast for no added meaning, since the tint already says which
 // side of the change this is.
 const ROW_STYLES: Record<RowKind, string> = {
-    add: "bg-success/10",
-    del: "bg-destructive/10",
-    hunk: "bg-muted text-muted-foreground",
-    meta: "text-muted-foreground",
-    context: "text-foreground/80",
+    add: "bg-[color-mix(in_oklab,var(--camp-moss-tint)_55%,transparent)]",
+    del: "bg-[color-mix(in_oklab,var(--camp-berry-tint)_55%,transparent)]",
+    hunk: "bg-sunken text-ink-3",
+    meta: "text-ink-3",
+    context: "text-ink-2",
 }
 
 const PREFIX: Record<RowKind, string> = {
@@ -114,25 +117,25 @@ export const DiffEmbedView: React.FC<{ node: { attrs: { diff?: string } } }> = (
 
     return (
         <NodeViewWrapper className="my-2">
-            <div className="overflow-hidden rounded-lg border border-border bg-card">
-                <div className="flex items-center gap-3 border-b border-border/60 px-3 py-1.5 text-xs">
-                    <span className="font-medium text-muted-foreground">Proposed change</span>
-                    <span className="font-mono text-success-ink">+{added}</span>
-                    <span className="font-mono text-danger-ink">-{removed}</span>
-                </div>
+            <EmbedCard
+                kind="diff"
+                icon={FileCode}
+                title="Proposed change"
+                meta={<><span className="font-mono text-camp-moss-ink">+{added}</span> <span className="font-mono text-camp-berry-ink">−{removed}</span></>}
+            >
                 <div className="overflow-x-auto">
-                    <table className="w-full border-collapse font-mono text-xs">
+                    <table className="w-full border-collapse font-mono text-meta leading-5">
                         <tbody>
                             {shown.map((r, i) => (
                                 <tr key={i} className={ROW_STYLES[r.kind]}>
-                                    <td className="select-none border-r border-border/40 px-2 text-right align-top tabular-nums text-muted-foreground/70">
+                                    <td className="select-none px-2 text-right align-top tabular-nums text-ink-4">
                                         {r.oldNo ?? ""}
                                     </td>
-                                    <td className="select-none border-r border-border/40 px-2 text-right align-top tabular-nums text-muted-foreground/70">
+                                    <td className="select-none px-2 text-right align-top tabular-nums text-ink-4">
                                         {r.newNo ?? ""}
                                     </td>
                                     <td className="whitespace-pre-wrap break-words px-2 align-top">
-                                        <span className="select-none opacity-60">{PREFIX[r.kind]}</span>
+                                        <span className={cn("select-none", r.kind === "add" ? "text-camp-moss-ink" : r.kind === "del" ? "text-camp-berry-ink" : "opacity-60")}>{r.kind === "del" ? "−" : PREFIX[r.kind]}</span>
                                         {r.text}
                                     </td>
                                 </tr>
@@ -144,12 +147,12 @@ export const DiffEmbedView: React.FC<{ node: { attrs: { diff?: string } } }> = (
                     <button
                         type="button"
                         onClick={() => setExpanded((v) => !v)}
-                        className="w-full border-t border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
+                        className="w-full border-t border-line px-3.5 py-1.5 text-meta text-ink-3 hover:bg-hover hover:text-ink"
                     >
                         {expanded ? "Show less" : `Show ${hidden} more line${hidden === 1 ? "" : "s"}`}
                     </button>
                 )}
-            </div>
+            </EmbedCard>
         </NodeViewWrapper>
     )
 }

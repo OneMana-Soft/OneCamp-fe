@@ -8,7 +8,7 @@ import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, c
 import { formulaText, cardTitle } from "@/lib/tables/formula"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { hueFor } from "@/lib/campHue"
-import { OptionChip } from "@/components/table/optionChip"
+import { OptionChip, chipsTinted } from "@/components/table/optionChip"
 import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 
 interface DataTableBoardProps {
@@ -144,7 +144,7 @@ export function DataTableBoard({
       {columns.map((col) => (
         <div
           key={col.key}
-          className="flex w-72 shrink-0 flex-col rounded-xl bg-muted/30"
+          className="flex w-72 shrink-0 flex-col rounded-[16px] bg-sunken"
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => {
             const row = rows.find((r) => r.id === dragRowId)
@@ -154,13 +154,13 @@ export function DataTableBoard({
         >
           {/* The option in its own colour, as the grid's chip and a guest's
               view show it; the count beside it is a plain number. */}
-          <div className="flex h-10 items-center justify-between gap-2 px-3 text-sm font-medium">
+          <div className="flex h-10 items-center gap-2 px-3 text-ui-sm font-medium">
             {col.key === NO_VALUE ? (
-              <span className="truncate text-muted-foreground">{col.label}</span>
+              <span className="truncate text-ink-3">{col.label}</span>
             ) : (
-              <OptionChip label={col.label} color={col.color} className="text-xs" />
+              <OptionChip label={col.label} color={col.color} tinted={chipsTinted(groupField)} />
             )}
-            <span className="shrink-0 text-xs font-normal tabular-nums text-muted-foreground">
+            <span className="shrink-0 text-meta font-normal tabular-nums text-ink-3">
               {rowsByColumn[col.key]?.length || 0}
             </span>
           </div>
@@ -174,12 +174,12 @@ export function DataTableBoard({
                   draggable
                   onDragStart={() => setDragRowId(row.id)}
                   className={cn(
-                    // Flat, as a card in the page is: a shadow says it floats.
-                    "cursor-grab rounded-lg border border-border/60 bg-background p-3 text-sm transition-[opacity,border-color] hover:border-border active:cursor-grabbing",
+                    // A record on the sunken lane: raised on e1, lifting to e2 under the pointer (T16).
+                    "cursor-grab rounded-xl bg-raised p-3 text-ui shadow-e1 transition-[opacity,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:shadow-e2 active:cursor-grabbing",
                     dragRowId === row.id && "opacity-50",
                   )}
                 >
-                  <p className="font-medium">{title || "Untitled"}</p>
+                  <p className="font-medium text-ink">{title || "Untitled"}</p>
                   <div className="mt-1 space-y-0.5">
                     {sortedFields
                       .filter((f) => f.id !== titleField?.id && f.id !== groupField.id)
@@ -190,8 +190,8 @@ export function DataTableBoard({
                           isComputed(f) ? formulaText(cellVal, computedOf(f).result) : formatCardValue(cellVal, f.type)
                         if (!text) return null
                         return (
-                          <p key={f.id} className="truncate text-xs text-muted-foreground">
-                            <span className="opacity-60">{f.name}: </span>
+                          <p key={f.id} className="truncate text-meta text-ink-2">
+                            <span className="text-ink-4">{f.name} </span>
                             {text}
                           </p>
                         )
@@ -203,7 +203,7 @@ export function DataTableBoard({
             <button
               type="button"
               onClick={() => addCard(col.key)}
-              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add card
             </button>

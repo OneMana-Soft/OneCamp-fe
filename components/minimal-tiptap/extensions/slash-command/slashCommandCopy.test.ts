@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 // The slash menu's commands are named in sentence case, as every menu in the
-// app is ("Bullet list", not "Bullet List"), and it floats on the overlay
-// shadow every popover uses.
+// app is ("Bullet list", not "Bullet List"), and it is the content area's
+// CommandList (content.md D09): grouped, with shortcut chips and an AI way
+// out when nothing matches.
 const src = readFileSync("components/minimal-tiptap/extensions/slash-command/slashCommand.tsx", "utf8")
 
 describe("the slash menu", () => {
@@ -15,8 +16,21 @@ describe("the slash menu", () => {
     expect(titleCase).toEqual([])
   })
 
-  it("floats on the overlay shadow", () => {
-    expect(src).not.toMatch(/shadow-(xl|md)\b/)
-    expect(src).toMatch(/shadow-overlay/)
+  it("is the area's CommandList, not a hand-drawn popover", () => {
+    expect(src).not.toMatch(/shadow-(xl|md|overlay)\b/)
+    expect(src).toMatch(/<CommandList\b/)
+    expect(src).toMatch(/footer=\{items\.length > 0\}/)
+  })
+
+  it("groups Recent, Basic, Media and embeds, then AI", () => {
+    expect(src).toMatch(/SECTION_ORDER = \["Commands", "Recent", "Basic", "Media and embeds", "AI", "Format"\]/)
+  })
+
+  it("shows the markdown shortcut for each basic block", () => {
+    for (const k of ['"#"', '"##"', '"-"', '"[]"', '">"']) expect(src).toContain(`kbd: [${k}]`)
+  })
+
+  it("offers AI when nothing matches in a doc, instead of an empty box", () => {
+    expect(src).toMatch(/Ask AI to write “\{query\}”/)
   })
 })

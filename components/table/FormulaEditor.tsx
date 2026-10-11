@@ -6,7 +6,8 @@
 // what the preview says is what the column will show.
 
 import * as React from "react"
-import { ChevronRight } from "@/lib/icons"
+import { AlertTriangle, ChevronRight } from "@/lib/icons"
+import { FIELD_GLYPH } from "@/components/table/gridCells"
 import { FORMULA_FUNCTIONS, fieldRef, insertAt, showFormulaValue, type FormulaShown } from "@/lib/tables/formula"
 import { previewFormula, type FormulaPreview, type FormulaResult, type TableField } from "@/services/tableService"
 
@@ -28,6 +29,28 @@ function asWord(s: FormulaShown): string {
     default:
       return s.text
   }
+}
+
+/**
+ * A formula's text in colour (T11): {fields} as neutral pills, function names
+ * in sky ink, "text" in moss ink, numbers in sun ink, operators in ink-2.
+ * Character for character the same text, so it lines up under the box.
+ */
+export function highlightFormula(text: string): React.ReactNode[] {
+  const out: React.ReactNode[] = []
+  const re = /(\{[^}]*\}?)|("(?:[^"\\]|\\.)*"?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)(?=\s*\()|([^{"\dA-Za-z_]+|[A-Za-z_][A-Za-z0-9_]*|\d)/g
+  let m: RegExpExecArray | null
+  let i = 0
+  while ((m = re.exec(text))) {
+    const [all, field, str, num, fn] = m
+    const key = i++
+    if (field) out.push(<span key={key} data-field-pill="" className="rounded-[4px] bg-hover text-ink ring-1 ring-inset ring-line">{all}</span>)
+    else if (str) out.push(<span key={key} className="text-camp-moss-ink">{all}</span>)
+    else if (num) out.push(<span key={key} className="text-camp-sun-ink">{all}</span>)
+    else if (fn) out.push(<span key={key} className="text-camp-sky-ink">{all}</span>)
+    else out.push(<React.Fragment key={key}>{all}</React.Fragment>)
+  }
+  return out
 }
 
 export function FormulaEditor({
@@ -86,51 +109,78 @@ export function FormulaEditor({
   }
 
   const others = fields.filter((f) => f.id !== fieldId)
+  const backdrop = React.useRef<HTMLDivElement>(null)
+  const message = !value.trim()
+    ? "Fields go in braces, like {Price}. Use + − * / for numbers, & to join text, and the functions below."
+    : preview?.error
+      ? preview.error
+      : preview
+        ? `Gives ${GIVES[preview.result]}${
+            preview.values.length ? `: ${preview.values.map((v) => asWord(showFormulaValue(v, preview.result))).join(", ")}` : ""
+          }`
+        : checking
+          ? "Checking…"
+          : ""
 
   return (
-    <div className="space-y-2">
-      <textarea
-        ref={ref}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        spellCheck={false}
-        aria-label="Formula"
-        placeholder="{Price} * {Quantity}"
-        className="w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
-      />
+    <div className="space-y-2" data-formula-editor="">
+      {/* The text as typed, coloured underneath a transparent box: fields as
+          pills, functions sky, text moss, numbers sun (the camp ink cuts, so it
+          reads the same in both themes). The box keeps the caret and the keys. */}
+      <div className="relative rounded-lg bg-raised shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+        <div
+          ref={backdrop}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-2.5 py-2 font-mono text-ui-sm leading-[21px] text-ink-2"
+        >
+          {highlightFormula(value)}
+          {"\n"}
+        </div>
+        <textarea
+          ref={ref}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onScroll={(e) => {
+            if (backdrop.current) backdrop.current.scrollTop = e.currentTarget.scrollTop
+          }}
+          rows={3}
+          spellCheck={false}
+          aria-label="Formula"
+          placeholder="{Price} * {Quantity}"
+          className="relative block min-h-[74px] w-full resize-y bg-transparent px-2.5 py-2 font-mono text-ui-sm leading-[21px] text-transparent caret-ink outline-none placeholder:text-ink-4"
+        />
+      </div>
       <p
         aria-live="polite"
-        className={preview?.error ? "text-2xs leading-snug text-danger-ink" : "text-2xs leading-snug text-muted-foreground"}
+        data-formula-preview=""
+        className={
+          preview?.error
+            ? "flex min-h-9 items-start gap-1.5 rounded-lg bg-sunken px-2.5 py-2 text-meta text-danger-ink"
+            : "flex min-h-9 items-start gap-1.5 rounded-lg bg-sunken px-2.5 py-2 text-meta text-ink-3"
+        }
       >
-        {!value.trim()
-          ? "Fields go in braces, like {Price}. Use + − * / for numbers, & to join text, and the functions below."
-          : preview?.error
-            ? preview.error
-            : preview
-              ? `Gives ${GIVES[preview.result]}${
-                  preview.values.length
-                    ? `: ${preview.values.map((v) => asWord(showFormulaValue(v, preview.result))).join(", ")}`
-                    : ""
-                }`
-              : checking
-                ? "Checking…"
-                : ""}
+        {preview?.error ? <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden /> : null}
+        <span>{message}</span>
       </p>
       {others.length > 0 && (
         <div className="space-y-1">
-          <p className="text-2xs font-medium text-muted-foreground">Fields</p>
+          <p className="text-meta font-medium text-ink-3">Fields</p>
           <div className="flex flex-wrap gap-1">
-            {others.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => insert(fieldRef(f.name))}
-                className="rounded border border-border/70 bg-muted/40 px-1.5 py-0.5 text-2xs hover:bg-muted"
-              >
-                {f.name}
-              </button>
-            ))}
+            {others.map((f) => {
+              const Glyph = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  data-field-id={f.id}
+                  onClick={() => insert(fieldRef(f.name))}
+                  className="chip h-5 cursor-pointer gap-1 rounded-[5px] px-1.5 text-ink transition-colors hover:bg-press"
+                >
+                  <Glyph className="size-3 text-ink-3" aria-hidden />
+                  {f.name}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -139,29 +189,26 @@ export function FormulaEditor({
           type="button"
           aria-expanded={showFunctions}
           onClick={() => setShowFunctions((v) => !v)}
-          className="inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground"
+          className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-meta font-medium text-ink-3 hover:bg-hover hover:text-ink"
         >
-          <ChevronRight
-            aria-hidden
-            className={`h-3 w-3 transition-transform motion-reduce:transition-none ${showFunctions ? "rotate-90" : ""}`}
-          />
+          <ChevronRight aria-hidden className={`size-3 transition-transform ${showFunctions ? "rotate-90" : ""}`} />
           {showFunctions ? "Hide functions" : "Show functions"}
         </button>
         {showFunctions && (
-          <div className="mt-1 max-h-48 space-y-2 overflow-y-auto pr-1">
+          <div className="mt-1 max-h-48 space-y-2 overflow-y-auto rounded-lg bg-sunken p-1.5">
             {FORMULA_FUNCTIONS.map((g) => (
               <div key={g.group}>
-                <p className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
+                <p className="px-1 pb-0.5 text-meta font-medium text-ink-3">{g.group}</p>
                 {g.items.map((fn) => (
                   <button
                     key={fn.name}
                     type="button"
                     title={fn.syntax}
                     onClick={() => insert(`${fn.name}(`)}
-                    className="flex w-full items-baseline gap-2 rounded px-1 py-0.5 text-left hover:bg-muted"
+                    className="flex w-full items-baseline gap-2 rounded-md px-1.5 py-1 text-left hover:bg-hover"
                   >
-                    <span className="font-mono text-2xs">{fn.name}</span>
-                    <span className="truncate text-2xs text-muted-foreground">{fn.about}</span>
+                    <span className="font-mono text-meta text-camp-sky-ink">{fn.name}</span>
+                    <span className="truncate text-meta text-ink-3">{fn.about}</span>
                   </button>
                 ))}
               </div>

@@ -66,8 +66,26 @@ describe("linking to a table's rows", () => {
     expect(screen.queryByRole("link")).toBeNull()
   })
 
-  it("shows each linked row by name, opening its table", () => {
+  it("draws linked rows as raised chips on e1", () => {
     render(<RelationCell value={[{ id: "acme", label: "Acme Inc", type: "row", table_id: "vendors" }]} target="table" tableId="vendors" onCommit={vi.fn()} />)
-    expect(screen.getByRole("link", { name: "Acme Inc" }).getAttribute("href")).toBe("/app/tables/vendors")
+    const chip = document.querySelector("[data-relation-chip]") as HTMLElement
+    expect(chip.className).toContain("shadow-e1")
+    expect(chip.className).toContain("bg-raised")
+  })
+
+  it("marks the rows already linked, and unlinks one picked again", async () => {
+    pick.mockResolvedValue([{ id: "acme", label: "Acme" }])
+    const linked = vi.fn()
+    render(<RelationCell value={[{ id: "acme", label: "Acme", type: "row", table_id: "vendors" }]} target="table" tableId="vendors" tableName="Vendors" onLink={linked} onCommit={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Add a link" }))
+    expect(screen.getByPlaceholderText("Link a row from Vendors")).toBeTruthy()
+    await waitFor(() => expect(screen.getByLabelText("Linked")).toBeTruthy())
+    fireEvent.click(screen.getByRole("option", { name: "Acme" }))
+    expect(linked).toHaveBeenLastCalledWith({ remove: ["acme"] })
+  })
+
+  it("shows each linked row by name, opening it in its table", () => {
+    render(<RelationCell value={[{ id: "acme", label: "Acme Inc", type: "row", table_id: "vendors" }]} target="table" tableId="vendors" onCommit={vi.fn()} />)
+    expect(screen.getByRole("link", { name: "Acme Inc" }).getAttribute("href")).toBe("/app/tables/vendors?row=acme")
   })
 })

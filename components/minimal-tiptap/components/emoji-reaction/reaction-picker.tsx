@@ -11,9 +11,11 @@ import { StandardReaction, SyncCustomReaction} from "@/types/reaction";
 
 interface EmojiReactionPickerProps extends VariantProps<typeof toggleVariants> {
     editor: Editor
+    /** The trigger's look where a surface draws it (the chat composer's 28px tool). */
+    className?: string
 }
 
-const EmojiReactionPicker = ({ editor, size, variant }: EmojiReactionPickerProps) => {
+const EmojiReactionPicker = ({ editor, size, variant, className }: EmojiReactionPickerProps) => {
 
     const onReactionSelect = async (reaction: StandardReaction | SyncCustomReaction) => {
 
@@ -31,10 +33,11 @@ const EmojiReactionPicker = ({ editor, size, variant }: EmojiReactionPickerProps
                 disabled={editor.isActive('emojiPicker')}
                 size={size}
                 variant={variant}
+                className={className}
             >
                 {/* 16px with the toolbar's stroke, as its neighbours: at 20px it made
                     this one button 36px wide in a row of 32px ones. */}
-                <Smile className="size-4" strokeWidth={1.75} />
+                <Smile className="size-4" />
             </ToolbarButton>
 
         </ReactionPicker>

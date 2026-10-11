@@ -1,0 +1,328 @@
+/* THE DOC'S READING TYPE (content.md D07). Scoped to .doc-editor, the doc's
+   editor and its saved-copy snapshot, so messages and comments keep the 15/23
+   body the chat spec sets. 16/26 at -0.011em in a 720 px measure; headings at
+   590 with their own top and bottom space; lists with real markers; the v3
+   checkbox; a quiet quote; a divider with the ring in miniature. */
+
+.minimal-tiptap-editor.doc-editor .ProseMirror {
+  font-size: 1rem;
+  line-height: 1.625rem;
+  letter-spacing: var(--doc-tracking-body);
+  color: var(--ink);
+}
+
+.minimal-tiptap-editor.doc-editor .ProseMirror p {
+  line-height: 1.625rem;
+  text-wrap: pretty;
+}
+
+/* Blocks breathe: 12 px between groups, 2 px between consecutive paragraphs. */
+.minimal-tiptap-editor.doc-editor .ProseMirror > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > * + * {
+  margin-top: 12px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > p + p {
+  margin-top: 2px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(.text-node, .block-node, .list-node):not(:last-child) {
+  margin-bottom: 0;
+}
+
+/* Headings at 590 (never 600 below 28 px), each with its own rhythm. */
+.minimal-tiptap-editor.doc-editor .ProseMirror .heading-node {
+  font-weight: 590;
+  color: var(--ink);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > h1,
+.minimal-tiptap-editor.doc-editor .ProseMirror h1 {
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: var(--doc-tracking-h1);
+  margin-top: 32px;
+  margin-bottom: 8px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > h2,
+.minimal-tiptap-editor.doc-editor .ProseMirror h2 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  letter-spacing: var(--doc-tracking-h2);
+  margin-top: 28px;
+  margin-bottom: 6px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > :is(h3, h4, h5, h6),
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(h3, h4, h5, h6) {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  letter-spacing: var(--doc-tracking-body);
+  margin-top: 20px;
+  margin-bottom: 4px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + * {
+  margin-top: 0;
+}
+
+/* Lists: 28 px indent, 4 px between items. Bullets are 5 px ink-3 discs,
+   then a ring, then a 4 px square; numbers are tabular ink-3. */
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(ul, ol):not(.task-list) {
+  padding-left: 28px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(ul, ol):not(.task-list) > li + li {
+  margin-top: 4px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul:not(.task-list) {
+  list-style: none;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul:not(.task-list) > li {
+  position: relative;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul:not(.task-list) > li::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: calc(0.8125rem - 2.5px);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul:not(.task-list) ul:not(.task-list) > li::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.25px var(--ink-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul:not(.task-list) ul:not(.task-list) ul:not(.task-list) > li::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--ink-3);
+  box-shadow: none;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ol > li::marker {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The task list: the v3 checkbox. 16 px r5 with an inset 1.5 px line-3;
+   checked, a moss fill with a white check that springs, and the text goes
+   ink-3 with a 1 px strike in ink-4. */
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item {
+  gap: 10px;
+  margin-bottom: 0;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item + li.task-item {
+  margin-top: 6px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label {
+  margin-top: 5px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--line-3);
+  display: grid;
+  place-items: center;
+  transition: background-color var(--duration-press) var(--ease-out), box-shadow var(--duration-press) var(--ease-out);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:hover {
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>") center / contain no-repeat;
+  transform: scale(0);
+  transition: transform var(--duration-spring) var(--ease-spring);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:checked {
+  background: var(--camp-moss);
+  box-shadow: none;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:checked::after {
+  transform: scale(1);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item[data-checked="true"] > div {
+  opacity: 1;
+  color: var(--ink-3);
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ink-4);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label > .doc-snapshot-check {
+  border: none;
+  border-radius: 5px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--line-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item[data-checked="true"] > label > .doc-snapshot-check {
+  background: var(--camp-moss);
+  box-shadow: none;
+}
+
+/* Quote: no italics, a 3 px r2 line-2 bar, ink-2. */
+.minimal-tiptap-editor.doc-editor .ProseMirror blockquote {
+  padding: 0 0 0 16px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  color: var(--ink-2);
+  font-style: normal;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror blockquote::before,
+.minimal-tiptap-editor.doc-editor .ProseMirror blockquote.is-empty::before {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--line-2);
+}
+
+/* Divider: a 1 px line with 24 px margins, and the brand ring in miniature
+   (a 6 px line-2 ring) on its middle. */
+.minimal-tiptap-editor.doc-editor .ProseMirror hr {
+  position: relative;
+  overflow: visible;
+  height: 1px;
+  margin: 24px 0;
+  background: var(--line);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror hr::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--sheet);
+  box-shadow: 0 0 0 4px var(--sheet), inset 0 0 0 1.25px var(--line-2);
+}
+
+/* Links: brand-text, a 1 px underline at 35 % brand 3 px below; hover 100 %. */
+.minimal-tiptap-editor.doc-editor .ProseMirror a.link {
+  color: var(--brand-text);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklab, var(--brand) 35%, transparent);
+  transition: text-decoration-color var(--duration-hover) var(--ease-out);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror a.link:hover {
+  text-decoration-color: var(--brand);
+}
+
+/* Inline code: JetBrains Mono 13.5/20 on sunken with an inset line, r4. */
+.minimal-tiptap-editor.doc-editor .ProseMirror code.inline {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.84375rem;
+  line-height: 1.25rem;
+  padding: 1px 5px;
+  border: none;
+  border-radius: 4px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+
+/* The code block (D11): sunken, an inset line, r10, mono 13.5/21, the
+   syntax in the camp ink cuts so it reads in both themes. */
+.minimal-tiptap-editor.doc-editor .ProseMirror pre {
+  border: none;
+  border-radius: 10px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 0.84375rem;
+  line-height: 1.3125rem;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror pre code {
+  padding: 14px 16px;
+  line-height: 1.3125rem;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror pre {
+  --hljs-keyword: var(--camp-dusk-ink);
+  --hljs-string: var(--camp-moss-ink);
+  --hljs-number: var(--camp-sun-ink);
+  --hljs-title: var(--camp-sky-ink);
+  --hljs-attr: var(--camp-sky-ink);
+  --hljs-name: var(--camp-lake-ink);
+  --hljs-literal: var(--camp-berry-ink);
+  --hljs-selector-tag: var(--camp-dusk-ink);
+  --hljs-comment: var(--ink-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror pre .hljs-comment {
+  font-style: italic;
+}
+
+/* Placeholder: ink-4, on the current empty line only. */
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, blockquote, li).is-empty::before {
+  color: var(--ink-4);
+}
+
+/* Images (D11): r10 with a faint inset ring so a white image keeps its edge. */
+.minimal-tiptap-editor.doc-editor .ProseMirror img {
+  border-radius: 10px;
+}
+
+/* The phone: the same 16/26; headings one step down. */
+@media (max-width: 767px) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror > h1,
+  .minimal-tiptap-editor.doc-editor .ProseMirror h1 {
+    font-size: 1.375rem;
+    line-height: 1.75rem;
+  }
+  .minimal-tiptap-editor.doc-editor .ProseMirror > h2,
+  .minimal-tiptap-editor.doc-editor .ProseMirror h2 {
+    font-size: 1.125rem;
+    line-height: 1.625rem;
+  }
+}
+
+/* The doc title (D06): 32/38 at 600, opsz 32, -0.021em, balanced; 26/32 on
+   the phone. The placeholder "Untitled" is ink-4, so it never reads as text. */
+.doc-title {
+  font-size: 2rem;
+  line-height: 2.375rem;
+  font-weight: 600;
+  letter-spacing: var(--doc-tracking-title);
+  font-variation-settings: "opsz" 32;
+  text-wrap: balance;
+  color: var(--ink);
+  caret-color: var(--brand);
+}
+.doc-title::placeholder {
+  color: var(--ink-4);
+}
+@media (max-width: 767px) {
+  .doc-title {
+    font-size: 1.625rem;
+    line-height: 2rem;
+    font-variation-settings: "opsz" 28;
+  }
+}
+
+/* caret-flag (app/content.css tokens): a collaborator's name flag in over
+   160 ms, held 3 s, out over 400 ms. The run is 3.56 s: 4.5 % in, out from
+   88.8 %. The dot on the caret does the reverse. */
+@keyframes content-caret-flag {
+  0% { opacity: 0; transform: scale(0.9); }
+  4.5%, 88.8% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+@keyframes content-caret-dot {
+  0%, 88.8% { opacity: 0; transform: scale(0.6); }
+  100% { opacity: 1; transform: none; }
+}

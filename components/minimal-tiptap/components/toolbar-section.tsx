@@ -107,7 +107,7 @@ export const ToolbarSection = React.memo(function ToolbarSection({
               size={size}
               variant={variant}
             >
-              {dropdownIcon || <ChevronDown className="size-4" strokeWidth={1.75} />}
+              {dropdownIcon || <ChevronDown className="size-4" />}
             </ToolbarButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-full">

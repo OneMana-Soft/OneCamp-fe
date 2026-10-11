@@ -68,7 +68,7 @@ describe("writing a formula", () => {
     render(<Editing />)
     fireEvent.change(box(), { target: { value: "{Cost} * 2" } })
     await pause()
-    expect(screen.getByText(`There's no field called "Cost" (at character 1)`).className).toContain("text-danger-ink")
+    expect(screen.getByText(`There's no field called "Cost" (at character 1)`).closest("p")?.className).toContain("text-danger-ink")
   })
 
   it("keeps only the answer to the latest draft", async () => {
@@ -98,5 +98,14 @@ describe("writing a formula", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show functions" }))
     fireEvent.click(screen.getByTitle("IF(test, then, otherwise)"))
     expect(box().value).toBe("IF(")
+  })
+
+  it("colours what is typed: fields as pills, functions, text and numbers in the camp inks", () => {
+    render(<Editing initial={'IF({Paid}, "Paid", 2)'} />)
+    const editor = document.querySelector("[data-formula-editor]") as HTMLElement
+    expect(editor.querySelector("[data-field-pill]")?.textContent).toBe("{Paid}")
+    expect(editor.querySelector(".text-camp-sky-ink")?.textContent).toBe("IF")
+    expect(editor.querySelector(".text-camp-moss-ink")?.textContent).toBe('"Paid"')
+    expect(editor.querySelector(".text-camp-sun-ink")?.textContent).toBe("2")
   })
 })

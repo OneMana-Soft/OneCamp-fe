@@ -17,7 +17,7 @@ const formatActions: ListItem[] = [
   {
     value: 'orderedList',
     label: 'Numbered list',
-    icon: <ListOrdered className="size-4" strokeWidth={1.75} />,
+    icon: <ListOrdered className="size-4" />,
     isActive: editor => editor.isActive('orderedList'),
     action: editor => editor.chain().focus().toggleOrderedList().run(),
     canExecute: editor => editor.can().chain().toggleOrderedList().run(),
@@ -26,7 +26,7 @@ const formatActions: ListItem[] = [
   {
     value: 'bulletList',
     label: 'Bullet list',
-    icon: <List className="size-4" strokeWidth={1.75} />,
+    icon: <List className="size-4" />,
     isActive: editor => editor.isActive('bulletList'),
     action: editor => editor.chain().focus().toggleBulletList().run(),
     canExecute: editor => editor.can().chain().toggleBulletList().run(),
@@ -38,8 +38,8 @@ const formatActions: ListItem[] = [
 // is a new prop every time, which re-rendered it anyway.
 const DROPDOWN_ICON = (
   <>
-    <List className="size-4" strokeWidth={1.75} />
-    <ChevronDown className="size-4" strokeWidth={1.75} />
+    <List className="size-4" />
+    <ChevronDown className="size-4" />
   </>
 )
 const ALL_ACTIONS = formatActions.map(action => action.value)

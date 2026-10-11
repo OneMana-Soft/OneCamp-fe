@@ -8,12 +8,14 @@
 
 import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
+import { PopoverContent } from "@/components/ui/popover"
+import { LazyPopover } from "./LazyPopover"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useGlobalSearch, SearchResult } from "@/services/searchService"
 import Link from "next/link"
-import { Loader2, Search, X, Plus } from "@/lib/icons"
+import { Check, CircleDot, FileText, Folder, LayoutDashboard, Link2, Loader2, Search, User, X, Plus } from "@/lib/icons"
+import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
+import { TableGlyph } from "@/components/table/TableGlyph"
 import { pickRows, RelationRef, RelationTarget } from "@/services/tableService"
 
 // Pull a {id,label,type} ref out of a unified-search result, scoped to the
@@ -33,10 +35,34 @@ function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | n
   return null
 }
 
+/** A linked thing's 14 px glyph: a table row's tile, a page, a task's ring, a project, a person. */
+function RefGlyph({ item: r }: { item: RelationRef }) {
+  if (r.type === "row" && r.table_id) return <TableGlyph id={r.table_id} size="sm" className="!size-3.5 !rounded-[4px] [&_svg]:!size-2.5" />
+  const Icon = r.type === "doc" ? FileText : r.type === "board" ? LayoutDashboard : r.type === "task" ? CircleDot : r.type === "project" ? Folder : r.type === "user" ? User : Link2
+  return <Icon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+}
+
+/** Where a linked chip goes: a table's row opens in its record panel. */
+function hrefOf(r: RelationRef): string | null {
+  if (r.type === "row" && r.table_id) return `/app/tables/${r.table_id}?row=${encodeURIComponent(r.id)}`
+  if (r.type === "doc") return `/app/doc/${r.id}`
+  if (r.type === "board") return `/app/board/${r.id}`
+  if (r.type === "project") return `/app/project/${r.id}`
+  if (r.type === "task") return `/app/task/${r.id}`
+  return null
+}
+
+/**
+ * A relation cell (content.md T12): the linked records as raised chips on e1
+ * (they are records you can open), each with its glyph, lifting to e2 with an
+ * unlink × on hover; a 20 px "+" after them on the row under the pointer; and
+ * a CommandList picker whose rows toggle (a moss check marks what's linked).
+ */
 export function RelationCell({
   value,
   target,
   tableId,
+  tableName,
   readOnly,
   onLink,
   onCommit,
@@ -45,6 +71,8 @@ export function RelationCell({
   target: RelationTarget
   /** For a link to a table's rows: the table. */
   tableId?: string
+  /** That table's name, for the picker's search ("Link a row from Vendors"). */
+  tableName?: string
   /** The links show, but can't be changed here: the reader can't open the table they go to. */
   readOnly?: boolean
   /** Links to a table's rows change one at a time, through this; other links through onCommit. */
@@ -60,6 +88,7 @@ export function RelationCell({
   const [loading, setLoading] = React.useState(false)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const reqId = React.useRef(0)
+  const list = React.useRef<CommandListHandle>(null)
 
   React.useEffect(() => {
     if (!open) {
@@ -116,97 +145,132 @@ export function RelationCell({
     if (onLink) onLink({ remove: [id] })
     else onCommit(refs.filter((x) => x.id !== id))
   }
+  const toggle = (ref: RelationRef) => (refs.some((x) => x.id === ref.id) ? remove(ref.id) : add(ref))
+
+  const listItems: CommandListItem[] = items.map((ref) => ({
+    id: `${ref.type}-${ref.id}`,
+    label: ref.label,
+    text: ref.label,
+    tile: (
+      <span className="inline-flex size-6 items-center justify-center">
+        <RefGlyph item={ref} />
+      </span>
+    ),
+    trailing: refs.some((x) => x.id === ref.id) ? (
+      <Check className="size-4 text-camp-moss" aria-label="Linked" />
+    ) : ref.type !== "row" ? (
+      <span className="text-meta text-ink-3 first-letter:uppercase">{ref.type}</span>
+    ) : undefined,
+  }))
+  const placeholder = rowsOf ? `Link a row from ${tableName || "the table"}` : `Search ${target === "any" ? "tasks, docs and people" : target + "s"}`
+  const emptyText = loading
+    ? null
+    : !query.trim() && !rowsOf
+      ? "Type to search"
+      : rowsOf && !query.trim()
+        ? "That table has no rows yet"
+        : `Nothing matches “${query.trim()}”`
 
   return (
-    <div className={cn("relative flex min-h-8 flex-wrap items-center gap-1 px-1.5 py-1", !readOnly && refs.length > 0 && "pr-7")}>
-      {refs.map((ref) =>
-        ref.type === "more" ? (
-          // The links past those a cell shows, counted.
-          <span key="more" className="px-1 py-0.5 text-xs text-muted-foreground">
-            {ref.label}
-          </span>
-        ) : (
-        <span key={ref.id} className="inline-flex max-w-full items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-xs">
-          {ref.type === "row" && ref.table_id && !readOnly ? (
-            <Link href={`/app/tables/${ref.table_id}`} className="hover:underline" title={`Open ${ref.label}'s table`}>
+    <div className="relative flex h-full min-h-8 flex-wrap content-center items-center gap-1 px-3 py-1">
+      {refs.map((ref) => {
+        if (ref.type === "more")
+          return (
+            // The links past those a cell shows, counted.
+            <span key="more" className="chip h-[22px] text-ink-2">
               {ref.label}
-            </Link>
-          ) : (
-            ref.label
-          )}
-          {!readOnly && (
-            <button onClick={() => remove(ref.id)} className="opacity-60 hover:opacity-100" title="Unlink" aria-label={`Unlink ${ref.label}`}>
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </span>
-        ),
-      )}
-      {readOnly ? null : (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            aria-label="Add a link"
-            className={cn(
-              "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-xs text-muted-foreground transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-              // With links in the cell, the add control sits at its right edge
-              // and shows on the row under the pointer, so two links stay on one
-              // line instead of pushing the row to twice its height.
-              refs.length > 0 && "absolute right-1 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
-            )}
+            </span>
+          )
+        const href = !readOnly ? hrefOf(ref) : null
+        return (
+          <span
+            key={ref.id}
+            data-relation-chip=""
+            className="group/chip inline-flex h-[22px] max-w-full items-center gap-1 rounded-md bg-raised pl-1.5 pr-1.5 text-meta font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
           >
-            <Plus className="h-3 w-3" /> {refs.length === 0 ? "Link" : ""}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 overflow-hidden p-0">
-          <div className="flex items-center gap-2 border-b px-3 py-2">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <Input dense
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={rowsOf ? "Search rows…" : `Search ${target === "any" ? "entities" : target + "s"}...`}
-              className="h-8 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
-            />
-          </div>
-          <div className="max-h-60 overflow-y-auto p-1">
-            {loading && (
-              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Searching…
-              </div>
+            <RefGlyph item={ref} />
+            {href ? (
+              <Link href={href} className="truncate outline-none focus-visible:underline" title={`Open ${ref.label}`}>
+                {ref.label}
+              </Link>
+            ) : (
+              <span className="truncate">{ref.label}</span>
             )}
-            {!loading && (query.trim() || rowsOf) && items.length === 0 && (
-              <div className="py-6 text-center text-xs text-muted-foreground">{rowsOf && !query.trim() ? "That table has no rows yet" : "Nothing found"}</div>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => remove(ref.id)}
+                className="-mr-0.5 hidden size-4 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:bg-hover hover:text-ink group-hover/chip:inline-flex focus-visible:inline-flex [@media(hover:none)]:inline-flex"
+                title="Unlink"
+                aria-label={`Unlink ${ref.label}`}
+              >
+                <X className="size-3" />
+              </button>
             )}
-            {!loading && !query.trim() && !rowsOf && (
-              <div className="py-6 text-center text-xs text-muted-foreground">Type to search</div>
-            )}
-            {!loading &&
-              items.map((ref) => {
-                const linked = refs.some((x) => x.id === ref.id)
-                return (
-                  <button
-                    key={`${ref.type}-${ref.id}`}
-                    disabled={linked}
-                    onClick={() => {
-                      add(ref)
-                      setOpen(false)
+          </span>
+        )
+      })}
+      {readOnly ? null : (
+        <LazyPopover
+          open={open}
+          onOpenChange={setOpen}
+          trigger={
+            <button
+              type="button"
+              aria-label="Add a link"
+              className={cn(
+                "inline-flex h-5 shrink-0 items-center justify-center gap-0.5 rounded-md text-meta text-ink-3 transition-opacity hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                refs.length > 0
+                  ? "w-5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+                  : "px-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
+              )}
+            >
+              <Plus className="size-3" /> {refs.length === 0 ? "Link" : ""}
+            </button>
+          }
+        >
+          <PopoverContent align="start" sideOffset={2} className="w-auto bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <CommandList
+              ref={list}
+              label="Rows to link"
+              roomy
+              className="w-80"
+              items={listItems}
+              query={query}
+              maxHeight={300}
+              onSelect={(item) => {
+                const ref = items.find((r) => `${r.type}-${r.id}` === item.id)
+                if (!ref) return
+                toggle(ref)
+                if (!rowsOf) setOpen(false)
+              }}
+              empty={emptyText}
+              after={
+                loading ? (
+                  <div className="flex h-9 items-center gap-2 px-2 text-ui-sm text-ink-3">
+                    <Loader2 className="size-3.5 animate-spin" /> Searching…
+                  </div>
+                ) : null
+              }
+              header={
+                <span className="flex w-full items-center gap-2">
+                  <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (list.current?.onKeyDown(e)) e.preventDefault()
                     }}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                      linked ? "cursor-default opacity-50" : "hover:bg-muted",
-                    )}
-                  >
-                    {ref.type !== "row" && (
-                      <span className="shrink-0 text-2xs text-muted-foreground first-letter:uppercase">{ref.type}</span>
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{ref.label}</span>
-                  </button>
-                )
-              })}
-          </div>
-        </PopoverContent>
-      </Popover>
+                    placeholder={placeholder}
+                    aria-label={placeholder}
+                    className="h-7 min-w-0 flex-1 bg-transparent text-ui font-normal text-ink outline-none placeholder:text-ink-3"
+                  />
+                </span>
+              }
+            />
+          </PopoverContent>
+        </LazyPopover>
       )}
     </div>
   )
