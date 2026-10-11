@@ -17,12 +17,15 @@ import {
   isSameYear,
   startOfDay,
   startOfMonth,
+  startOfQuarter,
   startOfWeek,
   startOfYear,
 } from "date-fns"
 import { NO_ASSIGNEE, groupByAssignee } from "@/lib/board/groupBy"
 import { colorDot, isClosedStatus, statusOptionOf, type StatusCategory, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
 import { endsOf, wayKept, wayOf, type DependencyFacets } from "@/lib/tasks/dependency"
+import type { CampHue } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
 
 /** A task as GET /project/{id}/timeline sends it. */
 export interface TimelineTask extends TaskStatusFields {
@@ -175,20 +178,35 @@ export function spanLabel(span: Span, today: Date): string {
 
 // ---- The grid ----------------------------------------------------------------
 
-export type Zoom = "day" | "week" | "month"
+export type Zoom = "day" | "week" | "month" | "quarter"
 export const ZOOMS: { value: Zoom; label: string }[] = [
   { value: "day", label: "Days" },
   { value: "week", label: "Weeks" },
   { value: "month", label: "Months" },
+  { value: "quarter", label: "Quarters" },
 ]
 
 /** How wide a day is at each zoom, in pixels. */
-export const DAY_WIDTH: Record<Zoom, number> = { day: 36, week: 16, month: 4 }
+export const DAY_WIDTH: Record<Zoom, number> = { day: 36, week: 16, month: 4, quarter: 1.5 }
 
 /** Room before the first task and after the last, in days, so there's somewhere to drag to. */
-const PAD: Record<Zoom, [number, number]> = { day: [7, 21], week: [14, 56], month: [31, 120] }
+const PAD: Record<Zoom, [number, number]> = { day: [7, 21], week: [14, 56], month: [31, 120], quarter: [92, 270] }
 /** Enough days to fill a wide screen at each zoom. */
-const MIN_DAYS: Record<Zoom, number> = { day: 56, week: 126, month: 400 }
+const MIN_DAYS: Record<Zoom, number> = { day: 56, week: 126, month: 400, quarter: 1000 }
+
+/** One zoom in or out from z (the - and + keys). */
+export function zoomStep(z: Zoom, dir: 1 | -1): Zoom {
+  const i = ZOOMS.findIndex((x) => x.value === z)
+  return ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, i + dir))].value
+}
+
+/** The date bubble while a bar is dragged (work.md W24): "Tue 14 → Fri 17 Oct", one day as "Tue 14 Oct". */
+export function bubbleLabel(span: Span): string {
+  const { start, end } = span
+  if (start.getTime() === end.getTime()) return format(end, "EEE d MMM")
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  return `${format(start, sameMonth ? "EEE d" : "EEE d MMM")} → ${format(end, "EEE d MMM")}`
+}
 /** How far from today the grid reaches at most, so a date typed as 2096 can't make it endless. */
 const REACH_YEARS = 3
 
@@ -216,7 +234,7 @@ export function timelineRange(spans: Span[], now: Date, zoom: Zoom): Range {
   if (lo < floor) lo = floor
   if (hi > ceil) hi = ceil
   const before = addDays(lo, -PAD[zoom][0])
-  const from = zoom === "month" ? startOfMonth(before) : startOfWeek(before, { weekStartsOn: 1 })
+  const from = zoom === "quarter" ? startOfQuarter(before) : zoom === "month" ? startOfMonth(before) : startOfWeek(before, { weekStartsOn: 1 })
   const days = Math.max(differenceInCalendarDays(addDays(hi, PAD[zoom][1]), from) + 1, MIN_DAYS[zoom])
   return { from, days }
 }
@@ -311,6 +329,12 @@ function unitTicks(range: Range, dayWidth: number, first: Date, next: (d: Date) 
  */
 export function headerTicks(range: Range, zoom: Zoom, dayWidth: number): { top: Tick[]; bottom: Tick[] } {
   const { from } = range
+  if (zoom === "quarter") {
+    return {
+      top: unitTicks(range, dayWidth, startOfYear(from), (d) => addYears(d, 1), (d) => format(d, "yyyy")),
+      bottom: unitTicks(range, dayWidth, startOfQuarter(from), (d) => addMonths(d, 3), (d) => `Q${Math.floor(d.getMonth() / 3) + 1}`),
+    }
+  }
   if (zoom === "month") {
     return {
       top: unitTicks(range, dayWidth, startOfYear(from), (d) => addYears(d, 1), (d) => format(d, "yyyy")),
@@ -341,6 +365,10 @@ interface DependencyLink {
   path: string
   /** The waiting task starts (or ends) too early for it, so the plan can't be kept as it stands. Finished work breaks nothing. */
   broken: boolean
+  /** The waited-on task's name, for a broken arrow's tooltip. */
+  fromName?: string
+  /** Where a broken arrow's "!" sits: the middle of its run between the rows. */
+  mid?: { x: number; y: number }
 }
 
 /** How far an arrow runs out of a bar before it turns. */
@@ -358,7 +386,10 @@ export function dependencyLinks(
   dayWidth: number,
   rowHeight: number,
   spans: ReadonlyMap<string, Span> = new Map(),
+  /** Each row's top, when rows are not all rowHeight tall (a group's row is shorter). */
+  tops?: readonly number[],
 ): DependencyLink[] {
+  const centre = (row: number) => (tops ? tops[row] : row * rowHeight) + rowHeight / 2
   const at = new Map<string, { row: number; span: Span; task: TimelineTask }>()
   rows.forEach((r, i) => {
     if (r.kind === "task") at.set(r.task.task_uuid, { row: i, span: spans.get(r.task.task_uuid) ?? r.span, task: r.task })
@@ -378,9 +409,9 @@ export function dependencyLinks(
       const out1 = ends.from === "end" ? 1 : -1
       const in2 = ends.to === "start" ? -1 : 1
       const x1 = ends.from === "end" ? a.left + a.width : a.left
-      const y1 = blocker.row * rowHeight + rowHeight / 2
+      const y1 = centre(blocker.row)
       const x2 = ends.to === "start" ? z.left : z.left + z.width
-      const y2 = waiting.row * rowHeight + rowHeight / 2
+      const y2 = centre(waiting.row)
       const turn1 = x1 + out1 * STUB
       const turn2 = x2 + in2 * STUB
       // One turn between the bars, when there's a place for it on the way
@@ -392,7 +423,16 @@ export function dependencyLinks(
           ? `M${x1} ${y1}H${across}V${y2}H${x2}`
           : `M${x1} ${y1}H${turn1}V${y2 - Math.sign(y2 - y1) * (rowHeight / 2)}H${turn2}V${y2}H${x2}`
       const open = !isClosedStatus(blocker.task.task_status) && !isClosedStatus(task.task_status)
-      out.push({ key: `${b.task_uuid}>${to}`, from: b.task_uuid, to, path, broken: open && !wayKept(way, blocker.span, waiting.span) })
+      const broken = open && !wayKept(way, blocker.span, waiting.span)
+      const midX = across !== null ? across : turn1
+      out.push({
+        key: `${b.task_uuid}>${to}`,
+        from: b.task_uuid,
+        to,
+        path,
+        broken,
+        ...(broken ? { fromName: blocker.task.task_name, mid: { x: midX, y: (y1 + y2) / 2 } } : {}),
+      })
     }
   }
   return out
@@ -408,19 +448,29 @@ export const GROUPINGS: { value: Grouping; label: string }[] = [
 ]
 
 type TimelineRow =
-  | { kind: "group"; key: string; id: string; label: string; count: number; collapsed: boolean; dot?: string }
+  | { kind: "group"; key: string; id: string; label: string; count: number; collapsed: boolean; dot?: string; status?: StatusOption }
   | { kind: "task"; key: string; task: TimelineTask; span: Span }
 
 /**
- * A bar's fill: the project's own colour (its camp hue, set once on the
- * timeline as hue-*), the same for every status, so the project reads as
- * itself and twenty tasks are not twenty blocks in five hues. Open work is the
- * hue's tint, its ink name (5.9:1 or more) and a hairline of the strong cut;
- * the status is the dot beside the name and the mark at the bar's start.
- * Finished work steps back to a faint neutral fill and a muted name.
+ * A bar's hue (design v3, work.md W24): its status's. In progress is sun, in
+ * review dusk, done moss, and a project's own status its chosen camp hue; a
+ * status with no hue of its own (to do, backlog) takes the project's, so a
+ * chart is never grey and the project still reads as itself. The bar is the
+ * hue's tint at full strength, a 30 % hairline of its strong cut, a 3 px cap
+ * in the strong cut and its name in the hue's ink.
  */
-const BAR_OPEN = "bg-hue-tint text-hue-ink ring-1 ring-inset ring-hue/40"
-const BAR_DONE = "bg-muted-foreground/10 text-muted-foreground"
+const CATEGORY_HUE: Partial<Record<StatusCategory, CampHue>> = { inProgress: "sun", inReview: "dusk", done: "moss" }
+
+export function barHue(t: TaskStatusFields, options: StatusOption[], projectHue: CampHue): CampHue {
+  const o = statusOptionOf(t, options)
+  const category = o?.category ?? (t.task_status as StatusCategory) ?? "todo"
+  if (category === "done") return o?.hue && o.hue !== "neutral" ? o.hue : "moss"
+  if (o?.hue && o.hue !== "neutral") return o.hue
+  return CATEGORY_HUE[category] ?? projectHue
+}
+
+/** A bar's classes: its hue made current (hue-*), so its tint, ink and strong cut follow. */
+export const barColor = (t: TaskStatusFields, options: StatusOption[], projectHue: CampHue = "sky") => HUE_CLASS[barHue(t, options, projectHue)]
 
 /** A built-in status's dot: the status tokens the task list's dots use (types/table). */
 const DOT: Record<StatusCategory, string> = {
@@ -432,20 +482,11 @@ const DOT: Record<StatusCategory, string> = {
   canceled: "bg-faint-foreground",
 }
 
-/** A status's colour on the timeline: a bar's fill and text. */
-function statusColor(o: StatusOption | undefined): string {
-  const category = o?.category ?? "todo"
-  return category === "done" || category === "canceled" ? BAR_DONE : BAR_OPEN
-}
-
 /** A status's dot: a project's own status in the colour its admins chose. */
 function statusDot(o: StatusOption | undefined): string {
   if (o?.custom) return colorDot(o.swatch ?? "slate")
   return DOT[o?.category ?? "todo"] ?? DOT.todo
 }
-
-/** A bar's fill and text: neutral, quieter once done. */
-export const barColor = (t: TaskStatusFields, options: StatusOption[]) => statusColor(statusOptionOf(t, options))
 
 /** The dot beside a task's name: its status's. */
 export const dotColor = (t: TaskStatusFields, options: StatusOption[]) => statusDot(statusOptionOf(t, options))
@@ -484,12 +525,12 @@ export function timelineRows(tasks: TimelineTask[], o: RowsInput): { rows: Timel
 
   if (o.grouping === "none") return { rows: scheduled.map(taskRow), unscheduled, spans }
 
-  const groups: { key: string; label: string; dot?: string; items: { task: TimelineTask; span: Span }[] }[] = []
+  const groups: { key: string; label: string; dot?: string; status?: StatusOption; items: { task: TimelineTask; span: Span }[] }[] = []
   if (o.grouping === "status") {
     const at = new Map<string, number>()
     const add = (opt: StatusOption) => {
       at.set(opt.value, groups.length)
-      groups.push({ key: opt.value, label: opt.label, dot: statusDot(opt), items: [] })
+      groups.push({ key: opt.value, label: opt.label, dot: statusDot(opt), status: opt, items: [] })
     }
     o.statuses.forEach(add)
     for (const s of scheduled) {
@@ -510,7 +551,7 @@ export function timelineRows(tasks: TimelineTask[], o: RowsInput): { rows: Timel
   for (const g of groups) {
     if (g.items.length === 0) continue
     const collapsed = o.collapsed.has(g.key)
-    rows.push({ kind: "group", key: `group:${g.key}`, id: g.key, label: g.label, count: g.items.length, collapsed, dot: g.dot })
+    rows.push({ kind: "group", key: `group:${g.key}`, id: g.key, label: g.label, count: g.items.length, collapsed, dot: g.dot, status: g.status })
     if (!collapsed) rows.push(...g.items.map(taskRow))
   }
   return { rows, unscheduled, spans }

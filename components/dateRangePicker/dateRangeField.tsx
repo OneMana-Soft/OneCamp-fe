@@ -47,7 +47,7 @@ export const DateRangeField: React.FC<
 
       {setDateRange &&
         (isMobile ? (
-          <Drawer open={open} onOpenChange={setOpen}>
+          <Drawer detent="medium" open={open} onOpenChange={setOpen}>
             <DrawerTrigger asChild>
               <Button
                 variant={"outline"}

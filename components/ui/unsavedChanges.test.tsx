@@ -52,8 +52,17 @@ describe("unsaved changes", () => {
     expect(unsavedWhat()).toBeNull()
   })
 
-  it("stop a link to another page and ask first, naming what would be lost", () => {
+  it("stop a link to another page, nudge the dock once, then ask, naming what would be lost", () => {
     const { getByText } = render(<Page dirty />)
+    const nudged = vi.fn()
+    window.addEventListener("onecamp:save-nudge", nudged)
+    // Design v3 (admin §1.3): the dock holding the changes nudges first.
+    const first = click(getByText("Home"))
+    expect(first.defaultPrevented).toBe(true)
+    expect(nudged).toHaveBeenCalledTimes(1)
+    expect(state.confirms).toHaveLength(0)
+    window.removeEventListener("onecamp:save-nudge", nudged)
+    // A second try asks.
     const event = click(getByText("Home"))
     expect(event.defaultPrevented).toBe(true)
     expect(state.confirms).toHaveLength(1)
@@ -76,10 +85,12 @@ describe("unsaved changes", () => {
     expect(root).toMatch(/<UnsavedChangesGuard\s*\/>/)
   })
 
-  it("are asked about before the admin page switches section", () => {
-    const page = readFileSync(join(__dirname, "..", "..", "app", "app", "admin", "page.tsx"), "utf8")
-    const choose = page.slice(page.indexOf("const chooseTab"), page.indexOf("useEffect", page.indexOf("const chooseTab")))
-    expect(choose).toMatch(/unsavedWhat\(\)/)
-    expect(choose).toMatch(/confirm\(/)
+  it("are asked about before the settings nav moves to another admin section", () => {
+    // The sections are links in the settings nav now (design v3, admin §1.1):
+    // the same page with another ?tab=, which the guard treats as leaving.
+    const guard = readFileSync(join(__dirname, "UnsavedChangesGuard.tsx"), "utf8")
+    expect(guard).toMatch(/url\.pathname === window\.location\.pathname && url\.search === window\.location\.search/)
+    const nav = readFileSync(join(__dirname, "..", "navigationBar", "desktop", "SettingsNav.tsx"), "utf8")
+    expect(nav).toMatch(/<IntentLink[\s\S]{0,80}href=\{place\.href\}/)
   })
 })

@@ -119,7 +119,7 @@ export function PeoplePicker({
           }}
         />
         {matches.length > 0 && (
-          <ul id={listId} role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 grid gap-0.5 rounded-md border bg-popover p-1 shadow-md">
+          <ul id={listId} role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 grid gap-0.5 rounded-md border bg-popover p-1 shadow-e3">
             {matches.map((m, i) => (
               <li key={m.uuid} role="option" aria-selected={i === active}>
                 <button

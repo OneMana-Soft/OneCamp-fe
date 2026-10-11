@@ -7,8 +7,6 @@ import {
 import {DesktopReactionPicker} from "@/components/reactionPicker/DesktopReactionPicker";
 import {StandardReaction, SyncCustomReaction} from "@/types/reaction";
 import {useEffect, useRef, useState} from "react";
-import {cn} from "@/lib/utils/helpers/cn";
-import {CONTAINER_STYLES} from "@/lib/utils/helpers/containerStyles";
 
 export interface ReactionPickerPopoverProps {
     showCustomReactions : boolean
@@ -55,12 +53,9 @@ export function ReactionPickerPopover({showCustomReactions, onReactionSelect, se
             <PopoverTrigger ref={triggerRef} asChild>
                 {children}
             </PopoverTrigger>
-            <PopoverContent className={cn([
-                CONTAINER_STYLES.animation,
-                CONTAINER_STYLES.rounded,
-                CONTAINER_STYLES.shadows,
-                ' w-full h-[380px] !p-2 border bg-clip-border dark:shadow-[0_0_0_1px_black] z-[var(--z-popover)]'
-            ])} style={{ maxHeight: `max(calc(100dvh - ${triggerRect.top}px), calc(${triggerRect.bottom}px))` }}>
+            {/* The floating material (design v3 chat, C22): 352×380 at e3, r12,
+                with the house pop motion rather than a 95% zoom. */}
+            <PopoverContent collisionPadding={12} className="pop-surface z-[var(--z-popover)] h-[380px] w-[352px] p-2" style={{ maxHeight: `max(calc(100dvh - ${triggerRect.top}px), calc(${triggerRect.bottom}px))` }}>
                 <DesktopReactionPicker
                     showCustomReactions={showCustomReactions}
                     onReactionSelect={handleReactionSelect}

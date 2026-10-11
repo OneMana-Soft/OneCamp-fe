@@ -4,12 +4,11 @@ import { Provider } from "react-redux"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import store from "@/store/store"
 
-// Typing in the command palette doesn't redraw its commands. The palette
-// rebuilt all eighty of them on every keystroke, twice: it copied its input
-// into the search in an effect (a second render a key), and useCapabilities
-// handed it a new `can` each render, so the memoised command list was built
-// again every time. cmdk filters the items itself; an item re-renders when it
-// is shown, hidden or selected, not because its parent did.
+// Typing in the command palette doesn't redraw its rows twice a key. The
+// palette once rebuilt all eighty commands on every keystroke, twice: it
+// copied its input into the search in an effect (a second render a key), and
+// useCapabilities handed it a new `can` each render. Design v3 opens on a
+// curated few rows, and what is typed draws only what it matched.
 
 let itemRenders = 0
 vi.mock("@/components/ui/command", async (importOriginal) => {
@@ -38,6 +37,7 @@ vi.mock("@/services/aiSearchService", () => ({
   unifiedSearch: async () => ({ enabled: false, groups: [] }),
   isAbortedRequest: () => false,
 }))
+vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pause: () => {} }) }))
 vi.mock("@/hooks/useSearch", () => ({
   useSearch: () => {
     const [inputValue, setInputValue] = useState("")
@@ -50,7 +50,7 @@ import { CommandPalette } from "./CommandPalette"
 afterEach(cleanup)
 
 describe("typing in the command palette", () => {
-  it("doesn't rebuild its commands on each keystroke", async () => {
+  it("draws each row at most a couple of times a key", async () => {
     render(
       <Provider store={store}>
         <CommandPalette />
@@ -58,11 +58,16 @@ describe("typing in the command palette", () => {
     )
     act(() => void fireEvent.keyDown(document, { key: "k", ctrlKey: true }))
     const input = await screen.findByPlaceholderText("Search or jump to…")
-    const opened = itemRenders
-    expect(opened).toBeGreaterThan(20)
+    // The v3 palette opens curated: a few suggestions, not every destination.
+    expect(document.querySelectorAll("[cmdk-item]").length).toBeLessThanOrEqual(10)
+    act(() => void fireEvent.change(input, { target: { value: "cr" } }))
+    const shown = document.querySelectorAll("[cmdk-item]").length
+    expect(shown).toBeGreaterThan(2)
     itemRenders = 0
-    for (const value of ["s", "se", "set"]) act(() => void fireEvent.change(input, { target: { value } }))
-    // Eighty items, three keys: 480 renders before (two a key), none now.
-    expect(itemRenders).toBeLessThan(opened / 2)
+    for (const value of ["cre", "crea", "creat"]) act(() => void fireEvent.change(input, { target: { value } }))
+    // Every row redraws once a key (its matched letters change), and cmdk's
+    // selection may add one more. A second copy of the query, kept in step
+    // by an effect, doubled that before.
+    expect(itemRenders).toBeLessThanOrEqual(shown * 3 * 2)
   })
 })

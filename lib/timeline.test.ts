@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { addDays, isMonday } from "date-fns"
-import { STATUS_COLORS, statusOptions, type ProjectStatuses } from "@/lib/taskStatus"
+import { STATUS_COLORS, colorDot, statusOptions, type ProjectStatuses } from "@/lib/taskStatus"
 import {
   DAY_WIDTH,
   applyEdit,
@@ -17,6 +17,7 @@ import {
   timelineRows,
   firstView,
   barColor,
+  barHue,
   dotColor,
   dependencyLinks,
   type TimelineTask,
@@ -236,24 +237,30 @@ describe("the rows", () => {
 })
 
 describe("bar colours", () => {
-  it("draw every bar in one neutral fill, and give each status colour its own dot", () => {
+  // Design v3 (work.md W24): a bar wears its status's hue, so the chart has
+  // colour; a status with no hue of its own (to do, backlog) takes the
+  // project's. It replaced one neutral fill for every bar.
+  it("draw each bar in its status's hue, and the project's where the status has none", () => {
     const project = {
       built_in: [],
       colors: [],
       max: 20,
-      custom: STATUS_COLORS.map((c, i) => ({ id: c, project_id: "p", name: c, category: "todo" as const, color: c, position: i })),
+      custom: [
+        { id: "qa", project_id: "p", name: "QA", category: "inReview" as const, color: "rose", position: 0 },
+        { id: "plain", project_id: "p", name: "Plain", category: "todo" as const, color: "slate", position: 1 },
+      ],
     } as ProjectStatuses
     const options = statusOptions(project)
-    const fills = new Set(STATUS_COLORS.map((c) => barColor({ task_status: "todo", task_custom_status: c }, options)))
-    expect(fills.size).toBe(1)
+    expect(barHue({ task_status: "inProgress" }, options, "lake")).toBe("sun")
+    expect(barHue({ task_status: "inReview" }, options, "lake")).toBe("dusk")
+    expect(barHue({ task_status: "done" }, options, "lake")).toBe("moss")
+    expect(barHue({ task_status: "inReview", task_custom_status: "qa" }, options, "lake")).toBe("berry")
+    expect(barHue({ task_status: "todo" }, options, "lake")).toBe("lake")
+    expect(barHue({ task_status: "todo", task_custom_status: "plain" }, options, "sky")).toBe("sky")
+    expect(barColor({ task_status: "inProgress" }, options, "lake")).toBe("hue-sun")
     for (const c of STATUS_COLORS) {
-      expect(dotColor({ task_status: "todo", task_custom_status: c }, options), c).toBe(`bg-${c}-500`)
+      expect(dotColor({ task_status: "todo", task_custom_status: c }, statusOptions({ ...project, custom: [{ id: c, project_id: "p", name: c, category: "todo", color: c, position: 0 }] })), c).toBe(colorDot(c))
     }
-    // A built-in status's bar is the same fill as a custom one's: the project's
-    // own hue (set once on the timeline), its tint with its ink.
-    expect(barColor({ task_status: "inProgress" }, statusOptions(null))).toBe([...fills][0])
-    expect([...fills][0]).toMatch(/bg-hue-tint/)
-    expect([...fills][0]).toMatch(/text-hue-ink/)
   })
 
   it("keep done work quiet without fading its name, and its dot in full colour", () => {
@@ -274,7 +281,7 @@ describe("dependency arrows", () => {
     const build = task("build", { task_start_date: iso(2026, 10, 10, 9), task_due_date: iso(2026, 10, 12, 17), task_blocked_by: [{ task_uuid: "design" }] })
     const [link] = dependencyLinks(rowsOf([design, build]), range, 10, 36)
     // Design covers days 0-2 (x 0-30) in row 0; Build starts on day 5 (x 50) in row 1.
-    expect(link).toEqual({ key: "design>build", from: "design", to: "build", path: "M30 18H38V54H50", broken: false })
+    expect(link).toMatchObject({ key: "design>build", from: "design", to: "build", path: "M30 18H38V54H50", broken: false })
   })
 
   it("goes round, and shows as broken, when the waiting task starts before the other is done", () => {

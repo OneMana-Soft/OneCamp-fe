@@ -30,3 +30,17 @@ describe("signing out", () => {
     expect(screen.queryByRole("button", { name: /login/i })).toBeNull()
   })
 })
+
+// Design v3 (F7): the gradient ring at 48, breathing; the stylesheet stills it
+// under reduced motion.
+describe("the ring while signing out", () => {
+  it("breathes, and is still under reduced motion", async () => {
+    const { container } = render(<LogoutPage />)
+    const ring = container.querySelector("[data-breathing-ring]")!
+    expect(ring.className).toContain("auth-breathe")
+    expect(ring.querySelector("svg")?.getAttribute("width")).toBe("48")
+    const { readFileSync } = await import("node:fs")
+    const css = readFileSync("app/styles/admin/auth.css", "utf8")
+    expect(css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"))).toContain(".auth-breathe")
+  })
+})

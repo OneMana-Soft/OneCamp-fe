@@ -7,6 +7,7 @@ import { resolve } from "node:path"
 import { hueFor } from "@/lib/campHue"
 
 const push = vi.fn()
+const dispatched = vi.fn()
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn(), back: vi.fn() }), usePathname: () => "/app/home" }))
 
 const state = {
@@ -15,6 +16,7 @@ const state = {
       userChannels: [
         { ch_uuid: "c1", ch_name: "engineering", ch_private: false },
         { ch_uuid: "c2", ch_name: "design", ch_private: false },
+        { ch_uuid: "chan-war-room", ch_name: "war-room", ch_private: false },
       ],
       userChats: [],
       userProjects: [{ uid: "", project_uuid: "p1", project_name: "Q4 launch" }],
@@ -23,11 +25,11 @@ const state = {
       userBoards: [],
     },
   },
-  recentItems: { items: [] },
+  recentItems: { items: [] as { id: string; type: string; title: string; path: string; timestamp: number }[] },
 }
 vi.mock("react-redux", () => ({
   useSelector: (select: (s: typeof state) => unknown) => select(state),
-  useDispatch: () => vi.fn(),
+  useDispatch: () => dispatched,
 }))
 
 let answer: SearchResult[] = []
@@ -47,20 +49,27 @@ vi.mock("@/services/aiSearchService", () => ({
   isAbortedRequest: () => false,
 }))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => false }) }))
+let features: Record<string, boolean> = {}
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
-  useClientConfig: () => ({ features: {} }),
+  useClientConfig: () => ({ features }),
 }))
+vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pause: vi.fn(), resume: vi.fn() }) }))
 vi.mock("@/hooks/useTrackPageVisit", () => ({ useTrackPageVisit: () => {} }))
 vi.mock("@/hooks/useSplitView", () => ({ useSplitActions: () => () => {} }))
 vi.mock("@/components/shortcuts/ShortcutsDialog", () => ({ openShortcuts: () => {} }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => ({}) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
-import { CommandPalette } from "@/components/ui/CommandPalette"
+import { CommandPalette, closestName, commandKeys, pauseChoices } from "@/components/ui/CommandPalette"
+import { openPalette, onPaletteState } from "@/lib/ui/palette"
+import { FEATURE_AI } from "@/hooks/useClientConfig"
+import { GO_KEYS } from "@/lib/goKeys"
 
 beforeEach(() => {
   answer = []
+  features = {}
+  state.recentItems.items = []
   asked.length = 0
   push.mockClear()
 })
@@ -80,6 +89,9 @@ const type = (input: HTMLInputElement, text: string) => {
     })
   }
 }
+/** The row in a group whose text contains `text` (matches are split by <mark>). */
+const row = (g: HTMLElement | undefined, text: string) =>
+  [...(g?.querySelectorAll("[cmdk-item]") ?? [])].find((r) => r.textContent?.includes(text)) as HTMLElement | undefined
 const group = (heading: string) => {
   const el = [...document.querySelectorAll("[cmdk-group]")].find((g) => g.querySelector("[cmdk-group-heading]")?.textContent === heading)
   return el as HTMLElement | undefined
@@ -105,21 +117,31 @@ describe("the command palette", () => {
     const input = open()
     type(input, "en")
     const jump = group("Jump to")
-    expect(jump && within(jump).getByText("engineering")).toBeTruthy()
-    fireEvent.click(within(jump!).getByText("engineering"))
+    const hit = row(jump, "engineering")
+    expect(hit).toBeTruthy()
+    fireEvent.click(hit!)
     expect(push).toHaveBeenCalledWith("/app/channel/c1")
   })
 
   it("offers the full search for what was typed", () => {
     const input = open()
-    type(input, "q4 plan")
-    fireEvent.click(screen.getByText("Search everything for “q4 plan”"))
-    expect(push).toHaveBeenCalledWith("/app/search?query=q4%20plan")
+    type(input, "launch")
+    fireEvent.click(screen.getByText("Search everything for “launch”"))
+    expect(push).toHaveBeenCalledWith("/app/search?query=launch")
   })
 
-  it("takes Home to Home", () => {
-    open()
-    fireEvent.click(screen.getByText("Home"))
+  it("says plainly when nothing matched, and still offers the full search", () => {
+    const input = open()
+    type(input, "qz plan")
+    expect(screen.getByText("Nothing called “qz plan”")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Search messages" }))
+    expect(push).toHaveBeenCalledWith("/app/search?query=qz%20plan")
+  })
+
+  it("takes Home to Home, once typed", () => {
+    const input = open()
+    type(input, "home")
+    fireEvent.click(row(group("Commands"), "Home")!)
     expect(push).toHaveBeenCalledWith("/app/home")
   })
 
@@ -139,13 +161,16 @@ describe("the command palette", () => {
     expect(commits).toBeLessThanOrEqual(15)
   })
 
-  // Each kind had one raw Tailwind colour (every task blue, every channel
-  // orange): the kind said twice, and nothing about which one it was.
-  it("marks a place in its own identity hue", () => {
+  // Colour is a noun (design v3): a project carries its own hue on its tile;
+  // a channel and a doc have none, only an ink-3 glyph.
+  it("marks a project in its own hue, and a channel in none", () => {
     const input = open()
+    type(input, "q4")
+    const project = row(group("Jump to"), "Q4 launch")!
+    expect(project.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("p1"))
     type(input, "eng")
-    const row = within(group("Jump to")!).getByText("engineering").closest("[cmdk-item]")!
-    expect(row.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("c1"))
+    const channel = row(group("Jump to"), "engineering")!
+    expect(channel.querySelector("[data-hue]")).toBeNull()
   })
 
   it("names no raw Tailwind hue for a kind", () => {
@@ -154,10 +179,11 @@ describe("the command palette", () => {
   })
 
   it("gives Boards the board glyph, not the page glyph Docs has", () => {
-    open()
-    const row = (label: string) => within(group("Navigate")!).getByText(label).closest("[cmdk-item]")!
-    expect(row("Boards").querySelector("svg")?.getAttribute("class")).toMatch(/lucide-layout-dashboard/)
-    expect(row("Docs").querySelector("svg")?.getAttribute("class")).toMatch(/lucide-file-text/)
+    const input = open()
+    type(input, "boards")
+    expect(row(group("Commands"), "Boards")!.querySelector("svg")?.getAttribute("class")).toMatch(/lucide-layout-dashboard/)
+    type(input, "docs")
+    expect(row(group("Commands"), "Docs")!.querySelector("svg")?.getAttribute("class")).toMatch(/lucide-file-text/)
   })
 
   // Typed whole, "Docs" sat under two tasks that only mention docs, and the
@@ -189,9 +215,10 @@ describe("the command palette", () => {
   it("hangs from a fixed height rather than the middle of the window", () => {
     open()
     const dialog = document.querySelector("[data-command-dialog]") as HTMLElement
-    expect(dialog.className).toMatch(/\btop-\[\d+dvh\]/)
-    expect(dialog.className).toMatch(/\btranslate-y-0\b/)
-    expect(dialog.className).not.toMatch(/top-\[50%\]|translate-y-\[-50%\]/)
+    expect(dialog.className).toMatch(/\bpalette\b/)
+    const frame = rule(".palette {")
+    expect(frame).toMatch(/top:\s*14dvh/)
+    expect(frame).not.toMatch(/top:\s*50%|translate/)
   })
 
   it("doesn't list a place twice, once to jump to and once as a hit", () => {
@@ -207,3 +234,153 @@ describe("the command palette", () => {
     expect(within(hits).queryByText("Q4 launch")).toBeNull()
   })
 })
+
+// The palette's CSS block (globals.css, "V3 SHELL: PALETTE").
+const CSS = readFileSync(resolve(__dirname, "../../app/globals.css"), "utf8")
+const BLOCK = CSS.slice(CSS.indexOf("/* V3 SHELL: PALETTE */"))
+function rule(selector: string): string {
+  const at = BLOCK.indexOf(`\n${selector}`)
+  expect(at, `${selector} is styled`).toBeGreaterThan(-1)
+  return BLOCK.slice(at, BLOCK.indexOf("}", at))
+}
+
+describe("the palette, as design v3 draws it (shell P1)", () => {
+  it("is 640px wide at r16 on the modal step, with no blur behind it", () => {
+    const frame = rule(".palette {")
+    expect(frame).toMatch(/width:\s*min\(640px, calc\(100vw - 32px\)\)/)
+    expect(frame).toMatch(/border-radius:\s*16px/)
+    expect(frame).toMatch(/box-shadow:\s*var\(--e4\)/)
+    expect(rule(".palette-scrim {")).toMatch(/rgb\(10 11 14 \/ 0\.32\)/)
+    expect(BLOCK).not.toMatch(/backdrop-filter/)
+  })
+
+  it("has a 52px field at 16px", () => {
+    expect(rule(".palette-input-row {")).toMatch(/height:\s*52px/)
+    expect(rule(".palette-input {")).toMatch(/font-size:\s*16px/)
+  })
+
+  it("rows are 40px at r8, and the selected one carries the accent tick, not a grey fill alone", () => {
+    expect(rule(".palette-row {")).toMatch(/height:\s*40px[\s\S]*border-radius:\s*8px/)
+    expect(rule('.palette-row[data-selected="true"]::before {')).toMatch(/width:\s*2px[\s\S]*background:\s*var\(--brand\)/)
+  })
+
+  it("marks what matched by weight, not a tint", () => {
+    expect(rule(".palette mark {")).toMatch(/background:\s*transparent[\s\S]*font-weight:\s*590/)
+    const input = open()
+    type(input, "eng")
+    expect(row(group("Jump to"), "engineering")!.querySelector("mark")?.textContent).toBe("eng")
+  })
+
+  it("has no close button: Esc and the scrim close it", () => {
+    open()
+    const dialog = document.querySelector("[data-command-dialog]") as HTMLElement
+    expect(within(dialog).queryByRole("button", { name: /close/i })).toBeNull()
+  })
+
+  it("opens on what you were just in and a few things to start, not every destination", () => {
+    state.recentItems.items = [{ id: "p1", type: "project", title: "Q4 launch", path: "/app/project/p1", timestamp: 1 }]
+    features = { [FEATURE_AI]: true }
+    open()
+    const headings = [...document.querySelectorAll("[cmdk-group-heading]")].map((h) => h.textContent)
+    expect(headings).toEqual(["Recent", "Suggested"])
+    expect(group("Navigate")).toBeUndefined()
+    expect(row(group("Suggested"), "New message")).toBeTruthy()
+    expect(screen.queryByText("Ask OneCamp AI…")).toBeNull()
+    expect(document.querySelectorAll("[cmdk-item]").length).toBeLessThanOrEqual(10)
+  })
+
+  // The edition without AI: no Ask, whatever the server says.
+  it("has no Ask at all, even where the server claims AI", () => {
+    features = { [FEATURE_AI]: true }
+    const input = open()
+    expect(screen.queryByText("Ask OneCamp AI…")).toBeNull()
+    expect(screen.queryByRole("group", { name: "Search or ask" })).toBeNull()
+    type(input, "launch")
+    act(() => void fireEvent.keyDown(input, { key: "Tab" }))
+    expect(screen.queryByTestId("ask-view")).toBeNull()
+  })
+
+  it("teaches a destination's G key on its row", () => {
+    expect(commandKeys("nav-inbox")).toBe(`G ${GO_KEYS.find((g) => g.to === "/app/inbox")!.key.toUpperCase()}`)
+    const input = open()
+    type(input, "inbox")
+    expect(row(group("Commands"), "Inbox")!.querySelector('[aria-label^="G then"]')).toBeTruthy()
+  })
+
+  it("pushes a page for an argument, and Backspace on an empty field pops it", () => {
+    open()
+    fireEvent.click(row(group("Suggested"), "Change theme")!)
+    const input = document.querySelector("[cmdk-input]") as HTMLInputElement
+    expect(document.querySelector(".palette-crumb")?.textContent).toBe("Theme")
+    expect(row(document.querySelector(".palette-list") as HTMLElement, "Match my device")).toBeTruthy()
+    act(() => void fireEvent.keyDown(input, { key: "Backspace" }))
+    expect(document.querySelector(".palette-crumb")).toBeNull()
+    expect(group("Suggested")).toBeTruthy()
+  })
+
+  it("opens from elsewhere with a query, and says it is open", () => {
+    render(<CommandPalette />)
+    const seen: boolean[] = []
+    const stop = onPaletteState((o) => seen.push(o))
+    act(() => openPalette({ query: "q4" }))
+    const input = document.querySelector("[cmdk-input]") as HTMLInputElement
+    expect(input.value).toBe("q4")
+    expect(seen.at(-1)).toBe(true)
+    stop()
+  })
+
+  it("suggests the nearest name when nothing matched", () => {
+    expect(closestName("qz launch", ["Q4 launch", "engineering"])).toBe("Q4 launch")
+    expect(closestName("zzzzzz", ["Q4 launch"])).toBeNull()
+  })
+
+  it("pauses for the Slack set, ending tomorrow at 9", () => {
+    const now = new Date(2026, 9, 11, 15, 0)
+    const choices = pauseChoices(now)
+    expect(choices.map((c) => c.label)).toEqual(["30 minutes", "1 hour", "2 hours", "Until tomorrow at 9:00"])
+    expect(choices[3].until.getDate()).toBe(12)
+    expect(choices[3].until.getHours()).toBe(9)
+  })
+})
+
+describe("no Ask in the palette (shell P2, edition without AI)", () => {
+  it("opens on Search even when asked for Ask", () => {
+    features = { [FEATURE_AI]: true }
+    render(<CommandPalette />)
+    act(() => openPalette({ mode: "ask" }))
+    expect(screen.queryByTestId("ask-view")).toBeNull()
+    expect(document.querySelector(".palette-input-row")?.getAttribute("data-mode")).toBe("search")
+  })
+})
+
+describe("previews and open beside (shell P3)", () => {
+  it("⌘⏎ opens the selected row beside the page", () => {
+    const input = open()
+    type(input, "war-ro")
+    dispatched.mockClear()
+    act(() => void fireEvent.keyDown(input, { key: "Enter", metaKey: true }))
+    const action = dispatched.mock.calls.map((c) => c[0]).find((a) => /openInSplit/.test(a?.type ?? ""))
+    expect(action?.payload).toMatchObject({ kind: "channel", id: "chan-war-room" })
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it("Space on an empty field previews the selected row, and Space again closes it", () => {
+    state.recentItems.items = [{ id: "d1", type: "doc", title: "Launch sync notes", path: "/app/doc/d1", timestamp: 1 }]
+    const input = open()
+    act(() => void fireEvent.keyDown(input, { key: " " }))
+    const peek = document.querySelector(".palette-peek")
+    expect(peek?.textContent).toMatch(/Launch sync notes/)
+    act(() => void fireEvent.keyDown(input, { key: " " }))
+    expect(document.querySelector(".palette-peek")).toBeNull()
+  })
+
+  it("a space typed into a query stays a space", () => {
+    const input = open()
+    type(input, "q4")
+    const ev = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true })
+    act(() => void input.dispatchEvent(ev))
+    expect(ev.defaultPrevented).toBe(false)
+    expect(document.querySelector(".palette-peek")).toBeNull()
+  })
+})
+

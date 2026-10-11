@@ -50,16 +50,29 @@ function toHexColor(value: string): string | null {
   return typeof resolved === "string" && resolved.startsWith("#") ? resolved : null
 }
 
+/**
+ * Which token the browser's bar continues (design v3, mobile F4 and C5). On a
+ * phone the page is the sheet edge to edge and the top bar is the sheet's
+ * colour, so the status area is the sheet; from 640px the sidebar's frame is.
+ * While a large sheet pushes the page back as a card, vaul paints the body
+ * black, and the status area goes black with it, as iOS's page sheets do.
+ * Pure.
+ */
+export function chromeToken(width: number, bodyBackground: string): "--sheet" | "--canvas" | "black" {
+  if (/\bblack\b|rgb\(0, 0, 0\)/.test(bodyBackground)) return "black"
+  return width < 640 ? "--sheet" : "--canvas"
+}
+
 export function ThemeColorMeta() {
   useEffect(() => {
     const apply = () => {
-      // The app's chrome (top bar, sidebar, the mobile header) is the canvas,
-      // so that is what the browser bar continues. The canvas is the theme's
-      // wash, declared on body (where the theme class is), so it is read
-      // there: on <html> it is still the unthemed value. Pages without the app
-      // frame leave --canvas as the same token, and body is the fallback.
-      const canvas = getComputedStyle(document.body).getPropertyValue("--canvas").trim()
-      const background = canvas || getComputedStyle(document.body).backgroundColor
+      // The app's chrome (the sidebar on the frame; the phone's top bar on
+      // the sheet) is what the browser bar continues. Tokens are declared on
+      // body (where the theme class is), so they are read there: on <html>
+      // they are still the unthemed value. body's background is the fallback.
+      const token = chromeToken(window.innerWidth, document.body.style.background || document.body.style.backgroundColor)
+      const value = token === "black" ? "#000000" : getComputedStyle(document.body).getPropertyValue(token).trim()
+      const background = value || getComputedStyle(document.body).backgroundColor
       if (!background) return
       const hex = toHexColor(background)
       if (!hex) return
@@ -91,11 +104,15 @@ export function ThemeColorMeta() {
     // Covers mode="system": the OS flipping appearance restyles the shell.
     const media = window.matchMedia("(prefers-color-scheme: dark)")
     media.addEventListener("change", schedule)
+    // Crossing 640px swaps the phone shell for the desktop one.
+    const phone = window.matchMedia("(max-width: 639.98px)")
+    phone.addEventListener?.("change", schedule)
 
     return () => {
       cancelAnimationFrame(frame)
       observer.disconnect()
       media.removeEventListener("change", schedule)
+      phone.removeEventListener?.("change", schedule)
     }
   }, [])
 

@@ -24,6 +24,7 @@ import { getNextNotification } from "@/lib/utils/getNextNotification"
 import { usePost } from "@/hooks/usePost"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
+import { openChannelDetails } from "@/components/channel/details/openChannelDetails"
 import { UserProfileInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -127,12 +128,7 @@ export function ChannelMobileSheet({ open, onOpenChange, channelId }: SidePanelP
                             <button
                                 type="button"
                                 onClick={() =>
-                                    dispatch(
-                                        openUI({
-                                            key: "editChannelMember",
-                                            data: { channelUUID: channelId },
-                                        }),
-                                    )
+                                    dispatch(openChannelDetails(channelId))
                                 }
                                 aria-label="Add or manage members"
                                 className={cn(

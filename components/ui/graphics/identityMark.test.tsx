@@ -37,13 +37,18 @@ describe("IdentityMark", () => {
     expect(container.querySelector("svg")!.getAttribute("data-hue")).toBe("moss")
   })
 
-  it("draws a person without a photo as tint, ink initials and a strong hairline", () => {
+  it("draws a person without a photo as the saturated avatar cut with white initials", () => {
     const { getByText } = render(<IdentityMark variant="avatar" id="Maya Chen" label="Maya Chen" />)
     const initials = getByText("MC")
     expect(initials.className).toContain(`hue-${hueFor("Maya Chen")}`)
-    expect(initials.className).toContain("bg-hue-tint")
-    expect(initials.className).toContain("text-hue-ink")
-    expect(initials.className).toContain("ring-hue/40")
+    expect(initials.className).toContain("avatar-person")
+    // 37.5% of the size: 12px at the default 32.
+    expect(initials.style.fontSize).toBe("12px")
+  })
+
+  it("shows one initial below 24px, two from there up", () => {
+    const { getByText } = render(<IdentityMark variant="avatar" id="Maya Chen" label="Maya Chen" size={20} />)
+    expect(getByText("M")).toBeTruthy()
   })
 
   it("names itself only when asked to, for a mark that stands alone", () => {

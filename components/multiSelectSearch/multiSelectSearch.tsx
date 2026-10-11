@@ -168,7 +168,7 @@ export function MultiSelectSearch<T extends SearchableItem>({
             </div>
 
             {isOpen && (filteredResults.length > 0 || isLoading) && (
-                <div ref={dropdownRef} className="absolute z-[var(--z-dropdown)] mt-1 w-full rounded-md border bg-background shadow-lg">
+                <div ref={dropdownRef} className="absolute z-[var(--z-dropdown)] mt-1 w-full rounded-md border bg-background shadow-e3">
                     <SearchResultsList
                         items={filteredResults}
                         selectedIndex={selectedIndex}

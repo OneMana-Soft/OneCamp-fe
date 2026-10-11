@@ -1,45 +1,68 @@
 "use client"
 
-// A colour from the palette statuses and field options share (lib/taskStatus
-// STATUS_COLORS): a dot that opens a grid of the others.
+// A colour for a status or a field option (design v3, work.md W48): the camp
+// hues, each a named swatch. Writes the name the server stores
+// (lib/taskStatus STORED_NAME), so what was saved before still reads.
+// `hues` narrows the choice (a status offers only its category's hues).
 
 import { useState } from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { STATUS_COLORS, colorDot } from "@/lib/taskStatus"
+import { STORED_NAME, colorDot, statusHueOf, type StatusHue } from "@/lib/taskStatus"
+import { Check } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 
-export function ColorPicker({ value, onChange, disabled }: { value: string; onChange: (c: string) => void; disabled?: boolean }) {
+const HUE_NAME: Record<StatusHue, string> = {
+  neutral: "Grey",
+  sun: "Sun",
+  moss: "Moss",
+  lake: "Lake",
+  sky: "Sky",
+  dusk: "Dusk",
+  berry: "Berry",
+}
+
+const ALL: StatusHue[] = ["neutral", "sky", "lake", "moss", "sun", "berry", "dusk"]
+
+export function ColorPicker({ value, onChange, disabled, hues = ALL }: { value: string; onChange: (c: string) => void; disabled?: boolean; hues?: StatusHue[] }) {
   const [open, setOpen] = useState(false)
+  const current = statusHueOf(value)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           disabled={disabled}
-          aria-label={`Colour: ${value}`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          aria-label={`Colour: ${HUE_NAME[current]}`}
+          className="flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
-          <span className={cn("h-3 w-3 rounded-full", colorDot(value))} />
+          <span className={cn("size-3 rounded-full", colorDot(value))} />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2" align="start">
-        <div className="grid grid-cols-6 gap-1" role="listbox" aria-label="Colour">
-          {STATUS_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              role="option"
-              aria-selected={c === value}
-              aria-label={c}
-              onClick={() => {
-                setOpen(false)
-                onChange(c)
-              }}
-              className={cn("flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent", c === value && "ring-2 ring-ring/40")}
-            >
-              <span className={cn("h-3.5 w-3.5 rounded-full", colorDot(c))} />
-            </button>
-          ))}
+      <PopoverContent className="w-auto p-1.5" align="start">
+        <div className="flex gap-1" role="listbox" aria-label="Colour">
+          {hues.map((h) => {
+            const stored = STORED_NAME[h]
+            const on = h === current
+            return (
+              <button
+                key={h}
+                type="button"
+                role="option"
+                aria-selected={on}
+                aria-label={HUE_NAME[h]}
+                title={HUE_NAME[h]}
+                onClick={() => {
+                  setOpen(false)
+                  onChange(stored)
+                }}
+                className={cn("flex size-7 items-center justify-center rounded-md hover:bg-hover", on && "bg-press")}
+              >
+                <span className={cn("flex size-4 items-center justify-center rounded-full text-white", colorDot(stored))}>
+                  {on && <Check className="size-2.5" aria-hidden="true" />}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </PopoverContent>
     </Popover>

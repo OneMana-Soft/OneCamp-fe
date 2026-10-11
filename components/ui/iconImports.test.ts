@@ -3,8 +3,8 @@ import { readFileSync, readdirSync } from "node:fs"
 import { resolve, relative } from "node:path"
 
 /**
- * ICON RULE: icons come from @/lib/icons, one Lucide registry, drawn at a 1.5
- * stroke (globals.css sets it for every icon left at Lucide's default).
+ * ICON RULE: icons come from @/lib/icons, one Lucide registry, drawn at one
+ * rendered 1.25px stroke whatever the size (design v3; iconStroke.test.ts).
  *
  * A file that imports a glyph straight from lucide-react skips the registry,
  * which is how one meaning ends up with two glyphs on two screens and how a
@@ -57,8 +57,11 @@ describe("icon imports", () => {
     ).toBeLessThanOrEqual(DIRECT_GLYPH_IMPORT_BASELINE)
   })
 
-  it("makes 1.5 the stroke for every icon left at Lucide's default", () => {
+  it("leaves the stroke to the one rule in globals.css", () => {
+    // The wave 1 rule (a 1.5 stroke for icons left at Lucide's default) drew
+    // 16px icons at 1.0px and 12px ones at 0.75px; v3 draws them all at 1.25.
     const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
-    expect(css).toMatch(/svg\.lucide\[stroke-width="2"\]\s*\{\s*stroke-width:\s*1\.5;/)
+    expect(css).not.toMatch(/svg\.lucide\[stroke-width="2"\]/)
+    expect(css).toMatch(/svg\.lucide \{\s*stroke-width: 1\.25px;/)
   })
 })

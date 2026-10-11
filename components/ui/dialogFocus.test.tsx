@@ -114,15 +114,16 @@ describe("Dialog initial focus", () => {
   })
 })
 
-describe("focus on filled buttons", () => {
-  it("is a thin outline standing off the fill, not a ring pressed against it", () => {
-    for (const variant of ["default", "destructive"] as const) {
+describe("focus on buttons", () => {
+  // Design v3 (§3.11): every button, filled or not, takes a 2px accent ring
+  // 2px off its surface, drawn as an outline so forced-colours mode keeps it.
+  // The gap is what makes it read as a ring on an orange fill.
+  it("is a 2px accent outline standing 2px off the button, on every variant", () => {
+    for (const variant of ["default", "destructive", "secondary", "outline", "ghost", "subtle", "link"] as const) {
       const cls = buttonVariants({ variant })
-      expect(cls).toContain("focus-visible:outline-offset-2")
-      expect(cls).toContain("focus-visible:outline-[1.5px]")
-      expect(cls).toContain("focus-visible:ring-0")
+      expect(cls, variant).toContain("focus-visible:outline-offset-2")
+      expect(cls, variant).toContain("focus-visible:outline-2")
+      expect(cls, variant).toContain("focus-visible:outline-ring")
     }
-    // Unfilled buttons keep the ring; it reads on their own ground.
-    expect(buttonVariants({ variant: "outline" })).not.toContain("focus-visible:ring-0")
   })
 })

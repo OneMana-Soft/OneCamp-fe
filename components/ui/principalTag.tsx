@@ -1,5 +1,6 @@
-import { Badge } from "@/components/ui/badge"
 import { isAIBot } from "@/lib/botCopy"
+import { Spark } from "@/components/ui/graphics/motifs"
+import { ArrowLeftRight } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -49,6 +50,9 @@ interface PrincipalKindSpec {
   tone?: string
 }
 
+/** A neutral tag: the hover overlay inside a hairline. */
+const NEUTRAL = "bg-hover text-muted-foreground ring-1 ring-inset ring-line"
+
 const PRINCIPAL_KINDS: Record<PrincipalKind, PrincipalKindSpec> = {
   // Primary tint, because an agent acting in your workspace is a first-class
   // participant and the marker should read as informative, not as a warning.
@@ -57,18 +61,20 @@ const PRINCIPAL_KINDS: Record<PrincipalKind, PrincipalKindSpec> = {
   // rather than "AI", which also reads as "written by AI" about the text.
   ai: {
     label: "Agent", spoken: "AI agent", title: "AI agent: acts for the person who set it up", variant: "secondary",
-    tone: "border-transparent bg-agent-muted text-agent hover:bg-agent-muted",
+    tone: "bg-agent-muted text-agent-ink",
   },
   // Neutral, because "outside the company" is a fact about scope rather than a
   // problem; colouring it as a warning would editorialise every guest's name.
-  guest: { label: "Guest", spoken: "Guest user", title: "Guest: outside this workspace", variant: "secondary" },
+  // Sun (design v3, §3.10): a guest is outside the company, which a member
+  // needs to see at a glance; a person's avatar stays a circle.
+  guest: { label: "Guest", spoken: "Guest user", title: "Guest: outside this workspace", variant: "secondary", tone: "bg-camp-sun-tint text-camp-sun-ink" },
   // A person in a linked Slack channel, named as the author of what the Slack
   // bridge carried across. Neutral for the same reason as a guest.
-  bridge: { label: "Slack", spoken: "Person in Slack", title: "Slack: written in the linked Slack channel", variant: "secondary" },
+  bridge: { label: "Slack", spoken: "Person in Slack", title: "Slack: written in the linked Slack channel", variant: "secondary", tone: NEUTRAL },
   // Every other bot: the Check-in, Slack and channel-guest relays, workflows'
   // automation account, and any kind this build doesn't know. Neutral, and it
   // claims nothing about AI, because none of them has one behind it.
-  bot: { label: "Bot", spoken: "Automated account", title: "Bot: an automated account, not a person", variant: "secondary" },
+  bot: { label: "Bot", spoken: "Automated account", title: "Bot: an automated account, not a person", variant: "secondary", tone: NEUTRAL },
 }
 
 /**
@@ -91,19 +97,21 @@ export function PrincipalTag({
   const spec = PRINCIPAL_KINDS[kind]
   if (!spec) return null
   return (
-    <Badge
-      variant={spec.variant}
-      size="sm"
+    <span
       title={spec.title}
-      // Sentence case at 12px, weight 500: "Agent", "Guest", "Bot". In capitals
-      // with wide tracking the tag outshouted the name it sits beside, on every
-      // message an agent or a bot wrote. rounded-sm, not rounded-full: a label,
-      // not a count pill.
-      className={cn("rounded-sm shrink-0 font-medium", spec.tone, className)}
+      data-principal-tag={kind}
+      // Design v3's tag: 18px, r5, 11/510, sentence case ("Agent", "Guest",
+      // "Bot"). In capitals with wide tracking it outshouted the name beside
+      // it, on every message an agent or a bot wrote.
+      className={cn("tag text-3xs shrink-0", spec.tone, className)}
     >
-      <span aria-hidden="true">{spec.label}</span>
+      {/* The agent's spark and the bridge's arrows, 10px before the word
+          (design v3 chat, C10): the kind reads before the word is read. */}
+      {kind === "ai" && <Spark size={10} className="shrink-0" />}
+      {kind === "bridge" && <ArrowLeftRight className="size-2.5 shrink-0" aria-hidden="true" />}
+      <span aria-hidden="true" data-tag-label="">{spec.label}</span>
       <span className="sr-only">{spec.spoken}</span>
-    </Badge>
+    </span>
   )
 }
 

@@ -87,10 +87,11 @@ describe("a setting's row", () => {
     const row = container.firstElementChild as HTMLElement
     expect(row.className).toContain("@container")
     expect(row.className).not.toMatch(/(^|\s)sm:flex-row/)
+    // A grid of the words and an auto control column from 520px of ROW width.
     const inner = row.firstElementChild as HTMLElement
-    expect(inner.className).toContain("flex-col")
-    expect(inner.className).toContain("@xl:flex-row")
-    expect(inner.className).toContain("@xl:items-center")
+    expect(inner.className).toContain("grid")
+    expect(inner.className).toContain("@min-[520px]:grid-cols-[minmax(0,1fr)_auto]")
+    expect(inner.className).toContain("@min-[520px]:items-center")
     const control = inner.lastElementChild as HTMLElement
     expect(control.className).toContain("shrink-0")
     expect(control.querySelector("select")).toBeTruthy()
@@ -119,7 +120,7 @@ describe("a settings section", () => {
   it("is a titled region whose title is a level 2 heading by default", () => {
     render(<SettingsSection title="Workspace" description="Uploads and sign-up."><p>rows</p></SettingsSection>)
     const region = screen.getByRole("region", { name: "Workspace" })
-    expect(screen.getByRole("heading", { level: 2, name: "Workspace" }).className).toContain("text-base")
+    expect(screen.getByRole("heading", { level: 2, name: "Workspace" }).className).toContain("text-heading")
     expect(region.querySelector("[data-section-header]")).toBeNull()
   })
 

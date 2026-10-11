@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Suspense } from "react"
 
 vi.mock("@/services/bookingService", () => ({
@@ -7,14 +7,14 @@ vi.mock("@/services/bookingService", () => ({
   cancelBooking: vi.fn(),
 }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "Asia/Kolkata" }))
-vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null }))
+vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null, madeWithHref: () => "" }))
 
 import ManageBooking from "./page"
 
 afterEach(cleanup)
 
 describe("a booking's own page", () => {
-  it("names the meeting once, says who it is with on its own line, and the time with 'to'", async () => {
+  it("names the meeting once, says who it is with on its own line, and shows the ticket in the public frame", async () => {
     await act(async () => {
       render(
         <Suspense fallback={null}>
@@ -26,8 +26,22 @@ describe("a booking's own page", () => {
     expect(title).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/with Sam with/)
     expect(screen.getByText("With Sam Rivera")).toBeTruthy()
-    expect(screen.getByText(/^Wednesday 14 October, 11:00\sAM to 11:30\sAM$/)).toBeTruthy()
-    // The icon is on a hue tile; the accent is left to the one action.
+    expect(screen.getByText("Wednesday 14 October")).toBeTruthy()
+    expect(screen.getByText(/^11:00\sAM – 11:30\sAM · /)).toBeTruthy()
+    expect(document.querySelector("[data-public-frame] [data-ticket]")).toBeTruthy()
     expect(document.querySelector("svg.text-primary")).toBeNull()
+  })
+
+  it("asks before cancelling, in the page, not with a browser dialog", async () => {
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <ManageBooking params={Promise.resolve({ token: "t" })} />
+        </Suspense>,
+      )
+    })
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }))
+    expect(screen.getByText("Cancel this meeting?")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Keep it" })).toBeTruthy()
   })
 })

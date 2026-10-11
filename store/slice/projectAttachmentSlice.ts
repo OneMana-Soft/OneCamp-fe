@@ -9,6 +9,12 @@ interface FilePreview {
     cancelSource: CancelTokenSource
     attachmentType: AttachmentType
     uuid?: string,
+    /** The file itself, so a failed upload can be tried again from its card. */
+    file?: File,
+    /** Its size in bytes, for "1.2 of 2.4 MB". */
+    size?: number,
+    /** The upload failed; the card says so and offers Retry (content.md F04). */
+    failed?: boolean,
 }
 
 
@@ -113,6 +119,13 @@ export const projectAttachmentSlice = createSlice({
         },
 
 
+        markProjectAttachmentPreviewFailed: (state, action: {payload: {key: string, projectUUID: string}}) => {
+            const { key, projectUUID } = action.payload;
+            const entry = state.projectAttachmentInputState[projectUUID];
+            if (!entry) return;
+            entry.filesPreview = entry.filesPreview.map((item) => (item.key === key ? { ...item, failed: true } : item));
+        },
+
         addProjectAttachmentUploadedFiles: (state, action: {payload: AddUploadedFiles}) => {
             const { filesUploaded, projectUUID } = action.payload;
             if(!state.projectAttachmentInputState[projectUUID]) {
@@ -147,6 +160,7 @@ export const {
     addProjectAttachmentUploadedFiles,
     removeProjectAttachmentUploadedFiles,
     clearProjectAttachmentInputState,
-    updateProjectAttachmentPreviewFilesUUID
+    updateProjectAttachmentPreviewFilesUUID,
+    markProjectAttachmentPreviewFailed,
 
 } =projectAttachmentSlice.actions

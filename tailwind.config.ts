@@ -53,15 +53,27 @@ export default {
   				'5': 'hsl(var(--chart-5))'
   			}
   		},
-  		// Mirrors the four-step scale in app/globals.css (@theme), which is
+  		// Mirrors design v3's scale in app/globals.css (@theme), which is
   		// what Tailwind v4 actually reads: this file is not loaded (no @config)
-  		// and stays only for the shadcn CLI (components.json).
+  		// and stays only for the shadcn CLI (components.json). --radius is 8px:
+  		// xs 4, sm 6, md 8, lg and xl 12, 2xl 16, 3xl 20.
   		borderRadius: {
+  			xs: 'calc(var(--radius) - 4px)',
   			sm: 'calc(var(--radius) - 2px)',
   			md: 'var(--radius)',
   			lg: 'calc(var(--radius) + 4px)',
   			xl: 'calc(var(--radius) + 4px)',
-  			'2xl': 'calc(var(--radius) + 8px)'
+  			'2xl': 'calc(var(--radius) + 8px)',
+  			'3xl': 'calc(var(--radius) + 12px)'
+  		},
+  		// The elevation ladder (globals.css :root and .dark).
+  		boxShadow: {
+  			e1: 'var(--e1)',
+  			sel: 'var(--e-sel)',
+  			e2: 'var(--e2)',
+  			e3: 'var(--e3)',
+  			e4: 'var(--e4)',
+  			sheet: 'var(--e-sheet)'
   		},
   		keyframes: {
   			blink: {

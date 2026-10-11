@@ -1,98 +1,94 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "fs"
 
-// A DM header and a group-chat header are the same object at different arities.
-// They drifted: the group one was a plain div at text-lg with p-2, no height, no
-// sticky and no background, so beside a DM it sat at a different height, scrolled
-// away with the messages, and let the thread show through it.
-//
-// Source-level rather than a render test: both components need Redux, SWR, MQTT
-// and a router to mount, and what matters is the shell they share.
+// The three conversation headers (channel, DM, group) are one object at three
+// arities (design v3 chat, C01, C02, C04 to C06): 52px on the sheet with a
+// hairline below, the title at 15/590, then at most three trailing controls
+// beside who is here. Source-level rather than a render test: the views need
+// Redux, SWR, MQTT and a router to mount, and what matters is the shell.
 const dm = readFileSync("components/chat/chatIdDesktop.tsx", "utf8")
 const group = readFileSync("components/groupChat/chatGrpIdDesktop.tsx", "utf8")
-// The channel header was the third dialect and the worst of them: a plain div
-// at text-lg with p-2, no height, not sticky and not opaque, so it scrolled
-// away with the conversation and let the thread show through it. That is the
-// collision people saw when a thread or the AI panel was open beside it.
 const channel = readFileSync("components/channel/chanelIdDesktop.tsx", "utf8")
+const parts = readFileSync("components/channel/conversationHeaderParts.tsx", "utf8")
 
 const headerOf = (src: string) => {
   const start = src.indexOf("<header")
   expect(start, "no <header> element").toBeGreaterThan(-1)
+  return src.slice(start, src.indexOf("</header>", start))
+}
+const shellOf = (src: string) => {
+  const start = src.indexOf("<header")
   return src.slice(start, src.indexOf(">", start) + 1)
 }
 
 describe("chat headers stay consistent", () => {
-  // The shell classes are the whole point: height, padding, border, background,
-  // stickiness and the space-between that ranges actions right.
   it.each([
-    ["h-12 md:h-14", "same height"],
-    ["px-3 md:px-4", "same padding"],
-    ["justify-between", "actions ranged right, not crammed by the title"],
-    ["sticky top-0", "stays put while messages scroll"],
-    ["bg-background", "opaque, so the thread does not show through"],
-    ["border-b border-border/60", "same divider"],
+    ["h-[52px]", "52px, the sheet's header height"],
+    ["border-b border-line", "the hairline below"],
+    ["bg-sheet", "part of the sheet, opaque"],
+    ["sticky top-0", "never scrolls away"],
+    ["pl-5 pr-3", "the sheet's insets"],
   ])("every conversation header uses %s (%s)", (cls) => {
-    expect(headerOf(dm), `1:1 header missing ${cls}`).toContain(cls)
-    expect(headerOf(group), `group header missing ${cls}`).toContain(cls)
-    expect(headerOf(channel), `channel header missing ${cls}`).toContain(cls)
+    for (const [name, src] of [["channel", channel], ["1:1", dm], ["group", group]] as const) {
+      expect(shellOf(src), `${name} header missing ${cls}`).toContain(cls)
+      expect(shellOf(src)).not.toContain("md:h-14")
+    }
   })
 
-  // Both title lines are the same size and weight. The group one was text-lg,
-  // which read as a different level of heading on an adjacent screen.
-  it.each([
-    ["1:1", dm],
-    ["group", group],
-    ["channel", channel],
-  ])("%s title uses the shared type treatment", (_name, src) => {
-    // 16px since the QA pass: 14px was a list row's size, not a header's.
-    expect(src).toContain("text-base font-semibold text-foreground truncate leading-tight")
+  it("draws every title at the heading role (15/590)", () => {
+    for (const src of [channel, dm, group]) expect(headerOf(src)).toMatch(/data-header-title='' className='truncate text-heading text-ink/)
   })
 
-  // Both carry a muted second line, which is what keeps the two headers the same
-  // height rather than one being visually shorter.
-  it.each([
-    ["1:1", dm],
-    ["group", group],
-    ["channel", channel],
-  ])("%s header has a muted subtitle line", (_name, src) => {
-    expect(src).toContain("text-2xs text-muted-foreground leading-tight")
+  it("gives a channel no hue: a monochrome # (a lock when private), no hued tile", () => {
+    const h = headerOf(channel)
+    expect(h).not.toContain("IdentityMark")
+    expect(h).toMatch(/<Hash className='size-\[18px\] shrink-0 text-ink-3'/)
+    expect(h).toContain("<Lock")
   })
 
-  // A header that scrolls sideways is the bug the old overflow-auto caused.
-  it("no header scrolls on its own", () => {
-    expect(headerOf(dm)).not.toContain("overflow-auto")
-    expect(headerOf(group)).not.toContain("overflow-auto")
-    expect(headerOf(channel)).not.toContain("overflow-auto")
+  it("makes the channel's name and topic one button: its details", () => {
+    expect(headerOf(channel)).toMatch(/aria-label='Channel details'/)
   })
 
-  // Eight icons in a row, every one of them carrying an aria-label and saying
-  // nothing to anybody looking at it. The two AI ones were the least guessable
-  // and the most worth finding.
-  it("names the channel header's icon controls on hover, not only to a screen reader", () => {
-    const actions = channel.slice(channel.indexOf("<header"), channel.indexOf("</header>"))
-    const iconButtons = (actions.match(/size='icon'/g) || []).length
-    const tooltips = (actions.match(/<WithTooltip/g) || []).length
-    // A floor, and a ceiling: the header once had eight buttons of equal
-    // weight. Anything used less than every minute belongs in its "More" menu.
-    expect(iconButtons).toBeGreaterThanOrEqual(3)
-    expect(iconButtons, "the channel header is crowding again; move actions into More").toBeLessThanOrEqual(5)
-    expect(tooltips, "icon controls in the channel header with no visible name").toBeGreaterThanOrEqual(iconButtons - 1)
+  it("keeps at most three trailing controls beside who is here", () => {
+    const right = headerOf(channel).split("<MemberStack")[1] ?? ""
+    const controls = (right.match(/<HuddleButton|aria-label='Search'|aria-label="More channel actions"/g) || []).length
+    expect(controls).toBe(3)
+    expect(headerOf(channel)).not.toContain("<NotificationBell")
   })
-})
 
-// The bar's header: a big, calm title, and metadata as dot plus word under it.
-// Titles were 14px, the size of a list row; a DM had a second line only while
-// the person was online.
-describe("chat headers read as headers", () => {
-  it("draw every title at 16px", () => {
-    for (const src of [dm, group, channel]) expect(src).toContain("data-header-title='' className='text-base font-semibold")
+  it("never cycles notifications on a click: a radio menu", () => {
+    for (const src of [channel, dm, group]) {
+      expect(src).not.toContain("getNextNotification")
+      expect(src).toContain("<NotificationSubmenu")
+    }
+    expect(parts).toContain("DropdownMenuRadioGroup")
   })
-  it("always give a DM its presence line", () => {
-    expect(dm).toMatch(/data-header-meta=''/)
-    expect(dm).not.toMatch(/\{isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now/)
+
+  it("puts the More menus on the floating material at w-64, destructive items in ink", () => {
+    expect(channel).toContain('<DropdownMenuContent align="end" className="pop-surface w-64 p-1">')
+    expect(channel).not.toMatch(/bg-destructive/)
   })
-  it("keeps the channel menu's items on one line", () => {
-    expect(channel).toContain('<DropdownMenuContent align="end" className="w-72">')
+
+  it("labels every icon button on hover, in all three", () => {
+    for (const src of [channel, dm, group]) {
+      const h = headerOf(src)
+      const icons = (h.match(/size='icon'/g) || []).length
+      const tips = (h.match(/<WithTooltip/g) || []).length
+      expect(tips, "every icon button has a tooltip").toBeGreaterThanOrEqual(icons)
+    }
+  })
+
+  it("gives a DM its status line, and an agent its provenance instead of Huddle", () => {
+    const h = headerOf(dm)
+    expect(h).toContain("data-header-meta")
+    expect(h).toContain("Acts for you · can do only what you can")
+    expect(h).toMatch(/\{!isBotPeer && \(\s*<FeatureGate feature=\{FEATURE_CALLS\}>\s*<HuddleButton/)
+  })
+
+  it("draws the live huddle in moss with one halo, never a ping", () => {
+    expect(parts).toContain("bg-camp-moss-tint")
+    expect(parts).toContain("motion-safe:animate-live-halo")
+    for (const src of [channel, dm, group]) expect(src).not.toMatch(/animate-ping/)
   })
 })

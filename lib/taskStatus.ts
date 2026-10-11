@@ -16,6 +16,9 @@
 import type { ComponentType } from "react"
 import { taskStatuses } from "@/types/table"
 import { isTimelineKey } from "@/lib/timelineKey"
+import { campHueOf, isCampHue, type CampHue } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import type { StatusKind } from "@/components/ui/graphics/glyphs"
 
 export type StatusCategory = "backlog" | "todo" | "inProgress" | "inReview" | "done" | "canceled"
 
@@ -50,6 +53,10 @@ export interface StatusOption {
   dot?: string
   /** The palette name, for custom statuses. */
   swatch?: string
+  /** Its glyph's shape: its category's. */
+  kind?: StatusKind
+  /** The hue its glyph draws in: a custom status's own, or neutral for the category's. */
+  hue?: StatusHue
 }
 
 /** What a task carries about its status. */
@@ -59,39 +66,89 @@ export interface TaskStatusFields {
   task_custom_status_name?: string
 }
 
+/**
+ * STATUS COLOUR (design v3, work.md §1.4). A status is a shape before it is a
+ * colour: its category's glyph (components/ui/graphics/glyphs StatusGlyph).
+ * A project's own status keeps its category's shape and takes one of the camp
+ * hues, which only tells two custom statuses apart; the shape keeps the
+ * meaning. The 17 Tailwind colours custom statuses picked from are gone.
+ *
+ * The server still stores one of its palette names (backend
+ * business/TaskStatus Colors), so a status's colour is read through
+ * statusHueOf (any stored name folds onto a camp hue, so every colour already
+ * saved keeps working) and written as STORED_NAME[hue].
+ */
+export type StatusHue = CampHue | "neutral"
+
+/** The hues a custom status may take, by the category it counts as. "neutral" is the category's own ink. */
+export const STATUS_HUES: Record<StatusCategory, StatusHue[]> = {
+  backlog: ["neutral"],
+  todo: ["neutral", "sky", "lake"],
+  inProgress: ["sun", "sky", "lake", "berry"],
+  inReview: ["dusk", "berry", "sky", "lake"],
+  done: ["moss", "lake"],
+  canceled: ["neutral"],
+}
+
+/** The name the server stores for each hue (one of its palette names). */
+export const STORED_NAME: Record<StatusHue, string> = {
+  neutral: "slate",
+  sun: "amber",
+  moss: "emerald",
+  lake: "teal",
+  sky: "sky",
+  dusk: "violet",
+  berry: "rose",
+}
+
+/** Every colour a status can be given: the stored names of the camp choices. */
+export const STATUS_COLORS: string[] = Object.values(STORED_NAME)
+
+/** A category's own hue: what a built-in status draws in (its glyph's colour). */
+const CATEGORY_HUE: Record<StatusCategory, StatusHue> = {
+  backlog: "neutral",
+  todo: "neutral",
+  inProgress: "sun",
+  inReview: "dusk",
+  done: "moss",
+  canceled: "neutral",
+}
+
+/**
+ * The hue a stored colour draws in. Any palette name folds onto the nearest
+ * camp hue (emerald is moss, violet dusk, rose berry...); slate and anything
+ * unknown are neutral, the category's own ink.
+ */
+export function statusHueOf(color: string | undefined | null, category?: StatusCategory): StatusHue {
+  if (!color || color === "slate" || color === "neutral") return "neutral"
+  if (isCampHue(color)) return color
+  return campHueOf(color) ?? (category ? CATEGORY_HUE[category] : "neutral")
+}
+
+/** The shape a category draws (StatusGlyph's kinds). */
+export const CATEGORY_KIND: Record<StatusCategory, StatusKind> = {
+  backlog: "backlog",
+  todo: "todo",
+  inProgress: "progress",
+  inReview: "review",
+  done: "done",
+  canceled: "cancelled",
+}
+
 // Literal class strings, so the stylesheet keeps every one of them.
-const PILL: Record<string, string> = {
-  slate: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  red: "bg-red-500/10 text-red-700 dark:text-red-300",
-  orange: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
-  amber: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  yellow: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300",
-  lime: "bg-lime-500/10 text-lime-700 dark:text-lime-300",
-  green: "bg-green-500/10 text-green-700 dark:text-green-300",
-  emerald: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  teal: "bg-teal-500/10 text-teal-700 dark:text-teal-300",
-  cyan: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
-  sky: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  blue: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  indigo: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
-  violet: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  purple: "bg-purple-500/10 text-purple-700 dark:text-purple-300",
-  pink: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
-  rose: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
-}
+const NEUTRAL_DOT = "bg-ink-3"
+const NEUTRAL_PILL = "bg-hover text-ink-2"
 
-const DOT: Record<string, string> = {
-  slate: "bg-slate-500", red: "bg-red-500", orange: "bg-orange-500", amber: "bg-amber-500",
-  yellow: "bg-yellow-500", lime: "bg-lime-500", green: "bg-green-500", emerald: "bg-emerald-500",
-  teal: "bg-teal-500", cyan: "bg-cyan-500", sky: "bg-sky-500", blue: "bg-blue-500",
-  indigo: "bg-indigo-500", violet: "bg-violet-500", purple: "bg-purple-500", pink: "bg-pink-500", rose: "bg-rose-500",
-}
-
-export const STATUS_COLORS = Object.keys(PILL)
-
-/** The dot for a palette colour, in pickers. */
+/** The 6px dot for a stored colour: a status's swatch, a select field's option. */
 export function colorDot(color: string): string {
-  return DOT[color] ?? DOT.slate
+  const h = statusHueOf(color)
+  return h === "neutral" ? NEUTRAL_DOT : `${HUE_CLASS[h]} bg-hue`
+}
+
+/** A tinted pill for a stored colour, where one is drawn on purpose. */
+function colorPill(color: string): string {
+  const h = statusHueOf(color)
+  return h === "neutral" ? NEUTRAL_PILL : `${HUE_CLASS[h]} bg-hue-tint text-hue-ink`
 }
 
 export const BUILT_IN_STATUSES: StatusOption[] = taskStatuses.map((s) => ({
@@ -102,6 +159,8 @@ export const BUILT_IN_STATUSES: StatusOption[] = taskStatuses.map((s) => ({
   icon: s.icon,
   color: s.color,
   dot: s.dot,
+  kind: CATEGORY_KIND[s.value as StatusCategory],
+  hue: "neutral",
 }))
 
 export function isBuiltInStatus(value: string): value is StatusCategory {
@@ -129,9 +188,11 @@ function customOption(c: Pick<CustomTaskStatus, "id" | "name" | "category" | "co
     custom: true,
     // It counts as its category, so it wears that shape.
     icon: builtIn(c.category)?.icon,
-    color: PILL[c.color] ?? PILL.slate,
-    dot: DOT[c.color] ?? DOT.slate,
+    color: colorPill(c.color),
+    dot: colorDot(c.color),
     swatch: c.color,
+    kind: CATEGORY_KIND[c.category],
+    hue: statusHueOf(c.color, c.category),
   }
 }
 

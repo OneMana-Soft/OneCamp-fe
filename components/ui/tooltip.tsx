@@ -7,7 +7,10 @@ import { cn } from "@/lib/utils/helpers/cn"
 import {useMedia} from "@/context/MediaQueryContext";
 import {useLongPress} from "@/hooks/useLongPress";
 
-const TooltipProvider = TooltipPrimitive.Provider
+/** The provider, with the 300ms window in which moving between tooltips skips the delay. */
+const TooltipProvider = ({ skipDelayDuration = 300, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) => (
+  <TooltipPrimitive.Provider skipDelayDuration={skipDelayDuration} {...props} />
+)
 
 interface TooltipMobileContextType {
     isMobile: boolean
@@ -25,7 +28,15 @@ const TooltipMobileContext = React.createContext<TooltipMobileContextType>({
     isLongPressRef: { current: false }
 })
 
-const Tooltip = ({ children, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) => {
+/**
+ * How long a tooltip waits (design v3, admin §8 H6): 400ms, and none when the
+ * pointer moves on from another tooltip within 300ms (the provider's
+ * skipDelayDuration). Set on each root, so it holds under the app's provider
+ * too; a caller's own delayDuration still wins.
+ */
+const TOOLTIP_DELAY_MS = 400
+
+const Tooltip = ({ children, delayDuration = TOOLTIP_DELAY_MS, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) => {
     const { isMobile } = useMedia()
     const [isOpen, setIsOpen] = React.useState(false)
     const isLongPressRef = React.useRef(false)
@@ -59,7 +70,7 @@ const Tooltip = ({ children, ...props }: React.ComponentProps<typeof TooltipPrim
 
     return (
         <TooltipMobileContext.Provider value={contextValue}>
-            <TooltipPrimitive.Root {...props} {...rootProps}>
+            <TooltipPrimitive.Root delayDuration={delayDuration} {...props} {...rootProps}>
                 {children}
             </TooltipPrimitive.Root>
         </TooltipMobileContext.Provider>
@@ -115,11 +126,15 @@ const TooltipContent = React.forwardRef<
 
       sideOffset={sideOffset}
       className={cn(
-        // Ink, not the accent. A tooltip is a label, and an orange label on every
-        // hovered icon spent the accent on the least important text on screen
-        // (DESIGN.md, accent budget). Inverted ink reads in both themes and
-        // needs no shadow to separate from the page.
-        "z-[var(--z-tooltip)] max-w-xs overflow-hidden rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background text-pretty duration-150 ease-standard animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
+        // Ink, not the accent (DESIGN.md, accent budget): a tooltip is a label.
+        // Design v3 (shell M3): 24px, r6, padding 0 8, 12/510 white on ink
+        // (#2A2B30 in dark, --tooltip-bg), sliding 2px from its trigger with
+        // the fade, 120ms, no scale. Long text wraps rather than clips.
+        // Admin §8 H6 asks the same chip: 12/16 510, r6, padding 4/8, no
+        // arrow. Its dark ground stays the shell's --tooltip-bg (#2A2B30)
+        // rather than an inverted light chip, so one tooltip reads the same
+        // across the app.
+        "z-[var(--z-tooltip)] flex min-h-6 max-w-xs items-center overflow-hidden rounded-sm bg-[var(--tooltip-bg)] px-2 py-1 text-2xs font-medium text-white text-pretty duration-[120ms] ease-standard animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5",
         className
       )}
       {...props}

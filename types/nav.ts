@@ -18,6 +18,12 @@ export interface DesktopChildrenNavType {
     isCallActive?: boolean
     icon?: LucideIcon
     isFavorite?: boolean
+    /** A private channel draws a lock, not the #. */
+    isPrivate?: boolean
+    /** Muted: the label in ink-3, a bell-off at the right, never bold. */
+    muted?: boolean
+    /** Unread that should show as a brand badge (a DM, a mention), not a plain count. */
+    badge?: boolean
 }
 
 export interface DesktopNavType {

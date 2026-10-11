@@ -11,73 +11,78 @@ written next to it.
 
 ## Colour
 
-**One accent on graphite.** The values are the shared table in the design
-direction of 10 Oct 2026, and `sharedTokens.test.ts` pins them in both repos.
+Design v3 (11 Oct 2026, `release-1010/design/DESIGN_V3.md`): precise and
+warm. The values are pinned in both repos by `sharedTokens.test.ts`.
 
-| Token | Light | Dark |
-|---|---|---|
-| brand (fill, ring, selection, logo) | `#CC4A0B` | `#FF7A33`, dark text on it |
-| brand-text (links, accent as text) | `#C2410C` | `#FF8A4C` |
-| brand-muted (selected nav) | `#FFF1E8` | `#2A1A10` |
-| background (bg) | `#FCFCFD` | `#0E0F11` |
-| card, popover (surface) | `#FFFFFF` | `#16181C` |
-| muted, accent, canvas (surface-2) | `#F5F6F7` | `#1D2025` |
-| sidebar-accent (surface-3) | `#EDEEF0` | `#25282E` |
-| border (line) / input (line-strong) | `#E4E5E8` / `#D3D5DA` | `#26282D` / `#33363D` |
-| foreground / muted-foreground / faint-foreground | `#14161A` / `#5F6470` / `#8A8F99` | `#EDEEF0` / `#9BA0AA` / `#6B707A` |
-| agent on agent-muted | `#4F5BD5` on `#EEF0FD` | `#A3ABF5` on `#1E2140` |
+**Five surfaces, four inks, alpha lines.**
 
-**Neutrals are a cool graphite** (hue about 265, chroma under 0.02), never
-`oklch(L 0 0)`, the shadcn default. Orange on graphite reads like an instrument
-panel; orange on cream read like a bakery.
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `frame` (canvas, sidebar) | `#F3F4F6` | `#0B0C0E` | the sidebar and the gutter round the sheet |
+| `sheet` (background) | `#FFFFFF` | `#131416` | the main panel |
+| `sunken` (muted) | `#F8F9FA` | `#0F1012` | group headers, columns, code, comment cards |
+| `raised` (card) | `#FFFFFF` | `#1B1C1F` | cards, inputs, secondary buttons, the selected nav chip |
+| `pop` (popover) | `#FFFFFF` | `#1F2024` | menus, popovers, floating toolbars |
+| `ink` / `ink-2` / `ink-3` / `ink-4` | `#16171B` / `#5B5D65` / `#8A8C92` / `#B9BBC0` | `#EEEEF0` / `#A8ABB1` / `#72747B` / `#4A4C52` | text, secondary, timestamps and idle icons (never sentences), disabled |
+| `line` / `line-2` / `line-3` | ink at 7.5 / 12 / 18% | white at 6.5 / 10 / 16% | hairlines, rings, unchecked boxes |
+| `hover` / `press` / `sel` | ink at 4 / 7 / 5.5% | white at 4 / 7 / 6% | overlays that read on any surface |
 
-**The accent budget.** One primary button per view, the focus ring, the
-current selection, links and the logo. Never headings, eyebrows, icons,
-mention chips or progress bars. `--primary` reads `--brand-text`, because the
-fill shade on the page is a hair under AA as text.
+The shadcn names are aliases of these (`--background: var(--sheet)`), so a
+component that says `bg-background` paints v3.
 
-**Colour that carries meaning comes from a token**: `success`, `warning`, `info`,
-`destructive`. If a colour is not carrying meaning it should be neutral. Never a
-raw Tailwind hue.
+**The theme is light, not tint.** Each theme sets the accent and a campfire
+glow (`--glow`, `--glow2`) that the frame (`.app-frame`) paints behind the
+workspace mark, with a 3.5% grain. The neutrals stay cool graphite in every
+theme (`paletteContrast.test.ts` fails on a warm drift; `glowHue.test.ts`
+holds each glow to its accent's hue). The flat warm wash is retired.
 
-**Every pair is measured, not eyeballed.** OKLCH keeps lightness perceptually
-even, which is what makes a tinted ramp possible, and it also means you cannot
-read a contrast ratio off the tokens by eye. The brand at L 0.58 looked right and
-scored 4.43 against its own foreground, which fails AA. `paletteContrast.test.ts`
-checks every pair in both modes and every selectable accent.
+**The accent budget: 2% of a view.** The one primary button, the selected nav
+icon, mention and DM badges, the focus ring, the new-messages line, your own
+reactions, progress, the today ring and links. Never headings, eyebrows,
+borders at rest or illustration fills (but one spark). `--brand-muted` is the
+ground for "this is about you" only.
+
+**Colour is a noun.** The camp hues (sun, moss, lake, sky, dusk, berry) carry
+identity and status only: a person's avatar (the saturated avatar cut, a1 to
+a2, white initials), a project's tile, a calendar's bar, a label's 6px dot on a
+neutral chip, a status glyph. A channel and a doc have no hue. Status colour is
+a token (`success`, `warning`, `info`, `destructive`, and their `-ink` cuts),
+never a raw hue. Every pair is measured in `paletteContrast.test.ts`.
 
 ## Type
 
-- **Display**: Inter Tight, 500 and 600, headings only (h1 to h3 take it by default).
-- **Text**: Inter, everything else.
-- **Mono**: JetBrains Mono, for keys, IDs, code and audit timestamps. Never eyebrows.
+**One face: Inter, with its optical sizes.** `font-optical-sizing: auto` gives
+each size its own cut; display sizes (28px and up) take opsz 32, which is Inter
+Display without a second family. Features `cv11`, `ss01`, `ss03`. Inter Tight
+is retired. JetBrains Mono for IDs, keys and code.
 
-**The app scale.** `text-sm` 14/20 is the default (and the body's size);
-`text-xs` is redefined to 13/18 for secondary text and meta; `text-2xs` 12/16
-for timestamps and badges; `text-3xs` 11/14 is the floor, for counts only.
-Message and doc bodies are 15/22 on the editor. 12px was the most-used size in
-the product before 10 Oct 2026, and that, more than colour, is what read as busy.
+**Tracking follows Inter's metrics**, carried by every size step:
+`-0.0223 + 0.185 * e^(-0.1745 * px)` em (`tracking.test.ts`). A word gap gives
+back what tracking takes (`word-spacing: 0.01em`), and nothing asks for
+`optimizeLegibility`, which ran words together on Linux at 1x.
 
-Headings take the display face by default rather than per component, because
-"which face is a heading" is a system decision and hundreds of files cannot each
-be trusted to remember it.
-
-**Use the scale.** `text-3xs` (11px, the floor) through the named steps. An
-arbitrary `text-[13px]` is a size nobody chose; the guard's baseline is 0 in the
-public build and should stay there.
+**The app scale** keeps the 14px default: `text-3xs` 11, `text-2xs` 12,
+`text-xs` 13, `text-sm` 14, plus v3's roles: `text-body` 15/23 (a message),
+`text-body-lg` 16/26 (a doc), `text-heading` 15/20, `text-title-3` 17/24,
+`text-title-2` 20/27, `text-title-1` 24/30, `text-display` 30/36,
+`text-doc-title` 32/38. Weights: 400 text, 450 `font-book` for list titles,
+510 `font-medium` for emphasis, labels and buttons, 590 `font-semibold` for
+headings, 600 `font-bold` only from 28px. Never 700.
 
 ## Layout and chrome
 
-**Quiet chrome, higher density.** Hierarchy comes from type weight and spacing,
-not from boxes. Shadows are for things that genuinely float: `shadow-overlay`
-for menus and popovers (0 4px 16px / .08), `shadow-dialog` for dialogs and
-sheets (0 16px 48px / .16). `shadow-sm` and below render nothing. Everything
-else gets a hairline or nothing.
+**Elevation is a material.** Every surface sits on a step of the ladder, a
+ring plus drops: `shadow-e1` resting (secondary buttons, inputs, cards),
+`shadow-sel` the selected nav chip, `shadow-e2` raised (the composer, a card
+under the cursor), `shadow-e3` floating (menus, popovers), `shadow-e4` modal
+(dialogs), `shadow-sheet` the main panel. In dark each adds a top highlight.
+The primary button carries an inner highlight and a tinted drop
+(`shadow-primary`), not a gradient. Nothing else (`shadowTokens.test.ts`).
 
-**Four radii.** 4 for chips, kbd and checkboxes (`rounded-sm`), 6 for buttons,
-inputs and nav items (`rounded-md`), 10 for cards, menus, popovers and the main
-panel (`rounded-lg`/`-xl`), 14 for dialogs and sheets (`rounded-2xl`).
-`rounded-full` is for avatars and status dots.
+**Radii from 8px:** 4 kbd (`rounded-xs`), 6 chips (`rounded-sm`), 8 controls,
+nav rows and menu items (`rounded-md`), 12 cards, menus and the sheet
+(`rounded-lg`), 16 dialogs (`rounded-2xl`); the storefront's canvas is 20.
+Concentric: a 4px-padded r12 menu has r8 items.
 
 **Do not use a grid of identical cards with an icon chip on each.** This is the
 most recognisable shape on the AI-built web and it was in three sections of the
@@ -95,19 +100,14 @@ author could" says nothing the sentence has not already said. Twelve chips in
 twelve colours assigned by position are decoration wearing the costume of
 meaning.
 
-**The app frame is paper on a desk.** The sidebar and top bar sit on
-`--canvas` (surface-2); the page itself is one sheet (`.app-sheet`,
-`--background`) with a hairline and no shadow, since it is the page and does
-not float. There is no border between sidebar and top bar:
-the canvas is one surface in an inverted L. Text on the canvas is measured
-against it in `paletteContrast.test.ts`, so a darker canvas cannot quietly drop
-muted text below 4.5:1.
+**The app frame is a sheet on a lit frame.** The sidebar sits on the frame
+(`.app-frame`: graphite, the theme's glow, grain); the page is one sheet
+(`.app-sheet`) at r12 and `shadow-sheet`, the brightest thing on screen.
 
-**Navigation state is the one warm spot in the sidebar.** The current item
-sits on the soft accent ground (`.nav-active`, `--brand-muted`) in ink; idle
-items are muted-foreground with a neutral hover step (`.nav-idle`). Group
-labels are sentence case, never uppercase: the sidebar is read constantly, and
-shouting labels is noise.
+**The current place is a raised chip** (`.nav-active`: the raised surface at
+`e-sel`, ink at 510, its icon in the accent, filled where the shape allows).
+Idle rows are ink-2 with ink-3 icons and the alpha hover (`.nav-idle`). Group
+labels are sentence case, never uppercase.
 
 **Every page opens with `PageHeader`.** A quiet kicker (13px muted, sentence case, never mono) that places the page
 (today's date, "Assigned to you", "Project · Launch"), a title in the display
@@ -153,29 +153,47 @@ it was also the one nothing rendered.
 **Transition specific properties, not `all`.** `transition-all` animates layout
 and causes jank.
 
-**One timing.** 120 ms for hover and press, 150 ms for menus and popovers
-(opacity plus 4px, no zoom), 200 ms for dialogs and sheets (fade only), all on
-`ease-standard` (`cubic-bezier(.2,.8,.2,1)`). The 120 ms default is set in
-`@theme`, so a bare `transition-colors` already has it.
+**The timings (v3).** Press 90 ms, hover 140, pop 180 (menus and popovers:
+opacity, scale .98 to 1, 4px), panel 240 on the in-out curve, the spring 220
+(checks and toggles, a slight overshoot), storefront page entrances 320. One
+out-curve, `cubic-bezier(.22,1,.36,1)`; the 140 ms default is set in `@theme`,
+so a bare `transition-colors` already has it.
 
 ## Primitives
 
-**Hover and keyboard focus in a list are `bg-highlight`** (surface-3), not
-`bg-accent`: `--accent` is the canvas, so anything on the canvas hovered to
-the colour it already sat on.
+**Buttons (v3):** primary (the accent with its highlight), secondary and
+outline (raised at e1, e2 on hover), ghost (ink-2), subtle (the hover overlay),
+destructive (danger ink on the raised surface), link. Sizes xs 24, sm 28, md
+32, lg 40, xl 46; icon buttons 24, 28, 32. Every one takes a 2px accent ring
+2px off on keyboard focus.
+
+**Hover is `bg-hover`, press and a menu's highlight `bg-press`** (alphas, so
+they read on any surface).
 
 **A field is `<Field label help error>`** around one control: it wires the id,
 `aria-describedby` and `aria-invalid`, which Input, Textarea and SelectTrigger
 style. Label above, help under, error under that.
 
-**Controls are 3:1.** A checkbox, radio or switch track is drawn in text-3
-against the page, and its press target reaches 24px.
+**Fields are raised at e1 with no border** (`field-surface`): 32px from md,
+44px on a phone, a 1px accent ring and 3px halo on focus, the same in danger
+when invalid.
 
-**Icons come from `@/lib/icons`**, at a 1.5 stroke (set globally for icons
-left at Lucide's default). `iconImports.test.ts` ratchets direct imports.
+**Controls are 3:1.** A checkbox (16px, r5, moss when checked, springing back
+from a press), radio or switch track is drawn in ink-3 against the page, and
+its press target reaches 24px.
 
-**Tooltips are ink, badges are neutral, progress is neutral.** The accent
-budget applies to primitives too.
+**Chips, tags, kbd.** A chip is 22px, r6, neutral (`Chip`, `LabelChip`: a dot
+for identity, a tint only for meaning); a tag (Agent, Bot, Guest) is 18px, r5,
+11/510; kbd is 18px, r4, on the sheet with a line-2 ring.
+
+**Avatars.** A person is the saturated avatar cut with white initials; an
+agent a 32% square in the agent gradient with the spark (`AgentAvatar`); a bot
+a neutral 32% square (`BotAvatar`). Presence is a 30% dot in `--ok`.
+
+**Icons come from `@/lib/icons`, at one rendered 1.25px stroke** whatever the
+size (a non-scaling stroke in globals.css; a `strokeWidth` prop may only say
+30 / size, `iconStroke.test.ts`). The status set, the priority bars, the spark
+and the progress ring are owned glyphs (`components/ui/graphics`).
 
 ## Copy
 

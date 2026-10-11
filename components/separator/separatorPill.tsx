@@ -1,3 +1,4 @@
+import { memo } from "react"
 import type React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -8,20 +9,18 @@ interface SeparatorPillProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * A day's heading in a conversation: the date as quiet text between two
- * hairlines. It was a bordered pill, the same weight as a button, once per day
- * in every channel; a heading the eye reads past only when it needs to does not
- * need a box. The floating copy at the top of a scrolled list passes its own
- * ground in pillClassName, since it sits over moving text.
+ * A day's heading in a conversation (design v3 chat, C15): a hairline 20px in
+ * from each side with the day in a 24px pill on the sheet at e1, r12, 12/510
+ * in ink-2. The floating copy at the top of a scrolled list is the same pill
+ * (MessageListVirtua's DayPill), so the two can't drift apart.
  */
-export function SeparatorPill({ children, className, pillClassName, lineClassName, ...props }: SeparatorPillProps) {
+export const SeparatorPill = memo(function SeparatorPill({ children, className, pillClassName, lineClassName, ...props }: SeparatorPillProps) {
     return (
-        <div className={cn("relative flex items-center w-full px-4 py-2", className)} {...props}>
-            <div className={cn("flex-grow h-px bg-border", lineClassName)} />
-            <div className={cn("mx-3 text-2xs font-medium text-muted-foreground", pillClassName)}>
+        <div data-day-divider="" className={cn("relative flex w-full justify-center pb-1.5 pt-2.5", className)} {...props}>
+            <div aria-hidden="true" className={cn("absolute inset-x-5 top-[calc(50%+2px)] h-px bg-line", lineClassName)} />
+            <div className={cn("relative flex h-6 items-center rounded-xl bg-sheet px-2.5 text-meta font-medium text-ink-2 shadow-e1", pillClassName)}>
                 {children}
             </div>
-            <div className={cn("flex-grow h-px bg-border", lineClassName)} />
         </div>
     )
-}
+})

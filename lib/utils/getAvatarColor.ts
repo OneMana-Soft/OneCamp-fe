@@ -19,5 +19,5 @@ import { hueFor } from "@/lib/campHue"
  * two colours. A colour the person picked (chosen) wins.
  */
 export function getAvatarFallbackClass(seed?: string | undefined | null, chosen?: string | null): string {
-    return `${avatarHueClass(hueFor(seed, chosen))} font-medium`
+    return avatarHueClass(hueFor(seed, chosen))
 }

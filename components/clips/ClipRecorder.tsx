@@ -9,7 +9,6 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { CircleStop, Mic, MonitorUp, Pause, Play, RotateCcw, Video } from "@/lib/icons"
 import {
@@ -200,46 +199,98 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
   const left = secondsLeft(elapsed, bytes, limit)
   const recordingNow = phase === "recording" || phase === "paused"
 
+  // The voice meter: three berry rings that scale with the microphone's
+  // level, written straight to a CSS variable so the level never re-renders
+  // the dialog. Transform only; still with reduced motion.
+  const meter = React.useRef<HTMLSpanElement | null>(null)
+  React.useEffect(() => {
+    if (phase !== "recording" || kind !== "voice" || !stream.current) return
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AC || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+    const ctx = new AC()
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 512
+    const source = ctx.createMediaStreamSource(stream.current)
+    source.connect(analyser)
+    const data = new Uint8Array(analyser.fftSize)
+    let raf = 0
+    const tick = () => {
+      analyser.getByteTimeDomainData(data)
+      let sum = 0
+      for (const v of data) sum += ((v - 128) / 128) ** 2
+      const level = Math.min(1, Math.sqrt(sum / data.length) * 4)
+      meter.current?.style.setProperty("--level", level.toFixed(3))
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      source.disconnect()
+      void ctx.close()
+      meter.current?.style.setProperty("--level", "0")
+    }
+  }, [phase, kind])
+
+  const kinds: { value: ClipKind; label: string; Icon: typeof Mic }[] = [
+    { value: "voice", label: "Voice", Icon: Mic },
+    { value: "video", label: "Video", Icon: Video },
+    ...(canShareScreen() ? [{ value: "screen" as const, label: "Screen", Icon: MonitorUp }] : []),
+  ]
+  const at = Math.max(0, kinds.findIndex((k) => k.value === kind))
+  const locked = phase !== "ready" && phase !== "error"
+  // How far through what it may hold: by time or by size, whichever is nearer.
+  const progress = recordingNow || phase === "done" ? Math.min(1, elapsed / Math.max(1, elapsed + left)) : 0
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent data-clip-dialog="" className="bg-pop shadow-e4 sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Record a clip</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-heading text-ink">Record a clip</DialogTitle>
+          <DialogDescription className="text-ui-sm text-ink-2">
             Up to {CLIP_MAX_SECONDS / 60} minutes, or {limitMb} MB, your workspace&apos;s limit for a file. It&apos;s attached to your message; nothing is sent until you send it.
           </DialogDescription>
         </DialogHeader>
 
         {!supported ? (
-          <p className="text-sm text-muted-foreground">This browser can&apos;t record clips. Try a current Chrome, Edge, Firefox or Safari.</p>
+          <p className="text-ui-sm text-ink-2">This browser can&apos;t record clips. Try a current Chrome, Edge, Firefox or Safari.</p>
         ) : (
-          <div className="grid gap-4">
-            <ToggleGroup
-              type="single"
-              value={kind}
-              onValueChange={(v) => v && setKind(v as ClipKind)}
-              disabled={phase !== "ready" && phase !== "error"}
-              className="justify-start"
+          <div className="grid gap-3">
+            {/* What to record (C56): a segmented control whose raised chip
+                slides under the choice by transform, never by width. */}
+            <div
+              role="radiogroup"
               aria-label="What to record"
+              data-clip-kinds=""
+              className="relative grid h-9 w-fit rounded-[10px] bg-sunken p-0.5"
+              style={{ gridTemplateColumns: `repeat(${kinds.length}, 6.5rem)` }}
             >
-              <ToggleGroupItem value="voice" className="gap-1.5 px-3">
-                <Mic className="h-4 w-4" /> Voice
-              </ToggleGroupItem>
-              <ToggleGroupItem value="video" className="gap-1.5 px-3">
-                <Video className="h-4 w-4" /> Video
-              </ToggleGroupItem>
-              {canShareScreen() && (
-                <ToggleGroupItem value="screen" className="gap-1.5 px-3">
-                  <MonitorUp className="h-4 w-4" /> Screen
-                </ToggleGroupItem>
-              )}
-            </ToggleGroup>
+              <span
+                aria-hidden="true"
+                data-clip-chip=""
+                className="absolute inset-y-0.5 left-0.5 w-[6.5rem] rounded-lg bg-raised shadow-e1 transition-transform duration-[180ms] ease-out motion-reduce:transition-none"
+                style={{ transform: `translateX(${at * 100}%)` }}
+              />
+              {kinds.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === value}
+                  disabled={locked}
+                  onClick={() => setKind(value)}
+                  className={cn(
+                    "relative flex items-center justify-center gap-1.5 rounded-lg text-ui-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed",
+                    kind === value ? "text-ink" : "text-ink-3 hover:text-ink-2",
+                  )}
+                >
+                  <Icon className="size-4" /> {label}
+                </button>
+              ))}
+            </div>
 
-            {/* One stage for Voice, Video and Screen. Voice's was 112px and the
-                others' a 16:9 frame, so every switch resized the dialog, which
-                is centred, and moved its title and this switch itself by about
-                56px; the mic now sits in the middle of the same frame. */}
-            <div data-clip-stage="" className="relative aspect-video overflow-hidden rounded-lg border bg-muted/40">
+            {/* One stage for Voice, Video and Screen: a 16:9 frame, r12 on the
+                sunken ground, so switching never resizes the centred dialog. */}
+            <div data-clip-stage="" className="relative aspect-video overflow-hidden rounded-xl bg-sunken">
               {phase === "done" && clip ? (
                 kind === "voice" ? (
                   <div className="flex h-full items-center justify-center px-4">
@@ -249,24 +300,38 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
                   <video src={clip.url} controls playsInline className="h-full w-full bg-black object-contain" />
                 )
               ) : kind === "voice" ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2">
-                  <span className={cn("flex h-12 w-12 items-center justify-center rounded-full", phase === "recording" ? "animate-pulse bg-destructive/15 text-danger-ink" : "bg-background text-muted-foreground")}>
-                    <Mic className="h-6 w-6" />
+                <div className="hue-berry flex h-full items-center justify-center">
+                  <span ref={meter} data-voice-meter="" className="relative flex size-14 items-center justify-center rounded-full [--level:0]">
+                    {[1.9, 1.55, 1.25].map((k, i) => (
+                      <span
+                        key={i}
+                        aria-hidden="true"
+                        className={cn("absolute inset-0 rounded-[inherit] bg-hue transition-transform duration-75 ease-out", phase === "recording" ? "opacity-[.14]" : "opacity-0")}
+                        style={{ transform: `scale(calc(1 + var(--level) * ${k - 1}))` }}
+                      />
+                    ))}
+                    <span className={cn("relative flex size-14 items-center justify-center rounded-[inherit]", phase === "recording" ? "bg-hue text-white" : "bg-raised text-ink-3 shadow-e1")}>
+                      <Mic className="size-6" />
+                    </span>
                   </span>
                 </div>
               ) : (
                 <video ref={live} muted playsInline className="h-full w-full bg-black object-contain" />
               )}
               {recordingNow && (
-                <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-background/90 px-2 py-0.5 text-xs font-medium tabular-nums" aria-live="polite">
-                  <span className={cn("h-2 w-2 rounded-full", phase === "recording" ? "bg-destructive" : "bg-muted-foreground")} />
+                <span data-clip-timer="" className="absolute left-2.5 top-2.5 flex h-6 items-center gap-1.5 rounded-md bg-black/60 px-2 text-micro font-medium tabular-nums text-white" aria-live="polite">
+                  <span className={cn("size-1.5 rounded-full", phase === "recording" ? "bg-camp-berry" : "bg-white/60")} />
                   {phase === "paused" ? "Paused" : "Recording"} {formatDuration(elapsed)}
                 </span>
               )}
+              {/* How much of the clip's room is used: a 2px berry line. */}
+              <span aria-hidden="true" className="hue-berry absolute inset-x-0 bottom-0 h-0.5">
+                <span data-clip-progress="" className="absolute inset-0 origin-left bg-hue transition-transform duration-200 ease-linear" style={{ transform: `scaleX(${progress})` }} />
+              </span>
             </div>
 
             {/* Two lines' room: Screen's hint wraps where the others don't. */}
-            <p data-clip-hint="" className={cn("min-h-8 text-xs leading-4", phase === "error" ? "text-danger-ink" : "text-muted-foreground")} aria-live="polite">
+            <p data-clip-hint="" className={cn("min-h-8 text-meta", phase === "error" ? "text-danger-ink" : "text-ink-3")} aria-live="polite">
               {phase === "error"
                 ? problem
                 : phase === "done"
@@ -287,31 +352,31 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
         )}
 
         {supported && (
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter data-clip-footer={phase} className="gap-2 sm:gap-2">
             {phase === "ready" || phase === "error" || phase === "starting" ? (
               <Button onClick={() => void start()} disabled={phase === "starting"} className="gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-current" aria-hidden />
+                <span className="size-2 rounded-full bg-current" aria-hidden />
                 {phase === "starting" ? "Starting…" : "Start recording"}
               </Button>
             ) : recordingNow ? (
               <>
                 {phase === "recording" ? (
                   <Button variant="outline" onClick={pause} className="gap-1.5">
-                    <Pause className="h-4 w-4" /> Pause
+                    <Pause className="size-4" /> Pause
                   </Button>
                 ) : (
                   <Button variant="outline" onClick={resume} className="gap-1.5">
-                    <Play className="h-4 w-4" /> Resume
+                    <Play className="size-4" /> Resume
                   </Button>
                 )}
                 <Button variant="destructive" onClick={() => finish(null)} className="gap-1.5">
-                  <CircleStop className="h-4 w-4" /> Stop
+                  <CircleStop className="size-4" /> Stop
                 </Button>
               </>
             ) : (
               <>
                 <Button variant="ghost" onClick={again} className="gap-1.5">
-                  <RotateCcw className="h-4 w-4" /> Record again
+                  <RotateCcw className="size-4" /> Record again
                 </Button>
                 <Button onClick={attach} disabled={!clip}>
                   Attach clip

@@ -176,7 +176,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-full flex items-center justify-center bg-black group overflow-hidden rounded-lg shadow-2xl"
+            className="relative w-full h-full flex items-center justify-center bg-black group overflow-hidden rounded-lg shadow-e4"
             onDoubleClick={toggleFullscreen}
             onClick={togglePlay}
         >
@@ -185,7 +185,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
             {/* Big Play Button Overlay */}
             {!isPlaying && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20 backdrop-blur-[1px]">
-                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-full border border-white/20 shadow-xl animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-full border border-white/20 shadow-e4 animate-in fade-in zoom-in duration-300">
                         <Play className="h-12 w-12 text-white fill-white" />
                     </div>
                 </div>

@@ -18,15 +18,56 @@
  */
 
 // ─── Navigation ─────────────────────────────────────────────
+// Chat, design v3 (11 Oct 2026): the huddle, the bridge relay's arrows, a
+// reply's connector, Record's stop, and the archive and remind actions.
+export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, CornerDownRight, Cpu, Hand } from "lucide-react";
 export { ArrowLeftRight, Columns2 } from "lucide-react";
 // A project's timeline tab, and its Unscheduled list.
 export { ChartGantt, CalendarOff, CirclePlus } from "lucide-react";
 // Goals: the view, a goal's page and its link from a project.
 export { Target } from "lucide-react";
+export { Focus } from "lucide-react";
 // Calls: the captions toggle (hub, 10 Oct 2026).
 export { Captions, CaptionsOff } from "lucide-react";
+// The calendar: time off (away) and an event's place (content v3).
+export { Plane, MapPin } from "lucide-react";
+// The green room's speaker row (hub v3) uses Headphones, exported above.
 // Single sign-on on the sign-in page: the organisation's own way in.
 export { Building2 } from "lucide-react";
+// The v3 shell (11 Oct 2026): compose, the workspace menu, More, the foot.
+export { Gauge, SquarePen, PanelLeft, Gift, Server, MonitorDown, CircleHelp } from "lucide-react";
+// The work area (design v3): a project tile's glyphs, the timer, the list's Display menu and a grip.
+export { Box, Heart, ListFilter, Columns3 } from "lucide-react"; // Timer and Square: exported with the boards and the chat icons
+// Design v3, admin and settings (11 Oct 2026): the settings nav and its search.
+export { FileCheck2, KeyRound, ScrollText, Users2, UserX, Webhook, CornerDownLeft } from "lucide-react"; // Archive: with the chat icons
+// v3 admin slice: people (members, invitations, audit, evidence).
+export { UserMinus, ShieldX, ShieldPlus, CalendarRange, Ban, PlayCircle } from "lucide-react";
+
+// v3 admin slice: config (general, security, email, import, integrations, health).
+export { HardDrive } from "lucide-react";
+
+// v3 admin slice: connect (import, workflows, integrations, apps, webhooks, connectors).
+export type { LucideIcon } from "lucide-react";
+// connect/import: HardDrive is exported in the config block above.
+// connect/workflows:
+// connect/integrations:
+// connect/apps-webhooks:
+export { LogIn } from "lucide-react";
+
+// v3 admin slice: ai (AI & agents, agents and skills, assistants).
+export { CircleSlash } from "lucide-react"; // Cpu: with the chat icons
+export { BadgeCheck } from "lucide-react"; // ShieldX is in the people block.
+
+// v3 admin slice: you (notifications, connectors, tokens, profile).
+// A passkey row's glyph for a computer.
+export { Laptop } from "lucide-react";
+
+// v3 admin slice: auth (sign-in, sign-up, first run, consent).
+export { ArrowBigUp } from "lucide-react";
+
+// v3 admin slice: feedback (dialogs, confirms, sheets, guest channel).
+export { Power } from "lucide-react"; // UserMinus is in the people block.
+
 export {
   Home,
   Hash,
@@ -138,6 +179,7 @@ export {
   List,
   ListOrdered,
   ListTodo,
+  Coins,
   ClipboardList,
   CircleCheck,
   Quote,
@@ -282,3 +324,8 @@ export {
   MonitorUp,
   MonitorOff,
 } from "lucide-react";
+
+// Boards (content v3, 11 Oct 2026): the library and the
+// facilitation cluster's timer and vote.
+export { Library, Timer, Vote } from "lucide-react";
+// The AI panel's new chat (hub, 11 Oct 2026) uses SquarePen, exported with the shell's icons above.

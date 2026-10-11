@@ -13,9 +13,11 @@ interface AddReactionTriggerProps {
     setPopupState?: (open: boolean) => void
     size?: "sm" | "md"
     variant?: "ghost" | "outline"
+    /** The trigger's own look, where a surface draws it (the toolbar's 26px button). */
+    className?: string
 }
 
-export const AddReactionTrigger = ({ onReactionSelect, showCustomReactions = false, setPopupState, size = "md", variant = "ghost" }: AddReactionTriggerProps) => {
+export const AddReactionTrigger = ({ onReactionSelect, showCustomReactions = false, setPopupState, size = "md", variant = "ghost", className }: AddReactionTriggerProps) => {
     const { tooltipOpen, onTooltipChange, onPickerOpenChange, onSelect, onTriggerMouseLeave } = useTooltipWithPicker({ onExternalPopupStateChange: setPopupState })
 
     return (
@@ -30,10 +32,10 @@ export const AddReactionTrigger = ({ onReactionSelect, showCustomReactions = fal
                         variant={variant}
                         size="icon"
                         aria-label="Add a reaction"
-                        className={cn(size === "sm" ? "h-6 w-7 rounded-md" : "h-8 w-8")}
+                        className={cn(size === "sm" ? "h-6 w-7 rounded-md" : "h-8 w-8", className)}
                         onMouseLeave={onTriggerMouseLeave}
                     >
-                        <SmilePlus aria-hidden="true" className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+                        <SmilePlus aria-hidden="true" className={cn("h-4 w-4", className ? "text-current" : "text-muted-foreground")} />
                     </Button>
                 </TooltipTrigger>
             </ReactionPicker>

@@ -7,6 +7,8 @@ export { IdentityMark, type IdentityMarkProps, type IdentityMarkVariant } from "
 export { Tile, type TileProps, type TileSize } from "./Tile"
 export { Arc, Orbit, Rings, Spark, SPARK_PATH, type MotifProps } from "./motifs"
 export { ProgressRing, type ProgressRingProps } from "./ProgressRing"
+export { StatusGlyph, PriorityGlyph, type StatusKind } from "./glyphs"
+export { AgentAvatar, BotAvatar } from "./PrincipalAvatar"
 export {
   SPOTS,
   SpotCalendar,

@@ -8,7 +8,7 @@ const badgeVariants = cva(
   // be here (hover:bg-primary/80 on default) survived every caller's own
   // colour through tailwind-merge, so a green "Connected" badge turned orange
   // under the cursor, inviting a click that did nothing.
-  "inline-flex items-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+  "inline-flex items-center rounded-sm border font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
   {
     variants: {
       /**
@@ -40,8 +40,9 @@ const badgeVariants = cva(
         // chip as the default made every unstyled badge compete with the
         // page's one button. Every default-variant caller in the app sets its
         // own status colour, so none of them changes.
+        // Design v3's chip: the hover overlay inside a hairline, ink-2.
         default:
-          "border-transparent bg-sidebar-accent text-foreground",
+          "border-transparent bg-hover text-muted-foreground ring-1 ring-inset ring-line",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground",
         destructive:

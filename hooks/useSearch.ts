@@ -37,7 +37,7 @@ export const useSearch = ({
     // query was a new key with nothing in it, so the results blinked to a
     // skeleton and back on every pause in typing, and the command palette
     // swapped its commands in and out under the cursor.
-    const { data: searchData, isLoading } = useFetch<any>(
+    const { data: searchData, isLoading, isError, mutate: retrySearch } = useFetch<any>(
         searching ? GlobalSearchGet(debouncedValue) : "",
         undefined,
         { keepPreviousData: true, revalidateOnFocus: false },
@@ -163,6 +163,9 @@ export const useSearch = ({
         results,
         isLoading: isSearching,
         isRefreshing,
+        // A failed search, so the page can say so rather than "nothing matches".
+        isError: searching && Boolean(isError) && results.length === 0,
+        retry: () => void retrySearch(),
         open,
         setOpen,
         handleClear,

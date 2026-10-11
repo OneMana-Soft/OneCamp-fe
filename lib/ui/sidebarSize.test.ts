@@ -1,43 +1,54 @@
-import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
-import { SIDEBAR_MIN_PX, SIDEBAR_RAIL_PX, sidebarSizes, startsAsRail } from "./sidebarSize"
+import {
+  SIDEBAR_DEFAULT_PX,
+  SIDEBAR_MAX_PX,
+  SIDEBAR_MIN_PX,
+  atSidebarBound,
+  clampSidebarWidth,
+  savedSidebar,
+  startsAsRail,
+} from "./sidebarSize"
 
-// The sidebar sized in percent was 123px on a 768px tablet (every name cut
-// to a few letters) with a 31px rail. Its floors are pixels now.
+// Design v3 (shell S2): the sidebar is held in pixels, 248 by default and
+// 216 to 320 when dragged. As a percentage it drifted with the window and was
+// 123px on a 768px tablet.
 
-const px = (percent: number, width: number) => (percent / 100) * width
-
-describe("sidebarSizes", () => {
-  it("keeps a tablet's sidebar readable and its rail wide enough for its icons", () => {
-    for (const width of [768, 820, 1024]) {
-      const s = sidebarSizes(width)
-      expect(px(s.min, width), `${width}`).toBeGreaterThanOrEqual(SIDEBAR_MIN_PX)
-      expect(px(s.rail, width), `${width}`).toBeGreaterThanOrEqual(SIDEBAR_RAIL_PX)
-      expect(s.max).toBeGreaterThanOrEqual(s.min)
-    }
+describe("the sidebar's width", () => {
+  it("is 248 by default, and holds to 216 and 320", () => {
+    expect(SIDEBAR_DEFAULT_PX).toBe(248)
+    expect(clampSidebarWidth(216)).toBe(216)
+    expect(clampSidebarWidth(248)).toBe(248)
+    expect(clampSidebarWidth(320)).toBe(320)
+    expect(clampSidebarWidth(150)).toBe(SIDEBAR_MIN_PX)
+    expect(clampSidebarWidth(600)).toBe(SIDEBAR_MAX_PX)
+    expect(clampSidebarWidth(Number.NaN)).toBe(SIDEBAR_DEFAULT_PX)
   })
 
-  it("leaves a desktop as it was", () => {
-    expect(sidebarSizes(1440)).toEqual({ min: 15, max: 18, rail: 4 })
-    expect(sidebarSizes(1920)).toEqual({ min: 15, max: 18, rail: 4 })
+  it("says when a drag asks past a bound, for the handle's shake", () => {
+    expect(atSidebarBound(200)).toBe("min")
+    expect(atSidebarBound(330)).toBe("max")
+    expect(atSidebarBound(264)).toBeNull()
   })
 
-  it("starts as the rail on a tablet, open on a desktop", () => {
+  it("is the same width whatever the window: pixels, not percent", () => {
+    const at = (w: number) => savedSidebar("onecamp-sidebar-width=264", w).width
+    expect(at(1024)).toBe(264)
+    expect(at(1440)).toBe(264)
+    expect(at(1920)).toBe(264)
+  })
+
+  it("comes back as it was left, and starts as the rail on a tablet when nobody chose", () => {
+    expect(savedSidebar("", 1440)).toEqual({ width: 248, collapsed: false })
+    expect(savedSidebar("", 768)).toEqual({ width: 248, collapsed: true })
+    expect(savedSidebar("react-resizable-root-panels:collapsed=false", 768).collapsed).toBe(false)
+    expect(savedSidebar("a=1; react-resizable-root-panels:collapsed=true", 1440).collapsed).toBe(true)
+    expect(savedSidebar("onecamp-sidebar-width=9999", 1440).width).toBe(320)
+  })
+
+  it("starts as the rail below 1024, open from 1024", () => {
     expect(startsAsRail(768)).toBe(true)
     expect(startsAsRail(1023)).toBe(true)
     expect(startsAsRail(1024)).toBe(false)
     expect(startsAsRail(1440)).toBe(false)
-  })
-
-  it("is what the desktop shell's sidebar uses", () => {
-    const nav = readFileSync("components/navigationBar/desktop/desktopNavigationBar.tsx", "utf8")
-    expect(nav).toContain("minSize={sizes.min}")
-    expect(nav).toContain("maxSize={sizes.max}")
-    expect(nav).toContain("const navCollapsedSize = sizes.rail;")
-    expect(nav).toContain("startsAsRail(window.innerWidth)")
-    expect(nav).not.toMatch(/minSize=\{15\}|maxSize=\{18\}/)
-    // The first render already knows the width: starting at 0 gave the old
-    // percentages for a frame, and the saved state was applied against them.
-    expect(nav).toMatch(/useState\(\(\) => \(typeof window === "undefined" \? 0 : window\.innerWidth\)\)/)
   })
 })

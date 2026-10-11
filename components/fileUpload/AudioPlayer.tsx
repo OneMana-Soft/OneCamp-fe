@@ -89,7 +89,7 @@ export const AudioPlayer = ({ url }: AudioPlayerProps) => {
     };
 
     return (
-        <div className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-4 shadow-lg">
+        <div className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-4 shadow-e3">
             <audio ref={audioRef} src={url} />
             
             <div className="flex flex-col gap-4">
@@ -98,7 +98,7 @@ export const AudioPlayer = ({ url }: AudioPlayerProps) => {
                         size="icon"
                         aria-label={isPlaying ? "Pause" : "Play"}
                         variant="default"
-                        className="h-12 w-12 rounded-full shadow-md hover:scale-105 transition-transform"
+                        className="h-12 w-12 rounded-full shadow-e3 hover:scale-105 transition-transform"
                         onClick={togglePlay}
                         disabled={!url}
                     >

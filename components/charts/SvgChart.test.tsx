@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { render } from "@testing-library/react"
+import { fireEvent, render } from "@testing-library/react"
 import SvgChart from "@/components/charts/SvgChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 
@@ -129,7 +129,7 @@ describe("SvgChart", () => {
         // The axis reaches the stacked total (5), not the largest single value (3).
         expect([...container.querySelectorAll("text")].some((t) => t.textContent === "5" || t.textContent === "6")).toBe(true)
         // A point's tip gives the band's own value.
-        expect([...container.querySelectorAll("circle title")].map((t) => t.textContent)).toContain("To do · b: 3")
+        expect([...container.querySelectorAll("circle[aria-label]")].map((t) => t.getAttribute("aria-label"))).toContain("To do · b: 3")
     })
 
     it("keeps bars thin, square at the baseline and apart in a group", () => {
@@ -147,13 +147,31 @@ describe("SvgChart", () => {
         const aLeft = Math.min(...xs(a))
         const aRight = Math.max(...xs(a))
         const bLeft = Math.min(...xs(b))
-        // At most 24 wide, even alone in a wide slot.
-        expect(aRight - aLeft).toBeLessThanOrEqual(24)
+        // At most 32 wide (content.md T18), even alone in a wide slot.
+        expect(aRight - aLeft).toBeLessThanOrEqual(32)
         // A 2-unit gap between neighbours.
         expect(bLeft - aRight).toBeCloseTo(2, 5)
         // Starts and ends on the baseline (square there): first and last points share y.
         const ys = (d: string) => d.match(/,(-?[\d.]+)/g)!.map((m) => Number(m.slice(1)))
         expect(ys(a)[0]).toBe(ys(a)[ys(a).length - 1])
+    })
+
+    it("keeps a report card's bars thin: at most 14 wide, 4 apart in a group (W44)", () => {
+        const chart = chartFrom({
+            type: "bar",
+            labels: ["a"],
+            series: [
+                { name: "x", values: [4] },
+                { name: "y", values: [2] },
+            ],
+        })
+        const { container } = render(<SvgChart chart={chart} variant="card" />)
+        const [a, b] = Array.from(container.querySelectorAll("path[data-bar]")).map((p) => p.getAttribute("d")!)
+        const xs = (d: string) => d.match(/-?[\d.]+(?=,)/g)!.map(Number)
+        expect(Math.max(...xs(a)) - Math.min(...xs(a))).toBeLessThanOrEqual(14)
+        expect(Math.min(...xs(b)) - Math.max(...xs(a))).toBeCloseTo(4, 5)
+        // On its own raised card, where the sheet's chart has no frame.
+        expect(container.querySelector("figure")!.className).toMatch(/\bshadow-e1\b/)
     })
 
     it("writes the value axis's unit when the chart has one", () => {
@@ -187,5 +205,73 @@ describe("SvgChart", () => {
         const chart = chartFrom({ type: "pie", labels: ["a", "b"], series: [{ values: [0, 0] }] })
         const { getByText } = render(<SvgChart chart={chart} />)
         getByText(/no positive values/i)
+    })
+
+    it("hovers a band: a crosshair, the other bands dimmed, and a tooltip with the difference (W44)", () => {
+        const chart = chartFrom({
+            type: "bar",
+            labels: ["a", "b"],
+            series: [
+                { name: "Done", values: [3, 5] },
+                { name: "Added", values: [1, 7] },
+            ],
+        })
+        const { container } = render(<SvgChart chart={chart} />)
+        fireEvent.mouseEnter(container.querySelector("[data-band-target='1']")!)
+        expect(container.querySelector("[data-crosshair]")).not.toBeNull()
+        const bars = [...container.querySelectorAll("path[data-bar]")]
+        // Band by band (each band's bars are one hover group): Done a, Added a, Done b, Added b.
+        expect(bars.map((b) => b.getAttribute("fill-opacity"))).toEqual(["0.4", "0.4", "1", "1"])
+        const tip = container.querySelector("[role=tooltip]")!
+        expect(tip.textContent).toContain("b")
+        expect(tip.textContent).toContain("Difference")
+        expect(tip.textContent).toContain("-2")
+    })
+
+    it("isolates a series from its legend", () => {
+        const chart = chartFrom({ type: "bar", labels: ["a"], series: [{ name: "Done", values: [3] }, { name: "Added", values: [1] }] })
+        const { container } = render(<SvgChart chart={chart} />)
+        fireEvent.click([...container.querySelectorAll("[data-legend] button")].find((b) => b.textContent === "Added")!)
+        expect([...container.querySelectorAll("path[data-bar]")].map((b) => b.getAttribute("fill-opacity"))).toEqual(["0.15", "1"])
+    })
+
+    it("says so in a sentence instead of drawing an empty chart", () => {
+        const chart = chartFrom({ type: "bar", labels: ["a", "b"], series: [{ name: "Hours", values: [0, 0] }] })
+        const { container } = render(<SvgChart chart={chart} empty="No hours logged in these 12 weeks" />)
+        expect(container.querySelector("svg")).toBeNull()
+        expect(container.querySelector("[data-chart-empty]")!.textContent).toBe("No hours logged in these 12 weeks")
+    })
+})
+
+describe("SvgChart, the v3 look (content.md T18)", () => {
+    const bars = { type: "bar" as const, title: "Spend", labels: ["Paid", "Due"], series: [{ name: "Spend", values: [3, 5] }] }
+
+    it("sits on the sheet with no frame by default", () => {
+        const { container } = render(<SvgChart chart={bars} />)
+        const fig = container.querySelector("figure")!
+        expect(fig.className).not.toMatch(/\bborder\b/)
+    })
+
+    it("grows its bars from the baseline", () => {
+        const { container } = render(<SvgChart chart={bars} />)
+        const all = [...container.querySelectorAll("path[data-bar]")]
+        expect(all.length).toBe(2)
+        for (const b of all) expect(b.hasAttribute("data-grow")).toBe(true)
+    })
+
+    it("shows an HTML tooltip on hover, not an SVG title", () => {
+        const { container } = render(<SvgChart chart={bars} />)
+        expect(container.querySelector("title")).toBeNull()
+        fireEvent.mouseEnter(container.querySelector("path[data-bar]")!.parentElement!)
+        const tip = container.querySelector("[role=tooltip]")!
+        expect(tip.textContent).toContain("Paid")
+        expect(tip.textContent).toContain("3")
+    })
+
+    it("draws a donut in the chart order with the total in the middle", () => {
+        const { container } = render(<SvgChart chart={{ type: "pie", title: "", labels: ["a", "b", "c"], series: [{ name: "n", values: [1, 2, 3] }] }} />)
+        const fills = [...container.querySelectorAll("path")].map((p) => p.getAttribute("fill"))
+        expect(fills).toEqual(["var(--camp-sky)", "var(--camp-berry)", "var(--camp-sun)"])
+        expect([...container.querySelectorAll("text")].some((t) => t.textContent === "6")).toBe(true)
     })
 })

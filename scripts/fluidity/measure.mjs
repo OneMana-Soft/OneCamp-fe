@@ -287,7 +287,7 @@ async function runOnce(browser, run, storage) {
   await tidy()
 
   // 5. Open a thread (150 replies), then type under it.
-  await step(5, "open a thread", () => page.getByText(/^\d+ repl(y|ies)$/).last().click(), () => readyWhen(page, exists, { sel: "[data-right-panel] [contenteditable='true']" }), { settle: 1200 })
+  await step(5, "open a thread", () => threadOpener(page).click(), () => readyWhen(page, exists, { sel: "[data-right-panel] [contenteditable='true']" }), { settle: 1200 })
   await step(
     5.1,
     "type in a long thread",
@@ -311,7 +311,7 @@ async function runOnce(browser, run, storage) {
     7,
     "type in a task description",
     async () => {
-      const desc = page.locator("[data-right-panel] .grid:has(> label:text-is('Description')) [contenteditable='true']")
+      const desc = page.locator("[data-right-panel] [data-task-description] [contenteditable='true']")
       if (await desc.count()) {
         await desc.first().click()
       } else {
@@ -330,15 +330,19 @@ async function runOnce(browser, run, storage) {
   await page.waitForTimeout(300)
 
   // 8. Switch project tabs.
-  await step(8, "project tab: board", () => page.getByRole("tab", { name: "Board" }).click(), () => readyWhen(page, shows, { text: "In progress", within: "[data-split-view='-1']" }))
+  // The board's own panel: the list stays mounted (hidden) beside it, so a
+  // search of the whole view found the hidden list's "In progress" first and
+  // the step timed out on two runs in three (11 Oct).
+  const ACTIVE = "[data-split-view='-1'] [role='tabpanel'][data-state='active']"
+  await step(8, "project tab: board", () => page.getByRole("tab", { name: "Board" }).click(), () => readyWhen(page, shows, { text: "In progress", within: ACTIVE }))
   // 9. Drag a card to another column (answered here).
   await step(
     9,
     "drag on the board",
     async () => {
-      const card = page.getByText(DEMO.task, { exact: true }).first()
+      const card = page.locator(ACTIVE).getByText(DEMO.task, { exact: true }).first()
       const box = await card.boundingBox()
-      const target = await page.getByText("In progress", { exact: true }).first().boundingBox()
+      const target = await page.locator(ACTIVE).getByText("In progress", { exact: true }).first().boundingBox()
       if (!box || !target) throw new Error("board not laid out")
       await page.mouse.move(box.x + 20, box.y + box.height / 2)
       await page.mouse.down()
@@ -568,6 +572,10 @@ async function runOnce(browser, run, storage) {
   return { steps, blocked, faked: [...new Set(guard.faked)], droppedFrames: guard.droppedFrames, errors: [...new Set(errors)] }
 }
 
+// What opens #engineering's thread: its reply count, or (design v3 chat,
+// C13) the Answer button of the Check-in's prompt card, which is that thread.
+const threadOpener = (page) => page.getByText(/^\d+ repl(y|ies)$/).or(page.getByRole("button", { name: "Answer", exact: true })).last()
+
 // The ids the long-conversation steps need, from a first signed-in look.
 async function discover(browser) {
   const ctx = await demoContext(browser, { base: BASE })
@@ -584,7 +592,7 @@ async function discover(browser) {
   }
   page.on("request", seen)
   await page.getByRole("link", { name: DEMO.engineering }).first().click()
-  await page.getByText(/^\d+ repl(y|ies)$/).last().click()
+  await threadOpener(page).click()
   await page.waitForTimeout(2500)
   const state = await ctx.storageState()
   await ctx.close()
@@ -593,7 +601,7 @@ async function discover(browser) {
 
 // What each route downloads, loaded cold (a signed-in visitor, empty cache).
 async function routeWeights(browser, storage) {
-  const routes = ["/app/home", `/app/channel/${storage.generalId}`, "/app/chat", "/app/myTask", "/app/project", "/app/doc", "/app/calendar", "/app/search", "/app/activity", "/app/settings", "/app/inbox", "/app/later", "/app/tables", "/app/goals", "/app/board"]
+  const routes = ["/app/home", `/app/channel/${storage.generalId}`, "/app/chat", "/app/myTask", "/app/project", "/app/doc", "/app/calendar", "/app/search", "/app/inbox", "/app/settings", "/app/mail", "/app/later", "/app/tables", "/app/goals", "/app/board"]
   const out = []
   for (const r of routes) {
     const ctx = await demoContext(browser, { base: BASE, storageState: storage.state })

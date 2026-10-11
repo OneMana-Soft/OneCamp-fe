@@ -3,7 +3,7 @@ import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
 import axiosInstance from "@/lib/axiosInstance";
 import {useDispatch} from "react-redux";
 import {
-    addProjectAttachmentPreviewFiles, addProjectAttachmentUploadedFiles, deleteProjectAttachmentPreviewFiles,
+    addProjectAttachmentPreviewFiles, addProjectAttachmentUploadedFiles, deleteProjectAttachmentPreviewFiles, markProjectAttachmentPreviewFailed,
     updateProjectAttachmentPreviewFiles, updateProjectAttachmentPreviewFilesUUID
 } from "@/store/slice/projectAttachmentSlice";
 import {UploadFileInterfaceRes} from "@/types/file";
@@ -338,7 +338,7 @@ export const useUploadFile = () => {
     }
 
 
-    const makeRequestToUploadToProject = async (files: FileList, projectId: string) => {
+    const makeRequestToUploadToProject = async (files: FileList | File[], projectId: string) => {
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
 
@@ -359,7 +359,9 @@ export const useUploadFile = () => {
                         fileName: file.name,
                         progress: 0,
                         cancelSource: cancelToken,
-                        attachmentType: attachmentType
+                        attachmentType: attachmentType,
+                        file,
+                        size: file.size
                     },
                     projectUUID: projectId,
                 })
@@ -418,12 +420,14 @@ export const useUploadFile = () => {
                     return res;
                 })
                 .catch((error) => {
+                    // A cancelled upload just goes; a failed one stays on its card,
+                    // which says so and offers Retry (content.md F04).
                     dispatch(
-                        deleteProjectAttachmentPreviewFiles({
-                            key: uniqueNum,
-                            projectUUID: projectId,
-                        })
-                    );
+                        axios.isCancel(error)
+                            ? deleteProjectAttachmentPreviewFiles({ key: uniqueNum, projectUUID: projectId })
+                            : markProjectAttachmentPreviewFailed({ key: uniqueNum, projectUUID: projectId })
+                    )
+                    if (axios.isCancel(error)) throw error
 
                     toast({
                         title: `Couldn't upload ${file.name}`,

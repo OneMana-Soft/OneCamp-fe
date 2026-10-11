@@ -76,11 +76,21 @@ if (reportingEndpoints) {
     securityHeaders.push({ key: "Reporting-Endpoints", value: reportingEndpoints });
 }
 
+// One id per build, given to Next as its build id and baked into the page, so
+// the "A new version is ready" pill (hooks/useUpdateReady) can tell this
+// page's build from the one the server runs now (app/build-id). A deploy
+// pipeline may pin it with ONECAMP_BUILD_ID.
+// Kept in the environment, so the build's workers, which load this file
+// again, use the same id.
+const buildId = (process.env.ONECAMP_BUILD_ID ||= `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+
 const nextConfig: NextConfig = {
     // A self-contained server for the container build (see Dockerfile). Off
     // otherwise, so a Vercel or `next start` deployment is unchanged.
     output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
     reactStrictMode: false,
+    generateBuildId: async () => buildId,
+    env: { NEXT_PUBLIC_BUILD_ID: buildId },
     // Strip console.log / console.debug from prod bundles to avoid
     // accidentally leaking request bodies, user objects, or tokens
     // via DevTools. We keep console.error / console.warn so the
@@ -104,6 +114,23 @@ const nextConfig: NextConfig = {
             {
                 source: "/:path*",
                 headers: securityHeaders,
+            },
+        ];
+    },
+    // Design v3 renamed two places (shell N1). Inbox is notifications and
+    // nudges, the page that was Activity; Mail is the person's Gmail, which
+    // was Inbox. Old links keep working: /app/activity (and its ?tab=) opens
+    // Inbox, and the Gmail connect callback, which still returns to
+    // /app/inbox?connector=..., lands on Mail. Next carries the query string
+    // across. Temporary, so a later rename is free to move them again.
+    async redirects() {
+        return [
+            { source: "/app/activity", destination: "/app/inbox", permanent: false },
+            {
+                source: "/app/inbox",
+                has: [{ type: "query", key: "connector" }],
+                destination: "/app/mail",
+                permanent: false,
             },
         ];
     },

@@ -180,7 +180,7 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
     element.style.removeProperty(
       `--active-position-${activePositionRef.current.row}-${activePositionRef.current.column}`
     )
-    element.style.setProperty(`--active-position-${row}-${column}`, 'var(--bg-quaternary)')
+    element.style.setProperty(`--active-position-${row}-${column}`, 'var(--press)')
     activePositionRef.current = { row, column }
     virtualizer.scrollToIndex(row)
   }
@@ -287,9 +287,9 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
             if (value.trim()) setActivePosition(SEARCH_POSITION)
             else setActivePosition(START_POSITION)
           }}
-          placeholder='Search'
-          className='
-           h-8  border-transparent w-full'
+          placeholder='Search emoji'
+          aria-label='Search emoji'
+          className='h-8 w-full'
           onKeyDown={handleKeyDown}
         />
       </div>
@@ -309,7 +309,7 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
               return (
                 <h2
                   key={virtualRow.index}
-                  className='  w-full whitespace-nowrap px-1.5 pb-1 pt-4 text-xs font-medium'
+                  className='w-full whitespace-nowrap px-1.5 pb-1 pt-4 text-meta font-medium text-ink-3'
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -346,7 +346,7 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
                       tabIndex={-1}
                       key={reaction.id}
                       className={cn(
-                        'hover:!bg-quaternary flex aspect-square shrink-0 items-center justify-center rounded-md font-[emoji] text-xl leading-none transition-colors duration-0 ease-out'
+                        'group/cell flex aspect-square shrink-0 items-center justify-center rounded-md font-[emoji] text-[1.375rem] leading-none hover:!bg-press'
                       )}
                       style={{
                         width: REACTION_SIZE,
@@ -356,7 +356,7 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
                       onClick={() => handleReactionSelect(reaction)}
                     >
                       {isStandardReaction(reaction) ? (
-                        <span className='mt-1'>{reaction.native}</span>
+                        <span className='mt-1 inline-block transition-transform duration-[140ms] ease-out group-hover/cell:scale-110'>{reaction.native}</span>
                       ) : (
                         (() => {
                           const custom = reaction as SyncCustomReaction

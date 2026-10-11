@@ -1,13 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { Check, Plus, Tag } from "@/lib/icons"
+import { Check, Plus } from "@/lib/icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { MAX_TAGS, MAX_TAG_LENGTH, joinTags, splitTags, tagTone } from "@/lib/tags"
+import { MAX_TAGS, MAX_TAG_LENGTH, joinTags, splitTags } from "@/lib/tags"
+import { hueFor } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { TagPills } from "@/components/tags/TagPills"
 
 export interface ProjectTag {
@@ -67,43 +69,38 @@ export function TagPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={current.length ? `Tags: ${current.join(", ")}. Change tags` : "Add tags"}
-          className="inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          aria-label={current.length ? `Labels: ${current.join(", ")}. Change labels` : "Add labels"}
+          className="-ml-2 inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm text-ink-3 transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring"
         >
-          {current.length ? (
-            <TagPills label={label} />
-          ) : (
-            <>
-              <Tag className="h-3.5 w-3.5" />
-              Add tags
-            </>
-          )}
+          {current.length ? <TagPills label={label} /> : "Add labels"}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-0" align="start">
+      <PopoverContent className="w-64 rounded-lg p-1 shadow-e3" align="start">
         <Command shouldFilter>
-          <CommandInput placeholder="Find or make a tag…" value={query} onValueChange={setQuery} maxLength={MAX_TAG_LENGTH} />
+          <CommandInput placeholder="Find or create a label…" value={query} onValueChange={setQuery} maxLength={MAX_TAG_LENGTH} className="h-8" />
           <CommandList>
             <CommandEmpty>{typed ? null : "No tags in this project yet."}</CommandEmpty>
             {typed && !exists && !full && (
               <CommandGroup>
-                <CommandItem value={`__new__${typed}`} onSelect={() => toggle(typed)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Make the tag <span className={cn("ml-1 truncate rounded px-1.5 text-xs font-medium", tagTone(typed))}>{typed}</span>
+                <CommandItem value={`__new__${typed}`} onSelect={() => toggle(typed)} className="h-[30px] gap-2 rounded-md">
+                  <Plus className="h-3.5 w-3.5 text-ink-3" />
+                  <span className="truncate">Create &ldquo;{typed}&rdquo;</span>
                 </CommandItem>
               </CommandGroup>
             )}
             {options.length > 0 && (
-              <CommandGroup heading="Tags in this project">
+              <CommandGroup heading="Labels in this project">
                 {options.map((t) => {
                   const on = has(t.name)
                   return (
-                    <CommandItem key={t.name} value={t.name} onSelect={() => toggle(t.name)} disabled={!on && full}>
-                      <span className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", on ? "bg-primary text-primary-foreground" : "opacity-50")}>
-                        {on && <Check className="h-3 w-3" />}
+                    <CommandItem key={t.name} value={t.name} onSelect={() => toggle(t.name)} disabled={!on && full} className="h-[30px] gap-2 rounded-md">
+                      {/* The label's own hue as a dot (W06), never a tinted pill. */}
+                      <span aria-hidden className={cn(HUE_CLASS[hueFor(t.name)], "size-1.5 shrink-0 rounded-full bg-hue")} />
+                      <span className="truncate">{t.name}</span>
+                      <span className="ml-auto flex items-center gap-2">
+                        {t.count > 0 && <span className="text-xs tabular-nums text-ink-3">{t.count}</span>}
+                        <Check className={cn("h-3.5 w-3.5 text-ink-2", !on && "invisible")} />
                       </span>
-                      <span className={cn("truncate rounded px-1.5 text-xs font-medium", tagTone(t.name))}>{t.name}</span>
-                      {t.count > 0 && <span className="ml-auto pl-2 text-xs tabular-nums text-muted-foreground">{t.count}</span>}
                     </CommandItem>
                   )
                 })}

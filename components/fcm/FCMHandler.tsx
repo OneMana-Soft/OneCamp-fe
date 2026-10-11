@@ -1,11 +1,23 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+
+/** Up to two initials from a preview's title ("Jonas Weber in #engineering"). */
+function initialsOf(title: string): string {
+  const who = title.split(" in ")[0] ?? ""
+  return who
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("")
+}
 import { getFCMToken, isFirebaseConfigured, messaging } from "@/lib/firebase"
 import { onMessage } from "firebase/messaging"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { toast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 
@@ -28,6 +40,8 @@ export function FCMHandler() {
   // not capture the profile before it loads. A DM's route is named after the OTHER
   // participant, so resolving one needs to know who "I" am.
   const selfUUIDRef = useRef<string>("")
+  // The live preview on screen, so a newer one replaces it (shell N2).
+  const lastPreviewRef = useRef<{ dismiss: () => void } | null>(null)
 
   // Effect 1: Sync userUUID to IndexedDB for the service worker (re-runs when profile loads)
   useEffect(() => {
@@ -119,37 +133,31 @@ export function FCMHandler() {
       const route = notificationRoute(payload.data, selfUUIDRef.current)
       const redirectUrl = route === NOTIFICATION_FALLBACK_ROUTE ? "" : route
 
-      toast({
-        variant: "notification" as any,
-        duration: 4000,
-        title: (
-          <div 
-            className="flex items-center gap-3 w-full cursor-pointer -m-1 p-1"
-            onClick={() => {
-              if (redirectUrl) router.push(redirectUrl)
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <Avatar className="h-9 w-9 shrink-0 ring-1 ring-border/50">
-              {icon && <AvatarImage src={icon} alt={title} />}
-              <AvatarFallback className="bg-muted">
-                <img src="/icons/icon-circle-512.png" alt="OneCamp" className="h-full w-full object-contain" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-tight truncate">{title}</p>
-              {body && (
-                <p className="text-xs text-muted-foreground leading-snug mt-0.5 truncate">{body}</p>
-              )}
-            </div>
-            {redirectUrl && (
-              <svg className="h-4 w-4 shrink-0 text-muted-foreground/60" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            )}
-          </div>
-        ) as any,
+      // Already looking at it: the message is on screen, so a preview would
+      // only cover something.
+      if (redirectUrl && window.location.pathname === redirectUrl.split("?")[0]) return
+
+      // The live preview (design v3, shell N2): the person's avatar, who and
+      // where, one line of what they said, and Reply. At most one at a time;
+      // a newer one replaces it in the stack. Off while notifications are
+      // paused or in focus time (isDndActive, above): the Inbox still counts.
+      lastPreviewRef.current?.dismiss()
+      lastPreviewRef.current = toast({
+        tone: "person",
+        duration: 6000,
+        icon: (
+          <Avatar className="size-6">
+            {icon && <AvatarImage src={icon} alt="" />}
+            <AvatarFallback className="bg-press text-3xs font-semibold text-ink-2">{initialsOf(title)}</AvatarFallback>
+          </Avatar>
+        ),
+        title: <span className="block truncate">{title}</span>,
+        description: body ? <span className="block truncate">{body}</span> : undefined,
+        action: redirectUrl ? (
+          <ToastAction altText={`Reply to ${title}`} onClick={() => router.push(redirectUrl)}>
+            Reply
+          </ToastAction>
+        ) : undefined,
       })
     });
 
