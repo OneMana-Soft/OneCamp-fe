@@ -71,7 +71,7 @@ describe("agent collaboration", () => {
     await screen.findByRole("radiogroup", { name: /How far a chain can go/ })
     const two = screen.getByRole("radio", { name: "2" })
     expect(two.getAttribute("aria-checked")).toBe("true")
-    expect(two.className).toContain("data-[state=checked]:bg-card")
+    expect(two.className).toContain("data-[state=checked]:bg-raised")
   })
 
   // The Models section and this one each fetched /admin/ai/config.

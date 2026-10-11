@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 // Member permissions. A failed load left the card blank under its heading,
 // beside a toast that soon left, so an admin saw no permissions and nothing to
-// do. It now says so, with Try again. Each permission is a settings row whose
-// switch is named by the permission, the section says how it saves, and a
-// refused change puts the switch back.
+// do. It now says so, with Try again.
+//
+// Design v3 (admin A9): the question each row asks is "who", so its control
+// is a segmented "Admins · Everyone" named by the permission, not a switch
+// with a third line ("All members can") repeating the switch. The note above
+// the card says members and agents never exceed their access, with the
+// shield in the agent hue. A refused change slides back.
 
 const api = vi.hoisted(() => ({ list: vi.fn(), set: vi.fn() }))
 vi.mock("@/services/capabilityService", async (orig) => ({
@@ -25,33 +29,45 @@ afterEach(() => {
   api.set.mockReset()
 })
 
+const radio = (group: HTMLElement, name: string) => within(group).getByRole("radio", { name })
+
 describe("member permissions", () => {
   it("says the permissions couldn't load, and tries again", async () => {
     api.list.mockRejectedValueOnce(new Error("503")).mockResolvedValueOnce([{ capability: "workflow.manage", policy: "admins_only" }])
     render(<PermissionsCard />)
-    expect(await screen.findByText("Couldn't load the member permissions")).toBeTruthy()
+    expect(await screen.findByText(/Couldn't load the member permissions/)).toBeTruthy()
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
-    expect(await screen.findAllByRole("switch")).toHaveLength(1)
+    expect(await screen.findAllByRole("radiogroup")).toHaveLength(1)
   })
 
-  it("names each switch by its permission, and says how changes save", async () => {
+  it("asks who with a segmented control per permission, and drops the third line", async () => {
     api.list.mockResolvedValue([{ capability: "workflow.manage", policy: "all_members" }])
     render(<PermissionsCard />)
-    const sw = (await screen.findAllByRole("switch"))[0]
-    expect(sw.getAttribute("aria-checked")).toBe("true")
-    // Named by the visible label, so clicking the words toggles it.
-    expect(sw.id).toBeTruthy()
-    expect(document.querySelector(`label[for="${sw.id}"]`)?.textContent).toBeTruthy()
+    const group = (await screen.findAllByRole("radiogroup"))[0]
+    expect(group.hasAttribute("data-segmented")).toBe(true)
+    expect(group.getAttribute("aria-label")).toBeTruthy()
+    expect(radio(group, "Everyone").getAttribute("data-state")).toBe("checked")
+    expect(radio(group, "Admins").getAttribute("data-state")).toBe("unchecked")
+    expect(screen.queryByRole("switch")).toBeNull()
+    expect(screen.queryByText("All members can")).toBeNull()
     expect(screen.getByText(/Changes save as you make them\./)).toBeTruthy()
-    expect(screen.getByText("All members can")).toBeTruthy()
   })
 
-  it("puts a refused change back", async () => {
+  it("notes members and agents act within their access, with the shield in the agent hue", async () => {
+    api.list.mockResolvedValue([])
+    render(<PermissionsCard />)
+    const note = document.querySelector("[data-permissions-note]") as HTMLElement
+    expect(note.textContent).toBe("Members always act within their own access. Agents act within their sponsor's.")
+    expect(note.querySelector("svg")?.getAttribute("class")).toMatch(/text-agent-ink/)
+  })
+
+  it("saves a choice at once, and slides back when refused", async () => {
     api.list.mockResolvedValue([{ capability: "workflow.manage", policy: "admins_only" }])
     api.set.mockRejectedValue(new Error("refused"))
     render(<PermissionsCard />)
-    const sw = (await screen.findAllByRole("switch"))[0]
-    await act(async () => void fireEvent.click(sw))
-    expect(sw.getAttribute("aria-checked")).toBe("false")
+    const group = (await screen.findAllByRole("radiogroup"))[0]
+    await act(async () => void fireEvent.click(radio(group, "Everyone")))
+    expect(api.set).toHaveBeenCalledWith("workflow.manage", "all_members")
+    expect(radio(group, "Admins").getAttribute("data-state")).toBe("checked")
   })
 })

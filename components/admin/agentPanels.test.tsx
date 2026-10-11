@@ -27,12 +27,19 @@ afterEach(() => {
 const run = { run_id: "r1", agent_name: "Standup bot", status: "failed", trigger_source: "schedule", started_at: new Date().toISOString(), summary: "", error: "Couldn't reach #standup", tools_used: [], action_count: 0 }
 
 describe("recent agent activity", () => {
-  it("puts its title icon on the AI group's tile, and says each run's state in words", async () => {
-    vi.mocked(listAgentActivity).mockResolvedValue([run] as never)
-    render(<AgentActivityFeed />)
+  // Design v3 (admin §A23): the audit log's row anatomy (time, the agent's
+  // square, the sentence), the state as a glyph and a word, tools as neutral
+  // chips; no tinted tile on the title.
+  it("draws each run in the audit row anatomy, and says its state in words", async () => {
+    vi.mocked(listAgentActivity).mockResolvedValue([{ ...run, tools_used: ["post_message"] }] as never)
+    const { container } = render(<AgentActivityFeed />)
     const heading = await screen.findByRole("heading", { name: "Recent agent activity" })
-    expect(heading.parentElement?.querySelector(".hue-dusk")).toBeTruthy()
+    expect(heading.parentElement?.querySelector("[class*='hue-']")).toBeNull()
     expect(heading.parentElement?.querySelector(".text-primary")).toBeNull()
+    const row = container.querySelector("[data-activity-row]") as HTMLElement
+    expect(row.className).toContain("ai-row")
+    expect(row.querySelector(".ai-row-actor [data-agent-avatar]")).toBeTruthy()
+    expect(row.querySelector(".ai-chip")?.textContent).toBe("post message")
     // The dot was colour alone, with only a hover title.
     expect(screen.getByText("Failed")).toBeTruthy()
   })
@@ -49,13 +56,17 @@ describe("recent agent activity", () => {
 })
 
 describe("agent work in progress", () => {
-  // A spinner glyph turned in the title even when nothing was loading.
-  it("shows a still tile in the AI group's hue, not a spinner, once loaded", async () => {
-    vi.mocked(listActiveAgentWork).mockResolvedValue([{ task_id: "t1", title: "Draft the notes", state: "working" }] as never)
-    render(<AgentActiveWorkPanel />)
-    const heading = await screen.findByRole("heading", { name: "In progress" })
-    const header = heading.parentElement as HTMLElement
-    expect(header.querySelector(".hue-dusk")).toBeTruthy()
-    await waitFor(() => expect(header.querySelector(".animate-spin")).toBeNull())
+  // Design v3 (admin §A15): a card of rows, each led by the agent's square and
+  // a 2px live bar that breathes while the run is going. The title sat on a
+  // tinted tile with a spinner that turned whenever it refreshed.
+  it("leads each row with the agent's square and a live bar, and no tinted tile", async () => {
+    vi.mocked(listActiveAgentWork).mockResolvedValue([{ task_id: "t1", agent_name: "Release Captain", title: "Draft the notes", state: "working" }] as never)
+    const { container } = render(<AgentActiveWorkPanel title="Working now" />)
+    const heading = await screen.findByRole("heading", { name: "Working now" })
+    expect(heading.parentElement?.querySelector("[class*='hue-']")).toBeNull()
+    const row = container.querySelector("[data-live-row]") as HTMLElement
+    expect(row.dataset.live).toBe("true")
+    expect(row.querySelector("[data-live-bar]")).toBeTruthy()
+    expect(row.querySelector("[data-agent-avatar]")).toBeTruthy()
   })
 })

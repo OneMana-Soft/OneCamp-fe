@@ -67,14 +67,18 @@ describe("the Slack bridge", () => {
 
   // Two filled buttons in the setup, beside the GitHub card's: the accent
   // stays with the step that connects.
-  it("shows the plug while Slack isn't connected, and fills only Connect Slack", async () => {
+  // Design v3 (A18): the card's header says "Not connected" beside the
+  // bridge's two marks; the plug spot it showed was an empty state for a
+  // thing with a name and a state.
+  it("says Slack isn't connected in the card's header, and fills only Connect Slack", async () => {
     vi.mocked(getSlackBridge).mockResolvedValue(notConnected)
     const { container } = render(<SlackBridgeCard />)
     const connect = await screen.findByRole("button", { name: "Connect Slack" })
-    expect(container.querySelector("[data-empty-illustration]")).not.toBeNull()
-    expect(connect.className).toMatch(/\bbg-primary\b/)
-    expect(screen.getByRole("link", { name: /Create the app in Slack/ }).className).not.toMatch(/\bbg-primary\b/)
-    expect(screen.getByRole("button", { name: /Copy the manifest/ }).className).not.toMatch(/\bbg-primary\b/)
+    expect(container.querySelector("[data-state-word]")?.textContent).toBe("Not connected")
+    expect(container.querySelector("[data-bridge-marks]")).not.toBeNull()
+    expect(connect.className).toMatch(/\bbg-brand\b/)
+    expect(screen.getByRole("link", { name: /Create the app in Slack/ }).className).not.toMatch(/\bbg-brand\b/)
+    expect(screen.getByRole("button", { name: /Copy the manifest/ }).className).not.toMatch(/\bbg-brand\b/)
   })
 
   it("names the two keys in words, and says where Slack keeps them", async () => {
@@ -106,7 +110,9 @@ describe("the Slack bridge", () => {
     vi.mocked(getSlackBridge).mockResolvedValue(connected)
     vi.mocked(disconnectSlackBridge).mockResolvedValue(undefined)
     render(<SlackBridgeCard />)
-    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }))
+    // Behind the card's ⋯ (A18), not a button on the header.
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Slack bridge actions" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Disconnect Slack" }))
     const opts = confirm.mock.calls[0][0]
     expect(opts.destructive).toBe(true)
     expect(opts.description).toMatch(/linked channel/)

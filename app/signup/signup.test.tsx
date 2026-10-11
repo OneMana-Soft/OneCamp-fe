@@ -51,7 +51,7 @@ describe("accepting an invitation", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
     fireEvent.click(screen.getByRole("button", { name: "Show password" }))
     expect((screen.getByLabelText("Password") as HTMLInputElement).type).toBe("text")
-    await act(async () => void fireEvent.submit(screen.getByRole("button", { name: "Create account" }).closest("form")!))
+    await act(async () => void fireEvent.submit(screen.getByRole("button", { name: "Join your team" }).closest("form")!))
 
     expect(sent.find((r) => r.path.endsWith("auth/signup"))?.body).toEqual({ token: "tok-ana", name: "José O'Brien", password: "a long enough password" })
     expect(await screen.findByText("@josé-obrien")).toBeTruthy()
@@ -73,7 +73,7 @@ describe("accepting an invitation", () => {
     await screen.findByLabelText("Your name")
     fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "<b>bold</b>" } })
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
-    await act(async () => void fireEvent.submit(screen.getByRole("button", { name: "Create account" }).closest("form")!))
+    await act(async () => void fireEvent.submit(screen.getByRole("button", { name: "Join your team" }).closest("form")!))
     expect(screen.getByRole("alert").textContent).toMatch(/Your name can use letters, spaces, apostrophes, hyphens and full stops/)
     expect(sent.some((r) => r.path.endsWith("auth/signup"))).toBe(false)
   })
@@ -91,15 +91,20 @@ describe("accepting an invitation", () => {
     invitedBy = { inviter_name: "Sam Rivera", workspace: "team.example.com" }
     render(<SignupPage />)
     await screen.findByLabelText("Your name")
-    const line = screen.getByText(/invited you/)
-    expect(line.textContent).toBe("Sam Rivera invited you to team.example.com as ana@example.com.")
+    // Design v3 (F5): "Join <workspace>" as the title, the lead "<Inviter>
+    // invited <email>." with the names at 510, the address as a fixed chip.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Join team.example.com")
+    const line = screen.getByText(/invited/)
+    expect(line.textContent).toBe("Sam Rivera invited ana@example.com.")
+    expect(document.querySelector("[data-identity-chip]")?.textContent).toBe("Aana@example.com")
+    expect(screen.getByRole("button", { name: "Join team.example.com" })).toBeTruthy()
   })
 
   it("says only what it knows when the inviter has gone", async () => {
     invitedBy = { inviter_name: "", workspace: "team.example.com" }
     render(<SignupPage />)
     await screen.findByLabelText("Your name")
-    expect(screen.getByText(/You're invited/).textContent).toBe("You're invited to team.example.com as ana@example.com.")
+    expect(screen.getByText(/An invitation for/).textContent).toBe("An invitation for ana@example.com.")
   })
 
   it("leaves the password out when the workspace has turned it off", async () => {
@@ -107,7 +112,7 @@ describe("accepting an invitation", () => {
     render(<SignupPage />)
     expect(await screen.findByRole("button", { name: "Continue with GitHub" })).toBeTruthy()
     expect(screen.queryByLabelText("Password")).toBeNull()
-    expect(screen.queryByRole("button", { name: "Create account" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Join/ })).toBeNull()
     // Nor offers one in words.
     expect(screen.getByText(/Use the account for ana@example.com/).textContent).toBe("Use the account for ana@example.com.")
   })
@@ -171,7 +176,7 @@ describe("a field that needs fixing", () => {
     render(<SignupPage />)
     fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Ana" } })
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "short" } })
-    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Create account" })))
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Join your team" })))
     expect(screen.getByRole("alert").textContent).toBe("Use at least 8 characters.")
     expect(document.activeElement).toBe(screen.getByLabelText("Password"))
   })
@@ -180,7 +185,7 @@ describe("a field that needs fixing", () => {
     render(<SignupPage />)
     fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "<b>bold</b>" } })
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
-    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Create account" })))
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Join your team" })))
     expect(document.activeElement).toBe(screen.getByLabelText("Your name"))
   })
 })
@@ -197,3 +202,26 @@ describe("checking the invitation", () => {
   })
 })
 
+
+// The hero (F5): the inviter on the inner orbit, a dashed line to an outline
+// "You" that fills when you join.
+describe("the camp you are joining", () => {
+  it("puts the inviter beside the ring and you on the orbit, filled once you join", async () => {
+    invitedBy = { inviter_name: "Sam Rivera", workspace: "team.example.com" }
+    const { container } = render(<SignupPage />)
+    await screen.findByLabelText("Your name")
+    expect(container.querySelector("[data-inviter]")?.textContent).toBe("SR")
+    expect(container.querySelector("[data-you]")?.getAttribute("data-you")).toBe("waiting")
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "José O'Brien" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Join team.example.com" })))
+    await screen.findByText("@josé-obrien")
+    expect(container.querySelector("[data-you]")?.getAttribute("data-you")).toBe("joined")
+  })
+
+  it("rates the new password as it is typed", async () => {
+    const { container } = render(<SignupPage />)
+    fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "short" } })
+    expect(container.querySelector("[data-strength-meter]")?.textContent).toBe("Weak")
+  })
+})

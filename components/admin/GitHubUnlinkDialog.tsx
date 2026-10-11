@@ -34,9 +34,11 @@ export default function GitHubUnlinkDialog({ open, onOpenChange, onConfirm, link
             Its tasks keep their content, and you can&apos;t undo this. You can link it again later.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-danger-ink">
+        {/* What stops, as a plain list on the sunken surface: the red,
+            bordered box made every line read as an error (design v3, H3). */}
+        <div className="rounded-lg bg-sunken p-3 text-sm text-foreground">
           <p className="mb-1 font-medium">This will:</p>
-          <ul className="list-disc space-y-1 pl-5">
+          <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
             <li>Remove OneCamp&apos;s webhook from the repository</li>
             <li>Clear GitHub details from this project&apos;s linked tasks</li>
             <li>Stop taking in its events</li>

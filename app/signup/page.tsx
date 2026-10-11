@@ -11,7 +11,7 @@
 // invited them and to which workspace, as the email did.
 
 import { LoaderCircle, Users } from "@/lib/icons";
-import { SpotError, SpotWelcome } from "@/components/ui/graphics/spots"
+import { SpotError, SpotInbox, SpotWelcome } from "@/components/ui/graphics/spots"
 import { Button } from "@/components/ui/button"
 import { useCallback, useEffect, useRef, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
@@ -20,7 +20,8 @@ import { landingPath } from "@/lib/landing"
 import { nameProblem } from "@/lib/validation/names"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, IdentityChip, PasswordField, StrengthMeter, authControl, authControlXl, initialsOf } from "@/components/auth/AuthShell"
+import { InviteHero } from "@/components/auth/CampArt"
 import { EnterpriseSSOButtons, OAuthButtons } from "@/components/auth/ProviderButtons"
 
 /** How long the page says who they are before opening the workspace. */
@@ -150,45 +151,65 @@ function SignupForm() {
     }
   }
 
+  // The camp you are joining: the inviter beside its ring, and you, waiting
+  // on the orbit until you join.
+  const nameInitials = (n: string) => {
+    const parts = n.trim().split(/\s+/).filter(Boolean)
+    return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : parts[0]?.slice(0, 2) ?? "").toUpperCase()
+  }
+  const hero = (
+    <InviteHero
+      inviter={invitedBy.inviter}
+      inviterInitials={nameInitials(invitedBy.inviter)}
+      you={invitationEmail || token}
+      youInitials={joined ? nameInitials(joined.name) || initialsOf(invitationEmail) : initialsOf(invitationEmail)}
+      joined={joined !== null}
+    />
+  )
+  const shell = (body: React.ReactNode) => <AuthShell side={hero}>{body}</AuthShell>
+  // The workspace's name when the install gives one, else its address.
+  const workspace = process.env.NEXT_PUBLIC_ORG_NAME?.trim() || invitedBy.workspace
+
   if (isValidating) {
-    return <AuthPlaceholder label="Checking your invitation" fields={2} />
+    return shell(<AuthPlaceholder label="Checking your invitation" fields={2} />)
   }
 
   if (checkFailed) {
-    return (
+    return shell(
       <>
         <AuthHeading title="Couldn't check your invitation" art={<SpotError />}>
           This workspace didn&apos;t answer, so the link may well be fine. Check your connection and try again.
         </AuthHeading>
-        <Button className={authControl} onClick={checkInvitation}>
+        <Button size="lg" className={authControl} onClick={checkInvitation}>
           Try again
         </Button>
-      </>
+      </>,
     )
   }
 
   if (tokenInvalid) {
-    return (
+    return shell(
       <>
-        <AuthHeading title="This invitation can't be used" art={<SpotError />}>
+        {/* The envelope with its sun spark: an invitation, not a breakage. */}
+        <AuthHeading title="This invitation can't be used" art={<SpotInbox size={96} />}>
           {error || "The link is incomplete or has expired. Ask whoever invited you to send a new one."}
         </AuthHeading>
-        <Button variant="outline" className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
-      </>
+        <Button variant="secondary" size="lg" className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
+      </>,
     )
   }
 
   if (joined) {
-    return (
+    return shell(
       <div role="status" aria-live="polite">
         <AuthHeading title={`You're in, ${joined.name}`} art={<SpotWelcome />}>
           Your handle is <span className="font-medium text-foreground">@{joined.handle}</span>. You can change it in your
           profile.
         </AuthHeading>
-        <Button className={authControl} onClick={() => router.push(joined.destination)}>
+        <Button size="lg" className={authControl} onClick={() => router.push(joined.destination)}>
           Continue
         </Button>
-      </div>
+      </div>,
     )
   }
 
@@ -196,19 +217,24 @@ function SignupForm() {
   const hasSSO = providers.oidc || providers.saml
   const hasOtherWays = hasOAuth || hasSSO || providers.ldap
 
-  return (
+  const joinLabel = workspace ? `Join ${workspace}` : "Join your team"
+
+  return shell(
     <>
-      <AuthHeading title="Join your team">
+      <AuthHeading display title={workspace ? <>Join <span translate="no">{workspace}</span></> : "Join your team"}>
         <p>
-          {invitedBy.inviter ? <><span className="font-medium text-foreground">{invitedBy.inviter}</span> invited you</> : "You're invited"}
-          {invitedBy.workspace && <> to <span className="font-medium text-foreground" translate="no">{invitedBy.workspace}</span></>}
-          {" as "}<span className="font-medium text-foreground">{invitationEmail}</span>.
+          {invitedBy.inviter ? <><span className="font-medium text-foreground">{invitedBy.inviter}</span> invited </> : "An invitation for "}
+          <span className="font-medium text-foreground" translate="no">{invitationEmail}</span>.
         </p>
       </AuthHeading>
 
       <div className="space-y-6">
+      {/* The address is the invitation's, so it is shown, not asked for. */}
+      <IdentityChip email={invitationEmail} />
+
       {hasOtherWays && (
         <div className="space-y-2">
+          <div className="auth-providers">
           {hasOAuth && (
             <OAuthButtons
               google={providers.google}
@@ -220,14 +246,15 @@ function SignupForm() {
           )}
           {hasSSO && <EnterpriseSSOButtons oidc={providers.oidc} saml={providers.saml} disabled={isLoading} />}
           {providers.ldap && (
-            <Button variant="outline" className={authControl} asChild>
+            <Button variant="secondary" size="lg" className={`${authControl} auth-wide`} asChild>
               <Link href="/?tab=directory">
                 <Users aria-hidden="true" />
                 Sign in with your directory account
               </Link>
             </Button>
           )}
-          <p className="pt-1 text-xs text-muted-foreground">
+          </div>
+          <p className="auth-hint">
             Use the account for {invitationEmail}.
           </p>
         </div>
@@ -267,6 +294,7 @@ function SignupForm() {
               error={errorField === "password" ? error : undefined}
               visible={showPassword}
               onVisibleChange={setShowPassword}
+              below={<StrengthMeter password={password} />}
             />
 
             {/* Hidden from view, there for a password manager: the address the
@@ -275,9 +303,9 @@ function SignupForm() {
 
             {errorField === null && <FormProblem>{error}</FormProblem>}
 
-            <Button type="submit" className={authControl} disabled={isLoading}>
+            <Button type="submit" size="lg" className={authControlXl} aria-busy={isLoading || undefined}>
               {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-              {isLoading ? "Creating account…" : "Create account"}
+              {isLoading ? "Joining…" : joinLabel}
             </Button>
           </form>
         </>
@@ -290,16 +318,14 @@ function SignupForm() {
         <Link href="/" className="font-medium text-foreground underline-offset-4 hover:underline">Sign in</Link>
       </p>
       </div>
-    </>
+    </>,
   )
 }
 
 export default function SignupPage() {
   return (
-    <AuthShell>
-      <Suspense fallback={null}>
-        <SignupForm />
-      </Suspense>
-    </AuthShell>
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   )
 }

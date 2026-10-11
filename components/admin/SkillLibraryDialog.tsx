@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { History, RotateCcw, Trash2, Users } from "lucide-react"
+import { BookOpen, History, RotateCcw, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -42,9 +43,12 @@ interface Props {
     onClose: () => void
     /** Called after a save or revert so the caller can refresh its own copy. */
     onChanged?: () => void
+    /** The skills the agent being edited uses; with onToggle, each card has an Add switch. */
+    selectedIds?: ReadonlySet<string>
+    onToggle?: (id: string, on: boolean) => void
 }
 
-export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
+export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onToggle }: Props) {
     const { toast } = useToast()
     const [skills, setSkills] = React.useState<AgentSkill[]>([])
     const [selected, setSelected] = React.useState<AgentSkill | null>(null)
@@ -172,25 +176,41 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
-                    <ul className="max-h-[420px] space-y-1 overflow-y-auto border-r border-border/50 pr-2">
-                        {skills.map((s) => (
-                            <li key={s.id}>
-                                <button
-                                    type="button"
-                                    aria-current={selected?.id === s.id ? "true" : undefined}
-                                    onClick={() => select(s)}
-                                    className={`w-full rounded-md px-2 py-1.5 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 ${
-                                        selected?.id === s.id ? "bg-primary/10 text-primary" : "hover:bg-highlight"
-                                    }`}
-                                >
-                                    <span className="block truncate font-medium">{s.name}</span>
-                                    <span className="text-2xs text-muted-foreground">
-                                        {s.agent_count} agent{s.agent_count === 1 ? "" : "s"}
+                {/* The library as cards, like apps (design v3, admin §S5): each
+                    skill's name, what it says, who shared it and how many agents
+                    use it, an Add switch when an agent is being edited, and Edit.
+                    It was a 200px list beside an empty editor. */}
+                {!selected ? (
+                    <ul data-skill-grid="" className="grid max-h-[460px] gap-3 overflow-y-auto p-0.5 sm:grid-cols-2">
+                        {skills.map((s) => {
+                            const added = selectedIds?.has(s.id) ?? false
+                            return (
+                                <li key={s.id} data-skill-card="" className="skill-card">
+                                    <span aria-hidden="true" className="ai-sunken-note grid size-8 shrink-0 place-items-center rounded-[9px] text-ink-3">
+                                        <BookOpen className="h-4 w-4" />
                                     </span>
-                                </button>
-                            </li>
-                        ))}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-medium text-foreground">{s.name}</p>
+                                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{s.instructions}</p>
+                                        <p className="mt-1.5 text-2xs tabular-nums text-ink-3">
+                                            {s.created_by_name ? `Shared by ${s.created_by_name} · ` : ""}
+                                            {s.agent_count} agent{s.agent_count === 1 ? "" : "s"}
+                                        </p>
+                                        <div className="mt-2 flex items-center gap-2">
+                                            {onToggle ? (
+                                                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
+                                                    <Switch checked={added} onCheckedChange={(v) => onToggle(s.id, v)} aria-label={`Add ${s.name}`} />
+                                                    <span aria-hidden="true">{added ? "Added" : "Add"}</span>
+                                                </label>
+                                            ) : null}
+                                            <Button size="sm" variant="ghost" className="ml-auto h-8" onClick={() => select(s)} aria-label={`Edit ${s.name}`}>
+                                                Edit
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </li>
+                            )
+                        })}
                         {loadFailed && skills.length === 0 ? (
                             <li className="space-y-2 px-2 py-1.5">
                                 <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the skills.</p>
@@ -202,11 +222,11 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                             <li className="px-2 py-1.5 text-xs text-muted-foreground">No skills yet.</li>
                         ) : null}
                     </ul>
-
-                    {!selected ? (
-                        <p className="self-center text-xs text-muted-foreground">Pick a skill to edit it.</p>
-                    ) : (
+                ) : (
                         <div className="space-y-3">
+                            <Button size="sm" variant="ghost" className="-ml-2 h-8" onClick={() => setSelected(null)}>
+                                All skills
+                            </Button>
                             {/* The blast radius, stated before the fields rather than after them. */}
                             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -321,7 +341,6 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                             )}
                         </div>
                     )}
-                </div>
             </DialogContent>
         </Dialog>
     )

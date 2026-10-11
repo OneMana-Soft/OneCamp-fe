@@ -27,7 +27,11 @@ describe("a refusal in the activity feed", () => {
     )
     expect(el, "no refused status rendered").toBeTruthy()
     expect(el?.className).not.toContain("text-danger-ink")
-    expect(el?.className).toContain("text-primary")
+    // Design v3 (admin §1.5, §A11): not the accent either, which belongs to
+    // the one action a view asks for. The row carries the audit log's danger
+    // shield before its sentence instead: the most important rows on the page.
+    expect(el?.className).not.toContain("text-primary")
+    expect(container.querySelector("[data-refusal-glyph]")).toBeTruthy()
   })
 
   // Colour alone never carries it.
@@ -40,6 +44,7 @@ describe("a refusal in the activity feed", () => {
     const { container } = render(<AIActivityRow item={item({ title: "ai.run", status: "failed" })} />)
     const el = Array.from(container.querySelectorAll("span")).find((s) => s.textContent === "failed")
     expect(el?.className).toContain("text-danger-ink")
+    expect(container.querySelector("[data-refusal-glyph]")).toBeNull()
   })
 
   it("treats an allowed call as the system working", () => {
@@ -67,7 +72,7 @@ describe("what a row leads with", () => {
         })}
       />,
     )
-    const headline = container.querySelector("span.text-sm.font-medium")
+    const headline = container.querySelector("[data-row-summary]")
     expect(headline?.textContent).toContain("you are not a member of this channel")
     expect(headline?.textContent).not.toContain("agent.drill.refused")
   })
@@ -90,7 +95,7 @@ describe("what a row leads with", () => {
         item={item({ kind: "agent_run", title: "Weekly digest", summary: "Posted to #engineering", status: "succeeded" })}
       />,
     )
-    const headline = container.querySelector("span.text-sm.font-medium")
+    const headline = container.querySelector("[data-row-summary]")
     expect(headline?.textContent).toBe("Weekly digest")
     expect(container.textContent).toContain("Posted to #engineering")
   })
@@ -99,6 +104,6 @@ describe("what a row leads with", () => {
     const { container } = render(
       <AIActivityRow item={item({ kind: "audit", title: "ai.config.changed", summary: "", status: "" })} />,
     )
-    expect(container.querySelector("span.text-sm.font-medium")?.textContent).toBe("ai.config.changed")
+    expect(container.querySelector("[data-row-summary]")?.textContent).toBe("ai.config.changed")
   })
 })

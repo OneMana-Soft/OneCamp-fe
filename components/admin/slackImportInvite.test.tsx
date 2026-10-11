@@ -27,12 +27,15 @@ describe("a finished Slack import", () => {
   it("offers to invite the people who came across", () => {
     const onInvite = vi.fn()
     render(<JobRow job={job("completed")} busy={false} onPlan={noop} onRun={noop} onCancel={noop} onRollback={noop} onDeleteZip={noop} onShowErrors={noop} onInvite={onInvite} />)
-    fireEvent.click(screen.getByRole("button", { name: /Invite people/ }))
+    // Design v3 (§A14): behind the finished import's ⋯.
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for acme" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Invite the people who came across" }))
     expect(onInvite).toHaveBeenCalledOnce()
   })
 
   it("doesn't offer them while it runs", () => {
     render(<JobRow job={job("running")} busy={false} onPlan={noop} onRun={noop} onCancel={noop} onRollback={noop} onDeleteZip={noop} onShowErrors={noop} onInvite={noop} />)
-    expect(screen.queryByRole("button", { name: /Invite people/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: "More for acme" })).toBeNull()
+    expect(screen.queryByText(/Invite the people/)).toBeNull()
   })
 })

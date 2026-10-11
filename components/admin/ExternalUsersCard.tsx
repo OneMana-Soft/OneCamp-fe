@@ -1,7 +1,6 @@
 "use client"
 
 import { type ReactNode, useEffect, useMemo, useState } from "react"
-import { UserX } from "lucide-react"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
@@ -105,25 +104,22 @@ const ExternalUsersCard = () => {
   } else if (loaded && filteredUsers.length === 0) {
     state = filtering ? (
       <PeopleNoMatch
-        icon={UserX}
-        title={`No external users match ${quoted(searchQuery)}`}
+        title={`No one matches ${quoted(searchQuery)}.`}
         hint="Search by name, GitHub login or email address."
         onClear={() => setSearchQuery("")}
       />
     ) : (
       <PeopleFirstRun
         title="No external users"
-        description="People appear here when GitHub activity in a linked repository names someone who hasn't joined."
+        description="People outside the company show up here when GitHub activity in a linked repository names someone who hasn't joined."
       />
     )
   }
 
   return (
     <PeopleFrame
-      title="External users"
+      label="External users"
       count={peopleCount({ shown: filteredUsers.length, total: allUsers.length, more: hasMore, filtering, loaded })}
-      // Unlinking is explained where it is done, in its confirm.
-      description="People from GitHub who haven't joined yet."
       search={{
         value: searchQuery,
         onChange: setSearchQuery,

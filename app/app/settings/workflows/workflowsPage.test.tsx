@@ -28,6 +28,8 @@ describe("the settings Workflows page", () => {
     render(<WorkflowsSettingsPage />)
     const button = screen.getByRole("button", { name: "New workflow" })
     expect(cardProps.last?.withTitle).toBe(false)
+    // The personal page lists only the person's own workflows (S4).
+    expect(cardProps.last?.scope).toBe("mine")
     expect(cardProps.last?.creating).toBe(false)
     fireEvent.click(button)
     expect(cardProps.last?.creating).toBe(true)

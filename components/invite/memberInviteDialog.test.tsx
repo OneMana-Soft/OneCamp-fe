@@ -7,6 +7,8 @@ const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 const invite = vi.fn()
 vi.mock("@/services/invitationService", () => ({ invite }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
+vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copied: false, copy: vi.fn(async () => true) }) }))
 
 const { MemberInviteDialog } = await import("./MemberInviteDialog")
 
@@ -56,5 +58,66 @@ describe("the member invite dialog's form and its end", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Invite another" }))
     expect(screen.getByLabelText(/email address/i)).toHaveValue("")
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+})
+
+// Design v3 (E6): addresses become chips as they are typed or pasted, Send
+// counts them, and several are sent in turn with a row each, so a refusal for
+// one never hides that the others went.
+describe("the invite dialog's chips", () => {
+  it("splits a paste on commas, spaces, semicolons and newlines, once each, and marks the bad ones", async () => {
+    const { parseAddresses } = await import("./InviteForm")
+    const chips = parseAddresses("ana@example.com, Bo@Example.com\nnot-an-email;cy@example.com  ana@example.com", new Set(["cy@example.com"]))
+    expect(chips.map((c) => [c.email, c.kind])).toEqual([
+      ["ana@example.com", "ok"],
+      ["bo@example.com", "ok"],
+      ["not-an-email", "invalid"],
+      ["cy@example.com", "known"],
+    ])
+    expect(chips[2].reason).toBe("That isn't an email address.")
+  })
+
+  it("turns a paste into chips and counts only the good ones on Send", () => {
+    render(<MemberInviteDialog open onOpenChange={vi.fn()} />)
+    const box = screen.getByLabelText(/email address/i)
+    fireEvent.paste(box, { clipboardData: { getData: () => "ana@example.com, bo@example.com\nnope" } })
+    expect(document.querySelectorAll("[data-invite-chip='ok']").length).toBe(2)
+    expect(document.querySelector("[data-invite-chip='invalid']")?.textContent).toContain("nope")
+    expect(screen.getByRole("button", { name: "Send 2 invitations" })).toBeTruthy()
+  })
+
+  it("selects the last chip on the first Backspace and removes it on the second", () => {
+    render(<MemberInviteDialog open onOpenChange={vi.fn()} />)
+    const box = screen.getByLabelText(/email address/i)
+    fireEvent.paste(box, { clipboardData: { getData: () => "ana@example.com bo@example.com" } })
+    fireEvent.keyDown(box, { key: "Backspace" })
+    expect(document.querySelector("[data-selected='true']")?.textContent).toContain("bo@example.com")
+    fireEvent.keyDown(box, { key: "Backspace" })
+    expect(document.querySelectorAll("[data-invite-chip]").length).toBe(1)
+  })
+
+  it("sends several in turn and gives each its own outcome", async () => {
+    invite
+      .mockResolvedValueOnce({ ok: true, answer: { email_sent: true, invite_link: "https://x/a" } })
+      .mockResolvedValueOnce({ ok: true, answer: { email_sent: false, email_error: "the day's limit was reached", invite_link: "https://x/b" } })
+      .mockResolvedValueOnce({ ok: false, msg: "cy@example.com is already a member of this workspace." })
+    render(<MemberInviteDialog open onOpenChange={vi.fn()} />)
+    fireEvent.paste(screen.getByLabelText(/email address/i), { clipboardData: { getData: () => "ana@example.com, bo@example.com, cy@example.com" } })
+    fireEvent.submit(screen.getByRole("button", { name: "Send 3 invitations" }).closest("form")!)
+    expect(await screen.findByText("1 sent · 1 to share by link · 1 refused")).toBeTruthy()
+    const rows = Array.from(document.querySelectorAll("[data-invite-result]"))
+    expect(rows.map((r) => r.getAttribute("data-invite-result"))).toEqual(["sent", "created", "refused"])
+    expect(invite.mock.calls.map((c) => c[0])).toEqual(["ana@example.com", "bo@example.com", "cy@example.com"])
+    expect(screen.getByRole("button", { name: "Copy the link for bo@example.com" })).toBeTruthy()
+  })
+})
+
+describe("the seat line", () => {
+  it("says how many places are left and how many won't fit, only when they don't", async () => {
+    const { seatLine } = await import("./InviteForm")
+    expect(seatLine(2, 5)).toBe("")
+    expect(seatLine(5, 3)).toBe("3 places left on the free plan. 2 of these won't fit.")
+    expect(seatLine(1, 0)).toBe("No places left on the free plan. 1 of these won't fit.")
+    expect(seatLine(9, undefined)).toBe("")
   })
 })

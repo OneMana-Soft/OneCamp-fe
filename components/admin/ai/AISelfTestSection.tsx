@@ -1,25 +1,27 @@
 "use client"
 
 /**
- * AISelfTestSection — "Test AI" from the admin dashboard.
+ * The AI self-test, run from the admin page with real model calls (it answers
+ * a question, leaves tools alone on small talk, picks the right tool for an
+ * action, and chains a read into a follow-up write). It replaced the
+ * operator-only `go run ./cmd/aieval` CLI.
  *
- * Validates the configured AI with real model calls (answers a question,
- * declines to fire a tool on a greeting, picks the right tool for an action,
- * and chains a read into a follow-up write). This replaces the operator-only
- * `go run ./cmd/aieval` CLI so an admin can verify the model from the panel.
+ * The run is asynchronous on the server (model calls can take minutes on a
+ * local Ollama), so this polls a status endpoint and shows each check as it
+ * completes.
  *
- * The run is asynchronous on the backend (model calls can take minutes on a
- * local Ollama), so this polls a status endpoint and shows per-check results
- * as they complete. It can target a specific authorized model or the default.
+ * Design v3 (admin §A15, Overview): it runs inline under the status card.
+ * Each check is a 32px row whose 16px glyph resolves in sequence, a spinner
+ * and then a moss check (on the spring) or a danger cross, 120ms apart; the
+ * finished set says "8 of 8 passed" beside a seal. The stagger is
+ * presentation only: every result is the server's.
  */
 
-import { SettingsSection } from "@/components/ui/settingsSection"
-import React, { useCallback, useEffect, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, XCircle, Loader2, Sparkles } from "@/lib/icons"
+import { BadgeCheck, Check, Loader2, X } from "@/lib/icons"
+import { useStagger } from "@/components/admin/ai/useStagger"
 import {
   AIConfig,
   AuthorizedModel,
@@ -28,16 +30,19 @@ import {
   runAISelfTest,
   getAISelfTestStatus,
 } from "@/services/aiModelService"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+
+export const SELF_TEST_STAGGER_MS = 120
 
 const DEFAULT_VALUE = "__default__"
 
-const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
+/** The self-test's state and its Run, shared by the status card's button and the rows. */
+export function useSelfTest() {
   const { toast } = useToast()
   const [status, setStatus] = useState<SelfTestStatus | null>(null)
   const [models, setModels] = useState<AuthorizedModel[]>([])
   const [target, setTarget] = useState<string>(DEFAULT_VALUE)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
   const running = status?.state === "running"
 
   const stopPolling = useCallback(() => {
@@ -53,25 +58,22 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
       setStatus(s)
       if (s.state !== "running") stopPolling()
     } catch {
-      /* keep last status on a transient error */
+      /* keep the last status on a transient error */
     }
   }, [stopPolling])
 
-  // Load any prior result + the authorized models for the target picker, and
-  // resume polling if a run is already in progress.
+  // Any prior result, the models the picker offers, and a run already going.
   useEffect(() => {
     let cancelled = false
     getAISelfTestStatus()
       .then((s) => {
         if (cancelled) return
-        setStatus(s)
-        if (s.state === "running" && !pollRef.current) {
-          pollRef.current = setInterval(poll, 2500)
-        }
+        setStatus(s ?? null)
+        if (s?.state === "running" && !pollRef.current) pollRef.current = setInterval(poll, 2500)
       })
       .catch(() => {})
     getAuthorizedModels()
-      .then((m) => !cancelled && setModels(m.filter((x) => x.enabled && x.provider_enabled)))
+      .then((m) => !cancelled && setModels((m ?? []).filter((x) => x.enabled && x.provider_enabled)))
       .catch(() => {})
     return () => {
       cancelled = true
@@ -79,28 +81,38 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
     }
   }, [poll, stopPolling])
 
-  const handleRun = async () => {
+  const run = useCallback(async () => {
     try {
       await runAISelfTest(target === DEFAULT_VALUE ? "" : target)
       setStatus({ state: "running", passed: 0, failed: 0, total: 0, checks: [] })
       stopPolling()
       pollRef.current = setInterval(poll, 2500)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to start the test"
-      toast({ title: "Couldn't start test", description: msg, variant: "destructive" })
+      toast({ title: "Couldn't start the self-test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     }
-  }
+  }, [poll, stopPolling, target, toast])
+
+  return { status, running, models, target, setTarget, run }
+}
+
+export type SelfTest = ReturnType<typeof useSelfTest>
+
+/** The checks, resolving one by one. Nothing until a run has started or finished. */
+export function SelfTestRows({ test, config }: { test: SelfTest; config: AIConfig }) {
+  const { status, running, models, target, setTarget } = test
+  const checks = status?.checks ?? []
+  const resolved = useStagger(checks.length, SELF_TEST_STAGGER_MS)
+  if (!status || status.state === "idle") return null
+  const settled = !running && resolved === checks.length
+  const passed = checks.filter((c) => c.passed).length
+  const allPassed = settled && checks.length > 0 && passed === checks.length
 
   return (
-    <SettingsSection
-      level={3}
-      title="Test AI"
-      description="Run a quick check against a configured model: it should answer questions, leave tools alone on small talk, pick the right action, and chain a summary into a follow-up message. On a local model it can take a minute or two."
-    >
-
-      <div className="flex flex-wrap items-center gap-2">
+    <div id="ai-models-selftest" data-settings-card="" data-self-test="" className="set-card scroll-mt-5" aria-live="polite">
+      <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
+        <h3 className="text-sm font-medium text-foreground">Self-test</h3>
         <Select value={target} onValueChange={setTarget} disabled={running}>
-          <SelectTrigger className="w-full sm:w-64" aria-label="Model to test">
+          <SelectTrigger className="h-8 w-auto max-w-[240px] text-xs" aria-label="Model to test">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -112,46 +124,56 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={handleRun} disabled={running || !config.enabled}>
-          {running ? <Loader2 className="animate-spin" /> : <Sparkles />}
-          {running ? "Testing…" : "Run test"}
-        </Button>
-        {status && status.state !== "idle" && status.state !== "running" && status.total > 0 && (
-          <Badge variant={status.failed === 0 ? "secondary" : "destructive"}>
-            {status.passed}/{status.total} passed
-          </Badge>
-        )}
       </div>
-
-      {status?.error && status.state === "failed" && (
-        <p className="text-xs text-danger-ink">{status.error}</p>
-      )}
-
-      {status?.checks && status.checks.length > 0 && (
-        <ul className="divide-y divide-border rounded-lg border border-border">
-          {status.checks.map((c, i) => (
-            <li key={i} className="flex items-start gap-2 px-4 py-2.5 text-sm">
-              {c.passed ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
-              ) : (
-                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
-              )}
-              <span className="min-w-0">
-                <span className={c.passed ? "" : "text-danger-ink"}>{c.name}</span>
-                {!c.passed && c.detail && <span className="block text-xs text-muted-foreground">{c.detail}</span>}
+      <ul className="pb-1">
+        {checks.map((c, i) => {
+          const done = i < resolved
+          return (
+            <li
+              key={`${i}-${c.name}`}
+              data-check-row=""
+              data-state={done ? (c.passed ? "passed" : "failed") : "pending"}
+              className="ai-check-row"
+            >
+              <span className="ai-check-glyph" aria-hidden="true">
+                {!done ? (
+                  <Loader2 className="size-4 animate-spin text-ink-3" />
+                ) : c.passed ? (
+                  <span className="ai-glyph-pop ai-check-ok">
+                    <Check className="size-2.5" />
+                  </span>
+                ) : (
+                  <span className="ai-glyph-pop ai-check-fail">
+                    <X className="size-2.5" />
+                  </span>
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={done && !c.passed ? "text-sm text-danger-ink" : "text-sm text-foreground"}>{c.name}</span>
+                <span className="sr-only">{done ? (c.passed ? ", passed" : ", failed") : ", checking"}</span>
+                {done && !c.passed && c.detail && <span className="block text-xs text-muted-foreground">{c.detail}</span>}
               </span>
             </li>
-          ))}
-          {running && (
-            <li className="flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Running remaining checks…
-            </li>
-          )}
-        </ul>
+          )
+        })}
+        {running && (
+          <li data-check-row="" data-state="pending" className="ai-check-row text-muted-foreground">
+            <span className="ai-check-glyph" aria-hidden="true">
+              <Loader2 className="size-4 animate-spin text-ink-3" />
+            </span>
+            <span className="text-sm">{checks.length === 0 ? "Starting…" : "Running the next check…"}</span>
+          </li>
+        )}
+      </ul>
+      {status.error && status.state === "failed" && <p className="px-4 pb-3 text-xs text-danger-ink">{status.error}</p>}
+      {settled && checks.length > 0 && (
+        <div data-self-test-result="" className="ai-check-result">
+          <BadgeCheck aria-hidden="true" className={allPassed ? "ai-glyph-pop size-5 text-success-ink" : "size-5 text-ink-3"} />
+          <span className="text-sm font-medium text-foreground">
+            {passed} of {checks.length} passed
+          </span>
+        </div>
       )}
-    </SettingsSection>
+    </div>
   )
 }
-
-export default AISelfTestSection

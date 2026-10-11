@@ -1,0 +1,157 @@
+"use client"
+
+import { useState } from "react"
+
+import { Button } from "@/components/ui/button"
+import { DueLabel } from "@/components/task/DueLabel"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { StatusGlyph } from "@/components/ui/graphics/glyphs"
+import { celebrateTask, prefersReducedMotion } from "@/lib/celebrate"
+import { AlertCircle, Check, MessageSquare } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
+import type { GuestReview as Review, GuestTaskCard } from "@/services/guestService"
+
+/**
+ * What a client does with a task that waits on them (design v3, work.md
+ * W51): a card in the board's anatomy (W21), and in its foot "Approve" and
+ * "Ask for changes". Approving springs a moss badge in (check-fill) with one
+ * Spark from it: an outsider finishing something deserves it, once.
+ */
+
+/** Whether a task waits on the client's verdict: in review, with none given yet. */
+export function awaitsReview(t: Pick<GuestTaskCard, "status" | "review">): boolean {
+  return t.status === "inReview" && !t.review
+}
+
+/** The verdict as a 20 px chip: moss with a check, or sun with "!" (work.md W21). */
+export function VerdictChip({ review, animate = false }: { review: Review; animate?: boolean }) {
+  const approved = review.decision === "approved"
+  return (
+    <span
+      data-verdict={review.decision}
+      className={cn(
+        "inline-flex h-5 max-w-full items-center gap-1 rounded-sm px-1.5 text-micro font-medium",
+        approved ? "bg-camp-moss-tint text-camp-moss-ink" : "bg-camp-sun-tint text-camp-sun-ink",
+      )}
+      title={`${approved ? "Approved" : "Changes requested"} by ${review.name}`}
+    >
+      {approved ? (
+        <Check className="size-3 shrink-0" aria-hidden="true" style={animate ? { animation: "work-check-fill 220ms var(--ease-spring) both" } : undefined} />
+      ) : (
+        <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
+      )}
+      <span className="truncate">
+        {approved ? "Approved" : "Changes requested"} · {review.name}
+      </span>
+    </span>
+  )
+}
+
+const STATUS_KIND: Record<string, "backlog" | "todo" | "progress" | "review" | "done" | "cancelled"> = {
+  backlog: "backlog",
+  todo: "todo",
+  inProgress: "progress",
+  inReview: "review",
+  done: "done",
+  canceled: "cancelled",
+}
+
+/** A guest board's column glyph, from the column's built-in status. */
+export function GuestStatusGlyph({ status, size = 16 }: { status: string; size?: number }) {
+  return <StatusGlyph status={STATUS_KIND[status] ?? "todo"} size={size} />
+}
+
+/**
+ * A client's task card: the board card's material (raised, e1, r10, padding
+ * 12), the title at 510, then the due label, the comment count and the
+ * assignee's avatar; a verdict chip once given, the verdict buttons while
+ * one is awaited (and the guest has said who they are).
+ */
+export function GuestCard({
+  task,
+  opened,
+  showComments,
+  canReview,
+  onOpen,
+  onReview,
+}: {
+  task: GuestTaskCard
+  opened: boolean
+  showComments: boolean
+  /** The guest may give verdicts (comments are on) and has a name to give them under. */
+  canReview: boolean
+  onOpen: () => void
+  /** Approves, or asks to open the task for a note; resolves with an error to show, or null. */
+  onReview: (decision: "approved", el: HTMLElement) => Promise<string | null>
+}) {
+  const done = task.status === "done"
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const [justApproved, setJustApproved] = useState(false)
+  const waiting = awaitsReview(task)
+  return (
+    <div
+      data-guest-card=""
+      className={cn(
+        "relative rounded-[10px] bg-raised p-3 shadow-e1 transition-[translate] duration-[140ms] hover:-translate-y-px",
+        opened && "bg-[color-mix(in_oklab,var(--brand-muted)_40%,var(--raised))] ring-[1.5px] ring-inset ring-brand",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-current={opened ? "true" : undefined}
+        className="block w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <span className="sr-only">{task.name}</span>
+        <p aria-hidden="true" className={cn("line-clamp-2 break-words text-ui font-[510]", done ? "text-ink-3" : "text-foreground")}>
+          {task.name}
+        </p>
+        <span className="mt-2 flex min-h-[22px] items-center gap-2 text-xs text-ink-3">
+          {task.due_date && <DueLabel date={task.due_date} done={done} variant="card" />}
+          {showComments && task.comment_count > 0 && (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <MessageSquare className="size-3" aria-hidden="true" />
+              {task.comment_count}
+            </span>
+          )}
+          {task.review && <VerdictChip review={task.review} animate={justApproved} />}
+          <span className="flex-1" />
+          {task.assignee && <IdentityMark variant="avatar" id={task.assignee} label={task.assignee} size={22} aria-label={task.assignee} />}
+        </span>
+      </button>
+      {waiting && canReview && (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={async (e) => {
+              const el = e.currentTarget
+              setBusy(true)
+              setError("")
+              const err = await onReview("approved", el)
+              setBusy(false)
+              if (err) setError(err)
+              else {
+                if (!prefersReducedMotion()) setJustApproved(true)
+                celebrateTask(el)
+              }
+            }}
+          >
+            <Check className="size-3.5 text-camp-moss" />
+            Approve
+          </Button>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={onOpen}>
+            Ask for changes
+          </Button>
+          {error && (
+            <p role="alert" className="w-full text-xs text-danger-ink">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

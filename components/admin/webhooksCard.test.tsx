@@ -41,12 +41,18 @@ afterEach(() => {
   process.env.NEXT_PUBLIC_BACKEND_URL = originalBase
 })
 
+/** Opens one row's credentials and deliveries (design v3: they live under the 56px row). */
+function openRow(i: number) {
+  fireEvent.click(screen.getAllByRole("button", { name: "Show recent deliveries" })[i])
+}
+
 describe("webhooks", () => {
   // The deployed base ends in "/", and the card added its own, so the URL an
   // admin copied into another service read ".../​/webhook/incoming/…", which
   // the API's router does not match.
   it("shows the incoming URL with one slash after the API's address", () => {
     render(<WebhooksCard />)
+    openRow(0)
     fireEvent.click(screen.getAllByRole("button", { name: "Show token" })[0])
     expect(screen.getByText("https://api.example.com/webhook/incoming/tok123")).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/\.com\/\/webhook/)
@@ -56,6 +62,7 @@ describe("webhooks", () => {
   // posts with, at once and for good.
   it("asks before regenerating a token, and regenerates only on confirm", async () => {
     render(<WebhooksCard />)
+    openRow(0)
     fireEvent.click(screen.getAllByRole("button", { name: "Regenerate the token" })[0])
     expect(axiosInstance.post).not.toHaveBeenCalled()
     expect(confirmCalls).toHaveLength(1)
@@ -68,6 +75,7 @@ describe("webhooks", () => {
 
   it("asks before regenerating a signing secret", async () => {
     render(<WebhooksCard />)
+    openRow(1)
     fireEvent.click(screen.getByRole("button", { name: "Regenerate the signing secret" }))
     expect(axiosInstance.post).not.toHaveBeenCalled()
     expect(confirmCalls[0].title).toMatch(/CRM sync/)
@@ -88,11 +96,16 @@ describe("webhooks", () => {
     expect(await screen.findByText(/No deliveries yet/)).toBeTruthy()
   })
 
-  // A badge filled in the accent read as a button; a state is a dot and a word.
-  it("marks an active webhook with a dot and a word, not an accent badge", () => {
+  // A badge filled in the accent read as a button; a state is a dot and a
+  // word. Design v3 (A20): on or off is the row's switch, and the word says
+  // how the last delivery went.
+  it("says on or off with a switch, and the last delivery with a dot and a word", () => {
     render(<WebhooksCard />)
-    const active = screen.getAllByText("Active")[0]
-    expect(active.className).not.toMatch(/bg-primary|bg-sidebar-accent/)
+    const sw = screen.getByRole("switch", { name: "Deploy notices is on" })
+    expect(sw.getAttribute("aria-checked")).toBe("true")
+    const word = screen.getAllByText("Not used yet")[0]
+    expect(word.closest("[data-state-word]")?.getAttribute("data-state-word")).toBe("neutral")
+    expect(word.className).not.toMatch(/bg-primary|bg-sidebar-accent/)
   })
 
   // The playful layer: an empty state's icon sits on its admin group's tile
@@ -108,6 +121,7 @@ describe("webhooks", () => {
 
   it("opens the target in a link, not a button inside a link", () => {
     render(<WebhooksCard />)
+    openRow(1)
     const link = screen.getByRole("link", { name: "Open the target in a new tab" })
     expect(link.querySelector("button")).toBeNull()
     expect(link.getAttribute("href")).toBe("https://crm.example.com/hook")
@@ -128,23 +142,19 @@ describe("webhooks", () => {
     expect(button.className).not.toMatch(/(^|\s)h-9(\s|$)/)
   })
 
-  // A generic block of 40px skeleton lines was replaced by bordered rows of
-  // 160px, so the list jumped when it loaded.
-  it("draws its loading state as the list's own rows, in the list's frame", () => {
+  // A generic block of 40px skeleton lines was replaced by rows of another
+  // height, so the list jumped when it loaded. Design v3: the skeleton is the
+  // 56px row inside the settings card, not the old bordered list.
+  it("draws its loading state as the list's own rows, in the settings card", () => {
     fetchState.value = { data: undefined, isLoading: true, isError: undefined, mutate: vi.fn() }
     render(<WebhooksCard />)
     const status = screen.getByRole("status", { name: "Loading webhooks" })
     expect(status.tagName).toBe("UL")
-    expect(status.className).toContain("divide-y")
-    expect(status.className).toContain("rounded-lg")
+    expect(status.className).toContain("set-card")
+    expect(status.className).not.toContain("border")
     const rows = status.querySelectorAll("[data-webhook-skeleton-row]")
     expect(rows.length).toBe(3)
-    // The same two blocks a loaded row has: its header at px-4 py-3, then its
-    // credentials under it.
-    const [head, creds] = Array.from(rows[0].children) as HTMLElement[]
-    expect(head.className).toContain("px-4")
-    expect(head.className).toContain("py-3")
-    expect(creds.querySelectorAll("[data-credential-actions]").length).toBe(2)
+    expect(rows[0].className).toContain("cx-wh-row")
     expect(screen.getByRole("heading", { level: 2, name: /^Webhooks/ })).toBeTruthy()
   })
 
@@ -170,10 +180,16 @@ describe("webhooks", () => {
     expect(spot.className).not.toContain("size-24")
   })
 
-  it("says a webhook's state with the app's status word", () => {
+  // A failing outgoing webhook says so in danger, with how many in a row; a
+  // turned-off one says Off in ink-3.
+  it("says a failing webhook in danger and a turned-off one as Off", () => {
+    fetchState.value = {
+      data: { webhooks: [{ ...outgoing, failure_count: 3 }, { ...incoming, id: "w3", name: "Old bot", is_active: false }] },
+      isLoading: false, isError: undefined, mutate: vi.fn(),
+    }
     render(<WebhooksCard />)
-    const active = screen.getAllByText("Active")[0]
-    expect(active.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+    expect(screen.getByText("Failing · 3 in a row").closest("[data-state-word]")?.getAttribute("data-state-word")).toBe("danger")
+    expect(screen.getByText("Off").closest("[data-state-word]")?.getAttribute("data-state-word")).toBe("neutral")
   })
 
   // Each credential row's tinted value ended where its own buttons began: one
@@ -182,18 +198,22 @@ describe("webhooks", () => {
   // copy buttons sit in one column.
   it("gives every credential row the same three button slots", () => {
     render(<WebhooksCard />)
-    const groups = Array.from(document.querySelectorAll("[data-credential-actions]")) as HTMLElement[]
-    // Incoming: URL and token. Outgoing: token, signing secret, target.
-    expect(groups).toHaveLength(5)
-    for (const g of groups) {
+    const groups = () => Array.from(document.querySelectorAll("[data-credential-actions]")) as HTMLElement[]
+    // Incoming: URL and token.
+    openRow(0)
+    const inc = groups()
+    expect(inc).toHaveLength(2)
+    expect(inc[0].children[1].getAttribute("aria-label")).toBe("Copy webhook URL")
+    expect(inc[1].children[1].getAttribute("aria-label")).toBe("Copy token")
+    // Outgoing: token, signing secret, target.
+    openRow(1)
+    const out = groups()
+    expect(out).toHaveLength(3)
+    for (const g of [...inc, ...out]) {
       expect(g.children).toHaveLength(3)
       expect(g.className).toContain("w-24")
       expect(g.className).toContain("shrink-0")
     }
-    // The copy buttons share the middle slot.
-    const [url, token] = groups
-    expect(url.children[1].getAttribute("aria-label")).toBe("Copy webhook URL")
-    expect(token.children[1].getAttribute("aria-label")).toBe("Copy token")
   })
 })
 

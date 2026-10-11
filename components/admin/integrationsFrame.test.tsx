@@ -43,7 +43,9 @@ const status = (connected: boolean, linked_repos: unknown[] = []) => ({
   [GetEndpointUrl.GetGitHubStatus]: { data: { status: { connected, linked_repos } } },
 })
 
-const word = (text: string | RegExp) => screen.getByText(text).closest("[data-status-word]")?.getAttribute("data-status-word")
+// Design v3 (A18): a state is the connection card's StateWord (a 6px dot and
+// a word at 13/510), marked data-state-word; it was the app's StatusWord.
+const word = (text: string | RegExp) => screen.getByText(text).closest("[data-state-word]")?.getAttribute("data-state-word")
 
 describe("GitHub", () => {
   it("is titled without a tile, like the Slack bridge and the sign-in providers beside it", () => {
@@ -58,7 +60,9 @@ describe("GitHub", () => {
     render(<GitHubIntegrationCard />)
     const loading = screen.getByRole("status", { name: "Loading the GitHub connection" })
     expect(loading.querySelectorAll("[data-connection-skeleton-row]").length).toBe(2)
-    expect(loading.querySelector(".divide-y")).toBeTruthy()
+    // Under the connection card's header, which is drawn already (A18): the
+    // rows are the card's own, not a bordered list of their own.
+    expect(loading.closest("[data-connection-card]")).toBeTruthy()
   })
 
   it("says a failed read in the compact form, with the server's reason", () => {
@@ -134,8 +138,8 @@ describe("the Slack bridge", () => {
       links: [],
     })
     render(<SlackBridgeCard />)
-    await waitFor(() => expect(document.querySelector("[data-status-word]")?.textContent).toBe("Connected to Kestrel"))
-    expect(document.querySelector("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+    await waitFor(() => expect(document.querySelector("[data-state-word]")?.textContent).toBe("Connected to Kestrel"))
+    expect(document.querySelector("[data-state-word]")?.getAttribute("data-state-word")).toBe("success")
     for (const id of ["slack-link-slack", "slack-link-onecamp"]) {
       const trigger = document.getElementById(id) as HTMLElement
       expect(trigger.className).toContain("h-11")

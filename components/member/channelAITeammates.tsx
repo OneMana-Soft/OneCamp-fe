@@ -9,7 +9,9 @@
 import * as React from "react"
 import { Switch } from "@/components/ui/switch"
 import { PrincipalTag } from "@/components/ui/principalTag"
-import { Sparkles, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { DetailsSection } from "@/components/channel/details/detailsParts"
 import { toast } from "@/hooks/use-toast"
 import {
   getChannelAITeammates,
@@ -69,51 +71,43 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading AI teammates…
+      <div className="flex items-center gap-2 px-1 py-2 text-meta text-ink-3">
+        <Loader2 className="size-3.5 animate-spin" /> Loading AI teammates…
       </div>
     )
   }
 
   if (options.length === 0) return null
 
+  // A section of the channel's Details (design v3 chat, C51): "AI teammates"
+  // as a sentence-case title over a card of 56px rows, each the agent's
+  // square, its name and tag, what it does here, and its switch.
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5 px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Sparkles className="h-3 w-3" /> AI teammates
-      </div>
-      {/* Rows between hairlines, in the dialog's own column: a bordered box
-          here was a card inside the dialog's card. */}
-      <div data-ai-teammates="" className="flex flex-col divide-y divide-border/60 border-y border-border/60">
-        {options.map((opt) => (
-          <div key={opt.id} className="flex items-center justify-between gap-3 px-1 py-2.5">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-agent-muted text-agent">
-                <Sparkles className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-medium">{opt.name}</span>
-                  <PrincipalTag kind="ai" />
-                </div>
-                <p className="truncate text-2xs text-muted-foreground">
-                  {opt.in_channel
-                    ? "Replies to @mentions here"
-                    : opt.global
-                      ? "Currently replies everywhere it's mentioned"
-                      : "Not in this channel"}
-                </p>
-              </div>
+    <DetailsSection title={`AI teammates · ${options.length}`}>
+      {options.map((opt) => (
+        <div key={opt.id} data-ai-teammate="" className="flex min-h-14 items-center gap-3 px-3 py-2.5">
+          <span className="size-8 shrink-0"><AgentAvatar /></span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-ui font-medium text-ink">{opt.name}</span>
+              <PrincipalTag kind="ai" />
             </div>
-            <Switch
-              checked={opt.in_channel}
-              disabled={!!busy[opt.id]}
-              onCheckedChange={(v) => handleToggle(opt, v)}
-              aria-label={opt.in_channel ? `Remove ${opt.name} from channel` : `Add ${opt.name} to channel`}
-            />
+            <p className="truncate text-meta text-ink-3">
+              {opt.in_channel
+                ? "Replies to @mentions here"
+                : opt.global
+                  ? "Currently replies everywhere it's mentioned"
+                  : "Not in this channel"}
+            </p>
           </div>
-        ))}
-      </div>
-    </div>
+          <Switch
+            checked={opt.in_channel}
+            disabled={!!busy[opt.id]}
+            onCheckedChange={(v) => handleToggle(opt, v)}
+            aria-label={opt.in_channel ? `Remove ${opt.name} from channel` : `Add ${opt.name} to channel`}
+          />
+        </div>
+      ))}
+    </DetailsSection>
   )
 }

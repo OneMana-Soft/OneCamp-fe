@@ -91,7 +91,10 @@ describe("apps", () => {
 
   // A category is a thing with a colour: the chosen filter shows its camp
   // hue's tint and ink, never the accent; "All" stays neutral.
-  it("shows the chosen category in its own hue, not the accent", async () => {
+  // Design v3 (admin §1.5): a category is a neutral chip, never a hue (it
+  // was the category's camp tint). The chosen filter is raised at e1, never
+  // filled in the accent.
+  it("shows the chosen category as a raised neutral chip, not a hue or the accent", async () => {
     vi.mocked(listApps).mockResolvedValue([])
     vi.mocked(listMarketplace).mockResolvedValue([
       { slug: "zoom", name: "Zoom", description: "Calls", category: "Video", commands: [], installed: false } as never,
@@ -100,10 +103,9 @@ describe("apps", () => {
     const video = await screen.findByRole("button", { name: "Video" })
     fireEvent.click(video)
     expect(video.getAttribute("aria-pressed")).toBe("true")
-    expect(video.className).toMatch(/\bhue-(sky|moss|sun|dusk|berry|lake)\b/)
-    expect(video.className).toMatch(/bg-hue-tint/)
+    expect(video.className).not.toMatch(/\bhue-|bg-hue-tint|camp-/)
+    expect(video.className).toContain("shadow-e1")
     expect(video.className).not.toMatch(/bg-primary/)
-    expect(screen.getByRole("button", { name: "All" }).className).not.toMatch(/hue-/)
   })
 
   it("shows the plug spot when no app is installed", async () => {
@@ -175,7 +177,8 @@ describe("apps", () => {
     vi.mocked(listMarketplace).mockResolvedValue([])
     render(<AppsCard />, { wrapper: fresh })
     const status = await screen.findByRole("status", { name: "Loading the installed apps" })
-    expect(status.className).toContain("divide-y")
+    // Design v3: the rows sit in the settings card (e1, no border), not a bordered list.
+    expect(status.className).toContain("set-card")
     expect(status.querySelectorAll("[data-app-skeleton-row]").length).toBe(3)
   })
 
@@ -220,7 +223,7 @@ describe("apps", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add your own app" }))
     const external = await screen.findByRole("radio", { name: "External" })
     expect(external.getAttribute("data-state")).toBe("checked")
-    expect(external.className).toContain("data-[state=checked]:bg-card")
+    expect(external.className).toContain("data-[state=checked]:bg-raised")
   })
 
   it("folds an installed app's controls under its words on a phone", async () => {

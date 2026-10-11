@@ -68,7 +68,9 @@ describe("the Slack import card", () => {
     jobs = [job("j1", "completed")]
     const prompt = vi.spyOn(window, "prompt")
     render(<SlackImportCard />)
-    fireEvent.click(screen.getByRole("button", { name: /Roll back/ }))
+    // Design v3 (§A14): a finished import keeps Roll back behind its ⋯.
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for acme" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: /Roll back/ }))
     expect(await screen.findByRole("alertdialog", { name: "Roll back the import of acme?" })).toBeTruthy()
     const go = screen.getByRole("button", { name: "Roll back import" }) as HTMLButtonElement
     expect(go.disabled).toBe(true)
@@ -117,11 +119,16 @@ describe("the Slack import section's frame", () => {
     const region = screen.getByRole("region", { name: "Import from Slack" })
     expect(screen.getByRole("heading", { level: 2, name: "Import from Slack" })).toBeTruthy()
     const action = region.querySelector("[data-section-action]") as HTMLElement
-    expect(within(action).getByRole("button", { name: /New import/ }).className).toContain("bg-primary")
+    expect(within(action).getByRole("button", { name: /New import/ }).className).toContain("bg-brand")
     expect(container.querySelector(".rounded-xl")).toBeNull()
-    const row = within(screen.getByRole("list", { name: "Slack imports" })).getAllByRole("listitem")[0]
+    // Design v3 (§1.3, §A14): the list is the settings card (raised at e1, no
+    // border) and each import a row in it, never a box of its own.
+    const list = screen.getByRole("list", { name: "Slack imports" })
+    expect(list.className).toContain("set-card")
+    expect(list.className).not.toMatch(/\bborder\b/)
+    const row = within(list).getAllByRole("listitem")[0]
     const inner = row.firstElementChild as HTMLElement
-    expect(inner.className).toContain("px-4 py-3")
+    expect(inner.className).toContain("cx-imp-job")
     expect(inner.className).not.toMatch(/rounded-lg|p-3(\s|$)/)
   })
 
@@ -146,8 +153,8 @@ describe("the Slack import section's frame", () => {
     loading = true
     render(<SlackImportCard />)
     const list = screen.getByRole("status", { name: "Loading imports" })
-    expect(list.className).toContain("rounded-lg")
+    expect(list.className).toContain("set-card")
     expect(list.querySelectorAll("li").length).toBe(2)
-    expect((list.querySelector("li") as HTMLElement).className).toContain("px-4 py-3")
+    expect((list.querySelector("li") as HTMLElement).className).toContain("cx-imp-job")
   })
 })

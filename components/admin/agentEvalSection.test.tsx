@@ -14,7 +14,7 @@ vi.mock("@/services/agentService", async (orig) => ({
 }))
 
 import { AgentEvalSection } from "@/components/admin/AgentEvalSection"
-import { createEvalScenario, listEvalScenarios, runEvalScenario } from "@/services/agentService"
+import { createEvalScenario, listEvalScenarios, runEvalScenario, runEvalSuite } from "@/services/agentService"
 
 afterEach(() => {
   cleanup()
@@ -67,5 +67,29 @@ describe("an agent's saved tests", () => {
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't run the test", description: "The agent is paused." })),
     )
+  })
+
+  // Design v3 (admin §A23): a row per test with its status glyph, and the
+  // suite's pass rate as a ring at the top, said in words beside it.
+  it("shows the suite's pass rate as a ring, and each test's result as a glyph on its row", async () => {
+    vi.mocked(listEvalScenarios).mockResolvedValue([scenario, { ...scenario, id: "s2", name: "Asks before deleting" }] as never)
+    vi.mocked(runEvalSuite).mockResolvedValue({
+      passed: 1,
+      scored: 2,
+      total: 2,
+      scenarios: [
+        { scenario_id: "s1", result: { passed: true, score: 100 } },
+        { scenario_id: "s2", result: { passed: false, score: 40 } },
+      ],
+    } as never)
+    const { container } = render(<AgentEvalSection agentId="a1" />)
+    await screen.findByText("Asks before deleting")
+    fireEvent.click(screen.getByRole("button", { name: "Run all" }))
+    const ring = await screen.findByRole("progressbar", { name: "1 of 2 tests passing" })
+    expect(ring.getAttribute("aria-valuenow")).toBe("50")
+    const rows = container.querySelectorAll("[data-eval-row]")
+    expect(rows[0].querySelector(".ai-check-ok")).toBeTruthy()
+    expect(rows[1].querySelector(".ai-check-fail")).toBeTruthy()
+    expect(rows[0].closest("[data-settings-card]")).toBeTruthy()
   })
 })

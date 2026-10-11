@@ -1,29 +1,21 @@
-import { Orbit, Rings } from "@/components/ui/graphics/motifs"
+"use client"
+
+import { CampCanvas, CampHero, useHost } from "@/components/auth/CampArt"
 
 /**
- * Beside the sign-in form, from lg up: the logo's ring, extended into the
- * playful layer's motif, quietly. Faint concentric rings in the line colour,
- * and an orbit of six hued dots (the people and channels round a workspace)
- * around the workspace itself: the logo, the motif's one hero instance in the
- * brand's own colours. Decorative (AuthShell hides the side from screen
- * readers) and still: it explains nothing a person must read, so it does not
- * move.
+ * Beside the sign-in form, from 1024px up (design v3, admin.md F1, mock M10):
+ * the camp canvas as an inset r24 panel, with the gradient logo ring, three
+ * orbits turning slowly, five anonymous people and an agent on them, and two
+ * chips that say real things about this server. The glow is the theme's own
+ * (--glow, from the theme the person last chose), so a blue-theme person sees
+ * a blue camp. It replaced a grey diagram on a muted half-page that was a
+ * black void in dark mode.
  */
 export function SignInSide() {
+  const host = useHost()
   return (
-    <div className="relative flex w-full items-center justify-center overflow-hidden border-l border-border bg-muted/40">
-      <Rings size={640} count={4} core={false} className="absolute text-border" />
-      <div className="relative">
-        <Orbit size={320} dots={6} center={false} className="text-muted-foreground" />
-        {/* eslint-disable-next-line @next/next/no-img-element -- the static logo, as in AuthShell's header */}
-        <img
-          src="/logo.svg"
-          alt=""
-          width={64}
-          height={64}
-          className="absolute left-1/2 top-1/2 size-16 -translate-x-1/2 -translate-y-1/2"
-        />
-      </div>
-    </div>
+    <CampCanvas panel>
+      <CampHero host={host} />
+    </CampCanvas>
   )
 }

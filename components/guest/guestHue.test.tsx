@@ -31,7 +31,7 @@ describe("the workspace's hue on a guest page", () => {
     expect(GUEST_HUE).toBe(hueFor(process.env.NEXT_PUBLIC_APP_URL || "onecamp"))
   })
 
-  it("runs a band across the top of a shared doc, and puts its icon on a tile in it", async () => {
+  it("runs a band across the top of a shared doc, and puts the workspace mark in its hue", async () => {
     getGuestCollabSession.mockResolvedValue({ ok: true, data: { collab_token: "jwt", document_name: "doc-1", resource_type: "doc", resource_id: "doc-1", capability: "view", title: "Launch brief" } })
     listGuestDocComments.mockReturnValue(new Promise(() => {}))
     await act(async () => {
@@ -42,7 +42,7 @@ describe("the workspace's hue on a guest page", () => {
       )
     })
     expect(band()!.className).toContain(HUE)
-    const tile = screen.getByRole("heading", { name: "Launch brief" }).parentElement!.querySelector("span[aria-hidden]")!
+    const tile = document.querySelector("[data-workspace-mark]")!
     expect(tile.className).toContain(HUE)
     expect(tile.className).not.toMatch(/bg-primary/)
   })
@@ -60,8 +60,8 @@ describe("the workspace's hue on a guest page", () => {
     await act(async () => {
       render(<GuestDocComments token="tok" />)
     })
-    const initial = screen.getByText("J")
+    const initial = screen.getByText("JE")
     expect(initial.className).toContain(HUE_CLASS[hueFor("Jordan Ellis")])
-    expect(initial.className).toContain("bg-hue-tint")
+    expect(initial.className).toContain("avatar-person")
   })
 })

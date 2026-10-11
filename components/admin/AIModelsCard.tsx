@@ -1,17 +1,22 @@
 "use client"
 
 /**
- * AIModelsCard — admin panel for OneCamp's model-agnostic AI.
+ * AIModelsCard: the parts of AI & agents that read and write the AI settings
+ * (/admin/ai/*), one export per card, for the section's sub-pages
+ * (components/admin/ai/AIAgentsSection, design v3 admin §A15):
  *
- * Lets an admin:
- *  - Toggle AI on/off and set the per-user rate limit.
- *  - Pick the active chat model and embedding model (from any provider).
- *  - Manage providers: built-in Ollama / OpenAI / Anthropic plus custom
- *    OpenAI-compatible endpoints (vLLM, LM Studio, OpenRouter, ...).
- *  - For local Ollama: install (pull, with live progress) and delete
- *    models, and see server disk/RAM headroom + Ollama version status.
+ *  - the default export, Models: providers, the active chat, embedding and
+ *    vision models, server resources and a running reindex (Models);
+ *  - AmbientAgentsPanel: the automations that run on those models (Agents);
+ *  - RedactionPanel: local-only and personal-detail redaction (Governance);
+ *  - UsagePanel and TopConsumersPanel: today's meters, the caps, and where the
+ *    spend goes (Usage);
+ *  - AdvancedPanels: model tuning, analysis depth, web search, the sandbox
+ *    and code pull requests, each a card folded to its title row (Advanced).
  *
- * Single-tenant: one global config. Everything is wired to /admin/ai/*.
+ * They were one 2,800-line component drawn as one 7,000px column. Each reads
+ * the settings through the shared key (useAIConfig), so a switch flipped on
+ * one sub-page is right on the next without another request.
  */
 
 import React, { useCallback, useEffect, useId, useRef, useState } from "react"
@@ -27,12 +32,14 @@ import { StatusWord } from "@/components/ui/statusWord"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useAIConfig } from "@/components/admin/ai/useAIConfig"
+import { ConfigSwitchRow } from "@/components/admin/ai/aiSwitch"
+import { CollapsibleCard } from "@/components/admin/ai/CollapsibleCard"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
-import { Skeleton } from "@/components/ui/skeleton"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { ErrorState } from "@/components/ui/error-state"
 import { Progress } from "@/components/ui/progress"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { RefreshCw, Save, Plus, Lightbulb, Check, Users, Hash, GitPullRequest } from "@/lib/icons"
@@ -54,7 +61,6 @@ import {
   getAIChannelUsage,
   AIChannelUsageRow,
   listProviderModels,
-  setAIEnabled,
   setAIRateLimit,
   setAIContextWindow,
   setAIWorkspaceTokenBudget,
@@ -97,30 +103,94 @@ import { RunnerTestStatus, type RunnerProbe } from "@/components/admin/ai/Runner
 import { ProviderEditor } from "@/components/admin/ai/ProviderEditor"
 import { SystemStatsBar } from "@/components/admin/ai/SystemStatsBar"
 import { ModelCombobox } from "@/components/admin/ai/ModelCombobox"
-import AuthorizedModelsSection from "@/components/admin/ai/AuthorizedModelsSection"
-import AISelfTestSection from "@/components/admin/ai/AISelfTestSection"
-import McpServersCard from "@/components/admin/McpServersCard"
 
-const AIModelsCard = () => {
+const AI_DESCRIPTION =
+  "Run local models with Ollama, bring your own OpenAI or Anthropic key, or connect any OpenAI-compatible endpoint. Everything stays on your server."
+
+/**
+ * The model lists of each provider, fetched when first needed. The Models
+ * page and the code pull requests card (Advanced) each hold their own.
+ */
+function useProviderModels() {
   const { toast } = useToast()
-
-  // The AI settings, read through the key the agent collaboration section
-  // shares (components/admin/ai/useAIConfig): one request for both, where each
-  // used to fetch /admin/ai/config on its own.
-  const { config, setConfig, refresh: refreshConfig, error: configError, isLoading: configLoading } = useAIConfig()
-  const [stats, setStats] = useState<SystemStats | null>(null)
-  const [reindex, setReindex] = useState<ReindexStatus | null>(null)
-  const [usage, setUsage] = useState<AIUsage | null>(null)
-  const [backfill, setBackfill] = useState<MemoryBackfillStatus | null>(null)
-  // The other first reads (server resources, a running reindex or memory
-  // rebuild, today's usage), started together with the settings.
-  const [extrasLoading, setExtrasLoading] = useState(true)
-  const loading = configLoading || extrasLoading
-  const [saving, setSaving] = useState(false)
-
-  // Per-provider model catalogs, lazily fetched.
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, ModelView[]>>({})
   const [modelsLoading, setModelsLoading] = useState<Record<string, boolean>>({})
+  const loadModels = useCallback(
+    async (providerId: string, refresh = false) => {
+      if (!providerId) return
+      setModelsLoading((m) => ({ ...m, [providerId]: true }))
+      try {
+        const models = await listProviderModels(providerId, refresh)
+        setModelsByProvider((m) => ({ ...m, [providerId]: models }))
+      } catch (e: unknown) {
+        // A TITLE THAT MATCHES THE CAUSE. A stored key the server can no
+        // longer decrypt is labelled by the server (409 provider_key_unreadable)
+        // so the admin isn't sent to check a provider that was fine. Matched on
+        // the code, never on the message text.
+        const keyUnreadable = apiErrorCode(e) === "provider_key_unreadable"
+        toast({
+          title: keyUnreadable ? "This provider's API key needs re-entering" : "Couldn't list the models",
+          description: apiErrorMessage(e, "The provider didn't answer. Check its address and key."),
+          variant: "destructive",
+        })
+      } finally {
+        setModelsLoading((m) => ({ ...m, [providerId]: false }))
+      }
+    },
+    [toast],
+  )
+  return { modelsByProvider, modelsLoading, loadModels }
+}
+
+/** The settings' loading and failed states, under a section's own title. */
+function ConfigGate({
+  title,
+  description,
+  children,
+}: {
+  title: React.ReactNode
+  description?: React.ReactNode
+  children: (config: AIConfig) => React.ReactNode
+}) {
+  const { config, refresh, error, isLoading } = useAIConfig()
+  // The shape of what is coming under the title: rows in a card, so the page
+  // doesn't jump from one line of text to its settings.
+  if (isLoading && !config) {
+    return (
+      <SettingsSection title={title} description={description}>
+        <div role="status" aria-label="Loading the AI settings">
+          <SettingsList>
+            <div className="px-4 py-1" aria-hidden="true">
+              <SkeletonRows rows={3} avatar={false} />
+            </div>
+          </SettingsList>
+        </div>
+      </SettingsSection>
+    )
+  }
+  // A failed read is said under the title, which stays.
+  if (!config) {
+    return (
+      <SettingsSection title={title} description={description}>
+        <ErrorState
+          compact
+          subject="the AI settings"
+          detail={error ? apiErrorMessage(error, "Try again in a moment.") : undefined}
+          onRetry={() => void refresh()}
+        />
+      </SettingsSection>
+    )
+  }
+  return <>{children(config)}</>
+}
+
+// ─── Models (the default export) ──────────────────────────────────────
+
+const AIModelsCard = () => {
+  const { config, refresh: refreshConfig } = useAIConfig()
+  const [stats, setStats] = useState<SystemStats | null>(null)
+  const [reindex, setReindex] = useState<ReindexStatus | null>(null)
+  const { modelsByProvider, modelsLoading, loadModels } = useProviderModels()
 
   const refreshStats = useCallback(async () => {
     try {
@@ -151,8 +221,91 @@ const AIModelsCard = () => {
     return () => clearInterval(t)
   }, [reindex?.running, pollReindex])
 
-  // Poll the memory backfill status while a rebuild is running so the admin
-  // can watch progress. Stops once it reaches a terminal state.
+  // Started together, and with the settings' own read: none of these needs
+  // another's answer.
+  useEffect(() => {
+    void Promise.all([refreshStats(), pollReindex()])
+  }, [refreshStats, pollReindex])
+
+  // Once the settings are here, the catalogs of the active chat and embedding
+  // providers, ahead of anyone opening their pickers. Once per open.
+  const catalogsAsked = useRef(false)
+  useEffect(() => {
+    if (!config || catalogsAsked.current) return
+    catalogsAsked.current = true
+    if (config.chat_provider_id) void loadModels(config.chat_provider_id)
+    if (config.embedding_provider_id && config.embedding_provider_id !== config.chat_provider_id) {
+      void loadModels(config.embedding_provider_id)
+    }
+  }, [config, loadModels])
+
+  // The section's title is there from the first frame, and its state beside it
+  // once the settings are read: a dot and a word a person uses.
+  const title = (
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+      Models
+      {config && (
+        <StatusWord tone={config.enabled ? "success" : "neutral"} className="text-sm font-normal">
+          {config.enabled ? "On" : "Off"}
+        </StatusWord>
+      )}
+      {config?.circuit_state && config.circuit_state !== "closed" && (
+        <StatusWord tone="danger" className="text-sm font-normal">
+          {config.circuit_state === "half_open" ? "Trying the provider again after errors" : "Paused after the provider kept failing"}
+        </StatusWord>
+      )}
+    </span>
+  )
+
+  return (
+    <ConfigGate title={title} description={AI_DESCRIPTION}>
+      {(cfg) => (
+        <div className="space-y-8">
+          <ProvidersSection
+            config={cfg}
+            modelsByProvider={modelsByProvider}
+            modelsLoading={modelsLoading}
+            stats={stats}
+            onEnsureModels={loadModels}
+            title={title}
+            onChanged={async () => {
+              await refreshConfig()
+              await refreshStats()
+            }}
+          />
+          {/* Server resources and the engine's version, then a running reindex. */}
+          {stats && <SystemStatsBar stats={stats} onRefresh={refreshStats} />}
+          {reindex && (reindex.running || reindex.total > 0) && <ReindexBanner status={reindex} />}
+          <ActiveModelSection
+            config={cfg}
+            modelsByProvider={modelsByProvider}
+            modelsLoading={modelsLoading}
+            onEnsureModels={loadModels}
+            onChanged={async () => {
+              await refreshConfig()
+              await pollReindex()
+            }}
+          />
+        </div>
+      )}
+    </ConfigGate>
+  )
+}
+
+export default AIModelsCard
+
+// ─── Ambient agents (the Agents sub-page) ─────────────────────────────
+
+/**
+ * The automations that run in the background on the active models: switches
+ * that save the moment they are touched, each with what it needs under it.
+ */
+export function AmbientAgentsPanel() {
+  const { toast } = useToast()
+  const { config, setConfig } = useAIConfig()
+  const [backfill, setBackfill] = useState<MemoryBackfillStatus | null>(null)
+
+  // Poll the memory rebuild while it runs, so the admin can watch it.
   const pollBackfill = useCallback(async () => {
     try {
       const st = await getMemoryBackfillStatus()
@@ -162,7 +315,9 @@ const AIModelsCard = () => {
       return false
     }
   }, [])
-
+  useEffect(() => {
+    void pollBackfill()
+  }, [pollBackfill])
   useEffect(() => {
     if (backfill?.state !== "running") return
     const t = setInterval(async () => {
@@ -172,215 +327,19 @@ const AIModelsCard = () => {
     return () => clearInterval(t)
   }, [backfill?.state, pollBackfill])
 
-  const loadModels = useCallback(
-    async (providerId: string, refresh = false) => {
-      if (!providerId) return
-      setModelsLoading((m) => ({ ...m, [providerId]: true }))
-      try {
-        const models = await listProviderModels(providerId, refresh)
-        setModelsByProvider((m) => ({ ...m, [providerId]: models }))
-      } catch (e: unknown) {
-        // A TITLE THAT MATCHES THE CAUSE.
-        //
-        // "Could not list models — provider unreachable" was shown for every failure, including one
-        // where nothing was contacted at all: a stored API key the server can no longer decrypt.
-        // That sent the admin to check a provider that was fine. The server labels this condition
-        // (409 with code provider_key_unreadable) precisely so the UI can say what it is.
-        //
-        // Matched on the code, never on the message text, so a copy edit on the server cannot
-        // silently switch this back to the generic title. The message itself is already written for
-        // an admin and names the provider, so it is shown as-is.
-        const keyUnreadable = apiErrorCode(e) === "provider_key_unreadable"
-        toast({
-          title: keyUnreadable ? "This provider's API key needs re-entering" : "Couldn't list the models",
-          description: apiErrorMessage(e, "The provider didn't answer. Check its address and key."),
-          variant: "destructive",
-        })
-      } finally {
-        setModelsLoading((m) => ({ ...m, [providerId]: false }))
-      }
-    },
-    [toast],
-  )
-
-  useEffect(() => {
-    ;(async () => {
-      setExtrasLoading(true)
-      // Started together, and with the settings' own read: none of these needs
-      // another's answer, and awaiting them one after another held the whole
-      // tab on a loading line for the sum of five round trips.
-      await Promise.all([
-        refreshStats(),
-        pollReindex(),
-        pollBackfill(),
-        getAIUsage().then(setUsage, () => {
-          // Non-fatal; the usage row simply won't render.
-        }),
-      ])
-      setExtrasLoading(false)
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Once the settings are here, the catalogs of the active chat and embedding
-  // providers, ahead of anyone opening their pickers. Once per open of the tab.
-  const catalogsAsked = useRef(false)
-  useEffect(() => {
-    if (!config || catalogsAsked.current) return
-    catalogsAsked.current = true
-    if (config.chat_provider_id) loadModels(config.chat_provider_id)
-    if (config.embedding_provider_id && config.embedding_provider_id !== config.chat_provider_id) {
-      loadModels(config.embedding_provider_id)
-    }
-  }, [config, loadModels])
-
-  const handleToggleEnabled = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setAIEnabled(enabled)
-      setConfig((c) => (c ? { ...c, enabled } : c))
-      toast({ title: enabled ? "Workspace AI is on" : "Workspace AI is off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn workspace AI ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleToggleRecap = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setMeetingRecapEnabled(enabled)
-      setConfig((c) => (c ? { ...c, meeting_recap_enabled: enabled } : c))
-      toast({ title: enabled ? "Meeting recaps are on" : "Meeting recaps are off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn meeting recaps ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleToggleNotesDoc = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setMeetingNotesDocEnabled(enabled)
-      setConfig((c) => (c ? { ...c, meeting_notes_doc_enabled: enabled } : c))
-      toast({ title: enabled ? "The meeting notes document is on" : "The meeting notes document is off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn the meeting notes document ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleSaveRecapInstructions = async (instructions: string) => {
-    setSaving(true)
     try {
       await setMeetingRecapInstructions(instructions)
       setConfig((c) => (c ? { ...c, meeting_recap_instructions: instructions } : c))
       toast({ title: "Recap instructions saved" })
     } catch (e) {
       toast({ title: "Couldn't save the recap instructions", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
     }
   }
 
-  const handleToggleReasoning = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setAIReasoning(enabled)
-      setConfig((c) => (c ? { ...c, reasoning_enabled: enabled } : c))
-      toast({
-        title: enabled ? "Reasoning mode is on" : "Reasoning mode is off",
-        description: enabled
-          ? "Reasoning models will think before answering (higher quality, slower)."
-          : "Faster responses; reasoning models skip their chain-of-thought.",
-      })
-    } catch (e) {
-      toast({ title: `Couldn't turn reasoning mode ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-
-  const handleToggleLocalOnly = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setAILocalOnly(enabled)
-      setConfig((c) => (c ? { ...c, local_only_mode: enabled } : c))
-      toast({
-        title: enabled ? "Local-only AI is on" : "Local-only AI is off",
-        description: enabled
-          ? "No workspace content will leave this server. Cloud providers are blocked at the network layer."
-          : "Cloud AI providers (OpenAI, Anthropic, …) can be used again.",
-      })
-    } catch (e: unknown) {
-      toast({
-        title: `Couldn't turn local-only AI ${enabled ? "on" : "off"}`,
-        description: apiErrorMessage(e, "Try again in a moment."),
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-
-  const handleTogglePIIRedaction = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setAIPIIRedaction(enabled)
-      setConfig((c) => (c ? { ...c, pii_redaction_enabled: enabled } : c))
-      toast({
-        title: enabled ? "Redacting personal details is on" : "Redacting personal details is off",
-        description: enabled
-          ? "Detected PII is scrubbed from prompts before they reach any cloud model."
-          : "Prompts are sent to cloud models without PII redaction.",
-      })
-    } catch (e: unknown) {
-      toast({
-        title: `Couldn't turn redacting personal details ${enabled ? "on" : "off"}`,
-        description: apiErrorMessage(e, "Try again in a moment."),
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-
-  const handleToggleMemory = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setMemoryLayerEnabled(enabled)
-      setConfig((c) => (c ? { ...c, memory_layer_enabled: enabled } : c))
-      toast({ title: enabled ? "Workspace memory is on" : "Workspace memory is off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn workspace memory ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleToggleTeamReport = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setTeamReportEnabled(enabled)
-      setConfig((c) => (c ? { ...c, team_report_enabled: enabled } : c))
-      toast({ title: enabled ? "Weekly team reports are on" : "Weekly team reports are off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn weekly team reports ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // Admin verify: run the weekly team report now, bypassing the Monday/hour
-  // schedule + idempotency lock. It still only posts into channels that opted
-  // in, so zero reports is the normal result right after enabling this and is
-  // reported as such rather than looking like a failure.
+  // Admin verify: run the weekly team report now, bypassing the schedule. It
+  // still only posts into channels that opted in, so zero reports is the
+  // normal result right after enabling this and is said as such.
   const [runningReport, setRunningReport] = useState(false)
   const handleRunTeamReport = async () => {
     setRunningReport(true)
@@ -415,45 +374,6 @@ const AIModelsCard = () => {
     }
   }
 
-  const handleToggleNudges = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setNudgesEnabled(enabled)
-      setConfig((c) => (c ? { ...c, nudges_enabled: enabled } : c))
-      toast({ title: enabled ? "Proactive nudges are on" : "Proactive nudges are off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn proactive nudges ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleToggleCoworker = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setCoworkerEnabled(enabled)
-      setConfig((c) => (c ? { ...c, coworker_enabled: enabled } : c))
-      toast({ title: enabled ? "The AI coworker is on" : "The AI coworker is off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn the AI coworker ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleToggleIssueTriage = async (enabled: boolean) => {
-    setSaving(true)
-    try {
-      await setIssueTriageEnabled(enabled)
-      setConfig((c) => (c ? { ...c, issue_triage_enabled: enabled } : c))
-      toast({ title: enabled ? "GitHub auto-review is on" : "GitHub auto-review is off" })
-    } catch (e) {
-      toast({ title: `Couldn't turn GitHub auto-review ${enabled ? "on" : "off"}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleRebuildMemory = async () => {
     try {
       await rebuildAIMemory()
@@ -463,293 +383,55 @@ const AIModelsCard = () => {
       })
       // Optimistically reflect running state; the poller takes over.
       setBackfill({ state: "running", started_at: Math.floor(Date.now() / 1000) })
-      pollBackfill()
+      void pollBackfill()
     } catch (e: unknown) {
-      const msg = apiErrorMessage(e, "Try again in a moment.")
-      toast({ title: "Couldn't start the memory rebuild", description: msg, variant: "destructive" })
+      toast({ title: "Couldn't start the memory rebuild", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     }
   }
 
-  // The section's title is there from the first frame, and its state beside it
-  // once the settings are read: a dot and a word, and words a person uses, not
-  // "circuit: half_open".
-  const title = (
-    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-      Models
-      {config && (
-        <StatusWord tone={config.enabled ? "success" : "neutral"} className="text-sm font-normal">
-          {config.enabled ? "On" : "Off"}
-        </StatusWord>
-      )}
-      {config?.circuit_state && config.circuit_state !== "closed" && (
-        <StatusWord tone="danger" className="text-sm font-normal">
-          {config.circuit_state === "half_open" ? "Trying the provider again after errors" : "Paused after the provider kept failing"}
-        </StatusWord>
-      )}
-    </span>
-  )
-  const description =
-    "Run local models with Ollama, bring your own OpenAI or Anthropic key, or connect any OpenAI-compatible endpoint. Everything stays on your server."
-
-  // The shape of what is coming under the title: groups of hairline rows, so
-  // the tab doesn't jump from one line of text to 2,000px of settings.
-  if (loading && !config) {
-    return (
-      <SettingsSection title={title} description={description}>
-        <div role="status" aria-label="Loading the AI settings" className="space-y-8">
-          {[3, 2, 3].map((rows, i) => (
-            <div key={i} className="space-y-3" aria-hidden="true">
-              <div className="flex h-5 items-center">
-                <Skeleton className="h-3.5 w-32 rounded" />
-              </div>
-              <div className="rounded-lg border border-border px-4 py-1">
-                <SkeletonRows rows={rows} avatar={false} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </SettingsSection>
-    )
-  }
-
-  // A failed read is said under the title, which stays: it replaced the whole
-  // section, heading included.
-  if (!config) {
-    return (
-      <SettingsSection title={title} description={description}>
-        <ErrorState
-          compact
-          subject="the AI settings"
-          detail={configError ? apiErrorMessage(configError, "Try again in a moment.") : undefined}
-          onRetry={() => void refreshConfig()}
-        />
-      </SettingsSection>
-    )
-  }
+  const title = "Ambient agents"
+  const description = "Automations that run in the background on the active models. The switches save as you make them."
+  const off = !config?.enabled
 
   return (
-    <SettingsSection title={title} description={description}>
-      {/* NO INTERNAL SCROLLER. app/app/admin/page.tsx owns the single scroll
-          container for the whole admin page (the comment above that region
-          says why); this section sizes to its content. Its subsections are
-          separated by space and their titles, where they were separated by
-          rules and stacked as boxes. */}
-      <div className="space-y-8">
-          {/* General: one hairline list of switches, each saved the moment
-              it is touched. Each used to be a bordered box of its own, a
-              stack of five boxes inside the card. */}
-          <SettingsSection level={3} title="General" description="Changes save as you make them.">
-            <SettingsList>
-              <SwitchRow
-                label="Workspace AI"
-                description="Turn the AI assistant, and its answers from your workspace, on or off for everyone."
-                checked={config.enabled}
-                disabled={saving}
-                onChange={handleToggleEnabled}
-              />
-              <SwitchRow
-                label="Reasoning mode"
-                description="Let reasoning models (gemma4, DeepSeek-R1, Qwen3 and others) think before answering. Better answers on hard questions, but noticeably slower, especially on servers without a GPU. Other models ignore this."
-                checked={config.reasoning_enabled}
-                disabled={saving || !config.enabled}
-                onChange={handleToggleReasoning}
-              />
-              <SwitchRow
-                label={
-                  <span className="inline-flex flex-wrap items-center gap-2">
-                    Local-only AI
-                    {config.local_only_pinned_by_env && (
-                      <span className="text-xs font-normal text-muted-foreground">Set by whoever runs this server</span>
-                    )}
-                  </span>
-                }
-                description={
-                  <>
-                    No workspace content leaves this server: every cloud AI provider (OpenAI, Anthropic, hosted
-                    endpoints) is blocked at the network layer, so prompts and documents only ever reach local models.
-                    Turn it on only once your chat, vision and embedding models all run locally.
-                    {config.local_only_pinned_by_env &&
-                      " It is set by an environment variable on this server, so it can't be turned off here."}
-                  </>
-                }
-                checked={config.local_only_mode}
-                disabled={saving || config.local_only_pinned_by_env}
-                onChange={handleToggleLocalOnly}
-              />
-              <SwitchRow
-                label="Redact personal details before cloud models"
-                description="When a prompt goes to a cloud model, emails, phone numbers, card numbers, government IDs, IBANs and your own patterns are removed first. Local models get the content as it is, since nothing leaves the server. No effect while Local-only AI is on."
-                checked={config.pii_redaction_enabled}
-                disabled={saving || config.local_only_mode}
-                onChange={handleTogglePIIRedaction}
-              />
-              {config.pii_redaction_enabled && !config.local_only_mode && (
-                <div className="px-4 py-3">
-                  <PIIPatternsEditor
-                    initial={config.pii_custom_patterns}
-                    onSave={async (patterns) => {
-                      await setAIPIIPatterns(patterns)
-                      setConfig((c) => (c ? { ...c, pii_custom_patterns: patterns } : c))
-                      toast({ title: "Your patterns are saved" })
-                    }}
-                  />
-                </div>
-              )}
-            </SettingsList>
-          </SettingsSection>
-
-          {/* Usage and limits: today's meters, then the caps, each saved by its
-              own Save, then who and where the spend goes. Six bordered boxes,
-              each a row of its own. */}
-          <SettingsSection
-            level={3}
-            title="Usage and limits"
-            description="Tokens used today across every AI feature, and the caps on them. Each cap saves with its own Save."
-          >
-            {usage && <UsageRow usage={usage} />}
-            <SettingsList>
-            <RateLimitRow
-              initial={config.rate_limit_per_min}
-              onSave={async (n) => {
-                await setAIRateLimit(n)
-                setConfig((c) => (c ? { ...c, rate_limit_per_min: n } : c))
-                toast({ title: "Rate limit updated" })
-              }}
-            />
-
-            <TokenBudgetRow
-              id="ai-ws-budget"
-              label="Workspace daily token budget"
-              hint="Caps total AI tokens spent across the workspace per day. 0 = unlimited."
-              initial={config.workspace_daily_token_budget ?? 0}
-              onSave={async (n) => {
-                await setAIWorkspaceTokenBudget(n)
-                setConfig((c) => (c ? { ...c, workspace_daily_token_budget: n } : c))
-                try {
-                  setUsage(await getAIUsage())
-                } catch {
-                  /* non-fatal */
-                }
-                toast({ title: "Workspace token budget updated" })
-              }}
-            />
-
-            <TokenBudgetRow
-              id="ai-user-budget"
-              label="Per-user daily token budget"
-              hint="Caps AI tokens spent by each individual user per day, so one person can't drain the workspace budget. 0 = unlimited."
-              initial={config.user_daily_token_budget ?? 0}
-              onSave={async (n) => {
-                await setAIUserTokenBudget(n)
-                setConfig((c) => (c ? { ...c, user_daily_token_budget: n } : c))
-                try {
-                  setUsage(await getAIUsage())
-                } catch {
-                  /* non-fatal */
-                }
-                toast({ title: "Per-user token budget updated" })
-              }}
-            />
-
-            </SettingsList>
-            <div className="grid gap-6 pt-3 md:grid-cols-2">
-              <TopConsumersRow />
-              <TopChannelsRow />
-            </div>
-          </SettingsSection>
-
-          {/* Model tuning: one list, the context window saved by its Save, the
-              depth the moment it is picked. */}
-          <SettingsSection level={3} title="Model tuning">
-            <SettingsList>
-            <ContextWindowRow
-              initial={config.context_window_tokens}
-              effective={config.effective_context_window}
-              onSave={async (n) => {
-                await setAIContextWindow(n)
-                setConfig((c) => (c ? { ...c, context_window_tokens: n } : c))
-                toast({ title: "Context window updated" })
-              }}
-            />
-
-            <CodeAnalysisRow
-              initial={config.code_analysis_max_files}
-              effective={config.effective_code_analysis_max_files}
-              onSave={async (n) => {
-                await setAICodeAnalysisMaxFiles(n)
-                setConfig((c) => (c ? { ...c, code_analysis_max_files: n } : c))
-                toast({ title: "Code analysis budget updated" })
-              }}
-            />
-            </SettingsList>
-          </SettingsSection>
-
-        {/* Server resources + Ollama version awareness */}
-        {stats && <SystemStatsBar stats={stats} onRefresh={refreshStats} />}
-
-        {/* Background embedding reindex progress (after a dimension change) */}
-        {reindex && (reindex.running || reindex.total > 0) && (
-          <ReindexBanner status={reindex} />
-        )}
-
-        {/* Active model selection */}
-        <ActiveModelSection
-          config={config}
-          modelsByProvider={modelsByProvider}
-          modelsLoading={modelsLoading}
-          onEnsureModels={loadModels}
-          onChanged={async () => {
-            await refreshConfig()
-            await pollReindex()
-          }}
-        />
-
-        {/* Ambient agents: the switches that save at once, in one hairline
-            list, each with what it needs under it; then the three services
-            whose settings wait for their own save bar, each a section of its
-            own. They used to be one stack of bordered boxes, the instant
-            switches and the staged ones looking alike. */}
-        <SettingsSection
-          level={3}
-          title="Ambient agents"
-          description="Automations that run in the background on the active models. The switches save as you make them."
-        >
+    <ConfigGate title={title} description={description}>
+      {(cfg) => (
+        <SettingsSection title={title} description={description}>
           <SettingsList>
-            <SwitchRow
+            <ConfigSwitchRow
+              field="meeting_recap_enabled"
+              request={setMeetingRecapEnabled}
               label="Meeting recaps"
               description="When a call ends, post a recap (summary, decisions, action items) from its transcript where the call happened. The call doesn't need to be recorded. Very short calls are skipped, and so are calls with transcription off. Any language in; the recap is in English."
-              checked={config.meeting_recap_enabled}
-              disabled={saving || !config.enabled}
-              onChange={handleToggleRecap}
+              disabled={off}
             />
-            {config.meeting_recap_enabled && (
-              <SwitchRow
+            {cfg.meeting_recap_enabled && (
+              <ConfigSwitchRow
+                field="meeting_notes_doc_enabled"
+                request={setMeetingNotesDocEnabled}
                 label="Also write a notes document"
                 description="Put the recap and the full transcript in a document the people on the call can edit, as well as posting it. It is private to whoever was in the call, so share it if anyone else needs it."
-                checked={config.meeting_notes_doc_enabled}
-                disabled={saving || !config.enabled}
-                onChange={handleToggleNotesDoc}
+                disabled={off}
               />
             )}
-            {config.meeting_recap_enabled && (
+            {cfg.meeting_recap_enabled && (
               <div className="px-4 py-3">
                 <RecapInstructionsField
-                  initial={config.meeting_recap_instructions || ""}
-                  disabled={saving || !config.enabled}
+                  initial={cfg.meeting_recap_instructions || ""}
+                  disabled={off}
                   onSave={handleSaveRecapInstructions}
                 />
               </div>
             )}
-            <SwitchRow
+            <ConfigSwitchRow
+              field="memory_layer_enabled"
+              request={setMemoryLayerEnabled}
               label="Workspace memory"
               description="Keep pulling lasting decisions, commitments and open questions out of meetings, channels, direct messages and project threads into a searchable memory. It answers questions like “what did we decide, who owns it, what's still open”."
-              checked={config.memory_layer_enabled}
-              disabled={saving || !config.enabled}
-              onChange={handleToggleMemory}
+              disabled={off}
             />
-            {/* Rebuild memory: backfill over historical content. Only useful
-                once the layer is enabled (live worker handles new content). */}
-            {config.memory_layer_enabled && (
+            {/* Rebuild memory: a backfill over history, once the layer is on. */}
+            {cfg.memory_layer_enabled && (
               <div className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-medium">Rebuild from history</p>
@@ -767,7 +449,7 @@ const AIModelsCard = () => {
                   variant="outline"
                   size="sm"
                   className="h-8 shrink-0"
-                  disabled={backfill?.state === "running" || !config.enabled}
+                  disabled={backfill?.state === "running" || off}
                   onClick={handleRebuildMemory}
                 >
                   <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
@@ -775,23 +457,22 @@ const AIModelsCard = () => {
                 </Button>
               </div>
             )}
-            <SwitchRow
+            <ConfigSwitchRow
+              field="team_report_enabled"
+              request={setTeamReportEnabled}
               label="Weekly team report"
               description="Allow a weekly report in a channel: open decisions, commitments with their owners, and unanswered questions, from workspace memory. A channel stays quiet until its moderator turns the report on in its settings. Needs workspace memory."
-              checked={config.team_report_enabled}
-              disabled={saving || !config.enabled || !config.memory_layer_enabled}
-              onChange={handleToggleTeamReport}
+              disabled={off || !cfg.memory_layer_enabled}
             />
-            {/* Verify: the report POSTS INTO CHANNELS on a weekly schedule; the
-                email path is the opt-in per-user digest. These buttons let an
-                admin confirm both now instead of waiting for the schedule. */}
+            {/* Verify: the report posts into channels on a schedule; the email
+                path is the opt-in per-member digest. Both, now. */}
             <div className="space-y-2 px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-8"
-                  disabled={runningReport || !config.enabled || !config.memory_layer_enabled}
+                  disabled={runningReport || off || !cfg.memory_layer_enabled}
                   onClick={handleRunTeamReport}
                 >
                   <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${runningReport ? "animate-spin" : ""}`} />
@@ -801,7 +482,7 @@ const AIModelsCard = () => {
                   variant="ghost"
                   size="sm"
                   className="h-8"
-                  disabled={sendingDigest || !config.enabled || !config.memory_layer_enabled}
+                  disabled={sendingDigest || off || !cfg.memory_layer_enabled}
                   onClick={handleSendTestDigest}
                 >
                   <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
@@ -813,80 +494,302 @@ const AIModelsCard = () => {
                 which they choose in their notification settings; &quot;Email me a test digest&quot; sends one to you now.
               </p>
             </div>
-            <SwitchRow
+            <ConfigSwitchRow
+              field="nudges_enabled"
+              request={setNudgesEnabled}
               label="Proactive nudges"
               description="Tell the right person, without being asked, about an overdue commitment or a question left open: it appears in their notifications as it happens. Needs workspace memory."
-              checked={config.nudges_enabled}
-              disabled={saving || !config.enabled || !config.memory_layer_enabled}
-              onChange={handleToggleNudges}
+              disabled={off || !cfg.memory_layer_enabled}
             />
-            <SwitchRow
+            <ConfigSwitchRow
+              field="coworker_enabled"
+              request={setCoworkerEnabled}
               label="AI coworker (@mention)"
               description="Let members @mention the AI in a channel and get an answer there, from that channel's recent messages and only what the person asking can see. It only replies when mentioned."
-              checked={config.coworker_enabled}
-              disabled={saving || !config.enabled}
-              onChange={handleToggleCoworker}
+              disabled={off}
             />
-            <SwitchRow
+            <ConfigSwitchRow
+              field="issue_triage_enabled"
+              request={setIssueTriageEnabled}
               label="GitHub auto-review"
               description="When an issue or pull request is opened on a linked repository, the AI reviews it against the code and comments on the linked task: a proposed fix for an issue, a review for a pull request. Nothing is pushed to GitHub. Off by default, since it uses one AI call per issue or pull request."
-              checked={config.issue_triage_enabled}
-              disabled={saving || !config.enabled}
-              onChange={handleToggleIssueTriage}
+              disabled={off}
             />
           </SettingsList>
         </SettingsSection>
+      )}
+    </ConfigGate>
+  )
+}
 
-        <WebSearchSection config={config} onChanged={refreshConfig} />
+// ─── Redaction (the Governance sub-page) ──────────────────────────────
 
-        <SandboxSection config={config} onChanged={refreshConfig} />
-        <CodePRSection
-          config={config}
-          onChanged={refreshConfig}
-          modelsByProvider={modelsByProvider}
-          modelsLoading={modelsLoading}
-          onEnsureModels={loadModels}
-        />
-        <CodePRReliabilityCard />
+/** What leaves this server: nothing (local-only), or prompts with personal details removed. */
+export function RedactionPanel() {
+  const { toast } = useToast()
+  const { setConfig } = useAIConfig()
+  const title = "Redaction"
+  const description = "What reaches a model outside this server, if anything. Changes save as you make them."
+  return (
+    <ConfigGate title={title} description={description}>
+      {(cfg) => (
+        <SettingsSection title={title} description={description}>
+          <SettingsList>
+            <ConfigSwitchRow
+              field="local_only_mode"
+              request={setAILocalOnly}
+              label="Local-only AI"
+              locked={cfg.local_only_pinned_by_env ? "Set by whoever runs this server, by an environment variable, so it can't be changed here." : undefined}
+              description="No workspace content leaves this server: every cloud AI provider (OpenAI, Anthropic, hosted endpoints) is blocked at the network layer, so prompts and documents only ever reach local models. Turn it on only once your chat, vision and embedding models all run locally."
+            />
+            <ConfigSwitchRow
+              field="pii_redaction_enabled"
+              request={setAIPIIRedaction}
+              label="Redact personal details before cloud models"
+              description="When a prompt goes to a cloud model, emails, phone numbers, card numbers, government IDs, IBANs and your own patterns are removed first. Local models get the content as it is, since nothing leaves the server. No effect while Local-only AI is on."
+              disabled={cfg.local_only_mode}
+            />
+            {cfg.pii_redaction_enabled && !cfg.local_only_mode && (
+              <div className="px-4 py-3">
+                <PIIPatternsEditor
+                  initial={cfg.pii_custom_patterns}
+                  onSave={async (patterns) => {
+                    await setAIPIIPatterns(patterns)
+                    setConfig((c) => (c ? { ...c, pii_custom_patterns: patterns } : c))
+                    toast({ title: "Your patterns are saved" })
+                  }}
+                />
+              </div>
+            )}
+          </SettingsList>
+        </SettingsSection>
+      )}
+    </ConfigGate>
+  )
+}
 
-        {/* Providers + local model install */}
-        <ProvidersSection
-          config={config}
-          modelsByProvider={modelsByProvider}
-          modelsLoading={modelsLoading}
-          stats={stats}
-          onEnsureModels={loadModels}
-          onChanged={async () => {
-            await refreshConfig()
-            await refreshStats()
-          }}
-        />
+// ─── Usage (the Usage sub-page) ───────────────────────────────────────
 
-        {/* Member-selectable model allowlist */}
-        <AuthorizedModelsSection config={config} />
+/** Today's meters and the caps on them, each cap saved by its own Save. */
+export function UsagePanel() {
+  const { toast } = useToast()
+  const { setConfig } = useAIConfig()
+  const [usage, setUsage] = useState<AIUsage | null>(null)
+  const readUsage = useCallback(async () => {
+    try {
+      setUsage(await getAIUsage())
+    } catch {
+      // Non-fatal; the meters simply won't render.
+    }
+  }, [])
+  useEffect(() => {
+    void readUsage()
+  }, [readUsage])
 
-        {/* Admin "Test AI" — real-model validation from the dashboard */}
-        <AISelfTestSection config={config} />
+  const title = "Budgets"
+  const description = "Tokens used today across every AI feature, and the caps on them. Each cap saves with its own Save."
+  return (
+    <ConfigGate title={title} description={description}>
+      {(cfg) => (
+        <SettingsSection title={title} description={description}>
+          {usage && <UsageRow usage={usage} />}
+          <SettingsList>
+            <RateLimitRow
+              initial={cfg.rate_limit_per_min}
+              onSave={async (n) => {
+                await setAIRateLimit(n)
+                setConfig((c) => (c ? { ...c, rate_limit_per_min: n } : c))
+                toast({ title: "Rate limit updated" })
+              }}
+            />
+            <TokenBudgetRow
+              id="ai-ws-budget"
+              label="Workspace daily token budget"
+              hint="Caps total AI tokens spent across the workspace per day. 0 = unlimited."
+              initial={cfg.workspace_daily_token_budget ?? 0}
+              onSave={async (n) => {
+                await setAIWorkspaceTokenBudget(n)
+                setConfig((c) => (c ? { ...c, workspace_daily_token_budget: n } : c))
+                await readUsage()
+                toast({ title: "Workspace token budget updated" })
+              }}
+            />
+            <TokenBudgetRow
+              id="ai-user-budget"
+              label="Per-user daily token budget"
+              hint="Caps AI tokens spent by each individual user per day, so one person can't drain the workspace budget. 0 = unlimited."
+              initial={cfg.user_daily_token_budget ?? 0}
+              onSave={async (n) => {
+                await setAIUserTokenBudget(n)
+                setConfig((c) => (c ? { ...c, user_daily_token_budget: n } : c))
+                await readUsage()
+                toast({ title: "Per-user token budget updated" })
+              }}
+            />
+          </SettingsList>
+        </SettingsSection>
+      )}
+    </ConfigGate>
+  )
+}
 
-        {/* MCP servers — connect external tool servers to agents, as a section
-            of this one (it was a whole Card, with its own tile and h2, inside
-            it). Anchored so the tab's jump row can reach it by its own name. */}
-        <div id="ai-models-mcp-servers" className="scroll-mt-4">
-          <McpServersCard embedded />
-        </div>
+/** Who and where today's spend goes, people with their avatars. */
+export function TopConsumersPanel() {
+  return (
+    <SettingsSection title="Top consumers" description="Who spends the workspace's AI budget today, and in which channels, this UTC day.">
+      <div className="grid gap-6 md:grid-cols-2">
+        <TopConsumersRow />
+        <TopChannelsRow />
       </div>
     </SettingsSection>
   )
 }
 
-// ─── Reindex progress banner ──────────────────────────────────────────
+// ─── Advanced (the Advanced sub-page) ─────────────────────────────────
+
+const WEB_SEARCH_NAME: Record<string, string> = { searxng: "SearXNG", tavily: "Tavily", brave: "Brave Search" }
+
+function onOff(on: boolean, detail?: string) {
+  return on ? (detail ? `On · ${detail}` : "On") : "Off"
+}
+
+/** The summary each folded card shows on its title row. Exported for the guard. */
+export function advancedSummaries(c: AIConfig) {
+  const depth = CODE_DEPTH_PRESETS.reduce((best, p) =>
+    Math.abs(p.value - (c.code_analysis_max_files || c.effective_code_analysis_max_files)) <
+    Math.abs(best.value - (c.code_analysis_max_files || c.effective_code_analysis_max_files))
+      ? p
+      : best,
+  )
+  const sandboxCap = c.sandbox_workspace_daily_seconds || 0
+  const prCap = c.code_pr_workspace_daily_minutes || 0
+  return {
+    tuning: `${(c.effective_context_window || 0).toLocaleString()} tokens · reasoning ${c.reasoning_enabled ? "on" : "off"}`,
+    depth: depth.label,
+    webSearch: onOff(c.web_search_enabled, WEB_SEARCH_NAME[c.web_search_provider]),
+    sandbox: onOff(c.sandbox_enabled, sandboxCap > 0 ? `${sandboxCap.toLocaleString()} s a day` : "no daily cap"),
+    codePRs: onOff(c.code_pr_enabled, prCap > 0 ? `${prCap.toLocaleString()} min a day` : "no daily cap"),
+  }
+}
+
+/**
+ * The settings few admins change, each a card folded to its title row with
+ * what is in force on the right ("On · 3,600 s a day"); a click opens it.
+ */
+export function AdvancedPanels() {
+  const { toast } = useToast()
+  const { setConfig, refresh } = useAIConfig()
+  const { modelsByProvider, modelsLoading, loadModels } = useProviderModels()
+  return (
+    <ConfigGate title="Advanced" description="Model tuning, analysis depth, web search, the sandbox and code pull requests.">
+      {(cfg) => {
+        const s = advancedSummaries(cfg)
+        return (
+          <div className="space-y-3">
+            <CollapsibleCard id="ai-models-tuning" title="Model tuning" summary={s.tuning}>
+              <SettingsList>
+                <ConfigSwitchRow
+                  field="reasoning_enabled"
+                  request={setAIReasoning}
+                  label="Reasoning mode"
+                  description="Let reasoning models (gemma4, DeepSeek-R1, Qwen3 and others) think before answering. Better answers on hard questions, but noticeably slower, especially on servers without a GPU. Other models ignore this."
+                  disabled={!cfg.enabled}
+                />
+                <ContextWindowRow
+                  initial={cfg.context_window_tokens}
+                  effective={cfg.effective_context_window}
+                  onSave={async (n) => {
+                    await setAIContextWindow(n)
+                    setConfig((c) => (c ? { ...c, context_window_tokens: n } : c))
+                    toast({ title: "Context window updated" })
+                  }}
+                />
+              </SettingsList>
+            </CollapsibleCard>
+            <CollapsibleCard id="ai-models-depth" title="Code analysis depth" summary={s.depth}>
+              <SettingsList>
+                <CodeAnalysisRow
+                  initial={cfg.code_analysis_max_files}
+                  effective={cfg.effective_code_analysis_max_files}
+                  onSave={async (n) => {
+                    await setAICodeAnalysisMaxFiles(n)
+                    setConfig((c) => (c ? { ...c, code_analysis_max_files: n } : c))
+                    toast({ title: "Code analysis budget updated" })
+                  }}
+                />
+              </SettingsList>
+            </CollapsibleCard>
+            <CollapsibleCard id="ai-models-web-search" title="Web search" summary={s.webSearch}>
+              <WebSearchSection bare config={cfg} onChanged={refresh} />
+            </CollapsibleCard>
+            <CollapsibleCard id="ai-models-sandbox" title="Code analysis sandbox" summary={s.sandbox}>
+              <SandboxSection bare config={cfg} onChanged={refresh} />
+            </CollapsibleCard>
+            <CollapsibleCard id="ai-models-code-prs" title="Code pull requests" summary={s.codePRs}>
+              <div className="space-y-6">
+                <CodePRSection
+                  bare
+                  config={cfg}
+                  onChanged={refresh}
+                  modelsByProvider={modelsByProvider}
+                  modelsLoading={modelsLoading}
+                  onEnsureModels={loadModels}
+                />
+                <CodePRReliabilityCard />
+              </div>
+            </CollapsibleCard>
+          </div>
+        )
+      }}
+    </ConfigGate>
+  )
+}
+
+/**
+ * A part of a folded card: in the card (`bare`), its words lead the body in
+ * place of the section heading the card's title row already says.
+ */
+function Part({
+  bare,
+  title,
+  description,
+  action,
+  children,
+}: {
+  bare?: boolean
+  title: React.ReactNode
+  description?: React.ReactNode
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
+  if (!bare) {
+    return (
+      <SettingsSection level={3} title={title} description={description} action={action}>
+        {children}
+      </SettingsSection>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      {(description || action) && (
+        <div className="flex flex-col gap-2 px-4 pt-3 sm:flex-row sm:items-start sm:justify-between">
+          {description && <p className="max-w-[60ch] text-xs text-muted-foreground text-pretty">{description}</p>}
+          {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+// ─── Reindex progress ─────────────────────────────────────────────────
 
 const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
   const pct = status.total > 0 ? Math.round(((status.processed + status.failed) / status.total) * 100) : 0
   return (
-    <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
+    <section data-settings-card="" className="set-card space-y-2 p-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-warning-ink">
+        <p className="text-sm font-medium">
           {status.running ? "Rebuilding the AI search index…" : "The AI search index is rebuilt"}
         </p>
         <span className="text-xs text-muted-foreground">
@@ -980,7 +883,10 @@ function SpendList({
   empty,
   icon,
   load,
+  people,
 }: {
+  /** Each row is a person: an avatar leads it. */
+  people?: boolean
   title: string
   help: string
   empty: string
@@ -1028,15 +934,16 @@ function SpendList({
       ) : rows === null ? (
         <SectionListSkeleton label={`Loading ${title.toLowerCase()}`} rows={3} lines={1} />
       ) : rows.length === 0 ? (
-        <div className="rounded-lg border border-border">
+        <div data-settings-card="" className="set-card">
           <EmptyState icon={icon as never} hue={ADMIN_GROUP_HUE.ai} title={empty} headingLevel={5} className="py-6" />
         </div>
       ) : (
-        <ol className="divide-y divide-border rounded-lg border border-border">
+        <ol data-settings-card="" className="set-card">
           {rows.map((r, i) => (
-            <li key={r.key} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+            <li key={r.key} data-spend-row="" className="ai-spend-row text-sm">
               <span className="flex min-w-0 items-center gap-3">
-                <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                <span className="w-4 shrink-0 text-right text-2xs tabular-nums text-ink-3">{i + 1}</span>
+                {people ? <IdentityMark variant="avatar" id={r.key} label={r.name} size={24} /> : null}
                 <span className="truncate">{r.name}</span>
               </span>
               <span className="shrink-0 tabular-nums text-muted-foreground">{fmt(r.used)} tokens</span>
@@ -1065,6 +972,7 @@ const TopConsumersRow: React.FC = () => (
     empty="No AI use recorded yet today"
     icon={Users}
     load={loadTopConsumers}
+    people
   />
 )
 
@@ -1454,7 +1362,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
   // Three rows of one list, each picker's note inside its row: they were three
   // bordered boxes, two with a loose line under the box.
   return (
-    <SettingsSection level={3} title="Active models" description="Chat, embeddings and vision can each use a different provider.">
+    <SettingsSection title="Active models" description="Chat, embeddings and vision can each use a different provider.">
       <SettingsList>
       {/* Chat model */}
       <ModelSelectorRow
@@ -1533,7 +1441,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
           saving={savingVision}
           extra={
             config.vision_model ? (
-              <Button variant="outline" className="h-11 md:h-9" onClick={turnOffVision} disabled={savingVision}>
+              <Button variant="outline" className="h-11 md:h-8" onClick={turnOffVision} disabled={savingVision}>
                 Turn off
               </Button>
             ) : undefined
@@ -1633,7 +1541,7 @@ const ModelSelectorRow: React.FC<{
 
         {extra}
 
-        <Button variant="outline" className="h-11 md:h-9" onClick={onSave} disabled={saving || !providerId || !model}>
+        <Button variant="outline" className="h-11 md:h-8" onClick={onSave} disabled={saving || !providerId || !model}>
           <Save /> {saving ? "Saving…" : "Set active"}
         </Button>
       </div>
@@ -1644,11 +1552,12 @@ const ModelSelectorRow: React.FC<{
 
 // ─── Providers section (CRUD + local install) ─────────────────────────
 
-const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> = ({
+const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null; title: React.ReactNode }> = ({
   config,
   modelsByProvider,
   modelsLoading,
   stats,
+  title,
   onEnsureModels,
   onChanged,
 }) => {
@@ -1657,9 +1566,8 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> =
 
   return (
     <SettingsSection
-      level={3}
-      title="Providers"
-      description="The built-in providers, and your own OpenAI-compatible endpoints."
+      title={title}
+      description={AI_DESCRIPTION}
       action={
         <Button size="sm" variant="outline" className={sectionActionClass} onClick={() => setShowAdd(true)}>
           <Plus /> Add custom endpoint
@@ -1674,8 +1582,10 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> =
         />
       )}
 
-      {/* One list, a provider to a row: each was a bordered box. */}
-      <div className="divide-y divide-border rounded-lg border border-border">
+      {/* A card per provider (admin §A15, Models): its mark, its name, its
+          address in mono, its state and Configure. They were rows of one
+          bordered box. */}
+      <div className="space-y-3" data-provider-cards="">
         {config.providers.map((p) => (
           <ProviderEditor
             key={p.id}
@@ -1702,7 +1612,6 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> =
   )
 }
 
-export default AIModelsCard
 
 // WebSearchSection configures the provider-agnostic web search the assistant
 // and agents can use. Provider-agnostic by design: pick SearXNG (self-hosted,
@@ -1757,7 +1666,9 @@ function RecapInstructionsField({
 function WebSearchSection({
   config,
   onChanged,
+  bare,
 }: {
+  bare?: boolean
   config: AIConfig
   onChanged: () => Promise<AIConfig | null> | Promise<void>
 }) {
@@ -1824,8 +1735,8 @@ function WebSearchSection({
   // A section of the Models section with one list, where it was a box holding
   // a switch, fields and a save bar.
   return (
-    <SettingsSection
-      level={3}
+    <Part
+      bare={bare}
       title="Web search"
       description="Let the AI assistant and agents look up current information on the web. Run your own SearXNG (it stays on your servers and works in local-only mode), or use Tavily or Brave. Changes wait for Save."
     >
@@ -1896,7 +1807,7 @@ function WebSearchSection({
       </SettingsList>
 
       <SaveBar dirty={dirty} saving={saving} what="web search changes" onSave={() => void save()} onDiscard={reset} />
-    </SettingsSection>
+    </Part>
   )
 }
 
@@ -1910,7 +1821,9 @@ function WebSearchSection({
 function SandboxSection({
   config,
   onChanged,
+  bare,
 }: {
+  bare?: boolean
   config: AIConfig
   onChanged: () => Promise<AIConfig | null> | Promise<void>
 }) {
@@ -2032,8 +1945,8 @@ function SandboxSection({
   }
 
   return (
-    <SettingsSection
-      level={3}
+    <Part
+      bare={bare}
       title="Code analysis sandbox"
       description="Let agents run bounded data analysis and render charts in an isolated code runner with no network, no credentials, a throwaway filesystem and hard CPU, memory and time limits. Every run is checked against the agent owner's permissions and counted against the limits below. Changes wait for Save."
     >
@@ -2139,7 +2052,7 @@ function SandboxSection({
       </SettingsList>
 
       <SaveBar dirty={dirty} saving={saving} what="sandbox changes" onSave={() => void save()} onDiscard={reset} />
-    </SettingsSection>
+    </Part>
   )
 }
 
@@ -2158,12 +2071,14 @@ const CODE_PR_MAX_WALL_MINUTES = 60
 // are daily caps in MINUTES + runs (0 = unlimited); per-agent caps live on each
 // agent. A kill switch disables it instantly without touching config.
 function CodePRSection({
+  bare,
   config,
   onChanged,
   modelsByProvider,
   modelsLoading,
   onEnsureModels,
 }: {
+  bare?: boolean
   config: AIConfig
   onChanged: () => Promise<AIConfig | null> | Promise<void>
   modelsByProvider: Record<string, ModelView[]>
@@ -2371,8 +2286,8 @@ function CodePRSection({
   }
 
   return (
-    <SettingsSection
-      level={3}
+    <Part
+      bare={bare}
       title="Code pull requests"
       description="Let an agent that is mentioned or given a task change a linked repository and open a verified pull request for review, from an isolated code runner whose only network access is your git host. The agent never merges: every pull request goes through your usual review and checks. Changes wait for Save."
     >
@@ -2482,7 +2397,7 @@ function CodePRSection({
           saving={savingCodeRunModel}
           extra={
             config.code_pr_chat_model ? (
-              <Button variant="outline" className="h-11 md:h-9" onClick={clearCodeRunModel} disabled={savingCodeRunModel}>
+              <Button variant="outline" className="h-11 md:h-8" onClick={clearCodeRunModel} disabled={savingCodeRunModel}>
                 Use chat model
               </Button>
             ) : undefined
@@ -2579,7 +2494,7 @@ function CodePRSection({
       </SettingsList>
 
       <SaveBar dirty={dirty} saving={saving} what="code pull request changes" onSave={() => void save()} onDiscard={reset} />
-    </SettingsSection>
+    </Part>
   )
 }
 
@@ -2643,7 +2558,7 @@ function CodePRReliabilityCard() {
       ) : loading && !data ? (
         <SectionListSkeleton label="Loading the coding scorecard" rows={3} lines={1} />
       ) : !data || data.total === 0 ? (
-        <div className="rounded-lg border border-border">
+        <div data-settings-card="" className="set-card">
           <EmptyState
             icon={GitPullRequest}
             hue={ADMIN_GROUP_HUE.ai}
@@ -2666,7 +2581,7 @@ function CodePRReliabilityCard() {
           </p>
 
           {/* Property rows on one label column, where they were seven stat tiles. */}
-          <dl className="divide-y divide-border rounded-lg border border-border">
+          <dl data-settings-card="" className="set-card divide-y divide-border">
             <Metric
               label="Merge rate"
               value={data.outcome_known > 0 ? pct(data.merge_rate) : "None yet"}
@@ -2687,7 +2602,7 @@ function CodePRReliabilityCard() {
           {runs.length > 0 && (
             <section aria-label="Recent runs" className="space-y-2">
               <p className="text-sm font-medium">Recent runs</p>
-              <div className="divide-y divide-border rounded-lg border border-border">
+              <div data-settings-card="" className="set-card divide-y divide-border">
                 {runs.map((run) => (
                   <CodePRRunRow key={run.id} run={run} />
                 ))}

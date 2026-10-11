@@ -14,7 +14,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { sha256Hex } from "@/lib/sha256"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -23,12 +22,12 @@ import { Switch } from "@/components/ui/switch"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { ChevronDown, ChevronRight, History, RefreshCw, Trash2, AlertTriangle, ShieldAlert, Layers, MessageSquare } from "@/lib/icons"
+import { Check, CheckCircle2, ChevronRight, CircleSlash, History, Loader2, Minus, RefreshCw, Trash2, AlertTriangle, ShieldAlert, Layers, MessageSquare, X, XCircle } from "@/lib/icons"
 import {
   AgentRun,
   AgentRunStep,
@@ -49,13 +48,6 @@ import {
   listAgentSkills,
   toolLabel,
 } from "@/services/agentService"
-
-const STATUS_VARIANT: Record<AgentRun["status"], "default" | "secondary" | "destructive" | "outline"> = {
-  succeeded: "default",
-  running: "secondary",
-  stopped: "outline",
-  failed: "destructive",
-}
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return ""
@@ -150,7 +142,7 @@ const SignaturesPanel: React.FC<{ agentId: string }> = ({ agentId }) => {
     }
   }
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 p-3 text-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg bg-sunken p-3 text-sm">
       <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className={cn("min-w-0 flex-1", result?.tone === "warn" && "text-danger-ink", result?.tone === "ok" && "text-foreground")}>
         {result ? result.text : "Every action this agent records is signed with its own key."}
@@ -168,7 +160,7 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
   const pct = (n: number) => (done > 0 ? (n / done) * 100 : 0)
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/60 p-3">
+    <div className="space-y-3 rounded-lg bg-sunken p-3">
       {/* The numbers as sentences, as Home's glance line says its counts: they
           were four tiles with uppercase labels and an em dash when empty. */}
       <div className="space-y-1 text-sm">
@@ -222,7 +214,7 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
       {/* Continue-the-work notes the agent carries across runs (read-only),
           surfaced for transparency into what long-running work it's advancing. */}
       {stats.working_notes && stats.working_notes.trim() !== "" && (
-        <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+        <div className="rounded-md bg-raised p-3 shadow-e1">
           <div className="mb-1 text-xs font-medium text-muted-foreground">Working notes</div>
           <p className="whitespace-pre-wrap break-words text-xs text-foreground/80">{stats.working_notes}</p>
         </div>
@@ -344,13 +336,13 @@ const RoutinesPanel: React.FC<{
   }
 
   return (
-    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+    <div className="rounded-lg bg-sunken p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <RefreshCw className="h-3 w-3" aria-hidden="true" /> Routines
       </div>
       <div className="space-y-1.5">
         {routines.map((r) => (
-          <div key={r.id} className="flex items-center gap-2 rounded-md border border-border/60 bg-card/50 p-2">
+          <div key={r.id} className="flex items-center gap-2 rounded-md bg-raised p-2 shadow-e1">
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-medium text-foreground">{r.name || "Routine"}</div>
               <div className="truncate text-2xs text-muted-foreground">
@@ -438,60 +430,108 @@ const SteeringNote: React.FC<{ steering: string[] }> = ({ steering }) => (
   </div>
 )
 
+type ToolCall = NonNullable<AgentRunStep["tool_calls"]>[number] & { duration_ms?: number }
+
+/** A node's tone on the run's rail: moss done, danger failed or refused, ink-3 neither. */
+export function toolCallTone(tc: ToolCall): "ok" | "fail" | "idle" {
+  const gov = tc.governance ? GOVERNANCE_BADGE[tc.governance] : undefined
+  if (tc.error || gov?.tone === "blocked") return "fail"
+  if (gov || tc.skipped) return "idle"
+  return "ok"
+}
+
+/** "820ms", "2.4s": a tool call's time, when the server recorded one. */
+function callDuration(tc: ToolCall): string {
+  return typeof tc.duration_ms === "number" && tc.duration_ms > 0 ? formatMs(tc.duration_ms) : ""
+}
+
+const NODE_GLYPH = { ok: Check, fail: X, idle: Minus } as const
+
+/**
+ * One step of a run on its timeline (design v3, admin §A23): 20px nodes on a
+ * 1.5px --line-2 rail, a tool call in mono with its time, the node moss when
+ * the call did its work, danger when it failed or was refused, ink-3 when it
+ * was skipped or waits for a person. Each call was a bordered grey box of
+ * badges, and the order of a run was only the order of the boxes.
+ */
 const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
-  <div className="space-y-1.5 border-l-2 border-border/60 pl-3">
-    {step.compaction && <CompactionDivider compaction={step.compaction} />}
-    {step.steering && step.steering.length > 0 && <SteeringNote steering={step.steering} />}
-    <div className="text-2xs font-medium text-muted-foreground">Step {step.iteration}</div>
-    {step.assistant && (
-      <p className="whitespace-pre-wrap text-xs text-foreground">{step.assistant}</p>
+  <>
+    {step.compaction && (
+      <li className="ai-step ai-step-note">
+        <CompactionDivider compaction={step.compaction} />
+      </li>
     )}
-    {(step.tool_calls || []).map((tc, i) => {
+    {step.steering && step.steering.length > 0 && (
+      <li className="ai-step ai-step-note">
+        <SteeringNote steering={step.steering} />
+      </li>
+    )}
+    {step.assistant && (
+      <li className="ai-step" data-step-node="" data-tone="idle">
+        <span className="ai-node" data-tone="idle" aria-hidden="true">
+          <span className="ai-node-dot" />
+        </span>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="text-2xs font-medium text-muted-foreground">Step {step.iteration}</div>
+          <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground">{step.assistant}</p>
+        </div>
+      </li>
+    )}
+    {(step.tool_calls || []).map((raw, i) => {
+      const tc = raw as ToolCall
       // A policy-gated call (awaiting approval / blocked) is a governance
-      // decision, not a plain skip/failure — badge it distinctly in amber so
-      // the transcript reads honestly. Falls back to the neutral skip/error
-      // rendering for ordinary calls or unknown categories.
+      // decision, not a plain skip/failure, and it says so in words beside
+      // the node. Falls back to the neutral skip/error rendering for ordinary
+      // calls or unknown categories.
       const gov = tc.governance ? GOVERNANCE_BADGE[tc.governance] : undefined
+      const tone = toolCallTone(tc)
+      const Glyph = NODE_GLYPH[tone]
+      const took = callDuration(tc)
       return (
-        <div key={i} className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="text-2xs">{toolLabel(tc.tool)}</Badge>
-            {tc.remote && (
-              <Badge
-                variant="secondary"
-                className="text-2xs"
-                title="The remote agent ran this itself, on its own machine. This workspace did not run it and could not have refused it; this is the remote's own account."
-              >
-                remote
-              </Badge>
-            )}
-            {gov ? (
-              <Badge
-                variant="outline"
-                className="gap-1 border-warning/40 bg-warning/10 text-2xs text-warning-ink"
-              >
-                {gov.tone === "approval" ? <AlertTriangle size={10} /> : <ShieldAlert size={10} />}
-                {gov.label}
-              </Badge>
-            ) : (
-              <>
-                {tc.skipped && <Badge variant="secondary" className="text-2xs">skipped</Badge>}
-                {tc.error && <Badge variant="destructive" className="text-2xs">error</Badge>}
-              </>
+        <li key={i} className="ai-step" data-step-node="" data-tone={tone}>
+          <span className="ai-node" data-tone={tone} aria-hidden="true">
+            <Glyph />
+          </span>
+          <div data-tool-call="" className="min-w-0 flex-1 pt-0.5 text-xs">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <code className="font-mono text-2xs text-foreground" title={toolLabel(tc.tool)}>
+                {tc.tool}
+              </code>
+              {took && <span className="font-mono text-2xs tabular-nums text-ink-3">{took}</span>}
+              {tc.remote && (
+                <span
+                  className="ai-chip"
+                  title="The remote agent ran this itself, on its own machine. This workspace did not run it and could not have refused it; this is the remote's own account."
+                >
+                  remote
+                </span>
+              )}
+              {gov ? (
+                <span className={`inline-flex items-center gap-1 text-2xs font-medium ${gov.tone === "blocked" ? "text-danger-ink" : "text-warning-ink"}`}>
+                  {gov.tone === "approval" ? <AlertTriangle className="size-3" aria-hidden="true" /> : <ShieldAlert className="size-3" aria-hidden="true" />}
+                  {gov.label}
+                </span>
+              ) : (
+                <>
+                  {tc.skipped && <span className="text-2xs text-muted-foreground">skipped</span>}
+                  {tc.error && <span className="text-2xs font-medium text-danger-ink">error</span>}
+                </>
+              )}
+            </div>
+            <ToolParamsView params={tc.params} />
+            {tc.result && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-foreground">{tc.result}</p>}
+            {tc.error && !gov && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-danger-ink">{tc.error}</p>}
+            {tc.skipped && (
+              <p className={"mt-1 text-2xs " + (gov ? "text-warning-ink" : "text-muted-foreground")}>
+                {gov ? gov.label + ": " : "Skipped: "}
+                {tc.skipped}
+              </p>
             )}
           </div>
-          <ToolParamsView params={tc.params} />
-          {tc.result && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-foreground">{tc.result}</p>}
-          {tc.error && !gov && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-danger-ink">{tc.error}</p>}
-          {tc.skipped && (
-            <p className={"mt-1 text-2xs " + (gov ? "text-warning-ink" : "text-muted-foreground")}>
-              {gov ? gov.label + ": " : "Skipped: "}{tc.skipped}
-            </p>
-          )}
-        </div>
+        </li>
       )
     })}
-  </div>
+  </>
 )
 
 /**
@@ -512,7 +552,7 @@ const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> =
   if (!run.model && !run.prompt_sha256 && skills.length === 0) return null
 
   return (
-    <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 p-2">
+    <div className="space-y-1.5 rounded-md bg-sunken p-2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-2xs text-muted-foreground">
         {run.model && (
           <span>
@@ -562,42 +602,52 @@ const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> =
   )
 }
 
+/** A run's state as a glyph and a word, never a coloured pill (admin §1.4). */
+const RUN_STATE: Record<AgentRun["status"], { word: string; ink: string; Icon: typeof Check }> = {
+  succeeded: { word: "Finished", ink: "text-success-ink", Icon: CheckCircle2 },
+  running: { word: "Running", ink: "text-warning-ink", Icon: Loader2 },
+  stopped: { word: "Stopped", ink: "text-muted-foreground", Icon: CircleSlash },
+  failed: { word: "Failed", ink: "text-danger-ink", Icon: XCircle },
+}
+
 export const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string> }> = ({ run, currentSkills }) => {
   const [open, setOpen] = useState(false)
   const steps = parseRunSteps(run)
+  const state = RUN_STATE[run.status] ?? RUN_STATE.stopped
+  const took = formatDuration(run.started_at, run.ended_at)
   return (
-    <div className="rounded-lg border border-border/60">
+    <div data-run-row="" data-open={open || undefined} className="ai-run">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-3 p-3 text-left"
+        aria-expanded={open}
+        className="ai-run-head"
       >
-        <span className="flex min-w-0 items-center gap-2">
-          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-          <Badge variant={STATUS_VARIANT[run.status]} className="text-2xs capitalize">{run.status}</Badge>
-          <span className="truncate text-xs text-muted-foreground">
-            {run.trigger_source} · {formatWhen(run.started_at)}
-          </span>
+        <ChevronRight className="ai-chevron size-4 shrink-0 text-ink-3" aria-hidden="true" />
+        <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-medium ${state.ink}`}>
+          <state.Icon className={`size-3.5 ${run.status === "running" ? "animate-spin" : ""}`} aria-hidden="true" />
+          {state.word}
         </span>
-        <span className="shrink-0 text-2xs text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          {run.trigger_source} · {formatWhen(run.started_at)}
+        </span>
+        <span className="shrink-0 text-2xs tabular-nums text-ink-3">
           {run.step_count} step{run.step_count === 1 ? "" : "s"}
           {run.tokens > 0 && ` · ${run.tokens.toLocaleString()} tok`}
-          {formatDuration(run.started_at, run.ended_at) && ` · ${formatDuration(run.started_at, run.ended_at)}`}
+          {took && ` · ${took}`}
         </span>
       </button>
       {open && (
-        <div className="space-y-3 border-t border-border/60 p-3">
+        <div className="ai-run-body space-y-3">
           <RunProvenance run={run} current={currentSkills} />
-          {run.error && (
-            <p className="rounded-md bg-destructive/10 p-2 text-xs text-danger-ink">{run.error}</p>
-          )}
+          {run.error && <p className="rounded-md bg-sunken p-2 text-xs text-danger-ink">{run.error}</p>}
           {steps.length === 0 ? (
             // Two very different reasons for an empty transcript, and saying the
             // wrong one sends an admin looking for a bug. A redacted run DID
             // record its steps; the retention window cleared them, which is the
             // policy working. The counts in the header are still the real ones.
             run.redacted_at ? (
-              <p className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs text-muted-foreground">
+              <p className="rounded-md bg-sunken p-2 text-xs text-muted-foreground">
                 The transcript and result of this run were cleared on{" "}
                 {formatWhen(run.redacted_at)} by the workspace retention policy. The status, step
                 count and token usage above are unchanged.
@@ -606,10 +656,14 @@ export const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string
               <p className="text-xs text-muted-foreground">No transcript recorded for this run.</p>
             )
           ) : (
-            steps.map((s, i) => <StepView key={i} step={s} />)
+            <ol className="ai-steps" aria-label="Steps of this run">
+              {steps.map((s, i) => (
+                <StepView key={i} step={s} />
+              ))}
+            </ol>
           )}
           {run.result && (
-            <div className="rounded-md border border-border/60 bg-muted/30 p-2">
+            <div className="rounded-md bg-sunken p-2">
               <div className="mb-1 text-2xs font-medium text-muted-foreground">Final result</div>
               {/* The result is what the agent would have posted: markdown and any chart it
                   drew, rendered the way a channel would render them rather than as source. */}
@@ -681,11 +735,13 @@ export const AgentRunsDialog: React.FC<{
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          {/* On the AI and automation group's tile; it was orange. */}
+          {/* The agent's own square: whose runs these are is identity, the one
+              place hue belongs (admin §1.5). It was a History glyph on the AI
+              group's tile, a category dressed as identity. */}
           <DialogTitle className="flex items-center gap-2.5">
-            <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
-              <History />
-            </Tile>
+            <span className="size-7 shrink-0" aria-hidden="true">
+              <AgentAvatar />
+            </span>
             Runs of {agentName}
           </DialogTitle>
           <DialogDescription>
@@ -706,7 +762,7 @@ export const AgentRunsDialog: React.FC<{
           <RoutinesPanel agentId={agentId} routines={routines} onChanged={load} />
         )}
 
-        <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+        <div className="ai-runs max-h-[60vh] overflow-y-auto">
           {loading && !runs ? (
             // Run rows are collapsed headers, so one line each is the honest
             // shape — and the panel keeps its height while they load.

@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
-// The admin page's frame at every width: the side menu only where it fits
-// beside the content (lg up), the platform's select below that, and the menu
-// always drawn, holding a gated section's place until the server says whether
-// it has the subsystem behind it.
+// The admin page's frame (design v3, admin §1.1 and §1.2). The sections are in
+// the settings nav that takes the sidebar's place, so the page has no menu of
+// its own: it shows the section its ?tab= names under that section's header
+// (one 36px tile, the name as the h1, one line). On a phone with no section
+// asked for, it is the list of sections.
 
 const media = vi.hoisted(() => ({ value: { isMobile: false, isTablet: false, isDesktop: true } }))
 const features = vi.hoisted(() => ({ value: { ai: "available", calls: "available" } as Record<string, string> }))
@@ -19,6 +20,7 @@ vi.mock("@/hooks/useClientConfig", () => ({
 }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => true, isLoading: false }) }))
 vi.mock("@/components/admin/userCard", () => ({ default: () => <p>Members list</p> }))
 // Every other section's cards load lazily; here they are a stub.
 vi.mock("next/dynamic", () => ({ default: () => () => <p>A section</p> }))
@@ -33,74 +35,88 @@ afterEach(() => {
 })
 
 describe("the admin page's frame", () => {
-  it("puts the section menu beside the content from lg up", () => {
+  it("has no section menu in the page: the settings nav holds it", () => {
     render(<AdminPage />)
-    expect(screen.getByRole("tablist", { name: "Admin sections" })).toBeTruthy()
+    expect(screen.queryByRole("tablist")).toBeNull()
     expect(screen.queryByRole("combobox", { name: "Admin section" })).toBeNull()
   })
 
-  // 640 to 1023px: the 920px menu stacked above every tab, the first member at
-  // y 1090, and pinned over the content as it scrolled.
-  it("uses the platform's select on a tablet or a half-width window, under the page's header", () => {
-    media.value = { isMobile: false, isTablet: true, isDesktop: true }
-    render(<AdminPage />)
-    expect(screen.queryByRole("tablist", { name: "Admin sections" })).toBeNull()
-    expect(screen.getByRole("combobox", { name: "Admin section" })).toBeTruthy()
-    expect(screen.getByRole("heading", { level: 1, name: "Admin" })).toBeTruthy()
+  it("opens a section under its own header: one 36px tile and its name as the h1", () => {
+    params.value = new URLSearchParams("tab=settings")
+    const { container } = render(<AdminPage />)
+    expect(screen.getByRole("heading", { level: 1, name: "General" })).toBeTruthy()
+    expect(container.querySelectorAll("[data-page-tile]")).toHaveLength(1)
+    expect(screen.getByText("Uploads, who can join, and where new people start.")).toBeTruthy()
   })
 
-  it("uses the select on a phone, without the header its top bar already gives", () => {
+  it("opens on Members when no section is asked for", () => {
+    render(<AdminPage />)
+    expect(screen.getByRole("heading", { level: 1, name: "Members" })).toBeTruthy()
+    expect(screen.getByText("Members list")).toBeTruthy()
+  })
+
+  it("gives the members table, the audit log and the invitations the wide frame, and General the narrow one", () => {
+    params.value = new URLSearchParams("tab=audit")
+    const { container } = render(<AdminPage />)
+    expect(container.querySelector("[data-page-frame]")?.getAttribute("data-page-frame")).toBe("wide")
+    cleanup()
+    params.value = new URLSearchParams("tab=settings")
+    const again = render(<AdminPage />)
+    expect(again.container.querySelector("[data-page-frame]")?.getAttribute("data-page-frame")).toBe("narrow")
+  })
+
+  it("is the list of sections on a phone when none is asked for", () => {
     media.value = { isMobile: true, isTablet: false, isDesktop: false }
     render(<AdminPage />)
-    expect(screen.getByRole("combobox", { name: "Admin section" })).toBeTruthy()
-    expect(screen.queryByRole("heading", { level: 1, name: "Admin" })).toBeNull()
+    expect(screen.getByRole("link", { name: /General/ })).toBeTruthy()
+    expect(screen.getByRole("link", { name: /Health and updates/ })).toBeTruthy()
+    expect(screen.queryByText("Members list")).toBeNull()
   })
 
-  // The two gated sections joined the menu only when the config answered,
-  // pushing Connections and System 72px down; a deep link drew no menu at all.
-  it("holds a gated section's place in the menu until the server answers", () => {
-    features.value = { ai: "unknown", calls: "unknown" }
-    const { container } = render(<AdminPage />)
-    expect(container.querySelectorAll("[data-menu-placeholder]")).toHaveLength(2)
-    expect(screen.queryByRole("tab", { name: /AI & agents/ })).toBeNull()
-    expect(screen.getByRole("tab", { name: /Webhooks/ })).toBeTruthy()
+  it("opens the asked-for section on a phone, its title for screen readers under the top bar", () => {
+    media.value = { isMobile: true, isTablet: false, isDesktop: false }
+    params.value = new URLSearchParams("tab=users")
+    render(<AdminPage />)
+    expect(screen.getByRole("heading", { level: 1, name: "Members" }).className).toContain("max-sm:sr-only")
   })
 
-  it("draws the menu for a deep link to a gated section while it waits, with the section's skeleton and nothing marked", () => {
+  it("holds a deep link to a gated section in its skeleton until the server answers", () => {
     features.value = { ai: "unknown", calls: "available" }
     params.value = new URLSearchParams("tab=ai-models")
     render(<AdminPage />)
-    expect(screen.getByRole("tablist", { name: "Admin sections" })).toBeTruthy()
     expect(screen.getByRole("status", { name: "Loading this section" })).toBeTruthy()
     expect(screen.queryByText("Members list")).toBeNull()
-    expect(screen.queryAllByRole("tab", { selected: true })).toHaveLength(0)
   })
 
-  it("lists a gated section in the select, unchosen, until the server answers", () => {
-    media.value = { isMobile: true, isTablet: false, isDesktop: false }
-    features.value = { ai: "unknown", calls: "available" }
-    render(<AdminPage />)
-    const option = screen.getByRole("option", { name: "AI & agents" }) as HTMLOptionElement
-    expect(option.disabled).toBe(true)
-  })
-
-  it("drops a section the server doesn't have", () => {
+  it("falls back to Members for a section the server doesn't have", () => {
     features.value = { ai: "unavailable", calls: "available" }
-    const { container } = render(<AdminPage />)
-    expect(container.querySelectorAll("[data-menu-placeholder]")).toHaveLength(0)
-    expect(screen.queryByRole("tab", { name: /AI & agents/ })).toBeNull()
-  })
-
-  // The jumps were a row at the top of AI & agents, so its first title sat 52px
-  // lower than every other tab's.
-  it("offers a long section's jumps in the header, not in the content", () => {
     params.value = new URLSearchParams("tab=ai-models")
     render(<AdminPage />)
+    expect(screen.getByRole("heading", { level: 1, name: "Members" })).toBeTruthy()
+  })
+
+  it("still resolves the old addresses", () => {
+    params.value = new URLSearchParams("tab=slack-import")
+    render(<AdminPage />)
+    expect(screen.getByRole("heading", { level: 1, name: "Import" })).toBeTruthy()
+  })
+
+  // A long section's jumps: in the header below 1280px, a rail beside the
+  // column from 1280px (OnThisPageRail). AI & agents has none: its sub-page
+  // tab bar is its navigation (aiAgentsTabs.test.tsx), so this reads General.
+  it("offers a long section's jumps, and none on a short one", () => {
+    params.value = new URLSearchParams("tab=settings")
+    render(<AdminPage />)
     expect(screen.getByRole("button", { name: /on this page/i })).toBeTruthy()
+    expect(screen.getByRole("navigation", { name: "On this page" })).toBeTruthy()
     cleanup()
     params.value = new URLSearchParams("tab=users")
     render(<AdminPage />)
     expect(screen.queryByRole("button", { name: /on this page/i })).toBeNull()
+    cleanup()
+    params.value = new URLSearchParams("tab=ai-models")
+    render(<AdminPage />)
+    expect(screen.queryByRole("navigation", { name: "On this page" })).toBeNull()
   })
 })
 

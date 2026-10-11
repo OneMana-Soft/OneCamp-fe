@@ -39,7 +39,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SettingsSection } from "@/components/ui/settingsSection"
-import { SegmentedControl, segmentedWell } from "@/components/ui/segmentedControl"
+import { segmentedWell } from "@/components/ui/segmentedControl"
 import { StatusWord } from "@/components/ui/statusWord"
 import { SpotImported } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
@@ -70,6 +70,8 @@ import {
   type ImportProblem,
 } from "@/services/importService"
 import { IMPORT_LIST, ImportJobRow, ImportRowsSkeleton, ROW_ACTION, count } from "@/components/admin/ImportJobRow"
+import { SourceMark } from "@/components/admin/connectParts"
+import { SLACK_IMPORT_NEW_EVENT } from "@/components/admin/importParts"
 import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "@/lib/importPick"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
@@ -298,8 +300,11 @@ const ImportCard: React.FC = () => {
     })
   }
   const onRollback = async (jobId: string) => {
+    const source = jobs?.find((j) => j.id === jobId)?.source_workspace_name
     confirm({
       title: "Roll back this import?",
+      // Type-to-confirm (admin H4): it takes away work from many people.
+      requireText: source || "Roll back",
       description:
         "This takes away what the import brought in: its tasks, comments, files and custom fields, and its projects and teams if nothing else is in them. Anything your team has added stays.",
       confirmText: "Roll back import",
@@ -392,7 +397,7 @@ const ImportCard: React.FC = () => {
           ) : (
             <ul aria-label="Recent imports" className={IMPORT_LIST}>
               {jobs.map((j) => (
-                <li key={j.id} className="px-4 py-3">
+                <li key={j.id}>
                   <ImportJobRow
                     job={j}
                     showProvider
@@ -417,7 +422,7 @@ const ImportCard: React.FC = () => {
           {providersLoading && !providersResp ? (
             <div role="status" aria-label="Loading the tools" className={segmentedWell}>
               {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-9 w-20 md:h-7" />
+                <Skeleton key={i} className="h-8 w-20 md:h-6" />
               ))}
             </div>
           ) : providersError && !providersResp ? (
@@ -428,23 +433,18 @@ const ImportCard: React.FC = () => {
               onRetry={() => void refetchProviders()}
             />
           ) : (
-            <SegmentedControl
-              aria-label="Tool to import from"
-              value={selectedProvider ?? ""}
-              onValueChange={(v) => chooseProvider(v || null)}
-              options={choices}
-            />
+            <SourcePicker value={selectedProvider} onChange={chooseProvider} choices={choices} />
           )}
 
           {!selectedProvider && !providersError && (
-            <p className="text-sm text-muted-foreground">Pick a tool to connect it or start an import from it.</p>
+            <p className="text-xs text-muted-foreground">Pick a tool to connect it or start an import from it.</p>
           )}
 
           {/* The picked tool's panel: its account, then a new import from it,
               one list of two rows. */}
           {selectedProvider && (
-            <div data-provider-panel="" className={IMPORT_LIST}>
-              <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div data-provider-panel="" className="set-card">
+              <div className="set-row flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 {connError && !conResp ? (
                   <>
                     <p role="alert" className="text-sm text-muted-foreground">
@@ -484,7 +484,7 @@ const ImportCard: React.FC = () => {
               </div>
 
               {connection && (
-                <section aria-labelledby="import-new" className="space-y-3 px-4 py-4">
+                <section aria-labelledby="import-new" className="set-row space-y-3">
                   <h4 id="import-new" className="text-sm font-medium">
                     New import from {providerName}
                   </h4>
@@ -528,7 +528,7 @@ const ImportCard: React.FC = () => {
                     </p>
                   )}
                   {discoverProblem && !discoverLoading && (
-                    <div role="alert" className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm sm:flex-row sm:items-center">
+                    <div role="alert" className="cx-imp-note flex flex-col gap-2 text-sm sm:flex-row sm:items-center">
                       <p className="min-w-0 flex-1 break-words text-danger-ink">{discoverProblem.message}</p>
                       <div className="flex shrink-0 gap-2">
                         {needsReconnect(discoverProblem) && (
@@ -654,6 +654,79 @@ const ImportCard: React.FC = () => {
           )}
         </Suspense>
     </SettingsSection>
+  )
+}
+
+/**
+ * "Start an import": the tools as a grid of source cards (§A14, mock M5), 72px,
+ * raised at e1, each a neutral mark, the tool's name and what comes across.
+ * Slack is first and two columns wide. It hands off to the Slack section above
+ * (SlackImportCard), which owns the export's upload: the card scrolls there
+ * and opens it. The other tools are a choice of one (a radio group), as the
+ * segmented strip of names was, with arrow keys moving between them.
+ */
+function SourcePicker({
+  value,
+  onChange,
+  choices,
+}: {
+  value: ImportProvider | null
+  onChange: (p: ImportProvider | null) => void
+  choices: Array<{ value: ImportProvider | ""; label: string }>
+}) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([])
+  const focusable = Math.max(0, choices.findIndex((c) => c.value === value))
+  const onKey = (e: React.KeyboardEvent, i: number) => {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0
+    if (!step) return
+    e.preventDefault()
+    const next = (i + step + choices.length) % choices.length
+    refs.current[next]?.focus()
+    onChange((choices[next].value || null) as ImportProvider | null)
+  }
+  const startSlack = () => {
+    document.getElementById("import-slack")?.scrollIntoView?.({ block: "start", behavior: "smooth" })
+    window.dispatchEvent(new Event(SLACK_IMPORT_NEW_EVENT))
+  }
+  return (
+    <div data-source-picker="" className="cx-imp-sources">
+      <button type="button" data-source-card="slack" data-wide="true" className="cx-imp-source" onClick={startSlack}>
+        <SourceMark vendor="slack" name="Slack" />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-foreground">Slack</span>
+          <span className="cx-imp-source-line block truncate">Channels, threads, files</span>
+        </span>
+      </button>
+      {/* contents: the radios sit in the grid beside Slack. */}
+      <div role="radiogroup" aria-label="Tool to import from" className="contents">
+        {choices.map((c, i) => {
+          const checked = c.value === value
+          return (
+            <button
+              key={c.value}
+              ref={(el) => {
+                refs.current[i] = el
+              }}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              aria-label={c.label}
+              tabIndex={i === focusable ? 0 : -1}
+              data-source-card={c.value}
+              className="cx-imp-source"
+              onClick={() => onChange((c.value || null) as ImportProvider | null)}
+              onKeyDown={(e) => onKey(e, i)}
+            >
+              <SourceMark vendor={c.value} name={c.label} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-foreground">{c.label}</span>
+                <span className="cx-imp-source-line block truncate">Projects, tasks, comments</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

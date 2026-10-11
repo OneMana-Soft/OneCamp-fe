@@ -45,6 +45,15 @@ async function eventSection() {
     return (await screen.findByText("Run when…")).parentElement as HTMLElement
 }
 
+// A new agent is made in steps (design v3, admin §S5); these settings are on
+// "Where it works", past the job's two required fields.
+function toWhereItWorks() {
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Release Captain" } })
+    fireEvent.change(screen.getByLabelText("Instructions"), { target: { value: "File the launch tasks." } })
+    fireEvent.click(screen.getByRole("button", { name: /^Next/ }))
+    fireEvent.click(screen.getByRole("button", { name: /^Next/ }))
+}
+
 function chooseEventTrigger() {
     // The trigger is a radio group now: one choice of several.
     fireEvent.click(screen.getByRole("radio", { name: /On an event/ }))
@@ -58,6 +67,7 @@ describe("GitHub events in the agent editor", () => {
 
     it("are not offered to a new agent", async () => {
         render(<AgentEditDialog open agent={null} onClose={() => {}} onSaved={() => {}} />)
+        toWhereItWorks()
         chooseEventTrigger()
         const section = await eventSection()
         expect(within(section).queryAllByRole("button", { name: /GitHub|pull request/i })).toHaveLength(0)

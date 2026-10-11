@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SaveBar, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
-import { StatusWord } from "@/components/ui/statusWord"
+import { ConnectionCard, SourceMark, StateWord } from "@/components/admin/connectParts"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -60,7 +60,7 @@ const PROVIDERS: {
         secretPlaceholder: "Client secret…",
         help: (
             <>
-                For signing in with GitHub, separate from the GitHub repository integration above.
+                For signing in with GitHub, separate from the GitHub repository connection above.
             </>
         ),
     },
@@ -176,69 +176,75 @@ export default function OAuthConfigCard() {
                         className="py-6"
                     />
                 )}
-                <SettingsList>
+                {/* Each provider is a connection card (design v3, A18): its mark,
+                    its name, set up or not, and its two fields under it. One
+                    save dock for both, since the form spans the two cards. */}
+                <div className="space-y-3">
                     {PROVIDERS.map((p) => {
                         const configured = status[`${p.key}_configured`]
                         const hasSecret = status[`${p.key}_has_client_secret`]
                         const source = SOURCE[status[`${p.key}_source`]]
                         const helpId = `${p.key}-oauth-help`
                         return (
-                            <div key={p.key} className="space-y-3 px-4 py-3">
-                                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                                    <h3 className="text-sm font-medium">{p.name}</h3>
-                                    {/* A dot and a word: set up or not, and from where. */}
-                                    <StatusWord tone={configured ? "success" : "neutral"} className="text-xs">
-                                        <span>
-                                            <span className="font-medium">{configured ? "Set up" : "Not set up"}</span>
-                                            {source && <span className="text-muted-foreground">, {source}</span>}
-                                        </span>
-                                    </StatusWord>
-                                </div>
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor={`${p.key}-client-id`} className="text-xs text-muted-foreground">
-                                            Client ID<span className="sr-only"> for {p.name}</span>
-                                        </Label>
-                                        <Input
-                                            id={`${p.key}-client-id`}
-                                            name={`${p.key}-client-id`}
-                                            autoComplete="off"
-                                            spellCheck={false}
-                                            value={draft[p.key].id}
-                                            onChange={(e) => set(p.key, "id", e.target.value)}
-                                            placeholder={p.idPlaceholder}
-                                            aria-describedby={helpId}
-                                            className="h-8"
-                                        />
+                            <ConnectionCard
+                                key={p.key}
+                                aria-label={`${p.name} sign-in`}
+                                mark={<SourceMark vendor={p.key} name={p.name} />}
+                                name={p.name}
+                                state={
+                                    <StateWord tone={configured ? "success" : "neutral"}>
+                                        <span>{configured ? "Set up" : "Not set up"}</span>
+                                        {source && <span className="font-normal text-muted-foreground">, {source}</span>}
+                                    </StateWord>
+                                }
+                            >
+                                <div className="cx-int-step space-y-3">
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor={`${p.key}-client-id`} className="text-xs text-muted-foreground">
+                                                Client ID<span className="sr-only"> for {p.name}</span>
+                                            </Label>
+                                            <Input
+                                                id={`${p.key}-client-id`}
+                                                name={`${p.key}-client-id`}
+                                                autoComplete="off"
+                                                spellCheck={false}
+                                                value={draft[p.key].id}
+                                                onChange={(e) => set(p.key, "id", e.target.value)}
+                                                placeholder={p.idPlaceholder}
+                                                aria-describedby={helpId}
+                                                className="h-8"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor={`${p.key}-client-secret`} className="text-xs text-muted-foreground">
+                                                Client secret<span className="sr-only"> for {p.name}</span>
+                                            </Label>
+                                            {/* new-password: a browser never fills the admin's own saved
+                                                password into a secret field and saves it as the secret. */}
+                                            <Input
+                                                id={`${p.key}-client-secret`}
+                                                name={`${p.key}-client-secret`}
+                                                type="password"
+                                                autoComplete="new-password"
+                                                spellCheck={false}
+                                                value={draft[p.key].secret}
+                                                onChange={(e) => set(p.key, "secret", e.target.value)}
+                                                placeholder={hasSecret ? "••••••••" : p.secretPlaceholder}
+                                                aria-describedby={helpId}
+                                                className="h-8"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor={`${p.key}-client-secret`} className="text-xs text-muted-foreground">
-                                            Client secret<span className="sr-only"> for {p.name}</span>
-                                        </Label>
-                                        {/* new-password: a browser never fills the admin's own saved
-                                            password into a secret field and saves it as the secret. */}
-                                        <Input
-                                            id={`${p.key}-client-secret`}
-                                            name={`${p.key}-client-secret`}
-                                            type="password"
-                                            autoComplete="new-password"
-                                            spellCheck={false}
-                                            value={draft[p.key].secret}
-                                            onChange={(e) => set(p.key, "secret", e.target.value)}
-                                            placeholder={hasSecret ? "••••••••" : p.secretPlaceholder}
-                                            aria-describedby={helpId}
-                                            className="h-8"
-                                        />
-                                    </div>
+                                    <p id={helpId} className="text-xs text-muted-foreground text-pretty">
+                                        {p.help}
+                                        {hasSecret ? " Leave the secret empty to keep the current one." : ""}
+                                    </p>
                                 </div>
-                                <p id={helpId} className="text-xs text-muted-foreground text-pretty">
-                                    {p.help}
-                                    {hasSecret ? " Leave the secret empty to keep the current one." : ""}
-                                </p>
-                            </div>
+                            </ConnectionCard>
                         )
                     })}
-                </SettingsList>
+                </div>
                 <SaveBar
                     dirty={dirty}
                     saving={saving}
@@ -257,6 +263,7 @@ export default function OAuthConfigCard() {
 
     return (
         <SettingsSection
+            id="integrations-oauth"
             title="Sign-in providers"
             description="Let people sign in with Google or GitHub. Secrets are stored encrypted and never shown again; changes apply without a restart."
         >

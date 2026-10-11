@@ -122,6 +122,9 @@ describe("a two-step code that is refused", () => {
     render(<TwoFactorSection />)
     const turnOn = await screen.findByRole("button", { name: "Turn on" })
     await act(async () => void fireEvent.click(turnOn))
+    // Step 1 of 3 is the QR; the code is step 2.
+    expect(screen.getByText("Step 1 of 3")).toBeInTheDocument()
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Next" })))
     const field = screen.getByLabelText("Enter the 6-digit code to finish") as HTMLInputElement
 
     fireEvent.change(field, { target: { value: "123456" } })

@@ -1,24 +1,20 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import React, { useEffect, useRef } from "react"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import UserCard from "@/components/admin/userCard"
 import { SectionJumpMenu } from "@/components/admin/SectionJumps"
 import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
 import { PeopleTabSkeleton } from "@/components/admin/PeopleFrame"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { AdminScrollContext } from "@/components/admin/adminScroll"
-import { unsavedWhat } from "@/lib/unsavedChanges"
-import { useConfirm } from "@/hooks/useConfirm"
 import dynamic from "next/dynamic"
-import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
-import { Users2, Webhook, Archive, UserX, Database, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
-import { cn } from "@/lib/utils/helpers/cn"
-import { PageHeader } from "@/components/ui/pageHeader"
+import { PageFrame, PageFrameHeader } from "@/components/ui/settingsPage"
+import { OnThisPageRail } from "@/components/ui/OnThisPage"
+import { SettingsPhoneList } from "@/components/admin/SettingsPhoneList"
+import { useJumpFlash } from "@/hooks/useJumpFlash"
+import { SETTINGS_GROUP_LABEL, SETTINGS_PLACES, adminPlace, normaliseAdminTab, type SettingsGroupKey } from "@/lib/adminSections"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
 
@@ -27,7 +23,7 @@ import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientCon
 // they waited as a generic card of four rows and a button bar.
 // Every section but Members (where the page opens) loads its cards when it is
 // first opened, or ahead of that when the pointer or focus reaches it in the
-// menu (PRELOAD below). All thirty-six cards used to come with the page, so
+// settings nav (components/admin/adminPreload). All thirty-six cards used to come with the page, so
 // opening Members fetched 1.1 MB of script for one list (app/adminFirstLoad.test.ts).
 const TeamsCard = dynamic(() => import("@/components/admin/teamCard"), { loading: () => <PeopleTabSkeleton leading="tile" /> })
 const AdminCard = dynamic(() => import("@/components/admin/adminCard"), { loading: () => <PeopleTabSkeleton /> })
@@ -42,13 +38,8 @@ const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsers
 const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
 const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
 const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
-const AIModelsCard = dynamic(() => import("@/components/admin/AIModelsCard"), { loading: AdminCardSkeleton })
-const AgentDelegationCard = dynamic(() => import("@/components/admin/AgentDelegationCard"), { loading: AdminCardSkeleton })
-const ModelRoutingCard = dynamic(() => import("@/components/admin/ModelRoutingCard"), { loading: AdminCardSkeleton })
-const GovernanceDrillCard = dynamic(() => import("@/components/admin/GovernanceDrillCard"), { loading: AdminCardSkeleton })
-const MCPServerCard = dynamic(() => import("@/components/admin/MCPServerCard"), { loading: AdminCardSkeleton })
-const AIActivityCard = dynamic(() => import("@/components/admin/AIActivityCard"), { loading: AdminCardSkeleton })
-const AgentInventoryCard = dynamic(() => import("@/components/admin/AgentInventoryCard"), { loading: AdminCardSkeleton })
+// AI & agents: one section of six sub-pages, each a chunk of its own.
+const AIAgentsSection = dynamic(() => import("@/components/admin/ai/AIAgentsSection"), { loading: AdminCardSkeleton })
 const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
 const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
 const GuestAccessCard = dynamic(() => import("@/components/admin/GuestAccessCard"), { loading: AdminCardSkeleton })
@@ -77,150 +68,50 @@ const ADMIN_SECTION_STACK = "space-y-8"
 type TabDef = {
   value: string
   label: string
-  icon: React.ComponentType<{ className?: string }>
 }
 
-// GROUPED, IN A SIDE MENU. This was seventeen tabs in one strip that scrolled
-// sideways: on a laptop most sat off-screen behind a fade, and related ones were
-// scattered (Users, Admins, Teams, Invitations and External users were five
-// tabs apart). Admin consoles people already know (Slack, Linear, GitHub) group
-// settings under a few headings in a column, so an admin scans a short list for
-// the right heading instead of scrolling a strip for the right word.
-type TabGroup = { key: AdminGroup; label: string; tabs: TabDef[] }
+// THE SECTIONS LIVE IN THE SETTINGS NAV (design v3, admin §1.1). Entering
+// Admin swaps the sidebar for the settings nav, grouped as lib/adminSections
+// lists them, so there is no menu in the page: the 208px it took goes back to
+// the content. The page shows the section its `?tab=` names, with that
+// section's own header (its group's hue on one tile, its name as the h1, its
+// one line). The order and groups below are the nav's, read from one list.
+type TabGroup = { key: SettingsGroupKey; label: string; tabs: TabDef[] }
 
-const TAB_GROUPS: TabGroup[] = [
-  {
-    key: "people",
-    label: "People",
-    tabs: [
-      { value: "users", label: "Members", icon: Users2 },
-      { value: "admins", label: "Admins", icon: ShieldAlert },
-      { value: "teams", label: "Teams", icon: Users },
-      { value: "invitations", label: "Invitations", icon: Mail },
-      { value: "external-users", label: "External users", icon: UserX },
-    ],
-  },
-  {
-    key: "workspace",
-    label: "Workspace",
-    tabs: [
-      { value: "settings", label: "General", icon: SlidersHorizontal },
-      { value: "security", label: "Security", icon: Lock },
-      { value: "permissions", label: "Permissions", icon: KeyRound },
-      { value: "email-settings", label: "Email", icon: Settings },
-      { value: "audit", label: "Audit log", icon: ScrollText },
-      { value: "archive", label: "Archive", icon: Archive },
-      // ONE IMPORT TAB, NOT TWO. "Slack Import" and "Import" sat next to each other
-      // with the same icon and no way to tell which held what, so an admin looking
-      // for their migration had to open both and read the cards. They are one
-      // question — how do I get my existing work in — and now one place.
-      { value: "import", label: "Import", icon: Database },
-    ],
-  },
-  {
-    key: "ai",
-    label: "AI and automation",
-    tabs: [
-      { value: "ai-models", label: "AI & agents", icon: Sparkles },
-      { value: "workflows", label: "Workflows", icon: Zap },
-      { value: "transcription", label: "Transcription", icon: Mic },
-    ],
-  },
-  {
-    key: "connections",
-    label: "Connections",
-    tabs: [
-      { value: "integrations", label: "Integrations", icon: GitBranch },
-      { value: "apps", label: "Apps", icon: Plug },
-      { value: "webhooks", label: "Webhooks", icon: Webhook },
-    ],
-  },
-  {
-    key: "system",
-    label: "System",
-    tabs: [{ value: "health", label: "Health and updates", icon: Activity }],
-  },
-]
+const TAB_GROUPS: TabGroup[] = (["workspace", "ai", "connections", "records", "system"] as const).map((key) => ({
+  key,
+  label: SETTINGS_GROUP_LABEL[key],
+  tabs: SETTINGS_PLACES.filter((p) => p.group === key && p.href.startsWith("/app/admin?tab=")).map((p) => ({ value: p.key, label: p.label })),
+}))
 
 const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
 
-// A section's code, fetched ahead: when the pointer or focus reaches it in the
-// menu, so by the time it is opened its cards are usually here. The same
-// modules as the dynamic() calls above, which the bundler loads once.
-const PRELOAD: Record<string, () => Promise<unknown>[]> = {
-  admins: () => [import("@/components/admin/adminCard")],
-  teams: () => [import("@/components/admin/teamCard")],
-  invitations: () => [import("@/components/admin/invitationCard")],
-  "external-users": () => [import("@/components/admin/ExternalUsersCard")],
-  settings: () => [
-    import("@/components/admin/WorkspaceSettingsCard"),
-    import("@/components/admin/DefaultChannelsCard"),
-    import("@/components/admin/ReadReceiptsPolicyCard"),
-    import("@/components/admin/PushNotificationsCard"),
-  ],
-  security: () => [import("@/components/admin/GuestAccessCard"), import("@/components/admin/ScimProvisioningCard")],
-  permissions: () => [import("@/components/admin/PermissionsCard")],
-  "email-settings": () => [import("@/components/admin/EmailProviderCard"), import("@/components/admin/EmailSettingsCard")],
-  audit: () => [import("@/components/admin/AdminAuditLog"), import("@/components/admin/RetentionCard")],
-  archive: () => [import("@/components/admin/ArchiveCard")],
-  import: () => [import("@/components/admin/SlackImportCard"), import("@/components/admin/ImportCard")],
-  "ai-models": () => [
-    import("@/components/admin/AIModelsCard"),
-    import("@/components/admin/ModelRoutingCard"),
-    import("@/components/admin/AgentInventoryCard"),
-    import("@/components/admin/AgentDelegationCard"),
-    import("@/components/admin/GovernanceDrillCard"),
-    import("@/components/admin/MCPServerCard"),
-    import("@/components/admin/AIActivityCard"),
-  ],
-  workflows: () => [import("@/components/admin/WorkflowsCard")],
-  transcription: () => [import("@/components/admin/TranscriptionSettingsCard")],
-  integrations: () => [
-    import("@/components/admin/SlackBridgeCard"),
-    import("@/components/admin/GitHubIntegrationCard"),
-    import("@/components/admin/OAuthConfigCard"),
-  ],
-  apps: () => [import("@/components/admin/AppsCard")],
-  webhooks: () => [import("@/components/admin/WebhooksCard")],
-  health: () => [import("@/components/admin/UpdatesCard"), import("@/components/admin/SystemCheckCard")],
-}
+// AI & agents has sub-pages under a tab bar in place of an on-this-page rail
+// (components/admin/ai/aiTabs, where its old jump ids map to them).
 
-const preloaded = new Set<string>()
-function preloadSection(value: string) {
-  if (preloaded.has(value)) return
-  preloaded.add(value)
-  for (const p of PRELOAD[value]?.() ?? []) p.catch(() => preloaded.delete(value))
+/** The jumps of a long section: its cards, from the settings map, once each. */
+function jumpsFor(tab: string): { id: string; label: string }[] | null {
+  // The tab bar under AI & agents' header is its navigation.
+  if (tab === "ai-models") return null
+  if (tab !== "security" && tab !== "integrations" && tab !== "settings") return null
+  const seen = new Set<string>()
+  const out: { id: string; label: string }[] = []
+  for (const c of adminPlace(tab)?.cards ?? []) {
+    if (seen.has(c.id)) continue
+    seen.add(c.id)
+    out.push({ id: c.id, label: c.title })
+  }
+  return out.length >= 3 ? out : null
 }
-
-// The cards of AI & agents, in page order, for its jump row.
-const AI_JUMPS = [
-  { id: "ai-models-models", label: "Models" },
-  { id: "ai-models-routing", label: "Model per job" },
-  { id: "ai-models-inventory", label: "Agent inventory" },
-  { id: "ai-models-delegation", label: "Agent collaboration" },
-  { id: "ai-models-drill", label: "Governance drill" },
-  { id: "ai-models-mcp", label: "External agent access" },
-  { id: "ai-models-activity", label: "AI activity" },
-]
 
 const AdminPage = () => {
   const searchParams = useSearchParams()
-  const { isDesktop, isTablet } = useMedia()
-  // The side menu needs room beside the content, so it starts at lg. It used to
-  // start at sm, but the menu and the content only sat side by side from lg: on
-  // a tablet or a half-width window (640 to 1023px) the 19-item menu, 920px
-  // tall, stacked above every tab, so the first member was at y 1090, and being
-  // sticky it stayed pinned over the content as it scrolled. Below lg the
-  // section picker is the platform's own select, as on a phone.
-  const sideMenu = isDesktop && !isTablet
+  const { isMobile } = useMedia()
   const { toast } = useToast()
-  // Two tabs exist only when the server has the subsystem behind them, and the
-  // page cannot know that until the config request answers. It used to read the
-  // two-state hook, which reports "no" while that request is in flight, and pick
-  // its tab ONCE from that answer: a cold load of /app/admin?tab=ai-models, which
-  // is what every link to the drill card is, therefore opened on Teams and stayed
-  // there. The setup checklist sent a new admin to see an agent refused and
-  // landed them on a list of teams.
+  // Two sections exist only when the server has the subsystem behind them,
+  // and the page cannot know that until the config request answers. A cold
+  // load of /app/admin?tab=ai-models, which is what every link to the drill
+  // card is, used to open on Teams and stay there.
   const aiState = useFeatureState(FEATURE_AI)
   const callsState = useFeatureState(FEATURE_CALLS)
   const aiAvailable = aiState === "available"
@@ -230,80 +121,35 @@ const AdminPage = () => {
     if (tab.value === "transcription") return callsAvailable
     return true
   })
-  // ?tab=slack-import still resolves, because links to it exist in the wild: the
-  // onboarding step pointed there, and so did anything an admin bookmarked. A
-  // merged tab that broke its own old address would be a worse fix than the
-  // confusion it removed.
-  const TAB_ALIASES: Record<string, string> = { "slack-import": "import" }
-  const rawTab = searchParams.get("tab") || "users"
-  // The audit log moved out of General into its own section. Links to
-  // ?tab=settings#audit-log, the governance drill's among them, still land on it.
+  // ?tab=slack-import still resolves, because links to it exist in the wild,
+  // and ?tab=settings#audit-log lands on the audit log, which moved out of
+  // General ("slack-import": "import" and the audit alias live in
+  // lib/adminSections, beside the sections).
+  const rawTab = searchParams.get("tab")
   const hash = typeof window !== "undefined" ? window.location.hash : ""
-  const requestedTab =
-    rawTab === "settings" && hash === "#audit-log" ? "audit" : TAB_ALIASES[rawTab] ?? rawTab
+  const requestedTab = normaliseAdminTab(rawTab, hash)
+  // On a phone with no section asked for, the page is the list of sections.
+  const phoneList = isMobile && !rawTab
   const requestedTabVisible = visibleTabs.some((tab) => tab.value === requestedTab)
-  // The URL asked for a gated tab and the server has not said yet whether it
-  // exists. Falling back to Teams here would be answering before the question
-  // was asked, and the fallback would stick.
+  // The URL asked for a gated section and the server has not said yet whether
+  // it exists: hold the section's skeleton rather than answer early.
   const gateForRequested =
     requestedTab === "ai-models" ? aiState : requestedTab === "transcription" ? callsState : "available"
   const waitingOnRequestedTab = gateForRequested === "unknown"
-  const [activeTab, setActiveTab] = useState(requestedTabVisible ? requestedTab : "users")
-  useEffect(() => {
-    // Honour the URL the moment its tab becomes real. After that the user owns
-    // the selection: this only re-runs when the answer itself changes.
-    if (requestedTabVisible) setActiveTab(requestedTab)
-  }, [requestedTab, requestedTabVisible])
+  const activeTab = requestedTabVisible ? requestedTab : "users"
   const processed = useRef(false)
   // The page's one scroller, for lists that draw only the rows in view.
   const scrollRef = useRef<HTMLDivElement>(null)
-  // What the server has said about a section's subsystem: AI & agents and
-  // Transcription exist only on servers that have AI and calls.
-  const gateOf = (value: string) => (value === "ai-models" ? aiState : value === "transcription" ? callsState : "available")
-  // Groups in menu order, with every section this server offers, and a held
-  // place for one it hasn't answered about yet. The two gated sections used to
-  // join the menu only when the config answered, pushing Connections and System
-  // 72px down under the pointer.
-  const menuGroups = TAB_GROUPS.map((g) => ({
-    ...g,
-    tabs: g.tabs.filter((t) => gateOf(t.value) !== "unavailable"),
-  })).filter((g) => g.tabs.length > 0)
-  // While a deep link waits on that answer, nothing is chosen yet: the menu is
-  // drawn, no section is marked, and the content holds a section's skeleton.
   const shownTab = waitingOnRequestedTab ? requestedTab : activeTab
-  // The jumps of the open section, when it is long enough to have them.
-  const jumps = shownTab === "ai-models" && !waitingOnRequestedTab ? AI_JUMPS : null
-
-  // Choosing a section updates the address, so a refresh or Back returns here.
-  // replaceState rather than the router: the page is already showing the tab.
-  const confirm = useConfirm()
-  // Switching section unmounts the card, so its unsaved edits would go
-  // without a word: ask first, naming them.
-  const chooseTab = (value: string) => {
-    const what = unsavedWhat()
-    if (what && value !== activeTab) {
-      confirm({
-        title: "Leave without saving?",
-        description: `Your unsaved ${what} will be lost.`,
-        confirmText: "Leave without saving",
-        cancelText: "Stay",
-        destructive: true,
-        onConfirm: () => selectTab(value),
-      })
-      return
-    }
-    selectTab(value)
-  }
-
-  const selectTab = (value: string) => {
-    setActiveTab(value)
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href)
-      url.searchParams.set("tab", value)
-      url.hash = ""
-      window.history.replaceState(window.history.state, "", url.toString())
-    }
-  }
+  const place = adminPlace(shownTab) ?? adminPlace("users")!
+  const jumps = waitingOnRequestedTab ? null : jumpsFor(shownTab)
+  // A search hit or a deep link with a #card scrolls to it and flashes it.
+  useJumpFlash(shownTab)
+  // The section's own scroll starts at its top.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!window.location.hash && el) el.scrollTop = 0
+  }, [shownTab])
 
   useEffect(() => {
     if (processed.current) return
@@ -311,156 +157,49 @@ const AdminPage = () => {
     const error = searchParams.get("error")
     if (success === "1") {
       processed.current = true
-      toast({ title: "GitHub connected", description: "Your GitHub account is linked." })
+      toast({ title: "GitHub connected", description: "Your GitHub account is linked.", tone: "success" })
     } else if (error) {
       processed.current = true
       const messages: Record<string, string> = {
-        no_code: "No authorization code received from GitHub.",
-        unauthorized: "You must be logged in as an admin to connect GitHub.",
-        exchange_failed: "Failed to exchange authorization code. Please try again.",
+        no_code: "GitHub sent no authorisation code. Try connecting again.",
+        unauthorized: "Only a workspace admin can connect GitHub.",
+        exchange_failed: "GitHub didn't accept the authorisation code. Try connecting again.",
       }
-      toast({ title: "Couldn't connect GitHub", description: messages[error] || "An unexpected error occurred.", variant: "destructive" })
+      toast({ title: "Couldn't connect GitHub", description: messages[error] || "Something went wrong on the way back from GitHub.", variant: "destructive" })
     }
     if (processed.current && typeof window !== "undefined") {
-      const cleanUrl = window.location.pathname + window.location.hash
+      const cleanUrl = window.location.pathname + `?tab=${shownTab}` + window.location.hash
       window.history.replaceState({}, document.title, cleanUrl)
     }
-  }, [searchParams, toast])
+  }, [searchParams, toast, shownTab])
+
+  if (phoneList) return <SettingsPhoneList />
 
   return (
     <main
       id="main-content"
       className="flex flex-col h-full min-h-0 bg-background"
     >
-      {/* Header: from sm up. A phone's top bar already says Admin, and the
-          section picker below is the first thing that is needed there. A long
-          section's jumps sit here, in view however far it scrolls. */}
-      {isDesktop && (
-      <div className="shrink-0 border-b border-border px-4 py-5 sm:px-6 lg:px-8">
-        <PageHeader
-          eyebrow="Workspace"
-          title="Admin"
-          className="mx-auto w-full max-w-6xl"
-          actions={jumps ? <SectionJumpMenu jumps={jumps} /> : undefined}
-        />
-      </div>
-      )}
-
-      {/* Content. The menu is always drawn; while a deep link to a gated
-          section waits on the server, the content holds a section's skeleton
-          and no section is marked, rather than opening on Members and moving. */}
       <Tabs
         value={shownTab}
-        onValueChange={chooseTab}
-        orientation={sideMenu ? "vertical" : "horizontal"}
         className="flex-1 min-h-0 flex flex-col"
       >
-        {/* Per-tab content. THIS IS THE ONLY SCROLL CONTAINER ON THE PAGE.
-            
-            It used to be "each card owns its own internal scrolling", which works for a tab holding
-            exactly one card and breaks silently the moment a second is added. That had already
-            happened twice. On the AI Models tab, AIModelsCard was h-full with its own
-            overflow-y-auto, so it occupied the entire visible region and scrolled inside itself,
-            while AgentDelegationCard, MCPServerCard and AIActivityCard were appended BELOW it —
-            reachable only by scrolling the app shell's scroller (app/app/LayoutContent.tsx). Two
-            scrollbars with different meanings on one screen: the inner one moved the AI settings, the
-            outer one moved the page and took the header and the tab strip off-screen with it. Scroll
-            far enough and the inner scrollport was itself partly off-screen, so content stayed
-            clipped with no reachable scrollbar. The integrations tab had the same latent fault, since
-            GitHubIntegrationCard is also a full-height internal scroller with a sibling beneath it.
-            
-            Scrolling here instead of inside the cards fixes all of it at once, and it is the reason
-            the header and tab strip now stay put — which is what "Sticky tab strip" above always
-            claimed. Cards must therefore NOT set h-full or their own overflow-y-auto; they size to
-            their content and this box scrolls. adminLayout.test.ts holds that line. */}
+        {/* THIS IS THE ONLY SCROLL CONTAINER ON THE PAGE. Cards must not set
+            h-full or their own overflow-y-auto; they size to their content and
+            this box scrolls (adminLayout.test.ts). Two scrollbars with
+            different meanings on one screen is the bug this replaced. */}
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
           <AdminScrollContext.Provider value={scrollRef}>
-          <div className="px-4 sm:px-6 lg:px-8 py-6">
-            <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
-              {sideMenu ? (
-                // Sticky within the one scroller rather than a second scroller of
-                // its own: the whole menu fits, and one scrollbar keeps one meaning.
-                <TabsList
-                  aria-label="Admin sections"
-                  className="sticky top-0 flex h-auto w-52 shrink-0 flex-col items-stretch gap-0.5 rounded-none bg-transparent p-0"
-                >
-                  {menuGroups.map((group, gi) => (
-                    <React.Fragment key={group.label}>
-                      <p
-                        role="presentation"
-                        className={cn(
-                          // Sentence case, quiet: the sidebar's group labels, not shouted eyebrows.
-                          "px-3 pb-1 text-xs font-medium text-muted-foreground",
-                          gi === 0 ? "pt-0" : "pt-5",
-                        )}
-                      >
-                        {group.label}
-                      </p>
-                      {group.tabs.map(({ value, label, icon: Icon }) =>
-                        gateOf(value) === "unknown" ? (
-                          // Its place, held at a row's height until the server says.
-                          <div
-                            key={value}
-                            aria-hidden="true"
-                            data-menu-placeholder=""
-                            className="flex items-center gap-2.5 rounded-md px-3 py-1.5"
-                          >
-                            <Skeleton className="size-6 shrink-0 rounded-md" />
-                            <Skeleton className="h-3.5 w-24" />
-                          </div>
-                        ) : (
-                        <TabsTrigger
-                          key={value}
-                          value={value}
-                          onPointerEnter={() => preloadSection(value)}
-                          onFocus={() => preloadSection(value)}
-                          className={cn(
-                            "justify-start gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium",
-                            "text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors",
-                            // The current section in the soft accent, as the app's own sidebar marks it.
-                          "data-[state=active]:bg-brand-muted data-[state=active]:text-foreground data-[state=active]:shadow-none",
-                          )}
-                        >
-                          {/* The group's hue on every section in it: five places in
-                              five colours, not nineteen (components/admin/adminHues). */}
-                          <Tile hue={ADMIN_GROUP_HUE[group.key]} size="sm">
-                            <Icon />
-                          </Tile>
-                          {label}
-                        </TabsTrigger>
-                        ),
-                      )}
-                    </React.Fragment>
-                  ))}
-                </TabsList>
-              ) : (
-                // Below lg the platform's own picker, grouped the same way: the
-                // menu does not fit beside the content there, and a native select
-                // is the control every phone already knows. On a phone, a long
-                // section's jumps sit beside it at its height.
-                <div className="mb-5 flex items-center gap-2">
-                  <label className="min-w-0 flex-1">
-                    <span className="sr-only">Admin section</span>
-                    <select
-                      value={shownTab}
-                      onChange={(e) => chooseTab(e.target.value)}
-                      className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-medium"
-                    >
-                      {menuGroups.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
-                          {group.tabs.map((t) => (
-                            <option key={t.value} value={t.value} disabled={gateOf(t.value) === "unknown"}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </label>
-                  {!isDesktop && jumps && <SectionJumpMenu compact jumps={jumps} />}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
+          <div className="flex justify-center gap-10 min-[1280px]:pr-6">
+            <PageFrame key={shownTab} wide={place.wide} className="min-w-0 flex-1 min-[1280px]:mx-0">
+              <PageFrameHeader
+                hue={place.hue}
+                icon={place.icon}
+                title={place.label}
+                description={place.description}
+                actions={jumps ? <SectionJumpMenu jumps={jumps} className="min-[1280px]:hidden" /> : undefined}
+              />
+              <div className="min-w-0">
               {waitingOnRequestedTab ? (
                 <AdminCardSkeleton />
               ) : (
@@ -534,30 +273,11 @@ const AdminPage = () => {
                 <TranscriptionSettingsCard />
               </TabsContent>
               )}
-              {/* These four had NO wrapper at all, so they rendered flush: "Agent collaboration"
-                  ended and "External agent access" began against it with only a hairline between,
-                  and the eye read them as one section. The two tabs above were wrapped; this one was
-                  missed when cards were appended to it, which is exactly the kind of thing that
-                  survives review because nothing about it looks wrong in the diff. */}
               {aiAvailable && (
               <TabsContent value="ai-models" className="mt-0 outline-none">
-                <div className={ADMIN_SECTION_STACK}>
-                  <section id="ai-models-models" className="scroll-mt-4"><AIModelsCard /></section>
-                  {/* Right after the allowlist, because routing chooses from it. */}
-                  <section id="ai-models-routing" className="scroll-mt-4"><ModelRoutingCard /></section>
-                  {/* Right after models: what can act here and who answers for it, with
-                      the switch to stop it, before the policies that shape it. */}
-                  <section id="ai-models-inventory" className="scroll-mt-4"><AgentInventoryCard /></section>
-                  <section id="ai-models-delegation" className="scroll-mt-4"><AgentDelegationCard /></section>
-                  {/* Straight after delegation, because delegation says what an agent MAY
-                      do and this proves the limit actually holds on this install. */}
-                  <section id="ai-models-drill" className="scroll-mt-4"><GovernanceDrillCard /></section>
-                  {/* Beside agent collaboration because they are the same kind of decision:
-                      who may cause an agent to act here. Delegation governs agents inside
-                      the workspace; this governs clients outside it. */}
-                  <section id="ai-models-mcp" className="scroll-mt-4"><MCPServerCard /></section>
-                  <section id="ai-models-activity" className="scroll-mt-4"><AIActivityCard /></section>
-                </div>
+                {/* Six sub-pages under a tab bar (design v3, admin §A15), where
+                    the seven cards stood in one 7,000px column. */}
+                <AIAgentsSection />
               </TabsContent>
               )}
               <TabsContent value="webhooks" className="mt-0 outline-none">
@@ -593,7 +313,12 @@ const AdminPage = () => {
               </>
               )}
               </div>
-            </div>
+            </PageFrame>
+            {jumps && (
+              <aside className="hidden w-[180px] shrink-0 pt-10 min-[1280px]:block">
+                <OnThisPageRail items={jumps} scrollRoot={scrollRef} />
+              </aside>
+            )}
           </div>
           </AdminScrollContext.Provider>
         </div>

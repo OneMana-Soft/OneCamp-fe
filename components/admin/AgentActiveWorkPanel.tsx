@@ -15,7 +15,7 @@
 // dialog stay identical in wording, ordering and behaviour.
 
 import React, { useEffect, useState } from "react"
-import { Activity, Loader2, RefreshCw } from "@/lib/icons"
+import { RefreshCw } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
@@ -24,15 +24,14 @@ import { useAgentWorkEvents } from "@/hooks/useAgentWorkEvents"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { AgentWorkRow, sortAgentWork } from "@/components/ai/AgentWorkRow"
 import { listActiveAgentWork, type ActiveWorkItem } from "@/services/agentService"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 
 // Poll interval for live work state. Gentle so it never hammers the API; the
 // evolving in-thread status comment is the real-time surface, this is the
 // at-a-glance roll-up.
 const POLL_MS = 15000
 
-const AgentActiveWorkPanel: React.FC = () => {
+const AgentActiveWorkPanel: React.FC<{ title?: string; className?: string }> = ({ title = "In progress", className }) => {
   const [items, setItems] = useState<ActiveWorkItem[] | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
@@ -76,17 +75,17 @@ const AgentActiveWorkPanel: React.FC = () => {
   const sorted = sortAgentWork(items)
   const blockedCount = items.filter((i) => i.state === "blocked").length
 
+  // A card of rows (design v3, admin §A15 "Agents active now"): each row
+  // leads with the agent's square and a 2px live bar in the agent hue that
+  // breathes on opacity while the run is going. The title was on a tinted
+  // tile with a refresh spinner beside it.
   return (
-    <div className="mb-4 overflow-hidden rounded-xl border border-border/60 bg-card/40">
-      <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
-        {/* A still tile in the AI and automation group's hue. A spinner glyph
-            sat here and turned whenever it refreshed, so the title said
-            "loading" for a list that was there; the refresh button says that. */}
-        <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
-          <Activity />
-        </Tile>
-        <h3 className="text-sm font-semibold">In progress</h3>
-        <span className="text-2xs text-muted-foreground">
+    <section aria-labelledby="agents-working-now" className={className}>
+      <div className="mb-3 flex items-center gap-2">
+        <h3 id="agents-working-now" className="text-heading text-foreground">
+          {title}
+        </h3>
+        <span className="text-xs tabular-nums text-muted-foreground">
           {items.length} active{blockedCount > 0 ? ` · ${blockedCount} waiting on you` : ""}
         </span>
         <Button
@@ -98,22 +97,30 @@ const AgentActiveWorkPanel: React.FC = () => {
           title="Refresh"
           aria-label="Refresh active agent work"
         >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
-
-      <ul className="max-h-[22rem] divide-y divide-border/40 overflow-y-auto custom-scrollbar">
-        {sorted.map((it) => (
-          <AgentWorkRow
-            key={it.task_id}
-            item={it}
-            className="px-4"
-            onChanged={load}
-            onError={(msg) => toast({ title: "Couldn't stop it", description: msg, variant: "destructive" })}
-          />
-        ))}
-      </ul>
-    </div>
+      <div data-settings-card="" className="set-card">
+        <ul className="max-h-[22rem] overflow-y-auto custom-scrollbar">
+          {sorted.map((it) => (
+            <li key={it.task_id} data-live-row="" data-live={it.state === "working" ? "true" : undefined} className="ai-live-row">
+              <span aria-hidden="true" data-live-bar="" className="ai-live-bar" />
+              <span className="mt-2.5 size-7 shrink-0">
+                <AgentAvatar />
+              </span>
+              <ul className="min-w-0 flex-1">
+                <AgentWorkRow
+                  item={it}
+                  className="pr-3"
+                  onChanged={load}
+                  onError={(msg) => toast({ title: "Couldn't stop it", description: msg, variant: "destructive" })}
+                />
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   )
 }
 

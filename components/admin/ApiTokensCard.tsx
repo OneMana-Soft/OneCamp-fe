@@ -1,28 +1,30 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, type MutableRefObject } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { Field } from "@/components/ui/field"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tile } from "@/components/ui/graphics/Tile"
+import { SettingsList, SettingsRowsSkeleton } from "@/components/ui/settingsSection"
+import { ErrorState } from "@/components/ui/error-state"
+import { useCopy } from "@/components/ui/settingsControls"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Trash2, Loader2, Check, Copy, Key, Sparkles } from "@/lib/icons"
-import { EmptyState } from "@/components/ui/empty-state"
-import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Loader2, Check, Copy, Key, MoreHorizontal, Plus, Sparkles } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { mcpClientConfig, mcpEndpointUrl } from "@/lib/utils/mcpEndpoint"
 import type { CampHue } from "@/lib/campHue"
+import { SpotKey } from "@/components/admin/apiTokenSpot"
 import {
   ApiToken,
   CreatedToken,
@@ -33,37 +35,74 @@ import {
 } from "@/services/apiTokenService"
 import { Agent, parseEnabledTools, toolLabel } from "@/services/agentService"
 
+// A token's lifetime (design v3, admin S7): 30 d · 90 d · 1 y · Never.
 const EXPIRY_OPTIONS = [
-  { value: 0, label: "No expiry" },
-  { value: 30, label: "30 days" },
-  { value: 90, label: "90 days" },
-  { value: 365, label: "1 year" },
-]
+  { value: "30", label: "30 d", title: "30 days" },
+  { value: "90", label: "90 d", title: "90 days" },
+  { value: "365", label: "1 y", title: "1 year" },
+  { value: "0", label: "Never", title: "No expiry" },
+] as const
 
 /** The picker value meaning "a plain integration credential, bound to no agent". */
 const NO_AGENT = ""
 
-/** The section's hue (lib/settingsSections), for its tiles. */
+/** The section's hue (lib/settingsSections), for its dialog's tile and its spot. */
 const HUE: CampHue = "berry"
+
+/** How many scope chips a row shows before "+n". */
+const SCOPES_SHOWN = 3
 
 const when = (iso: string) => shortDate(new Date(iso))
 
+/** What a scope is about, for grouping the checkboxes: "tasks:read" is Tasks. */
+const GROUP_NAMES: Record<string, string> = {
+  tasks: "Tasks",
+  projects: "Projects",
+  docs: "Documents",
+  messages: "Messages",
+  calendar: "Calendar",
+  tables: "Tables",
+  data_sources: "Data sources",
+  attention: "Attention",
+  search: "Search",
+}
+
+function groupScopes(scopes: string[]): Array<{ name: string; scopes: string[] }> {
+  const groups = new Map<string, string[]>()
+  for (const s of scopes) {
+    const key = s.split(":")[0]
+    groups.set(key, [...(groups.get(key) ?? []), s])
+  }
+  return [...groups].map(([key, list]) => ({ name: GROUP_NAMES[key] ?? key, scopes: list }))
+}
+
+/** "Created 3 Oct · last used 9 Oct · expires 3 Jan" */
+function tokenDates(t: ApiToken) {
+  return [
+    `Created ${when(t.created_at)}`,
+    t.last_used_at ? `last used ${when(t.last_used_at)}` : "never used",
+    t.expires_at ? `expires ${when(t.expires_at)}` : "no expiry",
+  ].join(" · ")
+}
+
 /**
- * The person's API tokens: the list, and the dialog that makes one. The page
- * (app/app/settings/api-tokens) opens the dialog from its header's "New token",
- * the page's one primary action; it used to sit in this card's own header,
- * under a title that said the page's name again.
+ * The person's API tokens (design v3, admin S7): rows of 52px in one card, a
+ * key in a sunken tile, the name, its dates, up to three scope chips and a ⋯
+ * menu whose Revoke asks first. The page (app/app/settings/api-tokens) opens
+ * the new-token dialog from its header's "New token"; an empty list offers
+ * it in the body too, under the key spot.
  */
 const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCreatingChange: (open: boolean) => void }) => {
   const confirm = useConfirm()
   const { data, isLoading, isError, mutate } = useFetch<{ data: ApiToken[] }>(GetEndpointUrl.GetApiTokens)
-  // The agents endpoint already returns only agents the caller may manage — their own,
-  // or all of them for an admin — so every option offered here is one the server will
-  // accept. No client-side ownership filter to keep in sync with the server's rule.
+  // The agents endpoint already returns only agents the caller may manage, so
+  // every option offered here is one the server will accept.
   const { data: agentsData } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
   const tokens = data?.data || []
   const agentsById = new Map((agentsData?.data || []).map((a) => [a.id, a]))
   const [busyId, setBusyId] = useState<string | null>(null)
+  // The reveal step's guard: closing before the token was copied asks first.
+  const closeGuard = useRef<() => boolean>(() => true)
 
   const handleRevoke = (t: ApiToken) => {
     confirm({
@@ -75,7 +114,7 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
         setBusyId(t.id)
         try {
           await revokeApiToken(t.id)
-          toast({ title: "Token revoked" })
+          toast({ title: "Token revoked", tone: "success" })
           mutate()
         } catch (e) {
           toast({
@@ -90,84 +129,169 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
     })
   }
 
+  const requestClose = (open: boolean) => {
+    if (open) return onCreatingChange(true)
+    if (closeGuard.current()) onCreatingChange(false)
+  }
+
   return (
     <>
       {isLoading ? (
-        <div role="status" aria-label="Loading your API tokens" className="rounded-lg border border-border px-4 py-3">
-          <SkeletonRows rows={3} />
+        <div role="status" aria-label="Loading your API tokens">
+          <SettingsList>
+            <SettingsRowsSkeleton rows={3} control="button" />
+          </SettingsList>
         </div>
       ) : isError ? (
+        // The list is the whole page, so its failure is the page's: ErrorState.
         <ErrorState subject="your API tokens" onRetry={() => void mutate()} />
       ) : tokens.length === 0 ? (
-        <EmptyState
-          tone="accent"
-          icon={Key}
-          hue={HUE}
-          title="No tokens yet"
-          description="Create a token to call the OneCamp API from a script or another service."
-        />
+        <SettingsList>
+          <div data-tokens-empty="" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+            <SpotKey hue={HUE} />
+            <div className="space-y-1">
+              <h3 className="text-heading text-foreground">No tokens yet</h3>
+              <p className="max-w-[45ch] text-sm text-muted-foreground text-pretty">
+                Tokens let scripts act as you, limited to the scopes you pick.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => onCreatingChange(true)}>
+              <Plus aria-hidden="true" />
+              New token
+            </Button>
+          </div>
+        </SettingsList>
       ) : (
-        <ul aria-label="Your API tokens" className="divide-y divide-border rounded-lg border border-border">
-          {tokens.map((t) => {
-            const revoked = !!t.revoked_at
-            return (
-              <li key={t.id} className={cn("flex items-start justify-between gap-4 px-4 py-3", revoked && "opacity-60")}>
-                <div className="min-w-0 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium leading-5">{t.name}</span>
-                    <code className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs" translate="no">{t.token_prefix}…</code>
-                    {/* Which identity this credential acts as. Worth a badge rather than
-                        fine print: it changes who the audit log names, what budget the
-                        spend lands on, and whether deactivating an agent stops it. */}
+        <SettingsList>
+          <ul aria-label="Your API tokens" className="you-token-rows">
+            {tokens.map((t) => {
+              const revoked = !!t.revoked_at
+              const scopes = parseScopes(t)
+              return (
+                <li key={t.id} data-token-row="" data-revoked={revoked ? "true" : undefined} className="you-token-row">
+                  <span aria-hidden="true" className="you-key-tile">
+                    <Key className="size-3.5" />
+                  </span>
+                  <div className={cn("min-w-0 flex-1", revoked && "opacity-60")}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-medium">{t.name}</span>
+                      <code className="shrink-0 font-mono text-2xs text-ink-3" translate="no">
+                        {t.token_prefix}…
+                      </code>
+                      {revoked && <span className="shrink-0 text-2xs font-medium text-ink-3">Revoked</span>}
+                    </div>
+                    <p className="you-token-dates">{tokenDates(t)}</p>
+                  </div>
+                  <div className="hidden min-w-0 shrink items-center gap-1 sm:flex">
+                    {/* Which identity this credential acts as: it changes who the audit
+                        log names and whether deactivating an agent stops it. */}
                     {t.agent_id && (
-                      <Badge variant="outline" className="gap-1 text-2xs font-normal">
-                        <Sparkles className="h-3 w-3" aria-hidden="true" />
+                      <span className="you-scope">
+                        <Sparkles className="size-3 text-ink-3" aria-hidden="true" />
                         {agentsById.get(t.agent_id)?.name || "Agent"}
-                      </Badge>
+                      </span>
                     )}
-                    {revoked && <span className="text-xs text-muted-foreground">Revoked</span>}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {parseScopes(t).map((s) => (
-                      <Badge key={s} variant="outline" className="text-2xs font-normal">{scopeLabel(s)}</Badge>
+                    {scopes.slice(0, SCOPES_SHOWN).map((s) => (
+                      <span key={s} className="you-scope" title={scopeLabel(s)}>
+                        {s}
+                      </span>
                     ))}
+                    {scopes.length > SCOPES_SHOWN && (
+                      <span className="you-scope" title={scopes.slice(SCOPES_SHOWN).map(scopeLabel).join(", ")}>
+                        +{scopes.length - SCOPES_SHOWN}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t.last_used_at ? `Last used ${when(t.last_used_at)}` : "Never used"}
-                    {t.expires_at ? ` · expires ${when(t.expires_at)}` : ""}
-                  </p>
-                </div>
-                {!revoked && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Revoke ${t.name}`}
-                    className="h-8 w-8 shrink-0 text-danger-ink hover:text-danger-ink"
-                    disabled={busyId === t.id}
-                    onClick={() => handleRevoke(t)}
-                    title="Revoke"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+                  {!revoked ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`Actions for ${t.name}`} disabled={busyId === t.id}>
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" onSelect={() => handleRevoke(t)}>
+                          Revoke…
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <span className="size-8 shrink-0" aria-hidden="true" />
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </SettingsList>
       )}
 
-      <Dialog open={creating} onOpenChange={onCreatingChange}>
+      <Dialog open={creating} onOpenChange={requestClose}>
         <DialogContent className="max-w-lg">
           {/* Mounted only while open, so every new token starts from a clean form. */}
-          <NewTokenForm agents={(agentsData?.data || []).filter((a) => a.is_active)} onCreated={() => void mutate()} onDone={() => onCreatingChange(false)} />
+          {creating && (
+            <NewTokenForm
+              agents={(agentsData?.data || []).filter((a) => a.is_active)}
+              onCreated={() => void mutate()}
+              onDone={() => onCreatingChange(false)}
+              closeGuard={closeGuard}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>
   )
 }
 
+/**
+ * The token, shown once: mono on --sunken inside a 1px sun ring, a 32px copy
+ * button that morphs to a moss check, and the warning in sun ink. Enters at
+ * scale .98 and fades in over 220ms.
+ */
+function RevealCard({ secret, copied, onCopy }: { secret: string; copied: boolean; onCopy: () => void }) {
+  return (
+    <div data-token-reveal="" className="you-reveal-card space-y-2">
+      <div className="you-reveal-token">
+        <code className="min-w-0 flex-1 break-all font-mono text-xs text-foreground" translate="no">
+          {secret}
+        </code>
+        <button
+          type="button"
+          onClick={onCopy}
+          data-copy-state={copied ? "copied" : "idle"}
+          aria-label={copied ? "Token copied" : "Copy token"}
+          className="you-reveal-copy"
+        >
+          <Copy className={cn("col-start-1 row-start-1 size-4 transition-opacity duration-150", copied ? "opacity-0" : "opacity-100")} aria-hidden="true" />
+          <Check
+            className={cn(
+              "col-start-1 row-start-1 size-4 text-success-ink transition-[opacity,transform] duration-[220ms] ease-[var(--ease-spring)]",
+              copied ? "scale-100 opacity-100" : "scale-50 opacity-0",
+            )}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+      <p className="text-xs font-medium text-warning-ink">Copy it now. It won&apos;t be shown again.</p>
+      <span role="status" aria-live="polite" className="sr-only">
+        {copied ? "Token copied" : ""}
+      </span>
+    </div>
+  )
+}
+
 /** The new-token dialog's body: the form, then the token itself, shown once. */
-function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreated: () => void; onDone: () => void }) {
+function NewTokenForm({
+  agents,
+  onCreated,
+  onDone,
+  closeGuard,
+}: {
+  agents: Agent[]
+  onCreated: () => void
+  onDone: () => void
+  closeGuard: MutableRefObject<() => boolean>
+}) {
+  const confirm = useConfirm()
   const { data: scopesData } = useFetch<{ data: string[] }>(GetEndpointUrl.GetApiTokenScopes)
   const availableScopes = scopesData?.data || []
   // Only ACTIVE agents are passed in: binding to a deactivated one is refused by the
@@ -176,26 +300,44 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
 
   const [name, setName] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
-  const [expiry, setExpiry] = useState(0)
+  const [expiry, setExpiry] = useState("90")
   const [agentId, setAgentId] = useState<string>(NO_AGENT)
   const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<CreatedToken | null>(null)
+  const { state: copyState, copy } = useCopy()
+  const [everCopied, setEverCopied] = useState(false)
   // What is missing, said under the field it is about; and a refusal from the
-  // server, said in the dialog. Both used to be red toasts.
+  // server, said in the dialog.
   const [errors, setErrors] = useState<{ name?: string; scopes?: string }>({})
   const [problem, setProblem] = useState("")
   const nameRef = useRef<HTMLInputElement>(null)
   const scopesRef = useRef<HTMLDivElement>(null)
 
+  // Closing while the token is on screen and not yet copied asks first: it
+  // can't be shown again.
+  const askBeforeClosing = () => {
+    if (!created || everCopied) return true
+    confirm({
+      title: "Close without copying?",
+      description: "The token can't be shown again. You'd have to make a new one.",
+      confirmText: "Close without copying",
+      cancelText: "Go back",
+      destructive: true,
+      onConfirm: onDone,
+    })
+    return false
+  }
+  closeGuard.current = askBeforeClosing
+
   const boundAgent = agentId ? agentsById.get(agentId) : undefined
   const boundAgentTools = boundAgent ? parseEnabledTools(boundAgent) : []
 
-  const toggleScope = (s: string) => {
+  const toggleScope = (s: string, on: boolean) => {
     setErrors((e) => ({ ...e, scopes: undefined }))
     setSelectedScopes((prev) => {
       const next = new Set(prev)
-      if (next.has(s)) next.delete(s)
-      else next.add(s)
+      if (on) next.add(s)
+      else next.delete(s)
       return next
     })
   }
@@ -218,7 +360,7 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
       const res = await createApiToken({
         name: name.trim(),
         scopes: Array.from(selectedScopes),
-        expires_in_days: expiry,
+        expires_in_days: Number(expiry),
         ...(agentId ? { agent_id: agentId } : {}),
       })
       setCreated(res)
@@ -232,16 +374,11 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
 
   const copySecret = async () => {
     if (!created?.plaintext) return
-    try {
-      await navigator.clipboard.writeText(created.plaintext)
-      toast({ title: "Copied to clipboard" })
-    } catch {
-      toast({ title: "Couldn't copy", description: "Select the token and copy it yourself.", variant: "destructive" })
-    }
+    await copy(created.plaintext)
+    setEverCopied(true)
   }
 
-  // Resolved once. Empty when this build has no backend URL configured, in which case the MCP block
-  // is omitted rather than shown with a broken URL in it.
+  // Empty when this build has no backend URL configured: the MCP block is then omitted.
   const mcpEndpoint = mcpEndpointUrl()
 
   return (
@@ -253,41 +390,22 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
           </Tile>
           {created ? "Token created" : "New API token"}
         </DialogTitle>
-        <DialogDescription>
-          {created
-            ? "Copy your token now. For security, you won't be able to see it again."
-            : "Name it and choose what it can do."}
-        </DialogDescription>
+        <DialogDescription>{created ? "Your token is ready." : "Name it, choose how long it lasts and what it can do."}</DialogDescription>
       </DialogHeader>
 
       {created ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-lg border bg-muted/40 p-2">
-            <code className="flex-1 break-all text-xs" translate="no">{created.plaintext}</code>
-            <Button size="sm" variant="outline" onClick={() => void copySecret()} className="shrink-0 gap-1.5">
-              <Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copy
-            </Button>
-          </div>
+        <div className="space-y-4">
+          <RevealCard secret={created.plaintext} copied={copyState === "copied" || (everCopied && copyState !== "failed")} onCopy={() => void copySecret()} />
+          {copyState === "failed" && <p role="alert" className="text-xs text-danger-ink">Couldn&apos;t copy. Select the token and copy it yourself.</p>}
 
           {/*
-            THE MCP CONFIG, WITH THE REAL TOKEN ALREADY IN IT.
-
-            This is the only moment it can be offered. Only a SHA-256 hash is stored, so after
-            this dialog closes nothing — not this screen, not an admin, not the database — can
-            produce the credential again. A config block shown anywhere later could only carry a
-            placeholder for the user to paste into by hand, which is the step most likely to go
-            wrong and the one they have the least help with.
-
-            Rendered for every token rather than only for MCP-shaped ones, because scopes do not
-            tell you the client's intent: the same `docs:read` token serves a shell script and
-            Claude Desktop equally. It costs a collapsed block and removes a trip to the docs.
-
-            It does NOT claim the surface is on. That is an admin setting this user may not be
-            able to see, so the note below states the dependency instead of asserting a state
-            this screen cannot verify.
+            THE MCP CONFIG, WITH THE REAL TOKEN ALREADY IN IT. This is the only moment it
+            can be offered: only a hash is stored, so after this dialog closes nothing can
+            produce the credential again. It does NOT claim the surface is on: that is an
+            admin setting this user may not see, so the note states the dependency.
           */}
           {mcpEndpoint && (
-            <details className="rounded-lg border border-border/60 bg-muted/20">
+            <details className="you-details">
               <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
                 Use this token with any MCP client (Open WebUI, goose, Cursor, Claude, …)
               </summary>
@@ -303,8 +421,12 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
           )}
 
           <div className="flex justify-end">
-            <Button onClick={onDone} className="gap-1.5">
-              <Check className="h-4 w-4" aria-hidden="true" /> Done
+            <Button
+              onClick={() => {
+                if (askBeforeClosing()) onDone()
+              }}
+            >
+              Done
             </Button>
           </div>
         </div>
@@ -333,56 +455,55 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
           </Field>
 
           <div className="grid gap-2">
+            <Label id="token-expiry-label">Expiry</Label>
+            <SegmentedControl
+              value={expiry}
+              onValueChange={setExpiry}
+              aria-labelledby="token-expiry-label"
+              className="w-fit"
+              options={EXPIRY_OPTIONS}
+            />
+          </div>
+
+          <div className="grid gap-2">
             <Label id="token-scopes-label">Scopes</Label>
             <div
               ref={scopesRef}
               role="group"
               aria-labelledby="token-scopes-label"
               aria-describedby={errors.scopes ? "token-scopes-error" : undefined}
-              className="flex flex-wrap gap-1.5"
+              data-scope-groups=""
+              className="you-scope-groups"
             >
-              {availableScopes.map((s) => {
-                const on = selectedScopes.has(s)
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleScope(s)}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                      on ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {on ? <Check className="h-3 w-3" aria-hidden="true" /> : null}
-                    {scopeLabel(s)}
-                  </button>
-                )
-              })}
+              {groupScopes(availableScopes).map((g) => (
+                <fieldset key={g.name} className="space-y-1.5">
+                  <legend className="mb-1 text-2xs font-medium text-ink-3">{g.name}</legend>
+                  {g.scopes.map((s) => {
+                    const id = `scope-${s.replace(/[^\w-]/g, "-")}`
+                    return (
+                      <div key={s} className="flex items-center gap-2">
+                        <Checkbox id={id} checked={selectedScopes.has(s)} onCheckedChange={(v) => toggleScope(s, v === true)} />
+                        <label htmlFor={id} className="text-sm">
+                          {scopeLabel(s)}
+                        </label>
+                      </div>
+                    )
+                  })}
+                </fieldset>
+              ))}
             </div>
             <p id="token-scopes-error" aria-live="polite" className={cn("text-xs font-medium text-danger-ink", !errors.scopes && "hidden")}>
               {errors.scopes}
             </p>
           </div>
 
-          <div className="grid gap-2">
-            <Label id="token-expiry-label">Expiry</Label>
-            <SegmentedControl
-              value={String(expiry)}
-              onValueChange={(v) => setExpiry(Number(v))}
-              aria-labelledby="token-expiry-label"
-              className="w-fit"
-              options={EXPIRY_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
-            />
-          </div>
-
           {agents.length > 0 && (
             <div className="grid gap-2">
               <Label id="token-agent-label">Act as an agent</Label>
               <p id="token-agent-help" className="text-xs text-muted-foreground text-pretty">
-                Optional. A token bound to an agent is recorded as that agent in the audit log,
-                stops the moment you deactivate it, spends from its daily budget, and can only
-                use the tools it has enabled. Leave this off for a script.
+                Optional. A token bound to an agent is recorded as that agent in the audit log, stops the moment you
+                deactivate it, spends from its daily budget, and can only use the tools it has enabled. Leave this off
+                for a script.
               </p>
               <SegmentedControl
                 value={agentId}
@@ -393,30 +514,29 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
                 options={[{ value: NO_AGENT, label: "No agent" }, ...agents.map((a) => ({ value: a.id, label: a.name }))]}
               />
 
-              {/* Say what the binding will actually permit, BEFORE the token is minted.
-                  A bound token can do LESS than the scopes above, and finding that out
-                  from a refused call in a client is the worst way to learn it. */}
+              {/* What the binding will permit, BEFORE the token is minted: a bound
+                  token can do LESS than the scopes above. */}
               {boundAgent && (
-                <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs">
+                <div className="you-note text-xs">
                   {boundAgentTools.length === 0 ? (
                     <p className="text-danger-ink">
-                      {boundAgent.name} has no tools enabled, so this token will not be able to
-                      do anything. Enable tools on the agent first.
+                      {boundAgent.name} has no tools enabled, so this token will not be able to do anything. Enable tools
+                      on the agent first.
                     </p>
                   ) : (
-                    <>
+                    <div>
                       <p className="mb-1.5 text-muted-foreground">
                         Limited to {boundAgent.name}&apos;s {boundAgentTools.length} enabled{" "}
                         {boundAgentTools.length === 1 ? "tool" : "tools"}, whatever you grant above:
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {boundAgentTools.map((tool) => (
-                          <Badge key={tool} variant="outline" className="text-2xs font-normal">
+                          <span key={tool} className="you-scope">
                             {toolLabel(tool)}
-                          </Badge>
+                          </span>
                         ))}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               )}
@@ -430,9 +550,11 @@ function NewTokenForm({ agents, onCreated, onDone }: { agents: Agent[]; onCreate
           )}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
-            <Button type="submit" disabled={saving} className="gap-1.5">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               Create token
             </Button>
           </div>

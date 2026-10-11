@@ -54,13 +54,14 @@ describe("sign-in providers", () => {
     }
   })
 
-  // A dot and a word (the app's StatusWord), not a pill with an icon: the
-  // dot carries the colour and the word stays in ink.
+  // A dot and a word, not a pill with an icon: the dot carries the colour and
+  // the word stays in ink. Design v3 (A18) draws it with the connection
+  // card's StateWord, so the marker is data-state-word.
   it("reads each provider's status as a dot and a word, not a pill with an icon", async () => {
     http.get.mockResolvedValue({ data: { data: status } })
     render(<OAuthConfigCard />)
     const on = await screen.findByText("Set up")
-    expect(on.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+    expect(on.closest("[data-state-word]")?.getAttribute("data-state-word")).toBe("success")
     expect(on.querySelector("svg")).toBeNull()
     expect(screen.getByText("Not set up")).toBeTruthy()
   })

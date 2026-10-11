@@ -9,16 +9,16 @@
  */
 
 import * as React from "react"
-import { Badge } from "@/components/ui/badge"
-import { SettingsSection } from "@/components/ui/settingsSection"
+import { SettingsCard, SettingsSection } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { SpotDocs } from "@/components/ui/graphics/spots"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { Sparkles, Shield } from "@/lib/icons"
+import { AlertCircle, Cpu, ShieldAlert } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
 import { ChainPair } from "@/components/admin/ChainPair"
@@ -31,8 +31,11 @@ import { relativeTime } from "@/lib/utils/relativeTime"
  * crashed run teaches an admin to read the guarantee working as something broken,
  * and to stop looking at both.
  *
- * Refused gets the same brand treatment as an allowed call, because both are the
- * permission system answering. Only an actual error is destructive.
+ * Design v3 (admin §A11, §A23): the refusal carries a danger shield before its
+ * sentence, the mark the audit log gives the rows that matter most, and its
+ * status word stays in the quiet ink; only an actual error has a danger word.
+ * The accent it used to borrow belongs to the one action a view asks for
+ * (§1.5).
  */
 function statusTone(status?: string): string {
   switch (status) {
@@ -40,7 +43,7 @@ function statusTone(status?: string): string {
     case "allowed":
       return "text-success-ink"
     case "refused":
-      return "text-primary"
+      return "text-muted-foreground"
     case "failed":
       return "text-danger-ink"
     case "running":
@@ -56,13 +59,37 @@ function statusLabel(status?: string): string {
   return status || ""
 }
 
+/** The model a row ran on, when the server says (not every row has one). */
+type WithModel = AIActivityItem & { model?: string }
+
+/**
+ * A neutral chip (admin §1.5): a category or a model is never a hue, so it is
+ * the pressed surface with the ink-2 word and, where it has one, a 14px ink-3
+ * glyph.
+ */
+export const AINeutralChip: React.FC<{ icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; children: React.ReactNode; mono?: boolean; title?: string }> = ({
+  icon: Icon,
+  children,
+  mono,
+  title,
+}) => (
+  <span data-neutral-chip="" title={title} className={`ai-chip ${mono ? "font-mono" : ""}`}>
+    {Icon ? <Icon className="size-3.5 text-ink-3" aria-hidden={true} /> : null}
+    <span className="truncate">{children}</span>
+  </span>
+)
 
 /**
  * One line of the feed, exported so the presentation of a refusal can be tested
  * without mounting the whole card — the same shape SlackImportCard's JobRow uses.
+ *
+ * The audit log's row anatomy (admin §A11): the time in its own column, the
+ * actor as a 22px square (every row here is the AI's doing, so it is the agent
+ * square, never a person's circle), the sentence, and the category and model as
+ * neutral chips on the right. It used to sit on a tinted tile in the AI group's
+ * hue, a category dressed as identity.
  */
 export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) => {
-  const Icon = it.kind === "agent_run" ? Sparkles : Shield
   /**
    * What goes on the top line.
    *
@@ -79,51 +106,55 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
    * headline of the thing they came to see.
    *
    * The action is not hidden: an auditor cross-referencing the log needs the
-   * exact string, so it stays on the line as a badge beside the source. What
-   * changes is which one is the sentence and which one is the reference.
+   * exact string, so it stays on the line in mono under the sentence.
    */
   const isAuditRow = it.kind !== "agent_run"
   const headline = (isAuditRow && it.summary) || it.title || "AI action"
   const detail = isAuditRow && it.summary ? "" : it.summary
+  const refused = it.status === "refused"
+  const failed = it.status === "failed"
+  const model = (it as WithModel).model
+  const initiator = initiatorLabel(it.initiator)
   return (
-    <li className="flex items-start gap-3 px-4 py-3">
-      {/* On the AI and automation group's tile, as the admin menu marks it. */}
-      <Tile hue={ADMIN_GROUP_HUE.ai} size="sm" className="mt-0.5">
-        <Icon />
-      </Tile>
+    <li data-ai-row="" data-refused={refused || undefined} className="ai-row">
+      <time dateTime={it.at} className="ai-row-time text-2xs tabular-nums text-ink-3">
+        {relativeTime(it.at)}
+      </time>
+      <span className="ai-row-actor" aria-hidden="true">
+        <AgentAvatar />
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{headline}</span>
-          {it.status && (
-            <span className={`shrink-0 text-xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>
-          )}
-          {it.source && (
-            <Badge variant="outline" className="shrink-0 text-xs font-normal text-muted-foreground">
-              {it.source}
-            </Badge>
-          )}
+        <div className="flex min-w-0 items-center gap-2">
+          {refused && <ShieldAlert data-refusal-glyph="" className="size-3.5 shrink-0 text-danger-ink" aria-hidden="true" />}
+          {failed && <AlertCircle className="size-3.5 shrink-0 text-danger-ink" aria-hidden="true" />}
+          <span data-row-summary="" className="min-w-0 flex-1 truncate text-sm font-book text-foreground">
+            {headline}
+          </span>
+          {it.status && <span className={`shrink-0 text-xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>}
+          <span className="ai-row-chips">
+            {it.source && <AINeutralChip>{it.source}</AINeutralChip>}
+            {model && (
+              <AINeutralChip icon={Cpu} title={`Ran on ${model}`}>
+                {model}
+              </AINeutralChip>
+            )}
+          </span>
         </div>
         {detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{detail}</p>}
         {/* The exact action, kept for anybody matching this against the log. */}
-        {isAuditRow && it.summary && it.title && (
-          <p className="mt-0.5 font-mono text-xs text-muted-foreground">{it.title}</p>
+        {isAuditRow && it.summary && it.title && <p className="mt-0.5 font-mono text-2xs text-ink-3">{it.title}</p>}
+        {(it.actor || initiator) && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            {it.actor && <span>{it.actor}</span>}
+            {/* "Ran on your authority" and "ran while you were asleep" are the
+                same actor and different facts. For the person whose agent it is,
+                the second is the one they most need to see. */}
+            {it.actor && initiator && <span aria-hidden="true">·</span>}
+            {initiator && (
+              <span className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning-ink" : ""}>{initiator}</span>
+            )}
+          </div>
         )}
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-          {it.actor && <span>{it.actor}</span>}
-          <span>·</span>
-          <span>{relativeTime(it.at)}</span>
-          {/* "Ran on your authority" and "ran while you were asleep" are the
-              same actor and different facts. For the person whose agent it is,
-              the second is the one they most need to see. */}
-          {initiatorLabel(it.initiator) && (
-            <>
-              <span>·</span>
-              <span className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning-ink" : ""}>
-                {initiatorLabel(it.initiator)}
-              </span>
-            </>
-          )}
-        </div>
         {/* Where this sits in the audit log, for the rows that came from it.
             The feed is the readable account and the log is the provable one;
             without this they were two stories about one event, and a member,
@@ -134,9 +165,9 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
   )
 }
 
-// A section of the AI tab like the others: its heading, one line, and a
-// hairline list. It was a bordered card with an extra mt-6, so the gap above
-// it was 56px where every other section's is 32.
+// A section of the AI tab like the others: its heading, one line, and the
+// settings card (r12, e1) holding the rows between inset hairlines. It was a
+// 1px grey box of rows on tinted tiles.
 const AIActivityCard = () => {
   const { data, isLoading, isError, mutate } = useFetch<{ data: AIActivityItem[] }>(`${GetEndpointUrl.GetAIActivity}?limit=50`)
   const items = data?.data || []
@@ -158,21 +189,23 @@ const AIActivityCard = () => {
           onRetry={() => void mutate()}
         />
       ) : items.length === 0 ? (
-        <div className="rounded-lg border border-border">
+        // The empty card (admin §1.7): 200px, a 64px spot, one line.
+        <SettingsCard>
           <EmptyState
-            icon={Sparkles}
-            hue={ADMIN_GROUP_HUE.ai}
+            illustration={<SpotDocs size={64} hue={ADMIN_GROUP_HUE.ai} />}
             title="No AI activity yet"
             description="Agent runs, and actions taken with AI, show up here as they happen."
-            className="py-6"
+            className="min-h-[200px] py-6"
           />
-        </div>
+        </SettingsCard>
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-          {items.map((it, i) => (
-            <AIActivityRow key={i} item={it} />
-          ))}
-        </ul>
+        <SettingsCard>
+          <ul className="ai-rows">
+            {items.map((it, i) => (
+              <AIActivityRow key={i} item={it} />
+            ))}
+          </ul>
+        </SettingsCard>
       )}
     </SettingsSection>
   )

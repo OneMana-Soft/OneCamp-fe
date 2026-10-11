@@ -4,7 +4,8 @@ import { use, useState } from "react";
 import { VideoConference } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
 import { getGuestMeetingStatus, joinGuestMeeting } from "@/services/guestService";
-import { GuestBand, GuestCentered as Centered, GuestLinkGone, GuestNotYet, GuestTypeTile, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestCentered as Centered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { PublicFrame } from "@/components/guest/PublicFrame";
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
 import { Loader2, Video } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
@@ -100,25 +101,18 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
 
     // prejoin / joining
     return (
-        <div className="relative min-h-dvh w-full bg-background">
-            <GuestBand />
+        <PublicFrame surface="guest-meeting" title="Joining as a guest" className="relative">
             <div className="mx-auto flex max-w-md flex-col items-center px-4 pt-6">
-                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-                    <GuestTypeTile>
-                        <Video />
-                    </GuestTypeTile>
-                    Joining as a guest
-                </div>
                 {errorMsg && (
                     <p className="mb-2 text-sm text-danger-ink" role="alert">{errorMsg}</p>
                 )}
-                <PreJoin onJoin={handleJoin} username={lastName} nameEditable joinLabel={phase === "joining" ? "Joining…" : "Join call"} />
+                <PreJoin onJoin={handleJoin} username={lastName} nameEditable joining={phase === "joining"} />
             </div>
             {phase === "joining" && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50" role="status" aria-label="Joining the meeting">
                     <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
                 </div>
             )}
-        </div>
+        </PublicFrame>
     );
 }

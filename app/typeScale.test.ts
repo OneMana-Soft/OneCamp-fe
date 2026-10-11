@@ -135,6 +135,46 @@ describe("dense type scale", () => {
     expect(css).toMatch(/@apply bg-background text-foreground text-sm;/)
   })
 
+  it("declares design v3's roles and weights, and never 700", () => {
+    const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
+    const theme = css.slice(css.indexOf("@theme inline {"), css.indexOf("\n}", css.indexOf("@theme inline {")))
+    const step = (token: string) => {
+      const size = new RegExp(`--text-${token}:\\s*([\\d.]+)rem;`).exec(theme)
+      const line = new RegExp(`--text-${token}--line-height:\\s*([\\d.]+)rem;`).exec(theme)
+      return size && line ? [Number(size[1]) * 16, Number(line[1]) * 16] : null
+    }
+    // Size/line-height in px, the spec's app scale.
+    const ROLES: Record<string, [number, number]> = {
+      display: [30, 36], "doc-title": [32, 38], "title-1": [24, 30], "title-2": [20, 27], "title-3": [17, 24],
+      heading: [15, 20], "body-lg": [16, 26], body: [15, 23], ui: [14, 20], "ui-sm": [13, 18], meta: [12, 16], micro: [11, 14],
+    }
+    for (const [role, want] of Object.entries(ROLES)) expect(step(role), `text-${role}`).toEqual(want)
+    const weight = (name: string) => Number(new RegExp(`--font-weight-${name}:\\s*(\\d+);`).exec(theme)?.[1])
+    expect(weight("book")).toBe(450)
+    expect(weight("medium")).toBe(510)
+    expect(weight("semibold")).toBe(590)
+    // font-bold is the 28px-and-up weight, 600. Nothing in the app is 700.
+    expect(weight("bold")).toBe(600)
+    const heavy = files.filter((f) => /\bfont-(extrabold|black)\b/.test(readFileSync(f, "utf8"))).map((f) => f.slice(root.length + 1))
+    expect(heavy, "700 and heavier are never used in the app").toEqual([])
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/font-weight:\s*[789]00/)
+  })
+
+  it("sets one face: Inter with its optical sizes and v3's features, no Inter Tight", () => {
+    const layout = readFileSync(resolve(root, "app/layout.tsx"), "utf8")
+    const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
+    expect(layout).not.toMatch(/Inter_Tight/)
+    expect(layout).toMatch(/axes:\s*\["opsz"\]/)
+    expect(css).not.toMatch(/--font-display-face/)
+    expect(css).toMatch(/--font-display:\s*var\(--font-inter\)/)
+    expect(css).toMatch(/font-optical-sizing:\s*auto;/)
+    expect(css).toMatch(/font-feature-settings:\s*"cv11", "ss01", "ss03";/)
+    // Display sizes ask for the display cut outright.
+    expect(css).toMatch(/:where\(\.text-display, \.text-doc-title[^)]*\)\s*\{\s*font-variation-settings:\s*"opsz" 32;/)
+    // Nothing switches the features off for every element again.
+    expect(css).not.toMatch(/"calt" 0/)
+  })
+
   it("keeps the 11px floor absolutely — no allowance, no baseline", () => {
     const offenders: string[] = []
     for (const file of files) {

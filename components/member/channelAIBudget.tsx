@@ -8,9 +8,9 @@
 
 import * as React from "react"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Zap, Loader2 } from "@/lib/icons"
+import { Cpu, Zap, Loader2 } from "@/lib/icons"
+import { DetailsRow, DetailsSection } from "@/components/channel/details/detailsParts"
 import { toast } from "@/hooks/use-toast"
 import { getChannelAIBudget, setChannelAIBudget } from "@/services/agentService"
 import { getMyModels, UserModelOption } from "@/services/aiModelService"
@@ -66,17 +66,19 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
     }
   }, [channelId])
 
-  const handleSave = async () => {
-    if (saving) return
+  // Saved as it changes (C51): the model when it is picked, the cap when the
+  // field is left. A moss "Saved" says so for two seconds; no Save button.
+  const [saved, setSaved] = React.useState(false)
+  const savedTimer = React.useRef(0)
+  React.useEffect(() => () => window.clearTimeout(savedTimer.current), [])
+  const save = async (nextCap: number, nextModel: string) => {
     setSaving(true)
     try {
-      const modelArg = modelId === DEFAULT_MODEL_VALUE ? "" : modelId
-      await setChannelAIBudget(channelId, cap, modelArg)
+      await setChannelAIBudget(channelId, nextCap, nextModel === DEFAULT_MODEL_VALUE ? "" : nextModel)
       setDirty(false)
-      toast({
-        title: "Channel AI settings updated",
-        description: cap > 0 ? `Capped at ${fmtTokens(cap)} tokens/day.` : "No channel cap (workspace limit still applies).",
-      })
+      setSaved(true)
+      window.clearTimeout(savedTimer.current)
+      savedTimer.current = window.setTimeout(() => setSaved(false), 2000)
     } catch {
       toast({ title: "Couldn't update", description: "Please try again.", variant: "destructive" })
     } finally {
@@ -86,8 +88,8 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading AI budget…
+      <div className="flex items-center gap-2 px-1 py-2 text-meta text-ink-3">
+        <Loader2 className="size-3.5 animate-spin" /> Loading AI settings…
       </div>
     )
   }
@@ -95,78 +97,66 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
   const pct = cap > 0 ? Math.min(100, Math.round((usedToday / cap) * 100)) : 0
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5 px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Zap className="h-3 w-3" /> AI settings
-      </div>
-      {/* Between hairlines in the dialog's column, not a box inside it. */}
-      <div data-ai-budget="" className="flex flex-col gap-3 border-y border-border/60 px-1 py-3">
-        {/* Per-channel default model (empty = workspace default).
-            Applies to ALL AI work in this channel — agent runs, channel summaries, and
-            @mention answers. It used to reach only agent runs, which made the setting
-            unreliable for the two highest-volume calls a busy channel makes; the copy
-            below always claimed the broader scope and the backend now matches it.
-            Precedence: an agent that pins its own model > this > workspace default. */}
-        <div className="flex flex-col gap-1">
-          <span className="text-2xs font-medium text-muted-foreground">Default model</span>
-          <div className="flex items-center gap-2">
-            <Select
-              value={modelId}
-              onValueChange={(v) => {
-                setModelId(v)
-                setDirty(true)
-              }}
-              disabled={models.length === 0}
-            >
-              <SelectTrigger className="h-8 flex-1">
-                <SelectValue placeholder="Workspace default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT_MODEL_VALUE}>Workspace default</SelectItem>
-                {models.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.label || m.model}
-                    {m.provider_label ? ` · ${m.provider_label}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <p className="text-2xs text-muted-foreground">
-            Which model AI uses in this channel: summaries, @mention answers, and agent
-            runs. An agent that pins its own model overrides this.
-          </p>
-        </div>
-
-        {/* Per-channel daily token cap. */}
-        <div className="flex flex-col gap-1">
-          <span className="text-2xs font-medium text-muted-foreground">Daily token cap</span>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min={0}
-              step={1000}
-              value={cap}
-              onChange={(e) => {
-                setCap(Math.max(0, parseInt(e.target.value || "0", 10) || 0))
-                setDirty(true)
-              }}
-              className="h-8 w-32"
-              placeholder="0"
-              aria-label="Daily token cap for this channel"
-            />
-            <span className="text-xs text-muted-foreground">tokens / day</span>
-            <Button size="sm" className="ml-auto h-8" disabled={!dirty || saving} onClick={handleSave}>
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-            </Button>
-          </div>
-          <p className="text-2xs text-muted-foreground">
-            {cap > 0
-              ? `Used today: ${fmtTokens(usedToday)} / ${fmtTokens(cap)} (${pct}%). Caps all AI in this channel; resets 00:00 UTC.`
-              : `Used today: ${fmtTokens(usedToday)}. No channel cap set: the workspace limit still applies. Resets 00:00 UTC.`}
-          </p>
-        </div>
-      </div>
-    </div>
+    <DetailsSection
+      title="AI settings"
+      action={saved ? <span role="status" className="chip h-5 animate-pill-in bg-camp-moss-tint text-camp-moss-ink shadow-none">Saved</span> : saving ? <Loader2 className="size-3.5 animate-spin text-ink-3" aria-label="Saving" /> : null}
+    >
+      {/* Which model AI uses in this channel: summaries, @mention answers and
+          agent runs (an agent that pins its own model overrides it). */}
+      <DetailsRow icon={<Cpu />} label="Default model" description="For summaries, @mention answers and agent runs here">
+        <Select
+          value={modelId}
+          onValueChange={(v) => {
+            setModelId(v)
+            void save(cap, v)
+          }}
+          disabled={models.length === 0 || saving}
+        >
+          <SelectTrigger className="h-8 w-44" aria-label="Default model">
+            <SelectValue placeholder="Workspace default" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={DEFAULT_MODEL_VALUE}>Workspace default</SelectItem>
+            {models.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.label || m.model}
+                {m.provider_label ? ` · ${m.provider_label}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </DetailsRow>
+      <DetailsRow
+        icon={<Zap />}
+        label="Daily token cap"
+        controlId={`ai-cap-${channelId}`}
+        description={
+          <span className="flex items-center gap-2">
+            {cap > 0 && (
+              <span aria-hidden="true" className="relative h-1 w-[72px] overflow-hidden rounded-full bg-press">
+                <span className="absolute inset-0 origin-left rounded-full bg-progress" style={{ transform: `scaleX(${pct / 100})` }} />
+              </span>
+            )}
+            <span className="tabular-nums">{cap > 0 ? `${fmtTokens(usedToday)} of ${fmtTokens(cap)} today` : `${fmtTokens(usedToday)} today · no cap (the workspace limit applies)`}</span>
+          </span>
+        }
+      >
+        <Input
+          id={`ai-cap-${channelId}`}
+          type="number"
+          min={0}
+          step={1000}
+          value={cap}
+          onChange={(e) => {
+            setCap(Math.max(0, parseInt(e.target.value || "0", 10) || 0))
+            setDirty(true)
+          }}
+          onBlur={() => { if (dirty) void save(cap, modelId) }}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur() }}
+          className="h-8 w-28 tabular-nums"
+          placeholder="0"
+        />
+      </DetailsRow>
+    </DetailsSection>
   )
 }

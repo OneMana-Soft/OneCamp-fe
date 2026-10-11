@@ -7,6 +7,10 @@ import { cleanup, render, screen } from "@testing-library/react"
 // Everything allowed and AI on, every answer in: every section shows.
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => true, isLoading: false }) }))
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useAIAvailable: () => true, useFeatureState: () => "available" }))
+// The index is the phone's screen; on a computer Settings opens on Profile.
+const replace = vi.hoisted(() => vi.fn())
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: true, isTablet: false, isDesktop: false }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }))
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>

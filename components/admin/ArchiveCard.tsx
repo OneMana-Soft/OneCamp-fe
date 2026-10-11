@@ -5,16 +5,14 @@
  * runs so far.
  *
  * Every read says when it failed: a failed read said "No archive policies
- * configured." or "No archive jobs have been run yet.", claims about the
- * workspace with nothing to do. Each kind has its own hued tile (one map,
- * archiveEntities), the same in the counts, its rule and its history, where
- * the icons sat in grey chips. Runs say where they stand as a dot and a word
- * (StatusWord), the way the task panel says a status. Rules and runs are
- * hairline rows in one list each.
+ * configured.", a claim about the workspace with nothing to do.
  *
- * One flat section like every other admin tab: it was a bordered Card with a
- * p-4 header, its title 17px right and down of every other tab's, and its
- * three parts are sections inside it (level 3), not boxes in a box.
+ * Design v3 (admin A13). A kind of thing is a category, not an identity, so
+ * it is a 28px mark on --sunken with an ink-3 glyph (§1.5), where each kind
+ * had its own hued tile. A rule reads as a sentence with its one number as an
+ * inline select that saves the moment it changes ("Archive channel posts
+ * older than [365 days], every hour"), the saved tick beside it. A row's other
+ * actions (Archive now, Edit rule, Restore a run) live in its ⋯ menu.
  */
 
 import React, { useMemo, useState } from "react"
@@ -23,20 +21,18 @@ import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { SettingsCard, SettingsSection, SETTINGS_STACK } from "@/components/ui/settingsSection"
+import { SavedTick, useSaveStatus } from "@/components/ui/saveStatus"
 import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { History, RefreshCw, RotateCcw, Undo2 } from "@/lib/icons"
-// Already a direct importer (PlayCircle), so Archive adds no file to the icon guard's count.
-import { Archive, PlayCircle } from "lucide-react"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { Archive, History, PlayCircle, RefreshCw, RotateCcw, Settings2, Undo2 } from "@/lib/icons"
+import { RowMenu } from "@/components/admin/PeopleFrame"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { purgeLine } from "@/lib/purgeLine"
-import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { openUI } from "@/store/slice/uiSlice"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
@@ -104,27 +100,99 @@ export function duration(job: Pick<ArchiveJob, "started_at" | "completed_at">): 
   return rest ? `${m}m ${rest}s` : `${m}m`
 }
 
-/** A list of rows between hairlines, as every list on the admin page is drawn. */
-const LIST = "divide-y divide-border rounded-lg border border-border"
+/** The days a rule's sentence offers, with the rule's own number added when it is another. */
+export const ARCHIVE_DAYS = [30, 90, 180, 365, 730, 1825]
+export function dayChoices(current: number): number[] {
+  return ARCHIVE_DAYS.includes(current) || !current ? ARCHIVE_DAYS : [...ARCHIVE_DAYS, current].sort((a, b) => a - b)
+}
+const daysWord = (d: number) => (d % 365 === 0 ? `${d / 365} ${d === 365 ? "year" : "years"}` : `${d} days`)
 
-/** A row's buttons: 44px touch targets on a phone, 32px from md up. */
-const ROW_ACTION = "h-11 md:h-8"
-
-/** Loading rows in the list's own shape: a tile, two lines, and the row's end. */
-function RowsSkeleton({ label, rows = 3, actions = true }: { label: string; rows?: number; actions?: boolean }) {
+/** A kind's mark: 28px on --sunken, its glyph in ink-3. Never a hue. */
+function KindMark({ type }: { type: string }) {
+  const Icon = archiveEntity(type).icon
   return (
-    <ul role="status" aria-label={label} className={LIST}>
-      {Array.from({ length: rows }).map((_, i) => (
-        <li key={i} aria-hidden="true" className="flex items-center gap-3 px-4 py-3">
-          <Skeleton className="size-8 shrink-0 rounded-lg" />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-1/3" : "w-1/4")} />
-            <Skeleton className="h-3 w-1/2" />
-          </div>
-          {actions && <Skeleton className="hidden h-8 w-28 md:block" />}
-        </li>
-      ))}
-    </ul>
+    <span data-archive-mark="" className="archive-mark" aria-hidden="true">
+      <Icon />
+    </span>
+  )
+}
+
+/** Loading rows in the card's own shape: a mark, two lines. */
+function RowsSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+  return (
+    <SettingsCard aria-label={label}>
+      <ul role="status" aria-label={label} className="set-rows">
+        {Array.from({ length: rows }).map((_, i) => (
+          <li key={i} aria-hidden="true" className="set-row flex items-center gap-3">
+            <Skeleton className="size-7 shrink-0 rounded-lg" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className={i % 2 === 0 ? "h-3.5 w-1/3" : "h-3.5 w-1/4"} />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </SettingsCard>
+  )
+}
+
+/**
+ * One rule as a sentence: "Archive channel posts older than [365 days],
+ * every hour." The select saves on change (instant), with the saved tick, and
+ * springs back with the reason if the server refuses.
+ */
+function RuleRow({ policy, onSaved, menu }: { policy: ArchivePolicy; onSaved: () => void; menu: React.ReactNode }) {
+  const e = archiveEntity(policy.entity_type)
+  const [days, setDays] = useState(policy.retention_days)
+  const { status, run } = useSaveStatus()
+  const purge = purgeLine(policy)
+  const id = `archive-days-${policy.entity_type}`
+  const change = async (next: number) => {
+    const before = days
+    setDays(next)
+    const held = await run(() =>
+      axiosInstance.put(`${PostEndpointUrl.UpdateArchivePolicy}/${policy.entity_type}`, { retention_days: next, auto_archive: policy.auto_archive }, OWN_ERRORS),
+    )
+    if (held) onSaved()
+    else setDays(before)
+  }
+  return (
+    <li data-archive-rule={policy.entity_type} className="set-row flex items-center gap-3">
+      <KindMark type={policy.entity_type} />
+      <div className="min-w-0 flex-1">
+        <p className="archive-sentence flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
+          <span>
+            Archive <span className="font-medium">{e.label.toLowerCase()}</span> older than
+          </span>
+          <label htmlFor={id} className="sr-only">
+            How old {e.label.toLowerCase()} must be before they are archived
+          </label>
+          <select
+            id={id}
+            value={days}
+            onChange={(ev) => void change(Number(ev.target.value))}
+            disabled={status.state === "saving"}
+            className="field-surface h-8 rounded-md px-2 text-sm font-semibold tabular-nums"
+          >
+            {dayChoices(days).map((d) => (
+              <option key={d} value={d}>
+                {daysWord(d)}
+              </option>
+            ))}
+          </select>
+          <span>{policy.auto_archive ? ", every hour." : ", only when you run it."}</span>
+          <SavedTick status={status} />
+        </p>
+        {status.state === "error" && status.error ? (
+          <p role="alert" className="mt-1 text-xs text-danger-ink">
+            {status.error}
+          </p>
+        ) : purge ? (
+          <p className="mt-1 text-xs text-ink-2">{purge}</p>
+        ) : null}
+      </div>
+      {menu}
+    </li>
   )
 }
 
@@ -138,20 +206,16 @@ const ArchiveCard = () => {
   const { toast } = useToast()
   const [undoingJobId, setUndoingJobId] = useState<string | null>(null)
 
-  // Hard cap on fallback polling: 6 minutes. If MQTT is dead and a job
-  // genuinely runs longer than this, the user can hit the manual Refresh
-  // button. Never let a runaway interval poll the API for hours.
+  // Hard cap on fallback polling: 6 minutes. If MQTT is dead and a job runs
+  // longer than this, Refresh is there. Never poll the API for hours.
   const POLL_CAP_MS = 6 * 60 * 1000
   const POLL_INTERVAL_MS = 6000
 
   const jobs = useMemo(() => jobsFetch.data?.jobs ?? [], [jobsFetch.data])
   const runningJobIds = useMemo(() => jobs.filter((x) => x.status === "running").map((x) => x.id).sort().join(","), [jobs])
 
-  // Job status updates arrive via MQTT (`MqttMessageType.Archive_Job_Status`),
-  // which busts the SWR cache for `/admin/archive/jobs` directly.
-  // useResilientPolling is the fallback when MQTT is unavailable (dev
-  // without broker, transient disconnect, non-admin user). It also
-  // pauses on hidden tabs and applies exponential backoff on errors.
+  // Job status updates arrive over MQTT, which busts the SWR cache for the
+  // jobs list directly; this is the fallback when MQTT is unavailable.
   useResilientPolling({
     enabled: runningJobIds.length > 0,
     mqttHealthy: isMqttHealthy,
@@ -167,7 +231,7 @@ const ArchiveCard = () => {
     setUndoingJobId(jobId)
     try {
       const res = await axiosInstance.post(`${PostEndpointUrl.UndoArchiveJob}/${jobId}`, undefined, OWN_ERRORS)
-      toast({ title: `Restored ${items(Number(res.data?.count ?? 0))}`, description: "They are back where they were." })
+      toast({ title: `Restored ${items(Number(res.data?.count ?? 0))}`, description: "They are back where they were.", tone: "success" })
       void jobsFetch.mutate()
       void policiesFetch.mutate()
       void statsFetch.mutate()
@@ -185,28 +249,23 @@ const ArchiveCard = () => {
   const policies = policiesFetch.data?.policies ?? []
 
   return (
-    <SettingsSection
-      title="Archive"
-      description="Old posts, messages, tasks and files move to the archive by these rules. Archived items are hidden, not deleted, and can be restored, unless a rule deletes files for good."
-      action={
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(sectionActionClass, "gap-1.5")}
-          onClick={() => dispatch(openUI({ key: "archiveRestore" }))}
-        >
-          <RotateCcw />
+    // No title of its own: the page frame names the section.
+    <section aria-label="Archive" data-archive="" className={SETTINGS_STACK}>
+      <div data-archive-actions="" className="flex items-center justify-between gap-3">
+        <p className="max-w-[60ch] text-xs text-ink-2">Archived items are hidden, not deleted, and can be restored, unless a rule deletes files for good.</p>
+        <Button variant="secondary" size="sm" className="h-11 shrink-0 md:h-7" onClick={() => dispatch(openUI({ key: "archiveRestore" }))}>
+          <RotateCcw aria-hidden="true" />
           Restore items
         </Button>
-      }
-    >
-      <div className="space-y-8">
-        <SettingsSection level={3} title="Archived so far">
-          {statsFetch.isLoading && !stats ? (
-            <ul role="status" aria-label="Loading the counts" className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
+      </div>
+
+      <SettingsSection title="Archived so far">
+        {statsFetch.isLoading && !stats ? (
+          <SettingsCard aria-label="Loading the counts">
+            <ul role="status" aria-label="Loading the counts" className="grid grid-cols-2 gap-x-6 gap-y-4 p-4 md:grid-cols-3">
               {ARCHIVE_ENTITY_ORDER.map((t) => (
                 <li key={t} aria-hidden="true" className="flex items-center gap-3">
-                  <Skeleton className="size-8 shrink-0 rounded-lg" />
+                  <Skeleton className="size-7 shrink-0 rounded-lg" />
                   <div className="space-y-1.5">
                     <Skeleton className="h-3.5 w-12" />
                     <Skeleton className="h-3 w-20" />
@@ -214,131 +273,108 @@ const ArchiveCard = () => {
                 </li>
               ))}
             </ul>
-          ) : statsFetch.isError && !stats ? (
-            <ErrorState compact subject="the counts" detail={reasonOf(statsFetch.isError)} onRetry={() => void statsFetch.mutate()} />
-          ) : (
-            <ul aria-label="Archived so far" className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
-              {ARCHIVE_ENTITY_ORDER.map((type) => {
-                const e = archiveEntity(type)
-                const Icon = e.icon
-                return (
-                  <li key={type} className="flex items-center gap-3">
-                    <Tile hue={e.hue} size="md">
-                      <Icon />
-                    </Tile>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold tabular-nums">{n(statOf(type))}</p>
-                      <p className="truncate text-xs text-muted-foreground">{e.label}</p>
-                    </div>
-                  </li>
-                )
-              })}
+          </SettingsCard>
+        ) : statsFetch.isError && !stats ? (
+          <ErrorState compact subject="the counts" detail={reasonOf(statsFetch.isError)} onRetry={() => void statsFetch.mutate()} />
+        ) : (
+          <SettingsCard>
+            <ul aria-label="Archived so far" className="grid grid-cols-2 gap-x-6 gap-y-4 p-4 md:grid-cols-3">
+              {ARCHIVE_ENTITY_ORDER.map((type) => (
+                <li key={type} className="flex items-center gap-3">
+                  <KindMark type={type} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold tabular-nums">{n(statOf(type))}</p>
+                    <p className="truncate text-xs text-ink-2">{archiveEntity(type).label}</p>
+                  </div>
+                </li>
+              ))}
             </ul>
-          )}
-        </SettingsSection>
+          </SettingsCard>
+        )}
+      </SettingsSection>
 
-        <SettingsSection level={3} title="Archive rules">
-          {policiesFetch.isLoading && !policiesFetch.data ? (
-            <RowsSkeleton label="Loading the archive rules" />
-          ) : policiesFetch.isError && !policiesFetch.data ? (
-            <ErrorState
-              compact
-              subject="the archive rules"
-              detail={reasonOf(policiesFetch.isError)}
-              onRetry={() => void policiesFetch.mutate()}
-            />
-          ) : policies.length === 0 ? (
+      <SettingsSection title="Rules" description="When each kind of thing goes to the archive. Changing a number saves it.">
+        {policiesFetch.isLoading && !policiesFetch.data ? (
+          <RowsSkeleton label="Loading the archive rules" />
+        ) : policiesFetch.isError && !policiesFetch.data ? (
+          <ErrorState compact subject="the archive rules" detail={reasonOf(policiesFetch.isError)} onRetry={() => void policiesFetch.mutate()} />
+        ) : policies.length === 0 ? (
+          <SettingsCard>
             <EmptyState
               icon={Archive}
-              hue={ADMIN_GROUP_HUE.workspace}
               title="No archive rules on this server"
               description="Rules say how old posts, messages, tasks and files must be before they move to the archive."
             />
-          ) : (
-            <ul aria-label="Archive rules" className={LIST}>
+          </SettingsCard>
+        ) : (
+          <SettingsCard>
+            <ul aria-label="Archive rules" className="set-rows">
               {policies.map((policy) => {
                 const e = archiveEntity(policy.entity_type)
-                const Icon = e.icon
-                const purge = purgeLine(policy)
                 return (
-                  <li key={policy.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Tile hue={e.hue} size="md">
-                        <Icon />
-                      </Tile>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{e.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Older than {n(policy.retention_days)} days, {policy.auto_archive ? "archived every hour" : "only when you archive them"}
-                          {purge ? `. ${purge}` : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5 pl-11 sm:pl-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className={cn(ROW_ACTION, "gap-1.5")}
-                        onClick={() => dispatch(openUI({ key: "archiveRunJob", data: { entityLabel: e.label, entityType: policy.entity_type } }))}
-                      >
-                        <PlayCircle />
-                        Archive now
-                      </Button>
-                      <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => dispatch(openUI({ key: "archiveEditPolicy", data: policy }))}>
-                        Edit
-                      </Button>
-                    </div>
-                  </li>
+                  <RuleRow
+                    key={policy.id}
+                    policy={policy}
+                    onSaved={() => void policiesFetch.mutate()}
+                    menu={
+                      <RowMenu label={`Actions for ${e.label}`}>
+                        <DropdownMenuItem onSelect={() => dispatch(openUI({ key: "archiveRunJob", data: { entityLabel: e.label, entityType: policy.entity_type } }))}>
+                          <PlayCircle aria-hidden="true" />
+                          Archive now…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => dispatch(openUI({ key: "archiveEditPolicy", data: policy }))}>
+                          <Settings2 aria-hidden="true" />
+                          Edit the rule…
+                        </DropdownMenuItem>
+                      </RowMenu>
+                    }
+                  />
                 )
               })}
             </ul>
-          )}
-        </SettingsSection>
+          </SettingsCard>
+        )}
+      </SettingsSection>
 
-        <SettingsSection
-          level={3}
-          title="Archive history"
-          action={
-            <Button variant="ghost" size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => void jobsFetch.mutate()}>
-              <RefreshCw />
-              Refresh
-            </Button>
-          }
-        >
-          {jobsFetch.isLoading && !jobsFetch.data ? (
-            <RowsSkeleton label="Loading the archive history" actions={false} />
-          ) : jobsFetch.isError && !jobsFetch.data ? (
-            <ErrorState compact subject="the archive history" detail={reasonOf(jobsFetch.isError)} onRetry={() => void jobsFetch.mutate()} />
-          ) : jobs.length === 0 ? (
+      <SettingsSection
+        title="History"
+        action={
+          <Button variant="ghost" size="sm" className="h-11 md:h-7" onClick={() => void jobsFetch.mutate()}>
+            <RefreshCw aria-hidden="true" />
+            Refresh
+          </Button>
+        }
+      >
+        {jobsFetch.isLoading && !jobsFetch.data ? (
+          <RowsSkeleton label="Loading the archive history" />
+        ) : jobsFetch.isError && !jobsFetch.data ? (
+          <ErrorState compact subject="the archive history" detail={reasonOf(jobsFetch.isError)} onRetry={() => void jobsFetch.mutate()} />
+        ) : jobs.length === 0 ? (
+          <SettingsCard>
             <EmptyState
               icon={History}
-              hue={ADMIN_GROUP_HUE.workspace}
               title="Nothing archived yet"
               description="Each run is listed here, by a rule's hourly pass or by Archive now, with what it moved and how to put it back."
             />
-          ) : (
-            <ul aria-label="Archive history" className={LIST}>
+          </SettingsCard>
+        ) : (
+          <SettingsCard>
+            <ul aria-label="Archive history" className="set-rows">
               {jobs.slice(0, 20).map((job) => {
                 const e = archiveEntity(job.entity_type)
-                const Icon = e.icon
                 const took = duration(job)
-                const meta = [
-                  shortDateTime(new Date(job.created_at)),
-                  job.items_archived > 0 ? `${n(job.items_archived)} archived` : "",
-                ].filter(Boolean)
+                const meta = [shortDateTime(new Date(job.created_at)), job.items_archived > 0 ? `${n(job.items_archived)} archived` : ""].filter(Boolean)
+                const undoable = job.status === "completed" && !UNSUPPORTED_UNDO.includes(job.entity_type)
                 return (
-                  <li key={job.id} className="flex items-center gap-3 px-4 py-3">
-                    <Tile hue={e.hue} size="md">
-                      <Icon />
-                    </Tile>
+                  <li key={job.id} data-archive-run="" className="set-row flex items-center gap-3">
+                    <KindMark type={job.entity_type} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-sm font-medium">{e.label}</span>
                         <RunStatus status={job.status} />
                       </div>
-                      {/* One line of facts, a quiet dot between them, as every
-                          row's meta line reads. The failures stay in danger ink. */}
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                      {/* One line of facts, a quiet dot between them. The failures stay in danger ink. */}
+                      <p className="mt-0.5 text-xs text-ink-2">
                         {meta.join(" · ")}
                         {job.items_failed > 0 && (
                           <>
@@ -350,27 +386,30 @@ const ArchiveCard = () => {
                       </p>
                       {job.error_message && <p className="mt-1 break-words text-xs text-danger-ink">{job.error_message}</p>}
                     </div>
-                    {job.status === "completed" && !UNSUPPORTED_UNDO.includes(job.entity_type) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Restore what this run archived"
-                        title="Restore what this run archived"
-                        className="size-11 shrink-0 md:size-8"
-                        onClick={() => handleUndoJob(job.id)}
-                        disabled={undoingJobId === job.id}
-                      >
-                        {undoingJobId === job.id ? <RefreshCw className="animate-spin" /> : <Undo2 />}
-                      </Button>
-                    )}
+                    {undoable &&
+                      (undoingJobId === job.id ? (
+                        <RefreshCw className="size-4 animate-spin text-ink-3" aria-label="Restoring" />
+                      ) : (
+                        <RowMenu label={`Actions for the ${e.label.toLowerCase()} run`}>
+                          <DropdownMenuItem onSelect={() => void handleUndoJob(job.id)}>
+                            <Undo2 aria-hidden="true" />
+                            Restore what this run archived
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={() => dispatch(openUI({ key: "archiveRestore" }))}>
+                            <RotateCcw aria-hidden="true" />
+                            Restore single items…
+                          </DropdownMenuItem>
+                        </RowMenu>
+                      ))}
                   </li>
                 )
               })}
             </ul>
-          )}
-        </SettingsSection>
-      </div>
-    </SettingsSection>
+          </SettingsCard>
+        )}
+      </SettingsSection>
+    </section>
   )
 }
 

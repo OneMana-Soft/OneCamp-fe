@@ -14,9 +14,9 @@
  * install the app themselves: the server hands us a manifest link that opens
  * Slack's "create app" page already filled in.
  *
- * A settings section like its neighbours on the Integrations tab, with the
- * connections plug while nothing is connected. Unlinking a channel and
- * disconnecting both ask first: each stops messages crossing over.
+ * A connection card like its neighbours on the Integrations tab (design v3,
+ * A18). Unlinking a channel and disconnecting (behind ⋯) both ask first:
+ * each stops messages crossing over.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react"
@@ -24,15 +24,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
-import { StatusWord } from "@/components/ui/statusWord"
+import { sectionActionClass } from "@/components/ui/settingsSection"
 import { cn } from "@/lib/utils/helpers/cn"
-import { SpotPlug } from "@/components/ui/graphics"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { ConnectionSkeleton } from "@/components/admin/integrationParts"
-import { AlertTriangle, Copy, ExternalLink, Loader2, Unlink } from "@/lib/icons"
+import { BridgeMarks, ConnectionBanner, ConnectionNote, ConnectionSkeleton } from "@/components/admin/integrationParts"
+import { ConnectionCard, RowMenu, StateWord } from "@/components/admin/connectParts"
+import { Copy, ExternalLink, Link2, Loader2, Unlink } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
@@ -52,6 +49,10 @@ import {
     type SlackBridgeStatus,
     type SlackChannel,
 } from "@/services/slackBridgeService"
+
+/** What the bridge does, said once inside its card. */
+const INTRO =
+    "Keep a Slack channel and a OneCamp channel in one conversation while your team moves over. Messages, thread replies, edits and deletions go both ways, each under the name of the person who wrote it. People in Slack don't need a OneCamp account or a seat."
 
 const SlackBridgeCard: React.FC = () => {
     const { toast } = useToast()
@@ -211,43 +212,42 @@ const SlackBridgeCard: React.FC = () => {
     let body: React.ReactNode
     if (!status && loadFailed) {
         body = (
-            <ErrorState
-                compact
-                subject="the Slack bridge"
-                detail={loadError || undefined}
-                retrying={retrying}
-                onRetry={() => {
-                    setRetrying(true)
-                    void load().finally(() => setRetrying(false))
-                }}
-            />
+            <div className="cx-int-note">
+                <ErrorState
+                    compact
+                    subject="the Slack bridge"
+                    detail={loadError || undefined}
+                    retrying={retrying}
+                    onRetry={() => {
+                        setRetrying(true)
+                        void load().finally(() => setRetrying(false))
+                    }}
+                />
+            </div>
         )
     } else if (!status) {
         body = <ConnectionSkeleton label="Loading the Slack bridge" />
     } else if (!status.connected) {
+        // Two steps as two rows of the card: Slack needs its workspace admin
+        // to create and install the app before there is anything to paste.
         body = (
             <>
-                <EmptyState
-                    illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
-                    title="Slack isn't connected yet"
-                    description="Two steps: create the app in Slack, then paste its two keys here."
-                    className="py-6"
-                />
-                <ol className="divide-y divide-border rounded-lg border border-border">
-                    <li className="space-y-2 px-4 py-3">
+                <ConnectionNote>{INTRO} Two steps: create the app in Slack, then paste its two keys here.</ConnectionNote>
+                <ol>
+                    <li className="cx-int-step space-y-2">
                         <h3 className="text-sm font-medium">1. Create the app in Slack</h3>
                         <p className="text-xs text-muted-foreground text-pretty">
                             Slack opens with everything filled in. Choose your workspace, create the app, then click{" "}
                             <span className="font-medium text-foreground">Install to Workspace</span>.
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            <Button asChild variant="outline" size="sm" className={sectionActionClass}>
+                            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
                                 <a href={status.manifest_url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink aria-hidden="true" /> Create the app in Slack
                                 </a>
                             </Button>
                             <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
                                 className={sectionActionClass}
                                 onClick={() => void copy(status.manifest, "Paste it under “From a manifest” in Slack.")}
@@ -256,7 +256,7 @@ const SlackBridgeCard: React.FC = () => {
                             </Button>
                         </div>
                     </li>
-                    <li className="space-y-3 px-4 py-3">
+                    <li className="cx-int-step space-y-3">
                         <h3 className="text-sm font-medium">2. Paste the app&apos;s two keys</h3>
                         <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-1.5">
@@ -316,7 +316,7 @@ const SlackBridgeCard: React.FC = () => {
                         </Button>
                         <p className="text-xs text-muted-foreground">
                             Slack delivers messages to{" "}
-                            <code className="break-all rounded-sm bg-muted px-1 py-0.5 font-mono">{status.events_url}</code>.
+                            <code className="break-all rounded-sm bg-sunken px-1 py-0.5 font-mono">{status.events_url}</code>.
                             The manifest sets this for you.
                         </p>
                     </li>
@@ -326,57 +326,33 @@ const SlackBridgeCard: React.FC = () => {
     } else {
         body = (
             <>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    {/* A dot and a word, like the sign-in providers beside it:
-                        connected, and to what. */}
-                    <StatusWord tone="success" className="text-sm">
-                        <span>
-                            <span className="font-medium">Connected</span> to{" "}
-                            <span className="font-medium">{status.team_name || "Slack"}</span>
-                        </span>
-                    </StatusWord>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className={sectionActionClass}
-                        onClick={askDisconnect}
-                        disabled={busy === "disconnect"}
-                    >
-                        {busy === "disconnect" && <Loader2 className="animate-spin" aria-hidden="true" />}
-                        Disconnect
-                    </Button>
-                </div>
+                {status.last_error && <ConnectionBanner tone="danger">{status.last_error}</ConnectionBanner>}
 
-                {status.last_error && (
-                    <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5" role="alert">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" aria-hidden="true" />
-                        <p className="text-sm">{status.last_error}</p>
-                    </div>
-                )}
-
-                <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Linked channels</h3>
+                <div>
+                    <h3 id="slack-linked-channels" className="cx-int-subhead">Linked channels</h3>
                     {status.links.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">None yet. Link your first pair below.</p>
+                        <ConnectionNote className="pt-0">None yet. Link your first pair below.</ConnectionNote>
                     ) : (
-                        <ul className="divide-y divide-border rounded-lg border border-border">
+                        <ul aria-labelledby="slack-linked-channels">
                             {status.links.map((l) => (
-                                <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2">
-                                    <span className="min-w-0 truncate text-sm">
-                                        <span className="text-muted-foreground">Slack</span> #{l.slack_channel_name}
-                                        <span className="mx-2 text-muted-foreground" aria-hidden="true">↔</span>
+                                <li key={l.id} data-linked-row="" className="cx-linked">
+                                    <Link2 aria-hidden="true" className="cx-linked-glyph" />
+                                    <p className="min-w-0 flex-1 truncate text-sm">
+                                        <span className="text-muted-foreground">Slack</span>{" "}
+                                        <span className="font-medium">#{l.slack_channel_name}</span>
+                                        <span className="mx-2 text-ink-3" aria-hidden="true">⇄</span>
                                         <span className="sr-only"> linked with </span>
                                         <span className="text-muted-foreground">OneCamp</span>{" "}
                                         {l.channel_name ? (
-                                            `#${l.channel_name}`
+                                            <span className="font-medium">#{l.channel_name}</span>
                                         ) : (
                                             <span className="text-muted-foreground">a deleted channel</span>
                                         )}
-                                    </span>
+                                    </p>
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 shrink-0"
+                                        className="size-11 shrink-0 md:size-8"
                                         onClick={() => askUnlink(l)}
                                         disabled={busy === l.id}
                                         aria-label={`Unlink #${l.slack_channel_name}`}
@@ -393,7 +369,7 @@ const SlackBridgeCard: React.FC = () => {
                     )}
                 </div>
 
-                <div className="space-y-2">
+                <div className="cx-int-step space-y-2">
                     <h3 className="text-sm font-medium">Link a channel</h3>
                     <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
                         <div className="space-y-1.5">
@@ -463,13 +439,34 @@ const SlackBridgeCard: React.FC = () => {
         )
     }
 
+    const connected = !!status?.connected
     return (
-        <SettingsSection
-            title="Slack bridge"
-            description="Keep a Slack channel and a OneCamp channel in one conversation while your team moves over. Messages, thread replies, edits and deletions go both ways, each under the name of the person who wrote it. People in Slack don't need a OneCamp account or a seat."
+        // A connection card (design v3, A18) with the bridge's two marks: the
+        // dot between them travels while a channel is linked.
+        <ConnectionCard
+            id="integrations-slack"
+            level={2}
+            mark={<BridgeMarks syncing={connected && (status?.links.length ?? 0) > 0} />}
+            name="Slack bridge"
+            state={
+                status ? (
+                    <StateWord tone={connected ? "success" : "neutral"}>
+                        {connected ? `Connected to ${status.team_name || "Slack"}` : "Not connected"}
+                    </StateWord>
+                ) : null
+            }
+            action={
+                connected ? (
+                    <RowMenu
+                        label="Slack bridge actions"
+                        items={[{ label: "Disconnect Slack", icon: Unlink, destructive: true, disabled: busy === "disconnect", onSelect: askDisconnect }]}
+                    />
+                ) : null
+            }
         >
+            {connected && <ConnectionNote>{INTRO}</ConnectionNote>}
             {body}
-        </SettingsSection>
+        </ConnectionCard>
     )
 }
 

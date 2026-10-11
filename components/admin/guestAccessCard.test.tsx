@@ -96,27 +96,39 @@ describe("guest access, read and labelled honestly", () => {
     listGuestGrants.mockResolvedValue([])
     getWorkspaceSettings.mockImplementationOnce(() => Promise.reject(new Error("503")))
     await open()
-    expect(await screen.findByText("Couldn't load the guest access setting")).toBeInTheDocument()
+    expect(await screen.findByText(/Couldn't load the guest access setting/)).toBeInTheDocument()
     expect(screen.queryByRole("switch")).toBeNull()
     getWorkspaceSettings.mockImplementationOnce(() => Promise.resolve({ guest_access_enabled: true }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Try again" })))
     expect((await screen.findByRole("switch", { name: "Allow guest links" })).getAttribute("aria-checked")).toBe("true")
   })
 
-  // The links were 28px grey squares beside 14px icons, an Open link drawn by
-  // hand at 32px beside a Revoke button: one row anatomy now, a 32px tile and
-  // two buttons of one size.
-  it("draws each link as a row with a tile, and Open and Revoke at one size", async () => {
+  // Design v3 (admin A8, §1.5): a link's type is a category, so its tile is
+  // a neutral glyph on sunken, never a hue; the links are rows of the
+  // switch's own card; Open and Revoke are one size.
+  it("draws each link as a row of the card with a neutral tile, and Open and Revoke at one size", async () => {
     listGuestGrants.mockResolvedValue([grant("g1", "project")])
     await open()
     const row = (await screen.findByText("Project")).closest("li") as HTMLElement
-    expect(row.className).toContain("px-4 py-3")
-    expect(row.querySelector("[class*='hue-']")).toBeTruthy()
+    expect(row.className).toContain("set-row")
+    expect(row.closest("[data-settings-card]")).toBe(screen.getByRole("switch").closest("[data-settings-card]"))
+    expect(row.querySelector("[class*='hue-']")).toBeNull()
+    expect(row.querySelector(".bg-sunken svg")).toBeTruthy()
     const openLink = screen.getByRole("link", { name: /open/i })
     const revoke = screen.getByRole("button", { name: "Revoke" })
     const height = (el: HTMLElement) => el.className.split(/\s+/).filter((c) => /^(md:)?h-\d+$/.test(c)).sort().join(" ")
     expect(height(openLink)).toBe(height(revoke))
-    expect(height(revoke)).not.toBe("")
+  })
+
+  it("reveals the links in a stagger when guest access is turned on here", async () => {
+    listGuestGrants.mockResolvedValue([])
+    setGuestAccess.mockResolvedValue(true)
+    await open()
+    await act(async () => fireEvent.click(await screen.findByRole("switch")))
+    const heading = await screen.findByText("Active guest links")
+    const row = heading.parentElement as HTMLElement
+    expect(row.className).toContain("cfg-reveal")
+    expect(row.style.getPropertyValue("--i")).toBe("0")
   })
 
   it("names the switch, and heads the links in sentence case", async () => {

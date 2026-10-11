@@ -28,15 +28,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/ui/field"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
-import { Upload, AlertCircle, FileArchive } from "@/lib/icons"
+import { AlertCircle, FileArchive } from "@/lib/icons"
+import { ImportStepper, SLACK_STEPS } from "@/components/admin/importParts"
 import { SLACK_IMPORT_LIMITS_KEY, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
 import { useFetch } from "@/hooks/useFetch"
 import { readableBytes } from "@/lib/readableBytes"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface Props {
   open: boolean
@@ -213,18 +212,17 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2.5">
-            <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
-              <Upload />
-            </Tile>
-            Upload a Slack export
-          </DialogTitle>
+          {/* No tile beside the title: a hue is identity, and a dialog is not
+              one (design v3, §1.5). */}
+          <DialogTitle>Upload a Slack export</DialogTitle>
           <DialogDescription>
             The .zip file you downloaded from Slack&apos;s Workspace settings
             {maxBytes !== null && <> (up to {readableBytes(maxBytes)} on this server)</>}. OneCamp reads it and shows
             what would come across before anything is imported.
           </DialogDescription>
         </DialogHeader>
+
+        <ImportStepper steps={SLACK_STEPS} current={0} />
 
         <div className="space-y-4 py-2">
           <Field
@@ -273,7 +271,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
           )}
 
           {problem && (
-            <div role="alert" className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+            <div role="alert" className="cx-imp-note space-y-2 text-sm">
               <p className="break-words text-danger-ink">{problem.message}</p>
               {problem.existing && onShowExisting && (
                 <Button size="sm" variant="outline" className="h-8" onClick={() => showExisting(problem.existing!)}>
@@ -283,7 +281,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             </div>
           )}
 
-          <div className="flex gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
+          <div className="cx-imp-note flex gap-2 text-xs">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
             <p className="text-muted-foreground">
               Workspace exports include public channels only. Direct messages and private channels need a Corporate

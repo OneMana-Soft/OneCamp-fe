@@ -20,32 +20,58 @@
  * IS open — and again when asked. Nothing here writes, so re-running is free of
  * consequence.
  *
- * WHAT IS SHOWN. Every check reports what it proves AND what it does not, and
- * that sentence is rendered rather than dropped: a green tick with no scope is
+ * WHAT IS SHOWN. Every check reports what it proves AND what it does not. That
+ * sentence is never dropped: it is each tile's tooltip and its accessible
+ * description, and an expanded tile shows it. A green tick with no scope is
  * worth less than nothing. The list is registry-driven on the server, so a check
  * that is absent means the subsystem is not installed in this build — which is
  * why an empty result says so instead of rendering as "all clear".
+ *
+ * DESIGN V3 (admin A21, mock M8). A summary hero: a 72px ring filled moss to
+ * the healthy share, "9/10", what needs attention and Run again. Then the
+ * services as 64px tiles in two columns, calm when healthy; a tile that needs
+ * attention spans both columns with its reason and its fix as a code row. Run
+ * again turns each dot into a spinner and the results land 60ms apart.
  */
 
 import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import { ErrorState } from "@/components/ui/error-state"
-import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { SettingsCard, SettingsCardError, SettingsSection } from "@/components/ui/settingsSection"
+import { CodeRow } from "@/components/ui/settingsControls"
 import { StatusWord } from "@/components/ui/statusWord"
-import { Activity, AlertTriangle, Info, Loader2, RefreshCw } from "@/lib/icons"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+    Activity,
+    Archive,
+    Bot,
+    Database,
+    HardDrive,
+    KeyRound,
+    Link2,
+    Loader2,
+    Mail,
+    Network,
+    Plug,
+    RefreshCw,
+    Search,
+    Server,
+    Users,
+    Zap,
+} from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortTime } from "@/lib/utils/date/shortDate"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { HealthRing } from "@/components/admin/HealthRing"
 import { runSystemCheck, type SystemCheckKind, type SystemCheckReport, type SystemCheckResult } from "@/services/systemCheckService"
 
-/** Sub-second timings read as noise; whole milliseconds are what an operator compares. */
-function formatDuration(ms: number): string {
+/** Whole milliseconds are what an operator compares. Pure. */
+export function formatDuration(ms: number): string {
     if (!Number.isFinite(ms) || ms < 0) return ""
-    if (ms < 1000) return `${Math.round(ms)}ms`
-    return `${(ms / 1000).toFixed(1)}s`
+    if (ms < 1000) return `${Math.round(ms)} ms`
+    return `${(ms / 1000).toFixed(1)} s`
 }
 
 function formatCheckedAt(unixSeconds: number): string {
@@ -54,6 +80,53 @@ function formatCheckedAt(unixSeconds: number): string {
     if (Number.isNaN(d.getTime())) return ""
     return shortTime(d)
 }
+
+/** A check's name as people say it: "github-sync" reads "GitHub sync". Pure. */
+export function checkTitle(name: string): string {
+    const words = name.replace(/[-_]+/g, " ").trim()
+    const said = words.replace(/\bgithub\b/gi, "GitHub").replace(/\bai\b/gi, "AI")
+    return said.charAt(0).toUpperCase() + said.slice(1)
+}
+
+/**
+ * The command a failing check's reason tells the operator to run, when it
+ * names one ("…and on the server run make housekeeping"), so it can be a code
+ * row with copy rather than words to retype. A `fix` field from the server
+ * wins when there is one. Pure.
+ */
+export function fixOf(check: SystemCheckResult & { fix?: string }): string | null {
+    if (check.fix) return check.fix
+    const m = check.detail?.match(/\brun\s+((?:make|go-one-camp|docker compose|docker|sudo)\s[^.;,"\n]+)/i)
+    return m ? m[1].trim() : null
+}
+
+/** The disk's use as a percentage, when the check says it ("disk 91% used"). Pure. */
+export function diskUsed(check: SystemCheckResult): number | null {
+    const m = `${check.detail ?? ""}`.match(/(\d{1,3})%\s*used/i)
+    return m ? Math.min(100, Number(m[1])) : null
+}
+
+/** Whether a tile spans both columns: a failure, or a note worth reading. Pure. */
+export function needsAttention(check: SystemCheckResult): "danger" | "warning" | null {
+    if (!check.healthy) return "danger"
+    return check.detail ? "warning" : null
+}
+
+const GLYPH: Record<string, React.ComponentType<{ className?: string }>> = {
+    database: Database,
+    graph: Network,
+    cache: Zap,
+    realtime: Activity,
+    storage: Archive,
+    search: Search,
+    email: Mail,
+    disk: HardDrive,
+    "sign-in": KeyRound,
+    accounts: Users,
+    "github-sync": Plug,
+    "entity-links": Link2,
+}
+const glyphOf = (name: string) => GLYPH[name.toLowerCase()] ?? (name.startsWith("agent") ? Bot : Server)
 
 /**
  * The two questions, in the order an admin needs them.
@@ -65,61 +138,96 @@ function formatCheckedAt(unixSeconds: number): string {
  * working installation.
  */
 const SECTIONS: { kind: SystemCheckKind; title: string; blurb: string }[] = [
-    {
-        kind: "dependency",
-        title: "Services this install needs",
-        blurb: "Without these, OneCamp cannot work at all. Each was checked just now, not at startup.",
-    },
-    {
-        kind: "behaviour",
-        title: "Features that can break quietly",
-        blurb: "Everything above is reachable and a feature can still be broken. These look for the trace a known failure leaves behind.",
-    },
+    { kind: "dependency", title: "Services this install needs", blurb: "Without these, OneCamp can't work at all. Each was checked just now." },
+    { kind: "behaviour", title: "Features that can break quietly", blurb: "Each looks for the trace a known failure leaves behind." },
 ]
 
-/** A list of the group's checks: hairline rows, the admin page's one list. */
-const LIST = "divide-y divide-border rounded-lg border border-border"
-
-// One check: a row of its group's list. Each was a bordered card of its own.
-// Its state is a word with a dot at the row's end (never colour alone), and a
-// note or a failure is a line under its scope, not a tinted box in the row.
-const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
-    <li className="px-4 py-3">
-        <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 space-y-1">
-                <p className="font-mono text-sm font-medium">{check.name}</p>
-                {/* Always rendered, healthy or not. The scope of a passing check is
-                    the part an operator most needs and is most often denied. */}
-                <p className="text-xs text-muted-foreground">{check.describe}</p>
-                {check.detail &&
-                    (check.healthy ? (
-                        // A note: true, worth knowing, and not a failure.
-                        <p className="flex gap-1.5 text-xs text-warning-ink">
-                            <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                            <span>{check.detail}</span>
-                        </p>
+/** A 64px service tile; one needing attention spans both columns with its reason and fix. */
+const ServiceTile: React.FC<{ check: SystemCheckResult; index: number; running: boolean; run: number }> = ({ check, index, running, run }) => {
+    const attention = needsAttention(check)
+    const Glyph = glyphOf(check.name)
+    const fix = attention ? fixOf(check) : null
+    const used = check.name.toLowerCase() === "disk" ? diskUsed(check) : null
+    const descId = `check-${check.name}-scope`
+    return (
+        <li
+            data-service-tile=""
+            data-attention={attention ?? undefined}
+            aria-describedby={descId}
+            className={cn("cfg-tile", attention && "sm:col-span-2")}
+        >
+            <div className="flex min-w-0 items-center gap-3">
+                <span aria-hidden="true" className="inline-grid size-7 shrink-0 place-items-center rounded-md bg-sunken text-ink-3 ring-1 ring-inset ring-line">
+                    <Glyph className="size-4" />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span tabIndex={0} className="truncate rounded-sm text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+                                {checkTitle(check.name)}
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">{check.describe}</TooltipContent>
+                    </Tooltip>
+                    {running ? (
+                        <Loader2 className="size-2.5 animate-spin text-ink-3" aria-label="Checking" />
                     ) : (
-                        <p className="flex gap-1.5 text-xs text-danger-ink">
-                            <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                            <span>{check.detail}</span>
-                        </p>
-                    ))}
+                        <span key={run} className="cfg-tile-result" style={{ "--i": index } as React.CSSProperties}>
+                            {attention === "danger" ? (
+                                <StatusWord tone="danger" className="text-xs font-medium">Needs attention</StatusWord>
+                            ) : attention === "warning" ? (
+                                <StatusWord tone="warning" className="text-xs font-medium">Worth knowing</StatusWord>
+                            ) : (
+                                <StatusWord tone="success" className="text-xs">
+                                    <span className="sr-only">Healthy</span>
+                                </StatusWord>
+                            )}
+                        </span>
+                    )}
+                    {used !== null && (
+                        <span
+                            data-disk-bar=""
+                            role="img"
+                            aria-label={`${used}% used`}
+                            className="cfg-bar basis-full sm:basis-auto"
+                        >
+                            <span
+                                className={used < 85 ? "bg-camp-moss" : used <= 95 ? "bg-camp-sun" : "bg-destructive"}
+                                style={{ transform: `scaleX(${used / 100})` }}
+                            />
+                        </span>
+                    )}
+                </div>
+                <span className="shrink-0 text-2xs tabular-nums text-ink-3">
+                    {used !== null ? `${used}% used` : formatDuration(check.took_ms)}
+                </span>
             </div>
-            <div className="flex shrink-0 items-center gap-3 text-xs">
-                <StatusWord tone={check.healthy ? "success" : "danger"}>
-                    {check.healthy ? "Healthy" : "Needs attention"}
-                </StatusWord>
-                <span className="w-10 text-right tabular-nums text-muted-foreground">{formatDuration(check.took_ms)}</span>
-            </div>
-        </div>
-    </li>
-)
+            {/* The scope, always there for assistive tech; shown when the tile is open. */}
+            <p id={descId} className={attention ? "pl-10 text-xs text-muted-foreground text-pretty" : "sr-only"}>
+                {check.describe}
+            </p>
+            {attention && check.detail && (
+                <div className="space-y-2 pl-10">
+                    <p className={cn("text-xs text-pretty", attention === "danger" ? "text-danger-ink" : "text-warning-ink")}>{check.detail}</p>
+                    {fix && <CodeRow value={fix} label="fix command" />}
+                </div>
+            )}
+        </li>
+    )
+}
 
-/** A group of checks: its name and what it means, then its rows. */
-const CheckGroup: React.FC<{ title: string; blurb: string; children: React.ReactNode }> = ({ title, blurb, children }) => (
-    <SettingsSection level={3} title={title} description={blurb}>
-        {children}
-    </SettingsSection>
+const TilesSkeleton: React.FC = () => (
+    <ul role="status" aria-label="Checking the installation" className="grid gap-2 sm:grid-cols-2">
+        {[0, 1, 2, 3].map((i) => (
+            <li key={i} aria-hidden="true" className="cfg-tile">
+                <div className="flex items-center gap-3">
+                    <Skeleton className="size-7 shrink-0 rounded-md" />
+                    <Skeleton className={cn("h-3.5", i % 2 ? "w-20" : "w-28")} />
+                    <Skeleton className="ml-auto h-3 w-10" />
+                </div>
+            </li>
+        ))}
+    </ul>
 )
 
 const SystemCheckCard: React.FC = () => {
@@ -129,12 +237,15 @@ const SystemCheckCard: React.FC = () => {
     // itself diagnostic information, and a toast disappears before it can be read
     // alongside the rest of the page.
     const [error, setError] = useState<string | null>(null)
+    // Bumped per result, so the tiles' staggered arrival replays.
+    const [runs, setRuns] = useState(0)
 
     const run = useCallback(async () => {
         setLoading(true)
         setError(null)
         try {
             setReport((await runSystemCheck()) ?? null)
+            setRuns((n) => n + 1)
         } catch (e: unknown) {
             setError(apiErrorMessage(e, "The check could not be run."))
         } finally {
@@ -148,104 +259,98 @@ const SystemCheckCard: React.FC = () => {
 
     const unhealthy = report?.unhealthy ?? 0
     const total = report?.total ?? 0
+    const healthy = report ? report.healthy ?? total - unhealthy : 0
+    const depDown = !!report?.checks.some((c) => c.kind === "dependency" && !c.healthy)
 
-    // The verdict as a dot and a word on the title's row, the way the task
-    // panel says a status. An empty build says so in the body instead.
-    const verdict = (() => {
-        if (error || !report || total === 0) return null
-        if (unhealthy > 0) return <StatusWord tone="danger">{unhealthy} of {total} need attention</StatusWord>
-        return <StatusWord tone="success">All {total} healthy</StatusWord>
-    })()
+    const summary = !report
+        ? "Checking the installation…"
+        : unhealthy > 0
+          ? `${unhealthy} ${unhealthy === 1 ? "needs" : "need"} attention`
+          : `All ${total} healthy`
 
-    // While a failed read is on the page, its Try again is the one way to run
-    // the check again; a second "Run again" beside it would be the same button.
-    const action = error ? undefined : (
-        <>
-            {verdict && <span className="text-sm">{verdict}</span>}
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void run()}
-                disabled={loading}
-                className={cn(sectionActionClass, "gap-1.5")}
-            >
-                {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                {loading ? "Checking…" : "Run again"}
-            </Button>
-        </>
-    )
+    let body: React.ReactNode
+    if (error) {
+        body = (
+            <SettingsCard>
+                <SettingsCardError what="the health check" reason={error} onRetry={() => void run()} retrying={loading} />
+            </SettingsCard>
+        )
+    } else if (report && total === 0) {
+        body = (
+            <EmptyState
+                icon={Activity}
+                hue={ADMIN_GROUP_HUE.system}
+                title="No checks in this build"
+                description="Each subsystem announces its own probe, so an empty list means those subsystems are not part of this edition, not that everything passed."
+            />
+        )
+    } else {
+        body = (
+            <div className="space-y-6">
+                {/* The summary hero. */}
+                <SettingsCard>
+                    <div data-health-hero="" className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
+                        {report ? (
+                            <HealthRing healthy={healthy} total={total} rest={depDown ? "danger" : "sun"} />
+                        ) : (
+                            <Skeleton className="cfg-ring size-[72px] rounded-full" />
+                        )}
+                        <div className="min-w-0 flex-1 space-y-0.5" aria-live="polite">
+                            <p data-health-summary="" className="text-heading text-foreground">
+                                {summary}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {report?.checked_at ? `Last run ${formatCheckedAt(report.checked_at)} · ` : ""}nothing here writes to your workspace
+                            </p>
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={() => void run()} disabled={loading}>
+                            {loading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+                            {loading ? "Checking…" : "Run again"}
+                        </Button>
+                    </div>
+                </SettingsCard>
 
-    return (
-        <SettingsSection
-            title="Installation health"
-            description={
-                <>
-                    Each subsystem is probed for the signature a known failure leaves behind. Nothing here writes to your
-                    workspace, so it is safe to run at any time.
-                    {report?.checked_at ? ` Last run ${formatCheckedAt(report.checked_at)}.` : ""}
-                </>
-            }
-            action={action}
-        >
-            {error ? (
-                <ErrorState compact subject="the health check" detail={error} onRetry={() => void run()} retrying={loading} />
-            ) : !report && loading ? (
-                // The list's own rows, under the first group's real heading, so
-                // nothing moves when the answer lands.
-                <CheckGroup title={SECTIONS[0].title} blurb={SECTIONS[0].blurb}>
-                    <ul role="status" aria-label="Checking the installation" className={LIST}>
-                        {[0, 1, 2, 3].map((i) => (
-                            <li key={i} aria-hidden="true" className="px-4 py-3">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0 flex-1 space-y-2 py-0.5">
-                                        <Skeleton className={cn("h-3.5", i % 2 ? "w-24" : "w-32")} />
-                                        <Skeleton className={cn("h-3", i % 2 ? "w-2/3" : "w-3/4")} />
-                                    </div>
-                                    <Skeleton className="h-3 w-24 shrink-0" />
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                </CheckGroup>
-            ) : report && total === 0 ? (
-                <EmptyState
-                    icon={Activity}
-                    hue={ADMIN_GROUP_HUE.system}
-                    title="No checks in this build"
-                    description="Each subsystem announces its own probe, so an empty list means those subsystems are not part of this edition, not that everything passed."
-                />
-            ) : report ? (
-                <div className="space-y-6">
-                    {SECTIONS.map(({ kind, title, blurb }) => {
+                {!report ? (
+                    <SettingsSection level={3} title={SECTIONS[0].title}>
+                        <TilesSkeleton />
+                    </SettingsSection>
+                ) : (
+                    SECTIONS.map(({ kind, title, blurb }) => {
                         const rows = report.checks.filter((c) => c.kind === kind)
                         // An absent group is an edition without those subsystems.
                         if (rows.length === 0) return null
+                        const offset = kind === "behaviour" ? report.checks.filter((c) => c.kind === "dependency").length : 0
                         return (
-                            <CheckGroup key={kind} title={title} blurb={blurb}>
-                                <ul aria-label={title} className={LIST}>
-                                    {rows.map((check) => (
-                                        <CheckRow key={check.name} check={check} />
+                            <SettingsSection key={kind} level={3} title={title} description={blurb}>
+                                <ul aria-label={title} className="grid gap-2 sm:grid-cols-2">
+                                    {rows.map((check, i) => (
+                                        <ServiceTile key={check.name} check={check} index={offset + i} running={loading} run={runs} />
                                     ))}
                                 </ul>
-                            </CheckGroup>
+                            </SettingsSection>
                         )
-                    })}
+                    })
+                )}
 
-                    {/* The boundary of this page, stated on the page.
+                {/* The boundary of this page, stated on the page: everything above is
+                    read-only, which is what makes it safe to press and is exactly why it
+                    cannot tell you whether somebody can create a task and find it again. */}
+                {report && (
+                    <div className="space-y-2">
+                        <p className="max-w-[60ch] text-xs text-muted-foreground text-pretty">
+                            Nothing here writes, so it cannot prove that creating something and finding it again works.
+                            The journey check does: run it on the server with an API token and a test project.
+                        </p>
+                        <CodeRow value="go-one-camp journey" label="journey command" className="max-w-sm" />
+                    </div>
+                )}
+            </div>
+        )
+    }
 
-                        Everything above is read-only, which is what makes it safe to press and is exactly
-                        why it cannot tell you whether somebody can create a task and then find it again.
-                        An admin who does not know that reads a green page as a working product, which is
-                        the same false comfort this page was built to stop giving. */}
-                    <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
-                        Nothing on this page writes, so it cannot prove that creating something and finding it again
-                        works. The <code className="font-mono">journey</code> check does: it signs in, creates a task,
-                        reads it back and searches for it. Run it against this server with{" "}
-                        <code className="font-mono">go-one-camp journey</code>, giving it an API token and a project you
-                        are happy to see a test task in.
-                    </p>
-                </div>
-            ) : null}
+    return (
+        <SettingsSection id="health-installation" title="Installation health">
+            {body}
         </SettingsSection>
     )
 }

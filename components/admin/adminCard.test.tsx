@@ -34,6 +34,9 @@ vi.mock("./AddAdminDialog", () => ({ AddAdminDialog: () => null }))
 
 const { default: AdminCard } = await import("./adminCard")
 
+/** Opens a row's ⋯ menu (design v3: a row's actions live only there). */
+const openMenu = (name: string) => fireEvent.keyDown(screen.getByRole("button", { name: `Actions for ${name}` }), { key: "Enter" })
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -54,7 +57,8 @@ describe("the Admins tab", () => {
     state.list = { data: { data: [priya, arjun], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     post.makeRequest.mockResolvedValue({})
     render(<AdminCard />)
-    fireEvent.click(screen.getByRole("button", { name: "Remove Arjun Mehta as an admin" }))
+    openMenu("Arjun Mehta")
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Remove as admin/ }))
     expect(post.makeRequest).not.toHaveBeenCalled()
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
       title: "Remove Arjun Mehta as an admin?",
@@ -65,23 +69,41 @@ describe("the Admins tab", () => {
     expect(post.makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: { user_uuid: "u2" } }))
   })
 
-  it("says why your own row can't be removed, on a button that can still be hovered", () => {
+  it("says why your own row can't be removed, on a disabled item inside something that can be hovered", async () => {
     state.list = { data: { data: [priya, arjun], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<AdminCard />)
-    const own = screen.getByRole("button", { name: /You can't remove yourself/ })
-    // disabled swallows the pointer, so the tooltip with the reason never showed.
-    expect(own.hasAttribute("disabled")).toBe(false)
-    expect(own.getAttribute("aria-disabled")).toBe("true")
-    fireEvent.click(own)
+    openMenu("Priya Raman")
+    const item = await screen.findByRole("menuitem", { name: /Remove as admin/ })
+    expect(item.getAttribute("aria-disabled")).toBe("true")
+    // A disabled item takes no pointer, so the reason sits on the span around it.
+    expect(item.closest("[data-remove-blocked]")?.getAttribute("aria-label")).toMatch(/You can't remove yourself/)
+    fireEvent.click(item)
     expect(confirm).not.toHaveBeenCalled()
   })
 
-  it("loads as the rows it will show, in one bordered list", () => {
+  // Design v3 (A3): removing the last admin is impossible, said in the item's tooltip.
+  it("never lets the last admin be removed: someone has to be the admin", async () => {
+    state.list = { data: { data: [arjun], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<AdminCard />)
+    openMenu("Arjun Mehta")
+    const item = await screen.findByRole("menuitem", { name: /Remove as admin/ })
+    expect(item.getAttribute("aria-disabled")).toBe("true")
+    expect(item.closest("[data-remove-blocked]")?.getAttribute("aria-label")).toBe("Someone has to be the admin")
+  })
+
+  it("says what an admin is in a sunken note above the list", () => {
+    state.list = { data: { data: [priya], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    const { container } = render(<AdminCard />)
+    const note = container.querySelector("[data-admin-note]") as HTMLElement
+    expect(note.className).toContain("bg-sunken")
+    expect(note.textContent).toMatch(/Agents can never be admins\./)
+  })
+
+  it("loads as the rows it will show, in the list's own rows", () => {
     state.list = { data: undefined, isLoading: true, isError: undefined, mutate: vi.fn() }
     const { container } = render(<AdminCard />)
     const list = container.querySelector("ul[aria-busy='true']")
-    expect(list?.className).toMatch(/divide-y/)
-    expect(list?.className).not.toMatch(/space-y/)
+    expect(list?.className).toContain("people-rows")
   })
 
   it("says the list failed to load instead of claiming there are no admins", () => {

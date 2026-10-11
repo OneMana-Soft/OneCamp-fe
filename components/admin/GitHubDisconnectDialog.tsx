@@ -26,9 +26,11 @@ export default function GitHubDisconnectDialog({ open, onOpenChange, onConfirm, 
             Everything below stops at once, and you can&apos;t undo this. You can connect GitHub again later and link the repositories afresh.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-danger-ink">
+        {/* What stops, as a plain list on the sunken surface: the red,
+            bordered box made every line read as an error (design v3, H3). */}
+        <div className="rounded-lg bg-sunken p-3 text-sm text-foreground">
           <p className="mb-1 font-medium">This will:</p>
-          <ul className="list-disc space-y-1 pl-5">
+          <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
             <li>Unlink {repoCount} linked {repoCount === 1 ? "repository" : "repositories"}</li>
             <li>Clear GitHub details from every task</li>
             <li>Revoke OneCamp&apos;s access to GitHub</li>

@@ -1,38 +1,75 @@
 "use client"
 
-// AdminAuditLog — a compliance-grade viewer of admin configuration changes:
-// who changed which sensitive setting, when, and from where. Secret values are
-// never recorded server-side, so this is safe to surface to any admin.
+// AdminAuditLog: a compliance-grade viewer of admin configuration changes and
+// of what agents did for people: who changed which sensitive setting, when,
+// and from where. Secret values are never recorded server-side, so this is
+// safe to surface to any admin.
+//
+// Design v3 (admin A11, mock M4). The rainbow of category pills is gone: a
+// category is a neutral 22px chip with an ink-3 glyph (§1.5), and the one
+// ink that is earned here is danger, on a refusal, the rows an auditor came
+// for. Rows are 44px and open in place into a sunken detail block; they are
+// grouped by day under sticky headers. Verify resolves to a seal row at the
+// top of the list, and Export on the free plan opens the licence note in a
+// popover rather than a banner over the page.
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import EvidenceReceipts from "@/components/admin/EvidenceReceipts"
 import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { usePlan } from "@/hooks/usePlan"
 import { Button } from "@/components/ui/button"
-import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
-import { SegmentedControl } from "@/components/ui/segmentedControl"
-import { StatusWord } from "@/components/ui/statusWord"
+import { Chip } from "@/components/ui/chip"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { RefreshCw, ShieldCheck, Download, FileArchive, ChevronDown, Filter } from "@/lib/icons"
+import {
+    AlertCircle,
+    ArrowRight,
+    Bot,
+    ChevronDown,
+    ChevronRight,
+    Copy,
+    Download,
+    Key,
+    LayoutGrid,
+    Loader2,
+    Lock,
+    Plug,
+    RefreshCw,
+    ScrollText,
+    Search,
+    Shield,
+    ShieldCheck,
+    ShieldX,
+    SlidersHorizontal,
+    Sparkles,
+} from "@/lib/icons"
+import type { LucideIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import { fullDateTime, shortDateTime } from "@/lib/utils/date/shortDate"
+import { fullDateTime, shortDate, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SpotInbox } from "@/components/ui/graphics"
+import { SpotDocs, SpotSearch } from "@/components/ui/graphics"
+import { AgentAvatar, BotAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import type { CampHue } from "@/lib/campHue"
 import {
     getAdminAuditLog,
     verifyAuditLog,
@@ -45,49 +82,22 @@ import {
     type InitiatorKind,
 } from "@/services/settingsService"
 
-// The categories name things, so their colours are identity, not states: one
-// fixed camp hue per category, tint behind ink (AA on every pair), never the
-// accent and never a raw Tailwind hue. Agent is dusk, as agents are wherever
-// the admin page groups them. Status words (Refused, nobody watching) keep
-// their status tokens.
-const CATEGORY_HUE: Record<string, CampHue> = {
-    settings: "sun",
-    integration: "lake",
-    auth: "sky",
-    app: "moss",
-    security: "berry",
-    // Agent activity: an agent acting for a person, including calls arriving over
-    // MCP from outside the workspace. Its own hue because "was this a human or
-    // an agent on their behalf" is the first thing an auditor scans for.
-    agent: "dusk",
-}
-
-const CHIP = "inline-flex max-w-full items-center truncate rounded-sm px-1.5 py-0.5 text-2xs font-medium capitalize"
-
 /**
- * The category's own column, as wide as the widest chip ("integration"), so
- * every summary starts on one line whatever its category. The chip led the row
- * at its own width, and the summaries started anywhere from 575 to 599px.
+ * A category's glyph, always in ink-3 on a neutral chip: a category names a
+ * kind of thing, and hue in this area is for identity only (§1.5). Agent gets
+ * the spark because "a person or an agent on their behalf" is what an
+ * auditor scans for first; a category the server starts recording later
+ * still renders, with the log's own glyph.
  */
-export const CHIP_COLUMN = "w-[5.5rem] shrink-0"
-
-/** A list of rows between hairlines, as every list on the admin page is drawn. */
-const LIST = "divide-y divide-border rounded-lg border border-border"
-
-// Unknown categories still render, in a neutral style. A category the server starts
-// recording is more useful shown plainly than omitted, and omitting it is precisely
-// how `agent` entries became invisible in this view.
-function categoryChipClass(category: string): string {
-    const hue = CATEGORY_HUE[category]
-    return hue ? cn(CHIP, HUE_CLASS[hue], "bg-hue-tint text-hue-ink") : cn(CHIP, "bg-muted text-muted-foreground")
+export const CATEGORY_GLYPH: Record<string, LucideIcon> = {
+    security: Shield,
+    auth: Key,
+    integration: Plug,
+    settings: SlidersHorizontal,
+    agent: Sparkles,
+    app: LayoutGrid,
 }
-
-// "Nobody watching" is on or off, and when on it is the current selection, so
-// it takes the selection's soft accent ground, as the app marks a current
-// place. Not the filled accent: that is the one primary action here (Evidence
-// pack). The categories are a choice of one, so they are the segmented control.
-const FILTER_ON = "bg-brand-muted text-foreground border-brand/40 hover:bg-brand-muted"
-const FILTER_OFF = "text-muted-foreground"
+const glyphOf = (c: string) => CATEGORY_GLYPH[c] ?? ScrollText
 
 /** "integration" as a person reads it: "Integration". */
 const categoryLabel = (c: string) => (c === ALL ? "All" : c.charAt(0).toUpperCase() + c.slice(1))
@@ -96,143 +106,196 @@ const categoryLabel = (c: string) => (c === ALL ? "All" : c.charAt(0).toUpperCas
 const serverReason = (e: unknown) => (apiErrorStatus(e) ? apiErrorMessage(e) : undefined)
 
 // The filter list the component starts with, replaced by whatever the server
-// reports. Kept as a seed so the buttons render on the very first paint instead of
-// appearing a moment later.
+// reports, so the menu has its items on the first paint.
 const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent"]
-
-/**
- * One audit entry.
- *
- * SHOWS THE METADATA, which this view fetched and ignored until now. That blob is where the
- * REASON lives, and the reasons are written to be acted on — "the originating person has no
- * grant on this private doc" is the sentence a reviewer opened the log for, and it was only
- * reachable by exporting CSV.
- *
- * The reason is inline, not behind the disclosure: scanning a list of refusals and their
- * causes is the common task, and burying the cause one click deep turns that into one click
- * per row. Everything else is one keystroke away in a native <details>, which is keyboard
- * and screen-reader accessible without any state of its own.
- */
-function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKinds: Set<string> }) {
-    const meta = parseAuditMetadata(entry.metadata)
-    const reason = auditReason(entry.metadata)
-    const initiator = entryInitiator(entry)
-    // Fields worth expanding for: everything except the reason, which is already shown.
-    const detailFields = meta?.fields.filter((f) => !f.isReason) ?? []
-    const hasDetail = Boolean(meta && (meta.malformed || detailFields.length > 0))
-
-    return (
-        <li className="flex items-start gap-3 px-4 py-3">
-            <span data-audit-chip-column="" className={CHIP_COLUMN}>
-                <span className={categoryChipClass(entry.category)}>{entry.category}</span>
-            </span>
-            <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground">{entry.summary}</p>
-
-                {reason && (
-                    // Never colour-only: a refusal is marked by the word "Refused" as well
-                    // as the tone, so the distinction survives colour blindness and a
-                    // greyscale print of an audit export.
-                    <p className="mt-1 text-xs">
-                        {meta?.refused && (
-                            <span className="font-medium text-danger-ink">Refused: </span>
-                        )}
-                        <span className={meta?.refused ? "text-danger-ink/90" : "text-muted-foreground"}>
-                            {reason}
-                        </span>
-                    </p>
-                )}
-
-                <p className="text-2xs text-muted-foreground mt-0.5">
-                    {/* An agent's row already carries the authorising person in
-                        actor_email, which on its own reads as though they did it
-                        themselves. This is the word that tells the two apart, and
-                        it is omitted rather than defaulted on older entries: the
-                        field did not exist when they were written, and guessing
-                        "human" would put an assertion into a compliance record
-                        that nothing supports. */}
-                    {entry.actor_kind === "agent" && <span className="text-warning-ink">agent · </span>}
-                    {/* WHO STARTED IT, as distinct from whose authority it carried. A
-                        row whose initiator nobody watched says so in a word, because
-                        "ran on Priya's authority" and "ran while Priya was asleep" are
-                        the same actor and different facts. Omitted, not defaulted, on
-                        a row that never said. */}
-                    {initiator && (
-                        <span className={unattendedKinds.has(initiator) ? "text-warning-ink" : ""}>
-                            {unattendedKinds.has(initiator) ? `${initiator}, nobody watching · ` : `${initiator} · `}
-                        </span>
-                    )}
-                    {entry.actor_kind === "system" && <span>system · </span>}
-                    {entry.actor_email || "Unknown"}
-                    {entry.ip_address ? ` · ${entry.ip_address}` : ""}
-                    {" · "}
-                    <AuditTime iso={entry.created_at} />
-                </p>
-
-                {hasDetail && (
-                    <details className="mt-1.5 group">
-                        <summary className="cursor-pointer text-2xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded w-fit">
-                            <span className="group-open:hidden">Show details</span>
-                            <span className="hidden group-open:inline">Hide details</span>
-                        </summary>
-                        {meta?.malformed ? (
-                            // Surfaced rather than dropped: an unparseable blob is still
-                            // evidence, and hiding it would lose it entirely.
-                            <pre className="mt-1.5 overflow-x-auto rounded bg-muted/40 p-2 text-2xs text-muted-foreground">
-                                {meta.raw}
-                            </pre>
-                        ) : (
-                            <dl className="mt-1.5 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-x-3 gap-y-1 rounded bg-muted/40 p-2 text-2xs">
-                                {detailFields.map((f) => (
-                                    <React.Fragment key={f.key}>
-                                        <dt className="text-muted-foreground">{f.label}</dt>
-                                        <dd className="font-mono text-foreground [overflow-wrap:anywhere]">{f.value}</dd>
-                                    </React.Fragment>
-                                ))}
-                            </dl>
-                        )}
-                    </details>
-                )}
-            </div>
-        </li>
-    )
-}
 
 const ALL = "all"
 /** Entries read at a time; a page that comes back shorter was the last. */
 const PAGE = 50
 
-/**
- * When an entry was written, in the app's one format ("10 Oct, 8:42 AM"), with
- * the whole date in its tooltip. It was the browser's locale ("Oct 10, 08:42
- * AM"), so one record read differently on each auditor's machine.
- */
-function AuditTime({ iso }: { iso: string }) {
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return <>{iso}</>
+/** The category as a neutral 22px chip with a 14px ink-3 glyph. Never a hue. */
+export function CategoryChip({ category }: { category: string }) {
+    const Icon = glyphOf(category)
     return (
-        <time dateTime={iso} title={fullDateTime(d)} className="tabular-nums">
-            {shortDateTime(d)}
-        </time>
+        <span data-audit-category={category} className="audit-chip chip shrink-0">
+            <Icon aria-hidden="true" />
+            {categoryLabel(category)}
+        </span>
     )
 }
 
+/** Who acted, at 22px: a person's circle, an agent's square, the system's bot square. */
+function ActorMark({ entry }: { entry: AuditEntry }) {
+    if (entry.actor_kind === "agent")
+        return (
+            <span className="audit-actor inline-flex" title="An agent">
+                <AgentAvatar />
+            </span>
+        )
+    if (entry.actor_kind === "system" || !entry.actor_email)
+        return (
+            <span className="audit-actor inline-flex" title="The system">
+                <BotAvatar>
+                    <Bot />
+                </BotAvatar>
+            </span>
+        )
+    const name = entry.actor_email.split("@")[0]
+    return (
+        <Avatar className="audit-actor size-[22px]" title={entry.actor_email}>
+            <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(name))}>{getNameInitials(name).charAt(0)}</AvatarFallback>
+        </Avatar>
+    )
+}
+
+/** "Today", "Yesterday", or "Thu 8 Oct": a day header's words. Pure. */
+export function dayLabel(iso: string, now: Date = new Date()): string {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return "Undated"
+    const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+    const days = Math.round((start(now) - start(d)) / 86_400_000)
+    if (days === 0) return "Today"
+    if (days === 1) return "Yesterday"
+    return `${d.toLocaleDateString("en-GB", { weekday: "short" })} ${shortDate(d, now)}`
+}
+
+/** Entries in runs of one day, newest first, as the server sends them. Pure. */
+export function byDay(entries: AuditEntry[], now: Date = new Date()): { day: string; entries: AuditEntry[] }[] {
+    const out: { day: string; entries: AuditEntry[] }[] = []
+    for (const e of entries) {
+        const day = dayLabel(e.created_at, now)
+        const last = out[out.length - 1]
+        if (last && last.day === day) last.entries.push(e)
+        else out.push({ day, entries: [e] })
+    }
+    return out
+}
+
 /**
- * The rows the log is about to show, in the list's own frame, padding and
- * columns, so nothing moves when they arrive. Its rows sat 8px further in than
- * the loaded ones, which were pulled out by a margin the skeleton didn't have.
+ * One audit entry: a 44px row (time, who, what, its category), opening in
+ * place to the sunken detail block.
+ *
+ * THE REASON IS INLINE, not behind the disclosure: scanning refusals and
+ * their causes is the common task. A refusal carries the danger glyph before
+ * its summary and the reason in danger ink, and the word "Refused" as well,
+ * so the distinction survives colour blindness and a greyscale print.
+ *
+ * WHO STARTED IT, as distinct from whose authority it carried: a row whose
+ * initiator nobody watched says so in words. Omitted, not defaulted, on a row
+ * that never said.
  */
+function AuditRow({
+    entry,
+    unattendedKinds,
+    open,
+    onToggle,
+    live,
+}: {
+    entry: AuditEntry
+    unattendedKinds: Set<string>
+    open: boolean
+    onToggle: () => void
+    live?: boolean
+}) {
+    const meta = parseAuditMetadata(entry.metadata)
+    const reason = auditReason(entry.metadata)
+    const initiator = entryInitiator(entry)
+    const refused = !!meta?.refused
+    const detailFields = meta?.fields.filter((f) => !f.isReason) ?? []
+    const { copy } = useCopyToClipboard()
+    const detailId = `audit-detail-${entry.id}`
+    const d = new Date(entry.created_at)
+    const valid = !Number.isNaN(d.getTime())
+
+    return (
+        <li data-audit-row="" data-open={open ? "true" : undefined} data-live={live ? "true" : undefined} data-refused={refused ? "true" : undefined} className="audit-row" id={`audit-${entry.id}`}>
+            <button type="button" className="audit-row-head focus-visible:outline-2 focus-visible:outline-ring" aria-expanded={open} aria-controls={detailId} onClick={onToggle}>
+                <span className="audit-time">
+                    {valid ? (
+                        <time dateTime={entry.created_at} title={fullDateTime(d)}>
+                            {shortTime(d)}
+                        </time>
+                    ) : (
+                        entry.created_at
+                    )}
+                </span>
+                <ActorMark entry={entry} />
+                <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        {refused && <AlertCircle data-refusal-glyph="" className="size-3.5 shrink-0 text-danger-ink" aria-label="Refused" />}
+                        <span className="truncate text-sm font-book text-foreground">{entry.summary}</span>
+                        <span className="hidden min-w-0 shrink truncate text-2xs text-ink-3 sm:inline">
+                            {entry.actor_kind === "agent" && <span>agent · </span>}
+                            {initiator && (unattendedKinds.has(initiator) ? <span className="text-camp-sun-ink">{`${initiator}, nobody watching · `}</span> : <span>{`${initiator} · `}</span>)}
+                            {entry.actor_kind === "system" && <span>system · </span>}
+                            {entry.actor_email || "Unknown"}
+                        </span>
+                    </span>
+                    {reason && (
+                        <span data-audit-reason="" className={cn("mt-0.5 block truncate text-xs", refused ? "text-danger-ink" : "text-ink-2")}>
+                            {refused && <span className="font-medium">Refused: </span>}
+                            {reason}
+                        </span>
+                    )}
+                </span>
+                <CategoryChip category={entry.category} />
+                <ChevronRight className="audit-chevron size-4" aria-hidden="true" />
+            </button>
+            {open && (
+                <div id={detailId} data-audit-detail="" className="audit-detail">
+                    {meta?.malformed ? (
+                        // Surfaced rather than dropped: an unparseable blob is still evidence.
+                        <pre className="overflow-x-auto font-mono text-2xs text-ink-2">{meta.raw}</pre>
+                    ) : (
+                        <dl className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+                            <dt className="text-ink-3">When</dt>
+                            <dd>{valid ? shortDateTime(d) : entry.created_at}</dd>
+                            <dt className="text-ink-3">Who</dt>
+                            <dd className="break-words">{entry.actor_email || "Unknown"}</dd>
+                            {entry.ip_address && (
+                                <>
+                                    <dt className="text-ink-3">IP</dt>
+                                    <dd className="font-mono">{entry.ip_address}</dd>
+                                </>
+                            )}
+                            {entry.user_agent && (
+                                <>
+                                    <dt className="text-ink-3">Browser</dt>
+                                    <dd className="break-words">{entry.user_agent}</dd>
+                                </>
+                            )}
+                            <dt className="text-ink-3">Action</dt>
+                            <dd className="font-mono">{entry.action}</dd>
+                            {detailFields.map((f) => (
+                                <React.Fragment key={f.key}>
+                                    <dt className="text-ink-3">{f.label}</dt>
+                                    <dd className="font-mono [overflow-wrap:anywhere]">{f.value}</dd>
+                                </React.Fragment>
+                            ))}
+                        </dl>
+                    )}
+                    <Button type="button" variant="ghost" size="xs" className="mt-2 -ml-1.5" onClick={() => void copy(JSON.stringify(entry, null, 2), "Entry copied as JSON")}>
+                        <Copy aria-hidden="true" />
+                        Copy entry JSON
+                    </Button>
+                </div>
+            )}
+        </li>
+    )
+}
+
+/** The rows the log is about to show, in its own shape: ten 44px rows. */
 export function AuditSkeleton() {
     return (
-        <ul role="status" aria-busy="true" aria-label="Loading the audit log" className={LIST}>
-            {Array.from({ length: 6 }).map((_, i) => (
-                <li key={i} className="flex items-start gap-3 px-4 py-3" aria-hidden="true">
-                    <span className={CHIP_COLUMN}>
-                        <Skeleton className="h-5 w-16" />
-                    </span>
-                    <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
+        <ul role="status" aria-busy="true" aria-label="Loading the audit log" data-audit-skeleton="">
+            {Array.from({ length: 10 }).map((_, i) => (
+                <li key={i} className="audit-row" aria-hidden="true">
+                    <div className="audit-row-head">
+                        <Skeleton className="h-3 w-10" />
+                        <Skeleton variant="circle" className="size-[22px]" />
                         <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/5" : "w-1/2")} />
-                        <Skeleton className="h-3 w-2/5" />
+                        <Skeleton className="h-[22px] w-20 rounded-sm" />
+                        <span />
                     </div>
                 </li>
             ))}
@@ -240,29 +303,105 @@ export function AuditSkeleton() {
     )
 }
 
+/**
+ * What Verify found, pinned at the top of the list: a moss shield and how far
+ * the check reached, or the danger version naming the first broken row. A
+ * windowed check is never allowed to read as the whole chain.
+ */
+function SealRow({
+    result,
+    at,
+    onFull,
+    verifying,
+    onJump,
+    locked,
+}: {
+    result: AuditVerifyResult
+    at: Date
+    onFull: () => void
+    verifying: boolean
+    onJump?: () => void
+    locked: boolean
+}) {
+    const rows = `${result.checked.toLocaleString("en")} ${result.checked === 1 ? "row" : "rows"} checked`
+    return (
+        <div data-verify-result="" data-seal="" data-ok={result.ok ? "true" : "false"} role="status" className="audit-seal">
+            <span className="audit-seal-tile" aria-hidden="true">
+                {result.ok ? <ShieldCheck className="size-4" /> : <ShieldX className="size-4" />}
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">
+                    {result.ok
+                        ? result.partial
+                            ? `Recent verified · ${rows}`
+                            : `Whole chain verified · intact from the first entry · ${rows}`
+                        : `Tampering detected${result.first_bad_seq ? ` at row #${result.first_bad_seq}` : ""}`}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-2">
+                    <time dateTime={at.toISOString()}>{shortTime(at)}</time>
+                    {result.ok && result.redacted ? ` · ${result.redacted} taken at their word after redaction` : ""}
+                    {!result.ok && <span title={result.message}>{` · ${result.message}`}</span>}
+                </p>
+                {/* Offered only after a windowed check passed: the bounded check is
+                    the default because a full walk on a year-old log is when the
+                    button stops answering; this is for the reader who needs the
+                    claim to cover everything, labelled as the slower thing. */}
+                {result.ok && result.partial && (
+                    <p className="mt-1 text-xs text-ink-2">
+                        Checked the most recent {result.checked.toLocaleString("en")} entries
+                        {result.from_seq ? ` (from #${result.from_seq} onwards)` : ""}, not the whole log.{" "}
+                        <button
+                            type="button"
+                            onClick={onFull}
+                            disabled={verifying}
+                            className="rounded-sm font-medium text-brand-text underline-offset-[3px] hover:underline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+                        >
+                            Check the whole chain
+                        </button>{" "}
+                        (slower, because it starts from the first entry ever written).
+                    </p>
+                )}
+            </div>
+            {!result.ok && onJump ? (
+                <Button type="button" variant="secondary" size="sm" onClick={onJump}>
+                    Jump to row
+                </Button>
+            ) : result.ok && !locked ? (
+                <Link href="/app/admin/evidence" className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-ink-2 hover:text-foreground">
+                    Evidence pack
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                </Link>
+            ) : null}
+        </div>
+    )
+}
+
 export default function AdminAuditLog() {
     const [entries, setEntries] = useState<AuditEntry[]>([])
     const [loading, setLoading] = useState(true)
-    // A failed read is not an empty log: said as such, with Try again, and
-    // with the server's reason when it gave one.
+    // A failed read is not an empty log: said as such, with Try again.
     const [failed, setFailed] = useState(false)
     const [failure, setFailure] = useState<string | undefined>(undefined)
-    // Whether the server may hold entries past the ones shown.
     const [hasOlder, setHasOlder] = useState(false)
     const [loadingOlder, setLoadingOlder] = useState(false)
     const [filter, setFilter] = useState<string>(ALL)
     const [categories, setCategories] = useState<string[]>(SEED_CATEGORIES)
     // The one filter an auditor reaches for first: what ran on somebody's
-    // authority while they were away. A toggle rather than one chip per kind,
-    // because the question is binary and the kinds are served alongside so a
-    // row can still name its own.
+    // authority while they were away. The server filters, so it covers the
+    // whole log and not only the rows already read.
     const [unattendedOnly, setUnattendedOnly] = useState(false)
     const [initiators, setInitiators] = useState<InitiatorKind[]>([])
-    const unattendedKinds = new Set(initiators.filter((k) => k.unattended).map((k) => k.kind))
+    const unattendedKinds = useMemo(() => new Set(initiators.filter((k) => k.unattended).map((k) => k.kind)), [initiators])
+    const [search, setSearch] = useState("")
+    const [open, setOpen] = useState<string | null>(null)
     const { toast } = useToast()
     const [verifying, setVerifying] = useState(false)
     const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
+    const [verifiedAt, setVerifiedAt] = useState<Date>(() => new Date())
     const [exporting, setExporting] = useState(false)
+    // Rows that arrive on a refresh get the brief wash.
+    const seen = useRef<Set<string> | null>(null)
+    const [fresh, setFresh] = useState<Set<string>>(new Set())
     // Export and the evidence pack are a company control (the free plan leaves
     // them out); the log itself and verifying its chain are on every plan.
     const plan = usePlan()
@@ -274,16 +413,17 @@ export default function AdminAuditLog() {
         setFailure(undefined)
         getAdminAuditLog(cat === ALL ? undefined : cat, PAGE, 0, unattended ? UNATTENDED : undefined)
             .then((page) => {
+                const before = seen.current
+                setFresh(before ? new Set(page.entries.filter((e) => !before.has(e.id)).map((e) => e.id)) : new Set())
+                seen.current = new Set(page.entries.map((e) => e.id))
                 setEntries(page.entries)
                 setHasOlder(page.entries.length === PAGE)
-                // Only replace the filter list when the server actually sent one, so
-                // a partial response never removes a filter mid-session.
+                // Only replace the filter list when the server sent one, so a
+                // partial response never removes a filter mid-session.
                 if (page.categories.length > 0) setCategories(page.categories)
                 if (page.initiators.length > 0) setInitiators(page.initiators)
             })
             .catch((e) => {
-                // It said "No audit entries yet", which a reviewer reads as a fact
-                // about the workspace rather than a request that failed.
                 setEntries([])
                 setHasOlder(false)
                 setFailed(true)
@@ -293,24 +433,25 @@ export default function AdminAuditLog() {
     }
 
     // The next fifty, after the ones shown. The log only grows, and with export
-    // locked on the free plan this was the only way to reach anything older.
+    // locked on the free plan this is the only way to reach anything older.
     const loadOlder = () => {
         setLoadingOlder(true)
         getAdminAuditLog(filter === ALL ? undefined : filter, PAGE, entries.length, unattendedOnly ? UNATTENDED : undefined)
             .then((page) => {
                 setEntries((prev) => {
-                    const seen = new Set(prev.map((e) => e.id))
-                    return [...prev, ...page.entries.filter((e) => !seen.has(e.id))]
+                    const ids = new Set(prev.map((e) => e.id))
+                    return [...prev, ...page.entries.filter((e) => !ids.has(e.id))]
                 })
                 setHasOlder(page.entries.length === PAGE)
             })
             .catch((e) => {
-                toast({ title: "Couldn't load older entries", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                toast({ title: "Couldn't load older entries", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })
             })
             .finally(() => setLoadingOlder(false))
     }
 
     useEffect(() => {
+        seen.current = null
         load(filter, unattendedOnly)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filter, unattendedOnly])
@@ -320,33 +461,25 @@ export default function AdminAuditLog() {
         try {
             const res = await verifyAuditLog(scope)
             setVerifyResult(res)
-            if (res) {
-                toast({
-                    title: res.ok ? "Audit log verified" : "Integrity check failed",
-                    description: res.ok ? `${res.checked} entries, chain intact` : res.message,
-                    variant: res.ok ? undefined : "destructive",
-                })
-            }
+            setVerifiedAt(new Date())
         } catch (e) {
-            toast({ title: "Couldn't check the log", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't check the log", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })
         } finally {
             setVerifying(false)
         }
     }
 
-    // The evidence pack is a different deliverable from the export beside it, so
-    // it gets its own control rather than a third format on the same one. The
-    // export hands over rows; this hands over a document a reviewer can act on.
     const handleEvidencePack = async () => {
         setExporting(true)
         try {
             await downloadEvidencePack()
             toast({
                 title: "Evidence pack downloaded",
-                description: "Covers the last 90 days: the log with its chain recomputation, what each agent was told, and a manifest fingerprinting every section.",
+                description: "The last 90 days: the log with its chain recomputation, what each agent was told, and a manifest fingerprinting every section.",
+                tone: "success",
             })
         } catch (e) {
-            toast({ title: "Couldn't build the evidence pack", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't build the evidence pack", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })
         } finally {
             setExporting(false)
         }
@@ -355,13 +488,21 @@ export default function AdminAuditLog() {
     const handleExport = async (format: "csv" | "json") => {
         setExporting(true)
         try {
-            await exportAuditLog(format, filter === "all" ? undefined : filter)
+            await exportAuditLog(format, filter === ALL ? undefined : filter)
         } catch (e) {
-            toast({ title: "Couldn't export the log", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't export the log", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })
         } finally {
             setExporting(false)
         }
     }
+
+    // The search narrows the entries read so far, and says so when it finds none.
+    const q = search.trim().toLowerCase()
+    const shown = useMemo(
+        () => (q ? entries.filter((e) => `${e.summary} ${e.actor_email ?? ""} ${e.category} ${e.action}`.toLowerCase().includes(q)) : entries),
+        [entries, q],
+    )
+    const groups = useMemo(() => byDay(shown), [shown])
 
     const filtered = filter !== ALL || unattendedOnly
     const showAll = () => {
@@ -369,181 +510,212 @@ export default function AdminAuditLog() {
         setUnattendedOnly(false)
     }
 
+    const jumpTo = verifyResult && !verifyResult.ok ? entries.find((e) => e.id === verifyResult.first_bad_id) : undefined
+
+    const exportButton = exportLocked ? (
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="secondary" size="sm" className="h-11 md:h-7" data-export-locked="">
+                    <Lock aria-hidden="true" />
+                    Export
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[360px] p-0">
+                <PlanLockedNotice what="Exporting the audit log" upgradeUrl={plan.upgradeUrl} className="rounded-none shadow-none" />
+            </PopoverContent>
+        </Popover>
+    ) : (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="sm" className="h-11 md:h-7" disabled={exporting}>
+                    <Download aria-hidden="true" />
+                    Export
+                    <ChevronDown className="text-ink-3" aria-hidden="true" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void handleExport("csv")}>The log as CSV</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void handleExport("json")}>The log as JSON</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {/* READ FIRST, DOWNLOAD SECOND: nobody hands an auditor a JSON
+                    file. The document is a link, so it can be opened in a tab and
+                    its address sent. */}
+                <DropdownMenuItem asChild>
+                    <Link href="/app/admin/evidence">Open the evidence pack</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onSelect={() => void handleEvidencePack()}
+                    title="The same pack as a file. The fingerprint is a digest of these bytes, so verification happens against the file."
+                >
+                    The evidence pack file
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+
     return (
-        <SettingsSection
-            id="audit-log"
-            title="Audit log"
-            description="Every change admins make to settings, and what agents did for people. Each entry is chained to the one before, so Verify shows whether any was altered or removed. Secret values are never recorded, only that they changed."
-            action={
-                <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className={cn(sectionActionClass, "gap-1.5")}
-                        onClick={() => handleVerify("recent")}
-                        disabled={verifying}
-                    >
-                        <ShieldCheck className={verifying ? "animate-pulse" : undefined} />
-                        Verify
-                    </Button>
-                    {!exportLocked && (
-                        <>
-                            {/* The three files in one menu: the log as rows (CSV, JSON)
-                                and the pack as the file its fingerprint is a digest of.
-                                Four outline buttons and the pack in a row squeezed the
-                                description beside them to a few words a line. */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className={cn(sectionActionClass, "gap-1.5")} disabled={exporting}>
-                                        <Download />
-                                        Export
-                                        <ChevronDown className="text-muted-foreground" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onSelect={() => void handleExport("csv")}>The log as CSV</DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => void handleExport("json")}>The log as JSON</DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        onSelect={() => void handleEvidencePack()}
-                                        title="The same pack as a file. The fingerprint is a digest of these bytes, so verification happens against the file."
-                                    >
-                                        The evidence pack file
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            {/* READ FIRST, DOWNLOAD SECOND, and that order is the point.
-                                Nobody hands an auditor a JSON file; the primary action is
-                                the document, with the file in the menu beside it for the
-                                reader who is going to verify the digests. A LINK, not a
-                                button with a push: the pack is a document somebody sends
-                                to somebody else, so open-in-new-tab and copy-link work. */}
-                            <Button asChild size="sm" className={cn(sectionActionClass, "gap-1.5")}>
-                                <Link
-                                    href="/app/admin/evidence"
-                                    title="The log, the chain recomputation, what each agent was told, and a manifest fingerprinting every section, as one document you can read, print or send"
-                                >
-                                    <FileArchive />
-                                    Evidence pack
-                                </Link>
-                            </Button>
-                        </>
-                    )}
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-11 md:size-8"
-                        onClick={() => load(filter)}
-                        aria-label="Refresh the log"
-                    >
-                        <RefreshCw className={loading ? "animate-spin" : undefined} />
-                    </Button>
-                </>
-            }
-        >
-            {exportLocked && <PlanLockedNotice what="Exporting the audit log" upgradeUrl={plan.upgradeUrl} />}
-
-            {/* What Verify found, said as a state in words (never by colour
-                alone), with how far it reached. */}
-            {verifyResult && (
-                <p data-verify-result="" className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
-                    <StatusWord tone={verifyResult.ok ? "success" : "danger"} className="font-medium">
-                        {verifyResult.ok ? `${verifyResult.partial ? "Recent" : "Whole chain"} verified` : "Tampering detected"}
-                    </StatusWord>
-                    <span className="text-muted-foreground" title={verifyResult.message}>
-                        {verifyResult.ok
-                            ? `· ${verifyResult.checked.toLocaleString()} ${verifyResult.checked === 1 ? "entry" : "entries"}`
-                            : `· ${verifyResult.message}`}
-                    </span>
-                </p>
-            )}
-            {/* Offered only AFTER a windowed check comes back, and only when it
-                passed. Verify is bounded by default because the log only grows
-                and a full walk on a year-old workspace is the moment the button
-                stops answering at all. The fast result is the useful one; this is
-                for the reader who needs the claim to cover everything, and it is
-                labelled as the slower thing so nobody clicks it by reflex. */}
-            {verifyResult?.ok && verifyResult.partial && (
-                <p className="text-xs text-muted-foreground">
-                    Checked the most recent {verifyResult.checked.toLocaleString()} entries
-                    {verifyResult.from_seq ? ` (from #${verifyResult.from_seq} onwards)` : ""}, not the whole log.{" "}
-                    <button
-                        type="button"
-                        onClick={() => handleVerify("full")}
-                        disabled={verifying}
-                        className="rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50"
-                    >
-                        Check the whole chain
-                    </button>{" "}
-                    (slower, because it starts from the first entry ever written).
-                </p>
-            )}
-
-            {/* One choice of category, from the ones the SERVER records rather
-                than a list kept here, as the segmented control every other choice
-                of one uses; and, apart from it because it cuts across them, the
-                one question an auditor asks first: what ran while nobody watched. */}
-            <div data-audit-filters="" className="flex flex-wrap items-center gap-2">
-                <SegmentedControl
-                    aria-label="Filter audit entries by category"
-                    value={filter}
-                    onValueChange={setFilter}
-                    options={[ALL, ...categories].map((c) => ({ value: c, label: categoryLabel(c) }))}
-                />
+        // No title of its own: the page frame names the section (the one-title rule).
+        <section id="audit-log" aria-label="Audit log" data-audit-log="" className="space-y-3">
+            <div data-audit-toolbar="" className="flex min-h-11 flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 md:w-[260px] md:flex-none">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+                    <Input
+                        type="search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search the log…"
+                        aria-label="Search the log"
+                        autoComplete="off"
+                        className="h-8 pl-8"
+                    />
+                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="sm" className="h-11 md:h-7" aria-label="Filter audit entries by category">
+                            Category
+                            <ChevronDown className="text-ink-3" aria-hidden="true" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-[200px]">
+                        <DropdownMenuLabel className="text-2xs font-medium text-ink-3">Category</DropdownMenuLabel>
+                        {/* One at a time: the server filters by one category. */}
+                        <DropdownMenuRadioGroup value={filter} onValueChange={setFilter}>
+                            <DropdownMenuRadioItem value={ALL}>All</DropdownMenuRadioItem>
+                            {categories.map((c) => {
+                                const Icon = glyphOf(c)
+                                return (
+                                    <DropdownMenuRadioItem key={c} value={c} className="gap-2">
+                                        <Icon className="size-3.5 text-ink-3" aria-hidden="true" />
+                                        {categoryLabel(c)}
+                                    </DropdownMenuRadioItem>
+                                )
+                            })}
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                     size="sm"
-                    variant="outline"
-                    className={cn("ml-auto h-11 md:h-9", unattendedOnly ? FILTER_ON : FILTER_OFF)}
+                    variant="secondary"
+                    className={cn("h-11 md:h-7", unattendedOnly && "bg-press")}
                     aria-pressed={unattendedOnly}
                     title="Only what ran on somebody's authority while they were away: scheduled runs, event-triggered runs, and work one agent handed to another"
                     onClick={() => setUnattendedOnly((v) => !v)}
                 >
                     Nobody watching
                 </Button>
+                {/* The filters in use, as neutral chips with ×. */}
+                {filter !== ALL && (
+                    <Chip onRemove={() => setFilter(ALL)} removeLabel={`Stop filtering by ${categoryLabel(filter)}`}>
+                        {categoryLabel(filter)}
+                    </Chip>
+                )}
+                {unattendedOnly && (
+                    <Chip onRemove={() => setUnattendedOnly(false)} removeLabel="Show attended runs too">
+                        Nobody watching
+                    </Chip>
+                )}
+                <div data-audit-actions="" className="ml-auto flex items-center gap-2">
+                    {verifying ? (
+                        <span role="status" className="audit-verify-pill inline-flex h-7 items-center gap-1.5 rounded-md bg-raised px-2.5 text-xs font-medium shadow-e1">
+                            <Loader2 className="size-4 animate-spin text-brand" aria-hidden="true" />
+                            Checking…
+                        </span>
+                    ) : (
+                        <Button variant="secondary" size="sm" className="h-11 md:h-7" onClick={() => handleVerify("recent")}>
+                            <ShieldCheck aria-hidden="true" />
+                            Verify
+                        </Button>
+                    )}
+                    {exportButton}
+                    <Button variant="ghost" size="icon-sm" className="max-md:size-11" onClick={() => load(filter)} aria-label="Refresh the log">
+                        <RefreshCw className={loading ? "animate-spin" : undefined} aria-hidden="true" />
+                    </Button>
+                </div>
             </div>
 
-            {/* The failure is checked before the empty case: both leave the
-                list empty, and only one of them is true. */}
+            {verifyResult && (
+                <SealRow
+                    result={verifyResult}
+                    at={verifiedAt}
+                    verifying={verifying}
+                    onFull={() => void handleVerify("full")}
+                    locked={exportLocked}
+                    onJump={
+                        jumpTo
+                            ? () => {
+                                  setOpen(jumpTo.id)
+                                  document.getElementById(`audit-${jumpTo.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })
+                              }
+                            : undefined
+                    }
+                />
+            )}
+
+            {/* The failure is checked before the empty case: both leave the list
+                empty, and only one of them is true. */}
             {loading && entries.length === 0 ? (
                 <AuditSkeleton />
             ) : failed && entries.length === 0 ? (
                 <ErrorState compact subject="the audit log" detail={failure} onRetry={() => load(filter)} retrying={loading} />
             ) : entries.length === 0 && filtered ? (
                 <EmptyState
-                    icon={Filter}
-                    hue={ADMIN_GROUP_HUE.workspace}
+                    illustration={<SpotSearch hue={ADMIN_GROUP_HUE.workspace} />}
                     title="No entries match this filter"
-                    description="Nothing recorded in this category, or while nobody was watching, in the entries read so far."
+                    description="Nothing recorded in this category, or while nobody was watching."
                     action={
-                        <Button variant="outline" size="sm" onClick={showAll}>
+                        <Button variant="ghost" size="sm" onClick={showAll}>
                             Show every entry
                         </Button>
                     }
                 />
             ) : entries.length === 0 ? (
-                // Nothing recorded yet, a first run: the inbox, in the workspace group's hue.
                 <EmptyState
-                    illustration={<SpotInbox hue={ADMIN_GROUP_HUE.workspace} />}
+                    tone="accent"
+                    illustration={<SpotDocs hue={ADMIN_GROUP_HUE.workspace} />}
                     title="No audit entries yet"
                     description="Changes to settings, and what agents do for people, are recorded here as they happen."
                 />
+            ) : shown.length === 0 ? (
+                <EmptyState
+                    illustration={<SpotSearch hue={ADMIN_GROUP_HUE.workspace} />}
+                    title={`Nothing matches “${search.trim()}”.`}
+                    description={`In the ${entries.length} entries read so far.`}
+                    action={
+                        <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
+                            Clear search
+                        </Button>
+                    }
+                />
             ) : (
-                // No scroller of its own: the admin page's tab region scrolls,
-                // so the log grows with the page instead of inside a box.
+                // No scroller of its own: the admin page's tab region scrolls.
                 <>
-                    <ul aria-label="Audit entries" className={LIST}>
-                        {entries.map((e) => (
-                            <AuditRow key={e.id} entry={e} unattendedKinds={unattendedKinds} />
+                    <div aria-label="Audit entries" role="list" data-audit-list="">
+                        {groups.map((g) => (
+                            <div key={g.day} role="listitem" data-audit-day-group="">
+                                <h3 className="audit-day">{g.day}</h3>
+                                <ul aria-label={g.day}>
+                                    {g.entries.map((e) => (
+                                        <AuditRow
+                                            key={e.id}
+                                            entry={e}
+                                            unattendedKinds={unattendedKinds}
+                                            open={open === e.id}
+                                            live={fresh.has(e.id)}
+                                            onToggle={() => setOpen((o) => (o === e.id ? null : e.id))}
+                                        />
+                                    ))}
+                                </ul>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                     {hasOlder && (
-                        <Button variant="outline" size="sm" onClick={loadOlder} disabled={loadingOlder}>
+                        <Button variant="secondary" size="sm" onClick={loadOlder} disabled={loadingOlder}>
                             {loadingOlder ? "Loading older entries…" : "Show older entries"}
                         </Button>
                     )}
                 </>
             )}
             <EvidenceReceipts />
-        </SettingsSection>
+        </section>
     )
 }

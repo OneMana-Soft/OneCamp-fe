@@ -34,7 +34,7 @@ describe("new webhook", () => {
     const incoming = screen.getByRole("radio", { name: "Incoming" })
     expect(group.contains(incoming)).toBe(true)
     expect(incoming.getAttribute("data-state")).toBe("checked")
-    expect(incoming.className).toContain("data-[state=checked]:bg-card")
+    expect(incoming.className).toContain("data-[state=checked]:bg-raised")
     expect(incoming.className).not.toMatch(/(^|\s)bg-background(\s|$)/)
   })
 

@@ -8,36 +8,69 @@
  * sat unused. This asks only when the admin clicks: the server then makes one
  * plain request for the current releases, carrying nothing about this
  * workspace. The host and the command come from the server.
+ *
+ * Design v3 (admin A21, mock M8): a version row ("OneCamp 2.71.0", a moss dot,
+ * "You're up to date · checked 2 m ago"); when a release is out the row
+ * becomes a release card with a New tag, its top changes when the server
+ * sends them, the notes link when it sends one, and the update command as a
+ * code row with copy. The refresh glyph turns once per check, not for as
+ * long as the check runs.
  */
 
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
-import { cn } from "@/lib/utils/helpers/cn"
-import { CheckCircle2, Copy, Download, Info, Loader2, RefreshCw } from "@/lib/icons"
-import { useToast } from "@/hooks/use-toast"
+import { SettingsCard, SettingsSection } from "@/components/ui/settingsSection"
+import { CodeRow } from "@/components/ui/settingsControls"
+import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
+import { ArrowRight, RefreshCw } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { checkForUpdates, updateSummary, type UpdateStatus, type UpdateTone } from "@/services/updatesService"
 
-// News in the status colours: an available update is information (info),
-// not an action, so it no longer takes the accent, which means "press me".
-const TONE_ICON: Record<UpdateTone, React.ReactNode> = {
-    current: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />,
-    available: <Download className="mt-0.5 h-4 w-4 shrink-0 text-info-ink" />,
-    unknown: <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />,
+/**
+ * What a release may carry beyond today's answer: its top changes and a link
+ * to its notes. The server sends neither yet; the card shows them when it does.
+ */
+type Release = UpdateStatus & { highlights?: string[]; notes_url?: string }
+
+const TONE: Record<UpdateTone, StatusTone> = { current: "success", available: "success", unknown: "neutral" }
+
+/** "just now", "2 m ago", "3 h ago", then the date. Pure. */
+export function checkedAgo(at: Date, now: Date = new Date()): string {
+    const s = Math.max(0, Math.round((now.getTime() - at.getTime()) / 1000))
+    if (s < 45) return "just now"
+    const m = Math.round(s / 60)
+    if (m < 60) return `${m} m ago`
+    const h = Math.round(m / 60)
+    if (h < 24) return `${h} h ago`
+    return shortDate(at)
 }
 
+/** "v2.71.0" reads "2.71.0" after the product's name. Pure. */
+const bare = (tag: string) => tag.replace(/^v(?=\d)/, "")
+
 const UpdatesCard: React.FC = () => {
-    const { toast } = useToast()
-    const [status, setStatus] = useState<UpdateStatus | null>(null)
+    const [status, setStatus] = useState<Release | null>(null)
+    const [checkedAt, setCheckedAt] = useState<Date | null>(null)
     const [checking, setChecking] = useState(false)
     const [error, setError] = useState("")
+    // Bumped per check, so the glyph's one turn replays.
+    const [turns, setTurns] = useState(0)
+    // Re-renders "2 m ago" as the minutes pass.
+    const [, setTick] = useState(0)
+    useEffect(() => {
+        if (!checkedAt) return
+        const t = window.setInterval(() => setTick((n) => n + 1), 30_000)
+        return () => window.clearInterval(t)
+    }, [checkedAt])
 
     const check = useCallback(async () => {
         setChecking(true)
+        setTurns((n) => n + 1)
         setError("")
         try {
             setStatus(await checkForUpdates())
+            setCheckedAt(new Date())
         } catch (e) {
             setError(apiErrorMessage(e, "Couldn't check for updates."))
         } finally {
@@ -45,74 +78,81 @@ const UpdatesCard: React.FC = () => {
         }
     }, [])
 
-    const copy = useCallback(
-        async (text: string) => {
-            try {
-                await navigator.clipboard.writeText(text)
-                toast({ title: "Copied", description: "Paste it on the server, with your licence key in place of YOUR-LICENSE-KEY." })
-            } catch {
-                toast({ title: "Couldn't copy", description: "Select the command and copy it yourself.", variant: "destructive" })
-            }
-        },
-        [toast],
+    const summary = status ? updateSummary(status) : null
+    const available = summary?.tone === "available"
+
+    const checkButton = (
+        <Button variant="secondary" size="sm" onClick={() => void check()} disabled={checking} className="shrink-0">
+            <RefreshCw key={turns} className={turns ? "cfg-spin-once" : undefined} aria-hidden="true" />
+            {checking ? "Checking…" : status ? "Check again" : "Check for updates"}
+        </Button>
     )
 
-    const summary = status ? updateSummary(status) : null
-
-    // A flat section like every other tab's: it was a bordered card with a
-    // 14px title, beside the health check's 16px one. On a phone the button
-    // goes under the words (the section's action slot does that): beside them
-    // it squeezed the description to two or three words a line.
-    return (
-        <SettingsSection
-            title="Updates"
-            description={
-                <>
-                    Looks up the newest release on your edition{status?.source ? ` at ${status.source}` : ""}. It only
-                    asks when you click, and sends nothing about this workspace.
-                </>
-            }
-            action={
-                <Button variant="outline" size="sm" onClick={check} disabled={checking} className={cn(sectionActionClass, "gap-1.5")}>
-                    {checking ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                    {status ? "Check again" : "Check for updates"}
-                </Button>
-            }
-        >
-            {(summary || error) && (
-                <div className="space-y-3" aria-live="polite">
-                    {error && <p className="text-sm text-danger-ink">{error}</p>}
-                    {summary && (
-                        // The answer as words under the title, not a box in a box:
-                        // the command keeps its own code block.
-                        <div className="space-y-3">
-                            <div className="flex items-start gap-2" data-update-tone={summary.tone}>
-                                {TONE_ICON[summary.tone]}
-                                <div className="min-w-0 space-y-1">
-                                    <p className="text-sm font-medium">{summary.title}</p>
-                                    <p className="text-sm text-muted-foreground">{summary.body}</p>
-                                </div>
-                            </div>
-                            {summary.command && (
-                                <div className="flex items-center gap-2">
-                                    <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs">
-                                        {summary.command}
-                                    </code>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        aria-label="Copy the update command"
-                                        onClick={() => void copy(summary.command!)}
-                                    >
-                                        <Copy className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
+    let row: React.ReactNode
+    if (available && status && summary) {
+        const highlights = (status.highlights ?? []).slice(0, 3)
+        row = (
+            <div data-release-card="" className="space-y-3 p-4">
+                <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                    <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-heading text-foreground">OneCamp {bare(status.latest)} is out</h3>
+                            <span data-new-tag="" className="chip h-5 bg-[color-mix(in_oklab,var(--success)_14%,transparent)] text-success-ink shadow-none">
+                                New
+                            </span>
                         </div>
+                        <p className="text-xs text-muted-foreground text-pretty" data-update-tone={summary.tone}>
+                            {summary.body}
+                        </p>
+                    </div>
+                    {status.notes_url ? (
+                        <Button asChild variant="secondary" size="sm" className="shrink-0">
+                            <a href={status.notes_url} target="_blank" rel="noopener noreferrer">
+                                Read the notes <ArrowRight aria-hidden="true" />
+                            </a>
+                        </Button>
+                    ) : (
+                        checkButton
                     )}
                 </div>
-            )}
+                {highlights.length > 0 && (
+                    <ul className="list-disc space-y-0.5 pl-5 text-xs leading-5 text-foreground marker:text-ink-3">
+                        {highlights.map((h) => (
+                            <li key={h}>{h}</li>
+                        ))}
+                    </ul>
+                )}
+                {summary.command && <CodeRow value={summary.command} label="update command" />}
+                {checkedAt && <p className="text-2xs text-ink-3">Checked {checkedAgo(checkedAt)}</p>}
+            </div>
+        )
+    } else {
+        const title = status?.running ? `OneCamp ${bare(status.running)}` : summary ? summary.title : "OneCamp"
+        const line = error
+            ? error
+            : !summary
+              ? "Not checked yet. It asks only when you press Check, and sends nothing about this workspace."
+              : summary.tone === "current"
+                ? `You're up to date · checked ${checkedAgo(checkedAt ?? new Date())}`
+                : summary.body
+        row = (
+            <div data-version-row="" className="set-row flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="min-w-0 flex-1 space-y-0.5">
+                    <h3 className="text-heading text-foreground">{title}</h3>
+                    <p className="text-xs text-muted-foreground text-pretty" aria-live="polite" data-update-tone={summary?.tone}>
+                        <StatusWord tone={error ? "danger" : summary ? TONE[summary.tone] : "neutral"} className="text-muted-foreground">
+                            {line}
+                        </StatusWord>
+                    </p>
+                </div>
+                {checkButton}
+            </div>
+        )
+    }
+
+    return (
+        <SettingsSection id="health-updates" title="Updates">
+            <SettingsCard>{row}</SettingsCard>
         </SettingsSection>
     )
 }

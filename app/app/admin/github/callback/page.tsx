@@ -10,6 +10,10 @@
  * back was a text button to Admin's first tab. Now the connections tile while
  * it works, the plug when it is done and the error spot when it is not, each
  * with one way back to Integrations.
+ *
+ * Design v3 (admin A22): a 64px plug spot with a 16px spinner over its
+ * corner while it connects, then the plug alone, or the error spot with the
+ * reason and "Back to Integrations".
  */
 
 import { useEffect, useRef, useState } from "react"
@@ -18,7 +22,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { Github } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotError, SpotPlug } from "@/components/ui/graphics"
@@ -80,8 +84,14 @@ const GitHubCallbackPage = () => {
           <EmptyState
             tone="accent"
             headingLevel={1}
-            icon={Github}
-            hue={ADMIN_GROUP_HUE.connections}
+            illustration={
+              <span data-callback-spot="" className="cfg-callback-spot">
+                <SpotPlug size={64} hue={ADMIN_GROUP_HUE.connections} />
+                <span data-spinner="" aria-hidden="true">
+                  <Loader2 className="size-4 animate-spin text-ink-3" />
+                </span>
+              </span>
+            }
             title="Connecting GitHub…"
             description="Finishing the sign-in GitHub started. This takes a moment."
           />
@@ -92,7 +102,7 @@ const GitHubCallbackPage = () => {
         <EmptyState
           tone="accent"
           headingLevel={1}
-          illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
+          illustration={<SpotPlug size={64} hue={ADMIN_GROUP_HUE.connections} />}
           title="GitHub is connected"
           description="Taking you back to Admin, Integrations, to link a repository."
           action={
@@ -107,7 +117,7 @@ const GitHubCallbackPage = () => {
         <EmptyState
           tone="accent"
           headingLevel={1}
-          illustration={<SpotError />}
+          illustration={<SpotError size={64} />}
           title="Couldn't connect GitHub"
           description={errorMsg}
           action={

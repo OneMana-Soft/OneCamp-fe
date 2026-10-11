@@ -69,14 +69,32 @@ describe("agents", () => {
     expect(document.body.textContent).not.toMatch(/—/)
   })
 
+  // Agents are cards since design v3 (admin §S5): the switch in the sunken
+  // footer says "Can act", Open edits, and the rarer actions (history, save as
+  // a template, delete) wait in the card's ⋯ menu.
   it("names each agent's switch and buttons for it", () => {
     responses.agents = { data: [agent] }
     responses.overview = undefined
     render(<AgentsCard />)
-    expect(screen.getByRole("switch", { name: "Run Standup bot" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Edit Standup bot" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Delete Standup bot" })).toBeTruthy()
+    expect(screen.getByRole("switch", { name: "Standup bot can act" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Open Standup bot" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "More for Standup bot" })).toBeTruthy()
     expect(screen.getByText("Paused")).toBeTruthy()
+  })
+
+  it("draws agents as cards in a two-column grid: square, name and tag, job, meta, footer", () => {
+    responses.agents = { data: [{ ...agent, description: "Posts the morning standup in #engineering." }] }
+    responses.overview = undefined
+    const { container } = render(<AgentsCard />)
+    const grid = container.querySelector("[data-agent-grid]") as HTMLElement
+    expect(grid.className).toContain("md:grid-cols-2")
+    const card = grid.querySelector("[data-agent-card]") as HTMLElement
+    expect(card.className).toContain("agent-card")
+    expect(card.querySelector("[data-agent-square] [data-agent-avatar]")).toBeTruthy()
+    expect(card.querySelector("[data-principal-tag='ai']")?.textContent).toContain("Agent")
+    expect(card.querySelector("[data-agent-job]")?.className).toContain("line-clamp-2")
+    expect(card.querySelector("[data-agent-meta]")?.className).toContain("tabular-nums")
+    expect(card.querySelector(".agent-card-foot")?.textContent).toContain("Can act")
   })
 
   it("puts the empty state on the AI group's tile, with the header's one New agent button", () => {

@@ -29,37 +29,58 @@ const THEMES_CSS = readFileSync(join(__dirname, "themes.css"), "utf8")
  * root accent and never sees the theme class on body. So --primary, --ring and
  * --selection genuinely live in a different block from the neutrals, and a
  * reader that only knows about :root reports them as missing.
+ *
+ * Design v3 writes the shadcn names as aliases of its own surfaces and inks
+ * (--background: var(--sheet)), so var() is followed as far as it goes.
  */
 function token(name: string, mode: "light" | "dark"): string {
   const start = mode === "light" ? CSS.indexOf(":root {") : CSS.indexOf(".dark {")
   const block = CSS.slice(start, CSS.indexOf("\n}", start))
-  let m = new RegExp(`--${name}:\\s*([^;]+);`).exec(block)
+  let m = new RegExp(`\\s--${name}:\\s*([^;]+);`).exec(block)
   if (!m) {
     const bodyStart = CSS.indexOf("\nbody {")
     if (bodyStart !== -1) {
       const bodyBlock = CSS.slice(bodyStart, CSS.indexOf("\n}", bodyStart))
-      m = new RegExp(`--${name}:\\s*([^;]+);`).exec(bodyBlock)
+      m = new RegExp(`\\s--${name}:\\s*([^;]+);`).exec(bodyBlock)
     }
   }
   if (!m) throw new Error(`token --${name} not found in ${mode}`)
   const value = m[1].trim()
-  // One level of indirection is enough: --ring is var(--brand) and nothing is
-  // nested deeper than that.
-  const ref = /^var\(--([a-z-]+)\)$/.exec(value)
+  const ref = /^var\(--([a-z0-9-]+)\)$/.exec(value)
   return ref ? token(ref[1], mode) : value
 }
 
-function rgb(name: string, mode: "light" | "dark") {
-  const raw = token(name, mode)
-  // The camp hues are the design direction's hex table verbatim.
+type RGB = { r: number; g: number; b: number }
+type RGBA = RGB & { a: number }
+
+/** A token's colour: hex, rgba() (design v3's alpha lines) or oklch(). */
+function rgba(raw: string): RGBA {
   const hex = /^#([0-9a-f]{6})$/i.exec(raw)
   if (hex) {
     const n = parseInt(hex[1], 16)
-    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 }
   }
+  const alpha = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(raw)
+  if (alpha) return { r: +alpha[1], g: +alpha[2], b: +alpha[3], a: +alpha[4] }
   const parsed = parseOklch(raw)
-  if (!parsed) throw new Error(`--${name} in ${mode} is not oklch or hex: ${raw}`)
-  return oklchToRgb(parsed.l, parsed.c, parsed.h)
+  if (!parsed) throw new Error(`not hex, rgba or oklch: ${raw}`)
+  return { ...oklchToRgb(parsed.l, parsed.c, parsed.h), a: 1 }
+}
+
+/** A colour at `alpha` over a ground, as `bg-success/15` or an alpha line paints it. */
+function over(fg: RGB, bg: RGB, alpha: number): RGB {
+  const mix = (a: number, b: number) => Math.round(a * alpha + b * (1 - alpha))
+  return { r: mix(fg.r, bg.r), g: mix(fg.g, bg.g), b: mix(fg.b, bg.b) }
+}
+
+/**
+ * A token as painted. An alpha token (a hairline, a hover) is composited over
+ * the sheet, which is where it is measured from; an opaque one is itself.
+ */
+function rgb(name: string, mode: "light" | "dark", ground = "sheet"): RGB {
+  const c = rgba(token(name, mode))
+  if (c.a === 1) return { r: c.r, g: c.g, b: c.b }
+  return over(c, rgb(ground, mode), c.a)
 }
 
 // [foreground, background, minimum ratio, what it is]
@@ -78,10 +99,20 @@ const PAIRS: Array<[string, string, number, string]> = [
   ["brand", "background", 3.0, "the accent as a marker: focus ring, selection, the logo"],
   ["destructive-foreground", "destructive", 4.5, "the label on a destructive button"],
   ["ring", "background", 3.0, "the focus ring, which is how a keyboard user knows where they are"],
-  ["border", "background", 1.2, "a hairline has to be visible at all"],
-  ["foreground", "canvas", 4.5, "navigation text on the canvas"],
-  ["muted-foreground", "canvas", 4.5, "section labels and counts on the canvas"],
-  ["agent", "agent-muted", 4.5, "an agent's tag and initials on its tinted ground"],
+  // Design v3's alpha hairline is lighter than the hex one it replaced (it
+  // is ink at 7.5%), and it still has to be there.
+  ["border", "background", 1.1, "a hairline has to be visible at all"],
+  ["foreground", "frame", 4.5, "navigation text on the frame"],
+  ["muted-foreground", "frame", 4.5, "nav labels on the frame (ink-2)"],
+  ["foreground", "sunken", 4.5, "text in a group header, a column, a comment card"],
+  ["muted-foreground", "sunken", 4.5, "secondary text on the sunken surface"],
+  ["foreground", "pop", 4.5, "a menu item"],
+  ["muted-foreground", "pop", 4.5, "a menu item's secondary text"],
+  // ink-3 is for timestamps, IDs, placeholders and idle icons, never
+  // sentences (design v3, §3.3): it holds 3:1, the floor for a glyph.
+  ["ink-3", "background", 3.0, "a timestamp or an idle icon on the sheet"],
+  ["ink-3", "frame", 3.0, "an idle sidebar icon on the frame"],
+  ["agent-ink", "agent-muted", 4.5, "an agent's tag on its tinted ground (agent-i on agent-t)"],
   ["agent", "background", 4.5, "agent-coloured text on the page"],
   ["agent-foreground", "agent", 4.5, "a label on a solid agent surface"],
   // A meaning as text is its -ink cut, never the fill: the light fills scored
@@ -107,12 +138,6 @@ describe.each(["light", "dark"] as const)("%s palette meets WCAG AA", (mode) => 
     ).toBeGreaterThanOrEqual(min)
   })
 })
-
-/** A colour at `alpha` over a ground, as `bg-success/15` paints it. */
-function over(fg: { r: number; g: number; b: number }, bg: { r: number; g: number; b: number }, alpha: number) {
-  const mix = (a: number, b: number) => Math.round(a * alpha + b * (1 - alpha))
-  return { r: mix(fg.r, bg.r), g: mix(fg.g, bg.g), b: mix(fg.b, bg.b) }
-}
 
 // Status pills and notices: the word in its -ink on its own fill's tint, up to
 // the 20% the app uses under text, over the page and over a card.
@@ -161,27 +186,54 @@ describe.each(["light", "dark"] as const)("%s: the camp hues", (mode) => {
   })
 })
 
-describe("the neutrals are graphite, not shadcn grey", () => {
-  // The neutrals carry a trace of a cool graphite hue (about 250 to 290, chroma
-  // under 0.03): orange on graphite reads like an instrument panel, orange on
-  // cream like a bakery. oklch(L 0 0) is the shadcn default and reads as
-  // inherited; a warm hue drifting back would undo the swap one line at a time.
-  // The card is exempt: pure white is the one neutral with no hue to carry.
-  it.each(["background", "foreground", "muted", "muted-foreground", "border"])(
-    "--%s carries the graphite hue",
-    (name) => {
-      for (const mode of ["light", "dark"] as const) {
-        const parsed = parseOklch(token(name, mode))
-        expect(parsed, `--${name} in ${mode} is not oklch`).not.toBeNull()
-        expect(parsed!.c, `--${name} in ${mode} has zero chroma`).toBeGreaterThan(0)
-        expect(parsed!.c, `--${name} in ${mode} is coloured, not a neutral`).toBeLessThan(0.03)
-        expect(parsed!.h, `--${name} in ${mode} has left the graphite hue`).toBeGreaterThanOrEqual(240)
-        expect(parsed!.h, `--${name} in ${mode} has left the graphite hue`).toBeLessThanOrEqual(290)
+describe("the neutrals are cool graphite, never warm", () => {
+  // Design v3, principle 5: warmth is light, not tint, and the greys stay cool.
+  // The frame was a warm wash (hue 55 to 65) that read as beige in light and
+  // coffee-brown in dark; it is retired, and a warm hue drifting back into a
+  // neutral would undo that one line at a time. A neutral either has no hue
+  // (the white sheet) or a cool one (about 250 to 290), and never more chroma
+  // than a neutral carries.
+  const NEUTRALS = ["frame", "sheet", "sunken", "raised", "pop", "panel", "ink", "ink-2", "ink-3", "ink-4"]
+  it.each(NEUTRALS)("--%s stays a cool neutral", (name) => {
+    for (const mode of ["light", "dark"] as const) {
+      const { l, c, h } = toOklch(rgb(name, mode))
+      expect(c, `--${name} in ${mode} is coloured, not a neutral`).toBeLessThan(0.03)
+      if (c > 0.004 && l < 0.995) {
+        expect(h, `--${name} in ${mode} has drifted warm (hue ${h.toFixed(0)})`).toBeGreaterThanOrEqual(240)
+        expect(h, `--${name} in ${mode} has drifted warm (hue ${h.toFixed(0)})`).toBeLessThanOrEqual(300)
       }
-    },
-  )
+    }
+  })
+
+  it("draws hairlines, hovers and selection in ink at a low alpha, so one token reads on every surface", () => {
+    for (const mode of ["light", "dark"] as const) {
+      for (const name of ["line", "line-2", "line-3", "hover", "press", "sel"]) {
+        const c = rgba(token(name, mode))
+        expect(c.a, `--${name} in ${mode} is not an alpha`).toBeLessThan(0.25)
+      }
+    }
+  })
 })
 
+/**
+ * The avatar cut (design v3, §3.5): two gradient stops per hue, a1 at OKLCH L
+ * .60 to a2 at .49, under white initials. The initials have to read where
+ * they sit, which is the middle of the disc: 4.5:1 there. At the lighter stop
+ * it measures 3.75 (moss) to 4.3:1, a touch under the spec's "4.0 to 4.3"; a
+ * corner of the disc, never where the letters are, so the floor there is 3.7.
+ * The cut is the same in both modes.
+ */
+describe("the avatar cut puts white initials on a saturated face", () => {
+  const WHITE = { r: 255, g: 255, b: 255 }
+  it.each([...CAMP_HUES.map((h) => `camp-${h}`), "agent"])("%s", (hue) => {
+    const a1 = rgb(`${hue}-a1`, "light")
+    const a2 = rgb(`${hue}-a2`, "light")
+    const mid = mixOklab(a1, a2, 0.5)
+    expect(contrastRatio(WHITE, mid), `white on the middle of --${hue}`).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(WHITE, a1), `white on --${hue}-a1`).toBeGreaterThanOrEqual(3.7)
+    expect(contrastRatio(WHITE, a2), `white on --${hue}-a2`).toBeGreaterThanOrEqual(5.5)
+  })
+})
 
 /**
  * Every accent a person can pick, in both modes.
@@ -236,16 +288,14 @@ describe("every selectable accent meets WCAG AA", () => {
 })
 
 /**
- * The theme's wash on the frame, in every theme and both modes.
+ * The frame, in every theme and both modes (design v3, §3.2 and §3.4).
  *
- * Choosing a theme washes the sidebar, the top bar and the phone's
- * navigation in a tint of its hue (app/themes.css), so everything that sits
- * on the frame has to stay readable on every wash: the sidebar's text (ink,
- * and text-2 for the quieter labels), the 2px accent bar of the current place
- * and the identity dots (sun is the tightest camp hue). The current place's
- * ground (brand-muted taken one step deeper with the accent, .nav-active) has
- * to be a visible step off the wash, with ink on it; the selection tint keeps
- * ink readable; and the moving edge of a progress bar holds 3:1 on its track.
+ * The frame is neutral graphite now, and the theme shows as its light (the
+ * glow, glowHue.test.ts) and as the accent on state. What sits on the frame
+ * has to stay readable in every theme: the accent of the selected nav icon on
+ * the raised chip, the selected chip as a visible step off the frame, the
+ * selection tint under ink, a mention row on brand-muted, and the moving edge
+ * of a progress bar on its track (--press).
  */
 function themeToken(theme: string, mode: "light" | "dark", name: string): string {
   const head = mode === "light" ? `.theme-${theme} {` : `.dark .theme-${theme},`
@@ -257,17 +307,9 @@ function themeToken(theme: string, mode: "light" | "dark", name: string): string
   return ref ? themeToken(theme, mode, ref[1]) : m[1].trim()
 }
 
-type RGB = { r: number; g: number; b: number }
-
 function parseColour(raw: string): RGB {
-  const hex = /^#([0-9a-f]{6})$/i.exec(raw)
-  if (hex) {
-    const n = parseInt(hex[1], 16)
-    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
-  }
-  const p = parseOklch(raw)
-  if (!p) throw new Error(`not a colour: ${raw}`)
-  return oklchToRgb(p.l, p.c, p.h)
+  const c = rgba(raw)
+  return { r: c.r, g: c.g, b: c.b }
 }
 
 const lin = (c: number) => {
@@ -286,6 +328,12 @@ function oklab({ r, g, b }: RGB): [number, number, number] {
     1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
     0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   ]
+}
+
+function toOklch(c: RGB): { l: number; c: number; h: number } {
+  const [L, a, b] = oklab(c)
+  const h = (Math.atan2(b, a) * 180) / Math.PI
+  return { l: L, c: Math.hypot(a, b), h: h < 0 ? h + 360 : h }
 }
 
 function fromOklab([L, a, b]: [number, number, number]): RGB {
@@ -311,59 +359,56 @@ function mixOklab(a: RGB, b: RGB, t: number): RGB {
 
 const distance = (a: RGB, b: RGB) => Math.hypot(...oklab(a).map((v, i) => v - oklab(b)[i]))
 
-describe("every theme's wash keeps the frame readable", () => {
+describe("every theme keeps the frame readable", () => {
   const themes = [...THEMES_CSS.matchAll(/^\.theme-([a-z-]+) \{/gm)].map((m) => m[1])
 
   it("covers all eleven themes", () => {
     expect(themes).toHaveLength(11)
   })
 
-  it("is what the frame paints: the canvas and the sidebar take the wash on body", () => {
-    const body = CSS.slice(CSS.indexOf("\nbody {"), CSS.indexOf("\n}", CSS.indexOf("\nbody {")))
-    expect(body).toMatch(/--canvas:\s*var\(--brand-wash\);/)
-    expect(body).toMatch(/--sidebar:\s*var\(--brand-wash\);/)
+  it("paints the frame neutral: the canvas and the sidebar are the frame, never a theme's wash", () => {
+    for (const mode of ["light", "dark"] as const) {
+      expect(token("canvas", mode)).toBe(token("frame", mode))
+      expect(token("sidebar", mode)).toBe(token("frame", mode))
+    }
+    expect(THEMES_CSS).not.toMatch(/--brand-wash:/)
+    expect(CSS).not.toMatch(/--brand-wash:/)
   })
 
   describe.each(["light", "dark"] as const)("%s", (mode) => {
     it.each(themes)("%s", (theme) => {
-      const wash = parseColour(themeToken(theme, mode, "brand-wash"))
       const brand = parseColour(themeToken(theme, mode, "brand"))
       const muted = parseColour(themeToken(theme, mode, "brand-muted"))
+      const frame = rgb("frame", mode)
+      const chip = rgb("raised", mode)
       const at = (fg: RGB, bg: RGB) => contrastRatio(fg, bg)
       const say = (what: string, fg: RGB, bg: RGB) => `${theme} (${mode}): ${what}, ${rgbToHex(fg)} on ${rgbToHex(bg)}, ${at(fg, bg).toFixed(2)}:1`
 
-      for (const text of ["foreground", "muted-foreground"]) {
-        expect(at(rgb(text, mode), wash), say(`--${text} on the wash`, rgb(text, mode), wash)).toBeGreaterThanOrEqual(4.5)
-      }
-      expect(at(brand, wash), say("the accent bar on the wash", brand, wash)).toBeGreaterThanOrEqual(3)
-      for (const hue of CAMP_HUES) {
-        const dot = rgb(`camp-${hue}`, mode)
-        expect(at(dot, wash), say(`a ${hue} identity dot on the wash`, dot, wash)).toBeGreaterThanOrEqual(3)
-      }
+      // The current place: the raised chip, its icon in the accent.
+      expect(at(brand, chip), say("the selected nav icon on the raised chip", brand, chip)).toBeGreaterThanOrEqual(3)
+      expect(at(rgb("foreground", mode), chip), say("ink on the selected chip", rgb("foreground", mode), chip)).toBeGreaterThanOrEqual(4.5)
 
-      // The current place: .nav-active's ground.
-      const active = mixOklab(brand, muted, 0.12)
-      expect(at(rgb("foreground", mode), active), say("ink on the current place", rgb("foreground", mode), active)).toBeGreaterThanOrEqual(4.5)
-      expect(distance(active, wash), `${theme} (${mode}): the current place is ${rgbToHex(active)} on the wash ${rgbToHex(wash)}, too close to see`).toBeGreaterThanOrEqual(0.04)
+      // "This is about you": a mention row and the selected task row.
+      expect(at(rgb("foreground", mode), muted), say("ink on brand-muted", rgb("foreground", mode), muted)).toBeGreaterThanOrEqual(4.5)
+      expect(distance(muted, rgb("sheet", mode)), `${theme} (${mode}): brand-muted ${rgbToHex(muted)} is too close to the sheet to see`).toBeGreaterThanOrEqual(0.015)
 
-      // A sidebar glyph in its identity hue takes the ink cut where the row is
-      // a step darker than the wash: the current place, and hover (.nav-idle,
-      // ink at 6% over the wash). The strong cut is checked on the wash above.
-      const hover = mixOklab(rgb("foreground", mode), wash, 0.06)
-      for (const hue of CAMP_HUES) {
-        const ink = rgb(`camp-${hue}-ink`, mode)
-        expect(at(ink, active), say(`a ${hue} glyph on the current place`, ink, active)).toBeGreaterThanOrEqual(3)
-        expect(at(ink, hover), say(`a ${hue} glyph on a hovered row`, ink, hover)).toBeGreaterThanOrEqual(3)
-      }
-
-      // Selected text: the accent at 26% under the text's own ink.
-      const selected = over(brand, rgb("background", mode), 0.26)
+      // Selected text: the accent at 22% under the text's own ink.
+      const selected = mixOklab(brand, rgb("background", mode), 0.22)
       expect(at(rgb("foreground", mode), selected), say("selected text", rgb("foreground", mode), selected)).toBeGreaterThanOrEqual(4.5)
 
       // Progress: the deep stop leads, so the moving edge holds 3:1 on its track.
       const lead = parseColour(themeToken(theme, mode, "progress-to"))
-      const track = rgb("sidebar-accent", mode)
+      const track = rgb("press", mode)
       expect(at(lead, track), say("the leading edge of progress on its track", lead, track)).toBeGreaterThanOrEqual(3)
+
+      // The frame itself is the same in every theme: the theme is light on it.
+      expect(rgbToHex(frame)).toBe(rgbToHex(rgb("frame", mode)))
     })
+  })
+
+  it("lifts the selected chip off the frame: a visible step, in both modes", () => {
+    for (const mode of ["light", "dark"] as const) {
+      expect(distance(rgb("raised", mode), rgb("frame", mode)), `${mode}: the raised chip is lost on the frame`).toBeGreaterThanOrEqual(0.03)
+    }
   })
 })

@@ -17,31 +17,22 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { StatusWord } from "@/components/ui/statusWord"
+import { SettingsList, SwitchRow } from "@/components/ui/settingsSection"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SpotPlug } from "@/components/ui/graphics"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import {
-  AlertTriangle,
   Download,
-  ExternalLink,
   GitBranch,
   GitPullRequest,
-  Github,
   Link2,
   RefreshCw,
   Search,
   Settings2,
   Unlink,
-  Workflow,
 } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
@@ -54,7 +45,8 @@ import type { ProjectInfoInterface } from "@/types/project"
 import axiosInstance from "@/lib/axiosInstance"
 import GitHubWebhookHealth from "@/components/admin/GitHubWebhookHealth"
 import GitHubConfigDialog from "@/components/admin/GitHubConfigDialog"
-import { ConnectionSkeleton } from "@/components/admin/integrationParts"
+import { ConnectionBanner, ConnectionNote, ConnectionSkeleton, markConnecting, useConnectMorph } from "@/components/admin/integrationParts"
+import { ConnectionCard, LinkedRow, RowMenu, SourceMark, StateWord } from "@/components/admin/connectParts"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 
 interface AutomationRules {
@@ -183,6 +175,7 @@ const GitHubIntegrationCard = () => {
   const status = statusData?.status
   const isConnected = status?.connected || false
   const linkedRepos = Array.isArray(status?.linked_repos) ? status.linked_repos : []
+  const morph = useConnectMorph("github", isConnected)
   // The rules dialog offers the linked project's own statuses beside the
   // built-in ones; a rule stores a built-in key or a custom status's id.
   const rulesProjectId = linkedRepos.find((l) => l.id === showSettingsLinkId)?.project_id
@@ -216,7 +209,11 @@ const GitHubIntegrationCard = () => {
         apiEndpoint: GetEndpointUrl.GetGitHubAuthUrl as any,
       })
       const authUrl = res?.auth_url
-      if (authUrl) window.location.href = authUrl
+      if (authUrl) {
+        // On the way back, the dot morphs off → on once (useConnectMorph).
+        markConnecting("github")
+        window.location.href = authUrl
+      }
       // No GitHub app on this server yet. The credentials are one dialog
       // away, so open it rather than send the admin to "your administrator".
       else openCredentials("GitHub needs an OAuth app before it can connect. Add its client ID and secret, then connect.")
@@ -340,117 +337,129 @@ const GitHubIntegrationCard = () => {
   }, [repos, repoSearch]);
 
   const linkRepoButton = (
-    <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleFetchRepos}>
+    <Button variant="secondary" size="sm" className="h-11 gap-1.5 md:h-8" onClick={handleFetchRepos}>
       <Link2 className="h-3.5 w-3.5" aria-hidden="true" />Link a repository
     </Button>
   )
 
   const settingsLink = linkedRepos.find(l => l.id === showSettingsLinkId)
 
+  // The header's right: Connect (the one primary) and Credentials while it
+  // isn't connected; everything else behind ⋯ once it is.
+  const action = isLoading || isError ? null : !isConnected ? (
+    <>
+      <Button variant="ghost" size="sm" className="h-11 gap-1.5 md:h-7" onClick={() => openCredentials()}>
+        <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />Credentials
+      </Button>
+      <Button size="sm" className="h-11 gap-1.5 md:h-7" onClick={() => void handleConnect()} aria-label="Connect GitHub">
+        Connect
+      </Button>
+    </>
+  ) : (
+    <RowMenu
+      label="GitHub actions"
+      items={[
+        { label: "Link a repository", icon: Link2, onSelect: handleFetchRepos },
+        { label: "Credentials", icon: Settings2, onSelect: () => openCredentials() },
+        {
+          label: "Disconnect GitHub",
+          icon: Unlink,
+          destructive: true,
+          separated: true,
+          onSelect: () => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } })),
+        },
+      ]}
+    />
+  )
+
   return (
-    // Titled without a tile, like the Slack bridge and the sign-in providers
-    // beside it: the menu carries the Connections hue.
-    <SettingsSection
-      title="GitHub"
-      description="Link repositories to projects, so issues and pull requests stay in step with their tasks and branches."
+    // A connection card (design v3, A18): the mark, the name, a dot and a
+    // word, and Connect or ⋯; under it what GitHub is linked to.
+    <ConnectionCard
+      id="integrations-github"
+      level={2}
+      mark={<SourceMark vendor="github" name="GitHub" />}
+      name="GitHub"
+      state={
+        isLoading || isError ? null : (
+          <StateWord tone={morph.tone} className={morph.morphing ? "cx-int-morph" : undefined}>
+            {isConnected ? "Connected" : "Not connected"}
+          </StateWord>
+        )
+      }
+      action={action}
     >
       {isLoading ? (
         <ConnectionSkeleton label="Loading the GitHub connection" />
       ) : isError ? (
-        <ErrorState compact subject="the GitHub connection status" detail={apiErrorMessage(isError) || undefined} onRetry={() => void mutate()} />
+        <div className="cx-int-note">
+          <ErrorState compact subject="the GitHub connection status" detail={apiErrorMessage(isError) || undefined} onRetry={() => void mutate()} />
+        </div>
       ) : !isConnected ? (
         // After the failure branch: isConnected is `status?.connected || false`,
         // so a failed fetch would otherwise read as "not connected" and offer a
         // Connect that starts a redundant OAuth flow.
-        <EmptyState
-          illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
-          title="GitHub isn't connected"
-          description="Connect it to keep issues and pull requests in step with tasks, both ways."
-          className="py-6"
-          action={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => void handleConnect()}>
-                <Github className="h-3.5 w-3.5" aria-hidden="true" />Connect GitHub
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => openCredentials()}>
-                <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />Credentials
-              </Button>
-            </div>
-          }
-        />
+        <ConnectionNote>
+          Link repositories to projects, so issues and pull requests stay in step with their tasks and branches, both ways.
+        </ConnectionNote>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* A dot and a word, like the sign-in providers on this tab. */}
-            <StatusWord tone="success" className="text-sm font-medium">Connected</StatusWord>
-            <div className="flex flex-wrap items-center gap-2">
-              {linkedRepos.length > 0 && linkRepoButton}
-              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => openCredentials()}>
-                <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />Credentials
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-danger-ink hover:text-danger-ink" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
-                <Unlink className="h-3.5 w-3.5" aria-hidden="true" />Disconnect
-              </Button>
-            </div>
-          </div>
-
           {rateLimitData?.connected && (rateLimitData.percent || 100) < 20 && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/10 p-3 text-warning-ink" role="status">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <p className="text-xs">
-                <span className="font-medium">GitHub&apos;s request limit is nearly used up:</span>{" "}
-                {rateLimitData.remaining} of {rateLimitData.limit} left. Syncing may fail until it resets.
-              </p>
-            </div>
+            <ConnectionBanner>
+              <span className="font-medium">GitHub&apos;s request limit is nearly used up:</span>{" "}
+              {rateLimitData.remaining} of {rateLimitData.limit} left. Syncing may fail until it resets.
+            </ConnectionBanner>
           )}
 
           {linkedRepos.length === 0 ? (
-            <EmptyState
-              icon={Link2}
-              hue={ADMIN_GROUP_HUE.connections}
-              title="No repositories linked yet"
-              description="Link one to a project to start syncing its issues and pull requests."
-              className="py-6"
-              action={linkRepoButton}
-            />
+            <div className="cx-int-empty">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground text-pretty">
+                No repositories linked yet. Link one to a project to start syncing its issues and pull requests.
+              </p>
+              {linkRepoButton}
+            </div>
           ) : (
             <>
-              <div className="space-y-2">
-                <h3 id="github-linked-repos" className="text-sm font-medium">Linked repositories</h3>
-                <ul aria-labelledby="github-linked-repos" className="divide-y divide-border rounded-lg border border-border">
+              <div>
+                <h3 id="github-linked-repos" className="cx-int-subhead">Linked repositories</h3>
+                <ul aria-labelledby="github-linked-repos">
                   {linkedRepos.map(link => {
                     const full = `${link.repo_owner}/${link.repo_name}`
                     const importing = importingIssuesLink === link.id || importingPRsLink === link.id
                     return (
-                      <li key={link.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        <div className="min-w-0 space-y-0.5">
-                          <a
-                            href={`https://github.com/${full}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex max-w-full items-center gap-1 text-sm font-medium hover:underline"
-                          >
-                            <span className="truncate">{full}</span>
-                            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-                            <span className="sr-only"> (opens GitHub)</span>
-                          </a>
-                          <p className="truncate text-xs text-muted-foreground">{linkSummary(link, getProjectName(link.project_id))}</p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" aria-label={`Import issues from ${full}`} onClick={() => void handleImport(link, "issues")} disabled={importing}>
-                            {importingIssuesLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Download className="h-3 w-3" aria-hidden="true" />}Import issues
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" aria-label={`Import PRs from ${full}`} onClick={() => void handleImport(link, "PRs")} disabled={importing}>
-                            {importingPRsLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : <GitPullRequest className="h-3 w-3" aria-hidden="true" />}Import PRs
-                          </Button>
-                          <Button aria-label={`Automation rules for ${full}`} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSettingsLinkId(link.id)}>
-                            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          </Button>
-                          <Button aria-label={`Unlink ${full}`} variant="ghost" size="icon" className="h-8 w-8 text-danger-ink hover:text-danger-ink"
-                            onClick={() => dispatch(openUI({ key: "githubUnlink", data: { id: link.id, repo_owner: link.repo_owner, repo_name: link.repo_name } }))}>
-                            <Unlink className="h-3.5 w-3.5" aria-hidden="true" />
-                          </Button>
-                        </div>
+                      <li key={link.id}>
+                        <LinkedRow
+                          from={
+                            <a
+                              href={`https://github.com/${full}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline"
+                            >
+                              {full}
+                              <span className="sr-only"> (opens GitHub)</span>
+                            </a>
+                          }
+                          to={getProjectName(link.project_id)}
+                          meta={linkSummary(link, "")}
+                          action={
+                            <>
+                              <Button variant="ghost" size="icon" className="size-11 md:size-8" aria-label={`Import issues from ${full}`} title="Import issues" onClick={() => void handleImport(link, "issues")} disabled={importing}>
+                                {importingIssuesLink === link.id ? <RefreshCw className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+                              </Button>
+                              <Button variant="ghost" size="icon" className="size-11 md:size-8" aria-label={`Import PRs from ${full}`} title="Import pull requests" onClick={() => void handleImport(link, "PRs")} disabled={importing}>
+                                {importingPRsLink === link.id ? <RefreshCw className="animate-spin" aria-hidden="true" /> : <GitPullRequest aria-hidden="true" />}
+                              </Button>
+                              <Button aria-label={`Automation rules for ${full}`} title="Automation rules" variant="ghost" size="icon" className="size-11 md:size-8" onClick={() => setShowSettingsLinkId(link.id)}>
+                                <Settings2 aria-hidden="true" />
+                              </Button>
+                              <Button aria-label={`Unlink ${full}`} title="Unlink" variant="ghost" size="icon" className="size-11 text-danger-ink hover:text-danger-ink md:size-8"
+                                onClick={() => dispatch(openUI({ key: "githubUnlink", data: { id: link.id, repo_owner: link.repo_owner, repo_name: link.repo_name } }))}>
+                                <Unlink aria-hidden="true" />
+                              </Button>
+                            </>
+                          }
+                        />
                       </li>
                     )
                   })}
@@ -543,11 +552,11 @@ const GitHubIntegrationCard = () => {
                 />
               </div>
               {reposLoading ? (
-                <div role="status" aria-label="Loading your repositories" className="rounded-lg border border-border px-3 py-2">
+                <div role="status" aria-label="Loading your repositories" className="rounded-lg bg-raised px-3 py-2 shadow-e1">
                   <SkeletonRows rows={3} avatar={false} />
                 </div>
               ) : reposFailed ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-raised px-3 py-2.5 shadow-e1">
                   <p className="text-sm text-muted-foreground">Couldn&apos;t load your repositories.</p>
                   <Button variant="outline" size="sm" className="h-8" onClick={() => void loadRepos()}>Try again</Button>
                 </div>
@@ -556,7 +565,7 @@ const GitHubIntegrationCard = () => {
               ) : filteredRepos.length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">No repositories match “{repoSearch.trim()}”.</p>
               ) : (
-                <ul className="divide-y divide-border rounded-lg border border-border">
+                <ul className="divide-y divide-border overflow-clip rounded-lg bg-raised shadow-e1">
                   {filteredRepos.map(repo => {
                     const alreadyLinked = linkedRepos.some(l => l.repo_owner === repo.owner && l.repo_name === repo.name)
                     return (
@@ -607,7 +616,7 @@ const GitHubIntegrationCard = () => {
         onSaved={() => mutate()}
         reason={configReason}
       />
-    </SettingsSection>
+    </ConnectionCard>
   )
 }
 
@@ -660,10 +669,8 @@ function AutomationRulesBody({
   return (
     <>
       <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
-        <DialogTitle className="flex items-center gap-2">
-          <Tile hue={ADMIN_GROUP_HUE.connections} size="sm"><Workflow /></Tile>
-          Automation rules
-        </DialogTitle>
+        {/* No tinted tile: a category is never a hue (§1.5). */}
+        <DialogTitle>Automation rules</DialogTitle>
         <DialogDescription>
           What GitHub events do to tasks linked from{" "}
           <span className="font-medium text-foreground">{link.repo_owner}/{link.repo_name}</span>. Changes save as you make them.

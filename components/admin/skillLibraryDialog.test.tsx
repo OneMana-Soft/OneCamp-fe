@@ -38,7 +38,7 @@ describe("the skill library", () => {
     vi.mocked(listAgentSkills).mockResolvedValue([skill] as never)
     vi.mocked(updateAgentSkill).mockRejectedValueOnce({ response: { data: { msg: "That name is taken." } } })
     render(<SkillLibraryDialog open onClose={() => {}} />)
-    fireEvent.click(await screen.findByText("Status updates"))
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Status updates" }))
     const name = screen.getByLabelText("Name")
     expect(screen.getByLabelText("Instructions")).toBeTruthy()
     expect(screen.getByLabelText(/Why/)).toBeTruthy()
@@ -55,7 +55,7 @@ describe("the skill library", () => {
     vi.mocked(listAgentSkills).mockResolvedValue([skill] as never)
     vi.mocked(listAgentSkillRevisions).mockRejectedValueOnce(new Error("Network Error"))
     render(<SkillLibraryDialog open onClose={() => {}} />)
-    fireEvent.click(await screen.findByText("Status updates"))
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Status updates" }))
     fireEvent.click(screen.getByRole("button", { name: /History/ }))
     expect(await screen.findByText(/Couldn't load the history/)).toBeTruthy()
     expect(screen.queryByText("No history yet.")).toBeNull()
@@ -66,5 +66,19 @@ describe("the skill library", () => {
     ] as never)
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(await screen.findByRole("button", { name: /Restore the version from 2 Oct/ })).toBeTruthy()
+  })
+
+  // Cards like apps (design v3, admin §S5): who shared it, how many agents use
+  // it, and an Add switch while an agent is being edited.
+  it("shows each skill as a card with who shared it and an Add switch", async () => {
+    vi.mocked(listAgentSkills).mockResolvedValue([{ ...skill, created_by_name: "Priya Raman" }] as never)
+    const onToggle = vi.fn()
+    const { container } = render(<SkillLibraryDialog open onClose={() => {}} selectedIds={new Set()} onToggle={onToggle} />)
+    const add = await screen.findByRole("switch", { name: "Add Status updates" })
+    const card = container.ownerDocument.querySelector("[data-skill-card]") as HTMLElement
+    expect(card.className).toContain("skill-card")
+    expect(card.textContent).toContain("Shared by Priya Raman · 2 agents")
+    fireEvent.click(add)
+    expect(onToggle).toHaveBeenCalledWith("k1", true)
   })
 })

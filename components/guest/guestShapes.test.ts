@@ -18,8 +18,12 @@ function files(dir: string, out: string[] = []): string[] {
 // The round things that are meant to be round: a guest's initial (an avatar).
 // The meeting's icon in a circle is gone: it sits on the playful layer's
 // hued tile.
+// Design v3 (admin §7 G1, G3) makes two pills on purpose in the guest
+// channel: the day divider (an e1 pill, as in the app's channels) and the
+// guest's own name chip in the header (an avatar inside a pill).
 const ROUND = {
   "components/guest/GuestDocComments.tsx": 1,
+  "components/guest/guestChannel.tsx": 2,
 } as Record<string, number>
 
 describe("guest pages", () => {

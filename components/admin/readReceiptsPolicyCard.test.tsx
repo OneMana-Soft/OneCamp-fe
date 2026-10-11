@@ -4,7 +4,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // The workspace's read receipts. A failed read used to show the switch on (its
 // default) beside a toast that left: the card then claimed a setting it had
 // never read. Now it says so, with Try again, and shows no switch. The switch
-// saves as it is flipped, and says so; a refusal puts it back and says why.
+// saves as it is flipped, and says so; a refusal puts it back and says why
+// under its label.
 
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
@@ -39,7 +40,7 @@ describe("the read receipts policy", () => {
   it("says it couldn't read the setting, with no switch to guess at, and tries again", async () => {
     api.get.mockRejectedValueOnce(new Error("503")).mockResolvedValueOnce({ read_receipts_enabled: false })
     render(<ReadReceiptsPolicyCard />)
-    expect(await screen.findByText("Couldn't load the read receipts setting")).toBeTruthy()
+    expect(await screen.findByText(/Couldn't load the read receipts setting/)).toBeTruthy()
     expect(screen.queryByRole("switch")).toBeNull()
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
     const sw = await screen.findByRole("switch", { name: "Allow read receipts" })
@@ -60,10 +61,9 @@ describe("the read receipts policy", () => {
     const sw = await screen.findByRole("switch", { name: "Allow read receipts" })
     await act(async () => void fireEvent.click(sw))
     expect(sw.getAttribute("aria-checked")).toBe("true")
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({
-      title: "Couldn't change read receipts",
-      description: "The demo is shared, so this stays on.",
-      variant: "destructive",
-    }))
+    // Design v3 (admin §1.3): the reason sits under the row's label and the
+    // row shakes; a routine save is never a toast.
+    expect(await screen.findByText("The demo is shared, so this stays on.")).toBeTruthy()
+    expect(toast).not.toHaveBeenCalled()
   })
 })

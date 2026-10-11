@@ -47,6 +47,7 @@ function stripComments(source: string): string {
 }
 
 const pageSource = stripComments(rawSource)
+const sectionsSource = readFileSync(join(process.cwd(), "lib/adminSections.ts"), "utf8")
 
 describe("admin page scroll ownership", () => {
   it("has exactly one scroll container", () => {
@@ -185,8 +186,8 @@ describe("admin page honours a deep link to a gated tab", () => {
  */
 describe("import is one tab", () => {
     it("does not offer two tabs for the same question", () => {
-        expect(rawSource).not.toMatch(/value: "slack-import"/)
-        expect(rawSource).toMatch(/value: "import"/)
+        expect(sectionsSource).not.toMatch(/key: "slack-import"/)
+        expect(sectionsSource).toMatch(/key: "import"/)
     })
 
     it("keeps both cards, so nothing was dropped in the merge", () => {
@@ -207,23 +208,20 @@ describe("import is one tab", () => {
 })
 
 /**
- * The sections are grouped in a side menu, not a strip of seventeen tabs.
- *
- * The strip scrolled sideways, hid most tabs on a laptop, and scattered related
- * ones. These pin the parts of the fix that are easy to undo in a later edit.
+ * The sections are grouped in the settings nav (design v3, admin §1.1), from
+ * one list (lib/adminSections), and the page has a TabsContent for each.
  */
 describe("admin sections are grouped", () => {
-    const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
-    const values = [...groupsBlock.matchAll(/value: "([^"]+)"/g)].map((m) => m[1])
+    const adminKeys = [...sectionsSource.matchAll(/key: "([^"]+)",[\s\S]*?href: admin\("([^"]+)"\)/g)].map((m) => m[2])
 
-    it("puts every section in exactly one group", () => {
-        expect(values.length).toBeGreaterThan(15)
-        expect(new Set(values).size, "a section listed twice appears twice in the menu").toBe(values.length)
+    it("puts every admin section in the map exactly once", () => {
+        expect(adminKeys.length).toBeGreaterThan(15)
+        expect(new Set(adminKeys).size, "a section listed twice appears twice in the nav").toBe(adminKeys.length)
     })
 
-    it("has a TabsContent for every section in the menu, and none without one", () => {
+    it("has a TabsContent for every section in the nav, and none without one", () => {
         const contents = [...rawSource.matchAll(/<TabsContent\s+value="([^"]+)"/g)].map((m) => m[1]).sort()
-        expect(contents).toEqual([...values].sort())
+        expect(contents).toEqual([...adminKeys].sort())
     })
 
     it("keeps General to the workspace, with access and the audit log in their own sections", () => {
@@ -234,77 +232,80 @@ describe("admin sections are grouped", () => {
     })
 
     it("still sends the old audit log address to the audit log", () => {
-        expect(rawSource).toMatch(/rawTab === "settings" && hash === "#audit-log" \? "audit"/)
+        expect(sectionsSource).toMatch(/raw === "settings" && hash === "#audit-log"\) return "audit"/)
+        expect(rawSource).toMatch(/normaliseAdminTab\(rawTab, hash\)/)
     })
 
-    it("no longer scrolls a strip of tabs sideways", () => {
-        expect(pageSource).not.toMatch(/scrollTabs|tabsScrollRef/)
+    it("no longer scrolls a strip of tabs sideways, or draws a menu in the page", () => {
+        expect(pageSource).not.toMatch(/scrollTabs|tabsScrollRef|<TabsList|<TabsTrigger|<select/)
     })
 })
 
 /**
- * A section's code comes when the pointer or focus reaches it in the menu, so
- * opening it rarely waits (the cards themselves load on first open:
- * app/adminFirstLoad.test.ts).
+ * A section's code comes when the pointer or focus reaches its row in the
+ * settings nav, so opening it rarely waits.
  */
 describe("admin sections load ahead of the click", () => {
-    it("preloads a section when the pointer or focus reaches its menu item", () => {
-        const trigger = rawSource.slice(rawSource.indexOf("<TabsTrigger"), rawSource.indexOf("</TabsTrigger>"))
-        expect(trigger).toMatch(/onPointerEnter=\{\(\) => preloadSection\(value\)\}/)
-        expect(trigger).toMatch(/onFocus=\{\(\) => preloadSection\(value\)\}/)
+    const preload = readFileSync(join(process.cwd(), "components/admin/adminPreload.ts"), "utf8")
+    const nav = readFileSync(join(process.cwd(), "components/navigationBar/desktop/SettingsNav.tsx"), "utf8")
+
+    it("preloads a section when the pointer or focus reaches its nav row", () => {
+        expect(nav).toMatch(/onPointerEnter=\{place\.group !== "you" \? \(\) => preloadAdminSection\(place\.key\)/)
+        expect(nav).toMatch(/onFocus=\{place\.group !== "you" \? \(\) => preloadAdminSection\(place\.key\)/)
     })
 
     it("has a preload for every section the page loads lazily", () => {
-        const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
-        const values = [...groupsBlock.matchAll(/value: "([^"]+)"/g)].map((m) => m[1]).filter((v) => v !== "users")
-        const preloadBlock = rawSource.slice(rawSource.indexOf("const PRELOAD"), rawSource.indexOf("const preloaded"))
-        const missing = values.filter((v) => !new RegExp(`(^|\\s)"?${v}"?: \\(\\) =>`, "m").test(preloadBlock))
+        const keys = [...sectionsSource.matchAll(/href: admin\("([^"]+)"\)/g)].map((m) => m[1]).filter((v) => v !== "users")
+        const missing = keys.filter((v) => !new RegExp(`(^|\\s)"?${v}"?: \\(\\) =>`, "m").test(preload))
         expect(missing).toEqual([])
     })
 })
 
 /**
- * The playful layer: the menu's sections sit on hued tiles, one camp hue per
- * group (components/admin/adminHues), so the menu scans as five places in five
- * colours rather than nineteen icons in grey, or nineteen colours.
+ * Colour (design v3, admin §1.5): the nav carries no tiles; each section's one
+ * hue is on its page header's tile, one hue per group.
  */
-describe("admin menu colours", () => {
-    it("gives every group a hue from the admin palette", () => {
-        const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
-        const keys = [...groupsBlock.matchAll(/key: "([^"]+)"/g)].map((m) => m[1])
-        expect(keys).toEqual(["people", "workspace", "ai", "connections", "system"])
+describe("admin colours", () => {
+    it("gives every admin group one hue", () => {
+        const block = sectionsSource.slice(sectionsSource.indexOf("export const SETTINGS_GROUP_HUE"), sectionsSource.indexOf("}", sectionsSource.indexOf("export const SETTINGS_GROUP_HUE")))
+        const keys = [...block.matchAll(/^\s+(\w+): "/gm)].map((m) => m[1])
+        expect(keys).toEqual(["workspace", "ai", "connections", "records", "system"])
     })
 
-    it("draws each section's icon on its group's tile", () => {
-        const trigger = rawSource.slice(rawSource.indexOf("<TabsTrigger"), rawSource.indexOf("</TabsTrigger>"))
-        expect(trigger).toMatch(/<Tile hue=\{ADMIN_GROUP_HUE\[group\.key\]\} size="sm">/)
+    it("draws the section's hue on the page header's tile, and no tile in the nav", () => {
+        expect(rawSource).toMatch(/<PageFrameHeader[\s\S]{0,80}hue=\{place\.hue\}/)
+        const nav = readFileSync(join(process.cwd(), "components/navigationBar/desktop/SettingsNav.tsx"), "utf8")
+        expect(nav).not.toMatch(/<Tile\b/)
     })
 })
 
 /**
- * The AI tab's jump row names each card by its own title. "Agent permissions"
- * landed on a card titled "Agent collaboration" and "MCP servers" on
- * "External agent access (MCP)", so an admin looking for the name they had
- * just clicked found a different one.
+ * AI & agents' old jumps now land on sub-pages (design v3, admin §A15). The
+ * seven on-this-page jumps became a tab bar; a link to any of their ids (in
+ * Search settings, the consent page, the wild) must still open the sub-page
+ * that draws the card, and that sub-page must give the card that id, or the
+ * link opens a tab and flashes nothing.
  */
-describe("the AI tab's jump row", () => {
-    const CARD: Record<string, string> = {
-        "ai-models-models": "AIModelsCard",
-        "ai-models-routing": "ModelRoutingCard",
-        "ai-models-inventory": "AgentInventoryCard",
-        "ai-models-delegation": "AgentDelegationCard",
-        "ai-models-drill": "GovernanceDrillCard",
-        "ai-models-mcp": "MCPServerCard",
-        "ai-models-activity": "AIActivityCard",
+describe("the AI section's old jump ids", () => {
+    const OLD = ["ai-models-models", "ai-models-routing", "ai-models-inventory", "ai-models-delegation", "ai-models-drill", "ai-models-mcp", "ai-models-activity"]
+    const TAB_FILE: Record<string, string> = {
+        overview: "OverviewTab", models: "ModelsTab", agents: "AgentsTab", governance: "GovernanceTab", usage: "UsageTab", advanced: "AdvancedTab",
     }
-    it("names every card by the title it carries", () => {
-        const block = rawSource.slice(rawSource.indexOf("const AI_JUMPS"), rawSource.indexOf("]", rawSource.indexOf("const AI_JUMPS")))
-        const jumps = [...block.matchAll(/\{ id: "([^"]+)", label: "([^"]+)" \}/g)].map((m) => [m[1], m[2]])
-        expect(jumps.length).toBe(7)
-        const wrong = jumps.filter(([id, label]) => {
-            const src = readFileSync(join(process.cwd(), "components/admin", `${CARD[id]}.tsx`), "utf8")
-            return !src.includes(label)
+    const tabs = readFileSync(join(process.cwd(), "components/admin/ai/aiTabs.ts"), "utf8")
+    const owner = (id: string) => new RegExp(`"${id}": "(\\w+)"`).exec(tabs)?.[1]
+    it("map each to a sub-page that gives the card its id", () => {
+        const wrong = OLD.filter((id) => {
+            const tab = owner(id)
+            if (!tab) return true
+            const src = readFileSync(join(process.cwd(), "components/admin/ai/tabs", `${TAB_FILE[tab]}.tsx`), "utf8")
+            return !src.includes(`id="${id}"`)
         })
         expect(wrong).toEqual([])
+    })
+    it("are still in Search settings", () => {
+        for (const id of OLD) expect(sectionsSource).toContain(`id: "${id}"`)
+    })
+    it("leave the page with no on-this-page rail for the section", () => {
+        expect(rawSource).toMatch(/if \(tab === "ai-models"\) return null/)
     })
 })

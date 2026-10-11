@@ -12,7 +12,7 @@ import {
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { AdminAdminList } from "./AdminAdminList"
-import { Plus, ShieldAlert } from "@/lib/icons"
+import { Plus, Shield } from "@/lib/icons"
 import { AddAdminDialog } from "./AddAdminDialog"
 import { ErrorState } from "@/components/ui/error-state"
 import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
@@ -106,8 +106,7 @@ const AdminCard = () => {
   } else if (loaded && filteredAdmins.length === 0) {
     state = normalisedSearch ? (
       <PeopleNoMatch
-        icon={ShieldAlert}
-        title={`No admins match ${quoted(search)}`}
+        title={`No one matches ${quoted(search)}.`}
         hint="Check the spelling, or search by email."
         onClear={() => setSearch("")}
       />
@@ -119,9 +118,15 @@ const AdminCard = () => {
   return (
     <>
       <PeopleFrame
-        title="Admins"
+        label="Admins"
         count={peopleCount({ shown: filteredAdmins.length, total: allAdmins.length, more: hasMore, filtering: !!normalisedSearch, loaded })}
-        description="Admins can open Admin and change any setting."
+        // What being an admin means, said once above the list as a note.
+        notice={
+          <p data-admin-note="" className="people-note flex items-center gap-2.5 bg-sunken px-3.5 py-2.5 text-xs text-ink-2">
+            <Shield className="size-4 shrink-0 text-ink-2" aria-hidden="true" />
+            Admins can change every setting here and see the audit log. Agents can never be admins.
+          </p>
+        }
         search={{ value: search, onChange: setSearch, placeholder: "Search admins…", label: "Search admins", name: "admin-search" }}
         // Words at every width: the label hid below an xs: breakpoint that
         // does not exist, so a phone showed a bare "+".

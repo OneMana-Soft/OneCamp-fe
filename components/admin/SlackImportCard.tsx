@@ -27,35 +27,22 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
-import { Input } from "@/components/ui/input"
-import { Field } from "@/components/ui/field"
-import { Progress } from "@/components/ui/progress"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
+import { ConfirmAlertDialog } from "@/components/dialog/confirmAlertDialog"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { Upload, RefreshCw, RotateCcw, Users, AlertTriangle } from "@/lib/icons"
-import { PlayCircle, Sparkles } from "lucide-react"
+import { Upload, RefreshCw, RotateCcw, Users, AlertTriangle, HardDrive } from "@/lib/icons"
+import { PlayCircle } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotImported } from "@/components/ui/graphics"
 import { cn } from "@/lib/utils/helpers/cn"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import {
   cancelSlackImport,
@@ -65,7 +52,9 @@ import {
   type SlackImportJob,
 } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
-import { IMPORT_LIST, ImportRowsSkeleton, ImportStatusChip, ROW_ACTION, count, partsLine } from "@/components/admin/ImportJobRow"
+import { IMPORT_LIST, ImportRowsSkeleton, ROW_ACTION, count, partsLine } from "@/components/admin/ImportJobRow"
+import { ImportDigest, ImportJobFrame, SLACK_IMPORT_NEW_EVENT } from "@/components/admin/importParts"
+import type { RowMenuItem } from "@/components/admin/connectParts"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 // Lazy-load the heavy dialogs (multi-GB upload widget, plan dialog
 // with mappings, error pagination). Same rationale as ImportCard:
@@ -151,6 +140,14 @@ const SlackImportCard: React.FC = () => {
     const t = setTimeout(() => setHighlightId(null), 8000)
     return () => clearTimeout(t)
   }, [highlightId])
+
+  // The import picker's Slack card (ImportCard) asks for a new Slack import:
+  // this section owns the upload, so it opens it here.
+  useEffect(() => {
+    const open = () => setUploadOpen(true)
+    window.addEventListener(SLACK_IMPORT_NEW_EVENT, open)
+    return () => window.removeEventListener(SLACK_IMPORT_NEW_EVENT, open)
+  }, [])
 
   const onUploaded = (jobId: string) => {
     setUploadOpen(false)
@@ -286,6 +283,7 @@ const SlackImportCard: React.FC = () => {
   return (
     <>
       <SettingsSection
+        id="import-slack"
         title="Import from Slack"
         description="Upload a Slack workspace export to bring channels, messages, threads, files and reactions into OneCamp."
         action={
@@ -397,48 +395,29 @@ const SlackImportCard: React.FC = () => {
  */
 function RollbackDialog({
   job,
-  busy,
   onClose,
   onConfirm,
 }: {
   job: SlackImportJob
   busy: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => Promise<unknown> | void
 }) {
-  const [typed, setTyped] = useState("")
   const name = job.slack_workspace_name
-  const matches = typed.trim().toLowerCase() === name.trim().toLowerCase()
+  // The app's confirm with type-to-confirm (admin H4): the action waits for
+  // the workspace's name, and the dialog stays until the server answers.
   return (
-    <AlertDialog open onOpenChange={(o) => !o && !busy && onClose()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Roll back the import of {name}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This takes away everything the import brought in: its channels, messages, threads, files and reactions.
-            What your team has added since stays. It can&apos;t be undone here; to have it back, you would import the
-            export again.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <Field label={<>Type {name} to confirm</>}>
-          <Input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} />
-        </Field>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Keep it</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={!matches || busy}
-            className={buttonVariants({ variant: "destructive" })}
-            onClick={(e) => {
-              // The dialog stays open until the server has answered.
-              e.preventDefault()
-              onConfirm()
-            }}
-          >
-            {busy ? "Rolling back…" : "Roll back import"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmAlertDialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={`Roll back the import of ${name}?`}
+      description="This takes away everything the import brought in: its channels, messages, threads, files and reactions. What your team has added since stays. It can't be undone here; to have it back, you would import the export again."
+      confirmText="Roll back import"
+      cancelText="Keep it"
+      destructive
+      requireText={name}
+      onConfirm={onConfirm}
+    />
   )
 }
 
@@ -473,123 +452,78 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
     ref.current?.focus({ preventScroll: true })
   }, [highlighted])
 
+  const done = job.status === "completed" || job.status === "failed" || job.status === "cancelled" || job.status === "rolled_back"
+  const ran = job.status === "running" || job.status === "completed" || job.status === "paused"
+  const meta = [`${job.started_at ? "Started" : "Uploaded"} ${shortDateTime(new Date(job.started_at ?? job.created_at))}`]
+  if (ran) meta.push(count(job.items_imported, "item", "items"), partsLine(job.chunks_done, job.chunks_total))
+  if (ran && job.chunks_failed > 0) meta.push(`${count(job.chunks_failed, "part", "parts")} failed`)
+
+  // Done: what's left behind ⋯, so a list of finished imports is quiet.
+  const menu: RowMenuItem[] = []
+  if (done) {
+    if (job.status === "completed" && onInvite) menu.push({ label: "Invite the people who came across", icon: Users, onSelect: onInvite, disabled: busy })
+    if (job.errors_total > 0) menu.push({ label: `See ${count(job.errors_total, "error", "errors")}`, icon: AlertTriangle, onSelect: onShowErrors })
+    menu.push({ label: "Free storage", icon: HardDrive, onSelect: onDeleteZip, disabled: busy })
+    if (job.status !== "rolled_back")
+      menu.push({ label: "Roll back", icon: RotateCcw, onSelect: onRollback, destructive: true, disabled: busy, separated: true })
+  }
+
   return (
-    <div
-      ref={ref}
-      data-job-id={job.id}
-      data-highlighted={highlighted ? "true" : undefined}
-      tabIndex={highlighted ? -1 : undefined}
-      // The list's own row padding; the import a repeated upload pointed to is
-      // ringed inside the row, as a list row is marked.
-      className={cn("space-y-2 px-4 py-3 outline-none transition-shadow", highlighted && "ring-2 ring-inset ring-ring/70")}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate text-sm font-medium">{job.slack_workspace_name}</span>
-          {/* Its own component, so the moment an import finishes can be marked
-              on it without touching the row. */}
-          <ImportStatusChip status={job.status} />
-          {stageLabel && job.status === "running" && <span className="text-xs text-muted-foreground">{stageLabel}</span>}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+    <ImportJobFrame
+      rowRef={ref}
+      jobId={job.id}
+      vendor="slack"
+      vendorName="Slack"
+      name={job.slack_workspace_name}
+      status={job.status}
+      stage={stageLabel}
+      meta={meta}
+      pct={pct}
+      highlighted={highlighted}
+      errorsLabel={job.errors_total > 0 ? count(job.errors_total, "error", "errors") : undefined}
+      onShowErrors={onShowErrors}
+      menu={menu}
+      actions={
+        <>
           {job.status === "validating" && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
+            <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan
             </Button>
           )}
           {(job.status === "planned" || (job.status === "failed" && job.plan)) && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRun} disabled={busy}>
+            <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onRun} disabled={busy}>
               <PlayCircle />
               {job.status === "failed" ? "Run again" : "Run"}
             </Button>
           )}
           {job.status === "failed" && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
+            <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan again
             </Button>
           )}
           {(job.status === "pending" || job.status === "validating" || job.status === "planned") && onDiscard && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onDiscard} disabled={busy}>
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onDiscard} disabled={busy}>
               Discard
             </Button>
           )}
           {(job.status === "running" || job.status === "paused") && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onCancel} disabled={busy}>
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
           )}
-          {job.status === "completed" && onInvite && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onInvite} disabled={busy}>
-              <Users />
-              Invite people
-            </Button>
-          )}
-          {(job.status === "completed" || job.status === "failed" || job.status === "cancelled") && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRollback} disabled={busy}>
-              <RotateCcw />
-              Roll back
-            </Button>
-          )}
-          {(job.status === "completed" ||
-            job.status === "failed" ||
-            job.status === "cancelled" ||
-            job.status === "rolled_back") && (
-            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onDeleteZip} disabled={busy}>
-              Free storage
-            </Button>
-          )}
-          {/* Only when something was logged: "Errors" showed on every row. */}
-          {job.errors_total > 0 && (
-            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onShowErrors}>
-              <AlertTriangle className="text-warning-ink" />
-              {count(job.errors_total, "error", "errors")}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <dl className="space-y-1">
-        <div className={fieldRow("center", "mb-0")}>
-          <dt className={fieldLabel}>{job.started_at ? "Started" : "Uploaded"}</dt>
-          <dd className="text-sm">{shortDateTime(new Date(job.started_at ?? job.created_at))}</dd>
-        </div>
-        {(job.status === "running" || job.status === "completed" || job.status === "paused") && (
+        </>
+      }
+      below={(fresh) =>
+        job.error_message || job.digest ? (
           <>
-            <div className={fieldRow("center", "mb-0")}>
-              <dt className={fieldLabel}>Progress</dt>
-              <dd className="flex min-w-0 items-center gap-3 text-sm">
-                <Progress value={pct} className="h-1.5 w-28 shrink-0" aria-label={`${pct}% done`} />
-                <span>{partsLine(job.chunks_done, job.chunks_total)}</span>
-              </dd>
-            </div>
-            <div className={fieldRow("center", "mb-0")}>
-              <dt className={fieldLabel}>Brought in</dt>
-              <dd className="text-sm">{count(job.items_imported, "item", "items")}</dd>
-            </div>
-            {job.chunks_failed > 0 && (
-              <div className={fieldRow("center", "mb-0")}>
-                <dt className={fieldLabel}>Failed</dt>
-                <dd className="text-sm text-danger-ink">{count(job.chunks_failed, "part", "parts")}</dd>
-              </div>
-            )}
+            {job.error_message && <p className="max-w-full break-words text-xs text-danger-ink">{job.error_message}</p>}
+            {/* What came across, under the import at the row's own level. It
+                streams in, ringed in moss, when the import has just finished. */}
+            {job.digest && <ImportDigest digest={job.digest} fresh={fresh} />}
           </>
-        )}
-      </dl>
-      {job.error_message && <p className="max-w-full break-words text-xs text-danger-ink">{job.error_message}</p>}
-
-      {/* What came across, said under the import at the row's own level: it
-          was a third box (a tinted box in the import's box in the card), titled
-          by an uppercase eyebrow. Sentence case, as every label here is. */}
-      {job.digest && (
-        <div data-import-digest="" className="space-y-1 pt-1">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            What came across
-          </p>
-          <p className="max-w-[65ch] text-sm leading-relaxed whitespace-pre-line">{job.digest}</p>
-        </div>
-      )}
-    </div>
+        ) : null
+      }
+    />
   )
 }
 

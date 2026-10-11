@@ -37,10 +37,9 @@ test.describe("/unsubscribe", () => {
     await page.waitForURL(/\/unsubscribe\?status=unsubscribed$/, { timeout: 5_000 })
 
     // Anchor on the action that undoes the unsubscribe, which is the
-    // differentiated UI for this status branch. It reads "Turn emails back
-    // on" (app/unsubscribe/page.tsx) since the page joined the signed-out
-    // frame and its words became the reader's: change both together.
-    const resubscribe = page.getByRole("button", { name: /turn emails back on/i })
+    // differentiated UI for this status branch. It reads "Undo, keep sending
+    // them" (app/unsubscribe/page.tsx, design v3 F8): change both together.
+    const resubscribe = page.getByRole("button", { name: /undo, keep sending them/i })
     await expect(resubscribe).toBeVisible()
   })
 })

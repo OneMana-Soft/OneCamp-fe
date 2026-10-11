@@ -31,9 +31,10 @@ describe("AI activity", () => {
     expect(container.innerHTML).not.toMatch(/\bmt-6\b/)
   })
 
-  // Each row's icon sat in a grey tinted tile; the playful layer puts it on
-  // the AI and automation group's tile.
-  it("puts each row's icon on the AI group's dusk tile", () => {
+  // Design v3 (admin §A23): the audit log's row anatomy. The actor is the
+  // agent square (identity), the category a neutral chip; the row's icon sat
+  // on the AI group's tinted tile, a category dressed as identity.
+  it("leads each row with the agent square, and draws no tinted tile", () => {
     fetchState.value = {
       data: { data: [{ kind: "agent_run", title: "Release Captain", summary: "Posted the notes", at: new Date().toISOString(), status: "succeeded" }] },
       isLoading: false,
@@ -42,6 +43,8 @@ describe("AI activity", () => {
     }
     render(<AIActivityCard />)
     expect(screen.getByText("Release Captain")).toBeTruthy()
-    expect(document.querySelector(".hue-dusk")).toBeTruthy()
+    expect(document.querySelector("[data-ai-row] [data-agent-avatar]")).toBeTruthy()
+    expect(document.querySelector(".hue-dusk")).toBeNull()
+    expect(document.querySelector("[data-settings-card]")).toBeTruthy()
   })
 })

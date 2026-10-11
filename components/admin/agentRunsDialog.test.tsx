@@ -39,12 +39,15 @@ describe("an agent's run history", () => {
     await waitFor(() => expect(screen.getByText("No runs yet")).toBeTruthy())
   })
 
-  it("puts its title icon on the AI group's tile, and says its numbers in words, not uppercase tiles", async () => {
+  // Design v3 (admin §1.5): whose runs these are is identity, so the title
+  // carries the agent square; it was a History glyph on the AI group's tile.
+  it("leads its title with the agent square, and says its numbers in words, not uppercase tiles", async () => {
     vi.mocked(listAgentRuns).mockResolvedValue([] as never)
     vi.mocked(getAgentStats).mockResolvedValue(stats as never)
     render(<AgentRunsDialog agentId="a1" agentName="Standup bot" open onClose={() => {}} />)
     const title = await screen.findByRole("heading", { name: /Runs of Standup bot/ })
-    expect(title.querySelector(".hue-dusk")).toBeTruthy()
+    expect(title.querySelector("[data-agent-avatar]")).toBeTruthy()
+    expect(title.querySelector(".hue-dusk")).toBeNull()
     expect(title.querySelector(".text-primary")).toBeNull()
     expect(await screen.findByText(/96% finished without an error/)).toBeTruthy()
     expect(document.body.innerHTML).not.toMatch(/\buppercase\b/)

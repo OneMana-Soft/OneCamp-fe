@@ -5,9 +5,12 @@
 // CDNs (e.g. Simple Icons) that occasionally 404 — without this, the admin sees
 // a broken-image box and the console fills with 404 noise. The onError handler
 // flips to the fallback exactly once (guarded so a failing fallback can't loop).
+//
+// Design v3 (admin §A19): a 40px tile at r10 (36px for a list row) on the
+// sunken surface with a hairline ring; the fallback glyph is ink-3, never a hue.
 
 import { useState } from "react"
-import { Plug } from "lucide-react"
+import { Plug } from "@/lib/icons"
 
 export default function AppIcon({
     src,
@@ -19,23 +22,18 @@ export default function AppIcon({
     size?: "sm" | "md"
 }) {
     const [failed, setFailed] = useState(false)
-    const box = size === "sm" ? "h-9 w-9" : "h-10 w-10"
-    const img = size === "sm" ? "h-full w-full object-cover" : "h-6 w-6 object-contain"
-    const glyph = size === "sm" ? "h-4 w-4" : "h-5 w-5"
-
     return (
-        <div className={`${box} shrink-0 rounded-lg bg-muted flex items-center justify-center overflow-hidden`}>
+        <div data-app-icon="" data-size={size} className="cx-app-icon">
             {src && !failed ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                     src={src}
                     alt={alt}
-                    className={img}
                     referrerPolicy="no-referrer"
                     onError={() => setFailed(true)}
                 />
             ) : (
-                <Plug className={`${glyph} text-muted-foreground`} />
+                <Plug aria-hidden="true" />
             )}
         </div>
     )

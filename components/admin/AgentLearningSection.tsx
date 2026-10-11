@@ -29,12 +29,9 @@ import {
     type ScenarioProposal,
 } from "@/services/agentService"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Sparkles } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortDate } from "@/lib/utils/date/shortDate"
 
@@ -103,17 +100,14 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
     const nothingToShow = !loading && !failed && review !== null && proposals.length === 0 && patterns.length === 0
 
     return (
-        <Card>
-            <CardHeader>
-                {/* The title's icon on the AI and automation group's tile. */}
-                <CardTitle as="h3" className="flex items-center gap-2.5 text-base font-semibold">
-                    <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
-                        <Sparkles />
-                    </Tile>
-                    What this agent&apos;s history suggests
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
+        // A section with its cards (design v3, admin §A23): the heading, then
+        // each suggestion a row of one card. It was a Card on a tinted tile,
+        // each suggestion a bordered box inside it.
+        <section aria-labelledby="agent-learning-title" data-agent-learning="" className="space-y-3">
+            <h3 id="agent-learning-title" className="text-heading text-foreground">
+                What this agent&apos;s history suggests
+            </h3>
+            <div className="space-y-5">
                 {loading && !review && (
                     <div role="status" aria-label="Reading recent runs">
                         <SkeletonRows rows={2} avatar={false} />
@@ -144,8 +138,9 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
                         <h4 className="text-xs font-medium text-muted-foreground">
                             Runs that went wrong, as tests that would catch them
                         </h4>
+                        <div data-settings-card="" className="set-card">
                         {proposals.map((p) => (
-                            <div key={p.run_id} className="rounded-lg border p-3 text-sm">
+                            <div key={p.run_id} data-learning-row="" className="ai-learning-row text-sm">
                                 <p className="font-medium text-foreground">{p.why}</p>
                                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                                     Asked: {p.prompt}
@@ -166,6 +161,7 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
                                 </div>
                             </div>
                         ))}
+                        </div>
                     </div>
                 )}
 
@@ -174,8 +170,9 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
                         <h4 className="text-xs font-medium text-muted-foreground">
                             Things that keep happening
                         </h4>
+                        <div data-settings-card="" className="set-card">
                         {patterns.map((f) => (
-                            <div key={`${f.kind}:${f.subject}`} className="rounded-lg border p-3 text-sm">
+                            <div key={`${f.kind}:${f.subject}`} data-learning-row="" className="ai-learning-row text-sm">
                                 <p className="font-medium text-foreground">
                                     {f.subject}
                                     <span className="ml-2 font-normal text-muted-foreground">
@@ -185,6 +182,7 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
                                 <p className="mt-1 text-xs text-muted-foreground">{f.suggestion}</p>
                             </div>
                         ))}
+                        </div>
                     </div>
                 )}
 
@@ -195,8 +193,8 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
                         recorded, so they can&apos;t become tests.
                     </p>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+        </section>
     )
 }
 

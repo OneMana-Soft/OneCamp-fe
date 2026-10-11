@@ -38,14 +38,12 @@ import {
     PhoneOff,
     MessageCircle,
     Sparkles,
+    ArrowDown,
 } from "@/lib/icons";
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";
 import { ProjectInfoInterface } from "@/types/project";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields";
-import { HUE_CLASS } from "@/components/ui/graphics/hues";
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues";
-import { cn } from "@/lib/utils/helpers/cn";
 import {
     Workflow,
     WorkflowAction,
@@ -155,6 +153,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     const [saving, setSaving] = useState(false);
     // task_status_changed: which moves count.
     const [taskMove, setTaskMove] = useState<TaskMoveFilter>(ANY_MOVE);
+    // How many actions the form opened with; any after them were added here.
+    const [loadedActions, setLoadedActions] = useState(0);
 
     // Natural-language draft (create mode only).
     const [draftPrompt, setDraftPrompt] = useState("");
@@ -188,6 +188,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setKeywords(kw);
             setMatchType(workflow.match_type === "all" ? "all" : "any");
             setActions(acts.length ? acts : []);
+            setLoadedActions(acts.length);
             const tc = parseTaskStatusConfig(workflow);
             setTaskMove({ projectId: tc.project_id || "", toStatus: tc.to_status || "" });
         } else {
@@ -199,6 +200,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setKeywords([]);
             setMatchType("any");
             setActions([{ type: "reply", text: "" }]);
+            setLoadedActions(1);
             setTaskMove(ANY_MOVE);
         }
         setKeywordInput("");
@@ -253,7 +255,10 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             // A status as the draft named it; the server resolves it once a project is picked.
             if (trig === "task_status_changed") setTaskMove((m) => ({ ...m, toStatus: d.trigger_config?.to_status?.trim() || "" }));
             const acts = (d.actions || []).filter((a) => msgTrigger || !ACTION_META[a.type]?.messageOnly);
-            if (acts.length) setActions(acts);
+            if (acts.length) {
+                setActions(acts);
+                setLoadedActions(acts.length);
+            }
             setDraftNote(d.notes || "Draft ready. Review the fields and pick any channels or projects before saving.");
             toast({ title: "Draft ready", description: "Review and adjust before saving." });
         } catch {
@@ -347,11 +352,12 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                 <div className="space-y-5 py-2">
                     {/* AI draft (create mode only) */}
                     {!isEdit && (
-                        // In the AI and automation group's tint: it was an orange
-                        // panel, the colour of the one action a view asks for.
-                        <div className={cn(HUE_CLASS[ADMIN_GROUP_HUE.ai], "space-y-2 rounded-xl border border-hue/30 bg-hue-tint/60 p-3")}>
-                            <Label htmlFor="wf-describe" className="flex items-center gap-1.5 text-sm text-hue-ink">
-                                <Sparkles className="h-4 w-4" aria-hidden="true" /> Describe it in plain English
+                        // A note on the sunken surface (design v3: a category is
+                        // never a hue). It was the AI group's tint, and before that
+                        // orange, the colour of the one action a view asks for.
+                        <div className="cx-wf-draft space-y-2">
+                            <Label htmlFor="wf-describe" className="flex items-center gap-1.5 text-sm text-foreground">
+                                <Sparkles className="h-4 w-4 text-ink-3" aria-hidden="true" /> Describe it in plain English
                             </Label>
                             <Textarea
                                 id="wf-describe"
@@ -370,7 +376,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     Generate
                                 </Button>
                             </div>
-                            {draftNote && <p className="text-xs text-hue-ink">{draftNote}</p>}
+                            {draftNote && <p className="text-xs text-muted-foreground">{draftNote}</p>}
                         </div>
                     )}
 
@@ -407,8 +413,10 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                         />
                     </div>
 
-                    {/* Trigger */}
-                    <div className="space-y-3 rounded-xl border border-border/60 p-3">
+                    {/* The builder (design v3, admin A16): a When card and a
+                        Then card, joined by a dashed connector with an arrow. */}
+                    <div data-workflow-builder="">
+                    <div data-builder-block="when" className="cx-wf-block space-y-3">
                         <h3 id="wf-when" className="text-sm font-medium">When</h3>
 
                         <Select value={triggerType} onValueChange={(v) => setTriggerType(v as WorkflowTriggerType)}>
@@ -516,8 +524,14 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                         )}
                     </div>
 
-                    {/* Actions */}
-                    <div ref={actionsRef} className="space-y-3 rounded-xl border border-border/60 p-3">
+                    <div data-builder-connector="" aria-hidden="true" className="cx-wf-connector">
+                        <span className="cx-wf-connector-line" />
+                        <span className="cx-wf-connector-arrow">
+                            <ArrowDown />
+                        </span>
+                    </div>
+
+                    <div ref={actionsRef} data-builder-block="then" className="cx-wf-block space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm font-medium">Then</h3>
                             <span className="text-xs text-muted-foreground">{actions.length} of {MAX_ACTIONS}</span>
@@ -530,7 +544,13 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                             const meta = ACTION_META[a.type];
                             const Icon = meta.icon;
                             return (
-                                <div key={idx} className="rounded-lg border border-border/60 p-3 space-y-2 relative">
+                                <div
+                                    key={idx}
+                                    data-builder-action=""
+                                    // Only an action added here slides in, not the ones it opened with.
+                                    data-enter={idx >= loadedActions ? "true" : undefined}
+                                    className="cx-wf-action space-y-2"
+                                >
                                     <div className="flex items-center justify-between">
                                         <span className="inline-flex items-center gap-1.5 text-sm font-medium">
                                             <Icon className="h-4 w-4 text-muted-foreground" /> {meta.label}
@@ -644,6 +664,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                 </SelectContent>
                             </Select>
                         )}
+                    </div>
+
                     </div>
 
                     {/* Active toggle */}

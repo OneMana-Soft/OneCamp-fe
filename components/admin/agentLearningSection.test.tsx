@@ -58,4 +58,18 @@ describe("what an agent's history suggests", () => {
       expect(toastSpy).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't add the test", description: "A test with that name exists." })),
     )
   })
+
+  // Design v3 (admin §A23): a heading with no tinted tile, each suggestion a
+  // row of one card, where each was a bordered box in a Card.
+  it("lists suggestions as rows of a card, under a plain heading", async () => {
+    vi.mocked(reviewAgentLearning).mockResolvedValue(review as never)
+    const { container } = render(<AgentLearningSection agentId="a1" />)
+    await screen.findByText("It answered but opened no task")
+    const heading = screen.getByRole("heading", { name: /history suggests/ })
+    expect(heading.querySelector("[class*='hue-']")).toBeNull()
+    const rows = container.querySelectorAll("[data-learning-row]")
+    expect(rows.length).toBe(2)
+    for (const r of rows) expect(r.closest("[data-settings-card]")).toBeTruthy()
+    expect(container.querySelector(".rounded-lg.border")).toBeNull()
+  })
 })

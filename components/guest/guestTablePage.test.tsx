@@ -27,7 +27,9 @@ describe("a table shared with a guest", () => {
     await open()
     const h1 = screen.getByRole("heading", { level: 1, name })
     expect(h1.className).toMatch(/\btruncate\b/)
-    expect(h1).toHaveAttribute("title", name)
+    expect(h1.querySelector("[title]")).toHaveAttribute("title", name)
+    // The finished public page: band and credit.
+    expect(document.querySelector("[data-public-frame] [data-guest-band]")).toBeTruthy()
   })
 
   it("says it's a shared table when it has no name", async () => {

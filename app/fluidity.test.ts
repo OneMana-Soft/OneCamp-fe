@@ -55,4 +55,20 @@ describe("fluid interface", () => {
     }
     expect(found).toEqual([])
   })
+
+  // Design v3 (shell §R): navigation stays instant. The one route transition
+  // is the sheet content's crossfade, CSS or Web Animations, never a motion
+  // library, at most 200ms, and only after a pointer.
+  it("keeps route transitions short, library-free and off after a key", () => {
+    const src = readFileSync(join(ROOT, "components/ui/PageTransition.tsx"), "utf8")
+    expect(src).not.toMatch(/framer-motion|from "motion|AnimatePresence/)
+    const ms = Number(src.match(/SHEET_CROSSFADE_MS = (\d+)/)?.[1])
+    expect(ms).toBeGreaterThan(0)
+    expect(ms).toBeLessThanOrEqual(200)
+    const css = readFileSync(join(ROOT, "app/globals.css"), "utf8")
+    const fade = css.match(/\.sheet-crossfade\s*\{[^}]*?(\d+)ms/)
+    expect(Number(fade?.[1])).toBeLessThanOrEqual(200)
+    const shell = ["app/app/LayoutContent.tsx", "components/navigationBar/desktop/desktopNavigationBar.tsx"]
+    for (const f of shell) expect(readFileSync(join(ROOT, f), "utf8")).not.toMatch(/framer-motion|from "motion\//)
+  })
 })

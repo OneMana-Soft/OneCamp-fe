@@ -1,27 +1,50 @@
 "use client"
 
+// Forgot password (design v3, admin.md F6): the centred shell with the soft
+// canvas glow. The sent state shows the envelope, the address masked, and
+// "Send again" after a 30 second countdown, so a second email is one press
+// away without inviting a flood of them.
+
 import { LoaderCircle, ArrowLeft } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import authService from "@/services/auth/AuthService"
 import Link from "next/link"
 import { AuthField, AuthHeading, AuthShell, authControl, authLink } from "@/components/auth/AuthShell"
+import { SpotInbox } from "@/components/ui/graphics/spots"
 import { cn } from "@/lib/utils/helpers/cn"
+
+/** Seconds before the link can be sent again. */
+const RESEND_AFTER_S = 30
+
+/** "priya@kestrel.studio" as "p•••@kestrel.studio": enough to recognise, not to read off a shoulder. */
+function maskEmail(email: string): string {
+  const [name, domain] = email.split("@")
+  if (!domain) return email
+  return `${name.slice(0, 1)}•••@${domain}`
+}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSent, setIsSent] = useState(false)
   const [error, setError] = useState("")
+  const [wait, setWait] = useState(0)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  useEffect(() => {
+    if (wait <= 0) return
+    const t = window.setTimeout(() => setWait((w) => w - 1), 1000)
+    return () => window.clearTimeout(t)
+  }, [wait])
+
+  const send = async () => {
     setError("")
     setIsLoading(true)
     try {
       const result = await authService.forgotPassword(email)
       if (result.ok) {
         setIsSent(true)
+        setWait(RESEND_AFTER_S)
       } else {
         setError(result.msg)
       }
@@ -36,13 +59,28 @@ export default function ForgotPasswordPage() {
     <AuthShell>
       {isSent ? (
         <div role="status">
-          <AuthHeading title="Check your email">
-            If <span className="font-medium text-foreground">{email}</span> has an account here, a link to set a new
-            password is on its way. It works for an hour. If it hasn&apos;t come in a few minutes, look in spam.
+          <AuthHeading title="Check your email" art={<SpotInbox size={96} />}>
+            If <span className="font-medium text-foreground" translate="no">{maskEmail(email)}</span> has an account here, a
+            link to set a new password is on its way. It works for 1 hour.
           </AuthHeading>
-          <Button variant="outline" className={authControl} asChild>
-            <Link href="/">Back to sign in</Link>
-          </Button>
+          <div className="space-y-2">
+            <Button variant="ghost" size="lg" className={authControl} disabled={wait > 0 || isLoading} onClick={() => void send()}>
+              {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+              {wait > 0 ? (
+                <>
+                  Send again in <span className="auth-countdown">0:{String(wait).padStart(2, "0")}</span>
+                </>
+              ) : (
+                "Send again"
+              )}
+            </Button>
+            {error && <p role="alert" className="auth-field-error">{error}</p>}
+            <p className="text-sm">
+              <Link href="/" className={cn(authLink, "rounded-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline")}>
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to sign in
+              </Link>
+            </p>
+          </div>
         </div>
       ) : (
         <>
@@ -50,7 +88,13 @@ export default function ForgotPasswordPage() {
             Enter the email you sign in with and we&apos;ll send you a link to set a new one.
           </AuthHeading>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void send()
+            }}
+            className="space-y-4"
+          >
             <AuthField
               id="email"
               name="email"
@@ -64,10 +108,11 @@ export default function ForgotPasswordPage() {
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
+              readOnly={isLoading}
               error={error || undefined}
             />
 
-            <Button type="submit" className={authControl} disabled={isLoading}>
+            <Button type="submit" size="lg" className={authControl} aria-busy={isLoading || undefined}>
               {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
               {isLoading ? "Sending…" : "Send reset link"}
             </Button>

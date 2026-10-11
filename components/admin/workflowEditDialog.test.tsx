@@ -20,6 +20,20 @@ afterEach(() => {
 })
 
 describe("the workflow editor", () => {
+  // Design v3 (A16): a when/then builder. Two cards joined by a connector,
+  // and the actions the form opened with stay put: only none of them slides.
+  it("is a When card and a Then card joined by a connector, the opening action not sliding in", () => {
+    render(<WorkflowEditDialog open workflow={null} onClose={() => {}} onSaved={() => {}} />)
+    const builder = document.querySelector("[data-workflow-builder]") as HTMLElement
+    const parts = [...builder.children].map((c) => c.getAttribute("data-builder-block") ?? (c.hasAttribute("data-builder-connector") ? "connector" : ""))
+    expect(parts).toEqual(["when", "connector", "then"])
+    const actions = builder.querySelectorAll("[data-builder-action]")
+    expect(actions.length).toBe(1)
+    expect(actions[0].getAttribute("data-enter")).toBeNull()
+    // No hued draft panel: a category is never a hue.
+    expect(document.querySelector("[class*=hue-]")).toBeNull()
+  })
+
   // "Can't save yet" was a toast in the corner, tied to no field.
   it("says a missing name under the name, puts the cursor there, and shows no toast", async () => {
     render(<WorkflowEditDialog open workflow={null} onClose={() => {}} onSaved={() => {}} />)

@@ -24,7 +24,7 @@ test.describe("/reset-password", () => {
     // silently break the test: the heading is fixed English copy in the
     // source (app/reset-password/page.tsx), so change both together.
     await expect(
-      page.getByRole("heading", { name: /this link is incomplete/i }),
+      page.getByRole("heading", { name: /this link is missing or used/i }),
     ).toBeVisible()
 
     // The "ask for a new link" CTA must be reachable so a user who
@@ -32,7 +32,7 @@ test.describe("/reset-password", () => {
     // link styled as a button (<Button asChild><Link …>), so its role is
     // "link": it navigates, it does not submit anything.
     await expect(
-      page.getByRole("link", { name: /ask for a new link/i }),
+      page.getByRole("link", { name: /request a new one/i }),
     ).toBeVisible({ timeout: 5_000 })
   })
 

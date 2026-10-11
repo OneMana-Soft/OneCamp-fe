@@ -58,7 +58,9 @@ describe("MCP servers", () => {
   })
 
   // A category is a thing with a colour of its own: tint and ink.
-  it("shows a connector's category as a chip in its own hue", () => {
+  // Design v3 (admin §1.5): a category is a kind, not an identity, so its
+  // chip is neutral; hue is kept for people, agents and projects.
+  it("shows a connector's category as a neutral chip", () => {
     fetchState.servers = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     fetchState.catalog = {
       data: { data: [{ slug: "linear", name: "Linear", category: "Project tracking", description: "Issues", docs_url: "https://x", installed: false }] },
@@ -68,7 +70,7 @@ describe("MCP servers", () => {
     }
     render(<McpServersCard />)
     const chip = screen.getByText("Project tracking")
-    expect(chip.className).toMatch(/\bhue-(sky|moss|sun|dusk|berry|lake)\b/)
-    expect(chip.className).toMatch(/bg-hue-tint/)
+    expect(chip.className).toMatch(/\bchip\b/)
+    expect(chip.className).not.toMatch(/\bhue-|bg-hue-tint/)
   })
 })

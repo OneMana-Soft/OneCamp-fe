@@ -11,6 +11,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Field } from "@/components/ui/field"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
   EvalScenario,
@@ -185,8 +186,18 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* The suite's pass rate as a ring at the top (design v3, admin
+              §A23), said in words beside it. */}
+          {suite && suite.scored > 0 && (
+            <ProgressRing
+              value={Math.round((suite.passed / suite.scored) * 100)}
+              size={28}
+              label={`${suite.passed} of ${suite.scored} tests passing`}
+              className="shrink-0"
+            />
+          )}
           {suite && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs tabular-nums text-muted-foreground" data-eval-pass-rate="">
               {suite.scored > 0 ? `${Math.round((suite.passed / suite.scored) * 100)}% passing (${suite.passed} of ${suite.scored})` : "No result yet"}
             </span>
           )}
@@ -208,10 +219,19 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div data-settings-card="" className="set-card">
           {scenarios.map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
-              <div className="min-w-0">
+            <div key={s.id} data-eval-row="" className="ai-spend-row">
+              <span aria-hidden="true" className="grid size-4 shrink-0 place-items-center">
+                {!results[s.id] || results[s.id].inconclusive ? (
+                  <span className="size-1.5 rounded-full bg-ink-3" />
+                ) : results[s.id].passed ? (
+                  <span className="ai-check-ok"><Check className="size-2.5" /></span>
+                ) : (
+                  <span className="ai-check-fail"><X className="size-2.5" /></span>
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{s.name}</div>
                 <div className="truncate text-xs text-muted-foreground">{s.prompt}</div>
               </div>
@@ -234,7 +254,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
             </div>
           ))}
           {scenarios.length === 0 && (
-            <p className="py-2 text-xs text-muted-foreground">No saved tests yet. Add one below.</p>
+            <p className="px-4 py-3 text-xs text-muted-foreground">No saved tests yet. Add one below.</p>
           )}
         </div>
       )}

@@ -118,10 +118,10 @@ export default function GitHubConfigDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                {reason && <p className="rounded-md bg-info/10 px-3 py-2 text-sm text-info-ink">{reason}</p>}
+                {reason && <p className="rounded-lg bg-sunken px-3 py-2 text-sm text-foreground">{reason}</p>}
 
                 {loadFailed ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-raised px-3 py-2.5 shadow-e1">
                         <p className="text-sm text-muted-foreground">Couldn&apos;t load the GitHub credentials.</p>
                         <Button variant="outline" size="sm" className="h-8" onClick={load}>Try again</Button>
                     </div>

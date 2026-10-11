@@ -24,7 +24,7 @@ describe("after unsubscribing", () => {
   it("posts a change of mind to the API's own address", async () => {
     nav.search = "status=unsubscribed&token=t-1"
     render(<UnsubscribePage />)
-    const form = (await screen.findByRole("button", { name: "Turn emails back on" })).closest("form")!
+    const form = (await screen.findByRole("button", { name: "Undo, keep sending them" })).closest("form")!
     expect(form.getAttribute("action")).toBe("https://api.example.com/public/notifications/resubscribe?token=t-1")
     expect(form.getAttribute("method")).toBe("post")
   })
@@ -32,9 +32,11 @@ describe("after unsubscribing", () => {
   it("says what happened in the frame the other signed-out pages share", async () => {
     nav.search = "status=unsubscribed&token=t-1"
     render(<UnsubscribePage />)
-    expect(await screen.findByRole("heading", { level: 1, name: "You're unsubscribed" })).toBeTruthy()
+    expect(await screen.findByRole("heading", { level: 1, name: "You won't get these emails" })).toBeTruthy()
     expect(screen.getByText("OneCamp")).toBeTruthy()
-    expect(screen.getByRole("link", { name: "Manage notification settings" }).getAttribute("href")).toBe("/app/settings/notifications")
+    expect(screen.getByRole("link", { name: "Choose which emails you get" }).getAttribute("href")).toBe("/app/settings/notifications")
+    // Design v3 (F8): the envelope carries a moss check.
+    expect(document.querySelector('[data-envelope-badge="check"]')).not.toBeNull()
   })
 })
 
@@ -49,7 +51,8 @@ describe("the other ways to arrive", () => {
   it("explains held-back emails from the person's side", async () => {
     nav.search = "status=resubscribed&warn=suppressed"
     render(<UnsubscribePage />)
-    expect(await screen.findByRole("heading", { name: "Emails are back on" })).toBeTruthy()
+    expect(await screen.findByRole("heading", { name: "You're back on the list" })).toBeTruthy()
+    expect(document.querySelector('[data-envelope-badge="spark"]')).not.toBeNull()
     expect(document.body.textContent).not.toMatch(/provider level|suppression/i)
     expect(screen.getByText(/Ask your workspace admin/)).toBeTruthy()
   })

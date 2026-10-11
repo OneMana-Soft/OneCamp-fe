@@ -36,10 +36,11 @@ vi.mock("@/services/aiModelService", async (orig) => ({
   getCodePRRuns: vi.fn(),
   listProviderModels: vi.fn(),
   setAIEnabled: vi.fn(),
+  setMemoryLayerEnabled: vi.fn(),
   setWebSearch: vi.fn(),
 }))
 
-import AIModelsCard from "@/components/admin/AIModelsCard"
+import AIModelsCard, { AdvancedPanels, AmbientAgentsPanel, UsagePanel, advancedSummaries } from "@/components/admin/AIModelsCard"
 import {
   getAIChannelUsage,
   getAIConfig,
@@ -50,7 +51,7 @@ import {
   getCodePRScorecard,
   getMemoryBackfillStatus,
   getReindexStatus,
-  setAIEnabled,
+  setMemoryLayerEnabled,
   setWebSearch,
 } from "@/services/aiModelService"
 
@@ -107,18 +108,19 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe("the AI tab's models section", () => {
-  // Five requests were awaited one after another, so the tab sat on a line of
-  // text for the sum of five round trips.
-  it("starts its first requests together, and holds the page's shape while they run", async () => {
+// AI & agents is six sub-pages since design v3 (admin §A15); this file holds
+// the parts of them that read and write the AI settings: Models (the default
+// export), the ambient agents, usage and the folded Advanced cards.
+describe("the AI settings' parts", () => {
+  // Requests awaited one after another held the tab on a line of text for
+  // the sum of their round trips.
+  it("starts the Models page's first requests together, and holds its shape while they run", async () => {
     vi.mocked(getAIConfig).mockReturnValue(new Promise(() => {}))
     render(<AIModelsCard />)
     expect(screen.getByRole("status", { name: "Loading the AI settings" })).toBeTruthy()
     await waitFor(() => {
       expect(getAISystemStats).toHaveBeenCalled()
       expect(getReindexStatus).toHaveBeenCalled()
-      expect(getMemoryBackfillStatus).toHaveBeenCalled()
-      expect(getAIUsage).toHaveBeenCalled()
     })
   })
 
@@ -129,26 +131,34 @@ describe("the AI tab's models section", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
   })
 
-  // The switches that save at once are rows of one list, named by their label.
-  it("names each switch by its row and says why one failed, in the server's words", async () => {
-    vi.mocked(getAIConfig).mockResolvedValue(config as never)
-    vi.mocked(setAIEnabled).mockRejectedValueOnce({ response: { data: { msg: "The demo is shared, so AI stays on." } } })
-    render(<AIModelsCard />)
-    fireEvent.click(await screen.findByRole("switch", { name: "Workspace AI" }))
-    await waitFor(() =>
-      expect(toastSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't turn workspace AI off", description: "The demo is shared, so AI stays on." }),
-      ),
-    )
+  it("keeps its h2 when the read fails, with the compact error under it", async () => {
+    vi.mocked(getAIConfig).mockRejectedValue({ response: { status: 403, data: { msg: "Only admins can read this." } } })
+    const { container } = render(<AIModelsCard />)
+    expect(await screen.findByText("Only admins can read this.")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 2, name: /Models/ })).toBeTruthy()
+    expect(container.querySelector("[data-empty-illustration]")).toBeTruthy()
   })
 
-  // The web search switch only staged its change, beside switches that save
-  // at once; nothing said so, and an admin who turned it on and left had
-  // changed nothing.
+  // A routine save says itself on its row (admin §1.3): a refusal puts the
+  // switch back and leaves the server's words under the label, no toast.
+  it("puts a refused switch back, with the server's reason on its row", async () => {
+    vi.mocked(getAIConfig).mockResolvedValue({ ...config, memory_layer_enabled: false } as never)
+    vi.mocked(getMemoryBackfillStatus).mockResolvedValue({ state: "idle" } as never)
+    vi.mocked(setMemoryLayerEnabled).mockRejectedValueOnce({ response: { data: { msg: "The demo is shared, so memory stays off." } } })
+    render(<AmbientAgentsPanel />)
+    const sw = await screen.findByRole("switch", { name: /Workspace memory/ })
+    fireEvent.click(sw)
+    expect(await screen.findByText("The demo is shared, so memory stays off.")).toBeTruthy()
+    await waitFor(() => expect(sw.getAttribute("aria-checked")).toBe("false"))
+    expect(toastSpy).not.toHaveBeenCalled()
+  })
+
+  // The web search switch only stages its change; the dock says so.
   it("holds a staged web search change in a save bar, and saves from it", async () => {
     vi.mocked(getAIConfig).mockResolvedValue(config as never)
     vi.mocked(setWebSearch).mockResolvedValue(undefined as never)
-    render(<AIModelsCard />)
+    render(<AdvancedPanels />)
+    fireEvent.click(await screen.findByRole("button", { name: /Web search/ }))
     fireEvent.click(await screen.findByRole("switch", { name: "Use web search" }))
     const bar = await screen.findByRole("region", { name: "Unsaved changes" })
     expect(bar.textContent).toMatch(/web search/)
@@ -158,52 +168,48 @@ describe("the AI tab's models section", () => {
 
   it("says how near today's cap the workspace is on the shared progress bar, and no environment variable", async () => {
     vi.mocked(getAIConfig).mockResolvedValue(config as never)
-    render(<AIModelsCard />)
+    render(<UsagePanel />)
     const bar = await screen.findByRole("progressbar", { name: /Workspace: 90% of today's cap/ })
     expect(bar).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/AI_WORKSPACE_DAILY_TOKEN_BUDGET/)
   })
 
-  // The rebuild bar animated its width, a layout property, on every poll; the
-  // shared bar moves by transform.
-  it("shows the search index rebuild on the shared progress bar, with nothing animating a width", async () => {
+  // The rebuild bar animated its width; the shared bar moves by transform.
+  // It was a tinted warning box; it is a card.
+  it("shows the search index rebuild on the shared progress bar, in a card", async () => {
     vi.mocked(getAIConfig).mockResolvedValue(config as never)
     vi.mocked(getReindexStatus).mockResolvedValue({ running: true, total: 200, processed: 49, failed: 1, dimension: 768 } as never)
     const { container } = render(<AIModelsCard />)
     const bar = await screen.findByRole("progressbar", { name: /Rebuilding the AI search index: 25%/ })
-    expect(bar).toBeTruthy()
-    expect(container.innerHTML).not.toMatch(/transition-\[width/)
+    expect(bar.closest("[data-settings-card]")).toBeTruthy()
+    expect(container.innerHTML).not.toMatch(/transition-\[width|bg-warning\/10/)
     expect(container.textContent).toMatch(/1 item couldn't be indexed\./)
   })
 
-  // About fourteen bordered boxes, some holding more boxes, under a CardTitle
-  // div; a failed read replaced the whole section, heading included.
-  it("keeps its h2 when the read fails, with the compact error under it", async () => {
-    vi.mocked(getAIConfig).mockRejectedValue({ response: { status: 403, data: { msg: "Only admins can read this." } } })
-    const { container } = render(<AIModelsCard />)
-    expect(await screen.findByText("Only admins can read this.")).toBeTruthy()
-    expect(screen.getByRole("heading", { level: 2, name: /Models/ })).toBeTruthy()
-    expect(container.querySelector("[data-empty-illustration]")).toBeTruthy()
+  // Advanced (admin §A15): each card is folded to its title row with what is
+  // in force on the right, and opens on a click.
+  it("folds each Advanced card to its title row with a summary", async () => {
+    vi.mocked(getAIConfig).mockResolvedValue({ ...config, sandbox_enabled: true, sandbox_workspace_daily_seconds: 3600 } as never)
+    render(<AdvancedPanels />)
+    const sandbox = await screen.findByRole("button", { name: /Code analysis sandbox/ })
+    expect(sandbox.getAttribute("aria-expanded")).toBe("false")
+    expect(sandbox.textContent).toContain("On · 3,600 s a day")
+    for (const name of [/Model tuning/, /Code analysis depth/, /Web search/, /Code pull requests/]) {
+      expect(screen.getByRole("button", { name }).getAttribute("aria-expanded")).toBe("false")
+    }
+    expect(screen.queryByRole("switch", { name: "Use the code analysis sandbox" })).toBeNull()
+    fireEvent.click(sandbox)
+    expect(await screen.findByRole("switch", { name: "Use the code analysis sandbox" })).toBeTruthy()
   })
 
-  it("is one section of level 3 subsections, each at most one box deep", async () => {
-    vi.mocked(getAIConfig).mockResolvedValue(config as never)
-    const { container } = render(<AIModelsCard />)
-    await screen.findByRole("switch", { name: "Workspace AI" })
-    const h3s = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)
-    for (const name of ["General", "Usage and limits", "Model tuning", "Active models", "Ambient agents", "Web search", "Code analysis sandbox", "Code pull requests", "Coding agent reliability", "Providers"]) {
-      expect(h3s).toContain(name)
-    }
-    expect(container.querySelector(".bg-card\\/50")).toBeNull()
-    for (const box of Array.from(container.querySelectorAll(".rounded-lg.border"))) {
-      const inner = Array.from(box.querySelectorAll(".rounded-lg.border, .rounded-md.border")).filter(
-        (el) => !el.closest("[role=progressbar]") && !el.matches("input, textarea, button, [role=combobox], [data-section-list-skeleton]"),
-      )
-      expect(inner.map((el) => el.className)).toEqual([])
-    }
+  it("says Off for what is off, and the provider for web search", () => {
+    const s = advancedSummaries({ ...config, web_search_enabled: true } as never)
+    expect(s.webSearch).toBe("On · SearXNG")
+    expect(s.codePRs).toBe("Off")
+    expect(s.tuning).toBe("8,192 tokens · reasoning off")
   })
 
-  // The two readers of /admin/ai/config share one key.
+  // The readers of /admin/ai/config share one key.
   it("reads the AI settings through the shared key, nowhere else", () => {
     const src = readFileSync(resolve(__dirname, "AIModelsCard.tsx"), "utf8")
     expect(src).toContain("useAIConfig()")

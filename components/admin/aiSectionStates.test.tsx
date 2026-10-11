@@ -80,12 +80,14 @@ describe("the AI activity's states", () => {
     expect(sk.hasAttribute("data-section-list-skeleton")).toBe(true)
   })
 
-  it("stands empty as the empty state on the AI group's tile", async () => {
+  // Design v3 (admin §1.7): an empty card holds a 64px spot, not a tile.
+  it("stands empty as the empty card with a spot", async () => {
     get.mockResolvedValue({ data: { data: [] } })
     render(<AIActivityCard />, { wrapper: fresh })
     const none = await screen.findByText("No AI activity yet")
     const block = none.closest("div.flex-col") as HTMLElement
-    expect(block.querySelector("[data-empty-icon]")).toBeTruthy()
+    expect(block.querySelector("[data-empty-illustration] [data-spot]")).toBeTruthy()
+    expect(block.closest("[data-settings-card]")).toBeTruthy()
   })
 
   it("fails compactly under its title", async () => {

@@ -80,8 +80,11 @@ export function ErrorRowsSkeleton() {
   )
 }
 
-/** The log's rows between hairlines. */
-export const LOG_LIST = "divide-y divide-border rounded-md border border-border"
+/**
+ * The log's rows between hairlines inset 16px, on the settings card (raised
+ * at e1, no border, design v3 §1.3). It was a 1px grey box.
+ */
+export const LOG_LIST = "set-card cx-imp-list"
 
 /**
  * How serious, as a choice of one: the app's segmented control. It was four

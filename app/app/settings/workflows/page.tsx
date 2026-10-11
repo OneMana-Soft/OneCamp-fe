@@ -48,7 +48,7 @@ export default function WorkflowsSettingsPage() {
       {isLoading ? (
         <WorkflowsListSkeleton />
       ) : allowed ? (
-        <WorkflowsCard hue={settingsSection(HREF)?.hue} withTitle={false} creating={creating} onCreatingChange={setCreating} />
+        <WorkflowsCard hue={settingsSection(HREF)?.hue} withTitle={false} scope="mine" creating={creating} onCreatingChange={setCreating} />
       ) : null}
     </div>
   )

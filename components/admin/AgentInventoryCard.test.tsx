@@ -52,10 +52,10 @@ describe("the agent inventory", () => {
     render(<AgentInventoryCard />)
     await screen.findByText("Release Captain")
     const text = document.body.textContent || ""
-    expect(text).toMatch(/for Priya N/)
+    expect(text).toMatch(/Sponsor: Priya N/)
     expect(text).toMatch(/A2A · agents\.acme\.dev/)
     expect(text).toMatch(/2 channels · 3 tools/)
-    expect(text).toMatch(/1 refusal/)
+    expect(text).toMatch(/1refusal/)
     // An unresolved sponsor is said, not left blank or shown as an id.
     expect(text).toMatch(/sponsor not found/)
     expect(text).not.toMatch(/u9/)
@@ -67,7 +67,26 @@ describe("the agent inventory", () => {
     vi.mocked(getAgentInventory).mockResolvedValue(inventory())
     render(<AgentInventoryCard />)
     fireEvent.click(await screen.findByRole("switch", { name: "Pause Release Captain" }))
+    // It asks first, and names the credentials that stop with it.
+    const confirm = await screen.findByRole("alertdialog", { name: "Pause Release Captain?" })
+    expect(confirm.textContent).toContain("Its 1 credential stops too.")
+    expect(setAgentActive).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
     await waitFor(() => expect(setAgentActive).toHaveBeenCalledWith("a1", false))
+  })
+
+  // hub.md AI16: a refusal takes the agent's ink, to match the record; never the accent.
+  it("draws refusals in the agent's ink, and an unbound credential with the sun tag", async () => {
+    vi.mocked(getAgentInventory).mockResolvedValue(inventory())
+    const { container } = render(<AgentInventoryCard />)
+    await screen.findByText("Release Captain")
+    const refused = [...container.querySelectorAll(".text-agent-ink")].map((e) => e.textContent)
+    expect(refused).toContain("1")
+    expect(refused).toContain("3 refusals")
+    expect(container.innerHTML).not.toMatch(/text-primary/)
+    expect(container.querySelector("[data-unbound]")?.className).toContain("bg-camp-sun-tint")
+    expect(container.querySelector("[data-no-sponsor]")?.textContent).toContain("No sponsor")
+    expect(container.querySelectorAll("[data-agent-avatar]").length).toBe(2)
   })
 
   it("asks before revoking a credential, and revokes only on confirm", async () => {
@@ -94,7 +113,7 @@ describe("the agent inventory", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Revoke" }))
     const dialog = await screen.findByRole("alertdialog")
     const confirm = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Revoke")!
-    expect(confirm.className).toContain("bg-destructive")
+    expect(confirm.className).toContain("text-danger-ink")
   })
 
   // "Could not pause X", with nothing about why, replaced the server's own
@@ -104,6 +123,7 @@ describe("the agent inventory", () => {
     vi.mocked(setAgentActive).mockRejectedValueOnce({ response: { data: { msg: "Only its sponsor or an admin can pause it." } } })
     render(<AgentInventoryCard />)
     fireEvent.click(await screen.findByRole("switch", { name: "Pause Release Captain" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }))
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(
         expect.objectContaining({ title: "Couldn't pause Release Captain", description: "Only its sponsor or an admin can pause it." }),

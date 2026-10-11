@@ -4,8 +4,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // Mobile push. A failed read used to say "Off: no credential is set", which an
 // admin acts on by pasting a key that was already there. It now says it
 // couldn't check. Turning push off deletes a key that is never shown again,
-// so it asks first and says so. The details read as quiet labels beside ink
-// values, one per line.
+// so it asks first and says so. The key is given in a dialog with a drop zone
+// (workspaceSettings.test.tsx holds that).
 
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
@@ -32,7 +32,7 @@ describe("push notifications", () => {
   it("says it couldn't check, instead of calling push off", async () => {
     api.get.mockRejectedValueOnce(new Error("503")).mockResolvedValueOnce(on)
     render(<PushNotificationsCard />)
-    expect(await screen.findByText("Couldn't load the push notification setting")).toBeTruthy()
+    expect(await screen.findByText(/Couldn't load the push notification setting/)).toBeTruthy()
     expect(screen.queryByText(/No credential is set/)).toBeNull()
     expect(screen.queryByRole("textbox")).toBeNull()
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
@@ -43,7 +43,7 @@ describe("push notifications", () => {
     api.get.mockResolvedValue(on)
     api.clear.mockResolvedValue({ configured: false, active: false, source: "none" })
     render(<PushNotificationsCard />)
-    fireEvent.click(await screen.findByRole("button", { name: "Turn off" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Turn off…" }))
     expect(api.clear).not.toHaveBeenCalled()
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
       title: "Turn off push notifications?",
@@ -54,16 +54,17 @@ describe("push notifications", () => {
     expect(api.clear).toHaveBeenCalled()
   })
 
-  it("lists the details as quiet labels beside their values", async () => {
+  // Design v3 (admin A7): one status row, a dot and a word, the project, and
+  // the service account in mono with copy.
+  it("says the state as a dot and a word, with the service account in mono and copy", async () => {
     api.get.mockResolvedValue(on)
     render(<PushNotificationsCard />)
-    const project = await screen.findByText("kestrel-mobile")
-    const label = screen.getByText("Project")
-    expect(label.className).toMatch(/text-muted-foreground/)
-    expect(label.className).toMatch(/whitespace-nowrap/)
-    expect(project.closest("div")?.className).toMatch(/grid/)
-    // A state is a dot and a word, as the task panel's status reads.
+    await screen.findByText("kestrel-mobile")
     expect(screen.getByText("On").closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+    const account = screen.getByText(on.client_email)
+    expect(account.tagName).toBe("CODE")
+    expect(account.className).toMatch(/font-mono/)
+    expect(screen.getByRole("button", { name: "Copy service account" })).toBeTruthy()
   })
 
   // "Loaded from this setting." named the machinery; the email card says the
@@ -82,13 +83,11 @@ describe("push notifications", () => {
     expect(word.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("warning")
   })
 
-  // The credential's box sits under its words at the row's width, a stacked
-  // SettingRow like every other long field in the admin lists.
-  it("takes the credential in a stacked setting row", async () => {
+  // Turning push off is a Danger zone row, the last card on the page.
+  it("puts Turn off in a Danger zone", async () => {
     api.get.mockResolvedValue(on)
     render(<PushNotificationsCard />)
-    const field = await screen.findByLabelText("Replace the credential")
-    expect(field.closest("[data-setting-row]")?.getAttribute("data-setting-row")).toBe("stacked")
-    expect(field.getAttribute("aria-describedby")).toBe("firebase-credential-desc")
+    const button = await screen.findByRole("button", { name: "Turn off…" })
+    expect(button.closest("[data-settings-card]")?.getAttribute("data-danger")).toBe("true")
   })
 })

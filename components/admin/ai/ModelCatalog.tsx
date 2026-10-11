@@ -170,7 +170,7 @@ export const ModelCatalog: React.FC<{
         <Button
           variant="outline"
           size="sm"
-          className="h-11 md:h-9"
+          className="h-11 md:h-8"
           onClick={() => load(true)}
           disabled={refreshing || loading}
           title="Re-fetch the latest catalog"

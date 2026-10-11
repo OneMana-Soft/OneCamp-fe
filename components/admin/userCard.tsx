@@ -5,23 +5,30 @@ import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState 
 import { useDispatch } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { UserListResponseInterface, UserActivateOrDeactivateInterface, UserProfileDataInterface } from "@/types/user"
+import { UserListResponseInterface, UserActivateOrDeactivateInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { toast } from "@/hooks/use-toast"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { openUI } from "@/store/slice/uiSlice"
 import TwoFactorService from "@/services/twoFactorService"
-import { AdminUserList, RestLine } from "./AdminUserList"
+import { AdminUserList, RestLine, memberColumns, type MemberRow } from "./AdminUserList"
 import { UserPlus } from "@/lib/icons"
-import { Users2 } from "lucide-react"
 import { ErrorState } from "@/components/ui/error-state"
-import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { PeopleAction, PeopleFab, PeopleFirstRun, PeopleFrame, PeopleNoMatch, SeatMeter, peopleCount, quoted } from "./PeopleFrame"
+import type { AdminListResponseInterface } from "@/types/user"
 
 import { seatSummary } from "@/lib/utils/seatSummary"
 import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
-import { cn } from "@/lib/utils/helpers/cn"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
+
+type Show = "all" | "active" | "deactivated"
+const SHOW: { value: Show; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "deactivated", label: "Deactivated" },
+]
 
 /**
  * A hundred at a time, every page in turn, in the background. It was twenty,
@@ -33,7 +40,8 @@ const PAGE_SIZE = 100
 
 const UserCard = () => {
   const [pageIndex, setPageIndex] = useState(0)
-  const [allUsers, setAllUsers] = useState<UserProfileDataInterface[]>([])
+  const [allUsers, setAllUsers] = useState<MemberRow[]>([])
+  const [show, setShow] = useState<Show>("all")
   const [hasMore, setHasMore] = useState(true)
   const [search, setSearch] = useState("")
   // The list filters on the deferred query, so the field keeps up with typing
@@ -46,6 +54,15 @@ const UserCard = () => {
   const seatUsage = useFetch<{ data: { used: number; limit: number; upgrade_url?: string } }>(GetEndpointUrl.AdminSeats)
   const upgradeUrl = seatUsage.data?.data?.upgrade_url
   const seats = seatUsage.data?.data ? seatSummary(seatUsage.data.data.used, seatUsage.data.data.limit) : null
+
+  // Who is an admin, so the Role column can say so and Make admin is offered
+  // only to those who are not. The admin list is short; one page of 500.
+  const adminList = useFetch<AdminListResponseInterface>(`${GetEndpointUrl.GetAdminAdminList}?pageIndex=0&pageSize=500`)
+  const [madeAdmin, setMadeAdmin] = useState<string[]>([])
+  const adminIds = useMemo(
+    () => new Set([...(adminList.data?.data ?? []).map((a) => a.user_uuid), ...madeAdmin]),
+    [adminList.data, madeAdmin],
+  )
 
   const userList = useFetch<UserListResponseInterface>(
     `${GetEndpointUrl.GetAdminUserList}?pageIndex=${pageIndex}&pageSize=${PAGE_SIZE}`
@@ -185,6 +202,32 @@ const UserCard = () => {
     )
   }
 
+  // Confirmed, naming the person: an admin can change every setting here.
+  const handleMakeAdmin = useStableCallback((userId: string) => {
+    if (!userId || post.isSubmitting) return
+    const user = allUsers.find((u) => u.user_uuid === userId)
+    const label = displayNameOf(user) || user?.user_email_id || "this member"
+    confirm({
+      title: `Make ${label} an admin?`,
+      description: "Admins can change every setting here and read the audit log.",
+      confirmText: "Make admin",
+      onConfirm: () => {
+        setMadeAdmin((prev) => [...prev, userId])
+        post
+          .makeRequest({
+            apiEndpoint: PostEndpointUrl.CreateAdmin,
+            payload: { user_uuid: userId },
+            showErrorToast: true,
+            failureTitle: `Couldn't make ${label} an admin`,
+          })
+          .then(() => void adminList.mutate())
+          .catch(() => setMadeAdmin((prev) => prev.filter((id) => id !== userId)))
+      },
+    })
+  })
+
+  const openInvite = useStableCallback(() => dispatch(openUI({ key: "addInvitation" })))
+
   const handleOpenProfile = useStableCallback((userUUID: string) => {
     if (userUUID) dispatch(openUI({ key: "otherUserProfile", data: { userUUID } }))
   })
@@ -194,16 +237,17 @@ const UserCard = () => {
     searchRef.current?.focus()
   })
 
-  const deactivated = useMemo(
-    () => allUsers.reduce((n, u) => (isZeroEpoch(u.user_deleted_at || "") ? n : n + 1), 0),
-    [allUsers],
-  )
-
   const normalisedSearch = normalizePersonQuery(query)
   const filteredUsers = useMemo(() => {
-    if (!normalisedSearch) return allUsers
-    return allUsers.filter((u) => matchesPerson(u, normalisedSearch, [u.user_email_id]))
-  }, [allUsers, normalisedSearch])
+    // Sorted by name, as the spec has it; the server sends newest first.
+    const shown = allUsers.filter((u) => {
+      const off = !isZeroEpoch(u.user_deleted_at || "")
+      return show === "all" || (show === "deactivated" ? off : !off)
+    })
+    const matched = normalisedSearch ? shown.filter((u) => matchesPerson(u, normalisedSearch, [u.user_email_id])) : shown
+    return [...matched].sort((a, b) => displayNameOf(a).localeCompare(displayNameOf(b)))
+  }, [allUsers, normalisedSearch, show])
+  const columns = useMemo(() => memberColumns(allUsers), [allUsers])
 
   const initialLoading = allUsers.length === 0 && !userList.isError && (userList.isLoading || hasMore)
   const shownQuery = normalisedSearch ? query.trim() : ""
@@ -227,88 +271,87 @@ const UserCard = () => {
     } else if (shownQuery) {
       state = (
         <PeopleNoMatch
-          icon={Users2}
-          title={`No members match ${quoted(shownQuery)}`}
+          title={`No one matches ${quoted(shownQuery)}.`}
           hint="Check the spelling, or search by email."
           onClear={clearSearch}
         />
+      )
+    } else if (show !== "all" && allUsers.length > 0) {
+      state = (
+        <p role="status" className="py-12 text-center text-sm text-muted-foreground">
+          {show === "deactivated" ? "No one is deactivated." : "Everyone here is deactivated."}
+        </p>
       )
     } else {
       state = <PeopleFirstRun title="No members yet" description="People appear here once they accept an invitation." />
     }
   }
 
-  // The plan's seats. Quiet, under the list, while there is room; said before
-  // the rows once the plan is nearly or entirely full, since that is what an
-  // admin needs to know before inviting anyone.
-  const seatLine = seats ? (
-    <p
-      className={cn(
-        "text-sm",
-        seats.tone === "full" ? "text-danger-ink" : seats.tone === "near" ? "text-warning-ink" : "text-muted-foreground",
-      )}
-    >
-      {seats.text}{" "}
-      {seats.tone !== "ok" && upgradeUrl && (
-        <>
-          <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-            Remove the limit
-          </a>
-          <span className="mt-1 block text-xs text-muted-foreground">{UPGRADE_STEPS}</span>
-        </>
-      )}
-    </p>
-  ) : null
+  // The plan's seats: the meter on the toolbar while there is room; once the
+  // plan is full, a line before the rows too, since that is what an admin
+  // needs to know before inviting anyone.
+  const seatData = seatUsage.data?.data
+  const fullLine =
+    seats && seats.tone === "full" ? (
+      <p role="status" className="text-sm text-danger-ink">
+        {seats.text}{" "}
+        {upgradeUrl && (
+          <>
+            <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              Remove the limit
+            </a>
+            <span className="mt-1 block text-xs text-muted-foreground">{UPGRADE_STEPS}</span>
+          </>
+        )}
+      </p>
+    ) : null
 
   return (
     <PeopleFrame
-      title="Members"
+      label="Members"
       count={peopleCount({
         shown: filteredUsers.length,
         total: allUsers.length,
         more: hasMore,
-        filtering: !!normalisedSearch,
+        filtering: !!normalisedSearch || show !== "all",
         loaded: allUsers.length > 0 || !hasMore,
       })}
-      // The count includes deactivated people; the plan's line counts only
-      // those who use a place. Said once everyone is loaded, so the number
-      // never moves while the pages arrive.
-      description={
-        !hasMore && deactivated > 0
-          ? `Everyone with an account here, ${deactivated} deactivated.`
-          : "Everyone with an account here."
-      }
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Search members…",
+        placeholder: "Search people…",
         label: "Search members",
         name: "member-search",
         inputRef: searchRef,
       }}
-      // The tab's one primary action. Members had none: adding people meant
-      // knowing to go to Invitations.
+      filter={<SegmentedControl aria-label="Show members" value={show} onValueChange={setShow} options={SHOW} />}
+      meter={seatData && seatData.limit > 0 ? <SeatMeter used={seatData.used} limit={seatData.limit} upgradeUrl={upgradeUrl} /> : undefined}
+      // The tab's one primary action, with its key. Members had none: adding
+      // people meant knowing to go to Invitations.
       action={
-        <PeopleAction icon={UserPlus} onClick={() => window.dispatchEvent(new Event("open-invite-people"))}>
+        <PeopleAction icon={UserPlus} kbd="i" onClick={openInvite}>
           Invite people
         </PeopleAction>
       }
-      notice={seats && seats.tone !== "ok" ? seatLine : undefined}
+      fab={<PeopleFab icon={UserPlus} label="Invite people" onClick={openInvite} />}
+      notice={fullLine ?? undefined}
+      columns={["Role", ...(columns.twoFactor ? ["Two-factor"] : []), ...(columns.lastActive ? ["Last active"] : [])]}
+      cols={["120px", ...(columns.twoFactor ? ["100px"] : []), ...(columns.lastActive ? ["88px"] : [])].join(" ")}
       loading={initialLoading}
       loadingLabel="Loading members"
       state={state}
       // Only under rows: never under the skeleton or a state.
       footer={
-        initialLoading || state ? undefined : (
-          <>
-            {hasMore && <RestLine loadFailed={!!userList.isError} totalLoaded={allUsers.length} onRetry={() => void userList.mutate()} />}
-            {seats && seats.tone === "ok" && <div className="pt-3">{seatLine}</div>}
-          </>
+        initialLoading || state || !hasMore ? undefined : (
+          <RestLine loadFailed={!!userList.isError} totalLoaded={allUsers.length} onRetry={() => void userList.mutate()} />
         )
       }
     >
       <AdminUserList
         users={filteredUsers}
+        adminIds={adminIds}
+        columns={columns}
+        onMakeAdmin={handleMakeAdmin}
         onResetTwoFactor={handleResetTwoFactor}
         onDeactivate={handleDeactivate}
         onActivate={handleActivate}

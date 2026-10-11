@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 const { toast, confirm } = vi.hoisted(() => ({ toast: vi.fn(), confirm: vi.fn() }))
 
@@ -80,21 +80,29 @@ describe("call transcription settings", () => {
   })
 
   // The card's own "Failed to update mode" replaced the server's reason.
+  // Design v3 (admin §1.3): an instant row says it under its label, not in a toast.
   it("keeps the server's reason when the mode can't be changed", async () => {
     vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
     vi.mocked(updateTranscriptionConfig).mockRejectedValue({ response: { data: { msg: "The demo is shared." } } })
     render(<TranscriptionSettingsCard />)
     fireEvent.click(await screen.findByRole("radio", { name: "Server" }))
-    await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Couldn't change the transcription mode",
-          description: "The demo is shared.",
-          variant: "destructive",
-        }),
-      ),
-    )
+    expect(await screen.findByText("The demo is shared.")).toBeTruthy()
+    expect(toast).not.toHaveBeenCalled()
     expect(screen.getByRole("radio", { name: "Browser" }).getAttribute("aria-checked")).toBe("true")
+  })
+
+  // Design v3 (admin A17): where the model runs is "On this server · Provider";
+  // on this server a hint row says the memory it needs.
+  it("asks where the model runs, and says the memory the bundled server needs", async () => {
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend", stt_provider: "local" }))
+    render(<TranscriptionSettingsCard />)
+    const group = await screen.findByRole("radiogroup", { name: "Where it runs" })
+    expect(within(group).getByRole("radio", { name: "On this server" }).getAttribute("aria-checked")).toBe("true")
+    expect(document.querySelector("[data-ram-hint]")?.textContent).toMatch(/about 1 GB of free memory/)
+    expect(screen.queryByLabelText("Provider")).toBeNull()
+    fireEvent.click(within(group).getByRole("radio", { name: "Provider" }))
+    expect(screen.getByLabelText("Provider")).toBeTruthy()
+    expect(document.querySelector("[data-ram-hint]")).toBeNull()
   })
 
   // The labels sat beside their inputs with nothing tying them, so a screen
@@ -124,22 +132,25 @@ describe("call transcription settings", () => {
     const json = await screen.findByLabelText("Service account JSON")
     expect(json.tagName).toBe("TEXTAREA")
     expect(json.className).not.toMatch(/shadow-sm/)
-    expect(json.className).toMatch(/focus-visible:ring-ring\/25/)
+    expect(json.className).toMatch(/\bfield-surface\b/)
   })
 
   // The speech-to-text block waited for a button at its foot with no sign
-  // that anything was unsaved.
-  it("holds speech-to-text edits in a save bar until they are saved", async () => {
+  // that anything was unsaved. Design v3: one card, so its footer holds Save
+  // and the card rings while dirty (the dock is for multi-card forms).
+  it("holds speech-to-text edits in the card until its footer saves them", async () => {
     vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend" }))
     vi.mocked(updateTranscriptionConfig).mockResolvedValue(stored({ mode: "backend", stt_model: "whisper-large" }))
     render(<TranscriptionSettingsCard />)
-    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
-    fireEvent.change(await screen.findByLabelText("Model"), { target: { value: "whisper-large" } })
-    const bar = await screen.findByRole("region", { name: "Unsaved changes" })
-    fireEvent.click(bar.querySelector("button:last-child") as HTMLElement)
+    const save = (await screen.findByRole("button", { name: "Save" })) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "whisper-large" } })
+    expect(screen.getByLabelText("Model").closest("[data-settings-card]")?.getAttribute("data-dirty")).toBe("true")
+    fireEvent.click(save)
     await waitFor(() =>
       expect(updateTranscriptionConfig).toHaveBeenCalledWith(expect.objectContaining({ stt_model: "whisper-large" })),
     )
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
   })
 
   // The mode was a hand-made radio row that marked the choice with the page
@@ -148,7 +159,7 @@ describe("call transcription settings", () => {
     vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
     render(<TranscriptionSettingsCard />)
     const browser = await screen.findByRole("radio", { name: "Browser" })
-    expect(browser.className).toContain("data-[state=checked]:bg-card")
+    expect(browser.className).toContain("data-[state=checked]:bg-raised")
     expect(browser.className).not.toMatch(/(^|\s)bg-background(\s|$)/)
   })
 

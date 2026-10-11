@@ -14,7 +14,7 @@ vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isTablet: false, isDesktop: true }) }))
 
-const { DataInventoryButton } = await import("./DataInventoryButton")
+const { DataInventoryButton, inventoryCsv } = await import("./DataInventoryButton")
 
 afterEach(() => {
   cleanup()
@@ -46,5 +46,25 @@ describe("where a member's data is stored", () => {
       expect.objectContaining({ title: "Couldn't count Priya Raman's data", variant: "destructive" }),
     )
     expect(toast.mock.calls[0][0].description).not.toBe("failed")
+  })
+
+  // Design v3 (admin §A23): the download is one control that morphs, a pill
+  // that says "Counting rows…" while the counts run, then "Download ready",
+  // a CSV of the counts made in the browser.
+  it("morphs from a counting pill to a Download ready link", async () => {
+    let answer: (v: unknown) => void = () => {}
+    inventory.mockReturnValue(new Promise((r) => (answer = r)))
+    URL.createObjectURL = vi.fn(() => "blob:inventory") as never
+    URL.revokeObjectURL = vi.fn() as never
+    await open()
+    expect(document.querySelector("[data-inventory-download='counting']")?.textContent).toBe("Counting rows…")
+    await act(async () => answer({ total_rows: 3, locations: [{ table: "messages", column: "author_id", rows: 3 }], note: "" }))
+    const ready = screen.getByRole("link", { name: "Download ready" })
+    expect(ready.getAttribute("href")).toBe("blob:inventory")
+    expect(ready.getAttribute("download")).toBe("data-inventory-priya-raman.csv")
+  })
+
+  it("writes the counts as a CSV", () => {
+    expect(inventoryCsv({ total_rows: 2, locations: [{ table: "a,b", column: "c", rows: 2 }] } as never)).toBe('table,column,rows\n"a,b",c,2\n')
   })
 })

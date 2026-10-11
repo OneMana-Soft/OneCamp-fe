@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Bot, Key } from "@/lib/icons"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -66,14 +67,34 @@ export function reachText(a: Pick<InventoryAgent, "channels" | "tools">): string
 
 const plural = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`
 
-function Sponsor({ name }: { name: string }) {
-  return name ? <>for {name}</> : <span className="italic">sponsor not found</span>
+
+/** A count with its micro label (hub.md AI16): tabular, so the row never reflows. */
+function Count({ n, label, refused }: { n: number; label: string; refused?: boolean }) {
+  return (
+    <span className="flex flex-col items-end leading-none">
+      <span className={cn("text-ui tabular-nums", refused && n > 0 ? "font-semibold text-agent-ink" : "text-foreground")}>{n}</span>
+      <span className="mt-1 text-3xs font-medium text-ink-3">{label}</span>
+    </span>
+  )
+}
+
+/** Active in moss, Paused in sun. */
+function StatePill({ active }: { active: boolean }) {
+  return (
+    <span data-agent-state={active ? "active" : "paused"} className={cn("inline-flex h-[18px] items-center rounded-[5px] px-1.5 text-3xs font-medium", active ? "bg-camp-moss-tint text-camp-moss-ink" : "bg-camp-sun-tint text-camp-sun-ink")}>
+      {active ? "Active" : "Paused"}
+    </span>
+  )
 }
 
 /**
- * One agent. The counts read left to right as what it was asked, what it did
- * and what it was stopped from doing; a refusal is the permission system
- * working, so it takes the brand colour, never the error colour.
+ * One agent (hub.md AI16): its square, its name with the Agent tag, who
+ * answers for it, where it thinks and what it reaches; then what it was asked,
+ * did and was refused in the window, the refusals in the agent's ink to match
+ * the record (a refusal is the permission system working: never the accent,
+ * never the error colour), its state and the pause switch. Pausing asks first
+ * and names the credentials that stop with it. An agent with no sponsor gets
+ * a sun band saying so.
  */
 function InventoryAgentRow({
   agent: a,
@@ -84,43 +105,70 @@ function InventoryAgentRow({
   busy: boolean
   onToggle: (a: InventoryAgent, next: boolean) => void
 }) {
+  const [confirming, setConfirming] = React.useState(false)
   return (
-    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-          <span className="font-medium text-foreground">{a.name}</span>
-          <span className="text-muted-foreground">
-            <Sponsor name={a.sponsor} />
-          </span>
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {brainText(a.brain)} · {reachText(a)}
-          {a.credentials > 0 && <> · {plural(a.credentials, "credential")}</>}
-        </p>
-        <p className="mt-1 flex flex-wrap gap-x-3 text-xs tabular-nums text-muted-foreground">
-          <span>{plural(a.runs_7d, "run")}</span>
-          <span>{plural(a.actions_7d, "action")}</span>
-          <span className={cn(a.refusals_7d > 0 && "font-medium text-primary")}>
-            {plural(a.refusals_7d, "refusal")}
-            {a.last_refusal_at && a.refusals_7d > 0 && `, last ${relativeTime(a.last_refusal_at)}`}
-          </span>
-          {a.last_run_at && <span>last ran {relativeTime(a.last_run_at)}</span>}
-        </p>
+    <li data-inventory-agent="" className="px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="block size-8 shrink-0">
+          <AgentAvatar />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui">
+            <span className="font-medium text-foreground">{a.name}</span>
+            <span className="inline-flex h-[18px] items-center rounded-[5px] bg-agent-muted px-1.5 text-3xs font-medium text-agent-ink">Agent</span>
+          </p>
+          <p className="mt-0.5 text-meta text-ink-3">
+            {a.sponsor ? <>Sponsor: {a.sponsor}</> : <span className="italic">sponsor not found</span>} · Thinks with: {brainText(a.brain)} · Reaches {reachText(a)}
+            {a.credentials > 0 && <> · {plural(a.credentials, "credential")}</>}
+            {a.last_refusal_at && a.refusals_7d > 0 && <> · last refused {relativeTime(a.last_refusal_at)}</>}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
+          <Count n={a.runs_7d} label="asked" />
+          <Count n={a.actions_7d} label="did" />
+          <Count n={a.refusals_7d} label={a.refusals_7d === 1 ? "refusal" : "refusals"} refused />
+          <StatePill active={a.is_active} />
+          <Switch
+            checked={a.is_active}
+            disabled={busy || confirming}
+            onCheckedChange={(next) => (next ? onToggle(a, true) : setConfirming(true))}
+            aria-label={`${a.is_active ? "Pause" : "Resume"} ${a.name}`}
+          />
+        </div>
       </div>
-      <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-        {a.is_active ? "Active" : "Paused"}
-        <Switch
-          checked={a.is_active}
-          disabled={busy}
-          onCheckedChange={(next) => onToggle(a, next)}
-          aria-label={`${a.is_active ? "Pause" : "Resume"} ${a.name}`}
-        />
-      </label>
+      {confirming ? (
+        <div role="alertdialog" aria-label={`Pause ${a.name}?`} className="hub-pop-down mt-2 flex flex-wrap items-center gap-2 rounded-[10px] bg-sunken px-3 py-2 ring-1 ring-inset ring-line">
+          <p className="min-w-0 flex-1 text-xs text-foreground">
+            Pause {a.name}?{" "}
+            {a.credentials > 0
+              ? `Its ${plural(a.credentials, "credential")} ${a.credentials === 1 ? "stops" : "stop"} too.`
+              : "Nothing it started is undone."}
+          </p>
+          <Button
+            size="xs"
+            variant="destructive"
+            onClick={() => {
+              setConfirming(false)
+              onToggle(a, false)
+            }}
+          >
+            Pause
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => setConfirming(false)}>
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+      {!a.sponsor ? (
+        <p data-no-sponsor="" className="mt-2 rounded-md bg-camp-sun-tint px-3 py-1.5 text-meta text-camp-sun-ink">
+          No sponsor. Assign one so someone answers for it.
+        </p>
+      ) : null}
     </li>
   )
 }
 
-/** One live credential. */
+/** One live credential: bound to an agent, or said plainly that it is not. */
 function InventoryCredentialRow({
   credential: c,
   busy,
@@ -131,29 +179,32 @@ function InventoryCredentialRow({
   onRevoke: (c: InventoryCredential) => void
 }) {
   return (
-    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 py-3">
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+      <span className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-hover text-ink-2 [&_svg]:size-4">
+        <Key aria-hidden />
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui">
           <span className="font-medium text-foreground">{c.name}</span>
-          <code className="rounded bg-muted px-1 text-2xs text-muted-foreground">{c.token_prefix}…</code>
-          <span className="text-muted-foreground">
-            <Sponsor name={c.sponsor} />
-          </span>
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {c.agent_id ? <>Acts as {c.agent_name || "an agent"}</> : "Acts as its maker"}
-          {" · "}
-          {c.scopes.length === 0 ? "no scopes" : c.scopes.join(", ")}
-        </p>
-        <p className="mt-1 flex flex-wrap gap-x-3 text-xs tabular-nums text-muted-foreground">
-          <span>{c.last_used_at ? `used ${relativeTime(c.last_used_at)}` : "never used"}</span>
-          {c.refusals_7d > 0 && (
-            <span className="font-medium text-primary">{plural(c.refusals_7d, "refusal")}</span>
+          <code className="rounded-xs bg-hover px-1 text-3xs text-ink-3">{c.token_prefix}…</code>
+          {c.agent_id ? (
+            <span className="text-meta text-ink-3">Bound to {c.agent_name || "an agent"}</span>
+          ) : (
+            <span data-unbound="" className="inline-flex h-[18px] items-center rounded-[5px] bg-camp-sun-tint px-1.5 text-3xs font-medium text-camp-sun-ink">
+              Not bound to an agent
+            </span>
           )}
+        </p>
+        <p className="mt-0.5 flex flex-wrap gap-x-3 text-meta tabular-nums text-ink-3">
+          <span>{c.sponsor ? <>Sponsor: {c.sponsor}</> : <span className="italic">sponsor not found</span>}</span>
+          <span>{c.agent_id ? "Acts as its agent" : "Acts as its maker"}</span>
+          <span>{c.scopes.length === 0 ? "no scopes" : c.scopes.join(", ")}</span>
+          <span>{c.last_used_at ? `used ${relativeTime(c.last_used_at)}` : "never used"}</span>
+          {c.refusals_7d > 0 && <span className="font-semibold text-agent-ink">{plural(c.refusals_7d, "refusal")}</span>}
           {c.expires_at && <span>expires {new Date(c.expires_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
         </p>
       </div>
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => onRevoke(c)}>
+      <Button size="xs" variant="ghost" className="text-danger-ink hover:text-danger-ink" disabled={busy} onClick={() => onRevoke(c)}>
         Revoke
       </Button>
     </li>

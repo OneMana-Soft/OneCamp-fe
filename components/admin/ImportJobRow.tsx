@@ -11,116 +11,71 @@
  * one), and it kept its workspace's label busy, so it blocked importing that
  * workspace again.
  *
- * It reads like the task panel: the name and where it stands (a dot and a
- * word), then quiet labels with their values in ink at one x (fieldRow). Each
- * row's next step is an outline button, because a list of three imports used
- * to draw three filled orange ones against the page's one primary action.
+ * Design v3 (§A14, mock M5): a row, not a block. The tool's mark, "Jira ·
+ * Acme" and where it stands as a dot and a word, a tabular meta line, and on
+ * the right the 160px bar while it runs, the next step while it waits, or a ⋯
+ * once it is done (ImportJobFrame in importParts). A tool is a category, so
+ * its mark is neutral ink on sunken: it was a camp-hued square per tool.
  */
 
-import React, { useEffect, useRef } from "react"
-import { celebrate, springPop } from "@/lib/celebrate"
+import React, { useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
 import { AlertTriangle, RefreshCw, RotateCcw, Trash2, Users } from "@/lib/icons"
 import { PlayCircle } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import type { CampHue } from "@/lib/campHue"
+import { StateWord, type RowMenuItem } from "@/components/admin/connectParts"
+import { IMPORT_STATE, ImportJobFrame, useFinishCelebration } from "@/components/admin/importParts"
 import { importProviderLabel, type ImportJob } from "@/services/importService"
 
+/** A row's buttons: 44px touch targets on a phone, 28px from md up. */
+export const ROW_ACTION = "h-11 md:h-7"
+
 /**
- * Status in the status colours, as a dot and a word (StatusWord), the way the
- * task panel says a status. These were raw blue, indigo, purple and grey,
- * which measure 2.3 to 3.5:1 in dark mode, below AA, each with an icon beside
- * its word (a spinning one for running), and then tinted pills.
+ * A list of import rows: the settings card (raised at e1, r12, no border),
+ * rows between hairlines inset 16px. It was a 1px grey box (§1.3).
  */
-const STATUS: Record<string, { label: string; tone: StatusTone }> = {
-  pending: { label: "Uploading", tone: "warning" },
-  validating: { label: "To plan", tone: "info" },
-  planned: { label: "Planned", tone: "info" },
-  running: { label: "Running", tone: "info" },
-  paused: { label: "Paused", tone: "warning" },
-  completed: { label: "Finished", tone: "success" },
-  failed: { label: "Failed", tone: "danger" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
-  rolled_back: { label: "Rolled back", tone: "neutral" },
-}
+export const IMPORT_LIST = "set-card cx-imp-list"
 
 /**
- * Each tool's colour, one map: where the history lists every provider's
- * imports, a small square in it marks which tool each came from. Eight tools,
- * six hues, so two pairs share one; the name always sits beside it.
- */
-export const PROVIDER_HUE: Record<string, CampHue> = {
-  asana: "berry",
-  clickup: "dusk",
-  jira: "sky",
-  linear: "lake",
-  monday: "sun",
-  notion: "moss",
-  todoist: "berry",
-  trello: "sky",
-}
-
-/** A row's buttons: 44px touch targets on a phone, 32px from md up. */
-export const ROW_ACTION = "h-11 md:h-8"
-
-/** A list of rows between hairlines, as every list on the admin page is drawn. */
-export const IMPORT_LIST = "divide-y divide-border rounded-lg border border-border"
-
-/**
- * An import list while it loads, in its rows' own shape: the name and where it
- * stands, then two label rows at the fieldRow's columns. It was the generic
- * avatar rows, which the import rows then replaced at another height.
+ * An import list while it loads, in its rows' own shape: the 28px mark, the
+ * name and its state, the meta line, and the bar's place on the right.
  */
 export function ImportRowsSkeleton({ label, rows = 2 }: { label: string; rows?: number }) {
   return (
     <ul role="status" aria-label={label} className={IMPORT_LIST}>
       {Array.from({ length: rows }).map((_, i) => (
-        <li key={i} aria-hidden="true" className="space-y-2 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Skeleton className={cn("h-4", i % 2 === 0 ? "w-40" : "w-32")} />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          {["w-24", "w-36"].map((w) => (
-            <div key={w} className={fieldRow("center", "mb-0")}>
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className={cn("h-3.5", w)} />
+        <li key={i} aria-hidden="true" className="cx-imp-job">
+          <Skeleton className="size-7 rounded-lg" />
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-48" : "w-36")} />
+              <Skeleton className="h-3 w-14" />
             </div>
-          ))}
+            <Skeleton className="h-3 w-56 max-w-full" />
+          </div>
+          <Skeleton className="hidden h-1.5 w-40 rounded-full sm:block" />
         </li>
       ))}
     </ul>
   )
 }
 
-/** Where an import stands, as a dot and a word. Shared by the Slack import card. */
-export function ImportStatusChip({ status }: { status: string }) {
-  const s = STATUS[status] ?? STATUS.pending
-  const chip = useRef<HTMLSpanElement>(null)
-  // The status this chip last showed. A run that turns Finished while it is
-  // on screen is one of the playful layer's moments: a burst of camp sparks
-  // from the chip and a small pop (nothing under reduced motion). An import
-  // that loads finished (a reload, another visit) has no last status, and
-  // stays quiet: its news was told already.
-  const last = useRef<string | null>(null)
-  useEffect(() => {
-    if (status === "completed" && last.current !== null && last.current !== "completed") {
-      celebrate(chip.current)
-      springPop(chip.current)
-    }
-    last.current = status
-  }, [status])
-  // The span is what bursts: StatusWord takes no ref.
+/**
+ * Where an import stands, as a dot and a word. Running pulses (opacity only).
+ * When a run turns Finished on screen it bursts from the dot, once per import
+ * id when `jobId` is given (useFinishCelebration).
+ */
+export function ImportStatusChip({ status, jobId }: { status: string; jobId?: string }) {
+  const s = IMPORT_STATE[status] ?? IMPORT_STATE.pending
+  const dot = useRef<HTMLSpanElement>(null)
+  useFinishCelebration(jobId, status, dot)
   return (
-    <span ref={chip} data-import-status={status} className="inline-flex shrink-0">
-      <StatusWord tone={s.tone} className="text-xs">
+    <span data-import-status={status} className="inline-flex shrink-0">
+      <StateWord tone={s.tone} pulse={s.pulse} dotRef={dot}>
         {s.label}
-      </StatusWord>
+      </StateWord>
     </span>
   )
 }
@@ -171,86 +126,68 @@ export function ImportJobRow({ job: j, showProvider, onPlan, onDiscard, onCancel
   const totalChunks = j.chunks_total || 1
   const pct = j.status === "completed" ? 100 : Math.min(100, Math.round((j.chunks_done / totalChunks) * 100))
   const pause = j.status === "running" ? pauseLine(j) : null
+  const done = j.status === "completed" || j.status === "failed" || j.status === "cancelled" || j.status === "rolled_back"
+  const label = importProviderLabel(j.provider)
+
+  const meta = [`${j.started_at ? "Started" : "Created"} ${shortDateTime(new Date(j.started_at ?? j.created_at))}`]
+  if (!isWaiting(j.status)) meta.push(count(j.items_imported, "item", "items"), partsLine(j.chunks_done, j.chunks_total))
+
+  // Done: what's left behind ⋯, so a list of finished imports is quiet.
+  const menu: RowMenuItem[] = []
+  if (done) {
+    if (j.status === "completed") menu.push({ label: "Invite the people who came across", icon: Users, onSelect: onInvite })
+    if ((j.status === "failed" || j.status === "cancelled") && j.chunks_failed > 0)
+      menu.push({ label: "Retry the failed parts", icon: RefreshCw, onSelect: onRetryFailed })
+    if (j.errors_total > 0) menu.push({ label: `See ${count(j.errors_total, "error", "errors")}`, icon: AlertTriangle, onSelect: onShowErrors })
+    if (j.status !== "rolled_back") menu.push({ label: "Roll back", icon: RotateCcw, onSelect: onRollback, destructive: true, separated: menu.length > 0 })
+  }
+
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          {showProvider && <IdentityMark hue={PROVIDER_HUE[j.provider] ?? "sun"} variant="square" size={10} />}
-          <span className="truncate text-sm font-medium">
-            {showProvider && <span className="font-normal text-muted-foreground">{importProviderLabel(j.provider)} · </span>}
-            {j.source_workspace_name}
-          </span>
-          <ImportStatusChip status={j.status} />
-          {j.status === "running" && j.stage && <span className="text-xs text-muted-foreground">{j.stage}</span>}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+    <ImportJobFrame
+      jobId={j.id}
+      vendor={j.provider}
+      vendorName={label}
+      showVendor={showProvider}
+      name={j.source_workspace_name}
+      status={j.status}
+      stage={j.stage}
+      meta={meta}
+      pct={pct}
+      errorsLabel={j.errors_total > 0 ? count(j.errors_total, "error", "errors") : undefined}
+      onShowErrors={onShowErrors}
+      menu={menu}
+      actions={
+        <>
           {(j.status === "validating" || j.status === "planned") && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan}>
+            <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onPlan}>
               <PlayCircle /> Plan
             </Button>
           )}
           {j.status === "failed" && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan}>
+            <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onPlan}>
               <PlayCircle /> Plan again
             </Button>
           )}
           {isWaiting(j.status) && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onDiscard}>
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onDiscard}>
               <Trash2 /> Discard
             </Button>
           )}
           {(j.status === "running" || j.status === "paused") && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onCancel}>
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onCancel}>
               Cancel
             </Button>
           )}
-          {j.status === "completed" && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onInvite}>
-              <Users /> Invite people
-            </Button>
-          )}
-          {(j.status === "completed" || j.status === "failed" || j.status === "cancelled") && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRollback}>
-              <RotateCcw /> Roll back
-            </Button>
-          )}
-          {(j.status === "failed" || j.status === "cancelled") && j.chunks_failed > 0 && (
-            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRetryFailed}>
-              <RefreshCw /> Retry failed
-            </Button>
-          )}
-          {j.errors_total > 0 && (
-            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onShowErrors}>
-              <AlertTriangle className="text-warning-ink" />
-              {count(j.errors_total, "error", "errors")}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <dl className="space-y-1">
-        <div className={fieldRow("center", "mb-0")}>
-          <dt className={fieldLabel}>{j.started_at ? "Started" : "Created"}</dt>
-          <dd className="text-sm">{shortDateTime(new Date(j.started_at ?? j.created_at))}</dd>
-        </div>
-        {!isWaiting(j.status) && (
+        </>
+      }
+      below={() =>
+        pause || j.error_message ? (
           <>
-            <div className={fieldRow("center", "mb-0")}>
-              <dt className={fieldLabel}>Progress</dt>
-              <dd className="flex min-w-0 items-center gap-3 text-sm">
-                <Progress value={pct} className="h-1.5 w-28 shrink-0" aria-label={`${pct}% done`} />
-                <span>{partsLine(j.chunks_done, j.chunks_total)}</span>
-              </dd>
-            </div>
-            <div className={fieldRow("center", "mb-0")}>
-              <dt className={fieldLabel}>Brought in</dt>
-              <dd className="text-sm">{count(j.items_imported, "item", "items")}</dd>
-            </div>
+            {pause && <p className="break-words text-xs text-warning-ink">{pause}</p>}
+            {j.error_message && <p className="break-words text-xs text-danger-ink">{j.error_message}</p>}
           </>
-        )}
-      </dl>
-      {pause && <p className="break-words text-xs text-warning-ink">{pause}</p>}
-      {j.error_message && <p className="break-words text-xs text-danger-ink">{j.error_message}</p>}
-    </div>
+        ) : null
+      }
+    />
   )
 }

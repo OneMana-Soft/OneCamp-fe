@@ -36,8 +36,8 @@ describe("a run with work the remote brain did itself", () => {
         const badges = getAllByText("remote")
         expect(badges).toHaveLength(1)
         expect(badges[0].getAttribute("title")).toMatch(/could not have refused/)
-        // The badge sits in the same card as the remote call, not the local one.
-        const card = badges[0].closest("div.rounded-md")
+        // The mark sits on the remote call's own node of the timeline, not the local one's.
+        const card = badges[0].closest("[data-tool-call]")
         expect(card?.textContent).toContain("opened")
         expect(card?.textContent).not.toContain("sent")
         expect(queryAllByText("skipped")).toHaveLength(0)

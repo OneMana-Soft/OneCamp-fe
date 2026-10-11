@@ -14,6 +14,8 @@ vi.mock("@/services/guestService", () => ({
 }))
 // The timeline view is beside the point here.
 vi.mock("@/components/project/timeline/ProjectTimeline", () => ({ ProjectTimeline: () => null }))
+const celebrateTask = vi.fn((_el: Element) => 8)
+vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTask(el), prefersReducedMotion: () => true }))
 
 import GuestProjectPage from "@/app/guest/p/[token]/page"
 
@@ -115,7 +117,7 @@ describe("a client's task panel, once the task is in", () => {
     await open()
     await openTask()
     const panel = screen.getByRole("complementary", { name: "Task" })
-    const filled = within(panel).getAllByRole("button").filter((b) => /\bbg-primary\b/.test(b.className))
+    const filled = within(panel).getAllByRole("button").filter((b) => /\bbg-brand\b/.test(b.className))
     expect(filled.map((b) => b.textContent || b.getAttribute("aria-label"))).toEqual(["Approve"])
   })
 
@@ -134,9 +136,49 @@ describe("a client's project header", () => {
   })
   afterEach(() => cleanup())
 
-  it("shows how far along it is with the app's progress bar, named for screen readers", async () => {
+  it("shows how far along it is as a ring with the count inside, named for screen readers (work.md W51)", async () => {
     await open()
-    const bar = screen.getByRole("progressbar", { name: "1 of 4 tasks done" })
-    expect(bar.querySelector(".bg-progress")).not.toBeNull()
+    const ring = screen.getByRole("progressbar", { name: "1 of 4 tasks done" })
+    expect(ring.querySelector("svg")).not.toBeNull()
+    expect(ring).toHaveTextContent("1/4")
+    expect(screen.getByText("Guest")).toBeInTheDocument()
+    expect(document.querySelector("[data-project-tile='36']")).not.toBeNull()
+  })
+})
+
+describe("what waits on the client (work.md W51)", () => {
+  const inReview = {
+    ...view,
+    total_tasks: 2,
+    columns: [
+      { status: "todo", label: "To do", tasks: [view.columns[0].tasks[0]] },
+      { status: "inReview", label: "In review", tasks: [{ id: "t2", name: "Pick the hero photo", status: "inReview", status_label: "In review", comment_count: 0 }] },
+    ],
+  } as unknown as GuestProjectView
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as typeof window.matchMedia
+    localStorage.clear()
+    celebrateTask.mockClear()
+    getGuestProject.mockReset().mockResolvedValue({ ok: true, data: inReview })
+  })
+  afterEach(() => cleanup())
+
+  it("counts the tasks awaiting a verdict on their own tab", async () => {
+    await open()
+    const tab = screen.getByRole("tab", { name: /Needs your review/ })
+    expect(tab).toHaveTextContent("1")
+    await act(async () => fireEvent.click(tab))
+    expect(screen.getByRole("button", { name: /Pick the hero photo/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Write the FAQ section/ })).toBeNull()
+  })
+
+  it("approves from the card once the guest has a name, with one celebration", async () => {
+    localStorage.setItem("oc_guest_name_tok", "Priya")
+    const { reviewGuestTask } = await import("@/services/guestService")
+    vi.mocked(reviewGuestTask).mockResolvedValue({ ok: true, data: { decision: "approved", name: "Priya", created_at: "2026-10-11T08:00:00Z" } })
+    await open()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Approve" })))
+    expect(reviewGuestTask).toHaveBeenCalledWith("tok", "t2", { display_name: "Priya", decision: "approved", note: "" })
+    expect(celebrateTask).toHaveBeenCalledTimes(1)
   })
 })

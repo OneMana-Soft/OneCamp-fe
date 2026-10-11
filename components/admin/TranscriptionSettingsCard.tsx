@@ -13,26 +13,30 @@
 // without any code change.
 //
 // Two ways of saving, each said out loud. The mode saves the moment it is
-// picked, and Off asks first, because it ends captions and transcripts for
-// every call. The speech-to-text block is several fields that only make sense
-// together, so its edits wait in a save bar. Until the stored settings are
-// read there is no form: a failed read used to show "Browser" as the mode.
+// picked, with the saved tick, and Off asks first, because it ends captions
+// and transcripts for every call. The speech-to-text block is several fields
+// that only make sense together, so it is a batched card whose footer holds
+// Save and the connection test. Until the stored settings are read there is
+// no form: a failed read used to show "Browser" as the mode.
+//
+// Design v3 (admin A17): where the model runs is a segmented choice, "On this
+// server · Provider"; on this server, a hint row says the memory it needs and
+// gives the command that starts it as a code row.
 
 import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { ErrorState } from "@/components/ui/error-state"
-import { Skeleton } from "@/components/ui/skeleton"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
-import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
+import { SettingRow, SettingsCard, SettingsCardError, SettingsCardFooter, SettingsRowsSkeleton, SettingsSection } from "@/components/ui/settingsSection"
+import { useSaveStatus } from "@/components/ui/saveStatus"
+import { CodeRow } from "@/components/ui/settingsControls"
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { CheckCircle2, Loader2, XCircle } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
+import { CheckCircle2, HardDrive, Loader2, XCircle } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
     getTranscriptionConfig,
@@ -85,18 +89,27 @@ const PROVIDER_LABEL: Record<STTProvider, string> = {
 // machine, and that is the difference an admin is actually choosing between,
 // so it is stated rather than left to be inferred from the provider's name.
 const PROVIDER_NOTE: Record<STTProvider, React.ReactNode> = {
-    // The command in code type: written in backticks, it showed them.
-    local: (
-        <>
-            Meeting audio never leaves this server, and there is nothing to pay per minute. Start it with{" "}
-            <code className="rounded-sm bg-muted px-1 font-mono text-2xs">make stt_up</code>. The first call after a
-            restart is slower while the model loads.
-        </>
-    ),
+    // The command that starts it is a code row in the hint row below.
+    local: "Meeting audio never leaves this server, and there is nothing to pay per minute. The first call after a restart is slower while the model loads.",
     deepgram: "Meeting audio is sent to Deepgram and billed per minute.",
     google: "Meeting audio is sent to Google Cloud and billed per minute.",
     openai: "Meeting audio is sent to the endpoint you enter below. Billing depends on who runs it.",
 }
+
+/** Where the model runs: the bundled server, or a provider elsewhere. */
+type Where = "server" | "provider"
+const WHERE_OPTIONS = [
+    { value: "server", label: "On this server" },
+    { value: "provider", label: "Provider" },
+] as const
+/** The providers somewhere else, for the picker: every one but the bundled server. */
+const CLOUD_PROVIDERS = (Object.keys(PROVIDER_LABEL) as STTProvider[]).filter((p) => p !== "local")
+
+/**
+ * The bundled server's default model (WHISPER_MODEL=base in final-compose.yml)
+ * and the memory it holds while loaded.
+ */
+const LOCAL_RAM_HINT = "The bundled base model needs about 1 GB of free memory. A larger WHISPER_MODEL needs more."
 
 const MODEL_PLACEHOLDER: Record<STTProvider, string> = {
     local: "whisper-1",
@@ -131,7 +144,8 @@ export default function TranscriptionSettingsCard() {
     const [apiKey, setApiKey] = useState("")
     const [googleCreds, setGoogleCreds] = useState("")
 
-    const [savingMode, setSavingMode] = useState(false)
+    const { status: modeStatus, run: runMode } = useSaveStatus()
+    const savingMode = modeStatus.state === "saving"
     const [savingBackend, setSavingBackend] = useState(false)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<TranscriptionTestResult | null>(null)
@@ -176,25 +190,16 @@ export default function TranscriptionSettingsCard() {
     const saveMode = async (next: TranscriptionMode) => {
         const before = mode
         setMode(next)
-        setSavingMode(true)
-        try {
+        const ok = await runMode(async () => {
             const c = await updateTranscriptionConfig({ mode: next })
             if (c) {
                 setConfig(c)
                 setMode(c.mode)
             }
             globalMutate("client-config")
-            toast({ title: "Transcription mode changed", description: MODE_DESCRIPTION[next] })
-        } catch (e) {
-            toast({
-                title: "Couldn't change the transcription mode",
-                description: apiErrorMessage(e, "Try again in a moment."),
-                variant: "destructive",
-            })
-            setMode(before)
-        } finally {
-            setSavingMode(false)
-        }
+        })
+        // A refusal slides the choice back; its reason is under the label.
+        if (!ok) setMode(before)
     }
 
     const pickMode = (next: TranscriptionMode) => {
@@ -291,6 +296,11 @@ export default function TranscriptionSettingsCard() {
     }
 
     const busy = savingBackend || testing
+    const where: Where = sttProvider === "local" ? "server" : "provider"
+    const pickWhere = (next: Where) => {
+        if (next === where) return
+        setSttProvider(next === "server" ? "local" : config && config.stt_provider !== "local" ? config.stt_provider : CLOUD_PROVIDERS[0])
+    }
 
     return (
         <SettingsSection
@@ -299,42 +309,38 @@ export default function TranscriptionSettingsCard() {
                 <>
                     Live captions during calls, and a transcript of every call, recorded or not, for searchable playback,
                     the meeting recap and the notes document. Changes reach new calls at once.{" "}
-                    {/* How it saves, said where every section says it: this line
-                        sat under the list, outside it. */}
                     <span>The mode saves as soon as you pick it.</span>
                 </>
             }
         >
             {!config && failed ? (
-                <ErrorState
-                    compact
-                    subject="the transcription settings"
-                    retrying={retrying}
-                    onRetry={() => {
-                        setRetrying(true)
-                        void load().finally(() => setRetrying(false))
-                    }}
-                />
+                <SettingsCard>
+                    <SettingsCardError
+                        what="the transcription settings"
+                        retrying={retrying}
+                        onRetry={() => {
+                            setRetrying(true)
+                            void load().finally(() => setRetrying(false))
+                        }}
+                    />
+                </SettingsCard>
             ) : !config ? (
                 // The mode's own row stands in, so nothing moves when it arrives.
-                <SettingsList>
-                    <div role="status" aria-label="Loading the transcription settings" className="flex items-center justify-between gap-6 px-4 py-3">
-                        <div className="min-w-0 flex-1 space-y-2">
-                            <Skeleton className="h-4 w-16" />
-                            <Skeleton className="h-3 w-80 max-w-full" />
-                        </div>
-                        <Skeleton className="h-9 w-48 shrink-0" />
+                <SettingsCard>
+                    <div role="status" aria-label="Loading the transcription settings" className="contents">
+                        <SettingsRowsSkeleton rows={1} control="field" />
                     </div>
-                </SettingsList>
+                </SettingsCard>
             ) : (
                 <>
-                    <SettingsList>
+                    <SettingsCard>
                         {/* One of three: the app's segmented control, so every
                             choice is in view and Off can ask first. */}
                         <SettingRow
                             label="Mode"
                             controlId="transcription-mode"
                             description={withSource(MODE_DESCRIPTION[mode], config.mode_source)}
+                            status={modeStatus}
                         >
                             <SegmentedControl
                                 id="transcription-mode"
@@ -346,20 +352,36 @@ export default function TranscriptionSettingsCard() {
                                 disabled={savingMode}
                             />
                         </SettingRow>
-                    </SettingsList>
+                    </SettingsCard>
 
                     {/* Backend STT model config (only relevant in backend mode) */}
                     {showBackendConfig && (
                         <SettingsSection
                             level={3}
                             title="Speech-to-text"
-                            description="What the server's agent transcribes with. Keys are encrypted when saved and never shown again. Changes here wait for Save."
+                            description="What the server's agent transcribes with."
                             className="pt-3"
                         >
-                            <SettingsList>
+                            <SettingsCard
+                                dirty={backendDirty}
+                                footer={
+                                    <SettingsCardFooter
+                                        hint="Keys are encrypted when saved and never shown again."
+                                        dirty={backendDirty}
+                                        saving={savingBackend && !testing}
+                                        onSave={() => void saveBackend()}
+                                        onReset={() => resetBackend(config)}
+                                    >
+                                        <Button size="sm" variant="secondary" onClick={() => void runTest()} disabled={busy}>
+                                            {testing && <Loader2 className="animate-spin" aria-hidden="true" />}
+                                            {testing ? "Testing…" : backendDirty ? "Save and test" : "Test the connection"}
+                                        </Button>
+                                    </SettingsCardFooter>
+                                }
+                            >
                                 <SettingRow
-                                    label="Provider"
-                                    controlId="stt-provider"
+                                    label="Where it runs"
+                                    controlId="stt-where"
                                     description={
                                         <>
                                             {PROVIDER_NOTE[sttProvider]}
@@ -367,28 +389,52 @@ export default function TranscriptionSettingsCard() {
                                         </>
                                     }
                                 >
-                                    <Select
-                                        value={sttProvider}
-                                        onValueChange={(v) => setSttProvider(v as STTProvider)}
+                                    <SegmentedControl
+                                        id="stt-where"
+                                        aria-label="Where it runs"
+                                        aria-describedby="stt-where-desc"
+                                        value={where}
+                                        onValueChange={(v) => pickWhere(v as Where)}
+                                        options={WHERE_OPTIONS}
                                         disabled={busy}
-                                    >
-                                        <SelectTrigger id="stt-provider" aria-describedby="stt-provider-desc" className={CONTROL}>
-                                            <SelectValue placeholder="Choose a provider" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(Object.keys(PROVIDER_LABEL) as STTProvider[]).map((p) => (
-                                                <SelectItem key={p} value={p}>
-                                                    {PROVIDER_LABEL[p]}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    />
                                 </SettingRow>
+
+                                {where === "server" ? (
+                                    <div data-ram-hint="" className="set-row flex items-start gap-3">
+                                        <span aria-hidden="true" className="mt-0.5 inline-grid size-7 shrink-0 place-items-center rounded-md bg-sunken text-ink-3 ring-1 ring-inset ring-line">
+                                            <HardDrive className="size-4" />
+                                        </span>
+                                        <div className="min-w-0 flex-1 space-y-2">
+                                            <p className="text-xs text-muted-foreground text-pretty">{LOCAL_RAM_HINT} Start it on the server:</p>
+                                            <CodeRow value="make stt_up" label="start command" className="max-w-xs" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <SettingRow label="Provider" controlId="stt-provider">
+                                        <Select
+                                            value={sttProvider}
+                                            onValueChange={(v) => setSttProvider(v as STTProvider)}
+                                            disabled={busy}
+                                        >
+                                            <SelectTrigger id="stt-provider" className={CONTROL}>
+                                                <SelectValue placeholder="Choose a provider" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {CLOUD_PROVIDERS.map((p) => (
+                                                    <SelectItem key={p} value={p}>
+                                                        {PROVIDER_LABEL[p]}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </SettingRow>
+                                )}
 
                                 <SettingRow
                                     label="Model"
                                     controlId="stt-model"
-                                    description="The model's name at the provider. Leave it blank for the provider's default."
+                                    description="Blank uses the provider's default."
                                 >
                                     <Input
                                         id="stt-model"
@@ -410,7 +456,7 @@ export default function TranscriptionSettingsCard() {
                                     <SettingRow
                                         label="Endpoint base URL"
                                         controlId="stt-base-url"
-                                        description="Any OpenAI-compatible endpoint: OpenAI, Groq or your own faster-whisper. Leave it blank for OpenAI's own."
+                                        description="OpenAI, Groq or your own faster-whisper. Blank uses OpenAI's own."
                                     >
                                         <Input
                                             id="stt-base-url"
@@ -431,7 +477,7 @@ export default function TranscriptionSettingsCard() {
                                 <SettingRow
                                     label="Language"
                                     controlId="stt-language"
-                                    description="Leave it blank to detect the language, or enter a code such as en, es or fr."
+                                    description="Blank detects it, or enter a code such as en, es or fr."
                                 >
                                     <Input
                                         id="stt-language"
@@ -493,47 +539,19 @@ export default function TranscriptionSettingsCard() {
                                         />
                                     </SettingRow>
                                 ) : null}
-                            </SettingsList>
 
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => void runTest()}
-                                    disabled={busy}
-                                    className="h-8 gap-1.5"
-                                >
-                                    {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
-                                    {testing ? "Testing…" : backendDirty ? "Save and test the connection" : "Test the connection"}
-                                </Button>
-                            </div>
-
-                            {testResult && (
-                                <div
-                                    className={cn(
-                                        "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
-                                        testResult.ok
-                                            ? "border-success/20 bg-success/10 text-success-ink"
-                                            : "border-destructive/20 bg-destructive/10 text-danger-ink",
-                                    )}
-                                    role="status"
-                                >
-                                    {testResult.ok ? (
-                                        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
-                                    ) : (
-                                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
-                                    )}
-                                    <span>{testResult.message}</span>
-                                </div>
-                            )}
-
-                            <SaveBar
-                                dirty={backendDirty}
-                                saving={savingBackend && !testing}
-                                what="speech-to-text changes"
-                                onSave={() => void saveBackend()}
-                                onDiscard={() => resetBackend(config)}
-                            />
+                                {/* The test's answer, in the card: a moss check or the danger reason. */}
+                                {testResult && (
+                                    <div role="status" data-test-result={testResult.ok ? "ok" : "failed"} className="set-row flex items-start gap-2">
+                                        {testResult.ok ? (
+                                            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-ink" aria-hidden="true" />
+                                        ) : (
+                                            <XCircle className="mt-0.5 size-4 shrink-0 text-danger-ink" aria-hidden="true" />
+                                        )}
+                                        <span className={testResult.ok ? "text-xs text-foreground" : "text-xs text-danger-ink"}>{testResult.message}</span>
+                                    </div>
+                                )}
+                            </SettingsCard>
                         </SettingsSection>
                     )}
                 </>

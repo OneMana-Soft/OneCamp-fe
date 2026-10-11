@@ -140,7 +140,7 @@ export function TwoFactorCodeField({
                 aria-invalid={error !== "" || undefined}
                 aria-describedby={error !== "" ? errorId : undefined}
                 autoFocus={autoFocus}
-                // No height class: Input defaults to h-11 md:h-9, and the 44px mobile half is a touch
+                // No height class: Input defaults to h-11 md:h-8, and the 44px mobile half is a touch
                 // target floor asserted by e2e/designSystem.spec.ts.
                 className={cn("font-mono tracking-widest", error !== "" && "border-destructive/50", inputClassName)}
             />
@@ -148,6 +148,111 @@ export function TwoFactorCodeField({
                 // role=alert so a screen reader hears the rejection. Without it the only signal is a
                 // colour change, which is no signal at all.
                 <p id={errorId} role="alert" className="text-xs text-danger-ink">
+                    {error}
+                </p>
+            )}
+        </div>
+    )
+}
+
+interface TwoFactorCellsProps {
+    id: string
+    value: string
+    /** Receives the NORMALISED value (digits only). */
+    onChange: (value: string) => void
+    /** Called once six digits are in, for auto-submit. */
+    onComplete?: (value: string) => void
+    /** Checking a code: the field keeps focus but can't change. */
+    busy?: boolean
+    error?: string
+    /** Changes on each wrong code, to play the shake again. */
+    invalidKey?: number
+    inputRef?: React.Ref<HTMLInputElement>
+    label?: string
+}
+
+/**
+ * The sign-in's code as six cells (design v3, admin.md F4): 44×52, r10,
+ * raised at e1, mono 22/28, 8px apart with a wider 16px gap after the third.
+ *
+ * ONE REAL INPUT drives them, laid invisibly over the row, so everything a
+ * browser does with a code field keeps working: paste of all six digits, the
+ * phone's one-time-code autofill from a message, backspace moving back (it
+ * deletes the last digit of the one value), a screen reader reading one field.
+ * The cells only draw what it holds: the active cell carries the halo and a
+ * blinking caret, each digit pops in, a complete code sends a moss ring
+ * across the row, and a wrong one rings it in danger and shakes it.
+ */
+export function TwoFactorCells({ id, value, onChange, onComplete, busy, error = "", invalidKey = 0, inputRef, label }: TwoFactorCellsProps) {
+    const [focused, setFocused] = React.useState(false)
+    const errorId = `${id}-error`
+    const digits = value.split("")
+    const active = Math.min(digits.length, AUTHENTICATOR_CODE_LENGTH - 1)
+    // The shake plays again on each wrong code without remounting the row (which would take the
+    // cursor out of the field): the animation is restarted in place.
+    const rowRef = React.useRef<HTMLDivElement>(null)
+    React.useEffect(() => {
+        const row = rowRef.current
+        if (!row || invalidKey === 0) return
+        row.removeAttribute("data-shake")
+        void row.offsetWidth
+        row.setAttribute("data-shake", "")
+    }, [invalidKey])
+    const handleChange = (raw: string) => {
+        const next = normaliseTwoFactorCode(raw, false)
+        onChange(next)
+        if (onComplete && isCompleteAuthenticatorCode(next, false)) onComplete(next)
+    }
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={id} className="auth-label">
+                {label ?? "6-digit code"}
+            </Label>
+            <div
+                ref={rowRef}
+                className="auth-otp"
+                data-otp=""
+                data-invalid={error !== "" && invalidKey > 0 ? "" : undefined}
+                data-complete={busy && value.length === AUTHENTICATOR_CODE_LENGTH ? "" : undefined}
+            >
+                <input
+                    id={id}
+                    ref={inputRef}
+                    value={value}
+                    onChange={(e) => handleChange(e.target.value)}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    readOnly={busy}
+                    aria-busy={busy || undefined}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={AUTHENTICATOR_CODE_LENGTH}
+                    aria-invalid={error !== "" || undefined}
+                    aria-describedby={error !== "" ? errorId : undefined}
+                />
+                {Array.from({ length: AUTHENTICATOR_CODE_LENGTH }, (_, i) => (
+                    <React.Fragment key={i}>
+                        {i === 3 && <span className="auth-otp-gap" aria-hidden="true" />}
+                        <span
+                            className="auth-otp-cell font-mono"
+                            aria-hidden="true"
+                            data-otp-cell=""
+                            data-active={focused && !busy && i === active ? "" : undefined}
+                            style={{ "--i": i } as React.CSSProperties}
+                        >
+                            {digits[i] ? (
+                                <span key={digits[i] + i} className="auth-otp-digit">
+                                    {digits[i]}
+                                </span>
+                            ) : focused && !busy && i === active ? (
+                                <span className="auth-otp-caret" />
+                            ) : null}
+                        </span>
+                    </React.Fragment>
+                ))}
+            </div>
+            {error !== "" && (
+                <p id={errorId} role="alert" className="auth-field-error">
                     {error}
                 </p>
             )}

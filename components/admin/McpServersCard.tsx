@@ -23,12 +23,9 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
-import { hueFor } from "@/lib/campHue"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * The MCP servers agents can use, and the catalogue of checked connectors.
@@ -237,9 +234,9 @@ const McpServersCard = ({ embedded = false }: { embedded?: boolean } = {}) => {
                         "Google Dri…" beside its chip. */}
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{c.name}</span>
-                      {/* A category is a thing with a colour: its camp hue's
-                          tint and ink, fixed per category. */}
-                      <span className={cn(HUE_CLASS[hueFor(c.category)], "whitespace-nowrap rounded-sm bg-hue-tint px-1.5 py-0.5 text-2xs font-medium text-hue-ink")}>
+                      {/* A category is a neutral chip (design v3, admin
+                          §1.5): hue names a person or a project, never a kind. */}
+                      <span className="chip whitespace-nowrap">
                         {c.category}
                       </span>
                     </div>

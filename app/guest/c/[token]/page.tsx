@@ -5,18 +5,14 @@
 // and it opens this one channel and nothing else. New messages arrive by
 // polling, since a guest has no session for the live connection.
 
-import { use, useCallback, useRef, useState } from "react"
+import { Fragment, use, useCallback, useRef, useState } from "react"
+import { isSameDay } from "date-fns"
 import { ArrowLeft, Hash, MessageSquare, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
 import {
   GUEST_POLL_MS as POLL_MS,
-  GuestBand,
-  GuestTypeTile,
-  GuestComposer as Composer,
   GuestLinkGone,
-  GuestMessageView as MessageView,
-  GuestNameForm,
   GuestNotYet,
   GuestPanelPending,
   GuestTroubleNote,
@@ -25,7 +21,21 @@ import {
   useGuestPoll,
 } from "@/components/guest/guestUi"
 import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
-import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { GuestChannelActions, GuestChannelRow, GuestDayDivider, GuestGateComposer } from "@/components/guest/guestChannel"
+import { PublicFrame } from "@/components/guest/PublicFrame"
+
+/** A message the guest sent that the server hasn't confirmed yet, or refused. */
+type Outgoing = { id: string; text: string; created_at: string; failed: boolean }
+
+/** Messages with a day divider before the first of each day. */
+function byDay<T extends { id: string; created_at: string }>(list: T[], render: (m: T) => React.ReactNode) {
+  return list.map((m, i) => (
+    <Fragment key={m.id}>
+      {(i === 0 || !isSameDay(new Date(list[i - 1].created_at), new Date(m.created_at))) && <GuestDayDivider iso={m.created_at} />}
+      {render(m)}
+    </Fragment>
+  ))
+}
 
 export default function GuestChannelPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -40,6 +50,8 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
   const [olderFailed, setOlderFailed] = useState(false)
   const [name, setName] = useGuestName(token)
   const [thread, setThread] = useState<string | null>(null)
+  // What the guest sent, shown at 60 % until the server has it.
+  const [outbox, setOutbox] = useState<Outgoing[]>([])
   const bottom = useRef<HTMLDivElement>(null)
   // Whether there are older messages is known from the first page and from
   // loading older ones, never from polls of the newest page.
@@ -92,70 +104,88 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     setHasMore(res.data.has_more)
   }
 
+  // Optimistic: the message shows at once, on its way, and goes when the
+  // server's page carries it; a refusal stays under it with Retry.
+  const send = async (item: Outgoing) => {
+    setOutbox((o) => [...o.filter((x) => x.id !== item.id), { ...item, failed: false }])
+    requestAnimationFrame(() => bottom.current?.scrollIntoView({ block: "end" }))
+    const res = await postGuestMessage(token, { display_name: name, text: item.text })
+    if (!res.ok) {
+      setOutbox((o) => o.map((x) => (x.id === item.id ? { ...x, failed: true } : x)))
+      return sendFailedText(res)
+    }
+    await refresh(true)
+    setOutbox((o) => o.filter((x) => x.id !== item.id))
+    return null
+  }
+
   if (state === "loading") return <GuestNotYet trouble={trouble} shape="chat" label="Opening the channel…" />
   if (state === "missing") return <GuestLinkGone />
 
   return (
-    <main className="flex h-dvh flex-col bg-background">
-      <GuestBand />
-      <header className="flex items-center gap-2 border-b px-4 py-3">
-        <GuestTypeTile>
-          <Hash />
-        </GuestTypeTile>
-        <h1 className="truncate font-semibold">{channel}</h1>
-        <span className="ml-auto text-xs text-muted-foreground">You&apos;re a guest</span>
-        <MadeWithOneCamp surface="guest-channel" className="hidden sm:block" />
-      </header>
-      <GuestTroubleNote trouble={trouble} />
-      <div className="flex min-h-0 flex-1">
-        <section className={`flex min-w-0 flex-1 flex-col ${thread ? "hidden sm:flex" : ""}`}>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            {hasMore && (
-              <div className="mb-4 text-center">
-                <Button variant="ghost" size="sm" onClick={loadOlder} disabled={loadingMore}>
-                  {loadingMore ? "Loading…" : "Earlier messages"}
-                </Button>
-                {olderFailed && (
-                  <p role="alert" className="mt-1 text-xs text-danger-ink">Couldn&apos;t load earlier messages. Try again.</p>
-                )}
-              </div>
-            )}
-            {messages.length === 0 && <p className="text-center text-sm text-muted-foreground">No messages yet.</p>}
-            <ol className="mx-auto grid w-full max-w-3xl gap-4">
-              {messages.map((m) => (
-                <li key={m.id}>
-                  <MessageView m={m} />
-                  <button type="button" onClick={() => setThread(m.id)} className="mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
-                    <MessageSquare className="h-3 w-3" aria-hidden />
-                    {m.reply_count > 0 ? `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}` : canPost ? "Reply" : "Open"}
-                  </button>
-                </li>
-              ))}
-            </ol>
-            <div ref={bottom} />
-          </div>
-          {canPost && (
-            name ? (
-              <Composer
-                placeholder={`Message #${channel}`}
-                onSend={async (text) => {
-                  const res = await postGuestMessage(token, { display_name: name, text })
-                  if (res.ok) void refresh(true)
-                  return res.ok ? null : sendFailedText(res)
-                }}
+    <PublicFrame
+      surface="guest-channel"
+      fill
+      title={
+        <span className="flex min-w-0 items-center gap-1">
+          <Hash aria-hidden="true" className="size-4 shrink-0 text-faint-foreground" />
+          <span className="truncate">{channel}</span>
+        </span>
+      }
+      actions={<GuestChannelActions name={canPost ? name : ""} onRename={() => setName("")} />}
+    >
+      <div className="guest-sheet flex min-h-0 flex-1 flex-col">
+        <GuestTroubleNote trouble={trouble} />
+        <div className="flex min-h-0 flex-1">
+          <section className={`flex min-w-0 flex-1 flex-col ${thread ? "hidden sm:flex" : ""}`}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+              {hasMore && (
+                <div className="mb-4 text-center">
+                  {/* A 28px ghost pill, centred. */}
+                  <Button variant="ghost" size="sm" className="rounded-[14px] px-3" onClick={loadOlder} disabled={loadingMore}>
+                    {loadingMore ? "Loading…" : "Load earlier"}
+                  </Button>
+                  {olderFailed && (
+                    <p role="alert" className="mt-1 text-xs text-danger-ink">Couldn&apos;t load earlier messages. Try again.</p>
+                  )}
+                </div>
+              )}
+              {messages.length === 0 && outbox.length === 0 && <p className="text-center text-sm text-muted-foreground">No messages yet.</p>}
+              <ol className="mx-auto grid w-full max-w-[808px] gap-4">
+                {byDay(messages, (m) => (
+                  <li key={m.id}>
+                    <GuestChannelRow author={m.author} text={m.text} createdAt={m.created_at} own={!!name && m.author === name}>
+                      <button type="button" onClick={() => setThread(m.id)} className="mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
+                        <MessageSquare className="h-3 w-3" aria-hidden />
+                        {m.reply_count > 0 ? `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}` : canPost ? "Reply" : "Open"}
+                      </button>
+                    </GuestChannelRow>
+                  </li>
+                ))}
+                {outbox.map((o) => (
+                  <li key={o.id}>
+                    <GuestChannelRow author={name} text={o.text} createdAt={o.created_at} own pending={!o.failed} failed={o.failed} onRetry={() => void send(o)} />
+                  </li>
+                ))}
+              </ol>
+              <div ref={bottom} />
+            </div>
+            {canPost && (
+              <GuestGateComposer
                 name={name}
-                onRename={() => setName("")}
+                onName={setName}
+                placeholder={`Message #${channel}`}
+                optimistic
+                onSend={(text) => send({ id: `out-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, text, created_at: new Date().toISOString(), failed: false })}
               />
-            ) : (
-              <GuestNameForm onName={setName} />
-            )
+            )}
+          </section>
+          {thread && (
+            <Thread token={token} postId={thread} canPost={canPost} name={name} onName={setName} onClose={() => setThread(null)} onReplied={() => void refresh()} />
           )}
-        </section>
-        {thread && (
-          <Thread token={token} postId={thread} canPost={canPost} name={name} onName={setName} onClose={() => setThread(null)} onReplied={() => void refresh()} />
-        )}
+        </div>
       </div>
-    </main>
+    </PublicFrame>
   )
 }
 
@@ -179,8 +209,8 @@ function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { 
   useGuestPoll(`${token}:${postId}`, POLL_MS, load)
 
   return (
-    <aside className="flex w-full min-w-0 flex-col border-l sm:w-96">
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+    <aside className="flex w-full min-w-0 flex-col border-line sm:w-96 sm:border-l">
+      <div className="flex h-12 items-center gap-2 border-b border-line px-3">
         {/* Back to the channel where the thread covers it, a cross where it sits beside it. */}
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close the thread">
           <ArrowLeft className="h-4 w-4 sm:hidden" aria-hidden="true" />
@@ -196,31 +226,33 @@ function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { 
           <GuestPanelPending trouble={trouble} />
         ) : (
           <div className="grid gap-4">
-            <MessageView m={data.message} />
-            <ol className="grid gap-3 border-l pl-3">
-              {data.replies.map((r) => <li key={r.id}><MessageView m={r} /></li>)}
+            <GuestChannelRow author={data.message.author} text={data.message.text} createdAt={data.message.created_at} own={!!name && data.message.author === name} />
+            <ol className="grid gap-3">
+              {data.replies.map((r) => (
+                <li key={r.id}>
+                  <GuestChannelRow author={r.author} text={r.text} createdAt={r.created_at} own={!!name && r.author === name} />
+                </li>
+              ))}
             </ol>
           </div>
         )}
       </div>
       {canPost && !missing && (
-        name ? (
-          <Composer
-            placeholder="Reply"
-            onSend={async (text) => {
-              const res = await postGuestMessage(token, { display_name: name, text, reply_to: postId })
-              if (res.ok) {
-                void load()
-                onReplied()
-              }
-              return res.ok ? null : sendFailedText(res)
-            }}
-          />
-        ) : (
-          // On a phone the thread covers the channel, and the channel's name
-          // form with it: a guest who opens a thread first is asked here.
-          <GuestNameForm onName={onName} />
-        )
+        // On a phone the thread covers the channel, and the channel's name
+        // gate with it: a guest who opens a thread first is asked here.
+        <GuestGateComposer
+          name={name}
+          onName={onName}
+          placeholder="Reply"
+          onSend={async (text) => {
+            const res = await postGuestMessage(token, { display_name: name, text, reply_to: postId })
+            if (res.ok) {
+              void load()
+              onReplied()
+            }
+            return res.ok ? null : sendFailedText(res)
+          }}
+        />
       )}
     </aside>
   )

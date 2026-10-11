@@ -72,7 +72,7 @@ const enterCode = async (code: string) => {
 describe("signing in through the directory with two-step on", () => {
   it("asks for the code, and doesn't go into the app without it", async () => {
     await signInThroughTheDirectory()
-    expect(await screen.findByText("Two-step verification")).toBeTruthy()
+    expect(await screen.findByText("Two-step check")).toBeTruthy()
     expect(screen.getByText("Enter the code from your authenticator app.")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Sign in with directory" })).toBeNull()
     expect(router.push).not.toHaveBeenCalled()
@@ -82,7 +82,7 @@ describe("signing in through the directory with two-step on", () => {
     // The password step is done: a choice of sign-in methods beside the code
     // would say the sign-in could start over in place.
     await signInThroughTheDirectory()
-    await screen.findByText("Two-step verification")
+    await screen.findByText("Two-step check")
     expect(screen.queryByRole("tablist")).toBeNull()
     expect(screen.queryByRole("tab", { name: "OneCamp account" })).toBeNull()
     expect(screen.queryByRole("tab", { name: "Company directory" })).toBeNull()
@@ -90,7 +90,7 @@ describe("signing in through the directory with two-step on", () => {
 
   it("signs in once the code is right, sending the challenge and the code as the email sign-in does", async () => {
     await signInThroughTheDirectory()
-    await screen.findByText("Two-step verification")
+    await screen.findByText("Two-step check")
     await enterCode("123456")
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/app/home"))
     expect(sent.find((r) => r.path.endsWith("auth/login/totp"))?.body).toEqual({ challenge: CHALLENGE, code: "123456" })
@@ -99,12 +99,12 @@ describe("signing in through the directory with two-step on", () => {
   it("goes back to the directory form, without the password, once the challenge has expired", async () => {
     codeAnswer = EXPIRED
     await signInThroughTheDirectory()
-    await screen.findByText("Two-step verification")
+    await screen.findByText("Two-step check")
     await enterCode("123456")
     expect(await screen.findByText("This sign-in has expired. Start again.")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Start again" }))
     expect(await screen.findByRole("button", { name: "Sign in with directory" })).toBeTruthy()
-    expect(screen.queryByText("Two-step verification")).toBeNull()
+    expect(screen.queryByText("Two-step check")).toBeNull()
     expect((screen.getByLabelText("Directory username or email") as HTMLInputElement).value).toBe("sam")
     expect((screen.getByLabelText("Directory password") as HTMLInputElement).value).toBe("")
     expect(router.push).not.toHaveBeenCalled()
@@ -116,7 +116,7 @@ describe("signing in through the directory", () => {
     directoryAnswer = SIGNED_IN
     await signInThroughTheDirectory()
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/app/home"))
-    expect(screen.queryByText("Two-step verification")).toBeNull()
+    expect(screen.queryByText("Two-step check")).toBeNull()
   })
 
   it("says why a wrong password was refused, on the directory form", async () => {
@@ -157,9 +157,11 @@ describe("signing in with an email password with two-step on", () => {
   it("still asks for the code, and the code signs in", async () => {
     render(<SignInPage />)
     fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: "sam@example.com" } })
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "email-password" } })
+    // Two steps (design v3, D3): the address, then the password.
+    fireEvent.click(screen.getByRole("button", { name: "Continue with email" }))
+    fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "email-password" } })
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in" })))
-    expect(await screen.findByText("Two-step verification")).toBeTruthy()
+    expect(await screen.findByText("Two-step check")).toBeTruthy()
     expect(router.push).not.toHaveBeenCalled()
     await enterCode("654321")
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/app/home"))

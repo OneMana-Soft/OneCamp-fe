@@ -12,11 +12,21 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Pencil, Sparkles, History, LayoutTemplate } from "@/lib/icons"
+import { Plus, Trash2, Sparkles, History, LayoutTemplate, MoreHorizontal } from "@/lib/icons"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { PrincipalTag } from "@/components/ui/principalTag"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import {
   Agent,
   WorkspaceAgentStats,
@@ -28,7 +38,6 @@ import {
   parseEnabledTools,
   parseScope,
   parseTriggerConfig,
-  toolLabel,
   setAgentActive,
   deleteAgent,
 } from "@/services/agentService"
@@ -47,6 +56,23 @@ const TRIGGER_LABEL: Record<string, string> = {
   mention: "On mention",
   schedule: "Scheduled",
   event: "On event",
+}
+
+/** The first line of an agent's instructions, for a card whose agent has no description. */
+function firstLine(text: string | null | undefined): string {
+  return (text || "").split("\n").map((l) => l.trim()).find(Boolean) || ""
+}
+
+/** "just now", "4 m ago", "3 h ago", then the date. */
+function ago(iso: string, now: number = Date.now()): string {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return ""
+  const m = Math.max(0, Math.round((now - t) / 60000))
+  if (m < 1) return "just now"
+  if (m < 60) return `${m} m ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h} h ago`
+  return shortDate(new Date(t))
 }
 
 function fmtTokens(n: number): string {
@@ -301,7 +327,7 @@ const AgentsCard = ({
         ) : isError ? (
           <ErrorState compact subject="the agents" detail={apiErrorMessage(isError, "Try again in a moment.")} onRetry={() => void mutate()} />
         ) : agents.length === 0 ? (
-          <div className="rounded-lg border border-border">
+          <div className="set-card">
             <EmptyState
               icon={Sparkles}
               hue={ADMIN_GROUP_HUE.ai}
@@ -317,95 +343,100 @@ const AgentsCard = ({
             )}
             <AgentActiveWorkPanel />
             <AgentActivityFeed />
-            {/* One hairline list of rows, where each agent was a card. */}
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            {/* Agents as cards in two columns (design v3, admin §S5): the
+                agent's square, its name with the Agent tag, its job in two
+                lines, a meta row, and a sunken strip with "Can act" and Open.
+                One column on a phone. */}
+            <ul className="grid gap-3 md:grid-cols-2" data-agent-grid="">
             {agents.map((a) => {
               const tools = parseEnabledTools(a)
+              const h = health?.data?.[a.id]
+              const job = a.description || firstLine(a.instructions)
+              const meta = [
+                `${tools.length} ${tools.length === 1 ? "tool" : "tools"}`,
+                h ? `${h.last_7d_runs} ${h.last_7d_runs === 1 ? "run" : "runs"} this week` : `ran ${a.run_count} ${a.run_count === 1 ? "time" : "times"}`,
+                h?.last_run_at ? `last ${ago(h.last_run_at)}` : null,
+                TRIGGER_LABEL[a.trigger_type] || a.trigger_type,
+              ].filter(Boolean)
+              const tags: { label: string; title?: string }[] = [
+                ...(a.dm_able ? [{ label: "DM" }] : []),
+                ...(a.agui_endpoint ? [{ label: "Remote", title: "Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record." }] : []),
+                ...(a.run_in_background ? [{ label: "Background", title: "Answers mentions & DMs as durable background runs with live status" }] : []),
+                ...(a.autonomy === "approval" ? [{ label: "Approval" }] : []),
+                ...(a.autonomy === "plan" ? [{ label: "Plan-approve" }] : []),
+                ...((a.max_daily_tokens ?? 0) > 0 ? [{ label: `${fmtTokens(a.max_daily_tokens as number)}/day` }] : []),
+              ]
               return (
-                <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3">
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <AgentHealthDot health={health?.data?.[a.id]} />
-                      <span className="truncate text-sm font-medium">{a.name}</span>
-                      <span className="text-xs text-muted-foreground">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</span>
-                      {!a.is_active && <StatusWord className="text-xs">Paused</StatusWord>}
-                      {a.dm_able && <Badge variant="secondary" className="text-2xs">DM</Badge>}
-                      {a.agui_endpoint && (
-                        <Badge variant="secondary" className="text-2xs" title={"Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record."}>
-                          Remote
-                        </Badge>
-                      )}
-                      {a.run_in_background && <Badge variant="secondary" className="text-2xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
-                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-2xs text-warning-ink">Approval</Badge>}
-                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-2xs text-warning-ink">Plan-approve</Badge>}
-                      {(a.max_daily_tokens ?? 0) > 0 && (
-                        <Badge variant="secondary" className="text-2xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
-                      )}
-                      <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
-                      <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
-                      {a.last_error && <StatusWord tone="danger" className="text-xs">Last run failed</StatusWord>}
+                <li key={a.id} className="agent-card" data-agent-card="">
+                  <div className="agent-card-body">
+                    <div className="flex items-start gap-3">
+                      <span className="size-10 shrink-0" data-agent-square="">
+                        <AgentAvatar />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          {/* 15/590 by hand: cn() would drop text-heading beside a colour. */}
+                          <span className="text-heading truncate">{a.name}</span>
+                          <PrincipalTag kind="ai" />
+                          <AgentHealthDot health={h} />
+                          {!a.is_active && <StatusWord className="text-xs">Paused</StatusWord>}
+                          {a.last_error && <StatusWord tone="danger" className="text-xs">Last run failed</StatusWord>}
+                        </div>
+                        {/* Whose permissions bound it: the sentence the product is sold on. */}
+                        <p className="mt-0.5 truncate text-2xs text-muted-foreground">
+                          {a.created_by_name ? (
+                            <>Acts as <span className="text-foreground/80">{a.created_by_name}</span>, and can do no more than they can.</>
+                          ) : (
+                            <>The person who authorised this agent is no longer in the workspace.</>
+                          )}
+                        </p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="-mr-2 -mt-1 size-8 shrink-0 text-muted-foreground" aria-label={`More for ${a.name}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => setViewingRuns(a)}>
+                            <History className="h-4 w-4" /> Run history
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setPublishing(a)}>
+                            <LayoutTemplate className="h-4 w-4" /> Save as a template
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" disabled={busyId === a.id} onSelect={() => handleDelete(a)}>
+                            <Trash2 className="h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    {/* Whose permissions bound it. Every other badge on this row
-                        says what the agent may do; this is the only line that
-                        says who it may do it as, and that is the sentence the
-                        product is sold on. */}
-                    <p className="text-xs text-muted-foreground">
-                      {a.created_by_name ? (
-                        <>Acts as <span className="text-foreground/80">{a.created_by_name}</span>, and can do no more than they can.</>
-                      ) : (
-                        <>The person who authorised this agent is no longer in the workspace.</>
-                      )}
-                    </p>
-                    {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {tools.slice(0, 5).map((t) => (
-                        <Badge key={t} variant="outline" className="text-2xs font-normal">{toolLabel(t)}</Badge>
-                      ))}
-                      {tools.length > 5 && <span className="text-2xs text-muted-foreground">+{tools.length - 5} more</span>}
-                      <span className="text-2xs text-muted-foreground">· ran {a.run_count} {a.run_count === 1 ? "time" : "times"}</span>
-                    </div>
+                    {job && <p className="line-clamp-2 text-xs text-muted-foreground" data-agent-job="">{job}</p>}
+                    {(tags.length > 0 || evalSummary?.data?.[a.id] || outcomes?.data?.[a.id]) && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {tags.map((t) => (
+                          <span key={t.label} title={t.title} className="tag text-3xs bg-hover text-muted-foreground ring-1 ring-inset ring-line">
+                            {t.label}
+                          </span>
+                        ))}
+                        <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
+                        <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
+                      </div>
+                    )}
+                    <p className="mt-auto text-2xs tabular-nums text-ink-3" data-agent-meta="">{meta.join(" · ")}</p>
                   </div>
-
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Switch
-                      checked={a.is_active}
-                      disabled={busyId === a.id}
-                      onCheckedChange={(v) => handleToggle(a, v)}
-                      aria-label={`Run ${a.name}`}
-                    />
-                    <Button variant="ghost" size="icon" aria-label={`Edit ${a.name}`} className="h-8 w-8" onClick={() => setEditing(a)} title="Edit">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Runs of ${a.name}`}
-                      className="h-8 w-8"
-                      onClick={() => setViewingRuns(a)}
-                      title="Run history"
-                    >
-                      <History className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Save ${a.name} as a template`}
-                      className="h-8 w-8"
-                      onClick={() => setPublishing(a)}
-                      title="Save as a template"
-                    >
-                      <LayoutTemplate className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete ${a.name}`}
-                      className="h-8 w-8 text-danger-ink hover:text-danger-ink"
-                      disabled={busyId === a.id}
-                      onClick={() => handleDelete(a)}
-                      title="Delete"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
+                  <div className="agent-card-foot">
+                    <label className="flex flex-1 cursor-pointer items-center gap-2 text-xs font-medium">
+                      <Switch
+                        checked={a.is_active}
+                        disabled={busyId === a.id}
+                        onCheckedChange={(v) => handleToggle(a, v)}
+                        aria-label={`${a.name} can act`}
+                      />
+                      <span aria-hidden="true">Can act</span>
+                    </label>
+                    <Button variant="ghost" size="sm" className="h-8" aria-label={`Open ${a.name}`} onClick={() => setEditing(a)}>
+                      Open
                     </Button>
                   </div>
                 </li>

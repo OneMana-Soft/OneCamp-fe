@@ -5,6 +5,7 @@ import { KeyboardTip, SHOW_AFTER_MS } from "./KeyboardTip"
 beforeEach(() => {
   localStorage.clear()
   vi.useFakeTimers()
+  window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
 })
 afterEach(() => {
   cleanup()
@@ -20,7 +21,8 @@ describe("the keyboard tip", () => {
     expect(tip()).toBeNull()
     wait()
     expect(tip()).toBeTruthy()
-    expect(screen.getByText("Open a link side by side")).toBeTruthy()
+    expect(screen.getByText("Search or ask")).toBeTruthy()
+    expect(screen.getByText("All shortcuts")).toBeTruthy()
   })
 
   it("is gone for good after Got it", () => {
@@ -34,12 +36,12 @@ describe("the keyboard tip", () => {
     expect(tip()).toBeNull()
   })
 
-  it("opens the full list from its button", () => {
+  it("opens the full list from See all", () => {
     const opened = vi.fn()
     window.addEventListener("onecamp:shortcuts", opened)
     render(<KeyboardTip />)
     wait()
-    fireEvent.click(screen.getByRole("button", { name: "See all shortcuts" }))
+    fireEvent.click(screen.getByRole("button", { name: "See all" }))
     expect(opened).toHaveBeenCalledOnce()
     expect(tip()).toBeNull()
     window.removeEventListener("onecamp:shortcuts", opened)
@@ -51,27 +53,35 @@ describe("the keyboard tip", () => {
     wait()
     expect(tip()).toBeNull()
   })
+
+  it("never shows on a phone", () => {
+    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+    render(<KeyboardTip />)
+    wait()
+    expect(tip()).toBeNull()
+  })
 })
 
+// Design v3 (E7): --pop r12 e3 at 300px; a key pressed while it shows
+// presses its chip and ticks its row, which teaches by doing.
 describe("the keyboard tip's look", () => {
-  it("floats on the overlay shadow, with its close named for what it closes", () => {
+  it("is the 300px popover card, its Got it a quiet ghost", () => {
     render(<KeyboardTip />)
     wait()
-    expect(tip()!.className).toMatch(/\bshadow-overlay\b/)
-    expect(tip()!.className).not.toMatch(/\bshadow-lg\b/)
-    const close = screen.getByRole("button", { name: "Close the keyboard tips" })
-    expect(close.className).toMatch(/hover:bg-highlight/)
+    expect(tip()!.className).toContain("ktip")
+    expect(screen.getByRole("button", { name: "Got it" }).className).not.toMatch(/\bbg-brand\b/)
   })
 
-  it("leaves the page's one filled button to the page", () => {
+  it("presses the chip of a key pressed while it shows, and ticks the row", () => {
     render(<KeyboardTip />)
     wait()
-    expect(screen.getByRole("button", { name: "Got it" }).className).not.toMatch(/\bbg-primary\b/)
-  })
-
-  it("reads what each key does in ink, beside quiet keys", () => {
-    render(<KeyboardTip />)
-    wait()
-    expect(screen.getByText("Find anything, or run any command").className).toMatch(/\btext-foreground\b/)
+    act(() => void fireEvent.keyDown(document, { key: "?" }))
+    // The corner stack portals the card, so it is found in the document.
+    const row = document.querySelector('[data-row="help"]')!
+    expect(row.querySelector("kbd")?.hasAttribute("data-pressed")).toBe(true)
+    expect(row.querySelector('[aria-label="Tried"]')).not.toBeNull()
+    act(() => void fireEvent.keyUp(document, { key: "?" }))
+    expect(row.querySelector("kbd")?.hasAttribute("data-pressed")).toBe(false)
+    expect(tip()).toBeTruthy()
   })
 })

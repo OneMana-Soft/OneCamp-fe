@@ -26,6 +26,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { groupEvents } from "@/components/admin/webhookParts"
 
 export const FALLBACK_EVENT_TYPES = [
   "post.created", "post.updated", "post.deleted",
@@ -59,18 +60,29 @@ export function WebhookEventChoice({
   return (
     <fieldset className="grid gap-2">
       <legend className="mb-2 text-sm font-medium">Events to send</legend>
-      <div className="grid max-h-48 grid-cols-1 gap-x-4 gap-y-2 overflow-y-auto rounded-md border border-border p-3 sm:grid-cols-2">
-        {events.map((ev) => {
-          const id = `${idPrefix}-${ev}`
-          return (
-            <div key={ev} className="flex items-center gap-2">
-              <Checkbox id={id} checked={chosen.includes(ev)} onCheckedChange={(v) => toggle(ev, v === true)} />
-              <label htmlFor={id} className="cursor-pointer font-mono text-xs" translate="no">
-                {ev}
-              </label>
+      {/* Grouped by what each event is about (design v3, admin §A20), on the
+          sunken surface: a long flat list of dotted names was hard to scan. */}
+      <div data-event-picker="" className="cx-wh-picker max-h-56 space-y-3 overflow-y-auto p-3">
+        {groupEvents(events).map((g) => (
+          <div key={g.resource} role="group" aria-labelledby={`${idPrefix}-g-${g.resource}`}>
+            <p id={`${idPrefix}-g-${g.resource}`} className="mb-1.5 text-2xs font-medium text-muted-foreground first-letter:uppercase">
+              {g.resource}
+            </p>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+              {g.events.map((ev) => {
+                const id = `${idPrefix}-${ev}`
+                return (
+                  <div key={ev} className="flex items-center gap-2">
+                    <Checkbox id={id} checked={chosen.includes(ev)} onCheckedChange={(v) => toggle(ev, v === true)} />
+                    <label htmlFor={id} className="cursor-pointer font-mono text-xs" translate="no">
+                      {ev}
+                    </label>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
       <p className="text-xs text-muted-foreground" aria-live="polite">
         {chosen.length === 0

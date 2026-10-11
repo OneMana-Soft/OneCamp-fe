@@ -16,8 +16,7 @@ import { UserProfileDataInterface } from "@/types/user"
 import axiosInstance from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Check, Search } from "@/lib/icons";
-import { UserPlus } from "lucide-react";
+import { Check, Search, UserPlus, X } from "@/lib/icons";
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -99,24 +98,25 @@ function UserPickRow({ user, isSelected, onSelect }: UserPickRowProps) {
         aria-pressed={isSelected}
         onClick={() => onSelect(user)}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-          "hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-          isSelected && "bg-highlight",
+          // Design v3 (A3): a 36px row, a 24px face, the name and its email on one line.
+          "flex min-h-9 w-full items-center justify-between gap-2 rounded-md px-2 text-left transition-colors",
+          "hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+          isSelected && "bg-hover",
         )}
       >
-        <span className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-8 w-8 shrink-0">
+        <span className="flex min-w-0 items-center gap-2.5">
+          <Avatar className="size-6 shrink-0">
             <AvatarImage src={imageSrc} alt="" />
             <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(seed))}>
-              {getNameInitials(seed)}
+              {getNameInitials(seed).charAt(0)}
             </AvatarFallback>
           </Avatar>
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-medium leading-5">{seed}</span>
-            {line && <span className="truncate text-xs text-muted-foreground">{line}</span>}
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-sm font-medium">{seed}</span>
+            {line && <span className="truncate text-xs text-ink-2">{line}</span>}
           </span>
         </span>
-        {isSelected && <Check className="h-4 w-4 shrink-0 text-foreground" aria-hidden="true" />}
+        {isSelected && <Check className="size-4 shrink-0 text-brand" aria-hidden="true" />}
       </button>
     </li>
   )
@@ -281,6 +281,24 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
             />
           </div>
 
+          {/* The one chosen, as a 24px chip with its face and ×. */}
+          {selectedUser && (
+            <span data-admin-pick="" className="invite-chip">
+              <span aria-hidden="true" className={cn("invite-chip-face", getAvatarFallbackClass(displayNameOf(selectedUser)))}>
+                {displayNameOf(selectedUser).charAt(0).toUpperCase()}
+              </span>
+              <span className="truncate">{displayNameOf(selectedUser)}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedUser(null)}
+                aria-label={`Remove ${displayNameOf(selectedUser)}`}
+                className="inline-flex size-4 items-center justify-center rounded-xs text-ink-3 hover:bg-press hover:text-foreground"
+              >
+                <X className="size-3" aria-hidden="true" />
+              </button>
+            </span>
+          )}
+
           <ScrollArea className="h-[260px] pr-3">{body}</ScrollArea>
 
           {refused && (
@@ -291,7 +309,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)} disabled={submitting}>
+          <Button variant="ghost" onClick={() => close(false)} disabled={submitting}>
             Cancel
           </Button>
           <Button onClick={handleAddAdmin} disabled={!selectedUser || submitting}>

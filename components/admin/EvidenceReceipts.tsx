@@ -22,8 +22,8 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { ShieldCheck, ShieldAlert } from "@/lib/icons"
-import { SettingsSection } from "@/components/ui/settingsSection"
+import { ArrowRight, ShieldCheck, ShieldAlert } from "@/lib/icons"
+import { SettingsCard, SettingsSection } from "@/components/ui/settingsSection"
 import {
     listEvidenceReceipts,
     evidencePageHref,
@@ -95,36 +95,42 @@ export const EvidenceReceipts: React.FC = () => {
 
     if (receipts.length === 0) return null
 
-    // A section inside the audit log's section, at its level 3: it was a block
-    // under a rule inside the log's card, a box in a box.
+    // Design v3 (A11): a compact card of 40px rows, the month, what it held,
+    // its fingerprint, and the way to the pack it describes.
     return (
         <SettingsSection
-            level={3}
+            id="audit-receipts"
             className="pt-5"
             title="Monthly receipts"
-            description="What each completed month's pack said, recorded while its rows were intact. A pack rebuilt later over the same month is a weaker document, and this is how you can tell."
+            description="What each completed month's pack said, recorded while its rows were intact. A pack rebuilt later is a weaker document, and this is how you can tell."
         >
-            <ul aria-label="Monthly receipts" className="divide-y divide-border rounded-lg border border-border">
-                {receipts.map((r) => (
-                    <li key={r.id}>
-                        <Link
-                            href={evidencePageHref(r)}
-                            className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-                        >
-                            {r.chain_ok ? (
-                                <ShieldCheck className="size-4 shrink-0 text-success-ink" aria-hidden="true" />
-                            ) : (
-                                <ShieldAlert className="size-4 shrink-0 text-danger-ink" aria-hidden="true" />
-                            )}
-                            <span className="text-sm font-medium">{receiptLabel(r)}</span>
-                            <span className="text-xs text-muted-foreground">{receiptSummary(r)}</span>
-                            <span className="ml-auto font-mono text-xs text-muted-foreground">
-                                {shortFingerprint(r.pack_fingerprint)}
-                            </span>
-                        </Link>
-                    </li>
-                ))}
-            </ul>
+            <SettingsCard aria-label="Monthly receipts">
+                <ul className="set-rows">
+                    {receipts.map((r) => (
+                        <li key={r.id} data-receipt="" className="set-row !min-h-10 !py-0">
+                            <Link
+                                href={evidencePageHref(r)}
+                                className="-mx-4 flex min-h-10 items-center gap-3 px-4 transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                            >
+                                {r.chain_ok ? (
+                                    <ShieldCheck className="size-4 shrink-0 text-success-ink" aria-label="Verified" />
+                                ) : (
+                                    <ShieldAlert className="size-4 shrink-0 text-danger-ink" aria-label="Did not verify" />
+                                )}
+                                <span className="w-32 shrink-0 whitespace-nowrap text-sm font-medium">{receiptLabel(r)}</span>
+                                <span className="min-w-0 flex-1 truncate text-xs text-ink-2">{receiptSummary(r)}</span>
+                                <span className="font-mono text-2xs text-ink-3 max-sm:hidden" title={r.pack_fingerprint}>
+                                    {shortFingerprint(r.pack_fingerprint)}
+                                </span>
+                                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-ink-2">
+                                    Evidence pack
+                                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                                </span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            </SettingsCard>
         </SettingsSection>
     )
 }

@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 // The key every email depends on. A failed read used to show "Email is off",
 // and an admin acts on that by pasting a key that is already there; it now
-// says it couldn't check. The status reads as a quiet label beside its value
-// (no pill), the key is a row whose field a browser never fills with the
+// says it couldn't check. The provider is one large row with a dot and a word,
+// the key is a row whose field a browser never fills with the
 // admin's own password, and a refusal says why.
 
 const toast = vi.hoisted(() => vi.fn())
@@ -12,7 +12,8 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 // Read through the one shared SWR key (useWorkspaceSettings), answering from api.get.
 vi.mock("@/lib/axiosInstance", () => ({
-  default: { get: async () => ({ data: { data: await api.get() } }), post: vi.fn() },
+  // The sender address comes from the email config, answered apart.
+  default: { get: async (url: string) => (url.includes("config/email") ? { data: { data: { default_sender: "noreply@kestrel.example" } } } : { data: { data: await api.get() } }), post: vi.fn() },
   OWN_ERRORS: {},
 }))
 vi.mock("@/services/settingsService", async (orig) => ({
@@ -39,27 +40,33 @@ describe("the email key", () => {
   it("says it couldn't check, instead of calling email off", async () => {
     api.get.mockRejectedValueOnce(new Error("503")).mockResolvedValueOnce({ has_resend_api_key: true, resend_source: "db" })
     render(<EmailProviderCard />)
-    expect(await screen.findByText("Couldn't load the email settings")).toBeTruthy()
+    expect(await screen.findByText(/Couldn't load the email settings/)).toBeTruthy()
     expect(screen.queryByText(/Email is off|^Off$/)).toBeNull()
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
     expect(await screen.findByText("On")).toBeTruthy()
   })
 
-  // A state is a dot and a word (StatusWord), as the task panel's status
-  // reads: it was a green word alone.
-  it("reads the status as a quiet label beside a dot and a word", async () => {
+  // Design v3 (admin A10): the provider is one large row, a 36px mark tile,
+  // "Sending through Resend" and a dot and a word.
+  it("shows the provider as a large row with a dot and a word", async () => {
     api.get.mockResolvedValue({ has_resend_api_key: true, resend_source: "db" })
     render(<EmailProviderCard />)
     const on = await screen.findByText("On")
     expect(on.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
-    expect(on.querySelector("svg")).toBeNull()
-    expect(screen.getByText("Status").className).toMatch(/text-muted-foreground/)
+    const row = on.closest("[data-email-provider]") as HTMLElement
+    expect(row.textContent).toContain("Sending through Resend")
+    expect(row.querySelector(".size-9 svg")).toBeTruthy()
   })
 
-  it("leaves the key field at the list's one height", async () => {
+  // The key is write-only: a masked code row with Replace, which opens the field.
+  it("shows a set key as a code row, and Replace opens the field", async () => {
     api.get.mockResolvedValue({ has_resend_api_key: true, resend_source: "db" })
     render(<EmailProviderCard />)
-    const key = await screen.findByLabelText("Resend API key")
+    const masked = await screen.findByText(/^re_•+$/)
+    expect(masked.closest("[data-code-row]")).toBeTruthy()
+    expect(screen.queryByLabelText("Resend API key")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }))
+    const key = screen.getByLabelText("Resend API key")
     expect(key.className).not.toMatch(/(^|\s)h-8(\s|$)/)
   })
 

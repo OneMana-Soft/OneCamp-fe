@@ -60,7 +60,7 @@ const KIND_OPTIONS = [
 function AppRowSkeleton() {
     return (
         <div data-app-skeleton-row="" aria-hidden="true" className="flex items-center gap-3 px-4 py-3">
-            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <Skeleton className="size-9 shrink-0 rounded-[10px]" />
             <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-3.5 w-32" />
                 <Skeleton className="h-3 w-56 max-w-full" />
@@ -169,7 +169,7 @@ export default function AppsCard() {
             <div className="space-y-8">
                 <SettingsSection level={3} title="Installed apps">
                     {isLoading ? (
-                        <div role="status" aria-label="Loading the installed apps" className="divide-y divide-border rounded-lg border border-border">
+                        <div role="status" aria-label="Loading the installed apps" className="set-card cx-app-list">
                             {[0, 1, 2].map((i) => <AppRowSkeleton key={i} />)}
                         </div>
                     ) : error ? (
@@ -182,7 +182,7 @@ export default function AppsCard() {
                             description="Install one from the directory below, or add an app of your own."
                         />
                     ) : (
-                        <div className="divide-y divide-border rounded-lg border border-border">
+                        <div className="set-card cx-app-list">
                             {installedApps.map((app) => (
                                 <AppRow
                                     key={app.id}
@@ -459,7 +459,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                     )}
 
                     {isBuiltin && (
-                        <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+                        <div className="cx-app-panel p-3 text-xs text-muted-foreground">
                             This app is built into OneCamp, so it needs no command address or
                             signing secret. Add its key below if it needs one.
                         </div>
@@ -484,7 +484,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                     )}
 
                     {kind === "oauth" && (
-                        <section className="space-y-3 rounded-lg border border-border p-3" aria-labelledby={`${kindLabelId}-oauth`}>
+                        <section className="cx-app-panel space-y-3 p-3" aria-labelledby={`${kindLabelId}-oauth`}>
                             <h3 id={`${kindLabelId}-oauth`} className="text-sm font-medium">OAuth settings</h3>
                             <Field label="Client ID"><Input value={clientId} onChange={(e) => setClientId(e.target.value)} spellCheck={false} autoComplete="off" /></Field>
                             <Field label="Client secret" help="Stored encrypted."><Input type="password" autoComplete="new-password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} /></Field>
@@ -494,7 +494,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                         </section>
                     )}
 
-                    <section className="space-y-3 rounded-lg border border-border p-3" aria-labelledby={`${kindLabelId}-commands`}>
+                    <section className="cx-app-panel space-y-3 p-3" aria-labelledby={`${kindLabelId}-commands`}>
                         <div className="flex items-center justify-between">
                             <h3 id={`${kindLabelId}-commands`} className="text-sm font-medium">Commands</h3>
                             {!isBuiltin && (
@@ -630,7 +630,7 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
         <div className="space-y-1.5">
             <Label htmlFor={urlId}>Icon</Label>
             <div className="flex items-center gap-3">
-                <div className="h-12 w-12 shrink-0 rounded-lg border border-border/70 bg-muted flex items-center justify-center overflow-hidden">
+                <div className="cx-app-icon cx-app-icon-lg">
                     {value ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={value} alt="" width={48} height={48} className="h-full w-full object-cover" />

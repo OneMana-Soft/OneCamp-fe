@@ -24,11 +24,10 @@ import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService
 import { McpToolRiskBadge, McpToolRiskLegend } from "@/components/admin/McpToolRisk"
 import { type AuthorizedModel } from "@/services/aiModelService"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { Spark } from "@/components/ui/graphics/motifs"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug } from "@/lib/icons"
+import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug, Shield } from "@/lib/icons"
 import {
   Agent,
   AgentInput,
@@ -117,9 +116,45 @@ function utcMinuteToLocalTime(utcMin: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
+type AgentStep = "job" | "tools" | "where" | "review"
+
+/** A new agent's four steps (admin §S5). */
+export const AGENT_STEPS: { value: AgentStep; label: string }[] = [
+  { value: "job", label: "Job" },
+  { value: "tools", label: "Tools" },
+  { value: "where", label: "Where it works" },
+  { value: "review", label: "Review" },
+]
+
+/** How long the birth plays before the dialog closes. */
+const BIRTH_MS = 900
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
+/** The Review step's one sentence: who it acts for, its limit, where, and the record. */
+export function governanceSentence(name: string, channels: number): string {
+  const where = channels === 0 ? "wherever it is asked" : channels === 1 ? "in the one channel you chose" : `in the ${channels} channels you chose`
+  return `${name} acts for you. It can do only what you can, ${where}, and every action is on the record.`
+}
+
 export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDialogProps) {
   const { toast } = useToast()
   const editing = !!agent
+
+  // A new agent is made in four steps (design v3, admin §S5): its job, its
+  // tools, where it works, and a review that says what it may do in one
+  // sentence. Editing an agent shows every part at once, as before.
+  const [step, setStep] = React.useState<AgentStep>("job")
+  const [born, setBorn] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    if (open) {
+      setStep("job")
+      setBorn(null)
+    }
+  }, [open])
+  const show = (s: AgentStep) => editing || step === s
 
   // Enabled MCP servers contribute extra tool groups (only fetched while open).
   const { data: mcpData } = useFetch<{ data: McpServer[] }>(open ? GetEndpointUrl.GetMcpServers : "")
@@ -158,6 +193,13 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       }),
     [webSearchEnabled, sandboxEnabled, codePrEnabled],
   )
+  const toolsByRisk = React.useMemo(() => {
+    const all = toolCatalog.flatMap((g) => g.tools)
+    return [
+      { key: "read", label: "Reads", hint: "looks things up and changes nothing", tools: all.filter((t) => !t.write) },
+      { key: "write", label: "Acts in the workspace", hint: "posts, creates or changes things as you", tools: all.filter((t) => t.write) },
+    ].filter((g) => g.tools.length > 0)
+  }, [toolCatalog])
 
   // Channels the agent can be scoped to (mention trigger). Only fetched while
   // open. Used to enforce "invited or silent": when channels are picked, the
@@ -587,26 +629,51 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     }
   }
 
-  const handleSave = async () => {
-    // Said under the field, with the cursor there: a missing name was one red
-    // line at the foot of a long dialog.
+  // Said under the field, with the cursor there: a missing name was one red
+  // line at the foot of a long dialog.
+  const jobIsComplete = () => {
     if (!name.trim()) {
+      setStep("job")
       setFieldErrors({ name: "Give your agent a name." })
-      nameRef.current?.focus()
-      return
+      window.setTimeout(() => nameRef.current?.focus(), 0)
+      return false
     }
     if (!instructions.trim()) {
+      setStep("job")
       setFieldErrors({ instructions: "Add instructions so the agent knows what to do." })
-      instructionsRef.current?.focus()
-      return
+      window.setTimeout(() => instructionsRef.current?.focus(), 0)
+      return false
     }
     setFieldErrors({})
+    return true
+  }
+
+  const goNext = () => {
+    const i = AGENT_STEPS.findIndex((x) => x.value === step)
+    if (step === "job" && !jobIsComplete()) return
+    if (i < AGENT_STEPS.length - 1) setStep(AGENT_STEPS[i + 1].value)
+  }
+  const goBack = () => {
+    const i = AGENT_STEPS.findIndex((x) => x.value === step)
+    if (i > 0) setStep(AGENT_STEPS[i - 1].value)
+  }
+
+  const handleSave = async () => {
+    if (!jobIsComplete()) return
     setError(null)
     setSaving(true)
     try {
       if (editing && agent) await updateAgent(agent.id, buildInput())
       else await createAgent(buildInput())
       toast({ title: editing ? `${name.trim()} saved` : `${name.trim()} created` })
+      // The agent's birth: its square assembles, then the dialog closes. Rare,
+      // and the product's thesis, so it earns a flourish; never under reduced
+      // motion, where the dialog closes at once.
+      if (!editing && !prefersReducedMotion()) {
+        setBorn(name.trim())
+        window.setTimeout(onSaved, BIRTH_MS)
+        return
+      }
       onSaved()
     } catch {
       // axios interceptor surfaces the error toast
@@ -638,15 +705,24 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       open={libraryOpen}
       onClose={() => setLibraryOpen(false)}
       onChanged={() => void listAgentSkills().then(setSkills).catch(() => {})}
+      selectedIds={skillIds}
+      onToggle={(id, on) =>
+        setSkillIds((prev) => {
+          const next = new Set(prev)
+          if (on) next.add(id)
+          else next.delete(id)
+          return next
+        })
+      }
     />
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          {/* On the AI and automation group's tile; it was orange. */}
+          {/* The agent's own square (identity), where a tinted group tile was. */}
           <DialogTitle className="flex items-center gap-2.5">
-            <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
-              <Sparkles />
-            </Tile>
+            <span className="size-7 shrink-0">
+              <AgentAvatar />
+            </span>
             {editing ? "Edit agent" : "New agent"}
           </DialogTitle>
           <DialogDescription>
@@ -654,7 +730,30 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           </DialogDescription>
         </DialogHeader>
 
+        {!editing && !born && (
+          <ol data-agent-stepper="" aria-label="Steps" className="grid grid-cols-4 gap-2">
+            {AGENT_STEPS.map((x, i) => {
+              const at = AGENT_STEPS.findIndex((y) => y.value === step)
+              return (
+                <li key={x.value} className="agent-step min-w-0" data-reached={i <= at ? "true" : "false"} aria-current={i === at ? "step" : undefined}>
+                  <span className="agent-step-bar block" aria-hidden="true" />
+                  <span className={`mt-1.5 block truncate text-2xs ${i === at ? "font-medium text-foreground" : "text-muted-foreground"}`}>{x.label}</span>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+
+        {born ? (
+          <div data-agent-born="" className="flex flex-col items-center gap-3 py-10 text-center" aria-live="polite">
+            <span className="agent-birth avatar-agent grid size-16 place-items-center rounded-[32%] text-white" data-agent-birth="">
+              <Spark className="size-8" />
+            </span>
+            <p className="text-sm font-medium text-foreground">{born} is ready</p>
+          </div>
+        ) : (
         <div className="space-y-5">
+          {show("job") && (<>
           {!editing && (
             <div className="space-y-2">
               <Label className="text-xs font-medium text-muted-foreground">Start from a template</Label>
@@ -686,10 +785,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             </div>
           )}
           {!editing && (
-            // In the AI and automation group's tint: it was an orange panel,
-            // the colour of the one action a view asks for.
-            <div className={cn(HUE_CLASS[ADMIN_GROUP_HUE.ai], "space-y-2 rounded-lg border border-hue/30 bg-hue-tint/60 p-3")}>
-              <Label htmlFor="agent-describe" className="flex items-center gap-1.5 text-xs font-medium text-hue-ink">
+            // A note on the sunken surface (design v3 colour budget: hue is for
+            // identity). It was the AI group's tint, and orange before that.
+            <div className="agent-governance flex-col !gap-2">
+              <Label htmlFor="agent-describe" className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Describe your agent
               </Label>
               <Textarea
@@ -764,16 +863,24 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             )}
           </div>
 
+          </>)}
+          {show("tools") && (<>
           <div className="grid gap-2">
             <Label>Tools the agent can use</Label>
             <p className="text-xs text-muted-foreground -mt-1">
               Pick only what it needs. Tools marked with a warning take actions in the workspace.
             </p>
-            <div className="space-y-3 rounded-xl border p-3">
-              {toolCatalog.map((g) => (
-                <div key={g.group}>
-                  <div className="mb-1.5 text-xs font-medium text-muted-foreground">{g.group}</div>
-                  {g.note && <p className="mb-1.5 -mt-1 text-2xs text-muted-foreground/80">{g.note}</p>}
+            {/* Grouped by what a tool can do (admin §S5): the ones that only
+                read, then the ones that act in the workspace as you. They were
+                grouped by feature, so a write sat among reads. */}
+            <div className="agent-governance flex-col !gap-3" data-tools-by-risk="">
+              {toolsByRisk.map((g) => (
+                <div key={g.key} data-tool-risk={g.key}>
+                  <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                    {g.key === "write" ? <AlertTriangle className="h-3.5 w-3.5 text-warning-ink" aria-hidden="true" /> : null}
+                    {g.label}
+                    <span className="font-normal text-muted-foreground">· {g.hint}</span>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {g.tools.map((t) => {
                       const on = tools.has(t.name)
@@ -790,12 +897,16 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                         >
                           {on ? <Check className="h-3 w-3" /> : null}
                           {t.label}
-                          {t.write && <AlertTriangle className="h-3 w-3 text-warning-ink" />}
                         </button>
                       )
                     })}
                   </div>
                 </div>
+              ))}
+              {toolCatalog.filter((g) => g.note).map((g) => (
+                <p key={g.group} className="text-2xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{g.group}:</span> {g.note}
+                </p>
               ))}
             </div>
           </div>
@@ -856,6 +967,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             </div>
           )}
 
+          </>)}
+          {show("where") && (<>
           <div className="grid gap-2">
             <Label id="agent-trigger-label">Trigger</Label>
             {/* Single choices are the house segmented control, here and below:
@@ -1041,9 +1154,6 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/30 p-3">
             <div className="grid gap-1">
               <Label htmlFor="agent-dmable" className="flex items-center gap-2">
-                <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
-                  <Sparkles />
-                </Tile>
                 Direct messages
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -1404,9 +1514,6 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 <div className="flex items-start justify-between gap-4">
                   <div className="grid gap-1">
                     <Label htmlFor="agent-ambient" className="flex items-center gap-2">
-                      <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
-                        <Sparkles />
-                      </Tile>
                       Ambient replies
                     </Label>
                     <p className="text-xs text-muted-foreground">
@@ -1438,6 +1545,25 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             </div>
           </details>
 
+          </>)}
+          {!editing && step === "review" && (
+            <div className="space-y-3" data-agent-review="">
+              {/* The governance sentence: what it may do, as whom, where, and
+                  that it is on the record. A note, not a control. */}
+              <div className="agent-governance" data-governance-sentence="">
+                <Shield aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-agent" />
+                <p className="text-sm text-foreground">{governanceSentence(name.trim() || "This agent", mentionChannelIds.size)}</p>
+              </div>
+              <dl className="grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+                <dt className="text-muted-foreground">Job</dt>
+                <dd className="line-clamp-2 text-foreground">{description.trim() || instructions.trim().split("\n")[0]}</dd>
+                <dt className="text-muted-foreground">Tools</dt>
+                <dd className="text-foreground">{tools.size === 0 ? "None, it can only answer" : `${tools.size} ${tools.size === 1 ? "tool" : "tools"}`}</dd>
+                <dt className="text-muted-foreground">Runs</dt>
+                <dd className="text-foreground">{TRIGGERS.find((t) => t.value === triggerType)?.label ?? triggerType}</dd>
+              </dl>
+            </div>
+          )}
           {error && <p className="text-sm text-danger-ink" role="alert">{error}</p>}
 
           {/* Test panel (only for saved agents) */}
@@ -1477,15 +1603,30 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           )}
         </div>
 
+        )}
+
+        {!born && (
         <div className="mt-2 flex items-center justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} className="gap-1.5">
+          <Button variant="ghost" onClick={onClose} className="gap-1.5 mr-auto">
             <X className="h-4 w-4" /> Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {editing ? "Save changes" : "Create agent"}
-          </Button>
+          {!editing && step !== "job" && (
+            <Button variant="outline" onClick={goBack}>
+              Back
+            </Button>
+          )}
+          {!editing && step !== "review" ? (
+            <Button onClick={goNext} className="gap-1.5">
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {editing ? "Save changes" : "Create agent"}
+            </Button>
+          )}
         </div>
+        )}
       </DialogContent>
     </Dialog>
     </>

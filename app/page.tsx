@@ -1,13 +1,13 @@
 "use client"
 
-import { LoaderCircle, AlertCircle, AlertTriangle, Info, Mail, Fingerprint } from "@/lib/icons";
-import { signInRefusal, type RefusalTone } from "@/lib/auth/signInRefusal";
+import { LoaderCircle, Fingerprint, Lock } from "@/lib/icons";
+import { signInRefusal } from "@/lib/auth/signInRefusal";
 import { SIGN_IN_LABELS, otherWayInHint } from "@/lib/auth/signInHints";
 import { signInWithPasskey } from "@/services/passkeyService";
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {useEffect, useState, useCallback, Suspense} from "react";
+import {useEffect, useRef, useState, useCallback, Suspense} from "react";
 import authService, { type LoginOutcome } from "@/services/auth/AuthService";
 import { assertUnreachable } from "@/lib/utils/assertUnreachable";
 import { TwoFactorPrompt } from "@/components/auth/TwoFactorPrompt";
@@ -16,7 +16,8 @@ import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn"
-import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { AuthDivider, AuthField, AuthHeading, AuthNotice, AuthPlaceholder, AuthShell, IdentityChip, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { SpotPlug } from "@/components/ui/graphics/spots"
 import { SignInSide } from "@/components/auth/SignInSide"
 import { landingPath } from "@/lib/landing"
 
@@ -33,15 +34,6 @@ const buildTimeDefaults = {
   ldap:   process.env.NEXT_PUBLIC_AUTH_LDAP   === "true",
 };
 
-// How loud each kind of refusal reads: red only for a sign-in that broke;
-// the theme's warning tint for one with something to do first; neutral for
-// one that is nobody's fault (cancelled, timed out).
-const REFUSAL_STYLE: Record<RefusalTone, { box: string; icon: string; Icon: typeof AlertCircle }> = {
-  error: { box: "border-destructive/30 bg-destructive/5", icon: "text-danger-ink", Icon: AlertCircle },
-  warning: { box: "border-warning/40 bg-warning/5", icon: "text-warning-ink", Icon: AlertTriangle },
-  neutral: { box: "border-border bg-muted", icon: "text-muted-foreground", Icon: Info },
-};
-
 function AuthErrorMessage() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
@@ -49,23 +41,12 @@ function AuthErrorMessage() {
 
   // An allowlist by code; never display the raw `message` query param.
   const refusal = signInRefusal(error);
-  const { box, icon, Icon } = REFUSAL_STYLE[refusal.tone];
 
-  // One quiet box in the tone's tint: no side bar, shadow or slide-in, which
-  // made a cancelled sign-in look like an outage.
-  return (
-    <div
-      role={refusal.tone === "error" ? "alert" : "status"}
-      data-tone={refusal.tone}
-      className={`${box} flex items-start gap-3 rounded-lg border p-4 text-foreground`}
-    >
-      <Icon aria-hidden="true" className={`mt-0.5 h-4 w-4 shrink-0 ${icon}`} />
-      <div className="space-y-1">
-        <h2 className="text-sm font-semibold">{refusal.title}</h2>
-        <p className="text-sm text-muted-foreground">{refusal.message}</p>
-      </div>
-    </div>
-  );
+  // The notice card (design v3, F2): a tile in the tone (danger for a
+  // sign-in that broke, sun for one with something to do first, neutral for
+  // one that is nobody's fault), the title and one sentence. Not red text,
+  // which made a cancelled sign-in look like an outage.
+  return <AuthNotice tone={refusal.tone} title={refusal.title}>{refusal.message}</AuthNotice>;
 }
 
 /**
@@ -77,7 +58,7 @@ function AuthErrorMessage() {
 function SignInChecking() {
   return (
     <AuthShell side={<SignInSide />}>
-      <AuthPlaceholder label="Checking whether you're signed in" buttons={2} />
+      <AuthPlaceholder label="Checking whether you're signed in" providers fields={1} buttons={1} />
     </AuthShell>
   );
 }
@@ -115,7 +96,13 @@ export default function SignInPage() {
   const [demoError, setDemoError] = useState("");
   const [isChecking, setIsChecking] = useState(true);
   const [providers, setProviders] = useState(buildTimeDefaults);
-  const [showEmailLogin, setShowEmailLogin] = useState(false);
+  // The two-step email (owner decision D3, Linear's and Clerk's): the address
+  // first, then the password slides in with the address as an identity chip.
+  // `back` plays the slide the other way when the person changes the address.
+  const [emailStep, setEmailStep] = useState<{ step: "email" | "password"; back: boolean }>({ step: "email", back: false });
+  // Bumped on each refused password, to shake the field again.
+  const [refusals, setRefusals] = useState(0);
+  const passwordRef = useRef<HTMLInputElement>(null);
   // Passwords are off here, and an admin has come for theirs (/?admin).
   const [adminPasswordOnly, setAdminPasswordOnly] = useState(false);
   const [email, setEmail] = useState("");
@@ -252,16 +239,11 @@ export default function SignInPage() {
           setProviders(adminBreakGlass ? { ...runtimeProviders, email: true } : runtimeProviders);
           setAdminPasswordOnly(adminBreakGlass);
           // If neither OAuth nor LDAP/SSO is on, fall back to email by default.
-          if (adminBreakGlass || (!runtimeProviders.google && !runtimeProviders.github)) {
-            setShowEmailLogin(true);
-          }
           // The sign-up page sends someone who joins through the directory
           // here, to the directory's own form.
           if (runtimeProviders.ldap && new URLSearchParams(window.location.search).get("tab") === "directory") {
             setActiveTab("directory");
           }
-        } else if (!buildTimeDefaults.google && !buildTimeDefaults.github) {
-          setShowEmailLogin(true);
         }
 
         if (adminRequired) {
@@ -355,6 +337,9 @@ export default function SignInPage() {
         // reading "invalid".
         const methodHint = failure.auth_method ? otherWayInHint(failure.auth_method, providers) : "";
         setEmailError(methodHint || failure.msg);
+        setRefusals((n) => n + 1);
+        // Kept, not cleared: a typo is fixed in place.
+        passwordRef.current?.focus();
       });
     } catch (error) {
       console.error('Email login error:', error);
@@ -404,7 +389,7 @@ export default function SignInPage() {
   if (!hasAnyAuthMethod && !isDemoEnabled) {
     return (
       <AuthShell side={<SignInSide />}>
-        <AuthHeading title="There's no way to sign in yet">
+        <AuthHeading title="There's no way to sign in yet" art={<SpotPlug size={96} />}>
           Every sign-in method is turned off on this server. Ask whoever runs it to turn one on.
         </AuthHeading>
       </AuthShell>
@@ -414,7 +399,26 @@ export default function SignInPage() {
   // The address this page is on, so somebody with two workspaces can tell
   // which one is asking. Only ever drawn in the browser (see isChecking).
   const workspaceHost = typeof window !== "undefined" ? window.location.host : "";
+  // The workspace's name, when the install gives it one; "Sign in" alone when not.
+  const workspaceName = process.env.NEXT_PUBLIC_ORG_NAME?.trim() || "";
   const hasProviderButtons = hasOAuthProviders || hasEnterpriseSSO || canUsePasskey;
+  const busy = isLoading || isDemoLoading;
+
+  const continueWithEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailError("");
+    if (!email.trim()) {
+      setEmailError("Enter the email you sign in with.");
+      return;
+    }
+    setEmailStep({ step: "password", back: false });
+  };
+
+  const changeEmail = () => {
+    setEmailError("");
+    setPassword("");
+    setEmailStep({ step: "email", back: true });
+  };
 
   return (
       <AuthShell side={<SignInSide />}>
@@ -432,9 +436,12 @@ export default function SignInPage() {
             />
           ) : (
           <>
-          <AuthHeading title="Sign in">
+          <AuthHeading display title={workspaceName ? <>Sign in to <span translate="no">{workspaceName}</span></> : "Sign in"}>
             {workspaceHost && (
-              <>to <span className="font-medium text-foreground" translate="no">{workspaceHost}</span></>
+              <span className="inline-flex items-center gap-1.5 text-sm">
+                <Lock className="h-3.5 w-3.5 text-faint-foreground" aria-hidden="true" />
+                <span translate="no">{workspaceHost}</span>
+              </span>
             )}
           </AuthHeading>
 
@@ -452,106 +459,118 @@ export default function SignInPage() {
           <SignInTabs tabbed={isLdapEnabled} value={activeTab} onValueChange={setActiveTab}>
           {activeTab === "standard" ? (
             <SignInPanel tabbed={isLdapEnabled} value="standard">
-            <div className="space-y-6">
-              {/* The ways in that are one click: the accounts the workspace
-                  trusts, its single sign-on, and this device's passkey. */}
+            <div className="space-y-5">
+              {/* The ways in that are one click, in one grid: Google and
+                  GitHub side by side, the single sign-on and this device's
+                  passkey full width under them. */}
               {hasProviderButtons && (
                 <div className="space-y-2">
-                  {hasOAuthProviders && (
-                    <OAuthButtons
-                      google={isGoogleEnabled}
-                      github={isGithubEnabled}
-                      busy={isLoading}
-                      disabled={isLoading || isDemoLoading}
-                      onGoogle={() => handleLogin(authService.loginWithGoogle)}
-                      onGithub={() => handleLogin(authService.loginWithGithub)}
-                    />
-                  )}
-                  {hasEnterpriseSSO && (
-                    <EnterpriseSSOButtons oidc={isOidcEnabled} saml={isSamlEnabled} disabled={isLoading || isDemoLoading} />
-                  )}
-                  {canUsePasskey && (
-                    <Button
-                      variant="outline"
-                      className={authControl}
-                      disabled={isLoading || isDemoLoading}
-                      onClick={handlePasskeyLogin}
-                    >
-                      <Fingerprint aria-hidden="true" />
-                      Sign in with a passkey
-                    </Button>
-                  )}
-                  {passkeyError && <p role="alert" className="pt-1 text-sm text-danger-ink">{passkeyError}</p>}
+                  <div className="auth-providers" data-providers="">
+                    {hasOAuthProviders && (
+                      <OAuthButtons
+                        google={isGoogleEnabled}
+                        github={isGithubEnabled}
+                        busy={isLoading}
+                        disabled={busy}
+                        onGoogle={() => handleLogin(authService.loginWithGoogle)}
+                        onGithub={() => handleLogin(authService.loginWithGithub)}
+                      />
+                    )}
+                    {hasEnterpriseSSO && (
+                      <EnterpriseSSOButtons oidc={isOidcEnabled} saml={isSamlEnabled} disabled={busy} />
+                    )}
+                    {canUsePasskey && (
+                      <Button
+                        variant="secondary"
+                        size="lg"
+                        className={cn(authControl, "auth-wide")}
+                        disabled={busy}
+                        onClick={handlePasskeyLogin}
+                      >
+                        <Fingerprint aria-hidden="true" />
+                        Sign in with a passkey
+                      </Button>
+                    )}
+                  </div>
+                  {/* A cancelled passkey is nobody's fault: a quiet line, no red. */}
+                  {passkeyError && <p role="status" className="text-xs text-muted-foreground">{passkeyError}</p>}
                 </div>
               )}
 
               {hasProviderButtons && isEmailEnabled && <AuthDivider />}
 
-              {isEmailEnabled && (
-                <>
-                  {!showEmailLogin ? (
-                    <Button
-                      variant="outline"
-                      className={authControl}
-                      disabled={isLoading || isDemoLoading}
-                      onClick={() => setShowEmailLogin(true)}
-                    >
-                      <Mail aria-hidden="true" />
-                      Sign in with email
-                    </Button>
-                  ) : (
-                    <form onSubmit={handleEmailLogin} className="space-y-4" noValidate={false}>
-                      <AuthField
-                        id="signin-email"
-                        name="email"
-                        label="Email address"
-                        type="email"
-                        placeholder="you@company.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        autoComplete="username"
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        // Focused when it appears: the button that revealed it was a request to type here.
-                        autoFocus={hasProviderButtons}
-                      />
-                      <PasswordField
-                        id="signin-password"
-                        name="password"
-                        label="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        minLength={8}
-                        autoComplete="current-password"
-                        visible={showPassword}
-                        onVisibleChange={setShowPassword}
-                        error={emailError}
-                        aside={
-                          <Link href="/forgot-password" className="rounded-sm text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
-                            Forgot password?
-                          </Link>
-                        }
-                      />
+              {isEmailEnabled && (emailStep.step === "email" ? (
+                <form
+                  key="email-step"
+                  onSubmit={continueWithEmail}
+                  className={cn("space-y-3", emailStep.back && "auth-step-back")}
+                  noValidate
+                >
+                  <AuthField
+                    id="signin-email"
+                    name="email"
+                    label="Email address"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="username"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    error={emailError || undefined}
+                    autoFocus={emailStep.back}
+                  />
+                  {/* On the demo build the demo button below is the page's one
+                      filled button, so this one is secondary beside it. */}
+                  <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} disabled={busy}>
+                    Continue with email
+                  </Button>
+                </form>
+              ) : (
+                <form key="password-step" onSubmit={handleEmailLogin} className="auth-step-in space-y-4">
+                  {/* The address, kept for the password manager and shown as who is signing in. */}
+                  <input type="email" name="email" autoComplete="username" value={email} readOnly hidden />
+                  <IdentityChip email={email} onChange={isLoading ? undefined : changeEmail} />
+                  <PasswordField
+                    ref={passwordRef}
+                    id="signin-password"
+                    name="password"
+                    label="Password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (emailError) setEmailError("");
+                    }}
+                    required
+                    minLength={8}
+                    autoComplete="current-password"
+                    autoFocus
+                    readOnly={isLoading}
+                    visible={showPassword}
+                    onVisibleChange={setShowPassword}
+                    error={emailError}
+                    shakeKey={refusals}
+                    aside={
+                      <Link href="/forgot-password" className="rounded-sm text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
+                        Forgot password?
+                      </Link>
+                    }
+                  />
 
-                      {adminPasswordOnly && (
-                        <p className="text-xs text-muted-foreground">
-                          Passwords are off on this workspace. Only admins can sign in with one.
-                        </p>
-                      )}
-
-                      {/* On the demo build the demo button below is the page's one
-                          filled button, so this one is outlined beside it. */}
-                      <Button type="submit" variant={isDemoEnabled ? "outline" : "default"} className={authControl} disabled={isLoading}>
-                        {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                        {isLoading ? "Signing in…" : "Sign in"}
-                      </Button>
-                    </form>
+                  {adminPasswordOnly && (
+                    <p className="auth-hint">
+                      Passwords are off on this workspace. Only admins can sign in with one.
+                    </p>
                   )}
-                </>
-              )}
+
+                  <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} aria-busy={isLoading || undefined}>
+                    {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                    {isLoading ? "Signing in…" : "Sign in"}
+                  </Button>
+                </form>
+              ))}
             </div>
             </SignInPanel>
           ) : (
@@ -570,6 +589,7 @@ export default function SignInPage() {
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
+                readOnly={isLoading}
               />
               <PasswordField
                 id="ldap-password"
@@ -582,9 +602,10 @@ export default function SignInPage() {
                 visible={showLdapPassword}
                 onVisibleChange={setShowLdapPassword}
                 error={ldapError}
+                readOnly={isLoading}
               />
 
-              <Button type="submit" variant={isDemoEnabled ? "outline" : "default"} className={authControl} disabled={isLoading}>
+              <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} aria-busy={isLoading || undefined}>
                 {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                 {isLoading ? "Signing in…" : "Sign in with directory"}
               </Button>
@@ -598,22 +619,21 @@ export default function SignInPage() {
             <div className="space-y-3">
               {hasAnyAuthMethod && <AuthDivider />}
 
-              {/* A plain primary button in the theme's own colour: the
-                  orange-to-amber gradient and rocket belonged to no token. */}
               <Button
-                className={cn(authControl, "font-medium")}
-                disabled={isLoading || isDemoLoading}
-                onClick={handleDemoLogin}
+                size="lg"
+                className={authControl}
+                disabled={busy}
+                onClick={() => void handleDemoLogin()}
               >
                 {isDemoLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                 Try the demo, no sign-up needed
               </Button>
 
               {demoError && (
-                <p role="alert" className="text-sm text-danger-ink">{demoError}</p>
+                <p role="alert" className="auth-field-error">{demoError}</p>
               )}
 
-              <p className="text-xs text-muted-foreground">
+              <p className="auth-hint">
                 A shared workspace with sample people and work in it. It starts over every night.
               </p>
             </div>

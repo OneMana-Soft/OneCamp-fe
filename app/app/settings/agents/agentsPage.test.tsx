@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 
 // The page's one primary action, New agent, sits in its header beside the h1,
 // as New token does on API tokens; the Agents section below it then draws no
@@ -30,5 +32,34 @@ describe("agents and skills", () => {
     expect(section.dataset.creating).toBe("false")
     fireEvent.click(button)
     expect(screen.getByTestId("agents-section").dataset.creating).toBe("true")
+  })
+})
+
+// Design v3 (admin §S5). The cards' anatomy and the editor's steps are
+// rendered in agentsCard.test.tsx and agentEditDialog.test.tsx; these hold the
+// page-level promises: two columns of cards, the review's one sentence, and an
+// agent's birth that never plays under reduced motion.
+describe("agents and skills, design v3", () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+
+  it("lays agents out as cards in two columns, one on a phone", () => {
+    const src = read("components/admin/AgentsCard.tsx")
+    expect(src).toMatch(/className="grid gap-3 md:grid-cols-2" data-agent-grid=""/)
+    expect(src).toMatch(/className="agent-card"/)
+    expect(src).toMatch(/agent-card-foot/)
+  })
+
+  it("says in Review who the agent acts for, its limit, where, and the record", async () => {
+    const { governanceSentence } = await import("@/components/admin/AgentEditDialog")
+    expect(governanceSentence("Release Captain", 2)).toBe(
+      "Release Captain acts for you. It can do only what you can, in the 2 channels you chose, and every action is on the record.",
+    )
+  })
+
+  it("skips the birth under reduced motion, in the component and in the stylesheet", () => {
+    expect(read("components/admin/AgentEditDialog.tsx")).toMatch(/if \(!editing && !prefersReducedMotion\(\)\)/)
+    const css = read("app/styles/admin/ai.css")
+    const still = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce) {\n    .agent-birth"))
+    expect(still).toMatch(/\.agent-birth,\s*\.agent-birth svg \{\s*animation: none;/)
   })
 })

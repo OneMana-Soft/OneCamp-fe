@@ -18,8 +18,20 @@ vi.mock("@/services/agentService", async (orig) => ({
 // address is wrong or the secret is stale while typing it, not from a failed
 // run somebody finds afterwards.
 
+
+// A new agent is made in steps (design v3, admin §S5); these settings are on
+// "Where it works", past the job's two required fields.
+function toWhereItWorks() {
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Release Captain" } })
+    fireEvent.change(screen.getByLabelText("Instructions"), { target: { value: "File the launch tasks." } })
+    fireEvent.click(screen.getByRole("button", { name: /^Next/ }))
+    fireEvent.click(screen.getByRole("button", { name: /^Next/ }))
+}
+
 function openDialog() {
-    return render(<AgentEditDialog open agent={null} onClose={() => {}} onSaved={() => {}} />)
+    const r = render(<AgentEditDialog open agent={null} onClose={() => {}} onSaved={() => {}} />)
+    toWhereItWorks()
+    return r
 }
 
 async function typeEndpointAndTest(url = "https://bots.example.com/ag-ui") {

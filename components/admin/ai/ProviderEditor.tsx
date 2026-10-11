@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { StatusWord } from "@/components/ui/statusWord"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -259,12 +260,18 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   // A row of the providers list (AIModelsCard draws the list's box and its
   // hairlines); each provider was a bordered box of its own.
   return (
-    <div data-provider-row="" className="space-y-3 px-4 py-3">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Plug className="h-4 w-4 text-muted-foreground shrink-0" />
+    <div data-provider-row="" data-settings-card="" className="set-card space-y-3 px-4 py-3">
+      {/* The provider's card head (design v3, admin §A15): its mark on the
+          sunken surface, its name, its address in mono, its state as a dot
+          and a word, and Configure. */}
+      <div className="flex items-center justify-between gap-3">
+        <span aria-hidden="true" className="ai-sunken-note grid size-8 shrink-0 place-items-center rounded-[9px] text-ink-3">
+          <Plug className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span className="font-medium text-sm truncate">{provider.label}</span>
+          <StatusWord tone={enabled ? "success" : "neutral"} className="text-xs">{enabled ? "On" : "Off"}</StatusWord>
           {kindBadge(provider.kind)}
           {provider.has_api_key && <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> key set</Badge>}
           {needsKey && (
@@ -288,6 +295,8 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               <KeyRound className="h-3 w-3" /> key unreadable
             </Badge>
           )}
+        </div>
+        <p data-provider-url="" className="mt-0.5 truncate font-mono text-2xs text-ink-3">{provider.base_url || "Built in"}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <Switch

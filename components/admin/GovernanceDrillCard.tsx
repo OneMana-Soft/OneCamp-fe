@@ -37,11 +37,13 @@ import {
     Loader2,
     Play,
     ShieldAlert,
-    ShieldCheck,
+    ShieldX,
 } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortTime } from "@/lib/utils/date/shortDate"
 import { ChainPair } from "@/components/admin/ChainPair"
+import { Spark } from "@/components/ui/graphics/motifs"
+import { useStagger } from "@/components/admin/ai/useStagger"
 import {
     getDrillStatus,
     runDrill,
@@ -103,6 +105,71 @@ export const AuditRowLine: React.FC<{ row: DrillAuditRow }> = ({ row }) => (
         ) : null}
     </div>
 )
+
+/** The gap between the drill's three rows (admin §A15b). Presentation only. */
+export const DRILL_STAGGER_MS = 400
+
+/**
+ * The drill as a short sequence (design v3, admin §A15b): the ask, the check
+ * against the access of the person behind the agent, and the verdict, one
+ * row every 400ms, the refusal's shield springing in; then where it is on the
+ * record. Every word of the verdict is the server's: the refusal quoted is
+ * the permission layer's own. Under reduced motion the rows appear together.
+ */
+export const DrillSequence: React.FC<{ result: DrillResult; forbidden: string }> = ({ result, forbidden }) => {
+    const shown = useStagger(3, DRILL_STAGGER_MS)
+    const refused = result.passed || !!result.refusal_reason
+    const rows: { key: string; tone?: "refused" | "incident"; glyph: React.ReactNode; text: React.ReactNode; detail?: React.ReactNode }[] = [
+        {
+            key: "ask",
+            glyph: <Spark className="size-3.5 text-agent" />,
+            text: (
+                <>
+                    An agent acting for you asks to post in <span className="font-mono">#{forbidden}</span>
+                </>
+            ),
+        },
+        { key: "check", glyph: <Fingerprint className="size-3.5" />, text: "Checked against your access before the tool runs" },
+        refused
+            ? {
+                  key: "verdict",
+                  tone: "refused",
+                  glyph: <ShieldX className="size-3.5" />,
+                  text: <span className="font-medium text-danger-ink">Refused</span>,
+                  detail: result.refusal_reason,
+              }
+            : {
+                  key: "verdict",
+                  tone: "incident",
+                  glyph: <ShieldAlert className="size-3.5" />,
+                  text: <span className="font-medium text-danger-ink">It went through. Treat this as an incident.</span>,
+              },
+    ]
+    return (
+        <div data-settings-card="" data-drill-sequence="" className="set-card" aria-live="polite">
+            <ol>
+                {rows.slice(0, shown).map((r) => (
+                    <li key={r.key} data-drill-row={r.key} data-tone={r.tone} className="ai-drill-row">
+                        <span className="ai-drill-glyph" aria-hidden="true">
+                            {r.glyph}
+                        </span>
+                        <span className="min-w-0 flex-1 text-sm">
+                            {r.text}
+                            {r.detail ? <span className="mt-0.5 block font-mono text-2xs text-muted-foreground">{r.detail}</span> : null}
+                        </span>
+                    </li>
+                ))}
+            </ol>
+            {shown === 3 ? (
+                <p data-drill-recorded="" className="px-4 pb-3 pt-1 text-xs">
+                    <Link className="font-medium text-brand-text underline-offset-2 hover:underline" href={AUDIT_LOG_HREF}>
+                        Recorded in the audit log →
+                    </Link>
+                </p>
+            ) : null}
+        </div>
+    )
+}
 
 const GovernanceDrillCard: React.FC = () => {
     const [status, setStatus] = useState<DrillStatus | undefined>(undefined)
@@ -226,38 +293,21 @@ const GovernanceDrillCard: React.FC = () => {
 
                 {result ? (
                     <>
-                        {/* The verdict, stated before the detail. An admin who reads one
-                            line should read the right one. */}
-                        {result.passed ? (
-                            <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2.5">
-                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
-                                <div className="min-w-0">
-                                    <p className="text-sm font-medium text-success-ink">
-                                        The limit held, and the attempt is on the record.
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-muted-foreground">
-                                        Checked at {formatWhen(result.ran_at)}. The chain was recomputed over{" "}
-                                        <span className="tabular-nums">{result.chain_checked.toLocaleString()}</span>{" "}
-                                        {result.chain_partial ? "recent entries" : "entries, the whole log"}.
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5">
-                                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
-                                <div className="min-w-0">
-                                    <p className="text-sm font-medium text-danger-ink">
-                                        This install did not do what it promises. Read the failing step below.
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-muted-foreground">
-                                        Checked at {formatWhen(result.ran_at)}. Treat a post that went through as an
-                                        incident rather than a failed test.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
+                        <DrillSequence key={result.ran_at} result={result} forbidden={forbidden} />
+                        {/* The verdict in words, under the sequence. An admin who
+                            reads one line should read the right one. */}
+                        <p className={`text-sm ${result.passed ? "text-foreground" : "font-medium text-danger-ink"}`}>
+                            {result.passed
+                                ? "The limit held, and the attempt is on the record."
+                                : "This install did not do what it promises. Read the failing step below."}{" "}
+                            <span className="text-xs text-muted-foreground">
+                                Checked at {formatWhen(result.ran_at)}. The chain was recomputed over{" "}
+                                <span className="tabular-nums">{result.chain_checked.toLocaleString()}</span>{" "}
+                                {result.chain_partial ? "recent entries" : "entries, the whole log"}.
+                            </span>
+                        </p>
 
-                        <ol className="divide-y divide-border rounded-lg border border-border">
+                        <ol data-settings-card="" className="set-card divide-y divide-border">
                             {result.steps.map((step, i) => (
                                 <StepRow key={step.name} step={step} index={i} />
                             ))}
@@ -268,7 +318,7 @@ const GovernanceDrillCard: React.FC = () => {
                                 <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                                     What the permission layer said, word for word
                                 </p>
-                                <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 font-mono text-xs">
+                                <p className="ai-sunken-note rounded-lg px-3 py-2 font-mono text-xs">
                                     {result.refusal_reason}
                                 </p>
                             </div>
@@ -280,7 +330,7 @@ const GovernanceDrillCard: React.FC = () => {
                                     <Fingerprint className="h-3.5 w-3.5" />
                                     The rows this run wrote, read back from the log
                                 </p>
-                                <div className="overflow-x-auto rounded-lg border border-border">
+                                <div data-settings-card="" className="set-card overflow-x-auto">
                                     <div className="min-w-[32rem]">
                                         {result.rows.map((row) => (
                                             <AuditRowLine key={row.id} row={row} />
