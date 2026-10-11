@@ -4,6 +4,7 @@
 @import './partials/lists.css';
 @import './partials/typography.css';
 @import './partials/zoom.css';
+@import './partials/doc.css';
 
 :root {
   --mt-overlay: rgba(251, 251, 251, 0.75);
@@ -113,6 +114,72 @@
 .minimal-tiptap-editor.doc-editor .ProseMirror {
   line-height: 1.5rem;
 }
+/* A conversation's message body (design v3 chat, §2.2): 15/23 at -0.009em,
+   lines balanced so a last word never sits alone. The row holds it to a
+   760px measure. */
+.chat-body .minimal-tiptap-editor .ProseMirror {
+  @apply text-body;
+  text-wrap: pretty;
+}
+/* The chat composer's words (C38): 15/23 like the messages they become, one
+   line at rest; 16px on a touch screen (the iOS zoom floor, below). */
+.chat-composer-editor .ProseMirror {
+  @apply text-body;
+  min-height: 1.5rem;
+}
+
+/* The phone composer's words (C48): 16/24, the iOS zoom floor, one line at
+   rest. */
+.phone-composer-editor .ProseMirror {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  min-height: 1.5rem;
+}
+
+/* A message on a phone reads at 16/24 (C07 phone), the editor's own size there. */
+.chat-body-phone .minimal-tiptap-editor .ProseMirror {
+  @apply text-body-lg;
+  line-height: 1.5rem;
+}
+
+/* One to three emoji and nothing else (design v3 chat, C43): drawn at 32px
+   with no other chrome, as a reaction would be. */
+.chat-body[data-emoji-only] .minimal-tiptap-editor .ProseMirror {
+  font-size: 2rem;
+  line-height: 2.5rem;
+}
+/* "(edited)" after the last word (C27; textInput's withEditedMark). */
+.msg-edited {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-3);
+  cursor: default;
+  white-space: nowrap;
+}
+/* Code in a message (§2.2): mono 13/20 on the sunken surface, r8, inside a
+   hairline; inline code on the press overlay at r4. */
+.chat-body .ProseMirror pre {
+  font-size: 13px;
+  line-height: 20px;
+  border-radius: 8px;
+  background-color: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 10px 12px;
+}
+.chat-body .ProseMirror :not(pre) > code {
+  font-size: 13px;
+  border-radius: 4px;
+  background-color: var(--press);
+  padding: 1px 4px;
+}
+/* A quote inside a body (C23): a 2px line-3 rule and ink-2 text. */
+.chat-body .ProseMirror blockquote {
+  border-left: 2px solid var(--line-3);
+  padding-left: 12px;
+  color: var(--ink-2);
+}
 /* An editor you type into is 16px on a touch screen. iOS zooms the page in on
    any field under 16px when it takes focus, and leaves it zoomed: at 15px
    that was every composer and every doc. Pinch-zoom stays on (app/layout.tsx),
@@ -210,41 +277,106 @@
   background: transparent;
 }
 
-/* Someone else's caret, name tag and selection, in their identity hue (the
-   hue-* class on each comes from collaboratorCaret in use-minimal-tiptap):
-   the tag is the hue's tint with its ink, the way an avatar is drawn. Only
-   the caret's colour animates, never `all`. */
+/* COLLABORATORS (content.md D14). Someone else's caret is 2 px in their
+   avatar's first stop (a1), with a name flag that IS their avatar colour: the
+   a1 -> a2 gradient with white 11/590 text, first name only. The flag shows
+   while they type or move (y-prosemirror draws a new caret each time), holds
+   3 s, then folds to a 6 px dot on the caret's top; hovering the caret brings
+   it back. Their selection is their hue at 18 %. The hue-* class on each
+   comes from collaboratorCaret in use-minimal-tiptap. */
 .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret {
-  border-left: 2px solid var(--hue, var(--foreground));
-  border-right: none;
+  position: relative;
   margin-left: -1px;
   margin-right: -1px;
+  border-left: 2px solid var(--hue-a1, var(--ink));
+  border-right: none;
+  border-radius: 1px;
   pointer-events: none;
-  position: relative;
   word-break: normal;
-  transition: border-color 150ms var(--ease-standard, ease);
+}
+
+/* An 8 px zone around the caret that answers the pointer, so hovering near
+   it reopens the flag. */
+.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret::before {
+  content: "";
+  position: absolute;
+  inset: -2px -8px;
+  pointer-events: auto;
+}
+
+/* The idle dot, on the caret's top. */
+.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hue-a1, var(--ink));
+  animation: content-caret-dot calc(var(--content-caret-flag-duration) + var(--content-caret-flag-hold) + var(--content-caret-flag-out)) var(--content-caret-flag-ease) both;
 }
 
 .minimal-tiptap-editor .ProseMirror .collaboration-cursor__label {
-  border-radius: 4px 4px 4px 0;
-  background-color: var(--hue-tint, var(--muted));
-  color: var(--hue-ink, var(--foreground));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hue, var(--border)) 40%, transparent);
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  z-index: 50;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px 6px 6px 2px;
+  background-image: linear-gradient(140deg, var(--hue-a1, var(--ink-2)), var(--hue-a2, var(--ink)));
+  color: #fff;
   font-size: 11px;
   font-style: normal;
-  font-weight: 600;
-  left: -1px;
-  line-height: normal;
-  padding: 0.15rem 0.4rem;
-  position: absolute;
-  top: -1.4em;
-  user-select: none;
+  font-weight: 590;
+  letter-spacing: 0.005em;
+  line-height: 18px;
+  text-transform: none;
   white-space: nowrap;
-  z-index: 50;
+  user-select: none;
+  pointer-events: none;
+  transform-origin: left bottom;
+  animation: content-caret-flag calc(var(--content-caret-flag-duration) + var(--content-caret-flag-hold) + var(--content-caret-flag-out)) var(--content-caret-flag-ease) both;
+}
+
+.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret:hover .collaboration-cursor__label {
+  animation: none;
+  opacity: 1;
+}
+.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret:hover::after {
+  animation: none;
+  opacity: 0;
+}
+
+/* An agent's flag carries a spark before its name. */
+.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret[data-agent] .collaboration-cursor__label::before {
+  content: "\2726";
+  margin-right: 3px;
+  font-size: 10px;
+}
+
+/* Under reduced motion the flag stays open and there is no dot. */
+@media (prefers-reduced-motion: reduce) {
+  .minimal-tiptap-editor .ProseMirror .collaboration-cursor__label {
+    animation: none;
+    opacity: 1;
+  }
+  .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret::after {
+    display: none;
+  }
+}
+
+/* The phone: always the dot; tapping shows the name. */
+@media (pointer: coarse) {
+  .minimal-tiptap-editor .ProseMirror .collaboration-cursor__label {
+    height: 16px;
+    line-height: 16px;
+  }
 }
 
 .minimal-tiptap-editor .ProseMirror .ProseMirror-yjs-selection {
-  background-color: color-mix(in oklab, var(--hue, var(--primary)) 22%, transparent);
+  background-color: color-mix(in oklab, var(--hue, var(--brand)) 18%, transparent);
 }
 
 /* Callout block styles */
@@ -273,31 +405,92 @@
   margin-top: 0.5rem;
 }
 
-/* Floating block drag handle (positioned via JS, Notion-style) */
-.block-handle-floating:active {
+/* The block handle (content.md D10; positioned by block-handle.ts with a
+   transform): "+" and "⋮⋮", 24 px r6 ink-4, hover --hover and ink-2. It
+   glides between blocks over 120 ms; it is only for a hovering pointer. */
+.block-handle-floating {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 120ms var(--ease-out);
+}
+.block-handle-floating[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.block-handle-floating[data-glide="true"] {
+  transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
+}
+.block-handle-btn {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--ink-4);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--duration-hover, 120ms) var(--ease-out), color var(--duration-hover, 120ms) var(--ease-out);
+}
+.block-handle-btn:hover {
+  background: var(--hover);
+  color: var(--ink-2);
+}
+.block-handle-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.block-handle-grip {
+  cursor: grab;
+}
+.block-handle-grip:active {
   cursor: grabbing;
+}
+@media (hover: none), (pointer: coarse), (max-width: 767px) {
+  .block-handle-floating {
+    display: none;
+  }
 }
 
 /* Drop indicator line */
+/* Drop indicator (D10): 2 px brand, r1, with a disc at its left end ringed
+   in the sheet. */
 .block-drop-indicator {
   display: none;
   position: fixed;
-  height: 3px;
-  background: var(--primary);
-  border-radius: 2px;
+  height: 2px;
+  background: var(--brand);
+  border-radius: 1px;
   pointer-events: none;
   z-index: 9998;
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 15%, transparent);
+}
+.block-drop-indicator::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--sheet);
 }
 
-/* The doc's reading column. 37rem, less 2rem of padding a side, leaves a
-   33rem measure: about 75 characters of 15px Inter (measured at 7px a
-   character in the demo's docs), the top of the 65 to 75 a line of prose reads
-   best at. It was 48rem, about 95 characters, which made long paragraphs a
-   chore to track back across. The full-width toggle still opens the page out
-   for tables and wide images. */
+/* The doc's reading column (content.md D07): a 720 px measure for 16/26
+   Inter (--doc-measure, app/content.css), plus the 32 px the text is inset
+   by on each side. "Full width" opens it to 1,040 px. */
 .doc-measure {
-  max-width: 37rem;
+  max-width: calc(var(--doc-measure) + 64px);
+}
+.doc-measure-full {
+  max-width: calc(var(--doc-measure-full) + 96px);
 }
 
 /* What is wide reads better wide. A code block, an embedded table, an image,
@@ -313,7 +506,7 @@
 }
 
 .doc-measure .doc-editor:not(.full-width) .ProseMirror > :is(pre, .node-tableEmbed, .node-image, .node-chartEmbed, .node-recordingEmbed, .node-diffEmbed, [data-type="table-embed"], [data-type="chart"], [data-type="diff"], [data-type="recording-embed"]) {
-  --doc-wide: min(44rem, 100cqi - 4rem);
+  --doc-wide: min(960px, 100cqi - 64px);
   width: var(--doc-wide);
   max-width: none;
   margin-inline: calc((100% - var(--doc-wide)) / 2);
@@ -330,17 +523,17 @@
   display: block;
   position: relative;
   left: 50%;
-  max-width: min(44rem, 100cqi - 4rem);
+  max-width: min(960px, 100cqi - 64px);
   transform: translateX(-50%);
 }
 
 @media (max-width: 768px) {
   /* The phone's padding is 1rem a side. */
   .doc-measure .doc-editor:not(.full-width) .ProseMirror > :is(pre, .node-tableEmbed, .node-image, .node-chartEmbed, .node-recordingEmbed, .node-diffEmbed, [data-type="table-embed"], [data-type="chart"], [data-type="diff"], [data-type="recording-embed"]) {
-    --doc-wide: min(44rem, 100cqi - 2rem);
+    --doc-wide: calc(100cqi - 32px);
   }
   .doc-measure .doc-editor:not(.full-width) .ProseMirror > img {
-    max-width: min(44rem, 100cqi - 2rem);
+    max-width: calc(100cqi - 32px);
   }
 }
 
@@ -353,7 +546,7 @@
 }
 
 .minimal-tiptap-editor.doc-editor .ProseMirror {
-  padding: 1.5rem 2rem;
+  padding: 0 2rem 6rem;
   flex: 1;
   min-height: 100%;
   outline: none;
@@ -361,32 +554,94 @@
 }
 
 .minimal-tiptap-editor.doc-editor.full-width .ProseMirror {
-  padding: 1.5rem 3rem;
+  padding: 0 3rem 6rem;
 }
 
 /* Mobile responsive */
 @media (max-width: 768px) {
   .minimal-tiptap-editor.doc-editor .ProseMirror {
-    padding: 0.75rem 1rem;
+    padding: 0 1.25rem 6rem;
   }
   .minimal-tiptap-editor.doc-editor.full-width .ProseMirror {
-    padding: 0.75rem 1rem;
+    padding: 0 1.25rem 6rem;
   }
 }
-/* A message shown without an editor (see lib/utils/staticRichText): mentions
-   look and respond exactly as the live mention node view does. */
-/* Inline, not inline-block: an inline-block chip with vertical padding made
-   its line taller than the lines around it, so a message that opened with a
-   mention had a gap under its first line. */
-/* In the mentioned person's hue (components/message/tintMentions adds their
-   hue-* class): their tint behind, their ink on it, the colour their avatar
-   is. A mention with no hue keeps the neutral chip. */
-.static-rich span[data-type="mention"] {
-  @apply rounded-sm px-1 py-px font-medium cursor-pointer transition-colors select-none;
-  background-color: var(--hue-tint, var(--sidebar-accent));
-  color: var(--hue-ink, var(--foreground));
+/* MENTION CHIPS (chat.md C14, content.md D24), the same in a message shown
+   without an editor (lib/utils/staticRichText, classes from
+   components/message/tintMentions), in the editor's node view, and in the
+   composer (.chat-mention, MentionNodeView).
+   - Anyone: a neutral chip, --hover fill, ink at 510, with a 6 px dot in the
+     person's avatar hue before the "@".
+   - You: brand-muted with brand-text, the one coloured chip; the row it sits
+     in carries the accent ground and bar.
+   - An agent: the agent tint with its ink, and the spark where the "@" was.
+   Inline, not inline-block, so a line that opens with a mention is no taller. */
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"],
+.chat-mention {
+  border-radius: 5px;
+  padding: 0 4px;
+  background-color: var(--hover);
+  color: var(--ink);
+  font-weight: 510;
+  cursor: pointer;
+  user-select: none;
   box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color var(--duration-hover, 120ms) var(--ease-out);
 }
-.static-rich span[data-type="mention"]:hover {
-  background-color: color-mix(in oklab, var(--hue-tint, var(--sidebar-accent)) 82%, var(--hue, var(--foreground)) 18%);
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"]:hover,
+.chat-mention:hover {
+  background-color: var(--press);
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-person::before,
+.chat-mention.mention-person::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 50%;
+  vertical-align: 0.12em;
+  background: var(--mention-dot, var(--ink-3));
+}
+span[data-type="mention"][data-hue="sky"] { --mention-dot: var(--camp-sky); }
+span[data-type="mention"][data-hue="moss"] { --mention-dot: var(--camp-moss); }
+span[data-type="mention"][data-hue="sun"] { --mention-dot: var(--camp-sun); }
+span[data-type="mention"][data-hue="dusk"] { --mention-dot: var(--camp-dusk); }
+span[data-type="mention"][data-hue="berry"] { --mention-dot: var(--camp-berry); }
+span[data-type="mention"][data-hue="lake"] { --mention-dot: var(--camp-lake); }
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-me,
+.chat-mention.mention-me {
+  background-color: var(--brand-muted);
+  color: var(--brand-text);
+}
+.dark :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-me,
+.dark .chat-mention.mention-me {
+  background-color: color-mix(in oklab, var(--brand) 18%, transparent);
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-me:hover,
+.chat-mention.mention-me:hover {
+  background-color: color-mix(in oklab, var(--brand) 22%, transparent);
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-agent,
+.chat-mention.mention-agent {
+  background-color: var(--agent-muted);
+  color: var(--agent-ink);
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-agent:hover,
+.chat-mention.mention-agent:hover {
+  background-color: color-mix(in oklab, var(--agent) 16%, var(--agent-muted));
+}
+.mention-spark {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-right: 3px;
+  vertical-align: -0.02em;
+  fill: currentColor;
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"]:focus-visible,
+.chat-mention:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
 }

@@ -1,11 +1,10 @@
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
+import { CommandList, CommandTile, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { ReactRenderer } from "@tiptap/react"
 import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
+import React, { forwardRef, useImperativeHandle, useRef } from "react"
 import tippy, { Instance as TippyInstance } from "tippy.js"
 import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Minus, CheckSquare, Image, Sparkles, MessageSquare, ChevronRight, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
-import { Lightbulb, Command, Underline as UnderlineIcon, Eraser, Table as TableIcon } from "@/lib/icons";
+import { Lightbulb, Underline as UnderlineIcon, Eraser, Table as TableIcon } from "@/lib/icons";
 
 export interface SlashCommandItem {
   id: string
@@ -13,6 +12,8 @@ export interface SlashCommandItem {
   description: string
   icon: React.ElementType
   section: string
+  /** The markdown shortcut that makes the same block, shown as kbd chips. */
+  kbd?: string[]
   command: (props: { editor: any; range: any }) => void
 }
 
@@ -89,90 +90,99 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
 const STRUCTURE_COMMANDS: SlashCommandItem[] = [
   {
     id: "heading1",
+    kbd: ["#"],
     title: "Heading 1",
     description: "Large section heading",
     icon: Heading1,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode("heading", { level: 1 }).run()
     },
   },
   {
     id: "heading2",
+    kbd: ["##"],
     title: "Heading 2",
     description: "Medium section heading",
     icon: Heading2,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode("heading", { level: 2 }).run()
     },
   },
   {
     id: "heading3",
+    kbd: ["###"],
     title: "Heading 3",
     description: "Small section heading",
     icon: Heading3,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode("heading", { level: 3 }).run()
     },
   },
   {
     id: "bulletList",
+    kbd: ["-"],
     title: "Bullet list",
     description: "Create a simple bullet list",
     icon: List,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleBulletList().run()
     },
   },
   {
     id: "orderedList",
+    kbd: ["1."],
     title: "Numbered list",
     description: "Create a numbered list",
     icon: ListOrdered,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleOrderedList().run()
     },
   },
   {
     id: "taskList",
+    kbd: ["[]"],
     title: "Task list",
     description: "Create a task list with checkboxes",
     icon: CheckSquare,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleTaskList().run()
     },
   },
   {
     id: "blockquote",
+    kbd: [">"],
     title: "Quote",
     description: "Insert a blockquote",
     icon: Quote,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleBlockquote().run()
     },
   },
   {
     id: "codeBlock",
+    kbd: ["```"],
     title: "Code block",
     description: "Insert a code block",
     icon: Code,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setCodeBlock().run()
     },
   },
   {
     id: "horizontalRule",
+    kbd: ["---"],
     title: "Divider",
     description: "Insert a horizontal divider",
     icon: Minus,
-    section: "Basic blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setHorizontalRule().run()
     },
@@ -184,9 +194,9 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
   {
     id: "callout",
     title: "Callout",
-    description: "Colored info box with emoji",
+    description: "A highlighted note, warning or idea",
     icon: MessageSquare,
-    section: "Advanced blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor
         .chain()
@@ -204,7 +214,7 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
     title: "Toggle",
     description: "Collapsible section with title",
     icon: ChevronRight,
-    section: "Advanced blocks",
+    section: "Basic",
     command: ({ editor, range }) => {
       editor
         .chain()
@@ -222,7 +232,7 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
     title: "Image",
     description: "Upload or embed an image",
     icon: Image,
-    section: "Advanced blocks",
+    section: "Media and embeds",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleImage().run()
     },
@@ -232,7 +242,7 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
     title: "Table",
     description: "Embed an existing table or create a new one",
     icon: TableIcon,
-    section: "Advanced blocks",
+    section: "Media and embeds",
     command: ({ editor, range }) => {
       // Open the table picker (handled in docInput.tsx): the author can embed
       // a live view of an existing table or create a new one. The doc stores
@@ -247,7 +257,7 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
 const AI_COMMANDS: SlashCommandItem[] = [
   {
     id: "ai-write",
-    title: "AI: Write",
+    title: "Write with AI",
     description: "Generate content from a prompt",
     icon: Sparkles,
     section: "AI",
@@ -258,7 +268,7 @@ const AI_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "ai-summarize",
-    title: "AI: Summarize",
+    title: "Summarize with AI",
     description: "Summarize selected text or document",
     icon: Lightbulb,
     section: "AI",
@@ -513,6 +523,11 @@ export const slashCommandSuggestion = {
           interactive: true,
           trigger: "manual",
           placement: "bottom-start",
+          offset: [0, 6],
+          // The list is the floating surface; tippy's own box draws nothing.
+          theme: "none",
+          arrow: false,
+          popperOptions: { modifiers: [{ name: "flip", options: { fallbackPlacements: ["top-start"] } }] },
         })[0]
       },
 
@@ -555,129 +570,129 @@ interface SlashProps extends SuggestionProps {
   items: SlashCommandItem[]
 }
 
-const SECTION_ORDER = ["Commands", "Basic blocks", "Advanced blocks", "Format", "AI"]
+const SECTION_ORDER = ["Commands", "Recent", "Basic", "Media and embeds", "AI", "Format"]
 
+/** Media and embeds wear their kind's camp tint (as their embed cards do). */
+const MEDIA_TILE: Record<string, string> = {
+  table: "bg-camp-moss-tint text-camp-moss-ink ring-0",
+  image: "bg-camp-sky-tint text-camp-sky-ink ring-0",
+  callout: "bg-camp-sun-tint text-camp-sun-ink ring-0",
+}
+
+/** The last three blocks someone inserted, newest first (per browser). */
+const RECENT_KEY = "onecamp-slash-recent"
+function readRecent(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]").slice(0, 3)
+  } catch {
+    return []
+  }
+}
+function pushRecent(id: string) {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent().filter((r) => r !== id)].slice(0, 3)))
+  } catch {
+    /* private window */
+  }
+}
+
+/**
+ * The slash menu (content.md D09), as the area's CommandList: grouped
+ * Recent, Basic, Media and embeds, AI (then Format); 24 px tiles (AI's on the
+ * agent tint), markdown shortcuts as kbd chips, the highlighted row's
+ * description in the footer, and one sliding highlight. With no match in a
+ * doc it offers "Ask AI to write …" instead of an empty box.
+ */
 const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
+  const listRef = useRef<CommandListHandle>(null)
+  const query = (props.query || "").replace(/^\//, "")
+  // A doc's menu is the one configured with AI commands; ask the extension,
+  // since the matched items are empty exactly when this matters.
+  const inDoc = !!props.editor?.extensionManager?.extensions
+    ?.find((e: { name: string }) => e.name === "slash-command")
+    ?.options?.commands?.some((c: SlashCommandItem) => c.section === "AI")
 
-  const groupedItems = React.useMemo(() => {
-    const groups = new Map<string, { item: SlashCommandItem; globalIndex: number }[]>()
-    props.items.forEach((item, index) => {
-      const list = groups.get(item.section) || []
-      list.push({ item, globalIndex: index })
-      groups.set(item.section, list)
-    })
-    return SECTION_ORDER.filter((s) => groups.has(s)).map((section) => ({
-      section,
-      items: groups.get(section)!,
-    }))
-  }, [props.items])
+  const ordered = React.useMemo(() => {
+    const recentIds = query ? [] : readRecent()
+    const recent = recentIds.map((id) => props.items.find((i) => i.id === id)).filter(Boolean) as SlashCommandItem[]
+    const rest = SECTION_ORDER.flatMap((section) => props.items.filter((i) => i.section === section))
+    const unknown = props.items.filter((i) => !SECTION_ORDER.includes(i.section))
+    return [...recent.map((i) => ({ item: i, group: "Recent" })), ...[...rest, ...unknown].map((i) => ({ item: i, group: i.section }))]
+  }, [props.items, query])
 
-  const flatItems = React.useMemo(
-    () => groupedItems.flatMap((g) => g.items),
-    [groupedItems]
+  const items: CommandListItem[] = React.useMemo(
+    () =>
+      ordered.map(({ item, group }) => {
+        const Icon = item.icon
+        const ai = item.section === "AI"
+        return {
+          id: `${group}:${item.id}`,
+          label: item.title,
+          group,
+          description: item.description,
+          kbd: item.kbd,
+          tile: (
+            <CommandTile className={ai ? "bg-agent-muted text-agent-ink ring-0" : MEDIA_TILE[item.id]}>
+              <Icon />
+            </CommandTile>
+          ),
+        }
+      }),
+    [ordered],
   )
 
-  const selectItem = (globalIndex: number) => {
-    const entry = flatItems[globalIndex]
-    if (entry) {
-      entry.item.command({ editor: props.editor, range: props.range })
-    }
+  const select = (id: string) => {
+    const entry = ordered.find(({ item, group }) => `${group}:${item.id}` === id)
+    if (!entry) return
+    if (entry.item.section !== "Commands") pushRecent(entry.item.id)
+    entry.item.command({ editor: props.editor, range: props.range })
   }
 
-  const upHandler = () => {
-    setSelectedIndex((i) => (i + flatItems.length - 1) % flatItems.length)
+  const askAI = () => {
+    props.editor.chain().focus().deleteRange(props.range).run()
+    window.dispatchEvent(new CustomEvent("doc-ai-slash", { detail: { action: "write", prompt: query } }))
   }
-
-  const downHandler = () => {
-    setSelectedIndex((i) => (i + 1) % flatItems.length)
-  }
-
-  const enterHandler = () => {
-    selectItem(selectedIndex)
-  }
-
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [props.items])
-
-  // Scroll selected item into view when navigating with keyboard
-  useEffect(() => {
-    const el = itemRefs.current.get(selectedIndex)
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-    }
-  }, [selectedIndex])
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-      if (event.key === "ArrowUp") {
-        upHandler()
+      if (!items.length && inDoc && query && event.key === "Enter") {
+        askAI()
         return true
       }
-      if (event.key === "ArrowDown") {
-        downHandler()
-        return true
-      }
-      if (event.key === "Enter") {
-        enterHandler()
-        return true
-      }
-      return false
+      return listRef.current?.onKeyDown(event) ?? false
     },
   }))
 
-  if (props.items.length === 0) {
-    return (
-      <div className="flex items-center gap-2 rounded-md border bg-popover text-popover-foreground shadow-overlay px-3 py-2 text-sm text-muted-foreground">
-        <Command className="h-4 w-4" />
-        No commands found
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-overlay min-w-[17rem] max-h-[22rem] overflow-y-auto py-1.5 px-1">
-      {groupedItems.map((group) => (
-        <div key={group.section} className="mb-1 last:mb-0">
-          <div className={cn(eyebrowClass, "px-2.5 py-1 text-2xs text-muted-foreground/70")}>
-            {group.section}
-          </div>
-          <div className="flex flex-col gap-px">
-            {group.items.map(({ item, globalIndex }) => {
-              const Icon = item.icon
-              const isSelected = globalIndex === selectedIndex
-              return (
-                <button
-                  key={item.id}
-                  ref={(el) => {
-                    if (el) itemRefs.current.set(globalIndex, el)
-                    else itemRefs.current.delete(globalIndex)
-                  }}
-                  className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-                    isSelected
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/50"
-                  }`}
-                  onClick={() => selectItem(globalIndex)}
-                  onMouseEnter={() => setSelectedIndex(globalIndex)}
-                >
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${
-                    isSelected ? "border-accent-foreground/20 bg-accent-foreground/10" : "bg-muted"
-                  }`}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">{item.title}</span>
-                    <span className="text-2xs text-muted-foreground truncate">{item.description}</span>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
+    <div data-slash-menu="">
+    <CommandList
+      ref={listRef}
+      label="Insert a block"
+      header={query ? `/ ${query}` : "Blocks"}
+      query={query}
+      items={items}
+      footer={items.length > 0}
+      maxHeight={360}
+      groupIcons={{ AI: <Sparkles /> }}
+      onSelect={(item) => select(item.id)}
+      empty={
+        inDoc && query ? (
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={askAI}
+            className="-mx-1 -my-2 flex h-8 w-[calc(100%+8px)] items-center gap-2.5 rounded-lg bg-press px-2 text-left text-ui text-ink"
+          >
+            <CommandTile className="bg-agent-muted text-agent-ink ring-0">
+              <Sparkles />
+            </CommandTile>
+            <span className="min-w-0 truncate">Ask AI to write “{query}”</span>
+          </button>
+        ) : (
+          <span className="text-ink-3">No block called “{query}”</span>
+        )
+      }
+    />
     </div>
   )
 })

@@ -29,7 +29,7 @@ const formatActions: TextStyle[] = [
     label: 'Heading 1',
     element: 'h1',
     level: 1,
-    className: 'm-0 grow text-3xl font-extrabold',
+    className: 'm-0 grow text-3xl font-bold',
     shortcuts: ['mod', 'alt', '1']
   },
   {

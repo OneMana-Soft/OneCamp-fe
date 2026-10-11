@@ -72,14 +72,15 @@ describe("the doc editor's frame", () => {
     expect(frame).not.toMatch(/editor\.isActive\(|editor\.getAttributes\(|editor\.getText\(/)
   })
 
-  it("shows the formatting toolbar only to someone who can edit", () => {
-    expect(src).toMatch(/!focusMode && canEdit && \(/)
+  it("offers formatting only to someone who can edit", () => {
+    expect(src).toMatch(/canEdit && !isMobile && \(/)
+    expect(src).toMatch(/canEdit && isMobile && !focusMode/)
   })
 
-  it("keeps its footer to one line: no characters, no caret block, nothing wrapping", () => {
-    const footer = src.slice(src.indexOf("const DocFooter"), src.indexOf("const MinimalTiptapDocInput"))
-    expect(footer).toMatch(/whitespace-nowrap/)
-    expect(footer).not.toMatch(/\{chars\}|character\{/)
-    expect(footer).not.toMatch(/blockLabel\(/)
+  it("has no footer: the reading time is in the meta line, the count in More", () => {
+    expect(src).not.toMatch(/DocFooter/)
+    const meta = src.slice(src.indexOf("const DocMeta"), src.indexOf("function useChecklistDone"))
+    expect(meta).toMatch(/useDocCounts\(editor\)/)
+    expect(meta).toMatch(/min read/)
   })
 })

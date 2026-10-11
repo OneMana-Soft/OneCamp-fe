@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import { ChevronRight, ChevronDown } from "@/lib/icons";
+import { ChevronRight } from "@/lib/icons";
 
 export const CollapsibleView: React.FC<NodeViewProps> = ({ node, updateAttributes, editor }) => {
   const { title, open } = node.attrs
@@ -36,12 +36,13 @@ export const CollapsibleView: React.FC<NodeViewProps> = ({ node, updateAttribute
         {/* Toggle arrow */}
         <button
           onClick={handleToggle}
-          className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent transition-colors cursor-pointer select-none"
+          className="mt-[3px] shrink-0 rounded-md p-0.5 text-ink-3 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand cursor-pointer select-none"
           contentEditable={false}
           type="button"
           aria-label={isOpen ? 'Collapse' : 'Expand'}
         >
-          {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          {/* One chevron that turns, never two that swap. */}
+          <ChevronRight className={`size-4 transition-transform duration-200 ease-[var(--ease-out)] ${isOpen ? 'rotate-90' : ''}`} />
         </button>
 
         <div className="flex-1 min-w-0">
@@ -58,14 +59,15 @@ export const CollapsibleView: React.FC<NodeViewProps> = ({ node, updateAttribute
                 editor.chain().focus().createParagraphNear().run()
               }
             }}
-            className="w-full bg-transparent font-medium text-foreground placeholder:text-muted-foreground outline-none focus:ring-0 focus:outline-none disabled:opacity-60 p-0 border-none"
+            className="w-full bg-transparent font-[510] text-ink placeholder:text-ink-4 outline-none focus:ring-0 focus:outline-none disabled:opacity-100 p-0 border-none"
           />
 
           {/* Collapsible content */}
-          <div
-            className={`overflow-hidden transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 ${isOpen ? 'max-h-[2000px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}
-          >
-            <NodeViewContent className="collapsible-content" />
+          {/* Opens by its grid row (content-collapse), not a max-height. */}
+          <div className="content-collapse" data-collapsed={!isOpen}>
+            <div>
+              <NodeViewContent className="collapsible-content pt-1.5" />
+            </div>
           </div>
         </div>
       </div>

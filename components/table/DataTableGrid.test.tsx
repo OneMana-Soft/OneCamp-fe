@@ -195,13 +195,73 @@ describe("a grid's cells at rest", () => {
     expect(groupedNumber("12 boxes")).toBeNull()
   })
 
-  it("shows a chosen option in its colour, the way a guest sees it", () => {
+  it("draws a chosen option as a neutral chip with a dot in its hue, the way a guest sees it", () => {
     render(<DataTableGrid tableId="t" fields={typed} rows={one({ kind: "Events", tags: ["Urgent"] })} canManage onChange={() => {}} />)
     const chips = [...document.querySelectorAll("[data-option-chip]")] as HTMLElement[]
     const events = chips.find((c) => c.textContent === "Events")!
-    const urgent = chips.find((c) => c.textContent === "Urgent")!
     for (const cls of optionColorClass("berry").split(" ")) expect(events.className).toContain(cls)
-    for (const cls of optionColorClass("sun").split(" ")) expect(urgent.className).toContain(cls)
+    expect(events.className).toContain("bg-hover")
+    expect(events.querySelector("[data-chip-dot]")?.getAttribute("class")).toContain("hue-berry")
+  })
+
+  it("tints a column's chips when the column opts in", () => {
+    const tinted = typed.map((f) => (f.id === "kind" ? { ...f, config: JSON.stringify({ ...JSON.parse(f.config), tinted: true }) } : f))
+    render(<DataTableGrid tableId="t" fields={tinted} rows={one({ kind: "Events", tags: ["Urgent"] })} canManage onChange={() => {}} />)
+    const chips = [...document.querySelectorAll("[data-option-chip]")] as HTMLElement[]
+    const events = chips.find((c) => c.textContent === "Events")!
+    const urgent = chips.find((c) => c.textContent === "Urgent")!
+    for (const cls of optionColorClass("berry", true).split(" ")) expect(events.className).toContain(cls)
+    expect(urgent.className).not.toContain("bg-hue-tint")
+  })
+})
+
+describe("the grid on the v3 sheet", () => {
+  it("has one active-cell ring that moves to the focused cell", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
+    const rings = document.querySelectorAll("[data-cell-ring]")
+    expect(rings).toHaveLength(1)
+    expect(rings[0].getAttribute("data-on")).toBe("false")
+    fireEvent.focus(screen.getAllByRole("textbox", { name: "Item" })[1])
+    expect(rings[0].getAttribute("data-on")).toBe("true")
+    expect((rings[0] as HTMLElement).style.transform).toMatch(/^translate\(/)
+  })
+
+  it("freezes the primary column and ticks boxes in moss, never the brand", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    const item = screen.getAllByRole("textbox", { name: "Item" })[0]
+    expect(item.closest("td")?.hasAttribute("data-frozen")).toBe(true)
+    expect(screen.getAllByRole("textbox", { name: "Cost" })[0].closest("td")?.hasAttribute("data-frozen")).toBe(false)
+    const box = screen.getAllByRole("checkbox", { name: "Paid" })[0]
+    expect(box.className).toContain("v3-check")
+    expect(box.className).not.toMatch(/accent-|primary/)
+  })
+
+  it("selects rows from the gutter and offers a bulk bar", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
+    expect(screen.queryByRole("toolbar", { name: "Selected rows" })).toBeNull()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select row 2" }))
+    expect(screen.getByRole("toolbar", { name: "Selected rows" }).textContent).toContain("1 row")
+  })
+
+  it("sums numbers and counts ticks in the summary bar", () => {
+    const rows = rowsOf(3)
+    rows[0] = { ...rows[0], values: JSON.stringify({ item: "a", cost: 100, paid: true }) }
+    render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} summary={{}} onSummary={() => {}} />)
+    const bar = document.querySelector("[data-summary-bar]") as HTMLElement
+    expect(bar.textContent).toContain("Sum")
+    expect(bar.textContent).toContain(`${(100 + 101 + 102).toLocaleString()}`)
+    expect(bar.textContent).toContain("1 of 3")
+  })
+
+  it("writes a formula's error as #ERROR, with the reason for assistive tech", () => {
+    const f: TableField[] = [
+      fields[0],
+      { id: "bad", table_id: "t", name: "Bad", type: "formula", config: JSON.stringify({ formula: "{Gone}", result: "number" }), position: 1 },
+    ]
+    const r: TableRow[] = [{ id: "r0", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "a", bad: { error: "No field called Gone" } }) }]
+    render(<DataTableGrid tableId="t" fields={f} rows={r} canManage onChange={() => {}} />)
+    expect(screen.getByText("#ERROR")).toBeTruthy()
+    expect(screen.getByText("No field called Gone").className).toContain("sr-only")
   })
 })
 

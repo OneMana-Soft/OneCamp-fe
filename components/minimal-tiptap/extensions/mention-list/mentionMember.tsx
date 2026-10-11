@@ -1,72 +1,36 @@
 import React from 'react';
 import { UserProfileDataInterface } from "@/types/user";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
-import { getNameInitials } from "@/lib/utils/getNameInitials";
-import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
-import { cn } from "@/lib/utils/helpers/cn"
-import { BotTag } from "@/components/ui/botTag";
-import { useBotKind } from "@/hooks/useBotKinds";
-import { botSubtitle } from "@/lib/botCopy";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { AgentAvatar } from "@/components/ui/graphics";
 import { displayNameOf, handleOf } from "@/lib/personName";
 
-interface ComboboxChannelMemberList {
-    person: UserProfileDataInterface
-    ind: number
-    selectItem: (ind: number) => void
-    selectedIndex: number
+/**
+ * A row of the @mention picker (content.md D24, chat.md C41), as the
+ * CommandList draws it: the person's 24 px avatar (an agent's square), then
+ * the name at 510 and the @handle they are mentioned by, at 12 ink-3.
+ */
+export function MentionAvatar({ person }: { person: UserProfileDataInterface }) {
+    const { src } = useUserAvatar(person.user_profile_object_key);
+    if (person.is_bot) {
+        return (
+            <span className="inline-flex size-6 rounded-[32%]">
+                <AgentAvatar src={src || undefined} />
+            </span>
+        );
+    }
+    return <IdentityMark id={person.user_uuid} label={displayNameOf(person)} src={src || undefined} variant="avatar" size={24} />;
 }
 
-const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem, ind, selectedIndex }) => {
-    
-    const {src: imageSrc} = useUserAvatar(person.user_profile_object_key);
-    const botKind = useBotKind(person.user_uuid, person.is_bot);
-
+const MentionMember: React.FC<{ person: UserProfileDataInterface; [rest: string]: unknown }> = ({ person }) => {
     const name = displayNameOf(person);
     const handle = handleOf(person);
-    const nameInitials = getNameInitials(name);
-
     return (
-        <div
-            className={cn(
-                "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none cursor-pointer transition-colors",
-                ind === selectedIndex 
-                    ? "bg-accent text-accent-foreground" 
-                    : "hover:bg-muted"
-            )}
-            onClick={() => selectItem(ind)}
-        >
-            <Avatar className="h-6 w-6">
-                <AvatarImage
-                    src={imageSrc}
-                    alt={name}
-                />
-                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(name))}>{nameInitials}</AvatarFallback>
-            </Avatar>
-
-            <div className='flex flex-col min-w-0'>
-                <div className="flex items-center gap-1.5 leading-none">
-                    <span className="font-medium truncate">{name}</span>
-                    {handle && (
-                        <span className="text-xs text-muted-foreground truncate">@{handle}</span>
-                    )}
-                    {person.is_bot && (
-                        <BotTag userUUID={person.user_uuid} />
-                    )}
-                </div>
-                {person.user_email_id && !person.is_bot && (
-                    <div className='text-xs text-muted-foreground truncate max-w-[150px] mt-0.5 leading-none'>
-                        {person.user_email_id}
-                    </div>
-                )}
-                {person.is_bot && (
-                    <div className='text-xs text-muted-foreground truncate max-w-[150px] mt-0.5 leading-none'>
-                        {botSubtitle(botKind)}
-                    </div>
-                )}
-            </div>
-        </div>
-    )
-}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="truncate font-[510] text-ink">{name}</span>
+            {handle && <span className="truncate text-meta text-ink-3">@{handle}</span>}
+        </span>
+    );
+};
 
 export default MentionMember;

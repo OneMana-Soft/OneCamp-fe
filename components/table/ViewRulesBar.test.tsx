@@ -32,6 +32,12 @@ function Holding({ initial = NO_RULES, onChange }: { initial?: ViewRules; onChan
 
 afterEach(cleanup)
 
+// A custom select: open it, pick an option.
+function choose(label: string, option: string) {
+  fireEvent.click(screen.getByRole("combobox", { name: label }))
+  fireEvent.click(screen.getByRole("option", { name: option }))
+}
+
 describe("sorting and filtering a table", () => {
   it("says how many rows the rules show", () => {
     render(<Holding />)
@@ -43,11 +49,13 @@ describe("sorting and filtering a table", () => {
     render(<Holding onChange={changed} />)
     fireEvent.click(screen.getByRole("button", { name: "Sort" }))
     fireEvent.click(screen.getByRole("button", { name: "Add a sort" }))
-    fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "cost" } })
+    choose("Sort by", "Cost")
+    fireEvent.click(screen.getByRole("combobox", { name: "Order" }))
     expect(screen.getByRole("option", { name: "9 → 1" })).toBeTruthy()
-    fireEvent.change(screen.getByLabelText("Order"), { target: { value: "desc" } })
+    fireEvent.click(screen.getByRole("option", { name: "9 → 1" }))
     expect(changed).toHaveBeenLastCalledWith({ sort: [{ field: "cost", dir: "desc" }], filters: [], match: "all" })
-    expect(screen.getByRole("button", { name: "Sorted by Cost" })).toBeTruthy()
+    // The rule shows as a chip in the toolbar.
+    expect(document.querySelector("[data-rule-chip]")?.textContent).toContain("Cost")
   })
 
   it("filters with the conditions a field takes, and a select's own options", () => {
@@ -55,15 +63,18 @@ describe("sorting and filtering a table", () => {
     render(<Holding onChange={changed} />)
     fireEvent.click(screen.getByRole("button", { name: "Filter" }))
     fireEvent.click(screen.getByRole("button", { name: "Add a filter" }))
-    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "stage" } })
-    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "Live" } })
+    choose("Field", "Stage")
+    choose("Value", "Live")
     expect(changed).toHaveBeenLastCalledWith({ sort: [], filters: [{ field: "stage", op: "contains", value: "Live" }], match: "all" })
     // A number field's conditions.
-    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "cost" } })
+    choose("Field", "Cost")
+    fireEvent.click(screen.getByRole("combobox", { name: "Condition" }))
     expect(screen.getByRole("option", { name: "≥" })).toBeTruthy()
     // "is empty" takes no value.
-    fireEvent.change(screen.getByLabelText("Condition"), { target: { value: "empty" } })
+    fireEvent.click(screen.getByRole("option", { name: "is empty" }))
     expect(screen.queryByLabelText("Value")).toBeNull()
+    // No browser selects anywhere in the editor.
+    expect(document.querySelector("select")).toBeNull()
   })
 
   it("asks whether rows match all filters or any, once there are two", () => {
@@ -74,8 +85,8 @@ describe("sorting and filtering a table", () => {
         initial={{ sort: [], match: "all", filters: [{ field: "item", op: "contains", value: "a" }, { field: "cost", op: "gt", value: "5" }] }}
       />,
     )
-    fireEvent.click(screen.getByRole("button", { name: "2 filters" }))
-    fireEvent.change(screen.getByLabelText("Match"), { target: { value: "any" } })
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }))
+    choose("Match", "any")
     expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ match: "any" }))
   })
 

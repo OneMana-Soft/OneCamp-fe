@@ -1,9 +1,8 @@
 "use client"
 
 import * as React from 'react'
-import { Separator } from '@/components/ui/separator'
-import { ToolbarButton } from '../toolbar-button'
-import { CopyIcon, ExternalLinkIcon, LinkBreak2Icon } from '@radix-ui/react-icons'
+import { Check, Copy, ExternalLink, Pencil, Unlink } from '@/lib/icons'
+import { FloatingBar, FloatingBarButton, FloatingBarDivider } from '@/components/ui/FloatingBar'
 import { isSafeHref } from '@/lib/utils/safeHref'
 
 interface LinkPopoverBlockProps {
@@ -12,8 +11,23 @@ interface LinkPopoverBlockProps {
   onEdit: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
+/** "example.com/path", the link as a reader recognises it. */
+function shortUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const path = u.pathname === '/' ? '' : u.pathname
+    return `${u.hostname.replace(/^www\./, '')}${path}`
+  } catch {
+    return url
+  }
+}
+
+/**
+ * The link bubble (content.md D25): the area's FloatingBar with where the
+ * link goes (opens it) and then edit, copy and remove.
+ */
 export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear, onEdit }) => {
-  const [copyTitle, setCopyTitle] = React.useState<string>('Copy')
+  const [copied, setCopied] = React.useState(false)
 
   const handleCopy = React.useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -21,8 +35,8 @@ export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear
       navigator.clipboard
         .writeText(url)
         .then(() => {
-          setCopyTitle('Copied!')
-          setTimeout(() => setCopyTitle('Copy'), 1000)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1200)
         })
         .catch(console.error)
     },
@@ -37,32 +51,21 @@ export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear
   }, [url])
 
   return (
-    <div className="flex h-10 overflow-hidden rounded bg-background p-2 shadow-overlay">
-      <div className="inline-flex items-center gap-1">
-        <ToolbarButton tooltip="Edit link" onClick={onEdit} className="w-auto px-2">
-          Edit link
-        </ToolbarButton>
-        <Separator orientation="vertical" />
-        <ToolbarButton tooltip="Open link in a new tab" onClick={handleOpenLink}>
-          <ExternalLinkIcon className="size-4" />
-        </ToolbarButton>
-        <Separator orientation="vertical" />
-        <ToolbarButton tooltip="Clear link" onClick={onClear}>
-          <LinkBreak2Icon className="size-4" />
-        </ToolbarButton>
-        <Separator orientation="vertical" />
-        <ToolbarButton
-          tooltip={copyTitle}
-          onClick={handleCopy}
-          tooltipOptions={{
-            onPointerDownOutside: e => {
-              if (e.target === e.currentTarget) e.preventDefault()
-            }
-          }}
-        >
-          <CopyIcon className="size-4" />
-        </ToolbarButton>
-      </div>
-    </div>
+    <FloatingBar label="Link" data-link-bubble="">
+      <FloatingBarButton label={`Open ${url}`} onClick={handleOpenLink} className="max-w-[240px] gap-1.5 px-2 font-[450] text-brand-text">
+        <ExternalLink />
+        <span className="truncate">{shortUrl(url)}</span>
+      </FloatingBarButton>
+      <FloatingBarDivider />
+      <FloatingBarButton label="Edit link" onClick={onEdit}>
+        <Pencil />
+      </FloatingBarButton>
+      <FloatingBarButton label={copied ? 'Copied' : 'Copy link'} onClick={handleCopy}>
+        {copied ? <Check /> : <Copy />}
+      </FloatingBarButton>
+      <FloatingBarButton label="Remove link" onClick={onClear}>
+        <Unlink />
+      </FloatingBarButton>
+    </FloatingBar>
   )
 }

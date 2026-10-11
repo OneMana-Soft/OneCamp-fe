@@ -8,7 +8,7 @@ vi.mock("@/services/bookingService", () => ({
   getBookingPage: () => new Promise((r) => (answer = r)),
   bookSlot: vi.fn(),
 }))
-vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null }))
+vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null, madeWithHref: () => "" }))
 
 import BookingPage from "./page"
 
@@ -50,5 +50,15 @@ describe("a public booking page", () => {
     const mark = document.querySelector("[data-hue]")
     expect(mark?.getAttribute("data-hue")).toBe(hueFor("Sam Rivera"))
     expect(mark?.textContent).toBe("SR")
+    // The page and its graph load cold here: past 5s under a full parallel run.
+  }, 20_000)
+
+  it("sits in the public frame on a card whose width follows the step", async () => {
+    await open()
+    await act(async () => answer({ ok: true, data: PAGE }))
+    expect(document.querySelector("[data-public-frame]")).toBeTruthy()
+    const card = document.querySelector("[data-booking-card]")!
+    expect(card.getAttribute("data-step")).toBe("1")
+    expect(card.className).toMatch(/sm:max-w-\[740px\]/)
   })
 })

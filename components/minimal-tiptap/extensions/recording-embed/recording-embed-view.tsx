@@ -101,10 +101,10 @@ export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
         <button
           type="button"
           onClick={handlePlay}
-          className="inline-flex select-none items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-muted"
+          className="inline-flex h-7 select-none items-center gap-1.5 rounded-lg bg-raised px-2.5 text-ui-sm font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-            <Video className="h-4 w-4" />
+          <span className="flex size-5 items-center justify-center rounded-md bg-camp-sky-tint text-camp-sky-ink">
+            <Video className="size-3" />
           </span>
           <span>Play recording</span>
         </button>
@@ -113,10 +113,10 @@ export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
             type="button"
             onClick={handleCreateTasks}
             title="Turn this meeting's action items into tasks"
-            className="inline-flex select-none items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-muted"
+            className="inline-flex h-7 select-none items-center gap-1.5 rounded-lg bg-raised px-2.5 text-ui-sm font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <CheckSquare className="h-4 w-4" />
+            <span className="flex size-5 items-center justify-center rounded-md bg-camp-moss-tint text-camp-moss-ink">
+              <CheckSquare className="size-3" />
             </span>
             <span>Create tasks</span>
           </button>

@@ -6,7 +6,7 @@ import {usePost} from "@/hooks/usePost";
 import {DocListResult} from "@/components/doc/docListResult";
 import {DocInfoInterface, DocInfoListInterface, DocInfoListInterfaceResp} from "@/types/doc";
 
-export const DocListTabPublic = ({searchQuery, onCreate}: {searchQuery: string, onCreate: () => void}) => {
+export const DocListTabPublic = ({searchQuery, onClearSearch}: {searchQuery: string, onClearSearch?: () => void}) => {
     const post = usePost();
     
     // Main List Pagination state
@@ -120,7 +120,8 @@ export const DocListTabPublic = ({searchQuery, onCreate}: {searchQuery: string, 
             isLoading={currentIsLoading}
             isError={!searching && !!isError && allDocs.length === 0}
             onRetry={() => void mutate()}
-            onCreate={searchQuery.trim().length > 0 ? undefined : onCreate}
+            withCreateCard={searchQuery.trim().length === 0}
+            onClearSearch={onClearSearch}
             searchQuery={searchQuery}
         />
     )

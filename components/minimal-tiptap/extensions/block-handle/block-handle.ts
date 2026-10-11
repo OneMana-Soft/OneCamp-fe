@@ -10,32 +10,33 @@ const BlockFocusPluginKey = new PluginKey('block-focus')
 // A single DOM element that repositions itself next to the hovered
 // or focused block. Much more reliable than per-block decorations.
 
-function createFloatingHandle(): HTMLElement {
-  const handle = document.createElement('div')
-  handle.className = 'block-handle-floating'
-  handle.setAttribute('contenteditable', 'false')
-  handle.setAttribute('draggable', 'true') // Enable native HTML5 dragging
-  handle.title = 'Drag to move'
-  handle.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="3" r="1.5" fill="currentColor"/><circle cx="4" cy="7" r="1.5" fill="currentColor"/><circle cx="4" cy="11" r="1.5" fill="currentColor"/><circle cx="10" cy="3" r="1.5" fill="currentColor"/><circle cx="10" cy="7" r="1.5" fill="currentColor"/><circle cx="10" cy="11" r="1.5" fill="currentColor"/></svg>`
-  handle.style.cssText = `
-    position: fixed;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    cursor: grab;
-    border-radius: 4px;
-    color: var(--muted-foreground);
-    background: transparent;
-    border: none;
-    z-index: 50;
-    opacity: 0;
-    transition: opacity 0.15s ease, background-color 0.12s ease;
-    user-select: none;
-    pointer-events: auto;
-  `
-  return handle
+// Two 24 px controls (content.md D10): "+" opens the block menu on a new
+// line below, "⋮⋮" drags the block. They sit in the gutter, glide from block
+// to block (a transform, so nothing lays out) and show only where there is a
+// pointer that hovers: a phone has the "/" key and its accessory bar instead.
+// The look is in minimal-tiptap/styles/index.css (.block-handle-floating).
+const PLUS_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`
+const GRIP_SVG = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><circle cx="4.5" cy="3" r="1.25" fill="currentColor"/><circle cx="4.5" cy="7" r="1.25" fill="currentColor"/><circle cx="4.5" cy="11" r="1.25" fill="currentColor"/><circle cx="9.5" cy="3" r="1.25" fill="currentColor"/><circle cx="9.5" cy="7" r="1.25" fill="currentColor"/><circle cx="9.5" cy="11" r="1.25" fill="currentColor"/></svg>`
+
+function createFloatingHandle(): { root: HTMLElement; plus: HTMLButtonElement; grip: HTMLElement } {
+  const root = document.createElement('div')
+  root.className = 'block-handle-floating'
+  root.setAttribute('contenteditable', 'false')
+  root.dataset.visible = 'false'
+  const plus = document.createElement('button')
+  plus.type = 'button'
+  plus.className = 'block-handle-btn'
+  plus.setAttribute('aria-label', 'Add a block below')
+  plus.title = 'Add a block below'
+  plus.innerHTML = PLUS_SVG
+  const grip = document.createElement('div')
+  grip.className = 'block-handle-btn block-handle-grip'
+  grip.setAttribute('draggable', 'true') // Enable native HTML5 dragging
+  grip.setAttribute('aria-label', 'Drag to move')
+  grip.title = 'Drag to move'
+  grip.innerHTML = GRIP_SVG
+  root.append(plus, grip)
+  return { root, plus, grip }
 }
 
 // ── Extension ──────────────────────────────────────────────────
@@ -65,20 +66,21 @@ export const BlockHandle = Extension.create({
       currentHoverDom = blockDom
       const blockRect = blockDom.getBoundingClientRect()
 
-      const handleLeft = blockRect.left - 26
-      const handleTop = blockRect.top + (Math.min(blockRect.height, 32) / 2) - 12
+      // Two 24 px buttons and a 2 px gap, 6 px left of the text, centred on
+      // the block's first line (26 px).
+      const handleLeft = blockRect.left - 56
+      const handleTop = blockRect.top + (Math.min(blockRect.height, 26) / 2) - 12
 
-      handle.style.display = 'flex'
-      handle.style.left = `${handleLeft}px`
-      handle.style.top = `${handleTop}px`
-      handle.style.opacity = '0.4'
+      // Gliding from one block to the next; appearing in place.
+      handle.dataset.glide = handle.dataset.visible === 'true' ? 'true' : 'false'
+      handle.style.transform = `translate3d(${Math.round(handleLeft)}px, ${Math.round(handleTop)}px, 0)`
+      handle.dataset.visible = 'true'
     }
 
     const hideHandle = (immediate?: boolean) => {
       if (!handle || isDragging) return
       if (immediate) {
-        handle.style.opacity = '0'
-        handle.style.display = 'none'
+        handle.dataset.visible = 'false'
         currentHoverPos = null
         currentHoverDom = null
         return
@@ -86,14 +88,9 @@ export const BlockHandle = Extension.create({
       if (hideTimeout) clearTimeout(hideTimeout)
       hideTimeout = setTimeout(() => {
         if (handle) {
-          handle.style.opacity = '0'
-          setTimeout(() => {
-            if (handle && handle.style.opacity === '0') {
-              handle.style.display = 'none'
-              currentHoverPos = null
-              currentHoverDom = null
-            }
-          }, 150)
+          handle.dataset.visible = 'false'
+          currentHoverPos = null
+          currentHoverDom = null
         }
       }, 200)
     }
@@ -184,8 +181,21 @@ export const BlockHandle = Extension.create({
           }
         },
         view(editorView) {
-          handle = createFloatingHandle()
+          const parts = createFloatingHandle()
+          handle = parts.root
+          const grip = parts.grip
           document.body.appendChild(handle)
+
+          // "+": a new empty line under the block, with the block menu open on it.
+          parts.plus.addEventListener('mousedown', (e) => e.preventDefault())
+          parts.plus.addEventListener('click', () => {
+            const pos = BlockFocusPluginKey.getState(editorView.state) as number | null
+            if (pos == null) return
+            const node = editorView.state.doc.nodeAt(pos)
+            if (!node) return
+            const after = pos + node.nodeSize
+            editor.chain().focus().insertContentAt(after, { type: 'paragraph' }).setTextSelection(after + 1).insertContent('/').run()
+          })
 
           const onScroll = () => {
              hideHandle(true)
@@ -194,21 +204,10 @@ export const BlockHandle = Extension.create({
           window.addEventListener('scroll', onScroll, true)
 
           handle.addEventListener('mouseenter', () => {
-            if (handle && !isDragging) {
-              if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null }
-              handle.style.opacity = '1'
-              handle.style.backgroundColor = 'var(--accent)'
-            }
-          })
-          
-          handle.addEventListener('mouseleave', () => {
-            if (handle && !isDragging) {
-              handle.style.backgroundColor = 'transparent'
-              handle.style.opacity = '0.4'
-            }
+            if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null }
           })
 
-          handle.addEventListener('dragstart', (e: DragEvent) => {
+          grip.addEventListener('dragstart', (e: DragEvent) => {
             const activePos = BlockFocusPluginKey.getState(editorView.state) as number | null
             if (activePos == null) {
               e.preventDefault()
@@ -223,7 +222,7 @@ export const BlockHandle = Extension.create({
 
             isDragging = true
             globalDragState = { pos: activePos, node: sourceNode }
-            handle!.style.opacity = '0'
+            handle!.dataset.visible = 'false'
             
             if (e.dataTransfer) {
               e.dataTransfer.effectAllowed = 'move'
@@ -245,14 +244,11 @@ export const BlockHandle = Extension.create({
           const cleanupDrag = () => {
             isDragging = false
             globalDragState = null
-            if (handle) {
-              handle.style.opacity = '0'
-              handle.style.display = 'none'
-            }
+            if (handle) handle.dataset.visible = 'false'
             updateFocusHandle(editorView)
           }
 
-          handle.addEventListener('dragend', cleanupDrag)
+          grip.addEventListener('dragend', cleanupDrag)
           window.addEventListener('dragend', cleanupDrag)
 
           initTimeout = setTimeout(() => updateFocusHandle(editorView), 100)

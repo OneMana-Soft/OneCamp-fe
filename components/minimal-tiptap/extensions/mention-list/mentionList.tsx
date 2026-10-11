@@ -1,15 +1,18 @@
 import { MentionOptions } from "@tiptap/extension-mention";
 import { ReactRenderer } from "@tiptap/react";
 import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
 import tippy, { Instance as TippyInstance } from "tippy.js";
 import { UserProfileDataInterface, UserListInterfaceResp } from "@/types/user";
-import MentionMember from "./mentionMember";
+import MentionMember, { MentionAvatar } from "./mentionMember";
+import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList";
 import store from "@/store/store";
 import { updateMentionOpenedRecently } from "@/store/slice/mentionSlice";
 import axiosInstance from "@/lib/axiosInstance";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { displayNameOf, pickPeople } from "@/lib/personName";
+import { useBotKindMap } from "@/hooks/useBotKinds";
+import { isAIBot } from "@/lib/botCopy";
 
 type MentionSuggestion = {
   id: string;
@@ -117,6 +120,10 @@ export const mentionSuggestionOptions: MentionOptions["suggestion"] = {
             interactive: true,
             trigger: "manual",
             placement: "bottom-start",
+            offset: [0, 6],
+            theme: "none",
+            arrow: false,
+            popperOptions: { modifiers: [{ name: "flip", options: { fallbackPlacements: ["top-start"] } }] },
           })[0];
       },
 
@@ -165,75 +172,63 @@ interface MentionProps extends SuggestionProps {
   items: UserProfileDataInterface[];
 }
 
+/**
+ * The @mention picker (content.md D24): the area's CommandList at 320 px,
+ * people first and then agents, 36 px rows with the avatar, name and handle,
+ * and an empty state instead of nothing.
+ */
 const MentionList = forwardRef<MentionRef, MentionProps>((props, ref) => {
-    const [selectedIndex, setSelectedIndex] = useState(0);
+    const listRef = useRef<CommandListHandle>(null);
+    const ordered = useMemo(
+        () => [...props.items.filter((p) => !p.is_bot), ...props.items.filter((p) => p.is_bot)],
+        [props.items],
+    );
 
-    const selectItem = (index: number) => {
-        if (index >= props.items.length) {
-            return;
-        }
-
-        const suggestion = props.items[index];
+    const selectItem = (person: UserProfileDataInterface | undefined) => {
+        if (!person) return;
         const mentionItem: MentionSuggestion = {
-            id: `${suggestion.user_uuid}@${suggestion.uid}`,
-            mentionLabel: displayNameOf(suggestion),
-            label: displayNameOf(suggestion)
+            id: `${person.user_uuid}@${person.uid}`,
+            mentionLabel: displayNameOf(person),
+            label: displayNameOf(person)
         };
         props.command(mentionItem);
-    };
-
-    const upHandler = () => {
-        setSelectedIndex((selectedIndex + props.items.length - 1) % props.items.length);
-    };
-
-    const downHandler = () => {
-        setSelectedIndex((selectedIndex + 1) % props.items.length);
-    };
-
-    const enterHandler = () => {
-        selectItem(selectedIndex);
         store.dispatch(updateMentionOpenedRecently({openedRecently: true}))
     };
 
-    useEffect(() => {
-        setSelectedIndex(0);
-    }, [props.items]);
+    const botKinds = useBotKindMap();
+    const items: CommandListItem[] = useMemo(
+        () =>
+            ordered.map((person) => ({
+                id: person.user_uuid,
+                text: displayNameOf(person),
+                label: <MentionMember person={person} />,
+                group: person.is_bot ? "Agents" : "People",
+                tile: <MentionAvatar person={person} />,
+                // An agent says what asking it means (chat C41): it acts
+                // for whoever asks, with what they may do. No owner is
+                // named: the people list doesn't carry an agent's sponsor.
+                meta: person.is_bot && isAIBot(botKinds?.[person.user_uuid] ?? person.user_bot_kind) ? "Agent · acts for you" : undefined,
+            })),
+        [ordered, botKinds],
+    );
 
     useImperativeHandle(ref, () => ({
-        onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-            if (event.key === "ArrowUp") {
-                upHandler();
-                return true;
-            }
-
-            if (event.key === "ArrowDown") {
-                downHandler();
-                return true;
-            }
-
-            if (event.key === "Enter") {
-                enterHandler();
-                return true;
-            }
-
-            return false;
-        },
+        onKeyDown: ({ event }: SuggestionKeyDownProps) => listRef.current?.onKeyDown(event) ?? false,
     }));
 
-
-    return props.items.length > 0 ? (
-        <div className="flex flex-col overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md min-w-[12rem] p-1 gap-0.5">
-            {props.items.map((item, index) => (
-                <MentionMember
-                    key={index}
-                    ind={index}
-                    person={item}
-                    selectItem={selectItem}
-                    selectedIndex={selectedIndex}
-                />
-            ))}
+    if (!items.length && !props.query) return null;
+    return (
+        <div data-mention-list="">
+            <CommandList
+                ref={listRef}
+                label="Mention someone"
+                className="w-80"
+                roomy
+                maxHeight={8 * 36 + 32}
+                items={items}
+                onSelect={(item) => selectItem(ordered.find((p) => p.user_uuid === item.id))}
+                empty={<span className="text-ink-3">No one called “{props.query}” here</span>}
+            />
         </div>
-    ) : null;
+    );
 });
-
-MentionList.displayName = "MentionList";

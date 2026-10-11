@@ -4,7 +4,7 @@ import * as React from "react"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { useFetch } from "@/hooks/useFetch"
-import { Loader2, Table as TableIcon, ExternalLink } from "@/lib/icons"
+import { EmbedCard, EmbedGone } from "@/components/minimal-tiptap/components/embed-card"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
 import { TableBundle, tableBundleKey } from "@/services/tableService"
@@ -14,7 +14,7 @@ import { TableGlyph } from "@/components/table/TableGlyph"
 // a doc. It fetches the table bundle by id and renders the grid; edits go
 // straight to the table entity (the doc stores only the reference), so the same
 // data shows everywhere the table is embedded or opened full-page.
-export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNode }) => {
+export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNode, selected }) => {
   const tableId = String(node.attrs.tableId || "")
   const { data, isLoading, isError, mutate } = useFetch<{ data: TableBundle }>(
     tableId ? tableBundleKey(tableId) : "",
@@ -50,78 +50,44 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
     }
   }, [])
 
+  const rowCount = bundle?.rows?.length ?? 0
   return (
-    <NodeViewWrapper
-      className="table-embed my-3 rounded-xl border border-border/60 bg-background"
-      data-type="table-embed"
-      contentEditable={false}
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <TableGlyph size="sm" icon={gone ? null : bundle?.table?.icon} id={tableId} />
-          <span className="truncate text-sm font-medium">
-            {gone
-              ? "Table unavailable"
-              : bundle?.table?.name || (isLoading ? "Loading table…" : "Table")}
-          </span>
-        </div>
-        {/* Only offer "Open" when the table is actually reachable — a dead link
-            would just error in the new tab. */}
-        {tableId && showGrid && (
-          <a
-            href={`/app/tables/${tableId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            title="Open full table"
-          >
-            Open <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
-      </div>
-
-      <div className="max-h-[420px] overflow-auto p-1">
+    <NodeViewWrapper className="table-embed my-3" data-type="table-embed" contentEditable={false}>
+      <EmbedCard
+        kind="table"
+        selected={selected}
+        tile={<TableGlyph size="sm" icon={gone ? null : bundle?.table?.icon} id={tableId} />}
+        title={gone ? "Table unavailable" : bundle?.table?.name || (isLoading ? "Loading table…" : "Table")}
+        meta={showGrid ? `${rowCount} ${rowCount === 1 ? "row" : "rows"}` : undefined}
+        // Only offer "Open" when the table is reachable: a dead link would error in the new tab.
+        openHref={tableId && showGrid ? `/app/tables/${tableId}` : undefined}
+        bodyClassName="relative"
+      >
         {isLoading ? (
-          <div className="flex items-center justify-center py-8 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div aria-busy="true" className="space-y-2 px-3.5 pb-3.5 pt-1">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-6 rounded-md bg-press [animation:skeleton-breathe_1.8s_ease-in-out_400ms_infinite]" />
+            ))}
           </div>
         ) : gone || (!isError && !bundle?.table) ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-            <TableIcon className="h-5 w-5" />
-            <span>This table was deleted or you don&apos;t have access to it.</span>
-            {editor?.isEditable && (
-              <button
-                type="button"
-                onClick={() => deleteNode()}
-                className="mt-1 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                Remove from doc
-              </button>
-            )}
-          </div>
-        ) : transient && !bundle?.table ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-            <TableIcon className="h-5 w-5" />
-            <span>Couldn&apos;t load this table right now.</span>
-            <button
-              type="button"
-              onClick={() => mutate()}
-              className="mt-1 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <DataTableGrid
-            tableId={tableId}
-            fields={bundle?.fields || []}
-            rows={bundle?.rows || []}
-            canManage={!!bundle?.can_manage}
-            onChange={mutate}
+          <EmbedGone
+            message="This table was deleted or you lost access."
+            onRemove={editor?.isEditable ? () => deleteNode() : undefined}
           />
+        ) : transient && !bundle?.table ? (
+          <EmbedGone message="Couldn't load this table right now." onRemove={() => mutate()} removeLabel="Retry" />
+        ) : (
+          <div className="max-h-[360px] overflow-auto border-t border-line [mask-image:linear-gradient(to_bottom,#000_calc(100%-24px),transparent)] pb-6">
+            <DataTableGrid
+              tableId={tableId}
+              fields={bundle?.fields || []}
+              rows={bundle?.rows || []}
+              canManage={!!bundle?.can_manage}
+              onChange={mutate}
+            />
+          </div>
         )}
-      </div>
+      </EmbedCard>
     </NodeViewWrapper>
   )
 }
-

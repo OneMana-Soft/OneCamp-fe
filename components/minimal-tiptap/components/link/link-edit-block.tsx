@@ -49,14 +49,15 @@ export const LinkEditBlock = React.forwardRef<HTMLDivElement, LinkEditorProps>(
 
     return (
       <div ref={formRef}>
-        <div className={cn('space-y-4', className)}>
+        <div className={cn('space-y-3', className)}>
           <div className="space-y-1">
-            <Label>URL</Label>
+            <Label className="text-meta font-medium text-ink-2">Link</Label>
             <Input
               ref={urlRef}
               type="url"
               required
-              placeholder="Enter URL"
+              placeholder="https://"
+              dense
               value={url}
               onChange={e => {
                 e.target.setCustomValidity('')
@@ -66,17 +67,17 @@ export const LinkEditBlock = React.forwardRef<HTMLDivElement, LinkEditorProps>(
           </div>
 
           <div className="space-y-1">
-            <Label>Display Text (optional)</Label>
-            <Input type="text" placeholder="Enter display text" value={text} onChange={e => setText(e.target.value)} />
+            <Label className="text-meta font-medium text-ink-2">Text</Label>
+            <Input dense type="text" placeholder="What the link says" value={text} onChange={e => setText(e.target.value)} />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Label>Open in New Tab</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-ui-sm text-ink-2">Open in a new tab</Label>
             <Switch checked={isNewTab} onCheckedChange={setIsNewTab} />
           </div>
 
           <div className="flex justify-end space-x-2">
-            <Button type="button" onClick={handleSave}>
+            <Button type="button" size="sm" onClick={handleSave}>
               Save
             </Button>
           </div>

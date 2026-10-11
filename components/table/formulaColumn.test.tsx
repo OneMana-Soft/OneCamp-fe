@@ -57,12 +57,12 @@ describe("a formula column", () => {
   it("is added with its formula", async () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: "Add a column" }))
-    fireEvent.change(screen.getByPlaceholderText("Column name"), { target: { value: "With tax" } })
-    fireEvent.change(screen.getByDisplayValue("Text"), { target: { value: "formula" } })
-    // Set up in a popover on the + button, in the column menu's form.
+    // The + opens a list of the twelve types; a formula needs its settings.
     const form = document.querySelector("[data-add-column]") as HTMLElement
     expect(form).not.toBeNull()
-    expect(screen.getByLabelText("Type").tagName).toBe("SELECT")
+    expect(document.querySelector("select")).toBeNull()
+    fireEvent.click(screen.getByRole("option", { name: /Formula/ }))
+    fireEvent.change(screen.getByPlaceholderText("Column name"), { target: { value: "With tax" } })
     const add = screen.getByRole("button", { name: "Add column" })
     // Not without a formula.
     expect((add as HTMLButtonElement).disabled).toBe(true)

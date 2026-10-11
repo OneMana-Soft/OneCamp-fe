@@ -150,14 +150,14 @@ const ReferenceList = forwardRef<ReferenceListRef, ReferenceListProps>((props, r
 
   if (props.items.length === 0) {
     return (
-      <div className="rounded-lg border bg-popover text-popover-foreground shadow-md min-w-[14rem] max-w-[20rem] p-3 text-xs text-muted-foreground">
+      <div className="rounded-lg border bg-popover text-popover-foreground shadow-e3 min-w-[14rem] max-w-[20rem] p-3 text-xs text-muted-foreground">
         {props.emptyHint}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-md min-w-[15rem] max-w-[22rem] max-h-[18rem] p-1 gap-0.5">
+    <div className="flex flex-col overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-e3 min-w-[15rem] max-w-[22rem] max-h-[18rem] p-1 gap-0.5">
       {props.items.map((item, index) => {
         const Icon = referenceIcon(item.refType)
         return (

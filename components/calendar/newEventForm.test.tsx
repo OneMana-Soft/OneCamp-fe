@@ -18,7 +18,8 @@ describe("a new event", () => {
     render(<CreateCalendarEventDialog open onOpenChange={() => {}} defaultStartDate={new Date(2026, 9, 12, 9, 0)} />)
     const start = screen.getByLabelText("Start")
     expect(start.tagName).toBe("BUTTON")
-    expect(start.textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2}( \d{4})?, \d{1,2}:\d{2}\s[AP]M$/)
+    // "Mon 12 Oct · 9:00 AM": the weekday, the day, and the time in the app's words.
+    expect(start.textContent).toMatch(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} · \d{1,2}:\d{2}\s[AP]M$/)
     expect(document.body.textContent).not.toMatch(/[A-Z][a-z]{2} \d{1,2}, \d{4} ·/)
   })
 

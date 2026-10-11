@@ -27,6 +27,9 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ ...fetched, mutate: vi.fn() }) }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => {} }))
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+// The save dot has its own tests; it needs the app's tooltip providers.
+vi.mock("@/components/docEditor/SaveDot", () => ({ SaveDot: ({ state }: { state: string }) => <span data-save-dot={state} /> }))
 vi.mock("@/lib/tables/viewRules", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/tables/viewRules")>()
   return {
@@ -147,5 +150,14 @@ describe("a table's page", () => {
     fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
     render(<TableDetailPage />)
     expect(screen.getByRole("link", { name: "Back to tables" }).className).toMatch(/\bhidden\b.*\bsm:inline-flex\b/)
+  })
+
+  it("shows a save dot by the name, and slides one underline under the view", () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    render(<TableDetailPage />)
+    expect(document.querySelector("[data-save-dot]")?.getAttribute("data-save-dot")).toBe("saved")
+    expect(document.querySelectorAll("[data-tab-indicator]")).toHaveLength(1)
+    // No box around the views: they sit on the sheet.
+    expect((document.querySelector("[data-table-frame]") as HTMLElement).className).not.toMatch(/\bborder\b/)
   })
 })

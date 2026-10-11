@@ -5,6 +5,7 @@
 
 import { computedOf, isComputed, isMoreRef, type FormulaResult, type TableField } from "@/services/tableService"
 import { shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
+import { formatLocale } from "./numberFormat"
 
 export interface FormulaFunction {
   name: string
@@ -101,7 +102,7 @@ export function showFormulaValue(value: unknown, result: FormulaResult): Formula
   }
   if (typeof value === "boolean") return { kind: "checkbox", checked: value }
   if (typeof value === "number") {
-    return { kind: "number", text: value.toLocaleString(undefined, { maximumFractionDigits: 6 }) }
+    return { kind: "number", text: formatLocale(value, { maximumFractionDigits: 6 }) }
   }
   const s = String(value)
   if (result === "date") {

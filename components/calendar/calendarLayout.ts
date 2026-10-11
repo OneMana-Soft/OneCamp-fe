@@ -27,6 +27,13 @@ export interface Placed<T extends DatedItem = DatedItem> {
 
 export const dayKey = (d: Date) => format(d, "yyyy-MM-dd")
 
+/**
+ * The week starts on Monday (content.md C05: the default in India, and where
+ * most of the world's working week starts). One constant, so the month grid,
+ * the week view, the mini month and what is fetched agree.
+ */
+export const WEEK_STARTS_ON = 1 as const
+
 /** Items with their dates parsed once; anything without a usable date is left out. */
 export function placeItems<T extends DatedItem>(items: readonly T[]): Placed<T>[] {
   const out: Placed<T>[] = []
@@ -123,7 +130,7 @@ export function layoutWeek<T extends DatedItem>(weekStart: Date, placed: readonl
  * switching between month, week and day views asks for nothing new.
  */
 export function monthGridRange(anchor: Date): { start: Date; end: Date } {
-  return { start: startOfWeek(startOfMonth(anchor)), end: endOfWeek(endOfMonth(anchor)) }
+  return { start: startOfWeek(startOfMonth(anchor), { weekStartsOn: WEEK_STARTS_ON }), end: endOfWeek(endOfMonth(anchor), { weekStartsOn: WEEK_STARTS_ON }) }
 }
 
 /**

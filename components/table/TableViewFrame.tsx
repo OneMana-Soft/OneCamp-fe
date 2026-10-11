@@ -17,10 +17,10 @@ import { cn } from "@/lib/utils/helpers/cn"
  * tabs out of sight. Now a switch of view changes only what is under the row.
  */
 
-/** The toolbar row: one height (40px), at the top of the frame, on every view. */
+/** The toolbar row (T05): 44 px, at the top of the frame, on every view; rules as chips, actions at its end. */
 export function TableToolbar({ children, end, className }: { children?: React.ReactNode; end?: React.ReactNode; className?: string }) {
   return (
-    <div data-table-toolbar="" className={cn("flex min-h-10 flex-wrap items-center gap-1.5 border-b border-border/60 px-2 py-1.5 text-xs", className)}>
+    <div data-table-toolbar="" className={cn("flex min-h-11 flex-wrap items-center gap-1 py-2 text-ui-sm", className)}>
       {children}
       {end ? <div className="ml-auto flex shrink-0 items-center gap-1.5">{end}</div> : null}
     </div>

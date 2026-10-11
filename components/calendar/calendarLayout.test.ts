@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { addDays, isWithinInterval, startOfWeek } from "date-fns"
-import { dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems } from "./calendarLayout"
+import { dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "./calendarLayout"
 
 const at = (d: number, h = 0, m = 0) => new Date(2026, 9, d, h, m).toISOString()
 
@@ -45,11 +45,15 @@ describe("laying a week out in rows", () => {
 })
 
 describe("what the calendar asks the server for", () => {
+  it("starts its weeks on Monday", () => {
+    expect(monthGridRange(new Date(2026, 9, 15)).start.getDay()).toBe(1)
+  })
+
   it("is the month grid around the date, which holds every week of that month", () => {
     for (const d of [1, 10, 31]) {
       const anchor = new Date(2026, 9, d)
       const range = monthGridRange(anchor)
-      const ws = startOfWeek(anchor)
+      const ws = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON })
       expect(isWithinInterval(ws, { start: range.start, end: range.end })).toBe(true)
       expect(isWithinInterval(addDays(ws, 6), { start: range.start, end: range.end })).toBe(true)
     }

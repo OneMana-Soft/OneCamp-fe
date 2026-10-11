@@ -477,7 +477,7 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
               src={displaySrc}
               alt={node.attrs.alt || ''}
               onClick={e => e.stopPropagation()}
-              className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-2xl sm:max-w-[90vw]"
+              className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-e4 sm:max-w-[90vw]"
             />
           </div>,
           document.body
