@@ -154,6 +154,10 @@ export function GuestGateComposer({
   const [leaving, setLeaving] = useState(false)
   const nameBox = useRef<HTMLInputElement>(null)
   const messageBox = useRef<HTMLTextAreaElement>(null)
+  // The name gate's exit, cleared if the channel goes first: a state update
+  // after unmount is a leak, and in a test it fires after the page is gone.
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(leaveTimer.current), [])
   const id = useId()
 
   useEffect(() => {
@@ -166,7 +170,8 @@ export function GuestGateComposer({
     if (!n) return
     setLeaving(true)
     onName(n)
-    setTimeout(() => setLeaving(false), 220)
+    clearTimeout(leaveTimer.current)
+    leaveTimer.current = setTimeout(() => setLeaving(false), 220)
     requestAnimationFrame(() => messageBox.current?.focus())
   }
 
