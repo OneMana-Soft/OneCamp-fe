@@ -1,0 +1,610 @@
+/* THE PHONE LAYER (design v3, v3-areas/mobile.md: F1-F5, C1, C4, C5, C9, L4).
+   The phone-wide pieces every screen shares: its tokens, the press response,
+   the tab bar's material, the theme's glow on a tab's root, the push and pop
+   between pages, the sheets, pull to refresh, where a toast lands, and the
+   installed app's polish. Screens own their own layout; this owns the layer
+   they sit in.
+
+   Loaded after globals.css (app/layout.tsx), so a rule here outranks the
+   shell's phone block there at equal specificity. Plain CSS: no Tailwind
+   directives, so it is never run through the utility compiler.
+
+   Rules (mobile.md §7): transform, opacity and a small background only; one
+   spring and two eases (--ease-spring, --ease-out, --ease-push); durations
+   from the set 90 120 140 180 220 240 260 300 320 340 380 420; decoration
+   stops under prefers-reduced-motion, a finger dragging something keeps it.
+   phoneLayer.test.ts holds all of that. */
+
+/* F1. Phone tokens. */
+:root {
+  --m-gutter: 16px;
+  --m-bar: 52px;
+  --m-tab: 56px;
+  --m-row: 64px;
+  --m-row-sm: 48px;
+  --m-row-task: 60px;
+  --m-hit: 44px;
+  --e-bar: 0 -1px 0 rgb(16 18 26 / 0.07), 0 -8px 24px -16px rgb(16 18 26 / 0.18);
+  --r-sheet: 20px;
+  /* The iOS sheet curve, critically damped (vaul's own): push and pop, sheets. */
+  --ease-push: cubic-bezier(0.32, 0.72, 0, 1);
+  --t-push: 380ms;
+  --t-pop: 340ms;
+  --t-sheet: 420ms;
+  --t-sheet-out: 300ms;
+  --t-tap: 90ms;
+  /* What a phone toast sits above: the tab bar, a composer, or nothing.
+     MobileNavigationBar sets --phone-floor; the default is the tab bar. */
+  --phone-floor: calc(var(--m-tab) + env(safe-area-inset-bottom));
+}
+.dark {
+  --e-bar: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 -8px 24px -12px rgb(0 0 0 / 0.7);
+}
+
+/* F2. THE PRESS RESPONSE. Three, by what is pressed, on touch screens only
+   (a mouse has hover). A row fills with --press at once and fades out over
+   180ms; a control dips to .96 (an icon button .92) in 90ms and springs back
+   in 220ms; a card dips to .985. Nothing pressed while disabled. Unlayered,
+   so it outranks a component's own transition utilities: each rule lists
+   every property those utilities transitioned, plus scale. */
+@media (pointer: coarse) {
+  [data-press="row"] {
+    transition: background-color 180ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  [data-press="row"]:active:not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    background-color: var(--press);
+    transition-duration: 0ms;
+  }
+}
+@media (pointer: coarse) and (prefers-reduced-motion: no-preference) {
+  [data-press="control"],
+  [data-press="icon"],
+  [data-press="card"] {
+    transition:
+      color 140ms var(--ease-out),
+      background-color 140ms var(--ease-out),
+      box-shadow 140ms var(--ease-out),
+      opacity 140ms var(--ease-out),
+      scale 220ms var(--ease-spring);
+  }
+  [data-press="control"]:active:not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
+    scale: 0.96;
+    transition-duration: 140ms, 140ms, 140ms, 140ms, 90ms;
+    transition-timing-function: var(--ease-out);
+  }
+  [data-press="icon"]:active:not(:disabled, [aria-disabled="true"]) {
+    scale: 0.92;
+    transition-duration: 140ms, 140ms, 140ms, 140ms, 90ms;
+    transition-timing-function: var(--ease-out);
+  }
+  [data-press="card"]:active:not([aria-disabled="true"]) {
+    scale: 0.985;
+    box-shadow: var(--e1);
+    transition-duration: 140ms, 140ms, 140ms, 140ms, 90ms;
+    transition-timing-function: var(--ease-out);
+  }
+}
+/* An icon button's press also lays the --press overlay on it. */
+@media (pointer: coarse) {
+  [data-press="icon"]:active:not(:disabled, [aria-disabled="true"]) {
+    background-color: var(--press);
+  }
+}
+
+@layer components {
+  /* F4. A phone on its side: the gutters clear the notch and the rounded corners. */
+  @media (max-width: 1023.98px) and (orientation: landscape) {
+    [data-app-viewport] [data-phone-bar],
+    [data-app-viewport] [data-app-scroller],
+    [data-app-viewport] [data-app-banners] {
+      padding-left: max(var(--phone-inline, 0px), env(safe-area-inset-left));
+      padding-right: max(var(--phone-inline, 0px), env(safe-area-inset-right));
+    }
+  }
+}
+
+@layer components {
+  /* F5. THE THEME'S GLOW ON A TAB'S ROOT. The page is the sheet edge to edge
+     on a phone, and the theme greets you as light in the first 220px of
+     Home, Channels, DMs and Inbox, then scrolls away with the page
+     (background-attachment: local, so it belongs to the content, not the
+     screen). Pushed pages (a channel, a task, a doc) are work surfaces and
+     have none. No grain on a phone. */
+  [data-app-scroller][data-glow="true"] {
+    background-image:
+      radial-gradient(420px 300px at -60px calc(-80px - var(--m-bar) - env(safe-area-inset-top)), rgb(var(--glow) / 0.2), transparent 68%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.04) calc(0px - var(--m-bar) - env(safe-area-inset-top)), transparent calc(220px - var(--m-bar) - env(safe-area-inset-top)));
+    background-repeat: no-repeat;
+    background-size: 100% 220px;
+    background-attachment: local;
+  }
+  .dark [data-app-scroller][data-glow="true"] {
+    background-image:
+      radial-gradient(420px 300px at -60px calc(-80px - var(--m-bar) - env(safe-area-inset-top)), rgb(var(--glow) / 0.14), transparent 68%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.03) calc(0px - var(--m-bar) - env(safe-area-inset-top)), transparent calc(220px - var(--m-bar) - env(safe-area-inset-top)));
+  }
+  /* The top bar is the page's colour at rest, so the glow reads up under it
+     too: the bar is clear over a tab's root until the page moves. */
+  [data-phone-topbar][data-glow="true"] {
+    background-image:
+      radial-gradient(420px 300px at -60px -80px, rgb(var(--glow) / 0.2), transparent 68%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.04), transparent 220px);
+    background-repeat: no-repeat;
+  }
+  .dark [data-phone-topbar][data-glow="true"] {
+    background-image:
+      radial-gradient(420px 300px at -60px -80px, rgb(var(--glow) / 0.14), transparent 68%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.03), transparent 220px);
+  }
+  [data-phone-topbar][data-glow="true"][data-scrolled="true"] {
+    background-image: none;
+  }
+}
+
+@layer components {
+  /* C1. THE TAB BAR. Raised, translucent, with the bar shadow and no border:
+     the one blur in the app besides the long-press backdrop, because a nav
+     bar you can see the list through says there is more below it. Solid
+     under prefers-reduced-transparency. It hides on a page that owns the
+     bottom edge in 240ms and comes back in 300ms, on the push curve. */
+  .phone-tabbar {
+    background: color-mix(in srgb, var(--raised) 92%, transparent);
+    -webkit-backdrop-filter: saturate(1.6) blur(16px);
+    backdrop-filter: saturate(1.6) blur(16px);
+    box-shadow: var(--e-bar);
+    transition: transform 300ms var(--ease-push);
+  }
+  .dark .phone-tabbar {
+    background: rgb(27 28 31 / 0.9);
+    box-shadow: var(--e-bar);
+  }
+  .phone-tabbar[data-hidden="true"] {
+    transition-duration: 240ms;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .phone-tabbar,
+    .dark .phone-tabbar {
+      background: var(--raised);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+  /* A cell: the glyph in a 44x28 capsule, 3px, then the 11/14 label. */
+  .phone-tab-cap {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 28px;
+    border-radius: 14px;
+  }
+  .phone-tab-cap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: color-mix(in oklab, var(--brand) 10%, transparent);
+    opacity: 0;
+    scale: 0.6;
+    transition: opacity 140ms var(--ease-out), scale 140ms var(--ease-out);
+  }
+  [aria-current="page"] > .phone-tab-cap::before {
+    opacity: 1;
+    scale: 1;
+    transition: opacity 260ms var(--ease-spring), scale 260ms var(--ease-spring);
+  }
+  .phone-tab-cap > * {
+    position: relative;
+  }
+  /* The press: the capsule dips to .9 and springs back. */
+  @media (prefers-reduced-motion: no-preference) {
+    .phone-tab-cap {
+      transition: scale 220ms var(--ease-spring);
+    }
+    a:active > .phone-tab-cap,
+    button:active > .phone-tab-cap {
+      scale: 0.9;
+      transition-duration: 90ms;
+      transition-timing-function: var(--ease-out);
+    }
+  }
+  /* The tab you move to ticks (the selection signature, 1 -> 1.06 -> 1):
+     chrome takes a smaller spring than a task's check. */
+  .phone-tab-cap.animate-spring {
+    animation: phone-select 220ms var(--ease-spring);
+  }
+  /* A mention or DM count: an 18px pill in the accent, ringed in the bar's
+     colour, its top-left corner 26px across and 3px above the capsule's. */
+  .phone-tabbar .phone-tab-badge {
+    top: -3px;
+    left: 26px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font: 590 11px/18px var(--font-sans);
+    box-shadow: 0 0 0 2px var(--raised);
+  }
+  /* Plain unread, nothing to read out: a 7px dot in ink-2, not the accent
+     (DESIGN_V3: only what is about you takes the brand). */
+  .phone-tabbar .phone-tab-dot {
+    top: 1px;
+    left: 32px;
+    background: var(--ink-2);
+    box-shadow: 0 0 0 2px var(--raised);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .phone-tab-badge[data-fresh="true"],
+    .phone-tab-dot[data-fresh="true"] {
+      animation: phone-badge-in 260ms var(--ease-spring) both;
+    }
+  }
+}
+
+@layer components {
+  /* C2. THE LARGE TITLE on a tab's list (Channels, DMs, Inbox): the place's
+     name at the display step under a bar that holds only actions. The bar's
+     own title waits, faded and 4px low, until the large one has scrolled up
+     under the bar, then comes in over 180ms. iOS's large-to-inline title. */
+  .phone-large-title {
+    padding: 4px var(--m-gutter) 10px;
+  }
+  [data-phone-topbar][data-large="true"] [data-phone-bar] > :nth-child(2) {
+    transition: opacity 180ms var(--ease-out), translate 180ms var(--ease-out);
+  }
+  [data-phone-topbar][data-large="true"]:not([data-large-passed="true"]) [data-phone-bar] > :nth-child(2) {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@layer components {
+  /* C4. PUSH AND POP. The new page comes in; the old one is never held.
+     A push slides it 24px in from the right as it comes up from .4, a pop
+     from the left, 240ms on the out-curve; a tab is a sibling, not depth,
+     so it only fades (120ms). Played on the scroller by PhoneTransition
+     (Web Animations), so nothing waits on it. The top bar stays still and
+     its title follows the page. */
+  .phone-title-in {
+    animation: phone-title-in 240ms var(--ease-push) both;
+  }
+
+  /* The installed app's edge swipe back: the page follows the finger over
+     the frame, dimmed where it uncovers it. */
+  [data-app-viewport][data-edge-back="true"] {
+    background: var(--frame);
+  }
+  [data-app-viewport][data-edge-back="true"] [data-app-scroller] {
+    box-shadow: -12px 0 32px -8px rgb(16 18 26 / 0.22), -1px 0 0 var(--line);
+  }
+}
+
+@layer components {
+  /* L4. PULL TO REFRESH. The ring: a 36px logo ring whose gradient arc fills
+     with the pull (0 to 100% at 72px), two hue dots on its orbit; it spins
+     at a turn per 900ms while the lists ask again, the dots the other way at
+     half speed, then becomes a moss check, or a danger "!" that shakes. */
+  .ptr {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 36px;
+    height: 36px;
+    margin-left: -18px;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+  }
+  .ptr[data-state="pulling"],
+  .ptr[data-state="armed"],
+  .ptr[data-state="refreshing"],
+  .ptr[data-state="done"],
+  .ptr[data-state="error"] {
+    opacity: 1;
+  }
+  .ptr-track {
+    stroke: var(--line-2);
+  }
+  /* The logo's gradient in the house theme, the accent in every other
+     (--progress-from and --progress-to, per theme in app/themes.css). */
+  .ptr-stop-a {
+    stop-color: var(--progress-from);
+  }
+  .ptr-stop-b {
+    stop-color: var(--progress-to);
+  }
+  .ptr-arc {
+    transition: stroke-dashoffset 90ms linear;
+  }
+  .ptr-dot-a {
+    fill: var(--camp-sky);
+  }
+  .ptr-dot-b {
+    fill: var(--camp-berry);
+  }
+  .ptr-check {
+    stroke: var(--camp-moss);
+  }
+  .ptr-bang {
+    fill: var(--destructive);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ptr[data-state="armed"] .ptr-ring {
+      animation: phone-select 220ms var(--ease-spring);
+    }
+    .ptr[data-state="refreshing"] .ptr-ring {
+      animation: phone-spin 900ms linear infinite;
+      transform-origin: 18px 18px;
+    }
+    .ptr[data-state="refreshing"] .ptr-orbit {
+      animation: phone-spin 1800ms linear infinite reverse;
+      transform-origin: 18px 18px;
+    }
+    .ptr[data-state="error"] {
+      animation: phone-shake 240ms var(--ease-out);
+    }
+  }
+  .ptr-label {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    translate: -50% 0;
+    white-space: nowrap;
+    font-size: var(--text-meta);
+    line-height: var(--text-meta--line-height);
+    color: var(--ink-3);
+  }
+  /* While the content follows a pull, the row under the finger is not being
+     pressed: its press fill goes. */
+  [data-pulling] [data-pressed="true"],
+  [data-pulling] [data-press]:active {
+    background-color: transparent !important;
+  }
+}
+
+@layer components {
+  /* C5. THE SHEET. Every phone sheet: the pop surface at r20 (top corners)
+     and e4, no border, over a scrim of 32% ink (55% black in dark) that
+     fades with the drag. It rises in 420ms and goes in 300ms on the iOS
+     curve. A large sheet (the You sheet, a picker, filters) pushes the page
+     behind back as a card: vaul scales [data-vaul-drawer-wrapper] (the
+     phone's viewport), and this rounds it to 16px and dims it, so the page
+     reads as further away; a menu or medium sheet only dims it. */
+  [data-vaul-drawer][data-v3-sheet] {
+    border-top-left-radius: var(--r-sheet);
+    border-top-right-radius: var(--r-sheet);
+  }
+  [data-vaul-drawer][data-v3-sheet][data-state="open"],
+  [data-vaul-overlay][data-v3-scrim][data-state="open"] {
+    animation-duration: var(--t-sheet);
+  }
+  [data-vaul-drawer][data-v3-sheet][data-state="closed"],
+  [data-vaul-overlay][data-v3-scrim][data-state="closed"] {
+    animation-duration: var(--t-sheet-out);
+  }
+  [data-vaul-drawer][data-v3-sheet] {
+    transition-duration: 300ms;
+  }
+  [data-v3-grabber] {
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--line-3);
+  }
+  /* The card stack: vaul writes the scale inline; the corner and the dimming
+     are ours. */
+  [data-vaul-drawer-wrapper][style*="scale("] {
+    border-radius: 16px !important;
+    filter: brightness(0.94);
+    transition-property: transform, border-radius, filter !important;
+    transition-duration: var(--t-sheet) !important;
+  }
+  .dark [data-vaul-drawer-wrapper][style*="scale("] {
+    filter: brightness(0.7);
+  }
+  /* A sheet's grouped rows (C7): r14 cards on the sheet, then a Cancel card. */
+  .sheet-group {
+    margin: 0 8px;
+    border-radius: 14px;
+    background: var(--sheet);
+    box-shadow: var(--e1);
+    overflow: hidden;
+  }
+  .dark .sheet-group {
+    background: var(--raised);
+  }
+  .sheet-group + .sheet-group {
+    margin-top: 8px;
+  }
+  /* Its rows: 48px, square inside the card, a hairline between them inset
+     past the icon (16 + 32 + 12), none under the last. */
+  .sheet-group > [data-press="row"],
+  .sheet-group > * > [data-press="row"] {
+    position: relative;
+    min-height: 48px;
+    border-radius: 0;
+  }
+  .sheet-group > * + [data-press="row"]::before,
+  .sheet-group > * + * > [data-press="row"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 56px;
+    height: 1px;
+    background: var(--line);
+  }
+  .sheet-cancel {
+    display: block;
+    width: calc(100% - 16px);
+    height: 52px;
+    margin: 8px 8px 0;
+    border-radius: 14px;
+    background: var(--sheet);
+    box-shadow: var(--e1);
+    color: var(--ink);
+    font-size: var(--text-title-3);
+    line-height: var(--text-title-3--line-height);
+    font-weight: var(--text-title-3--font-weight);
+  }
+  .dark .sheet-cancel {
+    background: var(--raised);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-vaul-drawer][data-v3-sheet][data-state="open"],
+    [data-vaul-drawer][data-v3-sheet][data-state="closed"] {
+      animation-name: phone-sheet-fade !important;
+      animation-duration: 160ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* C9. TOASTS ON A PHONE. A 44px pill above whatever owns the bottom of the
+     screen (the tab bar, a composer: --phone-floor), 12px clear of it,
+     min(100% - 32px, 360px) wide and centred; swiped down to go. While the
+     keyboard is up the bottom is the keyboard's, so they come in under the
+     top bar instead. */
+  @media (max-width: 639.98px) {
+    .toast-viewport {
+      --toast-dir: -1;
+    }
+    .toast-root {
+      top: auto;
+      bottom: 0;
+      transform-origin: 50% 100%;
+    }
+    .toast-card {
+      min-height: 44px;
+      border-radius: 22px;
+      padding: 6px 6px 6px 14px;
+      font-size: var(--text-sm);
+      line-height: var(--text-sm--line-height);
+      font-weight: 510;
+    }
+    .toast-root[data-state="open"] .toast-card {
+      animation: phone-toast-in 260ms var(--ease-spring) both;
+    }
+    .toast-root[data-state="closed"]:not([data-swipe="end"]) .toast-card {
+      animation: phone-toast-out 180ms var(--ease-out) forwards;
+    }
+    .toast-viewport:not([data-expanded]) .toast-root[data-behind] {
+      border-radius: 22px;
+    }
+    .toast-tile {
+      border-radius: 999px;
+    }
+    .toast-action {
+      font-size: var(--text-sm);
+      line-height: var(--text-sm--line-height);
+      font-weight: 590;
+    }
+    html[data-keyboard="open"] .toast-viewport {
+      --toast-dir: 1;
+      bottom: auto !important;
+      top: calc(var(--app-vv-top, 0px) + env(safe-area-inset-top) + var(--m-bar) + 12px);
+    }
+    html[data-keyboard="open"] .toast-root {
+      top: 0;
+      bottom: auto;
+      transform-origin: 50% 0%;
+    }
+  }
+  @media (max-width: 639.98px) and (prefers-reduced-motion: reduce) {
+    .toast-root[data-state="open"] .toast-card,
+    .toast-root[data-state="closed"]:not([data-swipe="end"]) .toast-card {
+      animation-name: toast-fade;
+    }
+  }
+}
+
+/* THE INSTALLED APP (display-mode: standalone). It is an app, not a page:
+   no grey flash on a tap, no callout on a long press of the chrome, no text
+   selection on the bars, and no rubber band past the frame's edges. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+  [data-phone-topbar],
+  .phone-tabbar,
+  [data-vaul-drawer] [data-v3-grabber] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+@media (pointer: coarse) {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@keyframes phone-badge-in {
+  0% {
+    scale: 0;
+  }
+  70% {
+    scale: 1.15;
+  }
+  100% {
+    scale: 1;
+  }
+}
+@keyframes phone-title-in {
+  from {
+    opacity: 0;
+    translate: 16px 0;
+  }
+}
+@keyframes phone-select {
+  50% {
+    scale: 1.06;
+  }
+}
+@keyframes phone-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes phone-shake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: -3px 0;
+  }
+  40% {
+    translate: 3px 0;
+  }
+  60% {
+    translate: -2px 0;
+  }
+  80% {
+    translate: 2px 0;
+  }
+}
+@keyframes phone-sheet-fade {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+@keyframes phone-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}
+@keyframes phone-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes ptr-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}

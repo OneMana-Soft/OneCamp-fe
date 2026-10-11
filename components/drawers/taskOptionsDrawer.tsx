@@ -24,7 +24,7 @@ export function TaskOptionsDrawer({drawerOpenState, setOpenState}: taskOptionsDr
     }
 
     return (
-        <Drawer  onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <div className=" w-full mb-6">
                     <DrawerHeader className='hidden'>

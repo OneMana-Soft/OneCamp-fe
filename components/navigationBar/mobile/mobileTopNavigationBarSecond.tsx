@@ -1,17 +1,11 @@
 "use client"
 
 import {usePathname} from "next/navigation";
-import {
-    MobileTopNavigationBarSecondChannel,
-} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondChannel";
-import {MobileTopNavigationBarSecondChat} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondChat";
+import { PhoneConversationTitle } from "@/components/navigationBar/mobile/phoneConversationTitle";
 import {MobileTopNavigationBarSecondTeam} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondTeam";
 import {
     MobileTopNavigationBarSecondProject
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondProject";
-import {
-    MobileTopNavigationBarSecondGroupChat
-} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarSecondDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondDoc";
 import {MobileTopNavigationBarSecondBoard} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondBoard";
 import { settingsSection } from "@/lib/settingsSections";
@@ -36,17 +30,19 @@ export function MobileTopNavigationBarSecond() {
             case "calendar":
                 if (path.length < 4)
                     return "Calendar";
+                if (path[3] === "booking")
+                    return "Booking pages";
                 if (path.length < 6)
                     return "Event";
                 break;
             case "profile":
                 return "Your profile";
-            case "activity":
-                return "Activity";
             case "later":
                 return "Later";
             case "inbox":
                 return "Inbox";
+            case "mail":
+                return "Mail";
             case "create":
 
                 // Sentence case: "New task", not "Create Task".
@@ -56,13 +52,13 @@ export function MobileTopNavigationBarSecond() {
             case "meet":
                 switch (path[3]) {
                     case "ch":
-                        return <MobileTopNavigationBarSecondChannel channelUUID={path[4]}/>
+                        return <PhoneConversationTitle kind="channel" id={path[4]}/>
                         break;
                     case "chat":
-                        return <MobileTopNavigationBarSecondChat chatUUID={path[4]}/>
+                        return <PhoneConversationTitle kind="dm" id={path[4]}/>
                         break;
                     case "grp":
-                        return <MobileTopNavigationBarSecondGroupChat grpId={path[4]}/>
+                        return <PhoneConversationTitle kind="group" id={path[4]}/>
                         break;
 
                 }
@@ -102,7 +98,7 @@ export function MobileTopNavigationBarSecond() {
                 if (path.length < 4)
                     return "Channels";
                 if (path.length < 5)
-                    return <MobileTopNavigationBarSecondChannel channelUUID={path[3]}/>
+                    return <PhoneConversationTitle kind="channel" id={path[3]}/>
                 if (path.length < 6) {
 
                     if(path[4] == "recording") {
@@ -142,7 +138,7 @@ export function MobileTopNavigationBarSecond() {
 
             case "user":
                 if (path.length > 4)
-                    return <MobileTopNavigationBarSecondGroupChat grpId={path[4]}/>
+                    return <PhoneConversationTitle kind="group" id={path[4]}/>
                 // Without this, the case fell through to "chat" below, which asked
                 // the chat lookup to name a conversation using a user id. It found
                 // nothing, so a profile arrived with an empty title bar.
@@ -154,7 +150,7 @@ export function MobileTopNavigationBarSecond() {
                 if (path[3] == 'group') {
 
                     if (path.length < 6)
-                        return <MobileTopNavigationBarSecondGroupChat grpId={path[4]}/>
+                        return <PhoneConversationTitle kind="group" id={path[4]}/>
                     if (path.length < 7){
                         if(path[5] == "recording") {
                             return "Recordings"
@@ -164,7 +160,7 @@ export function MobileTopNavigationBarSecond() {
                     }
                 }
                 if (path.length < 5)
-                    return <MobileTopNavigationBarSecondChat chatUUID={path[3]}/>
+                    return <PhoneConversationTitle kind="dm" id={path[3]}/>
                 if (path.length < 6) {
 
                     if(path[4] == "recording") {
@@ -184,8 +180,9 @@ export function MobileTopNavigationBarSecond() {
     };
 
     return (
-        // Semibold, as the bar titles a channel, a person or a project.
-        <div className='font-semibold text-base text-center min-w-0 truncate'>
+        // 17/22 at 590 (design v3, Ph1), as the bar titles a channel, a person
+        // or a project.
+        <div data-phone-title="" className='text-title-3 leading-[22px] text-ink text-center min-w-0 truncate'>
             {renderPageName()}
         </div>
     );

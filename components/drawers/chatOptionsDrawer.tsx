@@ -3,6 +3,8 @@
 import { Clapperboard, Video } from "@/lib/icons"
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
@@ -72,7 +74,7 @@ export function ChatOptionsDrawer({
               : "Muted"
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle className="capitalize">
@@ -80,7 +82,8 @@ export function ChatOptionsDrawer({
                     </DrawerTitle>
                     <DrawerDescription>Chat options</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="Chat">
                     <DrawerItem
                         label="Notifications"
                         description={notificationDescription}
@@ -115,6 +118,8 @@ export function ChatOptionsDrawer({
                             router.push(`/app/chat/${chatId}/recording`)
                         }}
                     />
+                </SheetGroup>
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

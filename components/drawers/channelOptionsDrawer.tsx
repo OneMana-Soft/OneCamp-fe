@@ -1,12 +1,15 @@
 "use client"
 
-import { Bell, Clapperboard, MessageSquare, Pencil, Users, Video } from "@/lib/icons"
+import { Bell, Clapperboard, MessageSquare, Star, Users, Video } from "@/lib/icons"
+import { toggleUserChannelFavorite } from "@/store/slice/userSlice"
 import {
     Drawer,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
     DrawerTitle,
+    SheetCancel,
+    SheetGroup,
 } from "@/components/ui/drawer"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
@@ -19,6 +22,7 @@ import {
     ChannelNotificationInterface,
     NotificationType,
 } from "@/types/channel"
+import { openChannelDetails } from "@/components/channel/details/openChannelDetails"
 import { openUI } from "@/store/slice/uiSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { app_channel_call } from "@/types/paths"
@@ -65,6 +69,25 @@ export function ChannelOptionsDrawer({
     const dispatch = useDispatch()
     const router = useRouter()
 
+    // Favourite, which the phone bar's star held before the bar became the
+    // one conversation title (design v3 chat, C62).
+    const postFav = usePost()
+    const [favourite, setFavourite] = useState(false)
+    useEffect(() => {
+        setFavourite(!!channelInfo.data?.channel_info.ch_is_user_fav)
+    }, [channelInfo.data?.channel_info.ch_is_user_fav])
+    const toggleFavourite = async () => {
+        const next = !favourite
+        setFavourite(next)
+        dispatch(toggleUserChannelFavorite({ channelUUID: channelId, isFavorite: next }))
+        try {
+            await postFav.makeRequest({ apiEndpoint: next ? PostEndpointUrl.AddFavChannel : PostEndpointUrl.RemoveFavChannel, appendToUrl: `/${channelId}` })
+        } catch {
+            setFavourite(!next)
+            dispatch(toggleUserChannelFavorite({ channelUUID: channelId, isFavorite: !next }))
+        }
+    }
+
     const closeDrawer = () => setOpenState(false)
     const callActive = useSelector((state: RootState) => state.channel.channelCallStatus[channelId]?.active || false) || !!channelInfo.data?.channel_info.ch_call_active
 
@@ -76,7 +99,7 @@ export function ChannelOptionsDrawer({
               : "Muted"
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle className="capitalize">
@@ -84,7 +107,8 @@ export function ChannelOptionsDrawer({
                     </DrawerTitle>
                     <DrawerDescription>Channel options</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="Channel">
                     {/* An icon like every other row: it had none, so its words
                         started where the others' icons do, and its bell was a
                         second button inside the row's own. */}
@@ -95,32 +119,19 @@ export function ChannelOptionsDrawer({
                         onClick={updateNotification}
                     />
 
-                    {channelInfo.data?.channel_info.ch_is_admin && (
-                        <DrawerItem
-                            icon={Pencil}
-                            label="Edit channel"
-                            onClick={() => {
-                                dispatch(
-                                    openUI({
-                                        key: "editChannel",
-                                        data: { channelUUID: channelId },
-                                    }),
-                                )
-                                closeDrawer()
-                            }}
-                        />
-                    )}
+                    <DrawerItem
+                        icon={Star}
+                        label={favourite ? "Remove from favorites" : "Add to favorites"}
+                        onClick={toggleFavourite}
+                    />
 
+                    {/* One Details sheet (design v3 chat, C49): the channel's
+                        about, members, agents, settings and leave. */}
                     <DrawerItem
                         icon={Users}
-                        label="Channel members"
+                        label="Details and members"
                         onClick={() => {
-                            dispatch(
-                                openUI({
-                                    key: "editChannelMember",
-                                    data: { channelUUID: channelId },
-                                }),
-                            )
+                            dispatch(openChannelDetails(channelId))
                             closeDrawer()
                         }}
                     />
@@ -138,7 +149,9 @@ export function ChannelOptionsDrawer({
                             closeDrawer()
                         }}
                     />
+                    </SheetGroup>
 
+                    <SheetGroup label="Calls">
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
                     <FeatureGate feature={FEATURE_CALLS}>
@@ -162,6 +175,8 @@ export function ChannelOptionsDrawer({
                             router.push(`/app/channel/${channelId}/recording`)
                         }}
                     />
+                    </SheetGroup>
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

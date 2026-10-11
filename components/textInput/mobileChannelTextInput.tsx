@@ -4,26 +4,22 @@ import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
-import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
 import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
 import { openUI } from "@/store/slice/uiSlice";
-import {useDispatch, useSelector} from "react-redux";
-import {
-
-    updateChannelInputText
-} from "@/store/slice/channelSlice";
-import {RootState} from "@/store/store";
-import {usePublishTyping} from "@/hooks/usePublishTyping";
-import {useUploadFile} from "@/hooks/useUploadFile";
+import { useDispatch, useSelector } from "react-redux";
+import { updateChannelInputText } from "@/store/slice/channelSlice";
+import { RootState } from "@/store/store";
+import { usePublishTyping } from "@/hooks/usePublishTyping";
+import { useUploadFile } from "@/hooks/useUploadFile";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { ChannelInfoInterfaceResp } from "@/types/channel";
 import { GetEndpointUrl } from "@/services/endPoints";
 import CommandSurface from "@/components/command/CommandSurface";
 import { useStableCallback } from "@/hooks/useStableCallback";
-import { celebrate } from "@/lib/celebrate";
+import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 
 
 // Module-level, so a composer with no draft yet gets the same value on every
@@ -40,9 +36,9 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
     const uploadFile = useUploadFile()
-    // A first message here bursts sparks from Send (lib/celebrate).
+    // A first message here bursts from the new row's avatar (C60).
     const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrate(editorRef.current?.querySelector('button[aria-label="Send"]'))
+        if (handleSend(latestContent)) celebrateFirstMessage()
     })
 
     const channelInputState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || NO_DRAFT);
@@ -68,7 +64,8 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 // Update initialHeight based on the entire content height
-                setInitialHeight(Math.max(entry.contentRect.height, 30) + 70);
+                // The card and its 12px margins, plus the 12px grip above it.
+                setInitialHeight(Math.max(entry.contentRect.height, 30) + 12);
             }
         });
 
@@ -103,9 +100,9 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
                             await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
                         }}
                         throttleDelay={300}
-                        noBorder={true}
-                        className={cn("max-w-full h-auto")}
-                        editorContentClassName="overflow-auto mb-2"
+                        variant="phone"
+                        expanded={isExpanded}
+                        onExpandedChange={setIsExpanded}
                         output="html"
                         content={channelInputState.inputTextHTML}
                         contentRevision={channelInputState.restoredUnsent}
@@ -115,18 +112,17 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(channelInputState.filesUploaded?.length ?? 0) > 0}
-                        editorClassName="focus:outline-none px-5"
+                        editorClassName="focus:outline-none"
                         onChange={(content ) => {
                             publishTyping(content as string)
                             dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
                         }}
-                        fixedToolbarToBottom={true}
                     >
 
 
 
                     </MinimalTiptapTextInput>
-                    <div className='pb-2'>
+                    <div className='px-3'>
                         <ChannelFileUpload channelId={channelId} />
 
                     </div>

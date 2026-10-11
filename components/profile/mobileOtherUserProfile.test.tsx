@@ -8,7 +8,6 @@ vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => undefined }
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock("@/components/ai/AgentCardDetails", () => ({ AgentCardDetails: () => null }))
 vi.mock("@/components/admin/InvitePlaceholder", () => ({ InvitePlaceholder: () => null }))
 
 import { MobileOtherUserProfile } from "@/components/profile/mobileOtherUserProfile"

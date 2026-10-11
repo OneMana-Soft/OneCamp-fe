@@ -3,6 +3,8 @@
 import { Link, Trash2 } from "@/lib/icons"
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
@@ -55,22 +57,28 @@ export function TaskDrawer({ drawerOpenState, setOpenState, taskId }: TaskDrawer
     const isActive = isZeroEpoch(taskInfo.data?.data.task_deleted_at || "")
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>Task actions</DrawerTitle>
                     <DrawerDescription>Quick actions for this task.</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="Task">
                     <DrawerItem icon={Link} label="Copy task link" onClick={copyTaskLink} />
+                </SheetGroup>
+                    {/* What destroys is alone, and last (design v3, mobile C7). */}
                     {isActive && (
-                        <DrawerItem
-                            icon={Trash2}
-                            label="Delete task"
-                            onClick={handleDeleteTask}
-                            destructive
-                        />
+                        <SheetGroup label="Delete">
+                            <DrawerItem
+                                icon={Trash2}
+                                label="Delete task"
+                                onClick={handleDeleteTask}
+                                destructive
+                            />
+                        </SheetGroup>
                     )}
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

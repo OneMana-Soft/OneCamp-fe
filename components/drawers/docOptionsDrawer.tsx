@@ -4,13 +4,14 @@ import { Eye, History, MessageCircle, Pencil, Share2, Trash2 } from "@/lib/icons
 
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
-import {Separator} from "@/components/ui/separator";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
@@ -75,65 +76,58 @@ export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner,
     }
 
     return (
-        <Drawer  onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
-                <div className=" w-full mb-6">
+                <div className="w-full pb-2">
                     <DrawerHeader className='hidden'>
                         <DrawerTitle></DrawerTitle>
                         <DrawerDescription></DrawerDescription>
 
                     </DrawerHeader>
-                    <div className="flex-col p-4 pb-6 space-y-1">
+                    <SheetGroup label="Doc">
+                        {isOwner && <DrawerActionLink
+                            onLinkClick={handleEditDocTitle}
+                            linkText={'Edit doc title'}
+                            Icon={Pencil}
+                        />}
 
-                        <div className="flex flex-col items-center justify-start">
+                        <DrawerActionLink
+                            onLinkClick={()=>{dispatch(openUI({ key: 'docShare', data: docId }))}}
+                            linkText={'Share'}
+                            Icon={Share2}
+                        />
 
-                            {isOwner && <DrawerActionLink
-                                onLinkClick={handleEditDocTitle}
-                                linkText={'Edit doc title'}
-                                Icon={Pencil}
-                            />}
+                        <DrawerActionLink
+                            onLinkClick={handleCommentClick}
+                            linkText={'Comments'}
+                            Icon={MessageCircle}
+                        />
 
-                            <DrawerActionLink
-                                onLinkClick={()=>{dispatch(openUI({ key: 'docShare', data: docId }))}}
-                                linkText={'Share'}
-                                Icon={Share2}
+                        {/* Here rather than in a second menu on the page: the
+                            phone showed two comment buttons and two menus. */}
+                        {canEdit && <DrawerActionLink
+                            onLinkClick={() => openPanel("docViewers")}
+                            linkText={'Viewed by'}
+                            Icon={Eye}
+                        />}
+                        {canEdit && <DrawerActionLink
+                            onLinkClick={() => openPanel("docVersionHistory")}
+                            linkText={'Version history'}
+                            Icon={History}
+                        />}
+                    </SheetGroup>
+
+                    {/* What destroys is alone, and last (design v3, mobile C7). */}
+                    {isOwner &&
+                        <SheetGroup label="Delete">
+                            <DrawerDestructiveActionLink
+                                onLinkClick={handleDeleteClick}
+                                linkText={'Delete doc'}
+                                Icon={Trash2}
                             />
-
-                            <DrawerActionLink
-                                onLinkClick={handleCommentClick}
-                                linkText={'Comments'}
-                                Icon={MessageCircle}
-                            />
-
-                            {/* Here rather than in a second menu on the page: the
-                                phone showed two comment buttons and two menus. */}
-                            {canEdit && <DrawerActionLink
-                                onLinkClick={() => openPanel("docViewers")}
-                                linkText={'Viewed by'}
-                                Icon={Eye}
-                            />}
-                            {canEdit && <DrawerActionLink
-                                onLinkClick={() => openPanel("docVersionHistory")}
-                                linkText={'Version history'}
-                                Icon={History}
-                            />}
-
-                        </div>
-
-                        { (isOwner ) &&
-                            <>
-                                <Separator orientation="horizontal" className='my-2'/>
-                                <div className="flex flex-col items-center justify-start">
-                                    <DrawerDestructiveActionLink
-                                        onLinkClick={handleDeleteClick}
-                                        linkText={'Delete doc'}
-                                        Icon={Trash2}
-                                    />
-                                </div>
-                            </>
-                        }
-
-                    </div>
+                        </SheetGroup>
+                    }
+                    <SheetCancel />
 
                     {/*<DrawerFooter>*/}
                     {/*    <Button>Submit</Button>*/}

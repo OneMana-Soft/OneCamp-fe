@@ -15,6 +15,8 @@ describe("phone chrome", () => {
     // The phone's top bar has Back, which returns to the settings list; the
     // "‹ Settings" link under it said the same thing again.
     const src = readFileSync("app/app/settings/layout.tsx", "utf8")
-    expect(src).toMatch(/inSection && \(\s*<div className="[^"]*\bhidden sm:block\b/)
+    // Design v3 (admin §1.1): on a computer the settings nav has Back to app,
+    // on a phone the top bar has Back, so the page itself carries no link back.
+    expect(src).not.toMatch(/ChevronLeft|href="\/app\/settings"/)
   })
 })

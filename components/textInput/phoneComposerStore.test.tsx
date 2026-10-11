@@ -18,8 +18,6 @@ vi.mock("@/components/textInput/textInput", () => ({
 }))
 vi.mock("@/components/drawers/dragableDrawer", () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock("@/components/command/CommandSurface", () => ({ default: ({ children }: { children?: React.ReactNode }) => <>{children}</> }))
-vi.mock("@/components/ai/ComposerAIButton", () => ({ ComposerAIButton: () => null }))
-vi.mock("@/components/ai/ChannelAgents", () => ({ useChannelAgents: () => [] }))
 vi.mock("@/components/messages/scheduledMessagesBar", () => ({ ScheduledMessagesBar: () => null }))
 vi.mock("@/components/fileUpload/channelFileUpload", () => ({ ChannelFileUpload: () => null }))
 vi.mock("@/components/fileUpload/chatCommentFileUpload", () => ({ ChatCommentFileUpload: () => null }))

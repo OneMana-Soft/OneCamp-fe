@@ -6,6 +6,8 @@ import { Link2Off } from "lucide-react"
 
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
@@ -85,13 +87,14 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
     }
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>Calendar options</DrawerTitle>
                     <DrawerDescription>Calendar event and integration controls.</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="Calendar">
                     <DrawerItem icon={Plus} label="Create event" onClick={handleCreateEvent} />
                     <DrawerItem
                         icon={isConnected ? Link2Off : Link2}
@@ -110,6 +113,8 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                             )
                         }
                     />
+                </SheetGroup>
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

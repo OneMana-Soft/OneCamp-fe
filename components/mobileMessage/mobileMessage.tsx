@@ -1,31 +1,31 @@
 
 import { displayNameOf } from "@/lib/personName"
-import { quoteBarClass } from "@/components/message/quoteBar"
-import {useLongPress} from "@/hooks/useLongPress";
-import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
-import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
-import { ContinuedGutter } from "@/components/message/continuedGutter";
+import { useLongPress } from "@/hooks/useLongPress";
+import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar";
+import { ReplyLine } from "@/components/message/replyLine";
+import { scrollToMessage } from "@/lib/utils/scrollToMessage";
+import { chatClock } from "@/lib/chat/clock";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import {cn} from "@/lib/utils/helpers/cn";
+import { cn } from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
-import {MessagePreview} from "@/components/message/MessagePreview";
-import {ForwardedMessageData} from "@/types/rightPanel";
-import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
+import { MessagePreview } from "@/components/message/MessagePreview";
+import { ForwardedMessageData } from "@/types/rightPanel";
+import { UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface } from "@/types/user";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
-import {MessageAttachments} from "@/components/message/MessageAttachments";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {BottomMenu} from "@/components/message/bottomMenu";
-import {AttachmentMediaReq} from "@/types/attachment";
-import {openUI, closeUI} from "@/store/slice/uiSlice";
-import {useDispatch} from "react-redux";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {GroupedReaction, StandardReaction, SyncCustomReaction} from "@/types/reaction";
-import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
-import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
+import { MessageAttachments } from "@/components/message/MessageAttachments";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { BottomMenu } from "@/components/message/bottomMenu";
+import { AttachmentMediaReq } from "@/types/attachment";
+import { openUI, closeUI } from "@/store/slice/uiSlice";
+import { useDispatch } from "react-redux";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { GroupedReaction, StandardReaction, SyncCustomReaction } from "@/types/reaction";
+import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useCallback, useEffect, useRef, useState, memo } from "react";
-import {app_user} from "@/types/paths";
-import {useRouter} from "next/navigation";
-import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
+import { app_user } from "@/types/paths";
+import { useRouter } from "next/navigation";
+import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
 import { RelayedAvatar } from "@/components/message/relayedAvatar";
@@ -309,15 +309,14 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
         >
 
-            <div  className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'pt-1' : 'pt-3'} w-[100vw] select-none`} {...longPressEvent}
-
-
-            >
+            {/* The phone row of a thread (design v3 chat, C07 phone): a 32px
+                avatar, 10px to the text, 16px insets, and no gutter time. */}
+            <div data-message-row="" data-phone-row="" className={`grid w-[100vw] select-none grid-cols-[32px_minmax(0,1fr)] gap-x-2.5 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2'}`} {...longPressEvent}>
 
                 {continued && !isMessageEditEnabled ? (
-                    <ContinuedGutter createdAt={createdAt} authorName={authorName} />
+                    <span aria-hidden="true" className="w-8" />
                 ) : (
-                <div className='h-9 w-9 shrink-0 mt-0.5' onClick={handleUserClick}>
+                <div data-row-avatar="" className='size-8 shrink-0 self-start' onClick={handleUserClick}>
                     {relayed
                         ? <RelayedAvatar name={relayed.name}/>
                         : <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid}/>}
@@ -326,30 +325,21 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                 )}
                 <div className='w-full min-w-0'>
                     {!(continued && !isMessageEditEnabled) && (
-                    <div className='flex items-baseline gap-2'>
-                        <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
+                    <div data-name-line="" className='flex h-5 min-w-0 items-center gap-2'>
+                        <span className='truncate text-ui font-semibold text-ink' onClick={handleUserClick}>
                             {authorName}
-                        </div>
+                        </span>
                         {relayed && <PrincipalTag kind={relayed.kind} />}
-                        <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
-                            {formatTimeForPostOrComment(createdAt)}
-
-                        </div>
+                        <time className='shrink-0 text-meta tabular-nums text-ink-3'>
+                            {chatClock(createdAt)}
+                        </time>
                     </div>
                     )}
                     {replyMessage && (
-                        <div className={`mb-1 pl-2 ${quoteBarClass(replyMessage.msgBy)}`}>
-                            <MessagePreview
-                                msgBy={replyMessage.msgBy}
-                                msgText={replyMessage.msgText}
-                                msgUUID={replyMessage.msgUUID}
-                                msgCreatedAt={replyMessage.msgCreatedAt}
-                                vewFooter={false}
-                            />
-                        </div>
+                        <ReplyLine by={replyMessage.msgBy} text={replyMessage.msgText} onJump={() => scrollToMessage(replyMessage.msgUUID)} />
                     )}
                     {/* break-words, not break-all: break-all split ordinary words mid-word at the edge. */}
-                    <div className='break-words' onClickCapture={handleInternalLinkClick}>
+                    <div className='chat-body chat-body-phone break-words' onClickCapture={handleInternalLinkClick}>
 
 
                         <MinimalTiptapTextInput
@@ -401,7 +391,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         }
 
 
-                        { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
+                        { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId} selfName={selfProfile.data?.data?.user_name}/>}
 
                     </div>
                 </div>

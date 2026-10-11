@@ -113,7 +113,7 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
     }), [showCustomReactions, customReactions.data?.data, frequentlyUsedReactions, data, handleReactionSelect])
 
     return (
-        <Drawer open={localOpen} onOpenChange={closeDrawer} repositionInputs={false}>
+        <Drawer detent="large" open={localOpen} onOpenChange={closeDrawer} repositionInputs={false}>
             <DrawerContent className="bottom-0 left-0 right-0 p-4">
                 <DrawerHeader className='hidden'>
                     <DrawerTitle></DrawerTitle>

@@ -292,7 +292,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     }
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="large" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="w-full">
                     <DrawerHeader className="text-left">
