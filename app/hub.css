@@ -1,0 +1,514 @@
+/* THE HUB (design v3, design/v3-areas/hub.md): Home, Search, the Inbox,
+   Activity, Later, Calls, the profile card and the AI.
+
+   Two things live here that every hub screen shares:
+
+   1. THE MOTION RECIPES (hub.md §1.1). Each moves transform and opacity only,
+      except `hub-draw`, a ring's stroke-dashoffset, which is paint on one small
+      SVG (listed in app/motionCost.test.ts with that reason). Every one stands
+      still under prefers-reduced-motion through the global rule in
+      globals.css, which leaves the end state on screen at once.
+
+   2. THE HUBROW (hub.md §1.2): one row anatomy for every hub list, in three
+      densities. components/ui/hubRow.tsx renders it; the look is here so the
+      separators can be drawn between siblings. */
+
+/* ---------- motion recipes ---------- */
+
+/* rise: a route's entrance, once per route per session (lib/hub/motion.ts). */
+@keyframes hub-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* rise for the page's largest text (Home's greeting): the move without the
+   fade, so the browser counts it as painted on its first frame. A fade from 0
+   held Home's largest contentful paint back by most of a second at 4x CPU. */
+@keyframes hub-rise-still {
+  from { transform: translateY(6px); }
+  to { transform: none; }
+}
+
+/* resolve, step 3: the row slides 12px right and fades. Followers FLIP up by
+   transform (lib/hub/flip.ts); height never animates. */
+@keyframes hub-resolve-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(12px); }
+}
+
+/* count: components/ui/CountTick.tsx (work-tick-out / work-tick-in). */
+
+/* draw: a ring or an arc drawn from nothing. Needs pathLength="1" and
+   stroke-dasharray="1" on the element. */
+@keyframes hub-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* orbit: the greeting's two orbits, and the counter-rotation that keeps each
+   orbiter upright. */
+@keyframes hub-orbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes hub-orbit-back {
+  to { transform: rotate(-360deg); }
+}
+
+/* An orbiter, a dot or a step check arriving: scale from .6 with a spring. */
+@keyframes hub-pop-in {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* pop: menus, popovers, the profile card, a banner. */
+@keyframes hub-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hub-pop-down {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* panel: the AI panel, a reader pushed in on a phone. */
+@keyframes hub-panel-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The brand spark's one twinkle at the end of the greeting's entrance. */
+@keyframes hub-twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(15deg); }
+}
+
+/* breathe: the AI mark's spark before the first token, and the spark caret. */
+@keyframes hub-breathe {
+  0%, 100% { transform: scale(0.86); }
+  50% { transform: scale(1); }
+}
+
+/* stream: each chunk of AI text softens in from .35. */
+@keyframes hub-stream {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
+/* A live call's dot: a ring that grows and fades. */
+@keyframes hub-pulse-ring {
+  from { opacity: 0.6; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.8); }
+}
+
+/* The sheet-wide fade between two states of one surface (a tab switch). */
+@keyframes hub-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@layer components {
+  .hub-rise {
+    animation: hub-rise 260ms var(--ease-out) both;
+    animation-delay: calc(min(var(--i, 0), 6) * 40ms);
+  }
+  .hub-rise[data-rise-still] {
+    animation-name: hub-rise-still;
+  }
+  .hub-fade-in {
+    animation: hub-fade 160ms linear both;
+  }
+  .hub-pop {
+    animation: hub-pop var(--duration-pop) var(--ease-out) both;
+  }
+  .hub-pop-down {
+    animation: hub-pop-down var(--duration-pop) var(--ease-out) both;
+  }
+  .hub-panel-in {
+    animation: hub-panel-in var(--duration-panel) var(--ease-in-out) both;
+  }
+  .hub-resolve-out {
+    animation: hub-resolve-out 180ms var(--ease-out) both;
+    pointer-events: none;
+  }
+  .hub-pop-in {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: hub-pop-in 300ms var(--ease-spring) both;
+    animation-delay: calc(320ms + var(--i, 0) * 60ms);
+  }
+  .hub-draw {
+    animation: hub-draw 600ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 80ms);
+  }
+  .hub-breathe {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: hub-breathe 1.2s var(--ease-in-out) infinite;
+  }
+  .hub-stream-chunk {
+    animation: hub-stream 160ms linear both;
+  }
+  /* A "Thinking" or "Reading…" label: a lighter band sweeps across the text.
+     Re-uses text-shimmer, already listed in motionCost. */
+  .hub-shimmer {
+    background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink-3) 40%, var(--ink) 50%, var(--ink-3) 60%, var(--ink-3) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: text-shimmer 1.6s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hub-shimmer {
+      background: none;
+      color: var(--ink-3);
+    }
+  }
+  /* The live dot: a moss disc whose ring grows and fades. Static in reduced
+     motion (the global rule ends the ring at once, invisible). */
+  .hub-live-dot {
+    position: relative;
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--camp-moss);
+    flex: none;
+  }
+  .hub-live-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--camp-moss);
+    animation: hub-pulse-ring 1.6s var(--ease-out) infinite;
+  }
+
+  /* S10, the match highlight: a highlighter, so the sun ("found"), never the
+     brand, which is reserved for "about you". */
+  mark.hub-mark {
+    background: color-mix(in oklab, var(--camp-sun) 24%, transparent);
+    color: inherit;
+    font-weight: 510;
+    border-radius: 3px;
+    padding: 0 1px;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .dark mark.hub-mark {
+    background: color-mix(in oklab, var(--camp-sun) 30%, transparent);
+  }
+  /* A fuzzy character match: weight only. */
+  .hub-fuzzy {
+    font-weight: 590;
+  }
+
+  /* The mention chip for "you" in a preview line (brand-muted is "about you"). */
+  .hub-me {
+    display: inline-flex;
+    padding: 0 4px;
+    border-radius: 5px;
+    background: var(--brand-muted);
+    color: var(--brand-text);
+    font-weight: 510;
+  }
+  .dark .hub-me {
+    background: color-mix(in oklab, var(--brand) 18%, transparent);
+  }
+  .hub-mention {
+    display: inline-flex;
+    padding: 0 4px;
+    border-radius: 5px;
+    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--ink);
+    font-weight: 510;
+  }
+}
+
+/* ---------- the HubRow ---------- */
+@layer components {
+  .hub-row {
+    --hub-lead: 24px;
+    position: relative;
+    display: grid;
+    grid-template-columns: 12px var(--hub-lead) minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: center;
+    padding: 0 16px 0 0;
+    border-radius: var(--radius);
+    color: var(--ink);
+    text-align: left;
+    outline: none;
+    transition: background-color var(--duration-hover) var(--ease-out), transform var(--duration-press) var(--ease-out);
+  }
+  .hub-row[data-density="compact"] {
+    min-height: 36px;
+  }
+  .hub-row[data-density="two-line"] {
+    min-height: 52px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .hub-row[data-density="feed"] {
+    --hub-lead: 32px;
+    min-height: 64px;
+    align-items: start;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .hub-row[data-lead="28"] {
+    --hub-lead: 28px;
+  }
+  .hub-row[data-lead="40"] {
+    --hub-lead: 40px;
+  }
+  @media (pointer: coarse) {
+    .hub-row[data-density="compact"] { min-height: 44px; }
+    .hub-row[data-density="two-line"] { min-height: 60px; }
+    .hub-row[data-density="feed"] { min-height: 72px; }
+  }
+  .hub-row[data-interactive]:hover,
+  .hub-row[data-interactive]:focus-within {
+    background: var(--hover);
+  }
+  .hub-row[data-interactive]:active {
+    background: var(--press);
+    transform: scale(0.995);
+  }
+  .hub-row:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--brand);
+  }
+  .hub-row[data-selected] {
+    background: color-mix(in oklab, var(--brand-muted) 75%, transparent);
+    box-shadow: inset 2px 0 0 var(--brand);
+  }
+  .hub-row[data-disabled] {
+    color: var(--ink-3);
+    pointer-events: none;
+  }
+  /* Separators: none in compact; in two-line and feed a hairline inset to the
+     content column, never across the lead, and gone around a hovered row. */
+  .hub-row:is([data-density="two-line"], [data-density="feed"]) + .hub-row::before {
+    content: "";
+    position: absolute;
+    left: calc(12px + var(--hub-lead) + 12px);
+    right: 16px;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+    pointer-events: none;
+  }
+  .hub-row:hover::before,
+  .hub-row:hover + .hub-row::before,
+  .hub-row[data-selected]::before,
+  .hub-row[data-selected] + .hub-row::before {
+    opacity: 0;
+  }
+  .hub-row-gutter {
+    display: flex;
+    justify-content: center;
+    align-self: center;
+  }
+  .hub-row[data-density="feed"] .hub-row-gutter {
+    align-self: start;
+    padding-top: 13px;
+  }
+  .hub-unread-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--brand);
+    transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out);
+  }
+  .hub-unread-dot[data-read] {
+    transform: scale(0);
+    opacity: 0;
+  }
+  .hub-row-lead {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--hub-lead);
+    min-height: 24px;
+  }
+  .hub-row[data-density="feed"] .hub-row-lead {
+    height: var(--hub-lead);
+  }
+  .hub-row-meta {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    white-space: nowrap;
+    transition: opacity var(--duration-hover) var(--ease-out);
+  }
+  .hub-row[data-density="feed"] .hub-row-meta {
+    padding-top: 2px;
+    align-self: start;
+  }
+  .hub-row[data-has-tools]:is(:hover, :focus-within) .hub-row-meta {
+    opacity: 0;
+  }
+  /* The hover toolbar: a pop surface on e3, pinned to the row's right edge. */
+  .hub-row-tools {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    display: flex;
+    gap: 1px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--pop);
+    box-shadow: var(--e3);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%) translateX(6px);
+    transition: opacity var(--duration-pop) var(--ease-out), transform var(--duration-pop) var(--ease-out);
+    z-index: 2;
+  }
+  .hub-row:is(:hover, :focus-within) .hub-row-tools {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%);
+  }
+  @media (hover: none) {
+    .hub-row-tools { display: none; }
+  }
+  /* The kind badge on a feed row's lead (A5). */
+  .hub-kind-badge {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 2px var(--sheet);
+    font: 700 9px/1 var(--font-sans);
+  }
+  .hub-kind-badge svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* A hub section header (H21): 28px, a 6px gap to its content. */
+  .hub-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    margin-bottom: 6px;
+  }
+}
+
+/* Named materials for the hub's few inner highlights, so they are one value
+   each rather than hand-drawn shadows in the markup (shadowTokens.test.ts). */
+@layer components {
+  /* A dark control's top edge catching the light (the call dock's buttons). */
+  .hub-hl-top { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06); }
+  /* A project tile's gloss: a top highlight and a hairline. */
+  .hub-tile-hl { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), inset 0 0 0 1px rgb(0 0 0 / 0.06); }
+  /* A filled check's top highlight. */
+  .hub-hl-check { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2); }
+}
+
+/* ---------- search, the inbox and the cards (hub.md §4, §5, §8) ---------- */
+@layer components {
+  /* A chip at rest: the hover overlay with an inset hairline. */
+  .hub-chip-rest {
+    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  /* The profile card's avatar, cut out of its banner by a ring in the card's surface. */
+  .hub-avatar-ring {
+    box-shadow: 0 0 0 3px var(--pop);
+  }
+  /* A citation's number: a 16px circle in the agent's tint. */
+  .hub-cite-num {
+    border-radius: 50%;
+    background: var(--agent-muted);
+    color: var(--agent-ink);
+    font-size: 10.5px;
+    font-weight: 590;
+    line-height: 1;
+  }
+  .hub-source-chip {
+    box-shadow: var(--e1);
+  }
+  /* A source chip lit from its marker (or hovered): e2 plus an agent ring. */
+  .hub-lit,
+  .hub-lit-hover:not(:disabled):hover {
+    box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--agent) 40%, transparent);
+  }
+  /* The one hued top edge v3 allows a card: the AI answer's, in the agent gradient. */
+  .hub-agent-edge {
+    position: relative;
+    overflow: hidden;
+  }
+  .hub-agent-edge::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--agent-a1), var(--agent-a2));
+  }
+  /* The AI summary's 2px left bar. */
+  .hub-agent-bar {
+    box-shadow: inset 2px 0 0 var(--agent);
+  }
+  /* Six lines, then a fade into "Show more". */
+  .hub-clamp-fade {
+    max-height: calc(6 * 1.4375rem);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(180deg, #000 calc(100% - 40px), transparent);
+  }
+  /* Search's sticky group header: the sheet at 92%. */
+  .hub-sticky-head {
+    background: color-mix(in oklab, var(--sheet) 92%, transparent);
+  }
+  /* The search field: 44px, raised at e1, the input halo on focus. */
+  .hub-field {
+    background: var(--raised);
+    box-shadow: var(--e1);
+    transition: box-shadow var(--duration-hover) var(--ease-out);
+  }
+  .hub-field:focus-within {
+    box-shadow: var(--e1), 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+}
+
+/* ---------- presence (hub.md P4, V3 §3.9) ----------
+   Outside any layer on purpose: presence-dot is a utility, and these states
+   must win over its online fill. Colour never carries the meaning alone;
+   each state is also a shape (a disc, a hollow ring, a barred disc). */
+.presence-dot[data-presence="away"] {
+  background: var(--presence-ring, var(--sheet));
+  box-shadow: inset 0 0 0 1.5px var(--camp-sun), 0 0 0 2px var(--presence-ring, var(--sheet));
+}
+.presence-dot[data-presence="offline"] {
+  background: var(--presence-ring, var(--sheet));
+  box-shadow: inset 0 0 0 1.5px var(--ink-4), 0 0 0 2px var(--presence-ring, var(--sheet));
+}
+.presence-dot[data-presence="focus"] {
+  background: linear-gradient(var(--presence-ring, var(--sheet)), var(--presence-ring, var(--sheet))) center / 60% 1.5px no-repeat, var(--camp-dusk);
+}
+.presence-dot[data-presence="call"] {
+  background: var(--camp-moss);
+}
+.presence-dot {
+  transition: background-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+
+/* The account menu's theme swatches: the chosen one ringed in ink, 2px off its edge. */
+@layer components {
+  .hub-swatch-on {
+    box-shadow: 0 0 0 2px var(--pop), 0 0 0 4px var(--ink);
+  }
+}

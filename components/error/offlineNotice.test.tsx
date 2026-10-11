@@ -2,16 +2,25 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { OfflineNotice } from "@/components/error/OfflineNotice"
+
+let mqtt: { isConnected: boolean } | undefined = undefined
+vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqttConnectionState: () => mqtt }))
+let ready = false
+const reload = vi.fn()
+vi.mock("@/hooks/useUpdateReady", () => ({ useUpdateReady: () => ({ ready, reload }) }))
+
+import { FootPill, OfflineNotice } from "@/components/error/OfflineNotice"
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity"
 
-// The app had no offline state: with the network gone, reads failed into
-// empty lists or "Couldn't load" boxes, and writes failed in silence or under
-// a generic error. One quiet notice now says what is true while it is true.
+// Design v3 (shell T3): one pill says the connection state, above the
+// sidebar's foot on a desktop and floating above the tab bar elsewhere.
+// Offline (with Retry), live updates paused, or a new version ready (Reload).
 
 afterEach(() => {
   cleanup()
   noteNetworkOk()
+  mqtt = undefined
+  ready = false
   vi.restoreAllMocks()
 })
 
@@ -20,54 +29,78 @@ function setOnline(online: boolean) {
   window.dispatchEvent(new Event(online ? "online" : "offline"))
 }
 
-describe("the offline notice", () => {
-  it("says nothing while the network and the server are there", () => {
-    render(<OfflineNotice />)
-    expect(screen.queryByRole("status")).toBeNull()
+const pill = () => screen.queryByRole("status")
+
+describe("the connection pill", () => {
+  it("says nothing while the network, the server and the live connection are there", () => {
+    render(<FootPill />)
+    expect(pill()).toBeNull()
   })
 
-  it("says you're offline when the browser loses the network, and goes when it's back", () => {
-    render(<OfflineNotice />)
+  it("says you're offline when the browser loses the network, with Retry, and goes when it's back", () => {
+    render(<FootPill />)
     act(() => setOnline(false))
-    expect(screen.getByRole("status").textContent).toMatch(/You're offline/)
-    expect(screen.getByRole("status").textContent).toMatch(/won't be saved until you're back/)
+    expect(pill()?.textContent).toMatch(/You're offline/)
+    expect(pill()?.getAttribute("data-connection-pill")).toBe("offline")
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy()
     act(() => setOnline(true))
-    expect(screen.queryByRole("status")).toBeNull()
+    expect(pill()).toBeNull()
   })
 
-  it("says the server can't be reached when requests get no answer, and goes on the next answer", () => {
-    render(<OfflineNotice />)
+  it("says the server can't be reached when requests get no answer", () => {
+    render(<FootPill />)
     act(() => {
       noteNetworkFailure()
       noteNetworkFailure()
     })
-    expect(screen.getByRole("status").textContent).toMatch(/Can't reach the server/)
+    expect(pill()?.textContent).toMatch(/Can't reach the server/)
     act(() => noteNetworkOk())
-    expect(screen.queryByRole("status")).toBeNull()
+    expect(pill()).toBeNull()
   })
 
-  // Floating bottom left, it sat on the sidebar's Collapse button and over
-  // the sheet's edge. In the app it is a line in the shell's notice slot.
-  it("in the app, is a line above the page, said once, not a floating card", () => {
+  it("says live updates are paused once a live connection drops, never while it first connects", () => {
+    mqtt = { isConnected: false }
+    const view = render(<FootPill />)
+    expect(pill()).toBeNull()
+    mqtt = { isConnected: true }
+    view.rerender(<FootPill />)
+    mqtt = { isConnected: false }
+    view.rerender(<FootPill />)
+    expect(pill()?.textContent).toMatch(/Live updates paused/)
+  })
+
+  it("offers Reload when a new version is out", () => {
+    ready = true
+    render(<FootPill />)
+    expect(pill()?.textContent).toMatch(/A new version is ready/)
+    act(() => screen.getByRole("button", { name: "Reload" }).click())
+    expect(reload).toHaveBeenCalled()
+  })
+
+  it("is said once: the root's floating copy stands down while the sidebar hosts the pill", () => {
     render(
       <>
         <OfflineNotice />
-        <OfflineNotice inline />
+        <FootPill />
       </>,
     )
     act(() => setOnline(false))
-    const notices = screen.getAllByRole("status")
-    expect(notices).toHaveLength(1)
-    expect(notices[0].getAttribute("data-notice")).toBe("offline")
-    expect(notices[0].className).not.toMatch(/\bfixed\b/)
+    const all = screen.getAllByRole("status")
+    expect(all).toHaveLength(1)
+    expect(all[0].className).not.toMatch(/\bfixed\b/)
   })
 
-  it("puts the line in both shells' notice slots", () => {
+  it("floats from the root where no shell hosts it (signed out, a phone)", () => {
+    render(<OfflineNotice />)
+    act(() => setOnline(false))
+    expect(pill()?.className).toMatch(/\bfixed\b/)
+  })
+
+  it("sits above the sidebar's foot, and is no longer a notice in the sheet", () => {
+    const nav = readFileSync(join(__dirname, "..", "navigationBar", "desktop", "desktopNavigationBar.tsx"), "utf8")
+    expect(nav).toMatch(/<FootPill \/>\s*<SidebarFoot \/>/)
     const layout = readFileSync(join(__dirname, "..", "..", "app", "app", "LayoutContent.tsx"), "utf8")
-    expect(layout.match(/<OfflineNotice inline \/>/g)).toHaveLength(2)
-  })
-
-  it("is mounted once, at the root, so every page has it", () => {
+    expect(layout).not.toMatch(/OfflineNotice/)
     const root = readFileSync(join(__dirname, "..", "providers", "ClientProviders.tsx"), "utf8")
     expect(root).toMatch(/<OfflineNotice\s*\/>/)
   })

@@ -1,38 +1,40 @@
 "use client"
 
-import { useEffect, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
-import { NoticeBar } from "@/components/banner/NoticeBar"
+import { useMqttConnectionState } from "@/components/mqtt/mqttProvider"
+import { useUpdateReady } from "@/hooks/useUpdateReady"
+import { WifiOff, Zap } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
 
 /**
- * The app's offline state: one quiet notice while the network is gone or the
- * server doesn't answer, gone as soon as it does.
+ * The app's connection state, said once, as one pill (design v3, shell T3).
  *
- * There was none. With the network down, reads failed into empty lists or
- * "Couldn't load" boxes and writes failed in silence, so nothing said the one
- * true thing: you're offline, and what you change now won't be saved.
+ * Three things can be true, said in this order of weight:
+ *   - the network is gone ("You're offline"), or the server does not answer
+ *     while the browser is online ("Can't reach the server"); writes won't
+ *     be saved, so a Retry asks again;
+ *   - the live connection dropped while the API still works ("Live updates
+ *     paused"): it replaces the top bar's connection dot;
+ *   - a newer build is out ("A new version is ready", polled from the build
+ *     id): Reload, never automatically while somebody is typing. The chunk
+ *     error reload (lib/chunkRecovery) stays the fallback.
  *
- * Two causes, said differently. The browser's own "offline" is the person's
- * network. Requests that get no answer while the browser says online
- * (lib/connectivity, fed by the axios layer) are the server or a proxy in
- * front of it, which a person can't fix, so it says it is trying again.
- *
- * Inside the signed-in app it is a line in the shell's notice slot, above the
- * page, taking its own height: it covers nothing. Floating bottom left, it sat
- * on the sidebar's Collapse button (and over the sheet's edge); on a phone it
- * floated over the page above the tab bar. Outside the app (sign-in, a shared
- * form) there is no slot, and the root's copy floats as before. The root's
- * copy stands down while the shell's is mounted, so it is said once.
+ * On a desktop the pill sits 8px above the sidebar's foot (FootPill, which
+ * hosts it); everywhere else the root's copy floats at the bottom, above a
+ * phone's tab bar. The root's copy stands down while the shell's is mounted,
+ * so it is said once. The inline notice in the banner slot is gone: the pill
+ * is enough.
  */
 
-// How many shells are showing the notice inline right now.
-let inlineHosts = 0
+// How many shells are hosting the pill right now.
+let hosts = 0
 const hostListeners = new Set<() => void>()
 const subscribeHosts = (fn: () => void) => {
   hostListeners.add(fn)
   return () => hostListeners.delete(fn)
 }
-const hostedInline = () => inlineHosts > 0
+const hosted = () => hosts > 0
 const notHosted = () => false
 
 function subscribeOnline(onChange: () => void) {
@@ -50,34 +52,40 @@ const assumeReachable = () => false
 /** How often the server is asked again while it doesn't answer. */
 const PROBE_EVERY_MS = 15_000
 
-export function OfflineNotice({ inline = false }: { inline?: boolean } = {}) {
-  const hosted = useSyncExternalStore(subscribeHosts, hostedInline, notHosted)
-  useEffect(() => {
-    if (!inline) return
-    inlineHosts++
-    hostListeners.forEach((fn) => fn())
-    return () => {
-      inlineHosts--
-      hostListeners.forEach((fn) => fn())
-    }
-  }, [inline])
+function probeServer(onAnswer: () => void) {
+  const base = process.env.NEXT_PUBLIC_BACKEND_URL
+  if (!base) return
+  fetch(new URL("auth/providers", base), { cache: "no-store", credentials: "omit" })
+    .then(onAnswer)
+    .catch(() => {})
+}
+
+export type ConnectionPill =
+  | { kind: "offline"; title: string; line: string }
+  | { kind: "live"; title: string }
+  | { kind: "update"; title: string }
+  | null
+
+/** What the pill should say now, if anything. */
+function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload: () => void } {
   const online = useSyncExternalStore(subscribeOnline, browserOnline, assumeOnline)
   const unreachable = useSyncExternalStore(subscribeConnectivity, isServerUnreachable, assumeReachable)
+  const connectionState = useMqttConnectionState()
+  const update = useUpdateReady()
+
+  // The live connection only counts as lost after it has been up once, so a
+  // page that is still connecting says nothing.
+  const [wasLive, setWasLive] = useState(false)
+  useEffect(() => {
+    if (connectionState?.isConnected) setWasLive(true)
+  }, [connectionState?.isConnected])
 
   // Someone idle on a page makes no requests, so nothing would notice the
   // server coming back. Ask it, cheaply, while it is away.
   useEffect(() => {
     if (!online || !unreachable) return
-    const base = process.env.NEXT_PUBLIC_BACKEND_URL
-    if (!base) return
     let stopped = false
-    const probe = () => {
-      fetch(new URL("auth/providers", base), { cache: "no-store", credentials: "omit" })
-        .then(() => {
-          if (!stopped) noteNetworkOk()
-        })
-        .catch(() => {})
-    }
+    const probe = () => probeServer(() => { if (!stopped) noteNetworkOk() })
     const timer = window.setInterval(probe, PROBE_EVERY_MS)
     window.addEventListener("focus", probe)
     return () => {
@@ -87,34 +95,70 @@ export function OfflineNotice({ inline = false }: { inline?: boolean } = {}) {
     }
   }, [online, unreachable])
 
-  if (online && !unreachable) return null
-  if (!inline && hosted) return null
+  let pill: ConnectionPill = null
+  if (!online) pill = { kind: "offline", title: "You're offline", line: "Changes won't be saved until you're back." }
+  else if (unreachable) pill = { kind: "offline", title: "Can't reach the server", line: "Trying again. Nothing you've saved is lost." }
+  else if (wasLive && connectionState && !connectionState.isConnected) pill = { kind: "live", title: "Live updates paused · reconnecting" }
+  else if (update.ready) pill = { kind: "update", title: "A new version is ready" }
 
-  const title = online ? "Can't reach the server" : "You're offline"
-  const line = online
-    ? "Trying again. Nothing you've saved is lost."
-    : "Changes you make won't be saved until you're back."
+  return { pill, retry: () => probeServer(noteNetworkOk), reload: update.reload }
+}
 
-  if (inline) {
-    return (
-      <NoticeBar tone="offline">
-        <span className="font-medium">{title}.</span> {line}
-      </NoticeBar>
-    )
+function Pill({ pill, retry, reload, className }: { pill: NonNullable<ConnectionPill>; retry: () => void; reload: () => void; className?: string }) {
+  let lead: ReactNode
+  let action: ReactNode = null
+  const btn = "h-6 shrink-0 rounded-[6px] px-2 text-2xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+  if (pill.kind === "offline") {
+    lead = <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+    action = <button type="button" onClick={retry} className={cn(btn, "bg-raised text-ink shadow-e1")}>Retry</button>
+  } else if (pill.kind === "live") {
+    lead = <Zap className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+  } else {
+    lead = <span className="shell-footpill-dot" aria-hidden="true" />
+    action = <button type="button" onClick={reload} className={cn(btn, "bg-brand text-brand-foreground shadow-primary")}>Reload</button>
   }
-
   return (
     <div
       role="status"
       aria-live="polite"
-      className="fixed z-[var(--z-toast)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-start gap-2.5 rounded-lg border border-border bg-popover px-3 py-2 text-foreground shadow-overlay motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150 sm:bottom-4 sm:left-4 sm:max-w-sm sm:translate-x-0"
+      data-connection-pill={pill.kind}
+      data-tone={pill.kind === "offline" ? "warn" : undefined}
+      className={cn("shell-footpill", className)}
+      title={pill.kind === "offline" ? `${pill.title}. ${pill.line}` : undefined}
     >
-      {/* A real state, so a dot in the warning colour: the words carry it too. */}
-      <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-warning" />
-      <div className="min-w-0">
-        <p className="text-sm font-medium leading-5">{title}</p>
-        <p className="text-xs text-muted-foreground">{line}</p>
-      </div>
+      {lead}
+      <span className="min-w-0 flex-1 truncate">{pill.title}</span>
+      {action}
     </div>
+  )
+}
+
+/** The pill above the sidebar's foot (desktop). It hosts the notice, so the root's copy stands down. */
+export function FootPill() {
+  useEffect(() => {
+    hosts++
+    hostListeners.forEach((fn) => fn())
+    return () => {
+      hosts--
+      hostListeners.forEach((fn) => fn())
+    }
+  }, [])
+  const { pill, retry, reload } = useConnectionPill()
+  if (!pill) return null
+  return <Pill pill={pill} retry={retry} reload={reload} />
+}
+
+/** The root's copy: floats bottom-left on a wide screen, above the tab bar on a phone, when no shell hosts the pill. */
+export function OfflineNotice() {
+  const isHosted = useSyncExternalStore(subscribeHosts, hosted, notHosted)
+  const { pill, retry, reload } = useConnectionPill()
+  if (!pill || isHosted) return null
+  return (
+    <Pill
+      pill={pill}
+      retry={retry}
+      reload={reload}
+      className="fixed z-[var(--z-toast)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 !m-0 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 sm:bottom-4 sm:left-4 sm:max-w-sm sm:translate-x-0"
+    />
   )
 }

@@ -1,9 +1,8 @@
 "use client"
 
 import { Component, ErrorInfo, ReactNode } from "react"
-import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/ui/empty-state"
-import { SpotError } from "@/components/ui/graphics/spots"
+import { CrashState } from "@/components/error/CrashState"
+import { SplashFrame } from "@/components/protectedRoute/Splash"
 
 interface Props {
   children: ReactNode
@@ -40,25 +39,28 @@ export class GlobalErrorBoundary extends Component<Props, State> {
       // say "We've been notified and are looking into it": nothing reports
       // errors anywhere, and on a server the customer runs there is nobody to
       // tell. It says what is true, and the one way on that works: reloading.
+      // Design v3 (shell §L3): the crash's composition on the splash's frame
+      // (the glow and the grain), with Reload page as its one way on.
+      const error = this.state.error ?? new Error("Unknown error")
       return (
-        <div role="alert" className="flex min-h-dvh flex-col items-center justify-center bg-background p-6 text-foreground">
-          <EmptyState
-            tone="accent"
-            headingLevel={1}
-            illustration={<SpotError />}
+        <SplashFrame role="alert">
+          <CrashState
             title="OneCamp hit a problem it couldn't recover from"
-            description="Nothing you saved is lost. Reload the page to carry on."
-            action={<Button onClick={() => window.location.reload()}>Reload page</Button>}
-          />
-          {process.env.NODE_ENV === "development" && (
-            <div className="mt-6 max-h-48 w-full max-w-xl overflow-auto rounded-lg bg-muted p-4 text-left">
-              <p className="mb-2 font-mono text-xs font-bold text-danger-ink">
-                {this.state.error?.name}: {this.state.error?.message}
-              </p>
-              <p className="whitespace-pre font-mono text-2xs text-muted-foreground">{this.state.error?.stack}</p>
-            </div>
-          )}
-        </div>
+            line="Nothing you saved is lost. Reload the page to carry on."
+            digest={(error as Error & { digest?: string }).digest}
+            onRetry={() => window.location.reload()}
+            retryLabel="Reload page"
+          >
+            {process.env.NODE_ENV === "development" && (
+              <div className="mt-6 max-h-48 w-full max-w-xl overflow-auto rounded-lg bg-sunken p-4 text-left">
+                <p className="mb-2 font-mono text-xs font-semibold text-danger-ink">
+                  {error.name}: {error.message}
+                </p>
+                <p className="whitespace-pre font-mono text-2xs text-ink-2">{error.stack}</p>
+              </div>
+            )}
+          </CrashState>
+        </SplashFrame>
       )
     }
 

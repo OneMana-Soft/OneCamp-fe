@@ -1,8 +1,7 @@
 "use client"
 
 import { Component, ErrorInfo, ReactNode } from "react";
-import { RefreshCcw } from "@/lib/icons";
-import { Button } from "@/components/ui/button";
+import { AlertCircle } from "@/lib/icons";
 
 interface Props {
   children: ReactNode;
@@ -19,7 +18,7 @@ export class LocalizedErrorBoundary extends Component<Props, State> {
     hasError: false
   };
 
-  public static getDerivedStateFromError(_: Error): State {
+  public static getDerivedStateFromError(): State {
     return { hasError: true };
   }
 
@@ -33,19 +32,22 @@ export class LocalizedErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      // One part of a page, said quietly in a hairline box like the lists
-      // around it: a dashed red slab titled "Component crashed" was the loudest
-      // thing on screen for a part a retry usually brings back.
+      // One part of a page, said in one quiet row (design v3, shell §L3):
+      // an alert glyph, what happened, and Try again as a link. A dashed red
+      // slab titled "Component crashed" was the loudest thing on screen for a
+      // part a retry usually brings back.
       return (
-        <div role="alert" className="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-lg border border-border px-4 py-6 text-center">
-          <p className="text-sm font-medium text-foreground">{this.props.fallbackTitle || "This part of the page hit a problem"}</p>
-          <p className="max-w-[40ch] text-xs text-muted-foreground">
-            {this.props.fallbackDescription || "The rest of the page still works. Try this part again."}
-          </p>
-          <Button variant="outline" size="sm" className="mt-1 h-8 gap-1.5" onClick={this.handleReset}>
-            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+        <div role="alert" data-localized-error="" className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-3 py-2 text-sm text-ink-2">
+          <AlertCircle className="size-4 shrink-0 text-ink-3" aria-hidden="true" />
+          <span>{this.props.fallbackTitle || "Couldn't show this"}</span>
+          {this.props.fallbackDescription && <span className="text-xs text-ink-3">{this.props.fallbackDescription}</span>}
+          <button
+            type="button"
+            onClick={this.handleReset}
+            className="rounded-sm font-medium text-brand-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          >
             Try again
-          </Button>
+          </button>
         </div>
       );
     }

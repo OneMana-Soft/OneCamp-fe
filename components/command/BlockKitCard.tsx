@@ -56,7 +56,7 @@ const BlockKitCard: React.FC<BlockKitCardProps> = ({ blocks, onAction, busyActio
     if (!blocks || blocks.length === 0) return null
 
     return (
-        <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm", className)}>
+        <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-e1", className)}>
             {blocks.map((block, i) => {
                 switch (block.type) {
                     case "header":

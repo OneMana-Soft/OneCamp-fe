@@ -1,0 +1,194 @@
+/* Design v3, admin area: the feedback slice (design/v3-areas/admin.md §8).
+   Dialogs, confirms, type-to-confirm, sheets. Imported by app/globals.css.
+
+   Motion is transform and opacity only (app/motionCost.test.ts). Everything
+   here also stops under prefers-reduced-motion through the global backstop in
+   globals.css; the reduced-motion block swaps a movement for its still
+   version (a fade) where the spec names one. */
+@layer components {
+  /* ---------- The overlay (H2) ----------
+     A dim, never a blur: backdrop blur is on the Never list, and it repaints
+     everything under it on every frame the dialog moves. */
+  .v3-overlay {
+    background: rgb(11 12 14 / 0.32);
+  }
+  .dark .v3-overlay {
+    background: rgb(0 0 0 / 0.6);
+  }
+  .v3-overlay[data-state="open"] {
+    animation: fb-fade-in 180ms var(--ease-out) both;
+  }
+  .v3-overlay[data-state="closed"] {
+    animation: fb-fade-out 150ms var(--ease-out) both;
+  }
+
+  /* ---------- The dialog (H2) ----------
+     --dlg-pad is the content's padding, which the footer bleeds through to
+     run edge to edge. Radix's Dialog exposes no trigger origin (only its
+     popper-placed parts do), so the scale grows from the centre unless a
+     caller sets --dlg-origin. */
+  .v3-dialog {
+    --dlg-pad: 20px;
+    transform-origin: var(--dlg-origin, center);
+  }
+  .v3-dialog[data-state="open"] {
+    animation: fb-dialog-in 220ms var(--ease-out) both;
+  }
+  .v3-dialog[data-state="closed"] {
+    animation: fb-dialog-out 150ms var(--ease-out) both;
+  }
+
+  /* The footer: 60px on --sunken with a hairline on top, edge to edge and
+     stuck to the bottom while the dialog scrolls. Only when it sits straight
+     in the dialog (or in the one form that holds the dialog's fields), so a
+     footer nested in a padded block keeps its plain row. */
+  :is(.v3-dialog, .v3-sheet) > .v3-dlg-footer,
+  :is(.v3-dialog, .v3-sheet) > form > .v3-dlg-footer {
+    position: sticky;
+    bottom: calc(var(--dlg-pad) * -1);
+    z-index: 1;
+    min-height: 60px;
+    margin: 4px calc(var(--dlg-pad) * -1) calc(var(--dlg-pad) * -1);
+    padding: 12px var(--dlg-pad);
+    align-items: center;
+    background: var(--sunken);
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+  /* A sheet's footer sits at the foot of a column that fills the sheet. */
+  .v3-sheet > .v3-dlg-footer {
+    margin-top: auto;
+  }
+
+  /* The body that scrolls inside itself (DialogBody, opt-in): a hairline
+     under the header and over the footer only while there is more to see. */
+  .v3-dlg-body {
+    position: relative;
+    margin-inline: calc(var(--dlg-pad, 20px) * -1);
+  }
+  .v3-dlg-body-scroll {
+    max-height: 70dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 var(--dlg-pad, 20px);
+  }
+  .v3-dlg-body::before,
+  .v3-dlg-body::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--line);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms var(--ease-out);
+    z-index: 1;
+  }
+  .v3-dlg-body::before { top: 0; }
+  .v3-dlg-body::after { bottom: 0; }
+  .v3-dlg-body[data-above="true"]::before,
+  .v3-dlg-body[data-below="true"]::after {
+    opacity: 1;
+  }
+
+  /* ---------- The confirm (H3) ---------- */
+  /* The tile's glyph pops 80ms after the dialog opens. */
+  .v3-confirm-tile > svg {
+    animation: fb-glyph-pop 220ms var(--ease-spring) 80ms both;
+  }
+  /* A failed action: the dialog shakes x ±4px twice. */
+  .v3-confirm[data-shake="true"] {
+    animation: fb-shake-4 260ms var(--ease-in-out) both;
+  }
+
+  /* Danger-solid: the only solid danger button in the app (a confirm that
+     destroys). The primary's elevation stack, mixed from the danger colour.
+     Written per element (not on :root) because it mixes --destructive, which
+     the theme on body redefines. */
+  .btn-danger-solid {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 -1px 0 rgb(0 0 0 / 0.08),
+      0 0 0 1px color-mix(in oklab, var(--destructive) 82%, black),
+      0 1px 2px rgb(16 18 26 / 0.18),
+      0 2px 6px -2px color-mix(in oklab, var(--destructive) 45%, transparent);
+  }
+  .dark .btn-danger-solid {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      inset 0 -1px 0 rgb(0 0 0 / 0.12),
+      0 0 0 1px color-mix(in oklab, var(--destructive) 70%, black),
+      0 2px 8px -2px color-mix(in oklab, var(--destructive) 35%, transparent);
+  }
+
+  /* ---------- Type to confirm (H4) ---------- */
+  .v3-require-check {
+    animation: fb-glyph-pop 220ms var(--ease-spring) both;
+  }
+  .v3-require-field[data-shake="true"] {
+    animation: fb-shake-3 240ms var(--ease-in-out) both;
+  }
+
+  /* ---------- The right sheet (H5) ----------
+     In from 16px on the panel curve; out the same way, faster. */
+  .v3-sheet {
+    --dlg-pad: 20px;
+  }
+  .v3-sheet[data-side="right"][data-state="open"] {
+    animation: fb-sheet-in 240ms var(--ease-in-out) both;
+  }
+  .v3-sheet[data-side="right"][data-state="closed"] {
+    animation: fb-sheet-out 180ms var(--ease-in-out) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .v3-dialog[data-state="open"],
+    .v3-sheet[data-side="right"][data-state="open"] {
+      animation-name: fb-fade-in;
+    }
+    .v3-dialog[data-state="closed"],
+    .v3-sheet[data-side="right"][data-state="closed"] {
+      animation-name: fb-fade-out;
+    }
+    .v3-confirm-tile > svg,
+    .v3-require-check,
+    .v3-confirm[data-shake="true"],
+    .v3-require-field[data-shake="true"] {
+      animation: none;
+    }
+  }
+
+  @keyframes fb-fade-in {
+    from { opacity: 0; }
+  }
+  @keyframes fb-fade-out {
+    to { opacity: 0; }
+  }
+  @keyframes fb-dialog-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  }
+  @keyframes fb-dialog-out {
+    to { opacity: 0; transform: scale(0.98); }
+  }
+  @keyframes fb-glyph-pop {
+    from { opacity: 0; transform: scale(0.8); }
+  }
+  @keyframes fb-shake-4 {
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  @keyframes fb-shake-3 {
+    20% { transform: translateX(-3px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  @keyframes fb-sheet-in {
+    from { opacity: 0; transform: translateX(16px); }
+  }
+  @keyframes fb-sheet-out {
+    to { opacity: 0; transform: translateX(16px); }
+  }
+}

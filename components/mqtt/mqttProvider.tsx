@@ -26,6 +26,9 @@ interface MqttContextValue {
 
 const MqttContext = createContext<MqttContextValue | null>(null)
 
+/** The live connection's state, or undefined outside the signed-in app (no provider there). */
+export const useMqttConnectionState = () => useContext(MqttContext)?.connectionState
+
 export const useMqtt = () => {
     const context = useContext(MqttContext)
     if (!context) {

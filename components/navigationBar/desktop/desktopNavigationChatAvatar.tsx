@@ -6,7 +6,6 @@ import {getNameInitials} from "@/lib/utils/format/getNameIntials";
 import {getAvatarFallbackClass} from "@/lib/utils/getAvatarColor";
 import {cn} from "@/lib/utils/helpers/cn";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import { statusColors } from "@/lib/colors";
 
 export const DesktopNavigationChatAvatar = ({userInfo}: {userInfo?: UserProfileDataInterface}) => {
 
@@ -31,7 +30,7 @@ export const DesktopNavigationChatAvatar = ({userInfo}: {userInfo?: UserProfileD
                 <AvatarImage src={imageSrc}/>
                 <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(displayNameOf(userInfo)))}>{nameInitial[0]}</AvatarFallback>
             </Avatar>
-            {isOnline && <div className={`h-2.5 w-2.5 md:h-2 md:w-2 ring-[1px] ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}></div>}
+            {isOnline && <span data-presence="" className="presence-dot [--presence-ring:var(--frame)]" />}
 
         </div>
     )

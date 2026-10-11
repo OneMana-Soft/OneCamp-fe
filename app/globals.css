@@ -2,6 +2,19 @@
 @import "tw-animate-css";
 
 @import "./themes.css";
+@import "./content.css";
+@import "../components/calendar/calendar.css";
+@import "./hub.css";
+/* Design v3, admin and settings: one file per slice (app/styles/admin). */
+@import "./styles/admin/core.css";
+@import "./styles/admin/people.css";
+@import "./styles/admin/config.css";
+@import "./styles/admin/connect.css";
+@import "./styles/admin/ai.css";
+@import "./styles/admin/you.css";
+@import "./styles/admin/auth.css";
+@import "./styles/admin/feedback.css";
+@import "./styles/admin/guest.css";
 
 
 @custom-variant dark (&:is(.dark *));
@@ -12,64 +25,159 @@
   --breakpoint-3xl: 1600px;
   --breakpoint-4xl: 2000px;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  /* Headings take Inter Tight (500/600), Inter's display cut; Inter carries
-     everything else. Once the borders and shadows come off, weight and face
-     ARE the hierarchy, and a tight cut of the same family gives a heading
-     weight without a second voice. */
-  --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* ONE FACE (design v3, "Type"): Inter, variable, with its optical-size axis
+     (opsz 14 to 32). font-optical-sizing: auto gives every size its own cut,
+     and display sizes (28px and up) ask for opsz 32 outright, which is Inter
+     Display without a second family. It retired Inter Tight: Tight's built-in
+     tightening plus our tracking crushed the hero, and at 14px it collided
+     words. --font-display stays as a name so h1 to h3 and font-display keep
+     working; it is Inter now. */
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
-  /* Type scale below text-xs.
-     The scale stopped at 12px, so dense UI reached past it: ~490 call sites use
-     text-[11px] or text-[10px], plus a long tail of 8px/9px/12px/13px one-offs.
-     Six ad-hoc sizes under text-xs is how an interface stops feeling designed —
-     the same "caption" ends up three different sizes on three surfaces, and each
-     one carries whatever line-height Tailwind's arbitrary value implies.
-     Naming the two that are actually needed gives dense text a canonical answer
-     (with a deliberate line-height) and a floor: nothing smaller than 10px, which
-     is already the practical legibility limit on a phone. */
-  /* THE APP SCALE (design direction, "App scale"). The default moved from 12px
-     to 14px: 12px had become the most-used size in the product, and that, more
-     than any colour, is what made it read as busy. Every step below the default
-     moved up one so that relative hierarchy holds without editing 1,800 call
-     sites:
-       text-sm   14/20  default UI: lists, nav, table cells (and <body>)
-       text-xs   13/18  secondary and meta (Tailwind's 12px, deliberately
-                        redefined: the old xs carried the role this one has)
-       text-2xs  12/16  timestamps and badges
-       text-3xs  11/14  the floor, for counts only
-     Message and doc bodies are 15/22, set on the editor in
-     components/minimal-tiptap/styles/index.css. */
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: 1.125rem;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.25rem;
-  --text-2xs: 0.75rem;
-  --text-2xs--line-height: 1rem;
+  /* THE APP SCALE (design v3, "App scale"). Wave 1's 14px default stays.
+     Every step carries its line-height AND its tracking, which follows
+     Inter's own dynamic metrics: tracking(em) = -0.0223 + 0.185 *
+     e^(-0.1745 * px), so a 14px label is -0.006em and a 30px title -0.021em
+     (app/tracking.test.ts holds every step to the formula). The Tailwind
+     names keep their meaning so 1,800 call sites move without an edit:
+       text-3xs  11/14 micro: tags, badges, kbd (+.005em)
+       text-2xs  12/16 meta: timestamps, counts, chips, section labels
+       text-xs   13/18 ui-sm: buttons, meta lines, property labels
+       text-sm   14/20 ui: nav, list rows, table cells, inputs (and <body>)
+     and v3 names the roles above them: text-body (15/23, a message),
+     text-body-lg (16/26, a doc), text-heading (15/20, a card or channel
+     title), text-title-3 (17/24, a dialog title), text-title-2 (20/27, the
+     task panel's title), text-title-1 (24/30, a page title), text-display
+     (30/36, the Home greeting) and text-doc-title (32/38). Weights: 400 text,
+     450 list titles (font-book), 510 emphasis and buttons (font-medium), 590
+     headings (font-semibold), 600 only from 28px (font-bold). Never 700. */
   --text-3xs: 0.6875rem;
   --text-3xs--line-height: 0.875rem;
-  /* Four radii, from --radius (6px): 4 chips, 6 controls, 10 surfaces, 14
-     dialogs. xl folds into lg and 3xl into 2xl, so the 130 rounded-xl and the
-     odd rounded-3xl land on the scale without a per-file edit. */
+  --text-3xs--letter-spacing: 0.005em;
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0em;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-xs--letter-spacing: -0.003em;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-sm--letter-spacing: -0.006em;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-base--letter-spacing: -0.011em;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-lg--letter-spacing: -0.014em;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-xl--letter-spacing: -0.017em;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-2xl--letter-spacing: -0.019em;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-3xl--letter-spacing: -0.021em;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+  --text-4xl--letter-spacing: -0.022em;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 0.875rem;
+  --text-micro--letter-spacing: 0.005em;
+  --text-micro--font-weight: 510;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+  --text-meta--letter-spacing: 0em;
+  --text-ui-sm: 0.8125rem;
+  --text-ui-sm--line-height: 1.125rem;
+  --text-ui-sm--letter-spacing: -0.003em;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
+  --text-ui--letter-spacing: -0.006em;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.4375rem;
+  --text-body--letter-spacing: -0.009em;
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.625rem;
+  --text-body-lg--letter-spacing: -0.011em;
+  --text-heading: 0.9375rem;
+  --text-heading--line-height: 1.25rem;
+  --text-heading--letter-spacing: -0.012em;
+  --text-heading--font-weight: 590;
+  --text-title-3: 1.0625rem;
+  --text-title-3--line-height: 1.5rem;
+  --text-title-3--letter-spacing: -0.013em;
+  --text-title-3--font-weight: 590;
+  --text-title-2: 1.25rem;
+  --text-title-2--line-height: 1.6875rem;
+  --text-title-2--letter-spacing: -0.017em;
+  --text-title-2--font-weight: 590;
+  --text-title-1: 1.5rem;
+  --text-title-1--line-height: 1.875rem;
+  --text-title-1--letter-spacing: -0.019em;
+  --text-title-1--font-weight: 590;
+  --text-display: 1.875rem;
+  --text-display--line-height: 2.25rem;
+  --text-display--letter-spacing: -0.021em;
+  --text-display--font-weight: 600;
+  --text-doc-title: 2rem;
+  --text-doc-title--line-height: 2.375rem;
+  --text-doc-title--letter-spacing: -0.021em;
+  --text-doc-title--font-weight: 600;
+  --font-weight-book: 450;
+  --font-weight-medium: 510;
+  --font-weight-semibold: 590;
+  --font-weight-bold: 600;
+  /* RADII from one number (--radius, 8px): xs 4 kbd; sm 6 chips and xs
+     buttons; md 8 buttons, inputs, nav rows, menu items; lg and xl 12 cards,
+     menus, popovers, the composer and the sheet; 2xl 16 dialogs; 3xl 20, the
+     storefront's canvas, never in the app (radiusScale.test.ts). */
+  --radius-xs: calc(var(--radius) - 4px);
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 8px);
-  /* SHADOWS ARE FOR THINGS THAT FLOAT, one per layer. The small steps are a
-     transparent no-op rather than `none`, because Tailwind joins the shadow
-     into one box-shadow list with the ring, and `none` inside a list would void
-     the ring as well. A card, an input or a button that asks for shadow-sm is
-     in the page, so it gets nothing; a menu or popover (md, lg) gets the
-     popover layer; a dialog or sheet (xl, 2xl) gets the dialog layer. */
-  --shadow: 0 0 #0000;
-  --shadow-2xs: 0 0 #0000;
-  --shadow-xs: 0 0 #0000;
-  --shadow-sm: 0 0 #0000;
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.08);
-  --shadow-lg: 0 4px 16px rgb(0 0 0 / 0.08);
-  --shadow-xl: 0 16px 48px rgb(0 0 0 / 0.16);
-  --shadow-2xl: 0 16px 48px rgb(0 0 0 / 0.16);
+  --radius-3xl: calc(var(--radius) + 12px);
+  /* ELEVATION (design v3, §3.8): shadow-e1, shadow-sel, shadow-e2, shadow-e3,
+     shadow-e4 and shadow-sheet, each a ring plus drops (the values are on
+     :root and .dark). The Tailwind steps fold onto the ladder, so a stray
+     shadow-sm on a card rests (e1), a popover's shadow-lg floats (e3) and a
+     dialog's shadow-xl is modal (e4). shadowTokens.test.ts allows the ladder
+     and nothing else in the app's classes. */
+  --shadow-e1: var(--e1);
+  --shadow-sel: var(--e-sel);
+  --shadow-e2: var(--e2);
+  --shadow-e3: var(--e3);
+  --shadow-e4: var(--e4);
+  --shadow-sheet: var(--e-sheet);
+  --shadow: var(--e1);
+  --shadow-2xs: var(--e1);
+  --shadow-xs: var(--e1);
+  --shadow-sm: var(--e1);
+  --shadow-md: var(--e3);
+  --shadow-lg: var(--e3);
+  --shadow-xl: var(--e4);
+  --shadow-2xl: var(--e4);
+  /* The v3 surfaces and inks, as utilities: bg-frame, bg-sheet, bg-sunken,
+     bg-raised, bg-pop, text-ink-2, text-ink-3, bg-hover, bg-press, border-line. */
+  --color-frame: var(--frame);
+  --color-sheet: var(--sheet);
+  --color-sunken: var(--sunken);
+  --color-raised: var(--raised);
+  --color-pop: var(--pop);
+  --color-panel: var(--panel);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-line-3: var(--line-3);
+  --color-hover: var(--hover);
+  --color-press: var(--press);
+  --color-sel: var(--sel);
+  --color-ok: var(--ok);
+  --color-agent-ink: var(--agent-ink);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -96,10 +204,6 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-text: var(--brand-text);
   --color-brand-muted: var(--brand-muted);
-  /* The theme's wash (app/themes.css), as a utility: bg-brand-wash, for a
-     band that should take the chosen theme the way the sidebar does (the Home
-     greeting). Ink and text-2 are AA on it in every theme. */
-  --color-brand-wash: var(--brand-wash);
   /* THE CAMP PALETTE, as utilities: bg-camp-sky-tint, text-camp-sky-ink,
      fill-camp-sky, and so on for sun, moss, lake, sky, dusk and berry. See
      the :root block for what each cut is for. */
@@ -176,35 +280,69 @@
   --animate-blink: blink 1s infinite;
   --animate-text-shimmer: text-shimmer 1.5s infinite linear;
   --animate-msg-fade-in: msg-fade-in 0.2s ease-out;
+  /* CHAT MOTION (design v3, chat.md §1.3). Transform and opacity only, so the
+     compositor runs every one of them (app/chatMotion.test.ts). Live things
+     arrive; history never moves: a row plays msg-in only when it arrived
+     while the reader was at the end (components/message/arrival.ts). Each
+     has a reduced-motion pair in the last prefers-reduced-motion block. */
+  --animate-msg-in: msg-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-msg-in-own: msg-in-own 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-row-out: row-out 160ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  --animate-pill-in: pill-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-react-pop: react-pop 220ms cubic-bezier(0.3, 1.35, 0.5, 1) both;
+  --animate-react-out: react-out 120ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  --animate-count-in: count-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-count-out: count-out 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-panel-in: panel-in 240ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  --animate-pop-in: pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-toolbar-in: toolbar-in 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-preview-lift: preview-lift 220ms cubic-bezier(0.3, 1.35, 0.5, 1) both;
+  --animate-glow-settle: glow-settle 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-highlight-settle: glow-settle 1600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-typing-bob: typing-bob 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  --animate-orbit-in: orbit-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-orbit-in-counter: orbit-in-counter 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-twinkle: twinkle 360ms cubic-bezier(0.3, 1.35, 0.5, 1) both;
+  --animate-live-halo: live-halo 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  --animate-nudge: nudge 280ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  --animate-line-draw: line-draw 320ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+  --animate-edge-draw: line-draw 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-indeterminate: indeterminate 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  --animate-clock-hand: clock-hand 1.2s linear infinite;
+  --animate-clock-once: clock-hand 400ms cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+  --animate-empty-out: empty-out 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   /* A loading placeholder breathes slowly rather than sweeping a highlight
      across itself: the shimmer was a perpetual decorative loop, which DESIGN.md
      rules out, and on a screen of twenty skeleton bars it was the busiest thing
      in the app at the moment nothing was there. The name is kept so every
      caller of animate-shimmer gets the calm version. */
   --animate-shimmer: skeleton-breathe 1.8s ease-in-out infinite;
-  /* MOTION (design direction, "Motion"): 120ms for hover and press, 150ms
-     for popovers and menus, 200ms for sheets and side panels, one easing.
-     Setting Tailwind's defaults means every bare `transition` and
-     `transition-colors` in the app takes the house timing without a per-file
-     edit; ease-standard names the curve for anything that sets its own. */
-  --default-transition-duration: 120ms;
-  --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
-  /* THE SPRING (the playful layer, "Motion"): checks and toggles land with a
-     slight overshoot, at 220ms. animate-spring is the check's 1 -> 1.12 -> 1
-     on the house curve, for something that appears because of a click (never
-     on a page load: an already-done task does not bounce); ease-spring is the
-     curve for a thumb or knob that travels (transition-spring). Both stand
-     still under prefers-reduced-motion with everything else. */
+  /* MOTION (design v3, §3.14). One out-curve for press (90ms), hover
+     (140ms) and pop (180ms: menus, popovers, tooltips); an in-out curve for
+     the task panel and sheets (240ms); the spring for checks and toggles
+     (220ms); and page entrances on the storefront (320ms). Setting Tailwind's
+     defaults means every bare `transition` and `transition-colors` takes the
+     hover timing without a per-file edit. ease-standard is kept as a name for
+     the out-curve, so everything that already asked for it moves too. */
+  --default-transition-duration: 140ms;
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* THE SPRING: checks and toggles land with a slight overshoot, at 220ms.
+     animate-spring is the check's 1 -> 1.12 -> 1 on the out-curve, for
+     something that appears because of a click (never on a page load: an
+     already-done task does not bounce); ease-spring is the curve for a thumb
+     or knob that travels (transition-spring). Both stand still under
+     prefers-reduced-motion with everything else. */
   --ease-spring: cubic-bezier(0.3, 1.35, 0.5, 1);
-  --animate-spring: spring-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-spring: spring-pop 220ms cubic-bezier(0.22, 1, 0.36, 1);
   /* The highlight under a hovered or keyboard-focused row in a menu, a select,
-     the command list and a ghost button. It is surface-3, one step past
-     --accent (surface-2): --accent IS the canvas, so a ghost button in the top
-     bar or the sidebar lit up with exactly the colour it already sat on, and a
-     menu row on a white popover moved by 1.08:1, which reads as nothing. */
+     the command list and a ghost button: --press, ink at 7% (design v3, a menu
+     item's hover is press). An alpha, so it reads on the frame, the sheet and
+     a popover alike. */
   --color-highlight: var(--sidebar-accent);
-  --animate-load-progress: load-progress 10s linear forwards;
   /* Z-Index Layer System — each layer must be higher than all UI below it */
   --z-base: 0;
   --z-sticky: 100;
@@ -223,154 +361,172 @@
 }
 
 :root {
-  --scroll-bar-color: #d3d5da;
-  --scroll-bar-bg-color: 0 0% 100%;
-  /* FOUR RADII: 4 for chips, kbd and checkboxes (rounded-sm), 6 for buttons,
-     inputs and nav items (rounded-md), 10 for cards, popovers, menus and the
-     main panel (rounded-lg and rounded-xl), 14 for dialogs and sheets
-     (rounded-2xl). Six were in heavy use before, which is how a screen ends up
-     with three slightly different corners side by side. The mapping lives in
-     @theme above; this is the one number it is derived from. */
-  --radius: 0.375rem;
+  --scroll-bar-color: rgba(20, 22, 30, 0.18);
+  --scroll-bar-bg-color: transparent;
+  /* RADII (design v3, "Spacing, density and radii"): 4 kbd (rounded-xs),
+     6 chips and xs buttons (rounded-sm), 8 buttons, inputs, nav rows and menu
+     items (rounded-md), 12 cards, menus, popovers, the composer and the sheet
+     (rounded-lg, rounded-xl), 16 dialogs (rounded-2xl), 20 the storefront's
+     canvas (rounded-3xl, never in the app). One number makes the scale; the
+     mapping is in @theme above. Concentric: an item inside a 4px-padded r12
+     menu is r8. */
+  --radius: 0.5rem;
 
-  /* ── OneCamp identity ─────────────────────────────────────────────────────
-     One accent on graphite.
+  /* ── OneCamp identity, design v3 (11 Oct 2026) ───────────────────────────
+     Precise and warm: neutral graphite surfaces, alpha hairlines, a real
+     (tiny) elevation scale, and the theme shown as light on the frame (the
+     campfire glow), not as a tint.
 
-     The accent is a cleaner signal orange (#CC4A0B), closer to the logo's own
-     #FF8A00→#FF3D00 than the old #B94A00, and still AA under white text. The
-     neutrals are a cool graphite (hue about 265, chroma under 0.02) instead of
-     the warm hue-75 ramp: orange on cream read like a bakery, orange on
-     graphite reads like an instrument panel, and the cool ground makes the
-     orange carry with less of it.
+     EVERY VALUE BELOW IS DESIGN_V3.md §3 VERBATIM. sharedTokens.test.ts pins
+     them, and the storefront (onemana-frontend lib/appSystem.ts) pins the same
+     table: change both repos or neither.
 
-     ACCENT BUDGET: one primary button per view, the focus ring, the current
-     selection, links and the logo. Never headings, eyebrows, icons, mention
-     chips or progress bars; those are neutral. A colour spent everywhere stops
-     marking anything.
+     SURFACES. Five steps; every surface sits on one of them.
+       frame   the sidebar, the gutter round the sheet, the phone status area
+       sheet   the main panel, where the work is (the brightest thing)
+       sunken  group headers, board columns, code, comment cards
+       raised  cards, inputs, secondary buttons, the selected nav chip
+       pop     menus, popovers, floating toolbars
+     The shadcn names below them (background, card, popover, muted...) are
+     aliases of these, so the 700 files that use them move with the system. */
+  --frame: #F3F4F6;
+  --sheet: #FFFFFF;
+  --sunken: #F8F9FA;
+  --raised: #FFFFFF;
+  --pop: #FFFFFF;
+  /* The task panel: the sheet in light, a step of its own in dark. */
+  --panel: #FFFFFF;
 
-     Every value below is the shared table in the design direction
-     (release-1010/design/DESIGN_DIRECTION.md, "Palette tokens"), written in
-     OKLCH; sharedTokens.test.ts pins the sRGB triples, and the storefront pins
-     the same ones. */
+  /* INK TIERS. ink for text and titles; ink-2 for secondary text and nav
+     labels (AA everywhere); ink-3 for timestamps, IDs, placeholders and idle
+     icons, never sentences; ink-4 for empty bars, separator dots, disabled. */
+  --ink: #16171B;
+  --ink-2: #5B5D65;
+  --ink-3: #8A8C92;
+  --ink-4: #B9BBC0;
+
+  /* ALPHA OVER HEX FOR STRUCTURE. Hairlines, hovers and selection are ink at a
+     low alpha, so one token works on the frame, the sheet, a card and a menu. */
+  --line: rgba(20, 22, 30, 0.075);
+  --line-2: rgba(20, 22, 30, 0.12);
+  --line-3: rgba(20, 22, 30, 0.18);
+  --hover: rgba(20, 22, 30, 0.04);
+  --press: rgba(20, 22, 30, 0.07);
+  --sel: rgba(20, 22, 30, 0.055);
+
+  /* ELEVATION IS A MATERIAL (§3.8). Every step is a ring plus drops, so no
+     surface needs a border. e1 resting (secondary buttons, inputs, cards),
+     e-sel the selected nav chip, e2 raised (the composer, a card on hover), e3
+     floating (menus, popovers, hover toolbars), e4 modal (dialogs, sheets),
+     e-sheet the main panel. shadowTokens.test.ts allows these and nothing
+     else. */
+  --e1: 0 0 0 1px rgb(16 18 26 / 0.09), 0 1px 2px rgb(16 18 26 / 0.05);
+  --e-sel: 0 0 0 1px rgb(16 18 26 / 0.07), 0 1px 2px rgb(16 18 26 / 0.06), 0 2px 6px -2px rgb(16 18 26 / 0.06);
+  --e2: 0 0 0 1px rgb(16 18 26 / 0.07), 0 1px 2px rgb(16 18 26 / 0.05), 0 4px 12px -4px rgb(16 18 26 / 0.08);
+  --e3: 0 0 0 1px rgb(16 18 26 / 0.08), 0 4px 8px -2px rgb(16 18 26 / 0.07), 0 16px 32px -8px rgb(16 18 26 / 0.16);
+  --e4: 0 0 0 1px rgb(16 18 26 / 0.08), 0 8px 16px -4px rgb(16 18 26 / 0.08), 0 32px 64px -16px rgb(16 18 26 / 0.24);
+  --e-sheet: 0 0 0 1px rgb(16 18 26 / 0.06), 0 1px 3px rgb(16 18 26 / 0.04), 0 12px 32px -16px rgb(16 18 26 / 0.10);
+
+  /* GRAIN, on the frame only: an SVG feTurbulence at 3.5%. */
+  --grain-opacity: 0.035;
+  --grain-blend: multiply;
+
+  /* THE ACCENT (§3.4): the values wave 1 solved, kept. #CC4A0B under white
+     (4.61:1), #C2410C as text (5.18:1). Its share is 2% of a view: the one
+     primary button, the selected nav icon, mention and DM badges, the focus
+     ring, the new-messages line, your own reactions, progress, the today ring
+     and links. Never headings, eyebrows, borders at rest or illustration
+     fills (but one spark). */
   --brand: oklch(0.5808 0.1764 40.35);
-  --brand-foreground: oklch(1 0 0);
-  /* The accent as text (accent-text in the direction): links, and anything
-     else that writes in the accent. One step darker than the fill, because
-     the fill on the page is 4.50:1 to two decimals and 4.4997 underneath,
-     while this is 5.05:1. --primary reads it (see body), so a primary button
-     is this shade too; the difference on a fill is not visible. */
+  --brand-foreground: #FFFFFF;
   --brand-text: oklch(0.5534 0.1739 38.40);
-  /* A tinted ground for the current selection: active nav, a selected row,
-     a callout. Never for text. */
-  --brand-muted: oklch(0.9667 0.0194 55.15);
-  /* The theme's wash and progress fill (app/themes.css), at the house values
-     so the frame is right before the theme class lands on body. */
-  --brand-wash: oklch(0.972 0.007 65);
+  /* The ground for "this is about you": a mention row, the current agenda
+     event, the selected task row. Nothing else. */
+  --brand-muted: #FCEFE6;
   --progress-from: #FF8A00;
   --progress-to: #FF3D00;
-  /* hover-lift's shadow: a card a pixel off the page, not floating. */
-  --shadow-lift: 0 1px 2px rgb(20 22 26 / 0.04), 0 6px 16px -6px rgb(20 22 26 / 0.12);
+  /* The theme's light on the frame (§3.2), as RGB triples; app/themes.css
+     sets them per theme. These are the house theme's. */
+  --glow: 255 110 30;
+  --glow2: 255 61 0;
 
-  /* AGENTS HAVE A COLOUR OF THEIR OWN: an indigo, a quarter-turn from the
-     brand, used only for agent identity (tag, avatar, anything an agent did),
-     so an agent never reads as "selected". Guarded by paletteContrast.test.ts. */
-  --agent: oklch(0.5316 0.1855 273.99);
-  --agent-foreground: oklch(1 0 0);
-  --agent-muted: oklch(0.9574 0.0175 279.06);
+  /* AGENTS HAVE A COLOUR OF THEIR OWN, for agent identity only (§3.5): the
+     strong cut, its tint (agent-t) and the ink on it (agent-i). */
+  --agent: #5B63D6;
+  --agent-foreground: #FFFFFF;
+  --agent-muted: #EEEFFC;
+  --agent-ink: #3B3FA6;
 
-  /* bg: the page. surface: cards, popovers, inputs. surface-2 (muted,
-     secondary, accent, canvas): the sidebar, a table header, hover. surface-3
-     (sidebar-accent): pressed and selected. */
-  --background: oklch(0.9913 0.0013 286.38);
-  --foreground: oklch(0.1998 0.0086 264.36);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.1998 0.0086 264.36);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.1998 0.0086 264.36);
-  /* PRIMARY IS THE ACCENT, derived on body below so the theme picker moves it;
-     --ink is kept for the surfaces that genuinely want ink. */
-  --ink: oklch(0.1998 0.0086 264.36);
-  --secondary: oklch(0.9727 0.0017 247.84);
-  --secondary-foreground: oklch(0.1998 0.0086 264.36);
-  --muted: oklch(0.9727 0.0017 247.84);
-  /* text-2: secondary text, 5.8:1 on the page. */
-  --muted-foreground: oklch(0.5031 0.0200 267.61);
-  /* text-3: placeholders and disabled only. It does not pass AA as body text
-     and is not meant to carry anything a person has to read. */
-  --faint-foreground: oklch(0.6491 0.0160 264.46);
-  --accent: oklch(0.9727 0.0017 247.84);
-  --accent-foreground: oklch(0.1998 0.0086 264.36);
+  /* THE SHADCN NAMES, as aliases of the v3 surfaces and inks. */
+  --background: var(--sheet);
+  --foreground: var(--ink);
+  --card: var(--raised);
+  --card-foreground: var(--ink);
+  --popover: var(--pop);
+  --popover-foreground: var(--ink);
+  --secondary: var(--sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--sunken);
+  --muted-foreground: var(--ink-2);
+  /* text-faint-foreground: ink-3. Placeholders, timestamps and idle icons. */
+  --faint-foreground: var(--ink-3);
+  /* Hover (bg-accent) and press (bg-highlight) are the alpha overlays. */
+  --accent: var(--hover);
+  --accent-foreground: var(--ink);
+  --border: var(--line);
+  --input: var(--line-3);
+  --canvas: var(--frame);
+  --sidebar: var(--frame);
+  --sidebar-foreground: var(--ink);
+  --sidebar-accent: var(--press);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --surface: var(--sunken);
+  --surface-foreground: var(--ink);
+  --code: var(--sunken);
+  --code-foreground: var(--ink);
+  --code-highlight: var(--press);
+  --code-number: var(--ink-3);
   --destructive: oklch(0.5619 0.2013 21.13);
   --destructive-foreground: oklch(1 0 0);
 
-  /* STATUS COLOUR RULE - four meanings, four tokens. Never a raw hue.
-     success / warning / info / destructive. If a colour is carrying meaning it
-     comes from here; if it isn't carrying meaning it should be neutral. Each is
-     mode-aware, so one class replaces a `text-x-600 dark:text-x-400` pair. */
+  /* STATUS COLOUR RULE - four meanings, four tokens. Never a raw hue. Kept
+     from wave 2, with their guards (§3.3). */
   --success: oklch(0.5599 0.1335 152.55);
   --success-foreground: var(--color-emerald-50);
   --warning: oklch(0.5927 0.1321 65.82);
   --warning-foreground: var(--color-amber-50);
   --info: oklch(0.5608 0.1782 260.27);
   --info-foreground: var(--color-blue-50);
-  /* The meanings as text (-ink), the storefront's own values (sharedTokens
-     .test.ts). The fills are for dots, bars and tints; as small text on the
-     page the success and warning fills scored 4.27:1 and 4.10:1, under AA's
-     4.5. These cuts are darker, and paletteContrast.test.ts holds each at 4.5
-     or more on the page, on a card and on its own tint. */
+  /* The meanings as text: 4.5:1 or more on the page, a card and their tint
+     (paletteContrast.test.ts). */
   --success-ink: oklch(0.4668 0.1105 152.56);
   --warning-ink: oklch(0.4940 0.1093 66.91);
   --info-ink: oklch(0.4776 0.1597 260.88);
   --danger-ink: oklch(0.4895 0.1765 20.19);
+  /* The presence dot (§3.9). */
+  --ok: #2F9E5B;
 
-  /* line: hairlines, structure only. line-strong: input borders. */
-  --border: oklch(0.9220 0.0042 271.37);
-  --input: oklch(0.8729 0.0072 268.54);
-  /* CHART SERIES: five categorical hues, one per series, in this fixed order.
-     They were five steps of one blue, so a chart with three or more series
-     could only be read through its legend. Blue leads (not the brand orange:
-     the accent marks the one action, and an orange series would read as
-     "selected"). The order is the colour-blindness mechanism, not taste:
-     every adjacent pair stays apart under protanopia and deuteranopia
-     (OKLab dE >= 8) and under normal vision (dE >= 15), the first three stay
-     apart as a set for scatter and pie, and each holds 3:1 against the card.
-     app/chartPalette.test.ts measures all of that; re-run it before touching
-     a value. Never cycle past five: fold the rest into "Other". */
+  /* CHART SERIES: five categorical hues in a fixed order; the order is the
+     colour-blindness mechanism (app/chartPalette.test.ts). Never cycle past
+     five: fold the rest into "Other". */
   --chart-1: #2a78d6; /* blue */
   --chart-2: #c74c80; /* rose */
   --chart-3: #a86f00; /* amber */
   --chart-4: #4a3aa7; /* violet */
   --chart-5: #11865f; /* teal */
-  /* The canvas is the frame the work sits on: the sidebar, the top bar and the
-     gutter around the sheet share it (surface-2), so the chrome reads as one
-     quiet L and the page is the brightest thing on screen. */
-  --canvas: oklch(0.9727 0.0017 247.84);
-  --sidebar: var(--canvas);
-  --sidebar-foreground: oklch(0.1998 0.0086 264.36);
-  --sidebar-accent: oklch(0.9489 0.0029 264.54);
-  --sidebar-accent-foreground: oklch(0.1998 0.0086 264.36);
-  --sidebar-border: oklch(0.9220 0.0042 271.37);
-  --surface: oklch(0.9727 0.0017 247.84);
-  --surface-foreground: var(--foreground);
-  --code: var(--surface);
-  --code-foreground: var(--surface-foreground);
-  --code-highlight: oklch(0.9489 0.0029 264.54);
-  --code-number: oklch(0.6491 0.0160 264.46);
 
-  /* THE CAMP PALETTE (the playful layer, 10 Oct 2026): six identity hues,
-     named for the place the product is named after. Every person, project,
-     channel, team, doc and calendar gets one (lib/campHue.ts hueFor), so
-     colour carries identity on a calm graphite base. Three cuts each:
-       strong  marks, icons, dots, chart lines, illustration fills: 3:1 or
-               more on the page, a card, the canvas and its own tint;
-       -tint   soft grounds for tiles, chips and bands;
+  /* THE CAMP PALETTE: six hues that now carry IDENTITY AND STATUS ONLY (§3.5):
+     a person (avatar), a project (its tile), a calendar (its bar), a label
+     (a 6px dot on a neutral chip) and a status (its glyph). A channel and a
+     doc have no hue. Three cuts each, kept exactly as wave 2 set them:
+       strong  marks, icons, dots: 3:1 on every ground a mark sits on;
+       -tint   soft grounds for tiles and meaning chips;
        -ink    text on its own tint: 5.9:1 or more here, 10.4:1 in dark.
-     paletteContrast.test.ts measures all of that. They are hex, not OKLCH,
-     because they are the design direction's table verbatim and the
-     storefront pins the same table (sharedTokens.test.ts): change both
-     repos or neither. They are not status colours (success, warning,
-     danger and info keep their meanings) and never the accent, which stays
-     the one action on a view. */
+     Plus the AVATAR CUT, two gradient stops at OKLCH L .60 to .49 for a
+     saturated face with white initials (4.7 to 5.4:1 at the midpoint). The
+     avatar cut is the same in both modes. paletteContrast.test.ts measures
+     all of it; the storefront pins the same table (sharedTokens.test.ts). */
   --camp-sun: #B98200;
   --camp-sun-tint: #FFF6D6;
   --camp-sun-ink: #7A5200;
@@ -389,39 +545,150 @@
   --camp-berry: #D9467C;
   --camp-berry-tint: #FCE8EF;
   --camp-berry-ink: #962556;
+  --camp-sun-a1: #AD7300;
+  --camp-sun-a2: #855500;
+  --camp-moss-a1: #3F945B;
+  --camp-moss-a2: #0E7344;
+  --camp-lake-a1: #0F919C;
+  --camp-lake-a2: #006E7D;
+  --camp-sky-a1: #427FD8;
+  --camp-sky-a2: #315CB0;
+  --camp-dusk-a1: #816BD8;
+  --camp-dusk-a2: #6749AC;
+  --camp-berry-a1: #CA4B85;
+  --camp-berry-a2: #A32B5E;
+  --agent-a1: #6572E4;
+  --agent-a2: #5050B9;
+
+  /* MOTION (§3.14): one out-curve for press, hover and pop; an in-out curve
+     for panels; the spring for checks and toggles. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-press: 90ms;
+  --duration-hover: 140ms;
+  --duration-pop: 180ms;
+  --duration-panel: 240ms;
+  --duration-spring: 220ms;
+  --duration-page: 320ms;
+
+  /* THE WORK AREA'S MOTION (design v3, work.md §1.3): one name per moment,
+     each a duration and a curve built from the tokens above, so a guard
+     (app/workMotion.test.ts) can hold every one to the spec. Everything moves
+     transform and opacity, except the tick and arrow draws (a short
+     stroke-dashoffset) and the landed flash (a background fade). */
+  --work-check-press-ms: 90ms;
+  --work-check-press-ease: var(--ease-out);
+  --work-check-fill-ms: 220ms;
+  --work-check-fill-ease: var(--ease-spring);
+  --work-strike-ms: 180ms;
+  --work-strike-ease: var(--ease-out);
+  --work-strike-delay: 80ms;
+  --work-settle-hold: 600ms;
+  --work-settle-ms: 240ms;
+  --work-settle-ease: var(--ease-in-out);
+  --work-glyph-swap-out-ms: 90ms;
+  --work-glyph-swap-in-ms: 220ms;
+  --work-glyph-swap-ease: var(--ease-spring);
+  --work-lift-ms: 160ms;
+  --work-lift-ease: var(--ease-spring);
+  --work-make-room-ms: 160ms;
+  --work-make-room-ease: var(--ease-out);
+  --work-drop-ms: 200ms;
+  --work-drop-ease: cubic-bezier(0.2, 0, 0, 1);
+  --work-landed-ms: 700ms;
+  --work-landed-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --work-panel-in-ms: 240ms;
+  --work-panel-out-ms: 180ms;
+  --work-panel-ease: var(--ease-in-out);
+  --work-panel-swap-ms: 120ms;
+  --work-panel-swap-ease: var(--ease-out);
+  --work-grow-ms: 320ms;
+  --work-grow-stagger: 16ms;
+  --work-grow-cap: 240ms;
+  --work-grow-ease: var(--ease-out);
+  --work-tick-ms: 180ms;
+  --work-tick-ease: var(--ease-out);
+  --work-pop-ms: 180ms;
+  --work-pop-ease: var(--ease-out);
 }
 
 .dark {
-  --scroll-bar-color: #33363d;
-  --scroll-bar-bg-color: 220 10% 6%;
+  --scroll-bar-color: rgba(255, 255, 255, 0.16);
+  --scroll-bar-bg-color: transparent;
 
-  /* The brand lifts rather than darkens: the orange that reads as confident on
-     paper reads as mud on a dark ground. Its label is dark (#0E0F11), not
-     white, which is what keeps a lighter orange at AA. */
+  --frame: #0B0C0E;
+  --sheet: #131416;
+  --sunken: #0F1012;
+  --raised: #1B1C1F;
+  --pop: #1F2024;
+  --panel: #16171A;
+
+  --ink: #EEEEF0;
+  --ink-2: #A8ABB1;
+  --ink-3: #72747B;
+  --ink-4: #4A4C52;
+
+  --line: rgba(255, 255, 255, 0.065);
+  --line-2: rgba(255, 255, 255, 0.10);
+  --line-3: rgba(255, 255, 255, 0.16);
+  --hover: rgba(255, 255, 255, 0.04);
+  --press: rgba(255, 255, 255, 0.07);
+  --sel: rgba(255, 255, 255, 0.06);
+
+  /* In dark every step adds a top highlight: light catches the upper edge. */
+  --e1: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4);
+  --e-sel: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+  --e2: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px rgb(0 0 0 / 0.3), 0 8px 16px -6px rgb(0 0 0 / 0.5);
+  --e3: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.09), 0 8px 16px -4px rgb(0 0 0 / 0.5), 0 24px 48px -12px rgb(0 0 0 / 0.7);
+  --e4: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.09), 0 16px 32px -8px rgb(0 0 0 / 0.6), 0 40px 80px -20px rgb(0 0 0 / 0.8);
+  --e-sheet: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px -16px rgb(0 0 0 / 0.8);
+
+  --grain-opacity: 0.035;
+  --grain-blend: screen;
+
+  /* The brand lifts rather than darkens, with near-black text on it. */
   --brand: oklch(0.7250 0.1811 45.30);
-  --brand-foreground: oklch(0.1682 0.0045 264.45);
+  --brand-foreground: #0B0C0E;
   --brand-text: oklch(0.7514 0.1610 46.76);
-  --brand-muted: oklch(0.2356 0.0313 52.65);
-  --brand-wash: oklch(0.232 0.014 55);
-  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 20px -8px rgb(0 0 0 / 0.6);
-  --agent: oklch(0.7629 0.1064 278.81);
-  --agent-foreground: oklch(0.1682 0.0045 264.45);
-  --agent-muted: oklch(0.2621 0.0577 277.45);
+  --brand-muted: #2A1A10;
+  --progress-from: #FF8A00;
+  --progress-to: #FF3D00;
+  --glow: 255 110 30;
+  --glow2: 255 61 0;
 
-  --background: oklch(0.1682 0.0045 264.45);
-  --foreground: oklch(0.9489 0.0029 264.54);
-  --card: oklch(0.2086 0.0085 264.37);
-  --card-foreground: oklch(0.9489 0.0029 264.54);
-  --popover: oklch(0.2086 0.0085 264.37);
-  --popover-foreground: oklch(0.9489 0.0029 264.54);
-  --ink: oklch(0.9489 0.0029 264.54);
-  --secondary: oklch(0.2426 0.0105 260.69);
-  --secondary-foreground: oklch(0.9489 0.0029 264.54);
-  --muted: oklch(0.2426 0.0105 260.69);
-  --muted-foreground: oklch(0.7049 0.0156 264.47);
-  --faint-foreground: oklch(0.5443 0.0167 264.43);
-  --accent: oklch(0.2426 0.0105 260.69);
-  --accent-foreground: oklch(0.9489 0.0029 264.54);
+  --agent: #9AA2F6;
+  --agent-foreground: #0B0C0E;
+  --agent-muted: #1E2040;
+  --agent-ink: #C9CDFB;
+
+  --background: var(--sheet);
+  --foreground: var(--ink);
+  --card: var(--raised);
+  --card-foreground: var(--ink);
+  --popover: var(--pop);
+  --popover-foreground: var(--ink);
+  --secondary: var(--sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--sunken);
+  --muted-foreground: var(--ink-2);
+  --faint-foreground: var(--ink-3);
+  --accent: var(--hover);
+  --accent-foreground: var(--ink);
+  --border: var(--line);
+  --input: var(--line-3);
+  --canvas: var(--frame);
+  --sidebar: var(--frame);
+  --sidebar-foreground: var(--ink);
+  --sidebar-accent: var(--press);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --surface: var(--sunken);
+  --surface-foreground: var(--ink);
+  --code: var(--sunken);
+  --code-foreground: var(--ink);
+  --code-highlight: var(--press);
+  --code-number: var(--ink-3);
+
   --success: oklch(0.7350 0.1362 159.28);
   --warning: oklch(0.8069 0.1373 78.17);
   --info: oklch(0.7156 0.1322 258.28);
@@ -432,34 +699,17 @@
   --warning-ink: oklch(0.8069 0.1373 78.17);
   --info-ink: oklch(0.7156 0.1322 258.28);
   --danger-ink: oklch(0.7457 0.1546 18.61);
-  /* Dark text on the destructive surface: the red lifts in dark mode, and
-     white on it fails AA. */
+  /* Dark text on the destructive surface: white on the lifted red fails AA. */
   --destructive-foreground: oklch(0.1682 0.0045 264.45);
-  --border: oklch(0.2769 0.0096 268.32);
-  --input: oklch(0.3327 0.0130 267.15);
+  --ok: #4CC38A;
   /* The same five hues, stepped for the dark card (chartPalette.test.ts). */
   --chart-1: #3987e5;
   --chart-2: #d55181;
   --chart-3: #c98500;
   --chart-4: #9085e9;
   --chart-5: #199e70;
-  /* surface-2, as in light: the sidebar steps up from the page. */
-  --canvas: oklch(0.2426 0.0105 260.69);
-  --sidebar: var(--canvas);
-  --sidebar-foreground: oklch(0.9489 0.0029 264.54);
-  --sidebar-accent: oklch(0.2763 0.0119 264.36);
-  --sidebar-accent-foreground: oklch(0.9489 0.0029 264.54);
-  --sidebar-border: oklch(0.2769 0.0096 268.32);
-  --surface: oklch(0.2426 0.0105 260.69);
-  --surface-foreground: oklch(0.7049 0.0156 264.47);
-  --code: var(--surface);
-  --code-foreground: var(--surface-foreground);
-  --code-highlight: oklch(0.2763 0.0119 264.36);
-  --code-number: oklch(0.5443 0.0167 264.43);
 
-  /* The camp hues lift on the dark ground and their tints sink into it: the
-     strong cut stays a mark, the tint stays a quiet ground, and the ink on it
-     is 10.4:1 or more. */
+  /* The camp hues lift on the dark ground and their tints sink into it. */
   --camp-sun: #F5C542;
   --camp-sun-tint: #2E2712;
   --camp-sun-ink: #FBE29C;
@@ -479,6 +729,7 @@
   --camp-berry-tint: #33161F;
   --camp-berry-ink: #F9C2D6;
 }
+
 
 @keyframes blink {
   50% {
@@ -512,13 +763,6 @@
    seconds, never all of it until the request is done. A full-width bar,
    scaled from its left edge: the compositor draws that on its own, where
    animating width laid the page out again on every frame of every request. */
-@keyframes load-progress {
-  0% { transform: scaleX(0); }
-  20% { transform: scaleX(0.3); }
-  50% { transform: scaleX(0.6); }
-  80%, 100% { transform: scaleX(0.9); }
-}
-
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
@@ -535,6 +779,244 @@
 @keyframes spring-pop {
   0%, 100% { scale: 1; }
   45% { scale: 1.12; }
+}
+
+/* CHAT MOTION's keyframes (chat.md §1.3). Transform and opacity only. */
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* Your own message rises from the composer's side, as if it left the box. */
+@keyframes msg-in-own {
+  from { opacity: 0.4; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes row-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.985); }
+}
+@keyframes pill-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes react-pop {
+  0% { opacity: 0; scale: 0.6; }
+  60% { opacity: 1; scale: 1.08; }
+  100% { opacity: 1; scale: 1; }
+}
+@keyframes react-out {
+  from { opacity: 1; scale: 1; }
+  to { opacity: 0; scale: 0.8; }
+}
+/* A count that changes: the old digit leaves upward, the new one arrives from below. */
+@keyframes count-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes count-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+/* The floating material's entrance: opacity, scale .98 and 4px from the trigger. */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+/* The formatting row reveals inside the composer's new room (clip-path and
+   opacity, no height). */
+@keyframes format-reveal {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; clip-path: inset(0); }
+}
+/* The phone's pressed message lifting above its action sheet (C61). */
+@keyframes preview-lift {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+/* The hover toolbar's first reveal: 2px and .98 to rest, in 120 ms. */
+@keyframes toolbar-in {
+  from { opacity: 0; transform: translateY(2px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+/* A ground that settles: drawn on a layer of its own, whose opacity fades. */
+@keyframes glow-settle {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes typing-bob {
+  0%, 60%, 100% { transform: none; opacity: 0.5; }
+  30% { transform: translateY(-2px); opacity: 1; }
+}
+/* Orbit dots travel 24 degrees to rest; each face turns back the other way,
+   so it stays upright. */
+@keyframes orbit-in {
+  from { rotate: -24deg; }
+  to { rotate: 0deg; }
+}
+@keyframes orbit-in-counter {
+  from { rotate: 24deg; }
+  to { rotate: 0deg; }
+}
+@keyframes twinkle {
+  0% { scale: 0; opacity: 0; }
+  60% { scale: 1.2; opacity: 1; }
+  100% { scale: 1; opacity: 1; }
+}
+/* On air: one ring leaves the live dot every 2.4 s. */
+@keyframes live-halo {
+  0% { transform: scale(1); opacity: 0.55; }
+  70%, 100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes nudge {
+  0%, 100% { transform: none; }
+  33% { transform: translateX(-2px); }
+  66% { transform: translateX(2px); }
+}
+@keyframes line-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@keyframes clock-hand {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+@keyframes empty-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(8px); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* THE FLOATING MATERIAL (chat.md §2.3): every popover, menu, picker,
+   suggestion list and hover toolbar in a conversation. The pop surface at
+   e3, r12 for menus and lists (r10 for a toolbar), no border: the ladder
+   draws its edge. Items inside are 30px at r8, hover and keyboard selection
+   on --press. */
+@utility pop-surface {
+  background-color: var(--pop);
+  color: var(--ink);
+  border-radius: 12px;
+  border-width: 0;
+  box-shadow: var(--e3);
+}
+
+/* The focus halo of a field that is always focused while it shows (design
+   v3, §3.10): a 1px accent ring at 50% and a 3px halo at 12%, as a focused
+   input. The composer, the edit-in-place box. */
+@utility focus-halo {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+}
+
+/* The conversation's composer (design v3 chat, C38): the raised surface at
+   e2; with focus inside, the accent's 1px ring and 3px halo over a soft drop,
+   in 140 ms. A colour change only: the card never grows or moves. */
+@utility composer-card {
+  box-shadow: var(--e2);
+  transition: box-shadow 140ms var(--ease-out);
+  &:focus-within {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent), 0 4px 12px -4px rgb(16 18 26 / 0.1);
+  }
+}
+
+/* THE WORK AREA'S MOMENTS (work.md §1.3). Each is a class a component adds
+   for the moment it plays; the global reduced-motion rule below cuts every
+   one of them to nothing, which is each moment's reduced-motion form (the
+   final state, at once). */
+/* check-fill: the moss disc springs in, .4 -> 1.12 -> 1. */
+@keyframes work-check-fill {
+  0% { transform: scale(0.4); opacity: 0.6; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+/* The white tick draws in after it (pathLength 1). */
+@keyframes work-tick-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+/* glyph-swap: the old glyph shrinks away, the new one springs in. */
+@keyframes work-glyph-out {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.6); opacity: 0; }
+}
+@keyframes work-glyph-in {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+/* strike: a line under a finished title scales in from the left. */
+@keyframes work-strike {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+/* landed: the brand-muted flash on what was just moved, fading out. */
+@keyframes work-landed {
+  from { background-color: color-mix(in oklab, var(--brand-muted) 100%, transparent); }
+  to { background-color: transparent; }
+}
+/* panel-in / panel-out: the task panel's content slides 16px and fades. */
+@keyframes work-panel-in {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes work-panel-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(16px); opacity: 0; }
+}
+/* panel-swap: another task's content crossfades; its title rises 4px. */
+@keyframes work-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes work-rise-in {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+/* grow: bars from their start or their baseline. */
+@keyframes work-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes work-grow-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+/* tick: a changed count's digit leaves upward and the new one rises in. */
+@keyframes work-tick-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-6px); opacity: 0; }
+}
+@keyframes work-tick-in {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+/* pop: a new card, chip or menu arrives. */
+@keyframes work-pop-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+/* A row revealed in a list: up 4px from below, staggered by its caller. */
+@keyframes work-row-in {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+/* The running timer's dot breathes. */
+@keyframes work-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.6; }
+}
+/* The Camp tier's rings: two rings leave the finished ring and fade. */
+@keyframes work-ring-pulse {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(1.6); opacity: 0; }
 }
 
 /* A knob or thumb that travels (a switch) lands with a slight overshoot. */
@@ -556,31 +1038,233 @@
   --hue: var(--camp-sun);
   --hue-tint: var(--camp-sun-tint);
   --hue-ink: var(--camp-sun-ink);
+  --hue-a1: var(--camp-sun-a1);
+  --hue-a2: var(--camp-sun-a2);
 }
 @utility hue-moss {
   --hue: var(--camp-moss);
   --hue-tint: var(--camp-moss-tint);
   --hue-ink: var(--camp-moss-ink);
+  --hue-a1: var(--camp-moss-a1);
+  --hue-a2: var(--camp-moss-a2);
 }
 @utility hue-lake {
   --hue: var(--camp-lake);
   --hue-tint: var(--camp-lake-tint);
   --hue-ink: var(--camp-lake-ink);
+  --hue-a1: var(--camp-lake-a1);
+  --hue-a2: var(--camp-lake-a2);
 }
 @utility hue-sky {
   --hue: var(--camp-sky);
   --hue-tint: var(--camp-sky-tint);
   --hue-ink: var(--camp-sky-ink);
+  --hue-a1: var(--camp-sky-a1);
+  --hue-a2: var(--camp-sky-a2);
 }
 @utility hue-dusk {
   --hue: var(--camp-dusk);
   --hue-tint: var(--camp-dusk-tint);
   --hue-ink: var(--camp-dusk-ink);
+  --hue-a1: var(--camp-dusk-a1);
+  --hue-a2: var(--camp-dusk-a2);
 }
 @utility hue-berry {
   --hue: var(--camp-berry);
   --hue-tint: var(--camp-berry-tint);
   --hue-ink: var(--camp-berry-ink);
+  --hue-a1: var(--camp-berry-a1);
+  --hue-a2: var(--camp-berry-a2);
+}
+
+/* AVATARS (design v3, §3.9). A person without a photo is a circle filled with
+   their hue's avatar cut, a1 to a2 at 140 degrees, with white initials (600)
+   and a soft inner ring; a photo covers it. An agent is a 32%-radius square
+   in the agent gradient with the white spark, never initials, so an agent
+   never reads as a person. A bot (Check-in, the Slack bridge) is a 32% square
+   on the sunken surface with a ring and an ink-2 glyph. avatar-person needs a
+   hue-* class beside it (avatarHueClass in components/ui/graphics/hues.ts). */
+@utility avatar-person {
+  background-image: linear-gradient(140deg, var(--hue-a1), var(--hue-a2));
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.22), 0 0 0 1px rgb(16 18 26 / 0.06);
+}
+@utility avatar-agent {
+  border-radius: 32%;
+  background-image: linear-gradient(140deg, var(--agent-a1), var(--agent-a2));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.22), 0 0 0 1px rgb(16 18 26 / 0.06);
+}
+@utility avatar-bot {
+  border-radius: 32%;
+  background: var(--sunken);
+  color: var(--ink-2);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+
+/* FIELDS (design v3, §3.10): the raised surface at e1, no border. Focus is a
+   1px accent ring at 50% and a 3px halo at 12%; invalid is the same in
+   danger. Shared by Input, Textarea and the Select trigger, so a field and a
+   select beside it can never drift apart. Composes with the ring utilities
+   rather than replacing them, because the halo IS the box-shadow. */
+@layer components {
+  /* A class in the components layer rather than a utility, so a caller's own
+     utilities win: an inline-edited title that says bg-transparent and
+     shadow-none stays bare, where a utility painted it raised at e1. */
+  .field-surface {
+    background-color: var(--raised);
+    box-shadow: var(--e1);
+    transition-property: box-shadow, background-color, color;
+    transition-duration: 140ms;
+    transition-timing-function: var(--ease-out);
+    &::placeholder {
+      color: var(--ink-3);
+    }
+    &:hover:not(:disabled):not(:focus-visible) {
+      box-shadow: 0 0 0 1px var(--line-3), 0 1px 2px rgb(16 18 26 / 0.05);
+    }
+    &:focus-visible,
+    &[data-state="open"] {
+      outline: none;
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    }
+    &[aria-invalid="true"] {
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--destructive) 12%, transparent);
+    }
+    &:disabled {
+      cursor: not-allowed;
+      background-color: var(--sunken);
+      color: var(--ink-3);
+      box-shadow: 0 0 0 1px var(--line);
+    }
+  }
+}
+
+/* CHIPS AND TAGS (design v3, §3.10). A chip is 22px, r6, 12/510, on the hover
+   overlay inside a hairline: neutral, because colour is a noun. Identity
+   rides on a 6px dot (a label's hue, LabelChip); a tint is only for meaning
+   ("Due today" sun, "Overdue" danger). A tag (Agent, Bot, Guest) is 18px, r5,
+   11/510. */
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 510;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  background-color: var(--hover);
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+/* A label that appears over a glyph after a beat (work.md W01: the status
+   word over its glyph, at 400 ms): drawn by CSS from data-tip, so a list of
+   200 rows carries no tooltip components. Inverted ink, as the app's
+   tooltips are; it pops in on transform and opacity. */
+@utility work-tip {
+  position: relative;
+  &::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    z-index: 60;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--sheet);
+    font-size: 12px;
+    font-weight: 510;
+    line-height: 16px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.98);
+    transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+    transition-delay: 0ms;
+  }
+  &[data-tip=""]::after {
+    display: none;
+  }
+  @media (hover: hover) {
+    &:hover::after {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+      transition-delay: 400ms;
+    }
+  }
+}
+/* The work area's three rings, named so no component draws its own shadow:
+   the input halo on focus (design v3, §3.10), a hairline ring for a chip
+   that filters, and the keyboard cursor's inset brand ring (work.md W13). */
+@utility focus-halo {
+  &:focus,
+  &:focus-visible {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+}
+@utility ring-line {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+@utility ring-cursor {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 45%, transparent);
+}
+@utility tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 510;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+
+/* PRESENCE (design v3, §3.9): a dot 30% of the avatar (8px at least) in --ok,
+   with a 2px ring in the surface colour, at the avatar's bottom right. The
+   ring follows the surface it sits on: --presence-ring, the sheet by default
+   and the frame in the sidebar. */
+@utility presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 30%;
+  height: 30%;
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 9999px;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px var(--presence-ring, var(--sheet));
+}
+
+/* KBD (design v3, §3.10): 18px, r4, 11/510, on the sheet with a line-2 ring
+   and a 1px bottom inset. */
+@utility kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 510;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--ink-3);
+  background: var(--sheet);
+  box-shadow: 0 0 0 1px var(--line-2), inset 0 -1px 0 var(--line-2);
 }
 
 /* What progress fills with: the logo's gradient in the house theme, the
@@ -608,11 +1292,10 @@
  * and every descendant inherits the right value. Verified in a real browser
  * rather than reasoned about, because the two look identical in the source.
  *
- * The frame is here for the same reason: the canvas (the sidebar, the top bar
- * and the gutter round the sheet) and the phone's navigation take the theme's
- * wash, so choosing a theme visibly re-themes the app the way Slack's themes
- * recolour its sidebar. The sheet itself stays --background. Native controls
- * take the accent here too: accent-color on :root never saw the theme.
+ * The theme's other job, its light on the frame (the campfire glow, --glow
+ * and --glow2), is read where the glow is painted (.app-frame), which is
+ * inside body, so it sees the theme too. Native controls take the accent
+ * here: accent-color on :root never saw the theme.
  */
 body {
   --primary: var(--brand-text);
@@ -621,15 +1304,13 @@ body {
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
-  /* Selected text is a tint of the accent under the text's own ink, not a
-     solid slab of it: a selected paragraph stays readable at 9:1 or more in
-     every theme (paletteContrast.test.ts). Mixed into the page rather than
-     into transparent: Chromium paints nothing for a translucent ::selection
+  /* Selected text is the accent at 22% (design v3) under the text's own
+     ink: a selected paragraph stays readable in every theme
+     (paletteContrast.test.ts). Mixed into the page rather than into
+     transparent: Chromium paints nothing for a translucent ::selection
      background, so a see-through tint simply vanished. */
-  --selection: color-mix(in oklab, var(--brand) 26%, var(--background));
+  --selection: color-mix(in oklab, var(--brand) 22%, var(--background));
   --selection-foreground: var(--foreground);
-  --canvas: var(--brand-wash);
-  --sidebar: var(--brand-wash);
   accent-color: var(--brand);
 }
 
@@ -642,14 +1323,21 @@ body {
     @apply bg-selection text-selection-foreground;
   }
 
-  /* Search wraps what matched in <mark>. Unstyled, that is the browser's
-     yellow: a highlighter on the paper, and glaring in dark mode. A tint of
-     the accent keeps the text in its own colour and reads in both themes. */
+  /* Search wraps what matched in <mark> (hub.md S10). It is a highlighter,
+     so it is the sun ("found") at 24%, 30% in dark, in the text's own colour
+     at 510: the browser's yellow glared in dark mode, and the accent tint it
+     replaced spent brand-muted, which is reserved for "about you". */
   mark {
-    background-color: color-mix(in oklab, var(--primary) 18%, transparent);
+    background-color: color-mix(in oklab, var(--camp-sun) 24%, transparent);
     color: inherit;
-    border-radius: 2px;
+    font-weight: 510;
+    border-radius: 3px;
     padding: 0 1px;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .dark mark {
+    background-color: color-mix(in oklab, var(--camp-sun) 30%, transparent);
   }
 
   /* Applied here rather than per component, because "which face is a heading"
@@ -678,20 +1366,30 @@ body {
 
   body {
     font-synthesis-weight: none;
-    text-rendering: optimizeLegibility;
+    /* No text-rendering: optimizeLegibility. It is what ran words together on
+       Linux at 1x ("load testis", "andI"), with or without tracking: rendered
+       side by side on 11 Oct 2026, Inter at 15px and -0.135px tracking was
+       clean, and the same line at 0 tracking with optimizeLegibility
+       collided. Kerning is on by default anyway. */
     /* Crisp Inter rendering. Without antialiasing, Inter renders heavier and
        slightly blurry on macOS WebKit/Blink; the subtle negative tracking is
        what Inter is designed for and gives the app a tighter, premium feel. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* No letter-spacing on text. It was -0.011em here, which computes to a
-       fixed -0.154px and is inherited by every element at every size. Where
-       glyphs are placed on whole pixels (Chrome on Linux at 1x, which is how
-       the demo was screenshotted), that fraction tipped word gaps under the
-       threshold and words ran together: "the Q4 launchis up", "Fixthe signup".
-       Inter's own spacing is right at 13 to 15px. app/tracking.test.ts keeps
-       negative tracking off text under 20px. */
-    letter-spacing: normal;
+    /* Inter as v3 sets it: its optical sizes on (a 14px label takes the text
+       cut, a 30px title the display cut), and three of its features: cv11
+       the single-storey a, ss01 open digits, ss03 round quotes. The tracking
+       comes with the size (text-sm is -0.006em, Inter's own value at 14px,
+       app/tracking.test.ts), so it is not set here. */
+    font-optical-sizing: auto;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    /* A word gap gives back what the tracking takes from it. Letter-spacing
+       is added after the space as well as after the letter before it, so
+       -0.006em tracking narrows every word gap by about 0.17px at 14px, and
+       where Chromium places glyphs on whole pixels (Linux at 1x) that tipped
+       "load test is" into "load testis". 0.01em (0.14px) puts the gap back
+       and leaves the letters tight; measured side by side on 11 Oct 2026. */
+    word-spacing: 0.01em;
     /* 14/20 is the default; anything that sets no size of its own reads at the
        size of a list row, not of a paragraph on the web. */
     @apply bg-background text-foreground text-sm;
@@ -716,9 +1414,17 @@ body {
     @apply opacity-60 md:opacity-100;
   }
 
-  /* Headings take no extra tracking: Inter Tight is a tight cut already, and
-     an h3 is often 14px, where negative tracking runs words together. A large
-     title that wants it says so with a tracking-* utility. */
+  /* Display sizes (28px and up) take Inter's display cut outright, opsz 32:
+     the Home greeting, a doc's title, any text-3xl and up. Below that,
+     font-optical-sizing picks the cut from the size. */
+  :where(.text-display, .text-doc-title, .text-3xl, .text-4xl, .text-5xl, .text-6xl) {
+    font-variation-settings: "opsz" 32;
+  }
+
+  /* Bold in running text is the heading weight, never 700 (design v3). */
+  b, strong {
+    font-weight: 590;
+  }
 }
 
 @utility border-grid {
@@ -774,70 +1480,73 @@ body {
    padding, a border appearing) and is how a hover turns into jank. */
 @utility transition-hover {
   transition-property: color, background-color, border-color, opacity, box-shadow, transform;
-  transition-duration: 120ms;
+  transition-duration: 140ms;
   transition-timing-function: var(--ease-standard);
 }
 
 @utility transition-focus {
   transition-property: color, background-color, border-color, opacity, box-shadow, transform;
-  transition-duration: 150ms;
+  transition-duration: 180ms;
   transition-timing-function: var(--ease-standard);
 }
 
 @utility transition-modal {
   transition-property: opacity, transform;
-  transition-duration: 200ms;
-  transition-timing-function: var(--ease-standard);
+  transition-duration: 240ms;
+  transition-timing-function: var(--ease-in-out);
 }
 
 @utility focus-ring {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70;
 }
 
-/* ELEVATION RULE — a shadow means "this surface floats above the page". Nothing
-   else gets one.
+/* ELEVATION IS A MATERIAL (design v3, §3.8). Every surface sits on one step of
+   the ladder, and every step is a ring plus drops, so no surface needs a
+   border: shadow-e1 resting (secondary buttons, inputs, cards), shadow-sel
+   the selected nav chip, shadow-e2 raised (the composer, a card under the
+   cursor), shadow-e3 floating (menus, popovers, hover toolbars), shadow-e4
+   modal (dialogs and sheets), shadow-sheet the main panel. Flat is allowed
+   only inside another surface. This reverses wave 1's "no shadows below
+   popovers": a 1px grey line on white was the wireframe look.
 
-   shadow-overlay is for transient layers that genuinely float: menus, popovers,
-   dropdowns, dialogs, toasts. A soft shadow plus a hairline ring so edges read
-   crisply on any background.
-
-   Everything that lives IN the page — cards, panels, rows, inputs, buttons, tiles
-   — is flat, and separates with a border, a background step, or space. That is
-   most of the difference between reading as a document and reading as a stack of
-   physical objects, and it only works if it holds consistently: when a static
-   card, every input AND every button all carry a shadow, elevation stops carrying
-   any information at all. Card/Input/Textarea/Button were flattened for exactly
-   this reason.
-
-   One exception, and only on purpose: hover-lift (the playful layer, "Motion")
-   lifts a card a single pixel under the cursor, with the shadow growing a
-   little, for a card that IS a thing to open (a Home card, a template). The
-   old lift rose 2px on everything and read as a 2021 template; this one is
-   opt-in, 1px, and stands still for prefers-reduced-motion (the shadow alone
-   says it). Rows, inputs and buttons never take it: their hover is a
-   background step (hover-surface below). */
+   shadow-overlay and shadow-dialog stay as names for the floating and modal
+   steps, so the menus, popovers and dialogs that asked for them move with
+   the ladder. shadowTokens.test.ts allows the ladder and nothing else. */
 @utility shadow-overlay {
-  @apply shadow-lg ring-1 ring-black/[0.06] dark:ring-white/10;
+  @apply shadow-e3;
 }
 
-/* The dialog layer, for dialogs and sheets. */
 @utility shadow-dialog {
-  @apply shadow-xl ring-1 ring-black/[0.06] dark:ring-white/10;
+  @apply shadow-e4;
+}
+
+/* The primary button (§3.8): an inner highlight and a brand-tinted drop, not
+   a gradient, so "no gradient buttons" holds. Written here rather than as a
+   token on :root because it mixes the accent, and a var() in a custom
+   property resolves where it is declared: on :root it would never see the
+   theme on body. */
+@utility shadow-primary {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), inset 0 -1px 0 rgb(0 0 0 / 0.08), 0 0 0 1px color-mix(in oklab, var(--brand) 82%, black), 0 1px 2px rgb(16 18 26 / 0.18), 0 2px 6px -2px color-mix(in oklab, var(--brand) 45%, transparent);
+  &:where(.dark *) {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 -1px 0 rgb(0 0 0 / 0.12), 0 0 0 1px color-mix(in oklab, var(--brand) 70%, black), 0 2px 8px -2px color-mix(in oklab, var(--brand) 35%, transparent);
+  }
 }
 
 @utility hover-surface {
   @apply transition-hover hover:bg-highlight hover:text-accent-foreground;
 }
 
-/* The lift is a translate, and the bigger shadow is drawn once on a layer of
-   its own (::after) that fades in, so the whole hover runs on the compositor.
+/* A card that IS a thing to open lifts under the cursor (design v3, §3.11:
+   cards add e2 and -1px y), opt-in. The lift is a translate, and the e2
+   shadow is drawn once on a layer of its own (::after) that fades in, so the
+   whole hover runs on the compositor.
    Transitioning box-shadow repainted the card on every frame of the hover
    (motionCost.test.ts). A card that takes it needs its ::after free. */
 @utility hover-lift {
   position: relative;
   isolation: isolate;
   transition-property: translate;
-  transition-duration: 160ms;
+  transition-duration: 140ms;
   transition-timing-function: var(--ease-standard);
   &::after {
     content: "";
@@ -845,10 +1554,10 @@ body {
     inset: 0;
     z-index: -1;
     border-radius: inherit;
-    box-shadow: var(--shadow-lift);
+    box-shadow: var(--e2);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 160ms var(--ease-standard);
+    transition: opacity 140ms var(--ease-standard);
   }
   @media (hover: hover) {
     &:hover {
@@ -875,7 +1584,7 @@ body {
   @media (hover: hover) {
     .hover-lift.ai-panel:hover,
     .hover-lift.overflow-hidden:hover {
-      box-shadow: var(--shadow-lift);
+      box-shadow: var(--e2);
     }
   }
 }
@@ -1008,7 +1717,6 @@ body {
   * {
     /*scrollbar-width: thin !important;*/
     scrollbar-color: var(--scroll-bar-color) var(--scroll-bar-bg-color);
-    font-feature-settings: "calt" 0;
   }
 
   /* Works on Chrome, Edge, and Safari */
@@ -1105,36 +1813,15 @@ body {
   }
 }
 
-/* Collaboration Cursors */
-.collaboration-cursor__caret {
-  border-left: 2px solid currentColor;
-  border-right: 2px solid currentColor;
-  margin-left: -1px;
-  margin-right: -1px;
-  pointer-events: none;
-  position: relative;
-  word-break: normal;
+/* The editor's own stylesheet (ProseMirror, injected at runtime and so after
+   this file) sets font-feature-settings: "liga" 0 on every editor, which
+   switched off v3's features in every message and doc. Ligatures stay off
+   there; the features come back. */
+html .ProseMirror {
+  font-feature-settings: "liga" 0, "cv11", "ss01", "ss03";
 }
 
-.collaboration-cursor__label {
-  border-radius: 3px 3px 3px 0;
-  color: var(--primary-foreground);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 700;
-  left: -1px;
-  line-height: normal;
-  padding: 0.1rem 0.3rem;
-  position: absolute;
-  top: -1.4em;
-  user-select: none;
-  white-space: nowrap;
-  text-transform: uppercase;
-}
-
-.dark .collaboration-cursor__label {
-  color: var(--primary);
-}
+/* Collaborator carets live with the editor (minimal-tiptap/styles/index.css). */
 
 
 /* /collapse and /expand slash commands toggle this attribute on <html> via
@@ -1160,12 +1847,19 @@ html[data-media-collapsed="true"] [data-message-media] {
   }
   html { -webkit-tap-highlight-color: transparent; }
 
-  /* ICONS: Lucide, from @/lib/icons, at a 1.5 stroke (design direction,
-     "Icons"). Lucide's default is 2, which at 16px next to 14px Inter reads
-     heavier than the text it labels. This reaches only icons left at the
-     default: an icon that sets its own strokeWidth (1.75 in the nav, 2.5 on a
-     check) keeps it, because that was a decision. */
-  svg.lucide[stroke-width="2"] { stroke-width: 1.5; }
+  /* ICONS (design v3, §3.12): Lucide, from @/lib/icons, at ONE RENDERED
+     STROKE of 1.25px whatever the size, which is stroke-width = 30 / size in
+     Lucide's 24-unit box (16px draws 1.875, 14px 2.1, 20px 1.5). Drawn here
+     with a non-scaling stroke, so the rule holds for every size an icon is
+     given by its classes, and a strokeWidth prop on a registry icon can only
+     ever say 30 / size (iconStroke.test.ts). Rendered strokes on one screen
+     ran from 1.12 to 1.33px before; Linear and Raycast hold one weight. */
+  svg.lucide {
+    stroke-width: 1.25px;
+  }
+  svg.lucide :is(path, line, polyline, polygon, circle, rect, ellipse) {
+    vector-effect: non-scaling-stroke;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1174,48 +1868,99 @@ html[data-media-collapsed="true"] [data-message-media] {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* Chat's reduced-motion pairs (chat.md §1.3): what moves becomes a short
+     dissolve, which Apple's criteria allow in place of movement; status
+     motion that carries information stays still and readable. A class beats
+     the universal rule above at the same !important. */
+  .animate-msg-in, .animate-msg-in-own, .animate-panel-in, .animate-pill-in, .animate-pop-in, .animate-toolbar-in, .animate-preview-lift {
+    animation: fade-in 120ms ease-out both !important;
+  }
+  .animate-typing-bob {
+    animation: none !important;
+    opacity: 0.6;
+  }
 }
 
-/* The sheet: the one raised surface in the app, where the work is. The canvas
-   around it carries the navigation, so the page is always the brightest,
-   nearest thing on screen (the inverted-L frame). A hairline and no shadow:
-   the sheet is the page, not something floating over it. */
+/* THE FRAME AND THE SHEET (design v3, §3.2). The frame is neutral graphite
+   with the theme shown as light: the campfire glow, a radial of the theme's
+   hue behind the workspace mark (--glow, --glow2 from app/themes.css), and a
+   3.5% grain. It replaced the flat warm wash, which read as beige in light and
+   coffee-brown in dark. The glow is on the frame only, never on the sheet, and
+   the sheet sits on it at e-sheet, so the page is the brightest, nearest
+   thing on screen. The grain goes for prefers-reduced-transparency. */
 @layer components {
-  .app-sheet {
-    background: var(--background);
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) + 4px);
-  }
-
-  /* Navigation on the canvas, which is the theme's wash. The current place is
-     the one spot of accent in the sidebar: the soft accent ground under ink
-     text, and a 2px bar of the accent at the start edge. The ground is
-     brand-muted taken one step deeper with the accent itself, because the
-     wash is a tint of the same hue and brand-muted alone all but vanished on
-     it; the step holds in every theme and both modes (paletteContrast). Hover
-     is a step of ink over the wash, so it keeps the wash's hue rather than
-     laying a grey patch on it, and only the current place carries accent. */
-  .nav-active {
+  .app-frame {
     position: relative;
-    background: color-mix(in oklab, var(--brand) 12%, var(--brand-muted));
-    color: var(--foreground);
+    isolation: isolate;
+    background: var(--frame);
   }
-  .nav-active::before {
+  .app-frame::before,
+  .app-frame::after {
     content: "";
     position: absolute;
-    inset-block: 6px;
-    inset-inline-start: 0;
-    width: 2px;
-    border-start-end-radius: 2px;
-    border-end-end-radius: 2px;
-    background: var(--brand);
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .app-frame::before {
+    background:
+      radial-gradient(760px 520px at -80px -100px, rgb(var(--glow) / 0.24), transparent 68%),
+      radial-gradient(480px 340px at 80px 1000px, rgb(var(--glow2) / 0.09), transparent 70%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.045), transparent 55%);
+  }
+  .dark .app-frame::before {
+    background:
+      radial-gradient(700px 480px at -80px -100px, rgb(var(--glow) / 0.17), transparent 68%),
+      radial-gradient(480px 340px at 80px 1000px, rgb(var(--glow2) / 0.08), transparent 70%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.03), transparent 55%);
+  }
+  .app-frame::after {
+    opacity: var(--grain-opacity);
+    mix-blend-mode: var(--grain-blend);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .app-frame::after {
+      display: none;
+    }
+  }
+
+  .app-sheet {
+    background: var(--sheet);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--e-sheet);
+  }
+
+  /* Navigation on the frame. The current place is a RAISED CHIP (the raised
+     surface at e-sel, as Arc's selected tab): its label in ink at 510 and its
+     icon in the accent, filled where Lucide's shape has an inside. No bar and
+     no tint: the peach row and its orange bar are retired. Hover is the alpha
+     hover, so it reads on the frame and on the glow alike. */
+  .nav-active {
+    position: relative;
+    background: var(--raised);
+    box-shadow: var(--e-sel);
+    color: var(--ink);
+    font-weight: 510;
+  }
+  .nav-active svg.lucide {
+    color: var(--brand);
+  }
+  .nav-active :is(svg.lucide-house, svg.lucide-inbox, svg.lucide-bell, svg.lucide-bookmark, svg.lucide-message-square, svg.lucide-calendar, svg.lucide-folder, svg.lucide-file-text) {
+    fill: color-mix(in oklab, var(--brand) 20%, transparent);
   }
   .nav-idle {
-    color: var(--muted-foreground);
+    color: var(--ink-2);
+  }
+  .nav-idle svg.lucide {
+    color: var(--ink-3);
   }
   .nav-idle:hover {
-    background: color-mix(in oklab, var(--foreground) 6%, var(--canvas));
-    color: var(--foreground);
+    background: var(--hover);
+    color: var(--ink);
+  }
+  .nav-idle:hover svg.lucide {
+    color: var(--ink);
   }
 }
 
@@ -1249,13 +1994,20 @@ html[data-media-collapsed="true"] [data-message-media] {
 /* An invoice is paper: light in any theme, on screen and when printed. The
    same values as the light :root tokens, scoped to the invoice. */
 .invoice-paper {
-  --background: oklch(0.9913 0.0013 286.38);
-  --foreground: oklch(0.1998 0.0086 264.36);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.1998 0.0086 264.36);
-  --muted: oklch(0.9727 0.0017 247.84);
-  --muted-foreground: oklch(0.5031 0.0200 267.61);
-  --border: oklch(0.9220 0.0042 271.37);
+  --sheet: #FFFFFF;
+  --raised: #FFFFFF;
+  --sunken: #F8F9FA;
+  --ink: #16171B;
+  --ink-2: #5B5D65;
+  --ink-3: #8A8C92;
+  --line: rgba(20, 22, 30, 0.075);
+  --background: #FFFFFF;
+  --foreground: #16171B;
+  --card: #FFFFFF;
+  --card-foreground: #16171B;
+  --muted: #F8F9FA;
+  --muted-foreground: #5B5D65;
+  --border: rgba(20, 22, 30, 0.075);
   color-scheme: light;
 }
 @media print {
@@ -1304,5 +2056,1688 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   svg[data-spot] {
     max-width: 72px;
     max-height: 72px;
+  }
+}
+/* V3 SHELL: SIDEBAR, FRAME AND PANELS (design v3, shell S1-S13, A1, M1-M3,
+   T3, V1-V2; v3-areas/shell.md and shell-mocks.html). The top bar is gone:
+   the sidebar sits on the lit frame with its header, the search pill, four
+   rows, the sections and the foot; every page, split pane and the right
+   panel is its own sheet, 8px off the frame, so the glow shows in the seams.
+   Motion is transform and opacity only (motionCost.test.ts), a hover appears
+   at once and fades out over 140ms (Linear's highlight), and nothing a key
+   triggers animates its result. Reduced motion is the global rule's: every
+   animation and transition here ends at once, the loops stop. */
+@layer components {
+  /* The sidebar column: 10 8 8 8, so the icon axis is 8 + 8 + 8 = 24. */
+  .shell-side {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px 8px 8px 8px;
+  }
+  /* The rail: 36px items 6px in, so their icons stay on the 24px axis. */
+  .shell-side[data-rail="true"] {
+    flex: none;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 0 8px 6px;
+  }
+  .shell-side[data-rail="true"] .shell-rail-sep { margin-left: 8px; }
+  /* Springs and fades start once the sidebar has settled: the first paint
+     shows everything in place. */
+  .shell-side:not([data-settled]) :is(.shell-badge, .shell-count > span, .shell-sect-rows > *) { animation: none; }
+
+  /* Hover: on at once, off over 140ms. */
+  .shell-hover {
+    transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+  }
+  .shell-hover:hover {
+    background: var(--hover);
+    transition-duration: 0ms;
+  }
+  .shell-hover:active,
+  .shell-hover[data-state="open"] {
+    background: var(--press);
+  }
+
+  /* The workspace header (S3): 40px, r8, the 26px mark. */
+  .shell-ws {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px;
+    border-radius: var(--radius-md);
+    color: var(--ink);
+    text-align: left;
+  }
+  .shell-ws .shell-chevron {
+    color: var(--ink-3);
+    transition: transform 180ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  .shell-ws:hover .shell-chevron { color: var(--ink); }
+  .shell-ws[data-state="open"] .shell-chevron { transform: rotate(180deg); }
+  .shell-mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    flex: none;
+    background: linear-gradient(145deg, #FF8A00, #FF3D00);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(150, 40, 0, 0.25);
+  }
+  .shell-mark[data-size="24"] { width: 24px; height: 24px; border-radius: 7px; }
+  .shell-mark[data-logo] {
+    background: var(--raised);
+    box-shadow: var(--e1);
+    overflow: hidden;
+  }
+  /* The ring in the mark draws once on the day's first open (S3). */
+  .shell-mark-ring[data-draw="true"] {
+    stroke-dasharray: 100;
+    animation: shell-ring-draw 600ms var(--ease-out) both;
+  }
+
+  /* The search-or-ask pill (S4): a button, raised at e1, 70% white in light
+     so the glow tints it a touch. Pressed while the palette it opened is up. */
+  .shell-pill {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 10px;
+    border-radius: var(--radius-md);
+    background: var(--raised);
+    box-shadow: var(--e1);
+    color: var(--ink-3);
+    font-size: 13.5px;
+    text-align: left;
+    transition: box-shadow 140ms var(--ease-out), color 140ms var(--ease-out), transform 90ms cubic-bezier(.22, 1, .36, 1);
+  }
+  :root:not(.dark) .shell-pill { background: rgba(255, 255, 255, 0.7); }
+  .shell-pill:hover { box-shadow: var(--e2); color: var(--ink-2); }
+  .shell-pill:active,
+  .shell-pill[data-open="true"] {
+    background-image: linear-gradient(var(--press), var(--press));
+    color: var(--ink-2);
+  }
+  .shell-pill:active { transform: translateY(0.5px); }
+  /* The AI button: the spark in the agent hue, the one non-brand colour in
+     the chrome above the fold. */
+  .shell-ai {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+    color: var(--agent);
+    transition: background-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+  }
+  .shell-ai:hover { background: var(--agent-muted); transition-duration: 0ms; }
+  .shell-ai[aria-pressed="true"] {
+    background: var(--agent-muted);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--agent) 30%, transparent);
+  }
+
+  /* One nav row (S6): 30px, r8, padding 0 8, icon 16, gap 8, label at 40. */
+  .shell-row {
+    position: relative;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    min-width: 0;
+  }
+  .shell-row:active:not(.nav-active) { background: var(--press); }
+  .shell-row.nav-idle {
+    transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  .shell-row.nav-idle:hover { transition-duration: 0ms; }
+  .shell-row[data-unread="true"]:not(.nav-active) { color: var(--ink); font-weight: 590; }
+  .shell-row[data-muted="true"] { color: var(--ink-3); font-weight: 400; }
+  .shell-row[aria-disabled="true"] { color: var(--ink-4); cursor: not-allowed; }
+  /* The current place appears in place (it never slides), with a 120ms fade
+     when a pointer chose it. */
+  .shell-row.nav-active[data-fade="true"] { animation: shell-fade-in 120ms var(--ease-out) both; }
+  .shell-row:focus-visible,
+  .shell-ws:focus-visible,
+  .shell-pill:focus-visible,
+  .shell-ai:focus-visible,
+  .shell-icon-btn:focus-visible,
+  .shell-sect-btn:focus-visible,
+  .shell-foot-btn:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+
+  /* A count (12/450 ink-3, tabular) and a badge (18px brand, 11/590). */
+  .shell-count {
+    margin-left: auto;
+    flex: none;
+    font-size: 12px;
+    font-weight: 450;
+    letter-spacing: 0;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .shell-count > span { display: inline-block; animation: shell-count-swap 160ms var(--ease-out) both; }
+  .shell-badge {
+    position: relative;
+    margin-left: auto;
+    flex: none;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--brand);
+    color: var(--on-brand, var(--brand-foreground));
+    font-size: 11px;
+    font-weight: 590;
+    line-height: 18px;
+    letter-spacing: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    animation: shell-badge-in 220ms cubic-bezier(.3, 1.35, .5, 1) both;
+  }
+  /* A live arrival while you are elsewhere: one ring pulses out (N1). */
+  .shell-badge[data-pulse="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0 2px var(--brand);
+    animation: shell-badge-pulse 1.2s var(--ease-out) both;
+    pointer-events: none;
+  }
+
+  /* Section headers (S7): 28px, 14px above, 12/510 ink-3, sentence case. */
+  .shell-sect {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    margin-top: 14px;
+    padding: 0 0 0 8px;
+    gap: 4px;
+  }
+  .shell-sect-btn {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 510;
+    letter-spacing: 0;
+    color: var(--ink-3);
+    text-align: left;
+    transition: color 140ms var(--ease-out);
+  }
+  .shell-sect-btn:hover { color: var(--ink); transition-duration: 0ms; }
+  .shell-sect .shell-sect-plus { opacity: 0; transition: opacity 140ms var(--ease-out); }
+  .shell-side:hover .shell-sect .shell-sect-plus,
+  .shell-sect:focus-within .shell-sect-plus { opacity: 1; }
+  @media (hover: none) {
+    .shell-sect .shell-sect-plus { opacity: 1; }
+  }
+  .shell-sect-rows > * { animation: shell-fade-in 120ms var(--ease-out) both; }
+  .shell-sect-rows[data-instant="true"] > * { animation: none; }
+
+  /* A project's 16px tile: its hue's avatar cut, a white 10px glyph. */
+  .shell-ptile {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+    background-image: linear-gradient(140deg, var(--hue-a1), var(--hue-a2));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  }
+  .shell-ptile > svg { width: 10px; height: 10px; }
+  .shell-ptile[data-invite] {
+    background: none;
+    color: var(--ink-3);
+    box-shadow: inset 0 0 0 1.25px var(--line-3);
+  }
+
+  /* The split-view button that fades in at a row's right end on hover. */
+  .shell-split-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    margin-top: -10px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+    background: var(--raised);
+    box-shadow: var(--e1);
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+  }
+  .group\/row:hover .shell-split-btn,
+  .shell-split-btn:focus-visible { opacity: 1; }
+  @media (hover: none) { .shell-split-btn { opacity: 1; } }
+
+  /* The middle of the sidebar scrolls, with a thin overlay thumb on hover and
+     a 12px fade where there is more (S2). */
+  .shell-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin: 0 -8px;
+    padding: 0 8px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    --fade-top: 0px;
+    --fade-end: 0px;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-end)), transparent 100%);
+  }
+  .shell-scroll:hover { scrollbar-color: var(--line-3) transparent; }
+  .shell-scroll[data-more-above="true"] { --fade-top: 12px; }
+  .shell-scroll[data-more-below="true"] { --fade-end: 12px; }
+
+  /* The seam between the sidebar and the sheet is the resize handle: an 8px
+     strip, a 3x28 grip that fades in, brand while dragging. */
+  .shell-seam {
+    position: relative;
+    z-index: 2;
+    width: 8px;
+    flex: none;
+    cursor: col-resize;
+    display: grid;
+    place-items: center;
+    touch-action: none;
+  }
+  .shell-seam > i {
+    width: 3px;
+    height: 28px;
+    border-radius: 2px;
+    background: var(--line-3);
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+  }
+  .shell-seam:hover > i,
+  .shell-seam:focus-visible > i { opacity: 1; }
+  .shell-seam[data-dragging="true"] > i,
+  .shell-seam[data-panel-group-direction][data-resize-handle-state="drag"] > i {
+    opacity: 1;
+    background: color-mix(in oklab, var(--brand) 60%, transparent);
+  }
+  .shell-seam[data-shake="true"] > i { animation: shell-shake 150ms var(--ease-out); }
+  .shell-seam:focus-visible { outline: none; }
+  .shell-seam-readout {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    margin-top: -11px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 510;
+    background: var(--tooltip-bg);
+    color: #fff;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The foot (S12): 52px, a hairline on top. */
+  .shell-foot {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 8px 6px 4px;
+    border-top: 1px solid var(--line);
+  }
+  .shell-foot-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: var(--radius-md);
+    text-align: left;
+    padding: 2px;
+    margin: -2px;
+  }
+  .shell-focus-ring {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    margin: -3px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .shell-focus-ring > svg { position: absolute; inset: 0; }
+  .shell-focus-arc { transition: stroke-dashoffset 600ms var(--ease-out); }
+  .shell-focus-ring[data-done="true"] { animation: shell-spring 220ms cubic-bezier(.3, 1.35, .5, 1); }
+  .shell-status-in { display: inline-block; animation: shell-rise 180ms var(--ease-out) both; }
+
+  /* The foot pill (T3): offline, live updates paused, a new version. */
+  .shell-footpill {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 10px;
+    margin: 0 0 8px;
+    border-radius: 10px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    animation: shell-pill-in 240ms var(--ease-out) both;
+  }
+  .shell-footpill[data-tone="warn"] { color: var(--warning-ink); }
+  .shell-footpill-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 20%, transparent);
+    animation: shell-breathe 2s ease-in-out infinite;
+  }
+
+  /* The 6px breathing dot of a call in progress. */
+  .shell-call-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--camp-moss);
+    animation: shell-breathe 1.8s ease-in-out infinite;
+  }
+
+  /* Small icon buttons in the chrome: 28 (compose, foot), 24 (section +). */
+  .shell-icon-btn {
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+    transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), opacity 140ms var(--ease-out);
+  }
+  .shell-icon-btn:hover { background: var(--hover); color: var(--ink); transition-duration: 0ms; }
+  .shell-icon-btn[data-size="24"] { width: 24px; height: 24px; border-radius: 6px; }
+  .shell-reveal { opacity: 0; }
+  .shell-side:hover .shell-reveal,
+  .shell-reveal:focus-visible { opacity: 1; }
+  @media (hover: none) { .shell-reveal { opacity: 1; } }
+
+  /* Menus in the shell (M1, M2, More): 264px, r12, e3, 4px in, 30px items. */
+  .shell-menu {
+    width: 264px;
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    background: var(--pop);
+    box-shadow: var(--e3);
+    color: var(--ink);
+  }
+  .shell-menu-item {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+    cursor: default;
+    transition: background-color 140ms var(--ease-out);
+  }
+  .shell-menu-item[data-highlighted] { background: var(--press); transition-duration: 0ms; }
+  .shell-menu-item > svg.lucide { width: 16px; height: 16px; color: var(--ink-3); flex: none; }
+  .shell-menu-item[data-danger] { color: var(--danger-ink); }
+  .shell-menu-item[data-danger] > svg.lucide { color: var(--danger-ink); }
+  .shell-menu-meta { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+  .shell-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+
+  /* The collapsed rail (S13): 56px, 36x32 items on the 24px axis. */
+  .shell-rail-item {
+    position: relative;
+    width: 36px;
+    height: 32px;
+    flex: none;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+  }
+  .shell-rail-badge {
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--brand);
+    color: var(--on-brand, var(--brand-foreground));
+    font-size: 10px;
+    font-weight: 590;
+    line-height: 15px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--frame);
+  }
+  .shell-rail-dot {
+    position: absolute;
+    top: 7px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: 0 0 0 2px var(--frame);
+  }
+  .shell-rail-sep { width: 20px; height: 1px; margin: 6px 0; background: var(--line); flex: none; }
+  /* The hover peek (Arc): the full sidebar floats over the sheet at e3. */
+  .shell-peek {
+    position: fixed;
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: 248px;
+    z-index: var(--z-popover);
+    border-radius: var(--radius-lg);
+    background: var(--pop);
+    box-shadow: var(--e3);
+    animation: shell-peek-in 200ms var(--ease-out) both;
+  }
+  .shell-peek[data-leaving="true"] { animation: shell-fade-out 140ms var(--ease-out) both; }
+
+  /* Sheets beside the page (V1, V2): the right panel and split panes are
+     sheets of their own, with the 8px frame seam between, the grip in it. */
+  .shell-panel-sheet {
+    animation: shell-panel-in 240ms cubic-bezier(.65, 0, .35, 1) both;
+  }
+  /* The right panel's ground: --panel (white in light, #16171A in dark, a
+     step up so it reads as a layer). */
+  .shell-panel-sheet[data-right-panel-sheet] { background: var(--panel, var(--sheet)); }
+  .shell-sheet-focused { box-shadow: var(--e-sheet), inset 0 1.5px 0 var(--brand); }
+  .shell-content-swap { animation: shell-fade-in 120ms var(--ease-out) both; }
+
+  /* Rings drawn by the shell: a face's 2px frame ring (group DMs), the
+     pause badge on your face, the status field's inset line. */
+  .shell-frame-ring { box-shadow: 0 0 0 2px var(--frame); }
+  .shell-pause-badge { box-shadow: 0 0 0 2px var(--frame), inset 0 0 0 1px var(--line-2); }
+  .shell-field-ring { box-shadow: inset 0 0 0 1px var(--line); }
+
+  /* Tooltips (M3): 24px, r6, ink (#2A2B30 in dark), 12/510 white. */
+  .shell-tip-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    margin-left: 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 10.5px;
+    font-weight: 510;
+    letter-spacing: 0;
+  }
+}
+:root { --tooltip-bg: #16171B; }
+.dark { --tooltip-bg: #2A2B30; }
+
+@keyframes shell-fade-in { from { opacity: 0; } }
+@keyframes shell-fade-out { to { opacity: 0; } }
+@keyframes shell-rise { from { opacity: 0; transform: translateY(4px); } }
+@keyframes shell-pill-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes shell-badge-in { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes shell-badge-pulse { from { opacity: 0.5; transform: scale(1); } to { opacity: 0; transform: scale(1.6); } }
+@keyframes shell-count-swap { from { opacity: 0; transform: translateY(4px); } }
+@keyframes shell-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes shell-shake { 0%, 100% { transform: translateX(0); } 33% { transform: translateX(-2px); } 66% { transform: translateX(2px); } }
+@keyframes shell-spring { 50% { transform: scale(1.06); } }
+@keyframes shell-peek-in { from { opacity: 0; transform: translateX(-12px); } }
+@keyframes shell-panel-in { from { opacity: 0; transform: translateX(16px); } }
+/* The ring in the workspace mark draws itself once (S3); stroke-dashoffset
+   repaints one 16px glyph for 600ms (listed in motionCost.test.ts). */
+@keyframes shell-ring-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+
+
+@media (prefers-reduced-transparency: reduce) {
+  :root:not(.dark) .shell-pill { background: var(--raised); }
+}
+
+/* Shell menus pop from their trigger: opacity, scale .98 and 4px, 180ms in
+   and 120ms out; a submenu slides 4px from its side in 160ms. */
+.shell-pop[data-state="open"] { animation: shell-pop-in 180ms var(--ease-out) both; }
+.shell-pop[data-side="top"][data-state="open"] { animation-name: shell-pop-in-up; }
+.shell-pop[data-side="right"][data-state="open"] { animation: shell-pop-in-right 160ms var(--ease-out) both; }
+.shell-pop[data-side="left"][data-state="open"] { animation: shell-pop-in-left 160ms var(--ease-out) both; }
+.shell-pop[data-state="closed"] { animation: shell-pop-out 120ms var(--ease-out) both; }
+@keyframes shell-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@keyframes shell-pop-in-up { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
+@keyframes shell-pop-in-right { from { opacity: 0; transform: translateX(-4px); } }
+@keyframes shell-pop-in-left { from { opacity: 0; transform: translateX(4px); } }
+@keyframes shell-pop-out { to { opacity: 0; transform: scale(0.98); } }
+
+/* V3 SHELL: TOASTS AND NOTICES (design v3, shell T1, T2, T4; mock M4).
+   Toasts: a stack of three in the viewport (components/ui/toaster.tsx sets
+   --toast-i, --toast-o, --toast-ye and --front-h on each). Collapsed, a toast
+   behind the front one steps 10px back and 5% smaller, clipped to the front
+   one's height so only its top edge shows; hovered or focused, the stack opens
+   with 10px between toasts. Everything that moves is transform or opacity. */
+@layer components {
+  .toast-viewport {
+    --toast-dir: -1;
+  }
+  .toast-root {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform-origin: 50% 100%;
+    --toast-sy: calc(var(--toast-i, 0) * 10px * var(--toast-dir));
+    --toast-ss: calc(1 - var(--toast-i, 0) * 0.05);
+    transform: translate3d(var(--toast-swipe-x, 0px), calc(var(--toast-sy) + var(--toast-swipe-y, 0px)), 0) scale(var(--toast-ss));
+    opacity: var(--toast-o, 1);
+    transition:
+      transform 320ms var(--ease-out),
+      opacity 200ms var(--ease-out);
+  }
+  @media (max-width: 639.98px) {
+    .toast-viewport {
+      --toast-dir: 1;
+    }
+    .toast-root {
+      top: 0;
+      bottom: auto;
+      transform-origin: 50% 0%;
+    }
+  }
+  /* Behind the front one, collapsed: the front one's height, so a taller toast
+     behind never pokes out further than 10px. It takes no clicks there. */
+  .toast-viewport:not([data-expanded]) .toast-root[data-behind] {
+    height: var(--front-h);
+    overflow: hidden;
+    border-radius: 12px;
+    pointer-events: none;
+  }
+  .toast-viewport[data-expanded] .toast-root {
+    --toast-sy: calc(var(--toast-ye, 0px) * var(--toast-dir));
+    --toast-ss: 1;
+  }
+  .toast-root[data-swipe="move"] {
+    --toast-swipe-x: var(--radix-toast-swipe-move-x, 0px);
+    --toast-swipe-y: var(--radix-toast-swipe-move-y, 0px);
+    transition: none;
+  }
+  .toast-root[data-swipe="end"] {
+    --toast-swipe-x: var(--radix-toast-swipe-end-x, 0px);
+    --toast-swipe-y: var(--radix-toast-swipe-end-y, 0px);
+  }
+  .toast-root[data-state="closed"] {
+    animation: toast-out 200ms var(--ease-out) forwards;
+  }
+
+  .toast-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 10px 10px 10px 12px;
+    border-radius: 12px;
+    background: var(--pop);
+    box-shadow: var(--e3);
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 18px;
+    overflow: hidden;
+  }
+  @media (max-width: 639.98px) {
+    .toast-card {
+      min-height: 48px;
+    }
+  }
+  .toast-root[data-state="open"] .toast-card {
+    animation: toast-in 320ms var(--ease-out) both;
+  }
+  @media (max-width: 639.98px) {
+    .toast-root[data-state="open"] .toast-card {
+      animation-name: toast-in-top;
+    }
+  }
+  .toast-root[data-state="closed"]:not([data-swipe="end"]) .toast-card {
+    animation: toast-card-out 200ms var(--ease-out) forwards;
+  }
+
+  .toast-tile {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .toast-tile-success {
+    background: var(--camp-moss-tint);
+    color: var(--camp-moss);
+  }
+  .toast-tile-error {
+    background: color-mix(in oklab, var(--destructive) 12%, transparent);
+    color: var(--danger-ink);
+  }
+  .toast-tile-info,
+  .toast-tile-loading {
+    background: var(--camp-sky-tint);
+    color: var(--camp-sky);
+  }
+  .toast-tile-person {
+    border-radius: 999px;
+  }
+  /* 12.5/17, between the scale's 12 and 13: the mock's toast metrics. */
+  .toast-desc,
+  .toast-action {
+    font-size: 12.5px;
+    line-height: 17px;
+  }
+  .toast-action .kbd,
+  .toast-action kbd {
+    height: 16px;
+    min-width: 16px;
+    font-size: 10px;
+  }
+
+  .toast-close {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+  }
+  .toast-root:hover .toast-close,
+  .toast-root:focus-within .toast-close,
+  .toast-close:focus-visible {
+    opacity: 1;
+  }
+
+  /* How long an action toast has left: a 2px line that shrinks to nothing,
+     stopped while the stack is open or the window is in the background. */
+  .toast-timer {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--line-2);
+    transform-origin: left center;
+    animation: toast-timer var(--toast-duration, 6000ms) linear forwards;
+  }
+  .toast-viewport[data-paused] .toast-timer {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast-root {
+      transition: opacity 120ms linear;
+    }
+    .toast-root[data-state="open"] .toast-card,
+    .toast-root[data-state="closed"]:not([data-swipe="end"]) .toast-card {
+      animation-name: toast-fade;
+    }
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+@keyframes toast-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.98);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes toast-card-out {
+  to {
+    transform: scale(0.98);
+  }
+}
+@keyframes toast-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes toast-timer {
+  to {
+    transform: scaleX(0);
+  }
+}
+/* Notices (shell T2): one strip at the top of the sheet, inside it. */
+@layer components {
+  .notice {
+    line-height: 18px;
+    animation: notice-in 180ms var(--ease-out) both;
+  }
+  .notice-info {
+    background: var(--sunken);
+  }
+  .notice-info .notice-icon {
+    color: var(--camp-sky);
+  }
+  .notice-warning {
+    background: color-mix(in oklab, var(--camp-sun-tint) 70%, var(--sheet));
+  }
+  .notice-warning .notice-icon {
+    color: var(--camp-sun);
+  }
+  .notice-danger {
+    background: color-mix(in oklab, var(--destructive) 8%, var(--sheet));
+  }
+  .notice-danger .notice-icon {
+    color: var(--destructive);
+  }
+  .notice-brand {
+    background: linear-gradient(90deg, var(--brand-muted), var(--sheet) 70%);
+  }
+  .notice-mark {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    background: linear-gradient(145deg, #ff8a00, #ff3d00);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  }
+  .notice-action {
+    font-size: 12.5px;
+    line-height: 17px;
+  }
+  .notice a:not(.notice-action) {
+    color: var(--ink);
+    font-weight: 510;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--line-3);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .notice {
+      animation-name: toast-fade;
+    }
+  }
+}
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+/* The corner stacks (shell T4, components/ui/CornerStack.tsx): 16px inside
+   the sheet's edge (the shell sets --shell-left-inset and
+   --shell-right-inset), 8px between cards, a composer's height up. */
+@layer components {
+  .corner-stack {
+    --corner-lift: 136px;
+    position: fixed;
+    z-index: var(--z-toast);
+    bottom: calc(24px + var(--corner-lift));
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    max-width: calc(100vw - 32px);
+    pointer-events: none;
+  }
+  .corner-stack:empty {
+    display: none;
+  }
+  .corner-stack-left {
+    left: calc(var(--shell-left-inset, 0px) + 16px);
+    align-items: flex-start;
+  }
+  .corner-stack-right {
+    right: calc(var(--shell-right-inset, 8px) + 16px);
+    align-items: flex-end;
+  }
+  @media (max-width: 767.98px) {
+    .corner-stack {
+      bottom: calc(4rem + env(safe-area-inset-bottom) + 8.5rem);
+    }
+    .corner-stack-left,
+    .corner-stack-right {
+      left: 16px;
+      right: 16px;
+    }
+  }
+  .corner-card {
+    pointer-events: auto;
+    max-width: 100%;
+    animation: corner-in 240ms var(--ease-out) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .corner-card {
+      animation-name: toast-fade;
+    }
+  }
+}
+@keyframes corner-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+/* V3 SHELL: LOADING, ERRORS, SHORTCUTS
+   Design v3, shell §L1–L4, §K, §R (design/v3-areas/shell.md, mocks M6 and M7).
+   Transform and opacity only, but for the ring draw (stroke-dashoffset on one
+   56px stroke, listed in app/motionCost.test.ts). Every animation here is
+   declared under prefers-reduced-motion: no-preference, so with reduced
+   motion the ring is simply drawn, the words are there and nothing moves. */
+@layer components {
+  /* THE SPLASH (L1). 0–150ms: the frame colour only, so a fast load never
+     flashes a splash. From 150ms the glow, the grain and the ring appear; the
+     ring draws once from 12 o'clock; the line fades in at 350ms. */
+  .splash {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 100dvh;
+    padding: 0 16px;
+    text-align: center;
+  }
+  .splash-ring-draw {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 0;
+  }
+
+  /* SKELETONS (L2): the press fill at r5, breathing as every skeleton does. */
+  .sk {
+    background: var(--press);
+    border-radius: 5px;
+  }
+
+  /* THE SHEET'S PROGRESS BAR (L2): 2px on the sheet's top edge, 12px in from
+     its radius, a brand light travelling along it (a still half-strength line
+     under reduced motion). */
+  .sheet-progress {
+    position: absolute;
+    top: 0;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: var(--z-sticky);
+    opacity: 0;
+    transition: opacity 200ms var(--ease-out);
+  }
+  .sheet-progress[data-shown="true"] {
+    opacity: 1;
+  }
+  .sheet-progress > i {
+    position: absolute;
+    inset: 0;
+    background: var(--brand);
+    opacity: 0.5;
+  }
+
+  /* ERROR AND 404 SPOTS (L3, L4). */
+  .orbit-once {
+    transform-box: view-box;
+    transform-origin: 48px 48px;
+  }
+  .spark-in {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* THE SHORTCUTS DIALOG (K): a row lit by its keys. */
+  .kbd-hit {
+    background: var(--brand-muted);
+    color: var(--brand-text);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 40%, transparent), inset 0 -1px 0 color-mix(in oklab, var(--brand) 40%, transparent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .splash > *,
+    .splash.app-frame::before,
+    .splash.app-frame::after {
+      animation: splash-appear 1ms 150ms both;
+    }
+    .splash-ring-draw {
+      animation: ring-draw 600ms var(--ease-out) 150ms both;
+    }
+    .splash > .splash-line,
+    .splash-line {
+      animation: splash-line-in 300ms var(--ease-out) 350ms both;
+    }
+    /* What follows the splash: the shell, fading up from nothing once. Only
+       backwards fill, so the finished shell keeps no stacking context. */
+    .shell-enter {
+      animation: shell-in 160ms var(--ease-out) backwards;
+    }
+    .sk {
+      animation: skeleton-breathe 1.8s ease-in-out infinite;
+    }
+    .sheet-progress > i {
+      background: linear-gradient(90deg, transparent, var(--brand), transparent);
+      opacity: 1;
+      width: 40%;
+      animation: sheet-progress-sweep 1.2s var(--ease-in-out) infinite;
+    }
+    /* Fade in once; the 404's two hue dots orbit once and stop, and its spark
+       arrives at 400ms. Nothing loops. */
+    .spot-in {
+      animation: spot-in 180ms var(--ease-out) both;
+    }
+    .orbit-once {
+      animation: orbit-once 2.4s var(--ease-in-out) both;
+    }
+    .spark-in {
+      animation: spark-in 300ms var(--ease-spring) 400ms both;
+    }
+    .kbd-hit {
+      animation: kbd-hit 220ms var(--ease-spring);
+    }
+    /* ROUTE CROSSFADE (R), where Web Animations are missing: the sheet's
+       content from .6 to 1, enter only. */
+    .sheet-crossfade {
+      animation: sheet-crossfade 120ms var(--ease-out);
+    }
+  }
+}
+@keyframes splash-appear {
+  from { opacity: 0; }
+}
+@keyframes ring-draw {
+  from { stroke-dashoffset: 100; }
+}
+@keyframes splash-line-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes shell-in {
+  from { opacity: 0; }
+}
+@keyframes sheet-progress-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@keyframes spot-in {
+  from { opacity: 0; }
+}
+@keyframes orbit-once {
+  from { transform: rotate(-200deg); }
+  to { transform: rotate(0deg); }
+}
+@keyframes spark-in {
+  from { opacity: 0; transform: scale(0.8); }
+}
+@keyframes kbd-hit {
+  45% { transform: scale(1.12); }
+}
+@keyframes sheet-crossfade {
+  from { opacity: 0.6; }
+}
+/* V3 SHELL: PALETTE */
+/* ⌘K (design v3, shell P1 to P4; mock M3). 640px, r16, e4, hanging from
+   14dvh so the field never moves as answers come; a 32% ink scrim (56% in
+   dark), no blur. Opens 200ms from scale .96 at its top centre, closes 140ms
+   to .98; a phone gets the whole screen, rising 24px over 240ms. Transform
+   and opacity only (motionCost.test.ts); reduced motion keeps a 120ms fade.
+   Unlayered: these rules restyle cmdk's rows and the shared CommandItem,
+   whose own utilities would otherwise win. */
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  background: rgb(10 11 14 / 0.32);
+}
+.dark .palette-scrim {
+  background: rgb(5 5 6 / 0.56);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .palette-scrim,
+  .dark .palette-scrim {
+    background: rgb(10 11 14 / 0.48);
+  }
+}
+.palette-scrim[data-state="open"] {
+  animation: palette-fade-in 200ms var(--ease-out);
+}
+.palette-scrim[data-state="closed"] {
+  animation: palette-fade-out 140ms var(--ease-out) forwards;
+}
+
+.palette {
+  position: fixed;
+  z-index: var(--z-modal);
+  left: 0;
+  right: 0;
+  top: 14dvh;
+  margin-inline: auto;
+  width: min(640px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--pop);
+  color: var(--ink);
+  border-radius: 16px;
+  box-shadow: var(--e4);
+  overflow: hidden;
+  transform-origin: 50% 0;
+  outline: none;
+}
+.palette[data-state="open"] {
+  animation: palette-in 200ms var(--ease-out);
+}
+.palette[data-state="closed"] {
+  animation: palette-out 140ms var(--ease-out) forwards;
+}
+.palette[data-phone] {
+  inset: 0;
+  top: 0;
+  width: auto;
+  margin: 0;
+  border-radius: 0;
+  background: var(--sheet);
+  box-shadow: none;
+  padding-top: env(safe-area-inset-top);
+}
+.palette[data-phone][data-state="open"] {
+  animation: palette-phone-in 240ms var(--ease-in-out);
+}
+.palette[data-phone][data-state="closed"] {
+  animation: palette-fade-out 140ms var(--ease-out) forwards;
+}
+
+/* The field: 52px, 16/24, the caret in the accent. Ask washes the row in
+   the agent's hue from the left, fading in over 180ms. */
+.palette-input-row {
+  position: relative;
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 0 18px;
+  border-bottom: 1px solid var(--line);
+  isolation: isolate;
+}
+.palette-input-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--agent) 9%, transparent), transparent 60%);
+  opacity: 0;
+  transition: opacity 180ms var(--ease-out);
+  pointer-events: none;
+}
+.palette-input-row[data-mode="ask"]::before {
+  opacity: 1;
+}
+.palette-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: transparent;
+  outline: none;
+  border: 0;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: var(--text-base--letter-spacing);
+  color: var(--ink);
+  caret-color: var(--brand);
+}
+.palette-input::placeholder {
+  color: var(--ink-3);
+}
+.palette-crumb {
+  height: 24px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--press);
+  font-size: 12.5px;
+  font-weight: 510;
+  color: var(--ink);
+}
+.palette-cancel {
+  flex: none;
+  height: 44px;
+  padding: 0 4px;
+  font-size: 15px;
+  color: var(--brand-text);
+}
+
+/* Search | Ask: a 28px segmented control whose knob slides 120ms. */
+.palette-seg {
+  position: relative;
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 28px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--press);
+}
+.palette-seg-knob {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: 6px;
+  background: var(--raised);
+  box-shadow: var(--e1);
+  transition: transform 120ms var(--ease-out);
+}
+.palette-seg[data-mode="ask"] .palette-seg-knob {
+  transform: translateX(100%);
+}
+.palette-seg button {
+  position: relative;
+  z-index: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: 510 12px/1 var(--font-sans);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.palette-seg button[aria-pressed="true"] {
+  color: var(--ink);
+}
+.palette-seg[data-mode="ask"] button[aria-pressed="true"] {
+  color: var(--agent-ink);
+}
+.palette-seg .kbd {
+  height: 16px;
+  min-width: 16px;
+  font-size: 10px;
+}
+.palette-phone-seg {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.palette-phone-seg .palette-seg {
+  height: 32px;
+}
+.palette-phone-seg .palette-seg button {
+  height: 28px;
+  font-size: 13px;
+}
+
+/* Searching for more than 300ms: a 2px sweep of the accent under the field. */
+.palette-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+}
+.palette-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  animation: palette-sweep 1.2s var(--ease-in-out) infinite;
+}
+
+/* The list: 6px in, at most min(60dvh, 440px). Group labels 30px, 12/510
+   ink-3, sitting on their bottom edge. */
+.palette-list {
+  flex: 1;
+  min-height: 0;
+  max-height: min(60dvh, 440px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 6px;
+  scroll-padding: 6px;
+}
+.palette[data-phone] .palette-list {
+  max-height: none;
+}
+.palette [cmdk-group] {
+padding: 0;
+}
+.palette [cmdk-group-heading] {
+  height: 30px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 12px 6px;
+  font: 510 12px/16px var(--font-sans);
+  color: var(--ink-3);
+}
+
+/* A row: 40px at r8 (48px on a phone). Selected is the press fill with a
+   2px accent tick 10px in from top and bottom, and ⏎ at the end. Arrow keys
+   move it at once: nothing here transitions. */
+.palette-row {
+  position: relative;
+  height: 40px;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: none;
+}
+.palette[data-phone] .palette-row {
+  height: 48px;
+  font-size: 15px;
+}
+.palette-row[data-selected="true"] {
+  background: var(--press);
+  color: var(--ink);
+}
+.palette-row[data-selected="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+.palette-row svg.lucide {
+  color: var(--ink-3);
+}
+.palette-mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.palette[data-phone] .palette-meta {
+  max-width: 34%;
+}
+/* A hit's tile from the search helpers is 24px; in the palette every mark is 20. */
+.palette-mark > [data-hue] {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+.palette-meta {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.palette-keys {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.palette-enter {
+  display: none;
+  flex: none;
+}
+.palette:not([data-phone]) .palette-row[data-selected="true"] .palette-enter {
+  display: inline-flex;
+}
+.palette-row-ask,
+.palette-row-ask[data-selected="true"] {
+  color: var(--agent-ink);
+}
+/* What matched: weight, never a tint (calmer, and AA in every theme). */
+.palette mark {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 590;
+  padding: 0;
+  border-radius: 0;
+}
+.palette-ptile {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background-image: linear-gradient(140deg, var(--hue-a1), var(--hue-a2));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+.palette-ptile svg.lucide {
+  width: 12px;
+  height: 12px;
+  color: #fff;
+}
+
+.palette-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 20px 24px;
+}
+
+.palette-footer {
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.palette-footer > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Ask: the answer at 15/23 within 560px, a 7x16 agent caret while it
+   streams, source chips on e1, and the shield line. */
+.palette-answer {
+  padding: 14px 12px 10px;
+}
+.palette-answer p {
+  font-size: 15px;
+  line-height: 23px;
+  letter-spacing: var(--text-body--letter-spacing);
+  max-width: 560px;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+.palette-caret {
+  display: inline-block;
+  width: 7px;
+  height: 16px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background: var(--agent);
+  animation: palette-caret 1s steps(1, end) infinite;
+}
+.palette-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.palette-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--agent);
+  animation: palette-bob 1.2s var(--ease-in-out) infinite;
+}
+.palette-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.palette-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.palette-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.palette-source {
+  height: 24px;
+  max-width: 220px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--raised);
+  box-shadow: var(--e1);
+  font-size: 12px;
+  color: var(--ink-2);
+  transition: box-shadow var(--t-hover, 140ms) var(--ease-out);
+}
+button.palette-source:hover {
+  box-shadow: var(--e2);
+  color: var(--ink);
+}
+button.palette-source:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.palette-provenance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* Space's peek: 360px beside the palette, e3 r12, in from 8px over 160ms.
+   Where the window has no room beside it, it sits at the right edge. */
+.palette-peek {
+  position: fixed;
+  z-index: var(--z-modal);
+  top: 14dvh;
+  left: calc(50% + 332px);
+  width: 360px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: var(--e3);
+  animation: palette-peek-in 160ms var(--ease-out);
+}
+@media (max-width: 1399.98px) {
+  .palette-peek {
+    left: auto;
+    right: 16px;
+    top: calc(14dvh + 72px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette[data-state="open"],
+  .palette[data-phone][data-state="open"],
+  .palette-scrim[data-state="open"],
+  .palette-peek {
+    animation: palette-fade-in 120ms linear;
+  }
+  .palette[data-state="closed"],
+  .palette-scrim[data-state="closed"] {
+    animation: palette-fade-out 120ms linear forwards;
+  }
+  .palette-seg-knob {
+    transition: none;
+  }
+  .palette-sweep::after,
+  .palette-caret,
+  .palette-dots i {
+    animation: none;
+  }
+  .palette-sweep::after {
+    opacity: 0.6;
+  }
+}
+@keyframes palette-in {
+  from { opacity: 0; transform: scale(0.96); }
+}
+@keyframes palette-out {
+  to { opacity: 0; transform: scale(0.98); }
+}
+@keyframes palette-phone-in {
+  from { opacity: 0; transform: translateY(24px); }
+}
+@keyframes palette-fade-in {
+  from { opacity: 0; }
+}
+@keyframes palette-fade-out {
+  to { opacity: 0; }
+}
+@keyframes palette-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@keyframes palette-caret {
+  50% { opacity: 0; }
+}
+@keyframes palette-bob {
+  0%, 60%, 100% { transform: none; opacity: 0.5; }
+  30% { transform: translateY(-2px); opacity: 1; }
+}
+@keyframes palette-peek-in {
+  from { opacity: 0; transform: translateX(8px); }
+}
+/* V3 SHELL: PHONE (design v3, shell Ph1 to Ph3 and mock M8). The top bar is
+   the sheet's colour with a hairline only once the page has scrolled; the tab
+   bar is raised with a soft upward shadow; the More and workspace sheets are
+   pop surfaces at r20 and e4 over a 32% scrim, rising on the iOS sheet curve.
+   Transform and opacity only; the global reduced-motion rule stills them. */
+@layer components {
+  .phone-topbar::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 1px;
+    background: var(--line);
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+    pointer-events: none;
+  }
+  .phone-topbar[data-scrolled="true"]::after {
+    opacity: 1;
+  }
+
+  .phone-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: linear-gradient(145deg, #ff8a00, #ff3d00);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      inset 0 0 0 1px rgb(0 0 0 / 0.08),
+      0 1px 2px rgb(150 40 0 / 0.25);
+  }
+
+  /* Focus time on your avatar: a brand ring closes round it. */
+  .phone-focus-ring::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 2px var(--brand);
+    pointer-events: none;
+  }
+  .phone-pause-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    display: grid;
+    place-items: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--sheet);
+    color: var(--ink-3);
+    box-shadow: 0 0 0 2px var(--presence-ring, var(--sheet)), inset 0 0 0 1px var(--line-2);
+  }
+
+  .phone-tabbar {
+    background: var(--raised);
+    box-shadow:
+      0 -1px 0 var(--line),
+      0 -8px 24px -16px rgb(16 18 26 / 0.3);
+  }
+  .dark .phone-tabbar {
+    box-shadow:
+      0 -1px 0 var(--line),
+      0 -8px 24px -16px rgb(0 0 0 / 0.6);
+  }
+  /* A count: 16px in the accent, ringed in the bar's colour, 6px right of the
+     icon's centre. A plain unread: a 7px dot in the same place. */
+  .phone-tab-badge {
+    position: absolute;
+    top: 4px;
+    left: calc(50% + 6px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--brand);
+    color: var(--brand-foreground);
+    font: 590 10px/16px var(--font-sans);
+    letter-spacing: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--raised);
+  }
+  .phone-tab-dot {
+    position: absolute;
+    top: 7px;
+    left: calc(50% + 6px);
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: var(--brand);
+    box-shadow: 0 0 0 2px var(--raised);
+  }
+
+  /* The sheets: vaul moves them; this sets the curve's length to v3's 360ms. */
+  [data-phone-sheet][data-vaul-drawer] {
+    animation-duration: 360ms;
+    transition-duration: 360ms;
+  }
+}
+@layer components {
+  /* The v3 sheet's top corners: 20px, the sheet step (no rounded-3xl in the app). */
+  [data-phone-sheet] {
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+  }
+  /* A drawer row's place tile: 32px at r9, as M8 draws it. */
+  [data-drawer-tile] {
+    border-radius: 9px;
   }
 }

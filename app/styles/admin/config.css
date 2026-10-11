@@ -1,0 +1,245 @@
+/* Design v3, admin area: the config slice (General, Security, Permissions,
+   Email, Transcription, Health and updates, the GitHub callback; admin.md
+   A7 to A10, A17, A21, A22). Imported by app/globals.css.
+
+   Motion is transform and opacity only (app/motionCost.test.ts). Under
+   prefers-reduced-motion the global backstop stills everything; the blocks
+   below name a still version where the spec gives one. */
+@layer components {
+  /* ---------- General (A7) ---------- */
+
+  /* A channel row in "Where new members start": 40px, not the 56px setting
+     row, a checkbox, # in ink-3, the name, its tags and its ⋯ at the end. */
+  .set-row.cfg-channel-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 12px 8px 16px;
+  }
+
+  /* A disclosure's text, and a row revealed under a switch: fades in and
+     rises 4px. The card's height change is not animated (layout): the rows
+     below shift once. Revealed rows step in 30ms apart (--i). */
+  .cfg-reveal {
+    animation: cfg-reveal 180ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 30ms);
+  }
+  @keyframes cfg-reveal {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* The credential drop zone: 120px, r12, a dashed 1.5px --line-3 edge.
+     Dragged over: the ring at brand 50 % plus a 3px halo (on ::after, so only
+     its opacity moves) and the glyph lifts 2px over 140ms. */
+  .cfg-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 120px;
+    border-radius: var(--radius-lg);
+    border: 1.5px dashed var(--line-3);
+    background: var(--sunken);
+    cursor: pointer;
+    transition: border-color 140ms var(--ease-out);
+  }
+  .cfg-drop:focus-within {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  .cfg-drop::after {
+    content: "";
+    position: absolute;
+    inset: -1.5px;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+  }
+  .cfg-drop-glyph {
+    transition: transform 140ms var(--ease-out);
+  }
+  .cfg-drop[data-drag="true"] {
+    border-color: transparent;
+  }
+  .cfg-drop[data-drag="true"]::after {
+    opacity: 1;
+  }
+  .cfg-drop[data-drag="true"] .cfg-drop-glyph {
+    transform: translateY(-2px);
+  }
+
+  /* ---------- Security (A8) ---------- */
+
+  /* A token shown once: a 1px sun ring, no fill, so it reads as "take this
+     now" without being a warning box. */
+  .cfg-reveal-card {
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    background: var(--raised);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--camp-sun) 55%, transparent);
+  }
+
+  /* ---------- Email (A10) ---------- */
+
+  /* The live email frame: raised, r12, e2; a 40px sunken header strip. */
+  .cfg-mail {
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    box-shadow: var(--e2);
+    overflow: clip;
+  }
+  .cfg-mail-head {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    min-height: 40px;
+    padding: 8px 14px;
+    background: var(--sunken);
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+  /* The changed preview crossfades in over 140ms. */
+  .cfg-mail-body[data-fresh="true"] {
+    animation: cfg-fade 140ms var(--ease-out) both;
+  }
+  @keyframes cfg-fade {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+  }
+
+  /* ---------- Health and updates (A21) ---------- */
+
+  /* Check for updates: the refresh glyph turns once per check. */
+  .cfg-spin-once {
+    animation: cfg-spin-once 600ms var(--ease-out) both;
+  }
+  @keyframes cfg-spin-once {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* The health ring: two stacked rings, the old fill fading out as the new
+     one fades in (opacity 300ms). The ring's own dash never animates here. */
+  .cfg-ring {
+    position: relative;
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+  }
+  .cfg-ring > [data-ring-layer] {
+    grid-area: 1 / 1;
+    transition: opacity 300ms var(--ease-out);
+  }
+  .cfg-ring > [data-ring-layer][data-gone="true"] {
+    opacity: 0;
+  }
+  .cfg-ring > [data-ring-layer][data-fresh="true"] {
+    animation: cfg-fade-in 300ms var(--ease-out) both;
+  }
+  /* Phone: the ring is 56px. The SVG scales with its box. */
+  .cfg-ring svg {
+    width: 100%;
+    height: 100%;
+  }
+  @media (max-width: 639px) {
+    .cfg-ring,
+    .cfg-ring [role="progressbar"] {
+      width: 56px !important;
+      height: 56px !important;
+    }
+  }
+  /* The healthy share in moss, over a full ring of what needs attention. */
+  .cfg-ring-health {
+    --progress-from: var(--camp-moss);
+    --progress-to: var(--camp-moss);
+    --press: transparent;
+  }
+  .cfg-ring-rest-danger {
+    --progress-from: var(--destructive);
+    --progress-to: var(--destructive);
+  }
+  .cfg-ring-rest-sun {
+    --progress-from: var(--camp-sun);
+    --progress-to: var(--camp-sun);
+  }
+
+  /* A service tile: 64px, r12, e1. */
+  .cfg-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    min-height: 64px;
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    box-shadow: var(--e1);
+  }
+  .cfg-tile[data-attention="danger"] {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 30%, transparent), 0 1px 2px rgb(16 18 26 / 0.05);
+  }
+  .cfg-tile[data-attention="warning"] {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--camp-sun) 45%, transparent), 0 1px 2px rgb(16 18 26 / 0.05);
+  }
+  /* Run again: each tile's result arrives 60ms after the one before (--i). */
+  .cfg-tile-result {
+    animation: cfg-fade-in 180ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+  @keyframes cfg-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  /* The disk's 4px usage bar fills by scaleX, never width. */
+  .cfg-bar {
+    position: relative;
+    height: 4px;
+    width: 120px;
+    max-width: 100%;
+    border-radius: 999px;
+    background: var(--press);
+    overflow: hidden;
+  }
+  .cfg-bar > span {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transform-origin: left center;
+  }
+
+  /* ---------- GitHub callback (A22) ---------- */
+  .cfg-callback-spot {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+  }
+  .cfg-callback-spot > [data-spinner] {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cfg-reveal,
+    .cfg-tile-result,
+    .cfg-mail-body[data-fresh="true"],
+    .cfg-spin-once {
+      animation: none;
+    }
+  }
+}

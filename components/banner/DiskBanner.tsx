@@ -13,7 +13,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { NoticeBar } from "@/components/banner/NoticeBar"
+import { NoticeBar, noticeActionClass } from "@/components/banner/NoticeBar"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -69,14 +69,16 @@ export function DiskBanner({ isAdmin }: { isAdmin?: boolean }) {
       role={critical ? "alert" : "status"}
       onDismiss={critical ? undefined : dismiss}
       dismissLabel="Dismiss for a day"
+      lead={`The disk is ${disk.used_pct}% full.`}
+      action={
+        <Link href="/app/admin?tab=archive" className={noticeActionClass}>
+          Free space
+        </Link>
+      }
     >
-      The server&apos;s disk is {disk.used_pct}% full ({formatBytesShort(disk.free_bytes ?? 0)} free).{" "}
-      {critical ? "Near full, the database stops saving anything. Free room now: " : "Free some room before it fills: "}
-      remove old files with &ldquo;Remove for good&rdquo; in{" "}
-      <Link href="/app/admin?tab=archive" className="font-medium underline underline-offset-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
-        Admin, Archive
-      </Link>
-      , and if you host OneCamp yourself, run <code className="font-mono">make housekeeping</code> on the server.
+      {formatBytesShort(disk.free_bytes ?? 0)} free.{" "}
+      {critical ? "Near full, the database stops saving anything. " : ""}
+      Use &ldquo;Remove for good&rdquo; in Admin, Archive, or run <code className="font-mono text-2xs">make housekeeping</code> on the server.
     </NoticeBar>
   )
 }

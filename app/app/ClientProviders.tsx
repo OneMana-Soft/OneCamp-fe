@@ -54,7 +54,9 @@ export default function ClientProviders({
       <SWRMutateBridge />
       <MediaQueryProvider>
         <LoadingProvider>
-          <TooltipProvider delayDuration={200}>
+          {/* One provider (design v3, shell M3): the first tooltip waits 500ms;
+              a neighbour within 300ms shows at once (Emil Kowalski's rule). */}
+          <TooltipProvider delayDuration={500} skipDelayDuration={300}>
             <MqttProvider>
               {children}
               <CommandActionBridge />

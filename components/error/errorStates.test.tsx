@@ -32,18 +32,31 @@ describe("a page that crashes inside the app", () => {
     expect(readFileSync(ROUTE_ERROR, "utf8")).toMatch(/^"use client"/)
   })
 
-  it("says the rest still works, tries again, and offers Home", async () => {
+  // Design v3 (shell §L3): the crash spot, plain words, a reference, and two
+  // ways out. The sidebar stays, so the person can go anywhere else from it.
+  it("says the rest is fine, shows a reference, tries again and copies the details", async () => {
     const { default: AppRouteError } = await import("@/app/app/error")
     const reset = vi.fn()
     vi.spyOn(console, "error").mockImplementation(() => {})
-    render(<AppRouteError error={new Error("boom")} reset={reset} />)
-    expect(screen.getByRole("heading", { name: "This page hit a problem" })).toBeInTheDocument()
-    expect(screen.getByText(/nothing you saved is lost/i)).toBeInTheDocument()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+    render(<AppRouteError error={Object.assign(new Error("boom"), { digest: "7f3ae1c9" })} reset={reset} />)
+    expect(screen.getByRole("heading", { name: "Something broke on this page" })).toBeInTheDocument()
+    expect(screen.getByText(/The rest of OneCamp is fine/)).toBeInTheDocument()
+    expect(screen.getByText("7f3a·e1c")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(reset).toHaveBeenCalled()
-    expect(screen.getByRole("link", { name: /go to home/i }).getAttribute("href")).toBe("/app/home")
-    // The playful layer's error spot above the heading, decorative.
-    expect(document.querySelector("[data-empty-illustration] svg")).not.toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Copy details" }))
+    expect(writeText.mock.calls[0][0]).toMatch(/Ref: 7f3ae1c9[\s\S]*Page: /)
+    // The crash spot above the heading, decorative.
+    expect(document.querySelector("[data-spot-crash]")).not.toBeNull()
+  })
+
+  it("shows no reference when the error has none", async () => {
+    const { default: AppRouteError } = await import("@/app/app/error")
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    render(<AppRouteError error={new Error("boom")} reset={vi.fn()} />)
+    expect(screen.queryByText(/Ref /)).toBeNull()
   })
 })
 
@@ -63,7 +76,8 @@ describe("a crash the app can't recover from", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/couldn't recover/i)
     expect(document.body.textContent).not.toMatch(/notified|looking into it/i)
     expect(screen.getAllByRole("button")).toHaveLength(1)
-    expect(document.querySelector("[data-empty-illustration] svg")).not.toBeNull()
+    // On the splash's frame, with the crash spot.
+    expect(document.querySelector("[data-splash] [data-spot-crash]")).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Reload page" }))
     expect(reload).toHaveBeenCalled()
   })
@@ -79,7 +93,8 @@ describe("one part of a page that crashes", () => {
       </LocalizedErrorBoundary>,
     )
     const alert = screen.getByRole("alert")
-    expect(alert.textContent).toMatch(/This part of the page hit a problem/)
+    // One compact row (design v3, shell §L3).
+    expect(alert.textContent).toMatch(/Couldn't show this/)
     // Not a dashed red slab: a hairline box like the lists around it.
     expect(alert.className).not.toMatch(/border-dashed|bg-destructive/)
     shouldThrow = false

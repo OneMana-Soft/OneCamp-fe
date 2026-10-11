@@ -1,0 +1,523 @@
+/* Design v3, admin area: the you slice (profile, notifications, API tokens).
+   Imported by app/globals.css. Motion is transform and opacity only
+   (app/motionCost.test.ts); everything decorative stops under reduced motion
+   through the global backstop, and the blocks below give the still version
+   where the spec names one. */
+@layer components {
+  /* ---------- Profile: the identity band (D1, mock M7b) ---------- */
+  /* 168px on --sunken, r16, a soft campfire glow in the person's own hue (the
+     hue-* class on the band sets --hue-a1: their avatar's a1, at 22 %, top
+     left) and a 2 % grain. Dropping an image anywhere on it rings it in the
+     accent at 50 % with a 3px halo. */
+  .you-band {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-height: 168px;
+    padding: 0 28px;
+    border-radius: 16px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    overflow: hidden;
+  }
+  .you-band::before,
+  .you-band::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .you-band::before {
+    background: radial-gradient(520px 260px at 0 0, color-mix(in oklab, var(--hue-a1, var(--brand)) 22%, transparent), transparent 70%);
+  }
+  .you-band::after {
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  .you-band[data-dropping="true"] {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+  @media (max-width: 639px) {
+    .you-band { padding: 20px 16px; gap: 14px; }
+  }
+
+  /* The 80px avatar: initials on the person's gradient (avatar-person), the
+     photo over them, a 3px --sheet ring. The photo fades in over 300ms. */
+  .you-avatar {
+    position: relative;
+    display: block;
+    width: 80px;
+    height: 80px;
+    border-radius: 9999px;
+    overflow: hidden;
+    box-shadow: 0 0 0 3px var(--sheet), inset 0 1px 0 rgb(255 255 255 / 0.22);
+    cursor: pointer;
+  }
+  .you-avatar:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 4px;
+  }
+  .you-avatar-initials {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    font-weight: 600;
+  }
+  .you-avatar-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    animation: you-fade-in 300ms var(--ease-out) both;
+  }
+  @keyframes you-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  /* Hover: a 50 % black veil, a camera and "Change", fading over 140ms. On a
+     touch screen, where nothing hovers, the camera sits in a small strip so
+     the way to change the photo is always shown. */
+  .you-avatar-change {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: #fff;
+    background: rgb(0 0 0 / 0.5);
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+  }
+  .you-avatar:hover .you-avatar-change,
+  .you-avatar:focus-visible .you-avatar-change {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .you-avatar-change {
+      inset: auto 0 0 0;
+      height: 26px;
+      opacity: 1;
+      background: rgb(0 0 0 / 0.45);
+    }
+    .you-avatar-change > span { display: none; }
+    .you-avatar-change > svg { width: 14px; height: 14px; }
+  }
+  .you-presence {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 3px var(--sunken);
+  }
+  .you-upload-ring {
+    position: absolute;
+    left: -4px;
+    top: -4px;
+    pointer-events: none;
+  }
+  .you-ring-track { stroke: var(--press); }
+  .you-ring-arc { stroke: var(--brand); }
+  /* The status line: a 24px neutral chip that opens the status dialog. */
+  .you-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 8px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    font-size: 12px;
+    font-weight: 510;
+    color: var(--foreground);
+    transition: transform 140ms var(--ease-out);
+  }
+  .you-chip:hover { background: var(--hover); }
+  .you-chip:active { transform: scale(0.98); }
+  .you-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  /* The fields card's one-line helpers: 12.5px ink-2. */
+  .you-helper {
+    font-size: 12.5px;
+    line-height: 18px;
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---------- Profile: the theme picker and the accent ---------- */
+  .you-themes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 160px));
+    gap: 12px;
+  }
+  .you-theme {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    text-align: left;
+    border-radius: 12px;
+  }
+  .you-theme:focus-visible { outline: none; }
+  .you-theme-card {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 160 / 100;
+    border-radius: 12px;
+    box-shadow: var(--e1);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    overflow: hidden;
+  }
+  .you-theme[data-state="checked"] .you-theme-card { outline-color: var(--brand); }
+  .you-theme:focus-visible .you-theme-card { outline-color: var(--ring); }
+  .you-theme-check {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    background: var(--brand);
+    color: var(--on-brand, var(--brand-foreground));
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 160ms var(--ease-out), transform 220ms var(--ease-spring);
+  }
+  .you-theme[data-state="checked"] .you-theme-check { opacity: 1; transform: scale(1); }
+  /* The miniature: drawn in each mode's own tokens (the light and dark
+     frame, sheet and line), the accent's primary bar and the frame's glow. */
+  .you-mini {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 6px;
+    padding: 10px;
+    background: #F3F4F6;
+  }
+  .you-mini-side {
+    width: 22%;
+    border-radius: 6px;
+    background: radial-gradient(60px 50px at 0 0, rgb(var(--glow) / 0.4), transparent);
+  }
+  .you-mini-sheet {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px;
+    border-radius: 6px;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 1px rgb(16 18 26 / 0.06);
+  }
+  .you-mini-line {
+    display: block;
+    height: 5px;
+    border-radius: 3px;
+    background: #E4E5E8;
+  }
+  .you-mini .you-mini-primary {
+    width: 40%;
+    margin-top: auto;
+    background: var(--brand);
+  }
+  .you-mini[data-mode="dark"] { background: #0B0C0E; }
+  .you-mini[data-mode="dark"] .you-mini-side { background: radial-gradient(60px 50px at 0 0, rgb(var(--glow) / 0.35), transparent); }
+  .you-mini[data-mode="dark"] .you-mini-sheet { background: #131416; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06); }
+  .you-mini[data-mode="dark"] .you-mini-line:not(.you-mini-primary) { background: #26272B; }
+  .you-mini[data-mode="system"] { background: linear-gradient(90deg, #F3F4F6 50%, #0B0C0E 50%); }
+  .you-mini[data-mode="system"] .you-mini-side { background: transparent; }
+  .you-mini[data-mode="system"] .you-mini-sheet { background: linear-gradient(90deg, #FFFFFF 50%, #131416 50%); }
+  .you-mini[data-mode="system"] .you-mini-line:not(.you-mini-primary) { background: linear-gradient(90deg, #E4E5E8 50%, #26272B 50%); }
+
+  .you-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .you-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: transform 140ms var(--ease-out);
+  }
+  .you-swatch:hover { transform: scale(1.06); }
+  .you-swatch:focus-visible { outline-color: var(--ring); }
+  /* The chosen swatch springs as it is chosen, and keeps the ink ring. */
+  .you-swatch[aria-checked="true"] {
+    outline-color: var(--foreground);
+    animation: you-swatch-pick 260ms var(--ease-spring);
+  }
+  @keyframes you-swatch-pick {
+    0% { transform: scale(0.8); }
+    100% { transform: scale(1); }
+  }
+
+  /* The old glow, laid over the frame's own and faded out over 400ms while
+     the new accent's glow shows through (glowCrossfade.ts). */
+  .you-glow-was {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(760px 520px at -80px -100px, rgb(var(--you-glow) / 0.24), transparent 68%),
+      radial-gradient(480px 340px at 80px 1000px, rgb(var(--you-glow2) / 0.09), transparent 70%),
+      linear-gradient(180deg, rgb(var(--you-glow) / 0.045), transparent 55%);
+    opacity: 1;
+    transition: opacity 400ms var(--ease-out);
+  }
+  .dark .you-glow-was {
+    background:
+      radial-gradient(700px 480px at -80px -100px, rgb(var(--you-glow) / 0.17), transparent 68%),
+      radial-gradient(480px 340px at 80px 1000px, rgb(var(--you-glow2) / 0.08), transparent 70%),
+      linear-gradient(180deg, rgb(var(--you-glow) / 0.03), transparent 55%);
+  }
+  .you-glow-was[data-fading="true"] { opacity: 0; }
+
+  /* Calendar's connection tile, the passkey and token rows' tiles: 28px on
+     --sunken with an ink-3 glyph. Neutral: a category, not an identity. */
+  .you-conn-tile,
+  .you-key-tile {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--ink-3);
+  }
+  .you-conn-tile { width: 32px; height: 32px; border-radius: 9px; }
+  /* Each passkey row sits under a hairline, like any other row of the card. */
+  .you-passkeys > .set-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  /* A note inside a row (low on recovery codes): on --sunken with an inset
+     ring, no tint. */
+  .you-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  /* The QR: 168px, white in dark too (a camera reads it), r12 at e1. */
+  .you-qr {
+    display: grid;
+    place-items: center;
+    width: 168px;
+    height: 168px;
+    margin: 0 auto;
+    border-radius: 12px;
+    background: #FFFFFF;
+    box-shadow: var(--e1);
+  }
+
+  /* ---------- Notifications (S2) ---------- */
+  /* The event rows inside the email card: hairlines like any row, and when
+     email is off they stay put at 50 % (the wrapper's opacity), never hidden. */
+  .you-event-rows > .set-row + .set-row::before,
+  .you-event-rows > .set-row:first-child::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .you-events-body { transition: opacity 140ms var(--ease-out); }
+  /* The matrix (720px and wider): events down the side, a 16px checkbox per
+     channel; the column heads 12/510 ink-3. */
+  .you-matrix {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .you-matrix-head {
+    padding: 10px 16px 6px;
+    font-size: 12px;
+    font-weight: 510;
+    color: var(--ink-3);
+  }
+  .you-matrix tbody tr { position: relative; }
+  .you-matrix tbody th,
+  .you-matrix tbody td {
+    padding: 10px 16px;
+    border-top: 1px solid var(--line);
+  }
+  .you-matrix tbody th:first-child { padding-left: 16px; }
+  .you-matrix-event { text-align: left; font-weight: 400; }
+  /* Sub-rows a switch reveals: fade and drop 4px into place. */
+  .you-reveal { animation: you-reveal 180ms var(--ease-out) both; }
+  @keyframes you-reveal {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: none; }
+  }
+  .you-time { width: 96px; }
+  .you-tz-label { font-size: 12.5px; color: var(--ink-3); }
+  .you-tz { width: 14rem; font-size: 12.5px; }
+  /* The 24-hour bar: 240×24, the quiet span on --press, a moon, and now as a
+     2px accent tick. */
+  .you-qbar {
+    position: relative;
+    width: 240px;
+    max-width: 100%;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    overflow: hidden;
+  }
+  .you-qbar-span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--press);
+  }
+  .you-qbar-moon {
+    position: absolute;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    color: var(--ink-2);
+  }
+  .you-qbar-now {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--brand);
+  }
+  /* The daily note's preview chip: the agent's square and an example line. */
+  .you-note-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    height: 28px;
+    padding: 0 10px 0 6px;
+    border-radius: 8px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  /* Pause presets: 32px secondary chips; the chosen one raised with an accent ring. */
+
+  /* ---------- API tokens (S7) ---------- */
+  /* 52px rows between inset hairlines: a key in a 28px sunken tile, the name,
+     its dates in 12.5 ink-2, up to three neutral scope chips and the ⋯ menu. */
+  .you-token-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 8px 12px 8px 16px;
+  }
+  .you-token-row + .you-token-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .you-token-dates {
+    font-size: 12.5px;
+    line-height: 18px;
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .you-scope {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 6px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 11px;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .you-scope-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px 20px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 2px;
+  }
+  .you-details {
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  /* The reveal card: the token on --sunken, r10, inside a 1px sun ring, with a
+     32px copy button; it enters at scale .98 and fades in over 220ms. */
+  .you-reveal-card { animation: you-reveal-in 220ms var(--ease-out) both; }
+  @keyframes you-reveal-in {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .you-reveal-token {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px 8px 12px;
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--camp-sun) 70%, transparent);
+  }
+  .you-reveal-token code { font-size: 13px; line-height: 20px; }
+  .you-reveal-copy {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    color: var(--ink-2);
+    transition: transform 140ms var(--ease-out);
+  }
+  .you-reveal-copy:active { transform: scale(0.95); }
+  .you-reveal-copy:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+}

@@ -1,114 +1,57 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { describe, expect, it } from "vitest"
 
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
-
-import { DesktopSideNavigationBar } from "@/components/navigationBar/desktop/desktopSideNavigationBar"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { MediaQueryProvider } from "@/context/MediaQueryContext"
-import { MessageCircle } from "@/lib/icons"
-
-vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useDispatch: () => vi.fn(), useSelector: (pick: (s: unknown) => unknown) => pick({ users: { usersStatus: {} } }) }))
-vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => undefined }))
-vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
-
-afterEach(cleanup)
-
-// The sidebar keeps two lines, as the task panel keeps its label column:
-// every icon centres on one column (24px from the window's edge) and every
-// name starts on one line (40px). A DM's 20px avatar pushed its name to 52;
-// the logo centred on 28, the rail's icons on 26 and the collapse control's
-// on 27, so the column wobbled and toggling the rail nudged every icon. The
-// rows also stepped two rhythms: 30px in the primary list, 29px in groups.
-// Read from the classes that set each, so changing one of them alone fails.
+// The sidebar keeps two lines (design v3, shell S2 and S6): every icon
+// centres on one column, 24px from the window's edge, and every name starts
+// on one line at 40px. The open sidebar: 8px of its own padding, the row's
+// 8px, half a 16px icon. The rail: 6px in, half a 36px item. Read from the
+// CSS that sets each, so changing one alone fails.
 
 const root = join(__dirname, "..", "..", "..")
-const src = (f: string) => readFileSync(join(root, f), "utf8")
-const SIDE = src("components/navigationBar/desktop/desktopSideNavigationBar.tsx")
-const BAR = src("components/navigationBar/desktop/desktopNavigationBar.tsx")
-const TOP = src("components/navigationBar/desktop/desktopNavigationTopBar.tsx")
-const ORG = src("components/navigationBar/orgAvatarNav.tsx")
+const CSS = readFileSync(join(root, "app/globals.css"), "utf8")
+const NAV = readFileSync(join(__dirname, "desktopNavigationBar.tsx"), "utf8")
 
-/** Tailwind spacing to px: px-2 is 8, w-9 is 36, gap-0.5 is 2. */
-const px = (cls: string, prefix: string) => {
-  const m = new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.5)?)(?=\\s|$|")`).exec(cls)
-  if (!m) throw new Error(`no ${prefix}- in ${cls.slice(0, 120)}`)
-  return Number(m[1]) * 4
+function rule(selector: string): string {
+  const at = CSS.indexOf(`${selector} {`)
+  if (at < 0) throw new Error(`no rule for ${selector}`)
+  return CSS.slice(at, CSS.indexOf("}", at))
 }
-const classOf = (source: string, marker: RegExp) => {
-  const m = marker.exec(source)
-  if (!m) throw new Error(`not found: ${marker}`)
-  return m[1]
+const px = (block: string, prop: string) => {
+  const m = new RegExp(`(?:^|[\\s;{])${prop}:\\s*([^;]+);`).exec(block)
+  if (!m) throw new Error(`no ${prop} in ${block.slice(0, 80)}`)
+  return m[1].trim().split(/\s+/).map((v) => Number(v.replace("px", "")))
 }
 
 describe("the sidebar's icon column and name line", () => {
-  const navPad = px(classOf(SIDE, /<nav className="([^"]+)"/), "px")
-  const railPad = px(classOf(SIDE, /<nav className="[^"]*group-\[\[data-collapsed=true\]\]:(px-[\d.]+)/).replace("group-", ""), "px")
-  const rowPad = px(classOf(SIDE, /"group\/nav flex items-center gap-2 w-full (h-7 px-2) rounded-md"/), "px")
-  const rowGap = px(classOf(SIDE, /"group\/nav flex items-center (gap-2) w-full/), "gap")
-  const icon = 16 // h-4 w-4
-  const iconCentre = navPad + rowPad + icon / 2
-  const nameStart = navPad + rowPad + icon + rowGap
+  const side = px(rule(".shell-side"), "padding") // 10 8 8 8
+  const row = rule(".shell-row")
+  const rowPad = px(row, "padding")[1]
+  const gap = px(row, "gap")[0]
+  const icon = 16
 
   it("centres the open sidebar's icons on 24px and starts names at 40px", () => {
-    expect(iconCentre).toBe(24)
-    expect(nameStart).toBe(40)
+    expect(side[3]).toBe(8)
+    expect(side[3] + rowPad + icon / 2).toBe(24)
+    expect(side[3] + rowPad + icon + gap).toBe(40)
   })
 
-  it("centres the rail's icons, the logo and the collapse controls on the same column", () => {
-    const railItem = px(classOf(SIDE, /"(flex items-center justify-center h-9 w-9) rounded-md transition-colors"/), "w")
-    expect(railPad + railItem / 2).toBe(iconCentre)
-    const top = classOf(TOP, /<div className="(w-full h-12 flex [^"]+)"/)
-    const logo = px(classOf(ORG, /<Avatar className="([^"]+)"/), "w")
-    expect(px(top, "px") + logo / 2).toBe(iconCentre)
-    // Open: the control's padding, its icon, its gap; as the rail, a 36px button.
-    const row = classOf(BAR, /isCollapsed \? "(px-[\d.]+)" : "px-[\d.]+"/)
-    const openRow = classOf(BAR, /isCollapsed \? "px-[\d.]+" : "(px-[\d.]+)"/)
-    const collapse = classOf(BAR, /className="(text-xs text-muted-foreground[^"]+)"\s+title="Collapse sidebar"/)
-    expect(px(openRow, "px") + px(collapse, "px") + icon / 2).toBe(iconCentre)
-    expect(px(openRow, "px") + px(collapse, "px") + icon + px(collapse, "gap")).toBe(nameStart)
-    const expand = classOf(BAR, /className="(h-9 w-9 [^"]+)"\s+title="Expand sidebar"/)
-    expect(px(row, "px") + px(expand, "w") / 2).toBe(iconCentre)
+  it("is 30px a row with a 1px gap, and 248px wide by default", () => {
+    expect(px(row, "height")[0]).toBe(30)
+    const side = readFileSync(join(__dirname, "desktopSideNavigationBar.tsx"), "utf8")
+    expect(side.match(/flex flex-col gap-px/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(NAV).toMatch(/<SidebarSeam /)
+    expect(readFileSync(join(root, "lib/ui/sidebarSize.ts"), "utf8")).toMatch(/SIDEBAR_DEFAULT_PX = 248/)
   })
 
-  it("steps every row by one rhythm, in the primary list and in the groups", () => {
-    const primaryGap = px(classOf(SIDE, /<nav className="grid grid-cols-\[minmax\(0,1fr\)\] (gap-[\d.]+)/), "gap")
-    const groupGap = px(classOf(SIDE, /<CollapsibleContent className="(space-y-[\d.]+)"/).replace("space-y", "gap"), "gap")
-    expect(groupGap).toBe(primaryGap)
+  it("centres the rail's items on the same column", () => {
+    const rail = px(rule('.shell-side[data-rail="true"]'), "padding") // 10 0 8 6
+    const item = px(rule(".shell-rail-item"), "width")[0]
+    expect(rail[3] + item / 2).toBe(24)
   })
 
-  it("keeps a person's avatar in the icon column, so their name starts on the line", () => {
-    render(
-      <MediaQueryProvider>
-        <TooltipProvider>
-          <DesktopSideNavigationBar
-            isCollapsed={false}
-            links={[
-              {
-                title: "direct messages",
-                label: "",
-                icon: MessageCircle,
-                variant: "ghost",
-                path: "#",
-                isOpen: true,
-                setIsOpen: () => {},
-                children: [{ title: "Maya Chen", path: "/app/chat/u2", variant: "ghost", userProfile: { user_uuid: "u2", user_full_name: "Maya Chen", user_name: "maya" } as never }],
-              },
-            ]}
-          />
-        </TooltipProvider>
-      </MediaQueryProvider>,
-    )
-    const slot = screen.getByText("Maya Chen").closest("a")!.querySelector("[data-sidebar-avatar]")!
-    expect(slot.className.split(/\s+/)).toEqual(expect.arrayContaining(["-mx-0.5", "shrink-0"]))
-    // A 20px face less 2px each side takes the icon's 16px.
-    const face = slot.querySelector("[class*='h-5'][class*='w-5'], [class*='md:h-5']")
-    expect(face).not.toBeNull()
-  })
-
-  it("draws a group conversation as a team is, not as a stack of faces", () => {
-    expect(BAR).toMatch(/isGroup \? \{ icon: Users, hue_id: d\.dm_grouping_id \}/)
-    expect(SIDE).not.toMatch(/<GroupedAvatar/)
+  it("keeps a person's 20px face in the 16px icon column, 2px into the gap each side", () => {
+    const side = readFileSync(join(__dirname, "desktopSideNavigationBar.tsx"), "utf8")
+    expect(side).toMatch(/data-sidebar-avatar="" className="-mx-0\.5 flex/)
   })
 })

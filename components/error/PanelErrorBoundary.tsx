@@ -2,7 +2,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { SpotError } from "@/components/ui/graphics/spots"
+import { SpotPanelCrash } from "@/components/error/shellSpots"
 import { RefreshCcw, X } from "@/lib/icons"
 
 interface Props {
@@ -44,20 +44,22 @@ export class PanelErrorBoundary extends Component<Props, { failedKey: string | n
     const failed = failedKey !== null && (failedKey === "__pending__" || failedKey === this.props.resetKey)
     if (!failed) return this.props.children
     return (
-      <div role="alert" data-panel-error="" className="flex h-full min-h-[240px] flex-col items-start justify-center gap-3 px-6 py-10">
-        <SpotError size={64} />
+      // Design v3 (shell §V1): centred in the panel's sheet, the 56px crash
+      // spot, what happened, Try again and Close panel.
+      <div role="alert" data-panel-error="" className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+        <SpotPanelCrash />
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">This panel hit a problem</p>
-          <p className="max-w-[40ch] text-sm text-muted-foreground">The rest of OneCamp still works. Try the panel again, or close it.</p>
+          <p className="text-sm font-semibold text-foreground">This panel hit a problem</p>
+          <p className="max-w-[40ch] text-sm text-ink-2">The rest of OneCamp still works. Try the panel again, or close it.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={this.retry}>
-            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={this.retry}>
+            <RefreshCcw className="size-3.5" aria-hidden="true" />
             Try again
           </Button>
           {this.props.onClose && (
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={this.props.onClose}>
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={this.props.onClose}>
+              <X className="size-3.5" aria-hidden="true" />
               {this.props.closeLabel ?? "Close panel"}
             </Button>
           )}

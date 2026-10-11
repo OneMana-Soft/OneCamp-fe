@@ -14,10 +14,9 @@
  * opened (see useSidebarDisclosure), and navigating to a folded
  * destination opens it.
  *
- * Boards is deliberately not folded. It is not a peer destination but a
- * collection section alongside Docs, already closed by default and
- * carrying its own inline creator, so folding it would bury the
- * per-board list two levels down and take the creator with it.
+ * Design v3 (shell S5) takes this further: four rows stay (Home, Inbox, My
+ * tasks, Later) and More is a popover holding every page that isn't daily,
+ * Docs, Boards and Teams included, which are no longer sidebar sections.
  */
 
 /** Title of the disclosure the folded destinations live behind. */
@@ -33,7 +32,19 @@ export const FOCUS_SECTION_KEY = "more"
  * a rail entry and forgetting this list is a failing test rather than a
  * silently unfolded module.
  */
-export const FOLDED_NAV_TITLES = ["Calendar", "Tables", "Templates"] as const
+export const FOLDED_NAV_TITLES = [
+    "Calendar",
+    "Tables",
+    "Templates",
+    "Docs",
+    "Boards",
+    "Mail",
+    "Goals",
+    "Reports",
+    "Workload",
+    "Recordings",
+    "Teams",
+] as const
 
 /**
  * Split a nav list into what stays and what folds, preserving order in
