@@ -6,6 +6,7 @@ import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
 import { DocHeader, DocShortcutsDialog } from "@/components/docEditor/DocHeader";
 import { ConnectionPill } from "@/components/docEditor/ConnectionPill";
+import { RecoveredEditsBanner } from "@/components/docEditor/RecoveredEditsBanner";
 import { docSaveState, useSlowSave } from "@/components/docEditor/docSaveState";
 import type { Editor } from "@tiptap/react";
 import {LinkedFromSection} from "@/components/entityLink/LinkedFromSection";
@@ -122,6 +123,18 @@ export function DocView({ docId }: { docId: string }) {
     // Collaboration configuration. The provider hook fetches and manages its
     // own auth token internally (the Authorization cookie is HttpOnly), so the
     // page does not need to fetch or pass a token here.
+    // What the editor holds, for the edits a tab keeps aside when its copy of
+    // the doc is replaced (useCollaborationProvider "ONE COPY").
+    const editorRef = React.useRef<Editor | null>(null);
+    const handleEditor = React.useCallback((ed: Editor | null) => {
+        editorRef.current = ed;
+        setEditor(ed);
+    }, []);
+    const keepEdits = React.useCallback(() => {
+        const ed = editorRef.current;
+        if (!ed || ed.isDestroyed) return null;
+        return { html: ed.getHTML(), text: ed.getText() };
+    }, []);
     const collaborationConfig = React.useMemo(() => {
         if (!hasEditAccess || !docId || !userProfile.data?.data) return undefined;
         return {
@@ -131,15 +144,16 @@ export function DocView({ docId }: { docId: string }) {
             userId: userProfile.data.data.user_uuid,
             color: generateColorFromUUID(userProfile.data?.data?.user_uuid || "default"),
             profileKey: userProfile.data.data.user_profile_object_key,
+            keepEdits,
         };
-    }, [docId, userProfile.data?.data, hasEditAccess]);
+    }, [docId, userProfile.data?.data, hasEditAccess, keepEdits]);
 
     // Ask for the collaboration token while the doc's details load, so the
     // websocket finds it ready instead of waiting another round trip.
     useEffect(() => { warmCollabToken() }, []);
 
     // Collaboration provider
-    const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers } = useCollaborationProvider(collaborationConfig);
+    const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers, openError, readOnly: collabReadOnly, recovered, dismissRecovered, retry: retryCollab } = useCollaborationProvider(collaborationConfig);
 
     // ---------------------------------------------------------------------------
     // EDITOR MOUNT GATE
@@ -455,7 +469,8 @@ export function DocView({ docId }: { docId: string }) {
 
             {/* Document content area */}
             <div ref={bodyRef} className="flex-1 w-full flex flex-col overflow-hidden relative">
-                {!focusMode && <ConnectionPill problem={connectionProblem} />}
+                {!focusMode && <ConnectionPill problem={connectionProblem} onRetry={retryCollab} />}
+                {recovered && <RecoveredEditsBanner recovered={recovered} onDismiss={dismissRecovered} className="shrink-0" />}
                 {!focusMode && (
                     <LinkedFromSection refType="doc" refUUID={docId} className="shrink-0 px-5 py-2" />
                 )}
@@ -469,7 +484,9 @@ export function DocView({ docId }: { docId: string }) {
                         // the editor need not turn it into HTML at all.
                         onChange={collaborationConfig?.enabled ? undefined : handleBodyChange}
                         value={docInfo.doc_body}
-                        editable={hasEditAccess}
+                        // Read-only while the server says so (this tab's editor is
+                        // older than the server's: the pill asks to reload).
+                        editable={hasEditAccess && !collabReadOnly}
                         editorClassName="focus:outline-none"
                         collaboration={editorCollaborationProp}
                         provider={provider || undefined}
@@ -483,7 +500,7 @@ export function DocView({ docId }: { docId: string }) {
                         focusMode={focusMode}
                         fullWidth={fullWidth}
                         authorName={displayNameOf(docInfo.doc_created_by) || undefined}
-                        onEditor={setEditor}
+                        onEditor={handleEditor}
                         onComment={handleCommentClick}
                     />
                 ) : (

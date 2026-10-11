@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { getSchema } from '@tiptap/core'
 import { createExtensions } from './hooks/use-minimal-tiptap'
 import { DOC_EXTRA_EXTENSIONS } from '@/components/docEditor/docExtensions'
-import { manifestOf } from './schemaManifest'
+import { createHash } from 'node:crypto'
+import { SCHEMA_MANIFEST_HASH, manifestOf } from './schemaManifest'
 
 // The doc editor's nodes and marks must exist on the collaboration server with
 // the same names and attributes, or a doc holding one cannot be saved (11 Oct
@@ -13,11 +14,14 @@ import { manifestOf } from './schemaManifest'
 //
 // schema-manifest.json is a copy of the backend's
 // oneCamp/other-services/collaboration-service/schema-manifest.json, whose
-// schemaParity.test.js holds the server to it. Adding a block here:
+// schemaParity.test.js holds the server to exactly it. This test fails when the
+// editor writes a node, mark or attribute the manifest lacks. Adding a block:
 //   1. add its pure schema (same name, attributes and HTML) to the server's
 //      extensions.js;
-//   2. run this test with UPDATE_SCHEMA_MANIFEST=1 and copy the file to the
-//      backend, so both copies stay byte-equal.
+//   2. regenerate the manifest from the editor that writes every block (the
+//      private web repo's beta) by running this test with
+//      UPDATE_SCHEMA_MANIFEST=1, and copy the file to the backend and to the
+//      other web copies, so all of them stay byte-equal.
 const MANIFEST = path.join(__dirname, 'schema-manifest.json')
 
 const docSchema = () =>
@@ -41,16 +45,25 @@ describe('the doc editor schema matches the collaboration server', () => {
   if (process.env.UPDATE_SCHEMA_MANIFEST === '1') writeFileSync(MANIFEST, JSON.stringify(actual, null, 2) + '\n')
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'))
 
-  it('has the same node types as the manifest', () => {
-    expect(Object.keys(actual.nodes)).toEqual(Object.keys(manifest.nodes))
+  // Every type the editor writes must be in the manifest (the server is held
+  // to exactly the manifest). An editor may write fewer: the public editions
+  // leave some embeds out, and a server that knows more is harmless.
+  it('writes no node type the server lacks', () => {
+    expect(Object.keys(actual.nodes).filter((n) => !manifest.nodes[n])).toEqual([])
   })
 
-  it('has the same mark types as the manifest', () => {
-    expect(Object.keys(actual.marks)).toEqual(Object.keys(manifest.marks))
+  it('writes no mark type the server lacks', () => {
+    expect(Object.keys(actual.marks).filter((m) => !manifest.marks[m])).toEqual([])
   })
 
-  it('gives every node and mark the same attributes and placement', () => {
-    expect(actual).toEqual(manifest)
+  it('gives every node and mark the same attributes and placement as the server', () => {
+    for (const [name, spec] of Object.entries(actual.nodes)) expect(spec, `node ${name}`).toEqual(manifest.nodes[name])
+    for (const [name, spec] of Object.entries(actual.marks)) expect(spec, `mark ${name}`).toEqual(manifest.marks[name])
+  })
+
+  it('sends the hash of this manifest (SCHEMA_MANIFEST_HASH), as the server computes it', () => {
+    const hash = createHash('sha256').update(JSON.stringify(manifest), 'utf8').digest('hex')
+    expect(SCHEMA_MANIFEST_HASH, 'update SCHEMA_MANIFEST_HASH in schemaManifest.ts').toBe(hash)
   })
 
   it('names the blocks that were lost on save (the 11 Oct regression)', () => {

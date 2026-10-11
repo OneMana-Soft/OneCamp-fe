@@ -36,3 +36,13 @@ export function manifestOf(schema: Schema): SchemaManifest {
   }
   return { nodes: sorted(nodes), marks: sorted(marks) }
 }
+
+/**
+ * The hash of schema-manifest.json this build was made with: SHA-256 of the
+ * manifest re-serialised compactly, as the collaboration server computes it
+ * (oneCamp collaboration-service schemaGate.js manifestHash). Sent with every
+ * connection (hooks/useCollaborationProvider.ts collabUrl); a tab whose hash is
+ * one the server has moved on from opens docs read-only and is asked to reload.
+ * schemaManifest.test.ts fails when the manifest changes without this.
+ */
+export const SCHEMA_MANIFEST_HASH = '5c7a560bcee8a7b240b3f285b809738008372f7ffc528c1c9b23469439518264'

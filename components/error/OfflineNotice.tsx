@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
 import { useMqttConnectionState } from "@/components/mqtt/mqttProvider"
 import { useUpdateReady } from "@/hooks/useUpdateReady"
+import { isSchemaOutdated, subscribeSchemaOutdated } from "@/lib/schemaOutdated"
 import { WifiOff, Zap } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -18,7 +19,10 @@ import { cn } from "@/lib/utils/helpers/cn"
  *     paused"): it replaces the top bar's connection dot;
  *   - a newer build is out ("A new version is ready", polled from the build
  *     id): Reload, never automatically while somebody is typing. The chunk
- *     error reload (lib/chunkRecovery) stays the fallback.
+ *     error reload (lib/chunkRecovery) stays the fallback. When the
+ *     collaboration server says this tab's editor is older than its own, it
+ *     has opened the doc read-only, so the pill says so first: "A newer
+ *     version of OneCamp is ready. Reload to keep editing" (lib/schemaOutdated).
  *
  * On a desktop the pill sits 8px above the sidebar's foot (FootPill, which
  * hosts it); everywhere else the root's copy floats at the bottom, above a
@@ -48,6 +52,7 @@ function subscribeOnline(onChange: () => void) {
 const browserOnline = () => navigator.onLine
 const assumeOnline = () => true
 const assumeReachable = () => false
+const notOutdated = () => false
 
 /** How often the server is asked again while it doesn't answer. */
 const PROBE_EVERY_MS = 15_000
@@ -72,6 +77,7 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
   const unreachable = useSyncExternalStore(subscribeConnectivity, isServerUnreachable, assumeReachable)
   const connectionState = useMqttConnectionState()
   const update = useUpdateReady()
+  const schemaOutdated = useSyncExternalStore(subscribeSchemaOutdated, isSchemaOutdated, notOutdated)
 
   // The live connection only counts as lost after it has been up once, so a
   // page that is still connecting says nothing.
@@ -98,6 +104,7 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
   let pill: ConnectionPill = null
   if (!online) pill = { kind: "offline", title: "You're offline", line: "Changes won't be saved until you're back." }
   else if (unreachable) pill = { kind: "offline", title: "Can't reach the server", line: "Trying again. Nothing you've saved is lost." }
+  else if (schemaOutdated) pill = { kind: "update", title: "A newer version of OneCamp is ready. Reload to keep editing" }
   else if (wasLive && connectionState && !connectionState.isConnected) pill = { kind: "live", title: "Live updates paused · reconnecting" }
   else if (update.ready) pill = { kind: "update", title: "A new version is ready" }
 
@@ -124,7 +131,7 @@ function Pill({ pill, retry, reload, className }: { pill: NonNullable<Connection
       data-connection-pill={pill.kind}
       data-tone={pill.kind === "offline" ? "warn" : undefined}
       className={cn("shell-footpill", className)}
-      title={pill.kind === "offline" ? `${pill.title}. ${pill.line}` : undefined}
+      title={pill.kind === "offline" ? `${pill.title}. ${pill.line}` : pill.kind === "update" ? pill.title : undefined}
     >
       {lead}
       <span className="min-w-0 flex-1 truncate">{pill.title}</span>

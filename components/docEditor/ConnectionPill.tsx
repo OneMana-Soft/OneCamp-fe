@@ -11,12 +11,17 @@ import { cn } from "@/lib/utils/helpers/cn"
  * appears only once a problem has lasted 2 s, so blips never show, and after
  * it resolves it says "Back online" for 1.5 s.
  */
-export type ConnectionProblem = "offline" | "reconnecting" | null
+export type ConnectionProblem = "offline" | "reconnecting" | "unavailable" | null
 
 const SHOW_AFTER_MS = 2000
 const BACK_FOR_MS = 1500
 
-export function ConnectionPill({ problem, className }: { problem: ConnectionProblem; className?: string }) {
+/**
+ * "unavailable": the collaboration server could not read the doc and refused
+ * to open it (it never serves one empty). The stored copy stays on screen,
+ * read-only, and Retry asks again.
+ */
+export function ConnectionPill({ problem, onRetry, className }: { problem: ConnectionProblem; onRetry?: () => void; className?: string }) {
   const [shown, setShown] = React.useState<ConnectionProblem | "back">(null)
   const wasShown = React.useRef(false)
 
@@ -47,10 +52,25 @@ export function ConnectionPill({ problem, className }: { problem: ConnectionProb
         data-connection-pill={shown}
         className="content-float pointer-events-auto inline-flex h-8 items-center gap-2 rounded-[16px] bg-pop px-3.5 text-ui-sm font-[450] text-ink shadow-e3"
       >
-        {shown === "offline" ? (
+        {shown === "unavailable" || shown === "offline" ? (
           <>
             <span aria-hidden="true" className="size-1.5 rounded-full bg-camp-sun" />
-            Offline. Your changes are kept and will sync.
+            {shown === "offline" ? (
+              "Offline. Your changes are kept and will sync."
+            ) : (
+              <>
+                Couldn&apos;t open this doc.
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="h-6 rounded-[6px] bg-raised px-2 text-2xs font-medium text-ink shadow-e1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  >
+                    Retry
+                  </button>
+                )}
+              </>
+            )}
           </>
         ) : shown === "reconnecting" ? (
           <>
