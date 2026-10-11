@@ -38,7 +38,7 @@ describe("the line under a project's name", () => {
   it("is one chip high and one line from the first paint, before anything has loaded", () => {
     const { container } = render(<ProjectHeaderLine projectId="p" onOpenUpdates={() => {}} />)
     const line = lineOf(container)
-    expect(line.className).toContain("h-[1.375rem]")
+    expect(line.className).toContain("h-6")
     expect(line.className).not.toMatch(/flex-wrap/)
     expect(line.children.length).toBeGreaterThan(0)
   })
@@ -47,15 +47,14 @@ describe("the line under a project's name", () => {
     data.loaded = true
     const { container, getByText, getByRole } = render(<ProjectHeaderLine projectId="p" onOpenUpdates={() => {}} />)
     const line = lineOf(container)
-    expect(line.className).toContain("h-[1.375rem]")
+    expect(line.className).toContain("h-6")
     expect(line.className).not.toMatch(/flex-wrap/)
-    // The glance truncates; the health never shrinks; the goal shrinks first.
+    // The counts and the health hold; the goal shrinks first.
     const glance = line.firstElementChild as HTMLElement
-    expect(glance.className).toMatch(/\bmin-w-0\b/)
-    expect(glance.className).toMatch(/\btruncate\b/)
+    expect(glance.className).toMatch(/\bshrink-0\b/)
     const health = getByText(/On track/).closest("button")!
-    expect(health.className).toMatch(/\bshrink-0\b/)
     expect(health.className).toMatch(/\bwhitespace-nowrap\b/)
+    expect(health.parentElement!.className).toMatch(/\bshrink-0\b/)
     const goal = getByRole("link")
     expect(goal.className).toMatch(/\bmin-w-0\b/)
     expect(goal.className).toContain("shrink-[4]")

@@ -1,15 +1,17 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
-// The task panel's Comments, Activity and GitHub tabs had three insets (a
-// switch moved the first row 16px sideways and 8px down), three empty-state
-// paddings (py-8, py-6, py-12), a line of text for GitHub's loading and no
-// error state on Activity.
-describe("the task panel's tabs", () => {
+// The task panel's Comments, Activity and GitHub tabs had three insets, three
+// empty-state paddings, a line of text for GitHub's loading and no error
+// state on Activity. Design v3 (work.md W32) made them one stream with a
+// filter (All, Comments, History, and GitHub when linked).
+describe("the task panel's activity", () => {
   const panel = readFileSync("components/rightPanel/taskInfoPanel.tsx", "utf8")
   const gh = readFileSync("components/task/GitHubActivityTab.tsx", "utf8")
-  it("share one body", () => {
-    expect(panel.match(/<TabsContent value="(comments|activities|github)" className=\{PANEL_TAB\}>/g)?.length).toBe(3)
+  it("is one stream with a filter, not tabs", () => {
+    expect(panel).not.toMatch(/<TabsContent\b/)
+    expect(panel).toMatch(/<SegmentedControl[\s\S]{0,120}value=\{streamFilter\}/)
+    expect(panel).toMatch(/<TaskStream\b/)
     expect(gh).not.toContain('className="flex flex-col gap-3 py-2 pr-2"')
   })
   it("draw their states alike", () => {

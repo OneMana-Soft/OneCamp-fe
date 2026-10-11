@@ -87,17 +87,17 @@ export function ProjectTimeDialog({
           </Select>
           <div className="flex flex-wrap gap-2">
             {isAdmin && (
-              <Button variant="outline" size="sm" className="h-9" onClick={() => setRatesOpen(true)}>
+              <Button variant="secondary" size="sm" onClick={() => setRatesOpen(true)}>
                 Rates
               </Button>
             )}
-            <Button asChild variant="outline" size="sm" className={`h-9 gap-1.5 ${!report || report.billable_seconds === 0 ? "pointer-events-none opacity-50" : ""}`}>
+            <Button asChild variant="secondary" size="sm" className={`gap-1.5 ${!report || report.billable_seconds === 0 ? "pointer-events-none opacity-50" : ""}`}>
               <a href={`/invoice/${projectId}?${query}`} target="_blank" rel="noopener" aria-disabled={!report || report.billable_seconds === 0}>
                 <FileText className="h-4 w-4" />
                 Make an invoice
               </a>
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={download} disabled={downloading || !report || report.entries === 0}>
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={download} disabled={downloading || !report || report.entries === 0}>
               {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download CSV
             </Button>
@@ -105,16 +105,16 @@ export function ProjectTimeDialog({
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-ink-2" /></div>
         ) : error ? (
           <p className="py-6 text-center text-sm text-danger-ink">{serverMessage(error, "Couldn't load the report. Try again.")}</p>
         ) : !report || report.entries === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">
+          <p className="py-10 text-center text-sm text-ink-2">
             No time logged in this range. Start a timer or add time from any task in the project.
           </p>
         ) : (
           <div className="grid gap-5">
-            <dl className="grid grid-cols-3 divide-x border-y py-3">
+            <dl data-kpi-band="" className="grid grid-cols-3 rounded-xl bg-sunken px-4 py-3">
               <Stat label="Total" value={formatDuration(report.seconds)} />
               <Stat label="Billable" value={formatDuration(report.billable_seconds)} />
               {priced ? (
@@ -124,13 +124,13 @@ export function ProjectTimeDialog({
               )}
             </dl>
             {report.running > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-ink-2">
                 {report.running === 1 ? "One timer is" : `${report.running} timers are`} still running and counted up to now.
               </p>
             )}
             {report.truncated && <p className="text-xs text-danger-ink">This range has too many entries to add up at once. Pick a shorter one.</p>}
             {isAdmin && !priced && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-ink-2">
                 Set the project&apos;s{" "}
                 <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setRatesOpen(true)}>
                   rates
@@ -154,9 +154,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     // Figures in a row split by hairlines, not three boxes: they are one
     // reading, and the boxes made the dialog a grid of cards.
-    <div className="min-w-0 px-4 first:pl-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="truncate text-lg font-semibold">{value}</dd>
+    <div className="min-w-0 pr-4">
+      <dt className="text-xs text-ink-3">{label}</dt>
+      <dd className="truncate text-title-3 font-semibold tabular-nums text-foreground">{value}</dd>
     </div>
   )
 }
@@ -164,8 +164,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 function Breakdown({ title, lines, total, priced }: { title: string; lines: TimeLine[]; total: number; priced?: (cents: number) => string }) {
   return (
     <section className="grid gap-2">
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-      <ul className="grid gap-1.5">
+      <h3 className="text-ui-sm font-semibold text-foreground">{title}</h3>
+      <ul className="grid gap-2.5">
         {lines.map((l) => (
           <li key={l.id} className="grid gap-1">
             {/* On a phone the money wraps under the name rather than squeezing it to a few letters. */}
@@ -173,9 +173,9 @@ function Breakdown({ title, lines, total, priced }: { title: string; lines: Time
               <span className="min-w-0 max-w-full truncate">{l.name}</span>
               <span className="ml-auto shrink-0 text-right tabular-nums">
                 {formatDuration(l.seconds)}
-                {l.billable_seconds !== l.seconds && <span className="text-xs text-muted-foreground"> · {formatDuration(l.billable_seconds)} billable</span>}
+                {l.billable_seconds !== l.seconds && <span className="text-xs text-ink-2"> · {formatDuration(l.billable_seconds)} billable</span>}
                 {priced && l.amount_cents !== undefined && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-ink-2">
                     {" · "}
                     <span className="font-medium text-foreground">{priced(l.amount_cents)}</span>
                     {l.rate_cents !== undefined && ` at ${priced(l.rate_cents)}/h`}
@@ -183,8 +183,10 @@ function Breakdown({ title, lines, total, priced }: { title: string; lines: Time
                 )}
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-              <div className="h-full rounded-full bg-foreground/60" style={{ width: `${total ? Math.max(2, (l.seconds / total) * 100) : 0}%` }} />
+            {/* A 4 px bar: the whole of their time in a tint, the billable part in the theme's progress. */}
+            <div data-time-bar="" className="relative h-1 overflow-hidden rounded-[2px] bg-press" aria-hidden>
+              <div className="absolute inset-y-0 left-0 rounded-[2px] bg-progress opacity-30" style={{ width: `${total ? Math.max(2, (l.seconds / total) * 100) : 0}%` }} />
+              <div className="absolute inset-y-0 left-0 rounded-[2px] bg-progress" style={{ width: `${total ? Math.max(l.billable_seconds ? 2 : 0, (l.billable_seconds / total) * 100) : 0}%` }} />
             </div>
           </li>
         ))}

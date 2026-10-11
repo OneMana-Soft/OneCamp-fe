@@ -46,6 +46,21 @@ describe("the Estimate field's look", () => {
     render(<TaskEstimateField taskUUID="t" projectUUID="p" canEdit />)
     expect(field().className).toMatch(/border-transparent/)
     expect(field().className).not.toMatch(/(^|\s)border-input(\s|$)/)
-    expect(field().placeholder).toBe("How long? 2h 30m…")
+    expect(field().placeholder).toBe("Add estimate")
+  })
+
+  it("reads logged time against the estimate, with a bar", () => {
+    const { container } = render(<TaskEstimateField taskUUID="t" projectUUID="p" minutes={180} loggedSeconds={155 * 60} canEdit />)
+    expect(screen.getByText("2h 35m")).toBeTruthy()
+    expect(screen.getByText("of")).toBeTruthy()
+    expect(container.querySelector("[data-estimate-bar]")).not.toBeNull()
+    expect(container.querySelector("[data-estimate-over]")).toBeNull()
+  })
+
+  it("says how far over the estimate it is, in words and with a cap past the bar", () => {
+    const { container } = render(<TaskEstimateField taskUUID="t" projectUUID="p" minutes={180} loggedSeconds={200 * 60} canEdit />)
+    expect(screen.getByText("· 20m over")).toBeTruthy()
+    expect(container.querySelector("[data-estimate-over]")).not.toBeNull()
+    expect(container.querySelector("[data-bar-fill]")!.className).toContain("bg-camp-sun")
   })
 })

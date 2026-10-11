@@ -89,3 +89,19 @@ describe("writing an update", () => {
     expect(p.edit).toHaveBeenCalledWith("u9", { health: "done", body: "Old note", shared_with_client: false })
   })
 })
+
+describe("the prompt card at the top of the updates (work.md W27)", () => {
+  it("offers three health chips that say which is pressed, and opens the composer with it", async () => {
+    const { UpdatePrompt } = await import("@/components/projectUpdates/ProjectUpdates")
+    const onOpen = vi.fn()
+    render(<UpdatePrompt projectName="Q4 launch" onOpen={onOpen} />)
+    expect(screen.getByText("How is Q4 launch going?")).toBeInTheDocument()
+    const chips = ["On track", "At risk", "Off track"].map((n) => screen.getByRole("button", { name: n }))
+    for (const c of chips) expect(c).toHaveAttribute("aria-pressed", "false")
+    fireEvent.click(chips[1])
+    expect(onOpen).toHaveBeenCalledWith("at_risk")
+    expect(chips[1]).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(screen.getByRole("button", { name: /Draft from tasks/ }))
+    expect(onOpen).toHaveBeenLastCalledWith("at_risk")
+  })
+})

@@ -23,11 +23,14 @@ export const FilterChip = React.forwardRef<
   return (
     <Button
       ref={ref}
-      variant="outline"
+      variant="ghost"
       size="sm"
       className={cn(
-        "h-8 max-w-[18rem] gap-1.5 px-2.5 text-xs font-medium",
-        n > 0 ? "bg-muted/60 text-foreground" : "text-muted-foreground hover:text-foreground",
+        // Design v3 (work.md W10): a quiet ghost while it filters nothing, a
+        // chip on the hover ground inside a hairline once it does; never a
+        // bordered button in a toolbar.
+        "h-7 max-w-[18rem] gap-1.5 px-2.5 text-xs font-[510]",
+        n > 0 ? "bg-hover text-foreground ring-line" : "text-ink-2 hover:text-foreground",
         className,
       )}
       {...props}

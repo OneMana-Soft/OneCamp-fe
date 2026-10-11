@@ -8,7 +8,19 @@
  * is what it means everywhere else: a task in "QA" is In Review to reminders,
  * overdue counts and reports. Deleting one asks where its tasks go, and
  * defaults to the built-in status it counted as, so nothing is lost.
+ *
+ * Design v3 (work.md W48): six sections, one per category, each headed by its
+ * glyph; a custom status draws its category's shape in the hue it is given,
+ * and offers only the hues that category allows (STATUS_HUES), written as the
+ * name the server stores. A strip at the top previews the board's workflow.
  */
+
+/** A colour kept only if the category allows it; else the category's first hue. */
+export function hueForCategory(color: string, category: StatusCategory): string {
+  const allowed = STATUS_HUES[category]
+  const h = statusHueOf(color, category)
+  return STORED_NAME[allowed.includes(h) ? h : allowed[0]]
+}
 
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -18,7 +30,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectStatuses, type StatusInput } from "@/hooks/useProjectStatuses"
-import { BUILT_IN_STATUSES, type CustomTaskStatus, type StatusCategory } from "@/lib/taskStatus"
+import { BUILT_IN_STATUSES, CATEGORY_KIND, STATUS_HUES, STORED_NAME, statusHueOf, type CustomTaskStatus, type StatusCategory } from "@/lib/taskStatus"
+import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ColorPicker } from "@/components/ui/paletteColorPicker"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -77,15 +90,24 @@ export function ProjectStatusesDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div data-status-preview="" aria-label="The workflow" role="list" className="flex flex-wrap items-center gap-1.5 rounded-lg bg-sunken p-2">
+          {options.map((o) => (
+            <span key={o.value} role="listitem" className="chip h-6 gap-1.5 bg-raised text-foreground shadow-e1">
+              <StatusGlyph status={CATEGORY_KIND[o.category]} hue={o.hue} size={14} />
+              {o.label}
+            </span>
+          ))}
+        </div>
+
         <div className="space-y-4">
           {BUILT_IN_STATUSES.map((b) => {
             const mine = ordered.filter((c) => c.category === b.value)
             return (
-              <section key={b.value} aria-label={b.label} className="space-y-1">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  {b.icon && <b.icon className="h-4 w-4 text-muted-foreground" />}
+              <section key={b.value} aria-label={b.label} data-status-category={b.value} className="space-y-1">
+                <div className="flex h-8 items-center gap-2 text-ui-sm font-medium text-foreground">
+                  <StatusGlyph status={CATEGORY_KIND[b.category]} />
                   {b.label}
-                  <span className="text-xs font-normal text-muted-foreground">built-in</span>
+                  <span className="text-xs font-normal text-ink-3">built-in</span>
                 </div>
                 {mine.map((c, i) => (
                   <StatusRow
@@ -152,6 +174,8 @@ function StatusRow({
   const [moveTo, setMoveTo] = useState<string>(status.category)
   const save = (patch: Partial<StatusInput>) => {
     const next = { name: name.trim(), category: status.category, color: status.color, ...patch }
+    // A new category keeps the colour only if it allows it.
+    next.color = hueForCategory(next.color, next.category)
     if (!next.name) {
       setName(status.name)
       return
@@ -161,9 +185,12 @@ function StatusRow({
   }
 
   return (
-    <div className="ml-6 rounded-md border border-border/60">
+    <div className="ml-6 rounded-lg bg-raised shadow-e1">
       <div className="flex items-center gap-1 p-1">
-        <ColorPicker value={status.color} disabled={busy} onChange={(color) => save({ color })} />
+        <span className="flex size-6 shrink-0 items-center justify-center" data-status-glyph="">
+          <StatusGlyph status={CATEGORY_KIND[status.category]} hue={statusHueOf(status.color, status.category)} />
+        </span>
+        <ColorPicker value={status.color} disabled={busy} hues={STATUS_HUES[status.category]} onChange={(color) => save({ color })} />
         <Input dense
           value={name}
           maxLength={40}
@@ -197,7 +224,7 @@ function StatusRow({
         </Button>
       </div>
       {deleting && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border/60 bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line bg-sunken px-3 py-2 text-sm">
           <span className="text-muted-foreground">Its tasks move to</span>
           <Select value={moveTo} onValueChange={setMoveTo}>
             <SelectTrigger dense className="h-8 w-48 text-xs" aria-label="Move its tasks to">
@@ -228,25 +255,28 @@ function StatusRow({
 function AddStatus({ busy, full, max, onAdd }: { busy: boolean; full: boolean; max: number; onAdd: (input: StatusInput) => void }) {
   const [name, setName] = useState("")
   const [category, setCategory] = useState<StatusCategory>("inProgress")
-  const [color, setColor] = useState("violet")
+  const [color, setColor] = useState(STORED_NAME.sun)
   const submit = () => {
     const n = name.trim()
     if (!n) return
-    onAdd({ name: n, category, color })
+    onAdd({ name: n, category, color: hueForCategory(color, category) })
     setName("")
   }
   if (full) {
-    return <p className="border-t border-border/60 pt-3 text-sm text-muted-foreground">This project has {max} statuses of its own, the most it can have.</p>
+    return <p className="border-t border-line pt-3 text-sm text-ink-2">This project has {max} statuses of its own, the most it can have.</p>
   }
   return (
     <form
-      className="flex items-center gap-1 border-t border-border/60 pt-3"
+      className="flex items-center gap-1 border-t border-line pt-3"
       onSubmit={(e) => {
         e.preventDefault()
         submit()
       }}
     >
-      <ColorPicker value={color} disabled={busy} onChange={setColor} />
+      <span className="flex size-6 shrink-0 items-center justify-center">
+        <StatusGlyph status={CATEGORY_KIND[category]} hue={statusHueOf(hueForCategory(color, category), category)} />
+      </span>
+      <ColorPicker value={hueForCategory(color, category)} disabled={busy} hues={STATUS_HUES[category]} onChange={setColor} />
       <Input
         value={name}
         maxLength={40}

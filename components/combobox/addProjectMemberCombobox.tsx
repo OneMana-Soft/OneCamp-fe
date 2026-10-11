@@ -51,7 +51,7 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[240px] p-0 shadow-xl border-border/50">
+                <PopoverContent className="w-[240px] p-0 shadow-e4 border-border/50">
                     <Command>
                         <CommandInput placeholder="Search user…" className="h-9" />
                         <CommandList>

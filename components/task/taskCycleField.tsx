@@ -10,7 +10,8 @@ import { usePost } from "@/hooks/usePost"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { cycleDates, cycleLabel, openCycles, type Cycle } from "@/lib/tasks/cycles"
-import { fieldLabel, fieldRow, inlineSelect } from "@/lib/ui/fieldRow"
+import { inlineSelect } from "@/lib/ui/fieldRow"
+import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 
 const NONE = "none"
 
@@ -37,9 +38,9 @@ export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: str
   }
 
   return (
-    <div className={fieldRow()}>
+    <div className={propertyRow()} data-field-empty={current ? undefined : ""}>
       <div>
-        <span className={fieldLabel}>Cycle</span>
+        <span className={propertyLabel}>Cycle</span>
       </div>
       <div className="min-w-0">
         <Select value={current?.id ?? NONE} onValueChange={change} disabled={!isAdmin || isSubmitting}>

@@ -59,3 +59,18 @@ describe("opening the Forms dialog", () => {
     expect(document.activeElement?.getAttribute("role")).toBe("dialog")
   })
 })
+
+describe("the form preview (work.md W46)", () => {
+  it("shows the form as it will look, saying which questions are required", async () => {
+    const { FormPreview } = await import("@/components/project/ProjectFormsDialog")
+    render(
+      <FormPreview
+        form={{ title: "Design requests", description: "", fields: [{ id: "a", label: "What do you need?", type: "long_text", required: true }, { id: "b", label: "By when?", type: "date", required: false }] } as never}
+      />,
+    )
+    const pane = screen.getByRole("complementary", { name: "Preview" })
+    expect(pane.textContent).toContain("Design requests")
+    expect(pane.textContent).toContain("What do you need?Required")
+    expect(pane.textContent).not.toContain("By when?Required")
+  })
+})

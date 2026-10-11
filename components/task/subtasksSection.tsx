@@ -1,24 +1,18 @@
 "use client"
 
-import React from "react"
-import { inlineAdd, sectionTitle } from "@/lib/ui/fieldRow"
-import { useState, useEffect, useCallback, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Plus, CheckCircle2, ChevronRight, Link2 } from "@/lib/icons";
+import React, { useCallback, useEffect, useRef, useState } from "react"
+
+import { ArrowUpRight, Check, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { DateField } from "./taskDateField"
+import { panelSection } from "@/lib/ui/propertyRow"
+import { celebrateRing, prefersReducedMotion } from "@/lib/celebrate"
+import { Bar } from "@/components/ui/progress"
+import { DueLabel } from "@/components/task/DueLabel"
+import { TaskTitle } from "@/components/task/TaskCheck"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
-import type {UserProfileDataInterface} from "@/types/user"
-import TaskSubTaskAssignee from "@/components/task/taskSubTaskAssignee";
-import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {NewSubTaskDraft, TaskInfoInterface} from "@/types/task";
-import {useAnimationState} from "@/hooks/useAnimationState";
-
-
-
-
-
+import TaskSubTaskAssignee from "@/components/task/taskSubTaskAssignee"
+import type { UserProfileDataInterface } from "@/types/user"
+import type { NewSubTaskDraft, TaskInfoInterface } from "@/types/task"
 
 type SubtasksSectionProps = {
     isAdmin: boolean
@@ -33,194 +27,140 @@ type SubtasksSectionProps = {
     onCreateSubtask: (subtaskData: NewSubTaskDraft) => void
 }
 
-export function SubtasksSection({
-    isAdmin,
-    subtasks,
-    projectMembers,
-    onToggleStatus,
-    onRename,
-    onUpdateStart,
-    onUpdateDue,
-    onUpdateAssignee,
-    onOpen,
-    onCreateSubtask,
-}: SubtasksSectionProps) {
-    const [isCreatingSubtask, setIsCreatingSubtask] = useState(false)
-    const [newSubtask, setNewSubtask] = useState<NewSubTaskDraft>({
-        task_name: "",
-        task_assignee_uuid: "",
-        task_due_date: undefined,
-        task_start_date: undefined,
-        task_assignee: undefined,
-    })
-    const { animatingSubtasks, triggerAnimation } = useAnimationState()
-    const subtaskFormRef = useRef<HTMLDivElement>(null)
+const EMPTY_DRAFT: NewSubTaskDraft = { task_name: "", task_assignee_uuid: "", task_due_date: undefined, task_start_date: undefined, task_assignee: undefined }
 
-    // Handle clicks outside the subtask creation form
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (isCreatingSubtask && subtaskFormRef.current && !subtaskFormRef.current.contains(event.target as Node)) {
-                setIsCreatingSubtask(false)
-                setNewSubtask({
-                    task_name: "",
-                    task_assignee_uuid: "",
-                    task_due_date: undefined,
-                    task_start_date: undefined,
-                    task_assignee: undefined,
-                })
+/**
+ * A task's subtasks (design v3, work.md W30): "Subtasks · 2 of 3" with a
+ * 64 x 4 bar, then 30px rows with a 16px checkbox, the title, its due date,
+ * and on hover the assignee and a way in. Ticking one springs its box and
+ * strikes its title, with no sparks (eight bursts in a panel of subtasks
+ * would be noise); ticking the last open one is the Ring tier, from the
+ * bar's end. "+ Add subtask" becomes a field; Enter adds and keeps a field
+ * for the next.
+ */
+export function SubtasksSection({ isAdmin, subtasks, projectMembers, onToggleStatus, onRename, onUpdateAssignee, onOpen, onCreateSubtask }: SubtasksSectionProps) {
+    const [adding, setAdding] = useState(false)
+    const [draft, setDraft] = useState("")
+    const [draftKey, setDraftKey] = useState(0)
+    const barEnd = useRef<HTMLSpanElement>(null)
+    // The ones this person just ticked, for the spring and the strike.
+    const [justDone, setJustDone] = useState<Set<string>>(() => new Set())
+
+    const total = subtasks.length
+    const done = subtasks.filter((s) => s.task_status === "done").length
+
+    const toggle = useCallback(
+        (task: TaskInfoInterface) => {
+            const next = task.task_status === "done" ? "todo" : "done"
+            if (next === "done") {
+                if (!prefersReducedMotion()) setJustDone((prev) => new Set(prev).add(task.task_uuid))
+                // The last open one: the bar fills and the Ring tier bursts from its end.
+                const open = subtasks.filter((s) => s.task_status !== "done").length
+                if (open === 1) celebrateRing(barEnd.current)
             }
-        }
+            onToggleStatus(task.task_uuid, next)
+        },
+        [onToggleStatus, subtasks],
+    )
 
-        if (isCreatingSubtask) {
-            document.addEventListener('mousedown', handleClickOutside)
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside)
-        }
-    }, [isCreatingSubtask])
-
-    const handleToggleStatusWithAnimation = useCallback((task_uuid: string, newStatus: "done" | "todo") => {
-        try {
-            if (newStatus === "done") {
-                triggerAnimation(task_uuid)
-            }
-            
-            onToggleStatus(task_uuid, newStatus)
-        } catch (error) {
-            console.error('Error handling subtask status toggle:', error)
-            // Fallback to direct toggle without animation
-            onToggleStatus(task_uuid, newStatus)
-        }
-    }, [onToggleStatus, triggerAnimation])
-
-    const handleCreateSubtask = () => {
-        if (newSubtask.task_name.trim()) {
-            onCreateSubtask(newSubtask)
-            setNewSubtask({
-                task_name: "",
-                task_assignee_uuid: "",
-                task_due_date: undefined,
-                task_start_date: undefined,
-                task_assignee: undefined,
-            })
-            setIsCreatingSubtask(false)
-        }
+    const add = () => {
+        const name = draft.trim()
+        if (!name) return
+        onCreateSubtask({ ...EMPTY_DRAFT, task_name: name })
+        setDraft("")
+        // A fresh field, focused, for the next one.
+        setDraftKey((k) => k + 1)
     }
 
-    const handleCancelCreate = () => {
-        setNewSubtask({
-            task_name: "",
-            task_assignee_uuid: "",
-            task_due_date: undefined,
-            task_start_date: undefined,
-            task_assignee: undefined,
-        })
-        setIsCreatingSubtask(false)
-    }
+    if (total === 0 && !isAdmin) return null
 
     return (
-        <div className="space-y-3">
-            {/* Header: the same as the panel's other sections. */}
-            <h3 className={sectionTitle}>Subtasks</h3>
-
-            {/* Subtasks List */}
-            <div className="">
-                {subtasks.map((subtask, index) => (
-                    <div key={subtask.task_uuid}>
-                        <SubtaskItem
-                            subtask={subtask}
-                            isAdmin={isAdmin}
-                            projectMembers={projectMembers}
-                            onToggleStatus={handleToggleStatusWithAnimation}
-                            onRename={onRename}
-                            onUpdateStart={onUpdateStart}
-                            onUpdateDue={onUpdateDue}
-                            onUpdateAssignee={onUpdateAssignee}
-                            onOpen={onOpen}
-                            isAnimating={animatingSubtasks.has(subtask.task_uuid)}
-                        />
-                        {index < subtasks.length - 1 && (
-                            <Separator className="my-0" />
-                        )}
-                    </div>
-                ))}
-
-                {/* Create New Subtask */}
-                {isCreatingSubtask && (
-                    <div ref={subtaskFormRef} className="rounded-lg border bg-muted/30 p-2">
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
-                                    <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-                                </div>
-                                <ResizeableTextInput
-                                    delay={0}
-                                    content={newSubtask.task_name}
-                                    textUpdate={(name) => setNewSubtask(prev => ({ ...prev, task_name: name }))}
-                                    textUpdateOnEnter={handleCreateSubtask}
-                                    placeholder="Enter subtask name…"
-                                    className="flex-1 !px-1 !pt-0.5"
-                                />
-
-                            {newSubtask.task_name.trim() && (
-                                <div className="flex items-center gap-4">
-                                    <DateField
-                                        isAdmin={isAdmin}
-                                        label="Start"
-                                        value={newSubtask.task_start_date}
-                                        onSelect={(date) => setNewSubtask(prev => ({ ...prev, task_start_date: date }))}
-                                        onClear={() => setNewSubtask(prev => ({ ...prev, task_start_date: undefined }))}
-                                        compact
-                                    />
-                                    <DateField
-                                        isAdmin={isAdmin}
-                                        label="Due"
-                                        value={newSubtask.task_due_date}
-                                        onSelect={(date) => setNewSubtask(prev => ({ ...prev, task_due_date: date }))}
-                                        onClear={() => setNewSubtask(prev => ({ ...prev, task_due_date: undefined }))}
-                                        compact
-                                    />
-                                    <TaskSubTaskAssignee
-                                        taskProjectMembers={projectMembers}
-                                        assigneeUpdate={(user) => setNewSubtask(prev => ({ ...prev, task_assignee: user }))}
-                                        userProfile={newSubtask.task_assignee}
-                                    />
-                                </div>
-                            )}
-                            </div>
-
-
-                            <div className="flex items-center gap-2 ml-8">
-                                <Button
-                                    size="sm"
-                                    onClick={handleCreateSubtask}
-                                    disabled={!newSubtask.task_name.trim()}
-                                >
-                                    Create
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={handleCancelCreate}
-                                >
-                                    Cancel
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+        <section className="mb-6" data-subtasks="">
+            <div className="mb-1 flex h-7 items-center gap-2">
+                <h3 className={panelSection}>Subtasks</h3>
+                {total > 0 && (
+                    <>
+                        <span className="text-meta tabular-nums text-ink-3">
+                            {done} of {total}
+                        </span>
+                        <span className="relative inline-flex w-16">
+                            <Bar value={(done / total) * 100} size={4} label={`${done} of ${total} subtasks done`} />
+                            <span ref={barEnd} aria-hidden className="absolute right-0 top-1/2 size-0" data-subtask-bar-end="" />
+                        </span>
+                    </>
                 )}
             </div>
 
-            {/* A real button: it was a div drawn as one, which the keyboard
-                couldn't reach and "disabled" didn't stop. */}
-            {isAdmin && !isCreatingSubtask && (
-                <Button type="button" variant="ghost" size="sm" className={inlineAdd} onClick={() => setIsCreatingSubtask(true)}>
-                    <Plus className="h-3.5 w-3.5" aria-hidden />
-                    Add subtask
-                </Button>
-            )}
+            <ul className="flex flex-col">
+                {subtasks.map((subtask) => (
+                    <SubtaskItem
+                        key={subtask.task_uuid}
+                        subtask={subtask}
+                        isAdmin={isAdmin}
+                        projectMembers={projectMembers}
+                        justDone={justDone.has(subtask.task_uuid)}
+                        onToggle={toggle}
+                        onRename={onRename}
+                        onUpdateAssignee={onUpdateAssignee}
+                        onOpen={onOpen}
+                    />
+                ))}
+            </ul>
 
+            {isAdmin &&
+                (adding ? (
+                    <AddRow
+                        key={draftKey}
+                        value={draft}
+                        onChange={setDraft}
+                        onAdd={add}
+                        onCancel={() => {
+                            setAdding(false)
+                            setDraft("")
+                        }}
+                    />
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setAdding(true)}
+                        className="-ml-1 flex h-[30px] w-full items-center gap-2 rounded-md px-1 text-sm text-ink-3 transition-colors hover:bg-hover hover:text-foreground"
+                    >
+                        <Plus className="size-4" aria-hidden />
+                        Add subtask
+                    </button>
+                ))}
+        </section>
+    )
+}
+
+function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange: (v: string) => void; onAdd: () => void; onCancel: () => void }) {
+    const ref = useRef<HTMLInputElement>(null)
+    useEffect(() => ref.current?.focus(), [])
+    return (
+        <div className="-ml-1 flex h-[30px] items-center gap-2 px-1">
+            <span aria-hidden className="size-4 shrink-0 rounded-[5px] ring-[1.5px] ring-inset ring-line-3" />
+            <input
+                ref={ref}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault()
+                        onAdd()
+                    }
+                    if (e.key === "Escape") {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onCancel()
+                    }
+                }}
+                onBlur={() => {
+                    if (!value.trim()) onCancel()
+                }}
+                placeholder="Subtask name, then Enter"
+                aria-label="New subtask"
+                className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none ring-brand/40 placeholder:text-ink-4 focus-visible:ring-1"
+            />
         </div>
     )
 }
@@ -229,142 +169,77 @@ type SubtaskItemProps = {
     subtask: TaskInfoInterface
     isAdmin: boolean
     projectMembers: UserProfileDataInterface[]
-    onToggleStatus: (task_uuid: string, newStatus: "done" | "todo") => void
+    justDone: boolean
+    onToggle: (task: TaskInfoInterface) => void
     onRename: (task_uuid: string, name: string) => void
-    onUpdateStart: (task_uuid: string, date?: Date) => void
-    onUpdateDue: (task_uuid: string, date?: Date) => void
     onUpdateAssignee: (task_uuid: string, userInfo?: UserProfileDataInterface) => void
     onOpen: (task_uuid: string) => void
-    isAnimating: boolean
 }
 
-const SubtaskItem = React.memo(function SubtaskItem({
-    subtask,
-    isAdmin,
-    projectMembers,
-    onToggleStatus,
-    onRename,
-    onUpdateStart,
-    onUpdateDue,
-    onUpdateAssignee,
-    onOpen,
-    isAnimating,
-}: SubtaskItemProps) {
+const SubtaskItem = React.memo(function SubtaskItem({ subtask, isAdmin, projectMembers, justDone, onToggle, onRename, onUpdateAssignee, onOpen }: SubtaskItemProps) {
     const isCompleted = subtask.task_status === "done"
-    const startDate = subtask.task_start_date && !isZeroEpoch(subtask.task_start_date)? new Date(subtask.task_start_date) : undefined
-    const dueDate = subtask.task_due_date && !isZeroEpoch(subtask.task_due_date)? new Date(subtask.task_due_date) : undefined
-    const hasComments = (subtask.task_comment_count || 0) > 0
-    const hasSubtasks = (subtask.task_sub_task_count || 0) > 0
-
-
-    const handleToggleClick = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation()
-        onToggleStatus(subtask.task_uuid, isCompleted ? "todo" : "done")
-    }, [onToggleStatus, subtask.task_uuid, isCompleted])
-
-    const handleOpenClick = useCallback(() => {
-        onOpen(subtask.task_uuid)
-    }, [onOpen, subtask.task_uuid])
-
     return (
-        <div
-            className={cn(
-                "flex flex-wrap items-center gap-x-1 gap-y-1.5 p-1 py-1 rounded-lg hover:bg-muted/60",
-                isCompleted && "text-muted-foreground"
+        <li className="group/sub -ml-1 flex h-[30px] items-center gap-2 rounded-md px-1 transition-colors hover:bg-hover" data-subtask={subtask.task_uuid}>
+            <SubtaskBox checked={isCompleted} spring={justDone && isCompleted} disabled={!isAdmin} name={subtask.task_name} onToggle={() => onToggle(subtask)} />
+            <div className="min-w-0 flex-1 text-sm font-[450]">
+                {isAdmin && !isCompleted ? (
+                    <ResizeableTextInput
+                        delay={500}
+                        content={subtask.task_name}
+                        textUpdate={(s: string) => onRename(subtask.task_uuid, s)}
+                        textUpdateOnEnter={(s: string) => onRename(subtask.task_uuid, s)}
+                        placeholder="Subtask name"
+                        className="!min-h-0 !border-0 !bg-transparent !px-0 !py-0 !text-sm truncate !shadow-none"
+                    />
+                ) : (
+                    <TaskTitle done={isCompleted} justDone={justDone} className="block">
+                        {subtask.task_name}
+                    </TaskTitle>
+                )}
+            </div>
+            <DueLabel date={subtask.task_due_date} done={isCompleted} className="shrink-0" />
+            {/* On hover: who has it (always, once someone does), and a way in. */}
+            {isAdmin && (
+                <span className={cn("flex shrink-0 items-center transition-opacity", !subtask.task_assignee && "opacity-0 pointer-events-none focus-within:opacity-100 focus-within:pointer-events-auto group-hover/sub:opacity-100 group-hover/sub:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto")}>
+                    <TaskSubTaskAssignee taskProjectMembers={projectMembers} userProfile={subtask.task_assignee} assigneeUpdate={(u) => onUpdateAssignee(subtask.task_uuid, u)} />
+                </span>
             )}
-        >
-            {/* Completion Status */}
-            <div className="flex-shrink-0">
-                <button
-                    onClick={handleToggleClick}
-                    className="flex items-center justify-center"
-                    aria-label={isCompleted ? "Mark as incomplete" : "Mark as complete"}
-                    type="button"
-                >
-                    {isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5 statusColors.success.text" />
-                    ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50" />
-                    )}
-                </button>
-            </div>
-
-            {/* Task Name — fills the first row */}
-            <div className="flex-1 min-w-0 basis-[60%] sm:basis-auto">
-                <div className="flex items-center gap-2 min-w-0">
-                    {isAdmin ? (
-                        <ResizeableTextInput
-                            delay={500}
-                            content={subtask.task_name}
-                            textUpdate={(s: string) => onRename(subtask.task_uuid, s)}
-                            textUpdateOnEnter={(s: string) => onRename(subtask.task_uuid, s)}
-                            placeholder="Enter subtask name…"
-                            className='!text-sm font-medium truncate !px-1 !pt-0.5'
-                        />
-                    ) : (
-                        <span className={cn("text-sm font-medium truncate")}>{subtask.task_name}</span>
-                    )}
-
-
-                    {/* Comments and Subtasks Count */}
-                    {(hasComments || hasSubtasks) && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                            {hasComments && (
-                                <span>{subtask.task_comment_count}</span>
-                            )}
-                            {hasSubtasks && (
-                                <>
-                                    {hasComments && <span>•</span>}
-                                    <Link2 className="w-3 h-3" />
-                                    <span>{subtask.task_sub_task_count}</span>
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/*
-              Meta cluster (dates + assignee + open arrow).
-              On mobile this wraps onto a second row beneath the name so
-              long subtask titles don't squeeze the dates off-screen.
-              `ml-auto` keeps the cluster right-aligned on its row.
-            */}
-            <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto basis-full sm:basis-auto justify-end pl-7 sm:pl-0">
-                {/* Dates */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <DateField
-                        isAdmin={isAdmin}
-                        label={("Start")}
-                        value={startDate}
-                        onSelect={(d) => onUpdateStart(subtask.task_uuid, d)}
-                        onClear={() => onUpdateStart(subtask.task_uuid, undefined)}
-                        compact
-                    />
-                    <DateField
-                        isAdmin={isAdmin}
-                        label="Due"
-                        value={dueDate}
-                        onSelect={(d) => onUpdateDue(subtask.task_uuid, d)}
-                        onClear={() => onUpdateDue(subtask.task_uuid, undefined)}
-                        compact
-                    />
-                </div>
-
-                {/* Assignee */}
-                <div className="flex-shrink-0">
-                    <TaskSubTaskAssignee
-                        taskProjectMembers={projectMembers}
-                        userProfile={subtask.task_assignee}
-                        assigneeUpdate={(u) => onUpdateAssignee(subtask.task_uuid, u)}
-                    />
-                </div>
-
-                {/* Navigation Arrow */}
-                <div className="flex-shrink-0" onClick={handleOpenClick}>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                </div>
-            </div>
-        </div>
+            <button
+                type="button"
+                onClick={() => onOpen(subtask.task_uuid)}
+                aria-label={`Open ${subtask.task_name}`}
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-ink-3 opacity-0 transition-opacity hover:bg-press hover:text-foreground focus-visible:opacity-100 group-hover/sub:opacity-100 [@media(hover:none)]:opacity-100"
+            >
+                <ArrowUpRight className="size-3.5" />
+            </button>
+        </li>
     )
 })
+
+/**
+ * The subtask's 16px r5 checkbox (W30): an inset line-3 ring at rest; checked,
+ * a moss fill with a white check that springs in on the click that ticked it.
+ */
+function SubtaskBox({ checked, spring, disabled, name, onToggle }: { checked: boolean; spring: boolean; disabled: boolean; name: string; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            aria-label={checked ? `Mark ${name} as not done` : `Mark ${name} done`}
+            disabled={disabled}
+            onClick={(e) => {
+                e.stopPropagation()
+                onToggle()
+            }}
+            className={cn(
+                "inline-flex size-4 shrink-0 items-center justify-center rounded-[5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                checked ? "bg-camp-moss text-white" : "ring-[1.5px] ring-inset ring-line-3 hover:ring-camp-moss",
+            )}
+            style={spring ? { animation: "work-check-fill 220ms var(--ease-spring) both" } : undefined}
+            data-anim={spring ? "fill" : undefined}
+        >
+            {checked && <Check className="size-3" />}
+        </button>
+    )
+}

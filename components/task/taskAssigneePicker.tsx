@@ -11,7 +11,8 @@ import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
-import { fieldLabel, fieldRow, inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
+import { inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
+import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { BotTag } from "@/components/ui/botTag"
 
 
@@ -49,9 +50,9 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
     }
 
     return (
-        <div className={fieldRow()}>
+        <div className={propertyRow()} data-field-empty={assignee ? undefined : ""}>
             <div>
-                <span className={fieldLabel}>{label}</span>
+                <span className={propertyLabel}>{label}</span>
             </div>
             <div className="min-w-0">
                 <Popover open={open} onOpenChange={setOpen}>

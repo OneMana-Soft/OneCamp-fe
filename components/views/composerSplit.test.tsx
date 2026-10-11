@@ -1,3 +1,4 @@
+import type React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
@@ -23,20 +24,16 @@ vi.mock("@/hooks/useFetch", () => {
   const pick = (url: string) => (url.includes("channelBasicInfo") ? channel : url.includes("Participants") || url.includes("participants") ? group : url ? person : none)
   return { useFetch: pick, useFetchOnlyOnce: pick }
 })
-// What the views hold, as stand-ins. The headers' bells count their renders.
+// What the views hold, as stand-ins. The headers' tooltips (every header
+// labels its search button with one) count their renders.
 let headerRenders = 0
-vi.mock("@/components/Notification/notificationBell", () => ({
-  NotificationBell: () => {
+vi.mock("@/components/common/withTooltip", () => ({
+  WithTooltip: ({ children }: { children: React.ReactNode }) => {
     headerRenders++
-    return null
+    return children
   },
 }))
-vi.mock("@/components/groupedAvatar/groupedAvatar", () => ({
-  GroupedAvatar: () => {
-    headerRenders++
-    return null
-  },
-}))
+vi.mock("@/components/message/chatFace", () => ({ ChatFace: () => null }))
 let composerRenders = 0
 vi.mock("@/components/textInput/textInput", () => ({
   default: ({ buttonOnclick }: { buttonOnclick?: () => void }) => {
@@ -45,15 +42,10 @@ vi.mock("@/components/textInput/textInput", () => ({
   },
 }))
 const sparks = vi.fn()
-vi.mock("@/lib/celebrate", () => ({ celebrate: (el: Element) => sparks(el), springPop: () => null }))
+vi.mock("@/lib/chat/celebrateFirst", () => ({ celebrateFirstMessage: () => sparks() }))
 vi.mock("@/components/channel/channelMessageList", () => ({ ChannelMessageList: () => null }))
 vi.mock("@/components/chat/chatMessageList", () => ({ ChatMessageList: () => null }))
 vi.mock("@/components/groupChat/groupChatMessageList", () => ({ GroupChatMessageList: () => null }))
-vi.mock("@/components/ai/ChannelAgents", () => ({ default: () => null, useChannelAgents: () => [] }))
-vi.mock("@/components/ai/CatchMeUpBanner", () => ({ default: () => null }))
-vi.mock("@/components/ai/ChannelMemoryIndicator", () => ({ ChannelMemoryIndicator: () => null }))
-vi.mock("@/components/ai/ComposerAIButton", () => ({ ComposerAIButton: () => null }))
-vi.mock("@/components/ai/PendingActionsTray", () => ({ default: () => null }))
 vi.mock("@/components/command/CommandSurface", () => ({ default: () => null }))
 vi.mock("@/components/messages/heldNotificationsBar", () => ({ HeldNotificationsBar: () => null }))
 vi.mock("@/components/chat/chatUserEmojiStatus", () => ({ ChatUserEmojiStatus: () => null }))
@@ -100,12 +92,14 @@ describe.each(views)("typing in %s", (_, view, typed) => {
 })
 
 
-// A first message (the view says so) bursts sparks from the composer's Send.
+// A first message (the view says so) celebrates, from the new row's avatar
+// (design v3 chat, C60: lib/chat/celebrateFirst); groups celebrate too.
 describe.each([
   ["a channel", (send: () => boolean) => <ChannelIdDesktop channelId="c1" handleSend={send} />],
   ["a DM", (send: () => boolean) => <ChatIdDesktop chatId="maya" handleSend={send} />],
+  ["a group", (send: () => boolean) => <ChatGrpIdDesktop grpId="g1" handleSend={send} />],
 ] as const)("sending a first message in %s", (_, view) => {
-  it("celebrates from Send, and a routine send does not", () => {
+  it("celebrates, and a routine send does not", () => {
     let first = true
     render(
       <Provider store={store}>
@@ -114,7 +108,7 @@ describe.each([
     )
     const send = screen.getByRole("button", { name: "Send" })
     fireEvent.click(send)
-    expect(sparks).toHaveBeenCalledWith(send)
+    expect(sparks).toHaveBeenCalledTimes(1)
     sparks.mockReset()
     first = false
     fireEvent.click(send)

@@ -82,3 +82,14 @@ describe("a project's rates", () => {
     expect(posted[0].url).toBe("/project/p1/rates/delete")
   })
 })
+
+describe("the time dialog's look (work.md W52)", () => {
+  it("puts its totals on a sunken band and draws billable time in the theme's progress", async () => {
+    const { readFileSync } = await import("node:fs")
+    const src = readFileSync("components/project/ProjectTimeDialog.tsx", "utf8")
+    expect(src).toMatch(/data-kpi-band="" className="[^"]*bg-sunken/)
+    expect(src).toMatch(/data-time-bar=""[^>]*h-1\b/)
+    expect(src).toContain("bg-progress")
+    expect(src).not.toContain("bg-foreground/60")
+  })
+})

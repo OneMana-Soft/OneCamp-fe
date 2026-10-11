@@ -101,3 +101,13 @@ describe("a new field's options", () => {
     expect(Object.keys(sent.options[0]).sort()).toEqual(["color", "id", "label"])
   })
 })
+
+describe("a field's kind (work.md W47)", () => {
+  it("shows as a tile with its icon, then its name", async () => {
+    const { FieldKind } = await import("@/components/project/ProjectFieldsDialog")
+    render(<FieldKind type="money" />)
+    const kind = document.querySelector("[data-field-kind='money']")!
+    expect(kind.querySelector("svg")).not.toBeNull()
+    expect(kind.textContent).toBe("Money")
+  })
+})

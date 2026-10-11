@@ -14,7 +14,7 @@ describe("the goal a project serves", () => {
   it("shows how far it is as a ring, with the figure beside the title", () => {
     render(<ProjectGoalChip projectId="p" />)
     expect(screen.getByRole("progressbar", { name: "Launch the Business tier: 65%" })).toBeTruthy()
-    expect(screen.getByText("65%")).toBeTruthy()
+    expect(screen.getByText("· 65%")).toBeTruthy()
   })
 })
 

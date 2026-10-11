@@ -10,6 +10,7 @@ import axiosInstance from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFetch } from "@/hooks/useFetch"
@@ -154,14 +155,17 @@ export function ProjectRatesDialog({
             </div>
             {people.length > 0 && (
               <fieldset className="grid gap-2">
-                <legend className="mb-1 text-sm font-medium">People with a rate of their own</legend>
-                <p className="text-xs text-muted-foreground">Leave a rate empty and they bill at the rate for everyone.</p>
-                <ul className="grid gap-2">
+                <legend className="mb-1 text-ui-sm font-medium text-foreground">People with a rate of their own</legend>
+                <p className="text-xs text-ink-3">Leave a rate empty and they bill at the rate for everyone.</p>
+                <ul className="grid gap-1 rounded-lg bg-sunken p-2">
                   {people.map((p) => (
                     <li key={p.id} className="grid grid-cols-[1fr_10rem] items-center gap-3">
-                      <Label htmlFor={`rate-${p.id}`} className={p.left ? "truncate font-normal italic text-muted-foreground" : "truncate font-normal"}>
-                        {p.name}
-                      </Label>
+                      <span className="flex min-w-0 items-center gap-2">
+                        {!p.left && <IdentityMark variant="avatar" id={p.id} label={p.name} size={22} />}
+                        <Label htmlFor={`rate-${p.id}`} className={p.left ? "truncate font-normal italic text-ink-3" : "truncate font-normal"}>
+                          {p.name}
+                        </Label>
+                      </span>
                       <Input
                         id={`rate-${p.id}`}
                         inputMode="decimal"

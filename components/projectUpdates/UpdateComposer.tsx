@@ -88,7 +88,10 @@ export function UpdateComposer({
   endings = false,
   clientShare = subject === "project",
   number,
+  initialHealth,
 }: {
+  /** The health picked on the prompt card that opened it: it wins over the draft's suggestion. */
+  initialHealth?: Health
   editing?: Editing
   hasAI: boolean
   draft: () => Promise<UpdateDraft>
@@ -106,7 +109,7 @@ export function UpdateComposer({
 }) {
   const copy = COPY[subject]
   const { toast } = useToast()
-  const [health, setHealth] = useState<Health | Ending>(editing?.health ?? "on_track")
+  const [health, setHealth] = useState<Health | Ending>(editing?.health ?? initialHealth ?? "on_track")
   const [suggested, setSuggested] = useState<Health | null>(null)
   const [body, setBody] = useState(editing?.body ?? "")
   const [since, setSince] = useState<string | null>(null)
@@ -141,7 +144,7 @@ export function UpdateComposer({
       .then((d) => {
         if (!live) return
         setBody(d.text)
-        setHealth(d.health)
+        if (!initialHealth) setHealth(d.health)
         setSuggested(d.health)
         setSince(d.since ?? null)
       })
@@ -150,7 +153,7 @@ export function UpdateComposer({
     return () => {
       live = false
     }
-  }, [draft, editing])
+  }, [draft, editing, initialHealth])
 
   // The note grows with its text instead of scrolling in a small box.
   useEffect(() => {
@@ -218,11 +221,13 @@ export function UpdateComposer({
         aria-checked={on}
         onClick={() => setHealth(h.value)}
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-          on ? cn("border-transparent", h.pill) : "border-border/70 text-muted-foreground hover:bg-accent hover:text-foreground",
+          // A 28 px health chip (work.md W27): the chosen one takes its hue's
+          // tint and an ink ring, and its dot springs.
+          "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+          on ? cn("ring-1 ring-inset ring-foreground", h.pill) : "bg-hover text-ink-2 ring-1 ring-inset ring-line hover:bg-press hover:text-foreground",
         )}
       >
-        <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", h.dot)} />
+        <span aria-hidden className={cn("size-2 rounded-full", h.dot, on && "[animation:work-glyph-in_220ms_var(--ease-spring)_both]")} />
         {h.label}
         {suggested === h.value && <span className="text-2xs font-normal opacity-70">suggested</span>}
       </button>
@@ -231,7 +236,7 @@ export function UpdateComposer({
 
   return (
     <form
-      className="flex flex-col gap-4 rounded-xl border border-border/70 bg-card p-4 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1"
+      className="flex flex-col gap-4 rounded-xl bg-raised p-4 shadow-e2 [animation:work-rise-in_180ms_var(--ease-out)_both]"
       onSubmit={(e) => {
         e.preventDefault()
         void submit()
@@ -347,10 +352,10 @@ export function UpdateComposer({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         {hasAI && !editing && (
-          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={withAI} disabled={busy !== null}>
-            <Sparkles className="h-3.5 w-3.5" />
+          <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={withAI} disabled={busy !== null}>
+            <Sparkles className="h-3.5 w-3.5 text-agent-ink" />
             Add an AI summary
           </Button>
         )}

@@ -13,9 +13,16 @@ const read = (f: string) => readFileSync(f, "utf8")
 describe("the projects overview's frame", () => {
   const overview = read("components/project/ProjectsOverview.tsx")
   it("keeps one header and an unconditional switcher", () => {
-    expect(overview).toContain('eyebrow="Every project you\'re in" title="Projects"')
+    expect(overview).toContain(">Projects</h1>")
     expect(overview).not.toMatch(/title=\{goalsView/)
     expect(overview).not.toMatch(/all\.length > 0 \|\| ownTools/)
+  })
+  it("switches views with the project page's tabs, not a boxed toggle, and has no eyebrow (design v3, W38)", () => {
+    expect(overview).toMatch(/<WorkTabs\b/)
+    expect(overview).not.toMatch(/ToggleGroup/)
+    expect(overview).not.toMatch(/eyebrow=/)
+    expect(overview).toMatch(/label: "Projects"/)
+    expect(read("components/task/WorkTabs.tsx")).toContain('role="tablist"')
   })
   it("draws every view's controls in a 32px toolbar row, and states in WorkState", () => {
     for (const f of ["components/project/ProjectsTimeline.tsx", "components/project/ProjectsWorkload.tsx", "components/goals/GoalsView.tsx", "components/reports/ReportsView.tsx"]) {

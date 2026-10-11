@@ -13,12 +13,17 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ClipboardList, Clock, Globe, LayoutTemplate, MoreHorizontal, Pencil, Users } from "@/lib/icons"
+import { ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, Users } from "@/lib/icons"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ProjectFormsDialog } from "@/components/project/ProjectFormsDialog"
-import { ProjectShareDialog } from "@/components/project/ProjectShareDialog"
-import { ProjectTimeDialog } from "@/components/project/ProjectTimeDialog"
-import { SaveAsTemplateDialog } from "@/components/projectTemplates/SaveAsTemplateDialog"
+import dynamic from "next/dynamic"
+
+// The project's tools are dialogs nobody needs until they are asked for, so
+// each is its own chunk, fetched on first open (the project route's script
+// grew 80 KB with them in it, 11 Oct).
+const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFormsDialog").then((m) => m.ProjectFormsDialog))
+const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog))
+const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog))
+const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog))
 
 type ToolKey = "time" | "forms" | "share" | "template"
 export interface ProjectTool {
@@ -52,6 +57,12 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   }, [asked, allowed, params, pathname, router])
 
   const set = (which: ToolKey) => (o: boolean) => setOpen(o ? which : null)
+  // A dialog renders (and its chunk loads) from its first opening on.
+  const [opened, setOpened] = useState<Set<ToolKey>>(() => new Set())
+  useEffect(() => {
+    if (open && !opened.has(open)) setOpened((s) => new Set(s).add(open))
+  }, [open, opened])
+  const was = (k: ToolKey) => open === k || opened.has(k)
   const tool = (key: ToolKey, label: string, Icon: typeof Clock): ProjectTool => ({ key, label, Icon, open: () => setOpen(key) })
   const tools: ProjectTool[] = !allowed ? [] : [
     tool("time", "Time logged on this project", Clock),
@@ -63,10 +74,10 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   ]
   const dialogs = !allowed ? null : (
     <>
-      <ProjectTimeDialog projectId={projectId} projectName={projectName} isAdmin={isAdmin} open={open === "time"} onOpenChange={set("time")} />
-      {isAdmin && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
-      {isAdmin && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
-      {isAdmin && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
+      {was("time") && <ProjectTimeDialog projectId={projectId} projectName={projectName} isAdmin={isAdmin} open={open === "time"} onOpenChange={set("time")} />}
+      {isAdmin && was("forms") && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
+      {isAdmin && was("share") && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
+      {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
     </>
   )
   return { allowed, tools, dialogs }
@@ -95,6 +106,16 @@ export function ProjectToolButtons(props: { projectId: string; projectName?: str
  * icons in a row read as a toolbar nobody could parse; in a menu each one has
  * its name.
  */
+/** A row the menu's caller adds after the project's tools. */
+export interface ProjectMenuExtra {
+  key: string
+  label: string
+  /** A short value on the row's right ("All messages"). */
+  detail?: string
+  Icon: React.ComponentType<{ className?: string }>
+  onSelect: () => void
+}
+
 export function ProjectActionsMenu({
   projectId,
   projectName,
@@ -102,30 +123,51 @@ export function ProjectActionsMenu({
   isMember,
   onRename,
   onMembers,
+  compact = false,
+  extra,
 }: {
   projectId: string
   projectName?: string
   isAdmin: boolean
   isMember: boolean
-  onRename: () => void
-  onMembers: () => void
+  onRename?: () => void
+  onMembers?: () => void
+  /** The phone: every tool in the one menu (work.md W53), none as a bare icon. */
+  compact?: boolean
+  /**
+   * More rows after the tools (the phone's notifications, rename and
+   * members, which the top bar's own "⋯" sheet held until the two met).
+   */
+  extra?: ProjectMenuExtra[]
 }) {
-  const { allowed, tools, dialogs } = useProjectTools({ projectId, projectName, isAdmin, isMember })
-  if (!allowed) return null
-  const [first, ...rest] = tools
+  const { allowed, tools: allTools, dialogs } = useProjectTools({ projectId, projectName, isAdmin, isMember })
+  const tools = allowed ? allTools : []
+  if (!allowed && !extra?.length) return null
+  // Sharing with a client is a word in the header bar (design v3, work.md
+  // W16); the time button is the clock beside it; the rest is one menu.
+  const share = compact ? undefined : tools.find((t) => t.key === "share")
+  const listed = tools.filter((t) => t.key !== "share" || compact)
+  const first = compact ? undefined : listed[0]
+  const rest = compact ? listed : listed.slice(1)
   return (
     <>
-      {first && (
-        <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={first.label} title={first.label} onClick={first.open}>
-          <first.Icon className="h-4 w-4" />
+      {share && (
+        <Button size="sm" variant="ghost" className="text-ui-sm" onClick={share.open}>
+          <Link2 className="size-3.5" />
+          Share
         </Button>
       )}
-      {(rest.length > 0 || isAdmin) && (<>
+      {first && (
+        <Button size="icon-sm" variant="ghost" aria-label={first.label} title={first.label} onClick={first.open}>
+          <first.Icon className="size-4" />
+        </Button>
+      )}
+      {(rest.length > 0 || (isAdmin && onRename) || !!extra?.length) && (<>
       {/* Not modal: an item opens a dialog, and a modal menu closing over it
           can leave the page unclickable. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="h-9 w-9" aria-label="Project actions" title="Project actions">
+          <Button size="icon-sm" variant="ghost" aria-label="Project actions" title="Project actions">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -136,7 +178,7 @@ export function ProjectActionsMenu({
               {label}
             </DropdownMenuItem>
           ))}
-          {isAdmin && (
+          {isAdmin && onRename && onMembers && (
             <>
               {rest.length > 0 && <DropdownMenuSeparator />}
               <DropdownMenuItem onSelect={onRename}>
@@ -149,6 +191,18 @@ export function ProjectActionsMenu({
               </DropdownMenuItem>
             </>
           )}
+          {extra?.length ? (
+            <>
+              {rest.length > 0 && <DropdownMenuSeparator />}
+              {extra.map(({ key, label, detail, Icon, onSelect }) => (
+                <DropdownMenuItem key={key} onSelect={onSelect}>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                  {detail ? <span className="shrink-0 text-meta text-ink-3">{detail}</span> : null}
+                </DropdownMenuItem>
+              ))}
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       </>)}

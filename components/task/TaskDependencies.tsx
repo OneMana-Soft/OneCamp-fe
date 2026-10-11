@@ -7,7 +7,10 @@
 // keyboard's way to what the timeline draws as arrows.
 
 import * as React from "react"
-import { inlineAdd, sectionTitle } from "@/lib/ui/fieldRow"
+import { inlineAdd } from "@/lib/ui/fieldRow"
+import { panelSection } from "@/lib/ui/propertyRow"
+import { TaskStatusCell } from "@/components/task/taskStatusCell"
+import { statusOptionOf } from "@/lib/taskStatus"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Input } from "@/components/ui/input"
@@ -20,7 +23,7 @@ import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { Loader2, Plus, X } from "@/lib/icons"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { DEPENDENCY_KINDS, KIND_LABEL, MAX_LAG, parseLag, wayOf, waySentence, wayShort, type DependencyKind, type DependencyWay } from "@/lib/tasks/dependency"
-import { dotColor, type TimelineData } from "@/lib/timeline"
+import type { TimelineData } from "@/lib/timeline"
 import { timelineKey } from "@/lib/timelineKey"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { DependencyTask } from "@/types/task"
@@ -64,7 +67,7 @@ export function TaskDependencies({
   return (
     <div className="mb-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className={sectionTitle}>Dependencies</h3>
+        <h3 className={panelSection}>Dependencies</h3>
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
       <div className="grid gap-3">
@@ -122,7 +125,7 @@ export function TaskDependencies({
                           void change(taskUUID, t.task_uuid, false)
                         }}
                       >
-                        <span aria-hidden className={cn("mr-2 h-2 w-2 shrink-0 rounded-full", dotColor(t, options))} />
+                        {(() => { const o = statusOptionOf(t, options); return o ? <TaskStatusCell status={o} label="tip" className="mr-2" /> : null })()}
                         <span className="truncate">{t.task_name}</span>
                       </CommandItem>
                     ))}
@@ -162,15 +165,17 @@ function DependencyGroup({
   onChangeWay: (taskUUID: string, way: DependencyWay) => void
 }) {
   return (
-    <div className="grid gap-1.5">
-      <p className="text-xs text-muted-foreground">{title}</p>
-      {tasks.map((t) => (
-        <div key={t.task_uuid} className="group -mx-2 flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-highlight">
-          <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", dotColor(t, options))} />
+    <div className="grid">
+      <p className="mb-0.5 text-meta text-ink-3">{title}</p>
+      {tasks.map((t) => {
+        const status = statusOptionOf(t, options)
+        return (
+        <div key={t.task_uuid} className="group -mx-1 flex h-[30px] items-center gap-2 rounded-md px-1 transition-colors hover:bg-hover">
+          {status ? <TaskStatusCell status={status} label="tip" /> : <span className="size-4 shrink-0" />}
           <button
             type="button"
             onClick={() => onOpen(t.task_uuid)}
-            className={cn("min-w-0 flex-1 truncate text-left text-sm", isClosedStatus(t.task_status) && "text-muted-foreground line-through")}
+            className={cn("min-w-0 flex-1 truncate text-left text-sm font-[450]", isClosedStatus(t.task_status) && "text-ink-3 line-through decoration-ink-4")}
           >
             {t.task_name}
           </button>
@@ -187,7 +192,8 @@ function DependencyGroup({
             </button>
           )}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -218,11 +224,12 @@ function DependencyWayEditor({
   const lagId = React.useId()
   const lag = parseLag(lagText)
   const short = wayShort(way)
-  const chip = "shrink-0 rounded-md px-1.5 py-0.5 text-2xs text-muted-foreground tabular-nums"
+  // An 18px neutral tag (W33): "finish → start", "+2 d".
+  const chip = "tag shrink-0 bg-hover text-ink-2 tabular-nums"
 
   if (!canEdit) {
     return (
-      <span className={cn(chip, "bg-muted")} title={waySentence(way, waiting, on)}>
+      <span className={chip} title={waySentence(way, waiting, on)}>
         {short}
       </span>
     )
@@ -244,7 +251,7 @@ function DependencyWayEditor({
           disabled={busy}
           title={waySentence(way, waiting, on)}
           aria-label={`${waySentence(way, waiting, on)} Change how`}
-          className={cn(chip, "bg-muted transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+          className={cn(chip, "transition-colors hover:bg-press hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
         >
           {short}
         </button>

@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next"
 import { useMemo, useState } from "react"
-import { MixerHorizontalIcon } from "@radix-ui/react-icons"
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,7 +9,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { CirclePlus } from "lucide-react"
+import { Plus, SlidersHorizontal } from "@/lib/icons"
 import { useDispatch } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
 import type { UserInfoRawInterface } from "@/types/user"
@@ -98,15 +97,16 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                 </div>
                 {/* At every width, as on the List: below sm the icons stay. */}
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" className="h-8" aria-label={t("createTask")} onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
-                        <CirclePlus className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">{t("createTask")}</span>
+                    <Button size="sm" className="text-ui-sm" aria-label="New task" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
+                        <Plus className="size-3.5" />
+                        <span className="hidden sm:inline">New task</span>
+                        <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" aria-label={t("view")}>
-                                <MixerHorizontalIcon className="h-4 w-4" />
-                                <span className="hidden sm:inline">{t("view")}</span>
+                            <Button variant="ghost" size="sm" className="text-ui-sm" aria-label="Display">
+                                <SlidersHorizontal className="size-3.5" />
+                                <span className="hidden sm:inline">Display</span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[150px]">
@@ -148,6 +148,7 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                         canDrag={canEditTask}
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                         boardKey="my-tasks"
+                        crossProject
                         totals={{ done: u?.user_tasks_done_count, canceled: u?.user_tasks_canceled_count }}
                         onShowMore={closed.showMore}
                     />

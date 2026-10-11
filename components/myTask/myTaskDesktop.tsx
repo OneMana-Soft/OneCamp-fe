@@ -1,13 +1,19 @@
 "use client"
 
-import { Tabs, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
-import { PageHeader } from "@/components/ui/pageHeader"
+import { Tabs } from "@/components/ui/tabs"
+import { WorkSegmented } from "@/components/task/WorkToolbar"
+import { CountTick } from "@/components/ui/CountTick"
+import { whenOf } from "@/lib/tasks/grouping"
+import { cn } from "@/lib/utils/helpers/cn"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
+import type { TaskInfoInterface } from "@/types/task"
 import { List } from "@/lib/icons";
 import { Kanban } from "@/lib/icons";
 import { MyTaskTable } from "@/components/myTask/myTaskTable"
 import { MyTaskKanban } from "@/components/myTask/myTaskKanban"
 import { useSearchParams } from "next/navigation"
-import { useState, useEffect, useCallback, startTransition } from "react"
+import { useState, useEffect, useCallback, useMemo, startTransition } from "react"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
 import {useTranslation} from "react-i18next";
 
@@ -37,42 +43,74 @@ export const MyTaskDesktop = () => {
     useEffect(() => tabInAddress("tab", selectedTab), [selectedTab, tabInAddress])
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            {/* Header */}
-            <PageHeader eyebrow="Assigned to you" title={t("myTasks")} className="px-8 pt-8" />
+        <div className="flex h-full flex-col overflow-hidden">
+            {/* The header (work.md W14): the title, your day in counts, and the layout. */}
+            <header className="flex h-[52px] shrink-0 items-center gap-4 px-6 pt-2">
+                <h1 className="text-title-1 font-[590] tracking-[-0.019em] text-foreground">{t("myTasks")}</h1>
+                <MyDayCounts />
+                <span className="flex-1" />
+                <WorkSegmented
+                    label="Layout"
+                    value={selectedTab}
+                    onChange={handleTabChange}
+                    className="w-40"
+                    options={[
+                        { value: "list", label: t("list"), icon: <List className="size-3.5" /> },
+                        { value: "kanban", label: t("board"), icon: <Kanban className="size-3.5" /> },
+                    ]}
+                />
+            </header>
 
-            {/* Content */}
-            <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
-                <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
-                    <TabsList className={underlineTabsList}>
-                        <TabsTrigger 
-                            value="list"
-                            className={underlineTab}
-                        >
-                            <List className="h-4 w-4" />
-                            {t("list")}
-                        </TabsTrigger>
-                        <TabsTrigger 
-                            value="kanban"
-                            className={underlineTab}
-                        >
-                            <Kanban className="h-4 w-4" />
-                            {t("board")}
-                        </TabsTrigger>
-                    </TabsList>
-
-                    {/* One scroll container for both tabs' bodies: a page of 20
-                        to 50 tasks was cut off here. */}
-                    <div className="min-h-0 flex-1 overflow-y-auto">
-                        <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="h-full mt-0 outline-none">
-                            <MyTaskTable />
-                        </KeptTab>
-                        <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="h-full mt-0 outline-none">
-                            <MyTaskKanban className="px-0 pt-0" />
-                        </KeptTab>
-                    </div>
-                </Tabs>
-            </div>
+            <Tabs value={selectedTab} onValueChange={handleTabChange} className="flex min-h-0 flex-1 flex-col gap-0">
+                {/* One scroll container for both bodies. */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                        <MyTaskTable onLayout={(l) => handleTabChange(l)} />
+                    </KeptTab>
+                    <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                        <MyTaskKanban className="px-5 pt-3" />
+                    </KeptTab>
+                </div>
+            </Tabs>
         </div>
     )
 }
+
+/**
+ * Your day in counts beside the title: "3 today · 1 overdue · 7 this week",
+ * the numbers at 510 and ticking as they change. Read from the list on
+ * screen, so it moves the moment a task is finished or dated.
+ */
+function MyDayCounts() {
+    const tasks = useSelector((s: RootState) => s.TaskInfo.taskListVisibleInfo || NONE)
+    const counts = useMemo(() => {
+        const c = { today: 0, overdue: 0, week: 0 }
+        const now = new Date()
+        for (const task of tasks) {
+            const w = whenOf(task, now)
+            if (w === "today") c.today++
+            else if (w === "overdue") c.overdue++
+            if (w === "today" || w === "week") c.week++
+        }
+        return c
+    }, [tasks])
+    if (tasks.length === 0) return null
+    const parts = [
+        { n: counts.today, word: "today" },
+        ...(counts.overdue > 0 ? [{ n: counts.overdue, word: "overdue", late: true }] : []),
+        { n: counts.week, word: "this week" },
+    ]
+    return (
+        <p className="flex items-center gap-[10px] text-ui-sm text-ink-2">
+            {parts.map((p, i) => (
+                <span key={p.word} className="inline-flex items-center gap-[10px]">
+                    {i > 0 && <span aria-hidden="true" className="text-ink-4">·</span>}
+                    <span className={cn(p.late && "text-danger-ink")}>
+                        <CountTick value={p.n} className={cn("font-[510]", p.late ? "text-danger-ink" : "text-foreground")} /> {p.word}
+                    </span>
+                </span>
+            ))}
+        </p>
+    )
+}
+const NONE: TaskInfoInterface[] = []

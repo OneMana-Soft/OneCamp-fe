@@ -1,34 +1,37 @@
 /*
- * Kanban Item — minimal CSS module for drag-related layout/animation.
- * Visual styling (background, border, hover, padding) lives in Tailwind
- * classes on Item.tsx so dark mode and theme tokens apply correctly.
+ * Kanban Item: the drag feel of a board card (design v3, work.md W22).
+ * Visual styling (material, padding, type) lives in Tailwind classes on
+ * Item.tsx; this keeps what belongs to a drag:
  *
- * What stays here:
- *  - the wrapper's box (no transform: see .Wrapper);
- *  - dragOverlay pop animation + drop-shadow that scales with --scale-x.
- *  - dragging opacity + fadeIn keyframe for newly-mounted items.
+ *  - lift: the copy under the pointer scales 1 -> 1.03 on the spring and
+ *    tilts 1.5 degrees toward the drag (--tilt, set by the board on the
+ *    first move; never by touch), on the floating step (e3);
+ *  - drop: back to scale 1, no tilt, resting shadow, on the drop token
+ *    (200 ms, cubic-bezier(.2,0,0,1)) while dnd-kit flies it to its slot;
+ *  - slot: the card left behind becomes a dashed slot of the same height,
+ *    so it shows where the card returns if dropped outside.
+ *
+ * Scale and rotate are the individual transform properties, so they compose
+ * with the translate dnd-kit gives the overlay's wrapper. Under reduced
+ * motion the copy lifts without scale or tilt; the shadow stays.
  */
 
-$shadow-pickup-border: 0 0 0 calc(1px / var(--scale-x, 1)) rgba(63, 63, 68, 0.05);
-$shadow-pickup-lift: 0 12px 24px -6px rgba(0, 0, 0, 0.25),
-  0 4px 8px -4px rgba(0, 0, 0, 0.15);
-
-@keyframes pop {
-  0% {
-    transform: scale(1);
+@keyframes liftUp {
+  from {
+    scale: 1;
   }
 
-  100% {
-    transform: scale(var(--scale));
+  to {
+    scale: 1.03;
   }
 }
 
 @keyframes fadeIn {
-  0% {
+  from {
     opacity: 0;
   }
 
-  100% {
+  to {
     opacity: 1;
   }
 }
@@ -45,21 +48,19 @@ $shadow-pickup-lift: 0 12px 24px -6px rgba(0, 0, 0, 0.25),
   min-height: fit-content;
   touch-action: manipulation;
   width: 100%;
-  padding: 4px 0;
 
   &.fadeIn {
-    animation: fadeIn 200ms ease-out;
+    animation: fadeIn 180ms var(--ease-out);
   }
 
   &.dragOverlay {
-    --scale: 1.03;
     z-index: 999;
+    max-width: 280px;
   }
 }
 
 .Item {
   position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -74,42 +75,49 @@ $shadow-pickup-lift: 0 12px 24px -6px rgba(0, 0, 0, 0.25),
     touch-action: manipulation;
   }
 
-  // The playful lift (hover-lift in app/globals.css) draws its deeper shadow
-  // on the card's ::after, outside the card's box, so this card's clip hid
-  // it. A card at rest takes the lift and lets its shadow out; the dragged
-  // card and the lifted copy never take it, and keep the clip.
-  &:global(.hover-lift) {
-    overflow: visible;
-  }
-
+  // The source slot: the card's contents go, a dashed slot of its height stays.
   &.dragging:not(.dragOverlay) {
-    opacity: var(--dragging-opacity, 0.5);
+    background: var(--press);
+    box-shadow: none;
+    outline: 1.5px dashed var(--line-3);
+    outline-offset: -1.5px;
     z-index: 0;
+
+    > * {
+      opacity: 0;
+    }
   }
 
   &.dragOverlay {
     cursor: grabbing;
-    animation: pop 200ms cubic-bezier(0.18, 0.67, 0.6, 1.22);
-    transform: scale(var(--scale));
-    box-shadow: $shadow-pickup-border, $shadow-pickup-lift;
+    scale: 1.03;
+    rotate: var(--tilt, 0deg);
+    box-shadow: var(--e3);
     opacity: 1;
+    animation: liftUp 160ms var(--ease-spring);
+    transition:
+      rotate 160ms var(--ease-spring),
+      scale 200ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
   }
 
-  &.color:before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 3px;
-    display: block;
-    border-top-left-radius: 3px;
-    border-bottom-left-radius: 3px;
-    background-color: var(--color);
+  // Dropping: dnd-kit marks the overlay (TaskBoard's dropAnimation).
+  :global(.work-dropping) &.dragOverlay {
+    scale: 1;
+    rotate: 0deg;
+    box-shadow: var(--e1);
   }
 
   &:hover .Remove {
     visibility: visible;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &.dragOverlay {
+      scale: 1;
+      rotate: 0deg;
+      animation: none;
+    }
   }
 }
 

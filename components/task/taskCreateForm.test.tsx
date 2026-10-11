@@ -41,7 +41,7 @@ const form = (props: { defaultProjectId?: string; assignToMe?: boolean } = {}) =
     <TaskCreateForm {...props} />
   </Provider>
 )
-const nameIt = (name = "Write the launch notes") => fireEvent.change(screen.getByLabelText("Name"), { target: { value: name } })
+const nameIt = (name = "Write the launch notes") => fireEvent.change(screen.getByLabelText("Task title"), { target: { value: name } })
 const create = async () => {
   await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Create task" })))
 }
@@ -127,13 +127,14 @@ describe("pressing Create with something missing", () => {
     expect(screen.getByText("Task name must be at least 4 characters")).toBeTruthy()
     expect(screen.getByText("Pick a project for the task.")).toBeTruthy()
     expect(pickerOpen()).toBe(false)
-    expect(document.activeElement).toBe(screen.getByLabelText("Name"))
+    expect(document.activeElement).toBe(screen.getByLabelText("Task title"))
   })
 
   it("says what's wrong with a GitHub link, and goes to it", async () => {
     projects = { data: [project("p1", "Launch")] }
     render(form())
     nameIt()
+    fireEvent.click(screen.getByRole("button", { name: "Link a GitHub issue or pull request" }))
     const github = screen.getByLabelText("GitHub issue or pull request (optional)")
     fireEvent.change(github, { target: { value: "https://example.com/issue/1" } })
     await create()
@@ -235,8 +236,55 @@ describe("the form's shape", () => {
     expect(someone.getAttribute("title")).toBe("Pick a project first")
     expect(screen.getByRole("button", { name: /Start date/ })).toBeTruthy()
     expect(screen.getByRole("button", { name: /Due date/ })).toBeTruthy()
-    expect(screen.getByLabelText("Tags")).toBeTruthy()
-    expect(screen.getByLabelText("GitHub issue or pull request (optional)")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Labels" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Link a GitHub issue or pull request" })).toBeTruthy()
     expect((screen.getByRole("button", { name: "Attach a file" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+// Design v3 (work.md W36): a composer, its properties as chips with keys.
+describe("the composer", () => {
+  beforeEach(() => {
+    projects = { data: [project("p1", "Launch", ["Maya"])] }
+  })
+
+  it("has the property chips, each with its key", () => {
+    render(form())
+    for (const [name, key] of [[/^Status/, "S"], [/^Priority/, "P"], [/^Pick someone|^Assignee/, "A"], [/^Due date/, "D"], [/^Labels/, "L"], [/^Estimate/, "E"]] as const) {
+      expect(screen.getByRole("button", { name }).getAttribute("aria-keyshortcuts")).toBe(key)
+    }
+  })
+
+  it("opens a chip's picker from its key, but not while typing the title", () => {
+    render(form())
+    fireEvent.keyDown(screen.getByLabelText("Task title"), { key: "p" })
+    expect(screen.queryByPlaceholderText("Change priority…")).toBeNull()
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Status/ }), { key: "p" })
+    expect(screen.getByPlaceholderText("Change priority…")).toBeTruthy()
+  })
+
+  it("creates with Cmd or Ctrl and Enter, in the status picked", async () => {
+    render(form())
+    nameIt()
+    await act(async () => void fireEvent.keyDown(screen.getByLabelText("Task title"), { key: "Enter", ctrlKey: true }))
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    expect(sentPayload().task_status).toBe("todo")
+  })
+
+  it("with Create more on, stays open for the next one, chips kept", async () => {
+    const onSuccess = vi.fn()
+    render(
+      <Provider store={store}>
+        <TaskCreateForm onSuccess={onSuccess} />
+      </Provider>,
+    )
+    fireEvent.click(screen.getByRole("switch", { name: "Create more" }))
+    nameIt()
+    await create()
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect((screen.getByLabelText("Task title") as HTMLInputElement).value).toBe("")
+    expect(screen.getByRole("button", { name: /Launch/ })).toBeTruthy()
+    expect(await screen.findByRole("status")).toBeTruthy()
   })
 })

@@ -13,11 +13,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useStoredState } from "@/hooks/useStoredState"
 import { useWorkload } from "@/hooks/useWorkload"
-import { AlertTriangle, ArrowRight, UserPlus, Users } from "@/lib/icons"
+import { ArrowRight, Info, UserPlus, Users } from "@/lib/icons"
+import { useGrow, type Grow } from "@/hooks/useGrow"
+import { WorkSegmented } from "@/components/task/WorkTabs"
 import type { ProjectOverview } from "@/lib/projectsOverview"
 import { formatDuration } from "@/lib/tasks/time"
 import { statusOptions } from "@/lib/taskStatus"
@@ -49,22 +50,17 @@ const STATUSES = statusOptions(null)
 const isMeasure = (v: unknown): v is Measure => v === "tasks" || v === "hours"
 
 /**
- * A week's cell, by how full the week is: room and full are two neutral steps
- * (full the stronger ink), and only over uses a colour, the danger token. Full
- * was the accent, which is for the one selection and primary action on a page,
- * not for a week that is merely busy.
+ * A week's capacity column (design v3, work.md W41): a 32 x 36 r6 column on
+ * --press (what they take on) fills from the bottom with the load. Room and
+ * full are two neutral steps of ink-2 (35 % and 70 %); only over uses colour,
+ * danger at 85 %, with a 4 px danger cap above the column for the excess.
+ * Full was the accent once, which is for the one primary action on a page.
  */
-const TONE: Record<Load, string> = {
-  free: "",
-  room: "bg-muted text-foreground hover:bg-muted/70",
-  full: "bg-foreground/10 font-medium text-foreground hover:bg-foreground/15",
-  over: "bg-destructive/15 font-semibold text-danger-ink hover:bg-destructive/25",
-}
-const METER: Record<Load, string> = {
-  free: "",
-  room: "bg-muted-foreground/40",
-  full: "bg-foreground/70",
-  over: "bg-destructive",
+export const FILL: Record<Load, string> = {
+  free: "transparent",
+  room: "color-mix(in oklab, var(--ink-2) 35%, transparent)",
+  full: "color-mix(in oklab, var(--ink-2) 70%, transparent)",
+  over: "color-mix(in oklab, var(--destructive) 85%, transparent)",
 }
 
 /** Counting hours, a week whose tasks have no estimates: how many tasks, smaller, in the cell's own colour. */
@@ -122,6 +118,8 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
   const shown = useMemo(() => new Set(projects.map((p) => p.project_uuid)), [projects])
   const [measure, setMeasure] = useStoredState<Measure>("oc_workload_measure", "tasks", isMeasure)
   const grid = useMemo(() => (data ? workloadRows(data, weeks, shown, measure) : null), [data, weeks, shown, measure])
+  // The columns grow from the bottom on first reveal (12 ms apart, 240 ms at most).
+  const grow = useGrow("overview:workload", !!grid, 12)
   const nameWidth = compact ? 148 : 232
   const tableRef = useRef<HTMLTableElement>(null)
   // The week that takes Tab, by person and column ("<row key>:<column>"), so a
@@ -212,13 +210,32 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
 
   const unassignedHasWork = grid.unassigned.overdue.length + grid.unassigned.undated + grid.unassigned.weeks.reduce((n, w) => n + w.length, 0) > 0
   const rows = unassignedHasWork ? [...grid.people, grid.unassigned] : grid.people
-  const over = grid.people.filter((r) => loadOf(r.loads[0], r.capacities[0]) === "over").length
   const unestimated = measure === "hours" ? rows.reduce((n, r) => n + r.unestimated, 0) : 0
   const anything = rows.some((r) => r.overdue.length > 0 || r.weeks.some((w) => w.length > 0))
   // The weeks with tasks, by id; the first takes Tab until arrows move it,
   // and again when the one that had it empties.
   const filled = rows.flatMap((row) => [row.overdue, ...row.weeks].flatMap((tasks, c) => (tasks.length ? [`${row.key}:${c}`] : [])))
   const tabStop = active && filled.includes(active) ? active : (filled[0] ?? null)
+
+  const explainer = [
+    measure === "hours" ? "A task's estimate is spread over the working days it runs." : "A task counts in each week it runs, from its start to its due date.",
+    data?.truncated ? "Only the latest-due 5,000 tasks are counted." : "",
+    unestimated > 0 ? `${unestimated} ${unestimated === 1 ? "task has" : "tasks have"} no estimate yet, so ${unestimated === 1 ? "it isn't" : "they aren't"} counted.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+  // The first person over capacity this week or next, by name, and how many more are.
+  const overs = grid.people.flatMap((r) => [0, 1].flatMap((w) => (loadOf(r.loads[w] ?? 0, r.capacities[w] ?? null) === "over" ? [{ r, w }] : [])).slice(0, 1))
+  const overLine = overs.length
+    ? {
+        key: overs[0].r.key,
+        name: displayNameOf(overs[0].r.person) || "Someone",
+        when: overs[0].w === 0 ? "this week" : "next week",
+        value: formatLoad(overs[0].r.loads[overs[0].w] ?? 0, measure),
+        capacity: formatLoad(overs[0].r.capacities[overs[0].w] ?? 0, measure),
+        more: overs.length - 1,
+      }
+    : null
 
   if (rows.length === 0) {
     return (
@@ -237,81 +254,88 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
           the weeks say, the count and the key. */}
       {toolsRow(
         <>
-          <p className="min-w-[min(100%,14rem)] flex-1 truncate text-xs text-muted-foreground">
-          {over > 0 ? (
-            <span className="font-medium text-danger-ink">
-              {over} {over === 1 ? "person has" : "people have"} more than they take on this week.
-            </span>
-          ) : (
-            "Everyone has room this week."
-          )}{" "}
-          {measure === "hours"
-            ? "A task's estimate is spread over the working days it runs."
-            : "A task counts in each week it runs, from its start to its due date."}
-          {data?.truncated && " Only the latest-due 5,000 tasks are counted."}
-          {unestimated > 0 &&
-            ` ${unestimated} ${unestimated === 1 ? "task has" : "tasks have"} no estimate yet, so ${unestimated === 1 ? "it isn't" : "they aren't"} counted.`}
-          </p>
-        <ToggleGroup
-          type="single"
-          size="sm"
-          value={measure}
-          onValueChange={(v) => isMeasure(v) && setMeasure(v)}
-          aria-label="Count"
-          className="h-8 rounded-md border p-0.5"
-        >
-          <ToggleGroupItem value="tasks" className="h-full px-2.5 text-xs">
-            Tasks
-          </ToggleGroupItem>
-          <ToggleGroupItem value="hours" className="h-full px-2.5 text-xs">
-            Hours
-          </ToggleGroupItem>
-        </ToggleGroup>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
-          {(["room", "full", "over"] as const).map((l) => (
-            <span key={l} className="flex items-center gap-1.5">
-              <span className={cn("h-2.5 w-2.5 rounded-sm", METER[l])} />
-              {l === "room" ? "Room" : l === "full" ? "Full" : "Over"}
-            </span>
-          ))}
-        </div>
+          <WorkSegmented
+            label="Count"
+            value={measure}
+            onChange={setMeasure}
+            options={[
+              { value: "tasks", label: "Tasks" },
+              { value: "hours", label: "Hours" },
+            ]}
+          />
+          <div className="flex items-center gap-3 text-xs text-ink-2" aria-hidden>
+            {(["room", "full", "over"] as const).map((l) => (
+              <span key={l} className="flex items-center gap-1.5">
+                <span className="size-2 rounded-[2px]" style={{ background: FILL[l] }} />
+                {l === "room" ? "Room" : l === "full" ? "Full" : "Over"}
+              </span>
+            ))}
+          </div>
+          <span
+            role="img"
+            tabIndex={0}
+            data-tip={explainer}
+            aria-label={explainer}
+            className="work-tip inline-flex size-7 items-center justify-center rounded-md text-ink-3 outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::after]:w-[280px] [&::after]:whitespace-normal [&::after]:text-left"
+          >
+            <Info className="size-3.5" />
+          </span>
         </>,
       )}
+      {/* What the weeks say, in words, above the grid (W41). */}
+      <p data-workload-summary={overLine ? "over" : "room"} className="flex items-center gap-2 text-xs text-ink-2">
+        <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", overLine ? "bg-camp-sun" : "bg-camp-moss")} />
+        {overLine ? (
+          <span>
+            {overLine.name} {overLine.more > 0 ? `and ${overLine.more} more are` : "is"} over capacity {overLine.when} ({overLine.value} of {overLine.capacity}).{" "}
+            <button
+              type="button"
+              className="font-[510] text-brand-text hover:underline"
+              onClick={() => document.querySelector(`[data-row-key="${CSS.escape(overLine.key)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })}
+            >
+              Show
+            </button>
+          </span>
+        ) : (
+          <span>Everyone has room this week.</span>
+        )}
+      </p>
       {!anything && (
-        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+        <p className="rounded-md bg-sunken px-3 py-2 text-xs text-ink-2">
           Nothing here has dates in the next {weeks.length} weeks. Give a task a start or due date and it shows in the weeks it runs.
         </p>
       )}
-      <div className="relative min-h-[16rem] flex-1 overflow-hidden rounded-lg border bg-background">
+      <div className="relative min-h-[16rem] flex-1 overflow-hidden">
         <div role="region" aria-label="Workload by person and week" className="h-full overflow-auto overscroll-x-contain">
           <table ref={tableRef} onKeyDown={onKeyDown} className="border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
                 <th
                   scope="col"
-                  className="sticky left-0 top-0 z-30 border-b border-r bg-background px-3 py-2 text-left text-xs font-medium text-muted-foreground"
+                  className="sticky left-0 top-0 z-30 h-8 border-b border-line bg-sheet px-3 text-left text-xs font-[510] text-ink-3"
                   style={{ width: nameWidth, minWidth: nameWidth }}
                 >
                   Person
                 </th>
-                <th scope="col" className="sticky top-0 z-20 min-w-[4.5rem] border-b bg-background px-1 py-2 text-xs font-medium text-muted-foreground">
+                <th scope="col" className="sticky top-0 z-20 h-8 w-14 min-w-14 border-b border-line bg-sheet px-1 text-xs font-[510] text-ink-3">
                   Overdue
                 </th>
                 {weeks.map((w, i) => (
                   <th
                     key={w.getTime()}
                     scope="col"
-                    className={cn(
-                      "sticky top-0 z-20 min-w-[4.5rem] whitespace-nowrap border-b bg-background px-1 py-2 text-xs font-medium",
-                      i === 0 ? "text-foreground" : "text-muted-foreground",
-                    )}
+                    data-this-week={i === 0 || undefined}
+                    className={cn("sticky top-0 z-20 h-8 w-[72px] min-w-[72px] whitespace-nowrap border-b border-line bg-sheet px-1 text-xs font-[510]", i === 0 ? "text-foreground" : "text-ink-3")}
                   >
-                    {weekLabel(w, i, today)}
+                    {/* This week: ink, over a 2 px ink underline. */}
+                    <span className={cn("relative inline-flex h-8 items-center", i === 0 && "after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:rounded-[2px] after:bg-foreground")}>
+                      {weekLabel(w, i, today)}
+                    </span>
                   </th>
                 ))}
                 <th
                   scope="col"
-                  className="sticky top-0 z-20 min-w-[4.5rem] whitespace-nowrap border-b bg-background px-2 py-2 text-xs font-medium text-muted-foreground"
+                  className="sticky top-0 z-20 h-8 min-w-[4.5rem] whitespace-nowrap border-b border-line bg-sheet px-2 text-xs font-[510] text-ink-3"
                   title="Open tasks with no dates, which no week can show"
                 >
                   No dates
@@ -320,10 +344,10 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
             </thead>
             <tbody>
               {rows.map((row, r) => (
-                <tr key={row.key} data-row={r} className="group">
+                <tr key={row.key} data-row={r} data-row-key={row.key} className="group">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 border-b border-r bg-background px-3 py-1.5 text-left font-normal group-hover:bg-muted/40"
+                    className="sticky left-0 z-10 h-[52px] border-b border-line bg-sheet px-3 py-1.5 text-left font-normal"
                     style={{
                       width: nameWidth,
                       minWidth: nameWidth,
@@ -332,13 +356,12 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
                   >
                     <RowName
                       row={row}
-                      compact={compact}
                       measure={measure}
                       defaults={{ tasks: data?.default_capacity ?? 5, hours: data?.default_hours ?? 40 }}
                       onSave={(m, n) => row.person && void setCapacity(row.person, m, n)}
                     />
                   </th>
-                  <td className="border-b px-1 py-1 text-center">
+                  <td className="border-b border-line px-1 py-1 text-center">
                     <OverdueCell
                       row={row}
                       cell={`${r}:0`}
@@ -350,10 +373,12 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
                       today={today}
                       actions={actions}
                       onFocus={setActive}
+                      grow={grow}
+                      growIndex={0}
                     />
                   </td>
                   {row.weeks.map((tasks, i) => (
-                    <td key={i} className={cn("border-b px-1 py-1 text-center", i === 0 && "bg-muted/40")}>
+                    <td key={i} className="border-b border-line px-1 py-1 text-center">
                       <WeekCell
                         row={row}
                         tasks={tasks}
@@ -367,10 +392,12 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
                         today={today}
                         actions={actions}
                         onFocus={setActive}
+                        grow={grow}
+                        growIndex={r * weeks.length + i}
                       />
                     </td>
                   ))}
-                  <td className="border-b px-2 py-1 text-center text-xs tabular-nums text-muted-foreground">
+                  <td className="border-b border-line px-2 py-1 text-center text-xs tabular-nums text-ink-3">
                     {row.undated > 0 ? row.undated : <Empty />}
                   </td>
                 </tr>
@@ -385,13 +412,11 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
 
 function RowName({
   row,
-  compact,
   measure,
   defaults,
   onSave,
 }: {
   row: WorkloadRow
-  compact: boolean
   measure: Measure
   defaults: { tasks: number; hours: number }
   onSave: (measure: Measure, value: number | null) => void
@@ -407,7 +432,7 @@ function RowName({
   }
   // On a phone the capacity goes under the name, which needs the width.
   return (
-    <span className={cn("flex min-w-0 gap-x-2", compact ? "flex-col items-start" : "items-center justify-between")}>
+    <span className="flex min-w-0 flex-col items-start gap-0.5">
       <span className="min-w-0 max-w-full" title={p.user_job_title ? `${displayNameOf(p)}, ${p.user_job_title}` : displayNameOf(p)}>
         <TaskAssigneeCell
           userInfo={{
@@ -417,7 +442,7 @@ function RowName({
           }}
         />
       </span>
-      <span className={cn(compact && "pl-8")}>
+      <span className="pl-8">
         <Capacity person={p} measure={measure} defaults={defaults} onSave={onSave} />
       </span>
     </span>
@@ -444,7 +469,7 @@ function Capacity({
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState(String(current))
   const id = useId()
-  const label = hours ? `${current}h/wk` : `${current}/wk`
+  const label = hours ? `${current}h / wk` : `${current} / wk`
   const sentence = hours ? `${displayNameOf(person)} works ${current} hours a week` : `${displayNameOf(person)} takes on ${current} tasks a week`
   if (!person.can_edit_capacity) {
     return (
@@ -532,6 +557,8 @@ type CellProps = {
   today: Date
   actions: Actions
   onFocus: (cell: string) => void
+  grow: Grow
+  growIndex: number
 }
 
 function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: WorkloadTask[]; week: number; when: string }) {
@@ -574,10 +601,9 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
         )
       }
       hint={load === "over" ? "Move one to a later week, or give it to someone with room." : undefined}
-      className={TONE[load]}
+      kind="week"
       meter={capacity === null ? null : { load, share: Math.min(1, value / Math.max(1, capacity)) }}
     >
-      {load === "over" && <AlertTriangle aria-hidden className="h-3 w-3" />}
       {/* Tasks with no estimate aren't no work: their count, not "0h". */}
       {measure === "hours" && value === 0 ? <Unestimated tasks={tasks.length} /> : formatLoad(value, measure)}
       {away > 0 && (
@@ -606,7 +632,7 @@ function OverdueCell({ row, weeks, ...rest }: CellProps & { weeks: Date[] }) {
       label={`${who}: ${count} overdue${hours}`}
       summary={`${count} open, due before this week${hours}`}
       hint="Bring one to next week, or give it to someone with room."
-      className="bg-destructive/10 font-medium text-danger-ink hover:bg-destructive/20"
+      kind="overdue"
       meter={null}
     >
       {rest.measure === "hours" && row.overdueLoad === 0 ? <Unestimated tasks={tasks.length} /> : formatLoad(row.overdueLoad, rest.measure)}
@@ -623,7 +649,7 @@ function TasksPopover({
   label,
   summary,
   hint,
-  className,
+  kind,
   meter,
   cell,
   id,
@@ -633,6 +659,8 @@ function TasksPopover({
   today,
   actions,
   onFocus,
+  grow,
+  growIndex,
   children,
 }: CellProps & {
   tasks: WorkloadTask[]
@@ -643,7 +671,7 @@ function TasksPopover({
   label: string
   summary: ReactNode
   hint?: string
-  className: string
+  kind: "week" | "overdue"
   meter: { load: Load; share: number } | null
   children: ReactNode
 }) {
@@ -658,17 +686,28 @@ function TasksPopover({
           tabIndex={id === tabStop ? 0 : -1}
           onFocus={() => onFocus(id)}
           aria-label={label}
+          data-load={meter?.load ?? kind}
           className={cn(
-            "relative mx-auto flex h-8 w-14 items-center justify-center gap-0.5 rounded-md text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-            className,
+            "relative mx-auto flex flex-col items-center justify-center gap-1 rounded-md text-xs font-[510] tabular-nums outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring",
+            kind === "overdue" ? "h-11 w-12 text-danger-ink" : "h-[52px] w-16 text-foreground",
           )}
         >
-          {children}
           {meter && (
-            <span aria-hidden className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full">
-              <span className={cn("block h-full rounded-full", METER[meter.load])} style={{ width: `${meter.share * 100}%` }} />
+            // The capacity column, filled from the bottom with the load.
+            <span aria-hidden="true" data-capacity-column="" className="relative block h-9 w-8 rounded-[6px] bg-press">
+              <span className="absolute inset-0 overflow-hidden rounded-[6px]">
+                <span className="block h-full w-full" {...grow.bar(growIndex, "y")}>
+                  <span
+                    data-capacity-fill=""
+                    className="block h-full w-full origin-bottom transition-transform duration-[320ms] ease-out"
+                    style={{ transform: `scaleY(${meter.share})`, background: FILL[meter.load] }}
+                  />
+                </span>
+              </span>
+              {meter.load === "over" && <span data-over-cap="" className="absolute -top-1.5 left-0 right-0 h-1 rounded-[2px] bg-destructive" />}
             </span>
           )}
+          <span className="relative leading-4">{children}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[22rem] max-w-[calc(100vw-2rem)] p-0">

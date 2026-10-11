@@ -1,40 +1,24 @@
 "use client"
 
+import { HealthWord } from "@/components/projectUpdates/HealthPill"
 import { useProjectUpdates } from "@/hooks/useProjectUpdates"
-import { healthOf, updateDue } from "@/lib/projectUpdates"
+import { updateDue } from "@/lib/projectUpdates"
 import { daysAgo } from "@/lib/utils/relativeTime"
-import { cn } from "@/lib/utils/helpers/cn"
 
 /**
- * Where the project stands, by its latest update, beside its name: "At risk ·
- * 3 days ago". It opens the updates. An admin whose project has no update yet,
- * or a week-old one, is offered to write the next.
+ * Where the project stands, by its latest update, as the header's 24 px health
+ * chip (design v3, work.md W09): the signal dot and the word, a button to the
+ * updates. With no update yet, someone who may post is offered the first.
  */
 export function ProjectHealthChip({ projectId, onOpen, className }: { projectId: string; onOpen: () => void; className?: string }) {
   const { updates, canPost } = useProjectUpdates(projectId)
   const latest = updates[0]
   const now = Date.now()
-  if (!latest) {
-    if (!canPost) return null
-    return (
-      <button type="button" onClick={onOpen} className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs text-muted-foreground underline-offset-2 transition-colors hover:bg-muted hover:text-foreground", className)}>
-        Post the first update
-      </button>
-    )
-  }
-  const h = healthOf(latest.health)
-  const due = canPost && updateDue(latest, now)
+  if (!latest && !canPost) return null
+  const due = !!latest && canPost && updateDue(latest, now)
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      title={due ? "An update is due" : "Open the updates"}
-      className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-muted", className)}
-    >
-      <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", h.dot)} />
-      {h.label}
-      <span className="text-muted-foreground">· {daysAgo(latest.created_at, now)}</span>
-      {due && <span className="text-muted-foreground">· update due</span>}
-    </button>
+    <span title={latest ? `${daysAgo(latest.created_at, now)}${due ? " · an update is due" : ""}` : undefined} className={className}>
+      <HealthWord health={latest?.health ?? null} chip onClick={onOpen} canWrite={canPost} />
+    </span>
   )
 }

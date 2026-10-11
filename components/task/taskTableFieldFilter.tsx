@@ -28,7 +28,7 @@ export function filterChoices(field: TaskField, people: { id: string; name: stri
   return [...own, { value: FILTER_ANY, label: "Any value" }, { value: FILTER_NONE, label: "No value" }]
 }
 
-export function TaskTableFieldFilter<TData>({ table, fields, people }: { table: Table<TData>; fields: TaskField[]; people: { id: string; name: string }[] }) {
+export function TaskTableFieldFilter<TData>({ table, fields, people, variant }: { table: Table<TData>; fields: TaskField[]; people: { id: string; name: string }[]; variant?: "ghost" }) {
   const filterable = fields.filter((f) => FILTERABLE.includes(f.type) && table.getColumn(f.filter_id))
   if (filterable.length === 0) return null
   const valuesOf = (f: TaskField) => (table.getColumn(f.filter_id)?.getFilterValue() as string[] | undefined) ?? []
@@ -48,7 +48,7 @@ export function TaskTableFieldFilter<TData>({ table, fields, people }: { table: 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <FilterChip title="Fields" count={active} />
+        <FilterChip title="Fields" count={active} variant={variant} />
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0" align="start">
         <Command>

@@ -6,12 +6,18 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { CornerCard } from "@/components/ui/CornerStack"
 import { useToast } from "@/hooks/use-toast"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { CircleStop } from "@/lib/icons"
 import { formatClock } from "@/lib/tasks/time"
 import { stopTimer, useElapsed, useRunningTimer } from "@/hooks/useTaskTime"
 
+/**
+ * In the left-hand corner stack (components/ui/CornerStack), with the
+ * keyboard tip and the install prompt: it was placed by its mount, at the
+ * bottom middle, over a channel's composer.
+ */
 export function RunningTimerChip({ className = "" }: { className?: string }) {
   const { running } = useRunningTimer()
   const elapsed = useElapsed(running?.entry.started_at)
@@ -21,7 +27,8 @@ export function RunningTimerChip({ className = "" }: { className?: string }) {
   if (!running) return null
 
   return (
-    <div role="status" aria-label={`Timer running on ${running.task_name}`} className={`fixed z-40 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border bg-background/95 py-1 pl-3 pr-1 shadow-lg backdrop-blur ${className}`}>
+    <CornerCard side="left" order={0}>
+    <div role="status" aria-label={`Timer running on ${running.task_name}`} className={`flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full bg-pop py-1 pl-3 pr-1 text-ink shadow-e3 ${className}`}>
       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive motion-reduce:animate-none" aria-hidden />
       <button type="button" onClick={() => router.push(`/app/task/${running.entry.task_uuid}`)} className="min-w-0 truncate text-sm hover:underline">
         {running.task_name}
@@ -47,5 +54,6 @@ export function RunningTimerChip({ className = "" }: { className?: string }) {
         <CircleStop className="h-4 w-4" />
       </Button>
     </div>
+    </CornerCard>
   )
 }

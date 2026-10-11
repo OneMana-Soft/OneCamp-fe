@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ColorPicker } from "@/components/ui/paletteColorPicker"
-import { ChevronDown, ChevronUp, Plus, Trash2, X } from "@/lib/icons"
+import { Calendar, CheckSquare, ChevronDown, ChevronUp, CircleDot, Coins, Hash, Link, ListTodo, Plus, Trash2, Type, User, X } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectFields, type FieldInput } from "@/hooks/useProjectFields"
 import { FIELD_TYPES, typeLabel, type FieldOption, type FieldType, type TaskField } from "@/lib/tasks/fields"
@@ -38,6 +38,31 @@ const draftKey = () => `draft-${++drafts}`
 const asSent = (options: DraftOption[]) => options.map(({ id, label, color }) => ({ id, label, color }))
 
 const isChoice = (t: FieldType) => t === "select" || t === "multi_select"
+
+const KIND_ICON: Record<FieldType, typeof Type> = {
+  text: Type,
+  number: Hash,
+  money: Coins,
+  date: Calendar,
+  select: CircleDot,
+  multi_select: ListTodo,
+  person: User,
+  checkbox: CheckSquare,
+  url: Link,
+}
+
+/** A field's kind as a 24 px tile with its icon, then its name (design v3, work.md W47). */
+export function FieldKind({ type }: { type: FieldType }) {
+  const Icon = KIND_ICON[type] ?? Type
+  return (
+    <span data-field-kind={type} className="inline-flex shrink-0 items-center gap-1.5 px-1 text-xs text-ink-3">
+      <span className="flex size-6 items-center justify-center rounded-md bg-press text-ink-2">
+        <Icon className="size-3.5" aria-hidden="true" />
+      </span>
+      {typeLabel(type)}
+    </span>
+  )
+}
 
 export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { projectId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { fields, create, update, reorder, remove } = useProjectFields(open ? projectId : undefined)
@@ -78,7 +103,7 @@ export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { project
         </DialogHeader>
 
         <div className="space-y-2">
-          {fields.length === 0 && <p className="text-sm text-muted-foreground">No fields yet. Add the first below.</p>}
+          {fields.length === 0 && <p className="py-4 text-center text-sm text-ink-2">No fields yet. Add the first below: a select for stages, a number for points, a date for a deadline.</p>}
           {fields.map((f, i) => (
             <FieldRow
               key={f.id}
@@ -94,7 +119,7 @@ export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { project
         </div>
 
         {fields.length >= MAX_FIELDS ? (
-          <p className="border-t border-border/60 pt-3 text-sm text-muted-foreground">This project has {MAX_FIELDS} fields, the most it can have.</p>
+          <p className="border-t border-line pt-3 text-sm text-muted-foreground">This project has {MAX_FIELDS} fields, the most it can have.</p>
         ) : (
           <AddField busy={busy} onAdd={(input) => run(() => create(input), `Added ${input.name}`)} />
         )}
@@ -143,7 +168,7 @@ function FieldRow({
   }
 
   return (
-    <div className="rounded-md border border-border/60">
+    <div className="rounded-lg bg-raised shadow-e1">
       <div className="flex flex-wrap items-center gap-1 p-1">
         <Input dense
           value={name}
@@ -158,7 +183,7 @@ function FieldRow({
           }}
           className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 shadow-none focus-visible:border-input"
         />
-        <span className="shrink-0 px-1 text-xs text-muted-foreground">{typeLabel(field.type)}</span>
+        <FieldKind type={field.type} />
         {field.type === "money" && (
           <Input dense
             value={currency}
@@ -200,7 +225,7 @@ function FieldRow({
       </div>
 
       {isChoice(field.type) && (
-        <div className="border-t border-border/60 px-2 py-2">
+        <div className="border-t border-line px-2 py-2">
           <OptionsEditor
             options={field.options}
             busy={busy}
@@ -211,7 +236,7 @@ function FieldRow({
       )}
 
       {deleting && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border/60 bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line bg-sunken px-3 py-2 text-sm">
           <span className="text-muted-foreground">Every task&apos;s {field.name} goes with it.</span>
           <div className="ml-auto flex gap-1">
             <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(false)}>
@@ -264,7 +289,7 @@ function OptionsEditor({
         ))}
       </ul>
       {removing !== null && options[removing] && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-sm" role="alert">
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-sunken px-2 py-1.5 text-sm" role="alert">
           <span className="text-muted-foreground">&ldquo;{options[removing].label}&rdquo; comes off every task that has it.</span>
           <div className="ml-auto flex gap-1">
             <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setRemoving(null)}>
@@ -368,7 +393,7 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
   }
   return (
     <form
-      className="space-y-2 border-t border-border/60 pt-3"
+      className="space-y-2 border-t border-line pt-3"
       onSubmit={(e) => {
         e.preventDefault()
         void submit()

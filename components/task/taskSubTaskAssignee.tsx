@@ -1,15 +1,12 @@
 import { displayNameOf, personKeywords } from "@/lib/personName"
-import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Check } from "@/lib/icons";
-import { UserCircle } from "lucide-react";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { cn } from "@/lib/utils/helpers/cn"
-import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {UserProfileDataInterface} from "@/types/user";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
@@ -27,7 +24,6 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
 
     const {src: imageSrc} = useUserAvatar(userProfile?.user_profile_object_key);
 
-    const nameInitials = getNameInitials(displayNameOf(userProfile) || "Unknown")
 
     return (
         <Popover open={assigneePopoverOpen} onOpenChange={setAssigneePopoverOpen}>
@@ -37,22 +33,15 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                         <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="Change who this subtask is assigned to"
+                            aria-label={userProfile ? `Assigned to ${displayNameOf(userProfile)}. Change` : "Assign this subtask"}
                             aria-expanded={assigneePopoverOpen}
-                            className="rounded-full !p-0 h-10 w-10 flex items-center justify-center"
+                            className="size-6 rounded-full !p-0"
                         >
                             {userProfile ? (
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage
-                                        src={imageSrc}
-                                        alt="Profile icon"
-                                    />
-                                    <AvatarFallback className={getAvatarFallbackClass(displayNameOf(userProfile))}>
-                                        {nameInitials}
-                                    </AvatarFallback>
-                                </Avatar>
+                                <IdentityMark variant="avatar" id={userProfile.user_uuid} label={displayNameOf(userProfile)} src={imageSrc} size={18} />
                             ) : (
-                                <UserCircle className="p-0 text-muted-foreground" />
+                                // Nobody yet: an 18px dashed circle (W19's unassigned ghost).
+                                <span aria-hidden className="size-[18px] rounded-full border border-dashed border-line-3" />
                             )}
                         </Button>
                     </PopoverTrigger>

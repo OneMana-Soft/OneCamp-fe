@@ -28,3 +28,42 @@ describe("a task's activity", () => {
     expect((en as Record<string, string>).myTasks).toBe("My tasks")
   })
 })
+
+const { collapseHistory, changedList, buildStream } = await import("@/lib/tasks/activityStream")
+
+describe("the activity stream (design v3, W32)", () => {
+  const sam = { user_uuid: "sam", user_name: "Sam" }
+  const maya = { user_uuid: "maya", user_name: "Maya" }
+  const a = (type: string, at: string, by = sam) => ({ activity_type: type, activity_time: at, activity_by: by, activity_prev_state: "", activity_next_state: "" }) as never
+
+  it("folds one person's changes within five minutes into one line", () => {
+    const lines = collapseHistory([
+      a("statusUpdate", "2026-10-10T10:00:00Z"),
+      a("priorityUpdate", "2026-10-10T10:02:00Z"),
+      a("endDateUpdate", "2026-10-10T10:04:00Z"),
+      a("statusUpdate", "2026-10-10T10:20:00Z"),
+      a("priorityUpdate", "2026-10-10T10:21:00Z", maya),
+    ])
+    expect(lines).toHaveLength(3)
+    expect(changedList(lines[0])).toBe("status, priority and due date")
+    expect(lines[1].changes).toHaveLength(1)
+    expect(lines[2].first.activity_by.user_uuid).toBe("maya")
+  })
+
+  it("never folds an event that isn't a field change, and leaves out comment history", () => {
+    const lines = collapseHistory([a("taskCreate", "2026-10-10T10:00:00Z"), a("statusUpdate", "2026-10-10T10:01:00Z"), a("commentAdd", "2026-10-10T10:02:00Z")])
+    expect(lines.map((l) => l.changes.length)).toEqual([1, 1])
+  })
+
+  it("interleaves history with runs of comments in time order", () => {
+    const lines = collapseHistory([a("taskCreate", "2026-10-10T09:00:00Z"), a("statusUpdate", "2026-10-10T11:00:00Z")])
+    const items = buildStream(lines, [{ comment_created_at: "2026-10-10T10:00:00Z" }, { comment_created_at: "2026-10-10T10:30:00Z" }, { comment_created_at: "2026-10-10T12:00:00Z" }])
+    expect(items.map((i) => (i.kind === "comments" ? `c${i.start}-${i.end}` : "h"))).toEqual(["h", "c0-2", "h", "c2-3"])
+  })
+
+  it("writes a folded line as one sentence", () => {
+    const lines = collapseHistory([a("statusUpdate", "2026-10-10T10:00:00Z"), a("priorityUpdate", "2026-10-10T10:02:00Z")])
+    render(<TaskActivity openOtherUserProfile={() => {}} taskActivity={lines[0].first} line={lines[0]} />)
+    expect(screen.getByText(/changed status and priority/)).toBeTruthy()
+  })
+})

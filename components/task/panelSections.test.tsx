@@ -76,3 +76,51 @@ describe("the panel's sections", () => {
     expect(container.textContent).toBe("")
   })
 })
+
+const { MoreFields } = await import("@/components/task/panelParts")
+const { readFileSync } = await import("node:fs")
+
+describe("the panel's properties (design v3, W29)", () => {
+  const panel = readFileSync("components/rightPanel/taskInfoPanel.tsx", "utf8")
+
+  it("shows six properties first, in order, then More fields", () => {
+    const order = ["<TaskStatusPriorityControl", "<TaskAssigneePicker", "<DatesProperty", "<TaskEstimateField", 'data-property="labels"', "<MoreFields>"]
+    const at = order.map((s) => panel.indexOf(s))
+    for (const i of at) expect(i).toBeGreaterThan(-1)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    // Repeat, Cycle and the project's own fields are behind More fields.
+    const more = panel.slice(panel.indexOf("<MoreFields>"), panel.indexOf("</MoreFields>"))
+    for (const f of ["<TaskRepeatField", "<TaskCycleField", "<TaskFieldsSection"]) expect(more).toContain(f)
+  })
+
+  it("folds away only empty fields, and remembers the choice", () => {
+    window.localStorage.removeItem("oc_task_more_fields")
+    render(
+      <MoreFields>
+        <div data-field-empty="">
+          <span>Repeat</span>
+        </div>
+        <div>
+          <span>Cycle</span>
+        </div>
+      </MoreFields>,
+    )
+    const repeat = screen.getByText("Repeat").parentElement!
+    const box = repeat.parentElement!
+    expect(box.className).toContain("[&_[data-field-empty]]:hidden")
+    expect(screen.getByText("Cycle")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: /more fields/i }))
+    expect(box.className).not.toContain("[&_[data-field-empty]]:hidden")
+    expect(window.localStorage.getItem("oc_task_more_fields")).toBe("1")
+  })
+
+  it("draws values as ghost field buttons, never bordered inputs at rest", () => {
+    const rows = readFileSync("lib/ui/propertyRow.ts", "utf8")
+    expect(rows).toContain("sm:grid-cols-[104px_minmax(0,1fr)]")
+    expect(rows).toContain("min-h-8")
+    expect(rows).toContain("hover:bg-hover")
+    const control = readFileSync("components/task/taskStatusPriorityControl.tsx", "utf8")
+    expect(control).toContain("propertyValue")
+    expect(control).not.toMatch(/variant="outline"/)
+  })
+})

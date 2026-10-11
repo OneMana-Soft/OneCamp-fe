@@ -16,18 +16,39 @@ const LIGHT_STRONG: Record<CampHue, string> = {
   berry: "#D9467C",
 }
 
+/** The avatar cut's first stop (design v3 §3.5), the colour a face starts from. */
+const LIGHT_A1: Record<CampHue, string> = {
+  sun: "#AD7300",
+  moss: "#3F945B",
+  lake: "#0F919C",
+  sky: "#427FD8",
+  dusk: "#816BD8",
+  berry: "#CA4B85",
+}
+
+function token(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
 /** A camp hue's strong cut, in the current theme. */
 export function campColour(hue: CampHue): string {
-  if (typeof document === "undefined") return LIGHT_STRONG[hue]
-  const v = getComputedStyle(document.documentElement).getPropertyValue(`--camp-${hue}`).trim()
-  return v || LIGHT_STRONG[hue]
+  return token(`--camp-${hue}`, LIGHT_STRONG[hue])
+}
+
+/** A camp hue's avatar colour (a1), in the current theme. */
+export function avatarColour(hue: CampHue): string {
+  return token(`--camp-${hue}-a1`, LIGHT_A1[hue])
 }
 
 /**
- * A collaborator's pointer and name tag on a board: their identity hue (the
- * colour their avatar carries everywhere else) with a white edge, keyed by
- * their user id so every screen shows them in the same colour.
+ * A collaborator's pointer and name flag on a board (content.md B07): the
+ * colour their avatar starts from (a1), so the cursor, the flag and their face
+ * everywhere else are one colour, with a white edge. Keyed by their user id so
+ * every screen shows them the same. (The canvas takes one colour, not the
+ * avatar's gradient.)
  */
 export function collaboratorColour(id: string): { background: string; stroke: string } {
-  return { background: campColour(hueFor(id)), stroke: "#ffffff" }
+  return { background: avatarColour(hueFor(id)), stroke: "#ffffff" }
 }

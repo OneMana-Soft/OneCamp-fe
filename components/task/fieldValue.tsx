@@ -8,14 +8,19 @@ import { createContext, useContext } from "react"
 import { Check } from "@/lib/icons"
 import { formatFieldValue, optionOf, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Chip } from "@/components/ui/chip"
+import { campHueOf } from "@/lib/campHue"
 
-// An option reads as its name in plain text. In a task row the tinted chip was
-// the third coloured shape after status and priority ("Blog" in pink beside
-// "High" in red beside "In progress" in blue); a row keeps at most two quiet
-// indicators, which are the status and the priority. The option's colour is
-// still there to see where it is chosen.
-export function OptionPill({ label, className }: { label: string; color?: string; className?: string }) {
-  return <span className={cn("inline-flex max-w-full items-center truncate text-xs text-foreground", className)}>{label}</span>
+// An option reads as a neutral chip with a 6px dot in its colour (design v3,
+// work.md W35): the colour names the option without the tinted pill that
+// made a row a third coloured shape after status and priority.
+export function OptionPill({ label, color, className }: { label: string; color?: string; className?: string }) {
+  const hue = campHueOf(color)
+  return (
+    <Chip dot={hue ?? undefined} className={cn("max-w-[10rem]", className)} title={label}>
+      {label}
+    </Chip>
+  )
 }
 
 export function FieldValueView({

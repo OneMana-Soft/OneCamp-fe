@@ -1,10 +1,19 @@
-/* The board's canvas wears the app's colour theme, not Excalidraw's own
-   lavender: its selected tool, its focus, the selection around shapes and its
-   active buttons were its lavender in every theme, the one purple-blue on a
-   screen whose accent is orange (or blue, or green, as the person chose).
-   --brand resolves on <body>, where the theme class sets it, so these follow a
-   theme change live. Doubled class: Excalidraw declares its own on .excalidraw
-   and .excalidraw.theme--dark. In dark its shades run lighter, not darker. */
+/* The board's canvas in OneCamp's materials (design v3, content.md B04), by
+   overriding Excalidraw's own variables and a few of its selectors, never a
+   fork. Inside a board the product no longer changes: the islands are the
+   pop surface at e3 and r12, the selected tool is a press fill with a brand
+   dot, the colours follow the theme, and the chrome steps back so the canvas
+   is the hero. The board's own clusters (back, name, save dot, presence,
+   comment, share) float at the top corners, so Excalidraw's toolbar moves to
+   the bottom centre (tldraw's arrangement) and its zoom and undo become one
+   cluster at the bottom right.
+
+   --brand resolves on <body>, where the theme class sets it, so all of this
+   follows a theme change live. Doubled class: Excalidraw declares its own on
+   .excalidraw and .excalidraw.theme--dark. */
+
+/* ---- colours and surfaces ------------------------------------------------ */
+
 .excalidraw.excalidraw {
   --color-primary: var(--brand);
   --color-primary-darker: color-mix(in oklab, var(--brand) 86%, black);
@@ -12,10 +21,47 @@
   --color-primary-hover: color-mix(in oklab, var(--brand) 90%, black);
   --color-primary-light: color-mix(in oklab, var(--brand) 16%, var(--background));
   --color-primary-light-darker: color-mix(in oklab, var(--brand) 26%, var(--background));
-  --color-surface-primary-container: color-mix(in oklab, var(--brand) 18%, var(--background));
-  --color-on-primary-container: color-mix(in oklab, var(--brand) 55%, black);
+  --color-surface-primary-container: var(--press);
+  --color-on-primary-container: var(--ink);
+  --color-selection: var(--brand);
+  --color-brand-hover: color-mix(in oklab, var(--brand) 90%, black);
+  --color-brand-active: var(--brand);
+  --focus-highlight-color: color-mix(in oklab, var(--brand) 35%, transparent);
+  --select-highlight-color: var(--brand);
+  --link-color: var(--brand-text);
+
+  --island-bg-color: var(--pop);
+  --popup-bg-color: var(--pop);
+  --sidebar-bg-color: var(--pop);
+  --shadow-island: var(--e3);
+  --modal-shadow: var(--e4);
+  --sidebar-shadow: var(--e3);
+  --library-dropdown-shadow: var(--e3);
+  --border-radius-lg: 12px;
+  --border-radius-md: 8px;
+  --default-border-color: var(--line);
+  --sidebar-border-color: var(--line);
+  --dialog-border-color: var(--line);
+  --button-hover-bg: var(--hover);
+  --button-active-bg: var(--press);
+  --button-active-border: transparent;
+  --icon-fill-color: var(--ink-2);
+  --text-primary-color: var(--ink);
+  --keybinding-color: var(--ink-4);
+  --input-bg-color: var(--raised);
+  --input-border-color: var(--line-2);
+  --input-hover-bg-color: var(--hover);
+  --input-label-color: var(--ink-2);
+  --overlay-bg-color: color-mix(in oklab, var(--sheet) 88%, transparent);
+  --ui-font: var(--font-sans);
+  --default-bg-color: var(--sheet);
+
+  font-family: var(--font-sans);
 }
 
+/* Dark: Excalidraw inverts the canvas, but the chrome must be OneCamp's dark
+   pop (#1F2024), not inverted colours, so the variables are set again here
+   explicitly. */
 .excalidraw.excalidraw.theme--dark {
   --color-primary: var(--brand);
   --color-primary-darker: color-mix(in oklab, var(--brand) 86%, white);
@@ -23,6 +69,323 @@
   --color-primary-hover: color-mix(in oklab, var(--brand) 90%, white);
   --color-primary-light: color-mix(in oklab, var(--brand) 22%, var(--background));
   --color-primary-light-darker: color-mix(in oklab, var(--brand) 30%, var(--background));
-  --color-surface-primary-container: color-mix(in oklab, var(--brand) 28%, var(--background));
-  --color-on-primary-container: color-mix(in oklab, var(--brand) 45%, white);
+  --color-surface-primary-container: var(--press);
+  --color-on-primary-container: var(--ink);
+  --color-selection: var(--brand);
+  --color-brand-hover: color-mix(in oklab, var(--brand) 90%, white);
+  --color-brand-active: var(--brand);
+  --island-bg-color: var(--pop);
+  --popup-bg-color: var(--pop);
+  --sidebar-bg-color: var(--pop);
+  --shadow-island: var(--e3);
+  --modal-shadow: var(--e4);
+  --sidebar-shadow: var(--e3);
+  --default-border-color: var(--line);
+  --sidebar-border-color: var(--line);
+  --dialog-border-color: var(--line);
+  --button-hover-bg: var(--hover);
+  --button-active-bg: var(--press);
+  --icon-fill-color: var(--ink-2);
+  --text-primary-color: var(--ink);
+  --keybinding-color: var(--ink-4);
+  --input-bg-color: var(--raised);
+  --input-border-color: var(--line-2);
+  --input-hover-bg-color: var(--hover);
+  --input-label-color: var(--ink-2);
+  --overlay-bg-color: color-mix(in oklab, var(--sheet) 88%, transparent);
+  --default-bg-color: var(--sheet);
+}
+
+/* The e3 ring replaces the island's own border. */
+.excalidraw.excalidraw .Island {
+  border: 0;
+  box-shadow: var(--e3);
+  border-radius: 12px;
+  background: var(--pop);
+}
+
+/* ---- the chrome the board draws itself ----------------------------------- */
+
+/* The main menu and the library trigger: their items live in the board's own
+   "More" menu (Export image, Library, Find, Grid, Help), so Excalidraw's
+   hamburger and Library button don't take the top corners. */
+.excalidraw.excalidraw .main-menu-trigger,
+.excalidraw.excalidraw .layer-ui__wrapper__top-right,
+.excalidraw.excalidraw .layer-ui__wrapper__footer-right .help-icon {
+  display: none;
+}
+
+/* ---- the tool bar, at the bottom centre ---------------------------------- */
+
+@media (min-width: 731px) {
+  .excalidraw.excalidraw .App-menu_top .shapes-section {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    z-index: 3;
+  }
+  /* The hint ("To move canvas…") sits above the bar, not under it. */
+  .excalidraw.excalidraw .App-menu_top .shapes-section > div > .Stack_vertical {
+    flex-direction: column-reverse;
+  }
+  /* The style panel opens on the left under the board's own top cluster. */
+  .excalidraw.excalidraw .App-menu_top__left {
+    margin-top: 52px;
+  }
+}
+
+.excalidraw.excalidraw .App-toolbar {
+  padding: 4px;
+  gap: 2px;
+}
+.excalidraw.excalidraw .App-toolbar .ToolIcon__icon,
+.excalidraw.excalidraw .App-toolbar .ToolIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+.excalidraw.excalidraw .App-toolbar .ToolIcon__icon svg {
+  width: 16px;
+  height: 16px;
+}
+.excalidraw.excalidraw .App-toolbar .ToolIcon__icon {
+  color: var(--ink-2);
+  transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
+}
+.excalidraw.excalidraw .App-toolbar .ToolIcon__icon:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+/* The selected tool: a press fill, the icon in ink, and a 4 px brand dot
+   under it. */
+.excalidraw.excalidraw .App-toolbar .ToolIcon_type_radio:checked + .ToolIcon__icon,
+.excalidraw.excalidraw .App-toolbar .ToolIcon.ToolIcon--selected .ToolIcon__icon {
+  position: relative;
+  background: var(--press);
+  color: var(--ink);
+}
+.excalidraw.excalidraw .App-toolbar .ToolIcon_type_radio:checked + .ToolIcon__icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--brand);
+  animation: board-dot-in var(--duration-pop) var(--ease-out) both;
+}
+@keyframes board-dot-in {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: none; }
+}
+/* The shortcut digits under each tool are for power users: the tooltip says
+   them. At rest the bar is icons only. */
+.excalidraw.excalidraw .App-toolbar .ToolIcon__keybinding {
+  display: none;
+}
+.excalidraw.excalidraw .App-toolbar__divider {
+  margin: 0 4px;
+  height: 16px;
+  align-self: center;
+  background: var(--line-2);
+}
+
+.excalidraw.excalidraw .HintViewer {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+/* ---- zoom and undo: one cluster at the bottom right ---------------------- */
+
+.excalidraw.excalidraw .layer-ui__wrapper__footer-left {
+  margin-left: auto;
+}
+.excalidraw.excalidraw .layer-ui__wrapper__footer-left > .Stack > section {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: var(--e3);
+}
+.excalidraw.excalidraw .zoom-actions,
+.excalidraw.excalidraw .undo-redo-buttons {
+  margin: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.excalidraw.excalidraw .undo-redo-buttons {
+  position: relative;
+  padding-left: 7px;
+}
+.excalidraw.excalidraw .undo-redo-buttons::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: var(--line-2);
+}
+.excalidraw.excalidraw .zoom-actions .ToolIcon__icon,
+.excalidraw.excalidraw .undo-redo-buttons .ToolIcon__icon,
+.excalidraw.excalidraw .zoom-actions .ToolIcon,
+.excalidraw.excalidraw .undo-redo-buttons .ToolIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  box-shadow: none;
+}
+.excalidraw.excalidraw .zoom-actions .ToolIcon:hover .ToolIcon__icon,
+.excalidraw.excalidraw .undo-redo-buttons .ToolIcon:hover .ToolIcon__icon {
+  background: var(--hover);
+  color: var(--ink);
+}
+.excalidraw.excalidraw .zoom-actions .ToolIcon__icon svg,
+.excalidraw.excalidraw .undo-redo-buttons .ToolIcon__icon svg {
+  width: 16px;
+  height: 16px;
+}
+.excalidraw.excalidraw .zoom-actions .reset-zoom-button {
+  min-width: 52px;
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: 510 12px/16px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.excalidraw.excalidraw .zoom-actions .reset-zoom-button:hover {
+  background: var(--hover);
+}
+.excalidraw.excalidraw .ToolIcon_type_button[disabled] .ToolIcon__icon,
+.excalidraw.excalidraw .ToolIcon_type_button:disabled .ToolIcon__icon {
+  color: var(--ink-4);
+}
+
+/* ---- the style panel ----------------------------------------------------- */
+
+.excalidraw.excalidraw .App-menu__left {
+  width: 216px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: var(--e3);
+}
+.excalidraw.excalidraw .App-menu__left h3,
+.excalidraw.excalidraw .App-menu__left legend,
+.excalidraw.excalidraw .App-menu__left .control-label {
+  color: var(--ink-3);
+  font: 510 12px/16px var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* Swatches: 24 px rounded squares; the selected one gets a sheet gap and an
+   ink ring. */
+.excalidraw.excalidraw .color-picker__button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.excalidraw.excalidraw .color-picker__button.active,
+.excalidraw.excalidraw .color-picker__button--large.active {
+  box-shadow: 0 0 0 2px var(--pop), 0 0 0 3.5px var(--ink);
+}
+.excalidraw.excalidraw .color-picker__button .color-picker__button-outline {
+  display: none;
+}
+.excalidraw.excalidraw .buttonList label,
+.excalidraw.excalidraw .buttonList .ToolIcon__icon {
+  border-radius: 8px;
+}
+.excalidraw.excalidraw .buttonList label.active,
+.excalidraw.excalidraw .buttonList .ToolIcon_type_radio:checked + .ToolIcon__icon {
+  background: var(--press);
+  box-shadow: none;
+  border-color: transparent;
+}
+
+/* ---- menus, popovers and dialogs ----------------------------------------- */
+
+.excalidraw.excalidraw .dropdown-menu-container,
+.excalidraw.excalidraw .popover,
+.excalidraw.excalidraw .context-menu {
+  border: 0;
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: var(--e3);
+}
+.excalidraw.excalidraw .dropdown-menu-item,
+.excalidraw.excalidraw .context-menu-item {
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.excalidraw.excalidraw .dropdown-menu-item:hover,
+.excalidraw.excalidraw .context-menu-item:hover {
+  background: var(--press);
+}
+.excalidraw.excalidraw .Modal__content {
+  border-radius: 16px;
+  box-shadow: var(--e4);
+}
+
+/* ---- phone --------------------------------------------------------------- */
+
+@media (max-width: 730px) {
+  .excalidraw.excalidraw .App-bottom-bar .Island,
+  .excalidraw.excalidraw .App-toolbar--mobile {
+    border-radius: 16px;
+  }
+  .excalidraw.excalidraw .App-toolbar--mobile .ToolIcon__icon,
+  .excalidraw.excalidraw .App-toolbar--mobile .ToolIcon {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ---- the board's own floating chrome (board page) ------------------------ */
+
+/* While someone draws, the clusters step back to 60 % and return on release.
+   Set on the board's wrapper by a pointer listener, so nothing re-renders. */
+[data-board-chrome] {
+  transition: opacity var(--duration-hover) var(--ease-out);
+}
+[data-board-drawing="true"] [data-board-chrome] {
+  opacity: 0.6;
+}
+
+/* ---- facilitation -------------------------------------------------------- */
+
+/* The last ten seconds turn the timer's ring sun. */
+.board-timer-sun {
+  --progress-from: var(--camp-sun);
+  --progress-to: var(--camp-sun);
+}
+/* Time's up: the glyph pulses twice (scale 1 -> 1.08 -> 1, 2 x 400 ms). */
+@keyframes board-ring-pulse {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.08); }
+}
+.board-ring-pulse {
+  animation: board-ring-pulse 400ms var(--ease-in-out) 2;
+}
+/* A result's bar grows from the left (staggered by --i, capped). */
+@keyframes board-grow {
+  from { transform: scaleX(0); }
+  to { transform: none; }
+}
+.board-grow {
+  animation: board-grow 320ms var(--ease-out) both;
+  animation-delay: min(calc(var(--i, 0) * 16ms), 240ms);
 }

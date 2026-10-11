@@ -27,7 +27,7 @@ import {
   type RepeatSpec,
   type TaskRecurrence,
 } from "@/lib/tasks/recurrence"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { browserTZ } from "@/lib/utils/timeZone"
 
 const UNITS: { value: Freq; one: string; many: string }[] = [
@@ -90,9 +90,9 @@ export function TaskRepeatField({
   const weeklyDays = spec.freq === "WEEKLY" && spec.mode === "schedule"
 
   return (
-    <div className={fieldRow()}>
+    <div className={propertyRow()} data-field-empty={current ? undefined : ""}>
       <div>
-        <span className={fieldLabel}>Repeat</span>
+        <span className={propertyLabel}>Repeat</span>
       </div>
       <div className="min-w-0">
         <Popover open={open} onOpenChange={openWith}>
