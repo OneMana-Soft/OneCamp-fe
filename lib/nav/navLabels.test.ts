@@ -62,7 +62,7 @@ describe("the shell names each place once, in sentence case", () => {
 
   it("signs out with the words that sign in", () => {
     const menus = [
-      "components/navigationBar/desktop/desktopNavigationUserProfile.tsx",
+      "components/navigationBar/desktop/SidebarFoot.tsx",
       "components/ui/CommandPalette.tsx",
       "components/drawers/userProfileDrawer.tsx",
     ].map((f) => readFileSync(join(root, f), "utf8"))

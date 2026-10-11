@@ -15,9 +15,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { AlertTriangle, X } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
-import { Button } from "@/components/ui/button"
+import { NoticeBar, noticeActionClass } from "@/components/banner/NoticeBar"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { SpotImported } from "@/components/ui/graphics"
@@ -88,47 +86,28 @@ export function ImportOutcomeBanner({ isAdmin }: { isAdmin?: boolean }) {
   return (
     <>
       {isAdmin && outcome && (
-        <div
-          role="status"
-          className={cn(
-            "flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2 text-xs",
-            outcome.status === "failed"
-              ? "border-destructive/30 bg-destructive/10 text-danger-ink"
-              : "border-success/30 bg-success/10 text-foreground",
-          )}
-        >
-          {outcome.status === "failed" ? (
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          ) : (
-            <span ref={spotRef} className="flex shrink-0">
-              <SpotImported size={40} hue="moss" />
-            </span>
-          )}
-          <p className="min-w-0 flex-1 break-words">
-            {outcomeText(outcome)}
-            {outcomes.length > 1 && (
-              <span className="text-muted-foreground"> And {outcomes.length - 1} more.</span>
-            )}
-          </p>
-          <div className="flex shrink-0 items-center gap-2">
-            {outcome.status === "completed" && outcome.people_to_invite > 0 && (
-              <Button size="sm" className="h-7 text-xs" onClick={() => setInviting(outcome)}>
+        <NoticeBar
+          tone={outcome.status === "failed" ? "danger" : "info"}
+          icon={
+            outcome.status === "failed" ? undefined : (
+              <span ref={spotRef} className="flex shrink-0">
+                <SpotImported size={20} hue="moss" />
+              </span>
+            )
+          }
+          onDismiss={() => void dismiss(outcome)}
+          action={
+            outcome.status === "completed" && outcome.people_to_invite > 0 ? (
+              <button type="button" className={noticeActionClass} onClick={() => setInviting(outcome)}>
                 Invite the {outcome.people_to_invite} {outcome.people_to_invite === 1 ? "person" : "people"} who came across
-              </Button>
-            )}
-            <Link href="/app/admin?tab=import" className="font-medium underline underline-offset-2">
-              {outcome.status === "failed" ? "Open imports" : "See imports"}
-            </Link>
-            <button
-              type="button"
-              onClick={() => void dismiss(outcome)}
-              aria-label="Dismiss"
-              className="rounded-sm p-0.5 hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+              </button>
+            ) : undefined
+          }
+        >
+          {outcomeText(outcome)}
+          {outcomes.length > 1 && <span className="text-ink-3"> And {outcomes.length - 1} more.</span>}{" "}
+          <Link href="/app/admin?tab=import">{outcome.status === "failed" ? "Open imports" : "See imports"}</Link>
+        </NoticeBar>
       )}
       {inviting && (
         <ImportInviteDialog

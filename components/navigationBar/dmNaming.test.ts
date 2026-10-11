@@ -31,8 +31,9 @@ describe("the name of direct messages", () => {
   })
 
   it("heads the desktop sidebar's list, in sentence case", () => {
-    expect(src("components/navigationBar/desktop/desktopNavigationBar.tsx")).toMatch(/title: 'direct messages'/)
+    expect(src("components/navigationBar/desktop/desktopNavigationBar.tsx")).toMatch(/title="Direct messages"/)
+    // The heading is written in sentence case, never capitalised by CSS.
     const side = src("components/navigationBar/desktop/desktopSideNavigationBar.tsx")
-    expect(side).toMatch(/truncate first-letter:uppercase/)
+    expect(side).not.toMatch(/\bcapitalize\b/)
   })
 })

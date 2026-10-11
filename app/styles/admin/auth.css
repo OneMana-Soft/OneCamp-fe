@@ -1,0 +1,884 @@
+/* Design v3, admin area: the auth slice. Imported by app/globals.css.
+
+   The signed-out pages (sign in, sign up, reset, unsubscribe, connect, the
+   first run) and the onboarding pieces (the welcome card, the keyboard tip).
+   Spec: design/v3-areas/admin.md §5 and §6. Every keyframe moves transform or
+   opacity only (app/motionCost.test.ts), and everything decorative stops under
+   prefers-reduced-motion (the global backstop, plus explicit stills here, so a
+   static composition is designed rather than frozen mid-move). */
+@layer components {
+  /* ── The page ─────────────────────────────────────────────────────────── */
+  .auth-page {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--sheet);
+    color: var(--ink);
+    position: relative;
+    isolation: isolate;
+  }
+  .auth-split {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+  @media (min-width: 1024px) {
+    .auth-split {
+      display: grid;
+      grid-template-columns: minmax(480px, 5fr) 7fr;
+    }
+  }
+  .auth-formcol {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    padding: 16px 16px 24px;
+    position: relative;
+  }
+  @media (min-width: 768px) {
+    .auth-formcol { padding: 32px 48px; }
+  }
+  .auth-header {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+  }
+  .auth-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  /* The theme toggle as a 28px ghost from md (44px on a phone, a touch
+     target). The toggle is shared, so it is sized from here. */
+  @media (min-width: 768px) {
+    .auth-theme button { width: 28px; height: 28px; }
+    .auth-theme svg { width: 16px; height: 16px; }
+  }
+  .auth-main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 32px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .auth-form { width: 100%; max-width: 360px; }
+  /* In the split shape the form sits under the logo, on the column's left
+     edge, as the header and the trust line do. */
+  @media (min-width: 1024px) {
+    .auth-split .auth-main { justify-content: flex-start; }
+  }
+  /* Vertically centred with a -4vh optical offset: the eye's centre sits
+     above the box's. */
+  @media (min-width: 768px) {
+    .auth-form { transform: translateY(-4vh); }
+  }
+  .auth-trust {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    font-size: 12.5px;
+    line-height: 18px;
+    letter-spacing: 0;
+    color: var(--ink-3);
+    position: relative;
+    z-index: 1;
+  }
+  .auth-trust svg { width: 14px; height: 14px; flex: none; }
+  .auth-trust a {
+    color: var(--ink-3);
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    border-radius: 4px;
+  }
+  .auth-trust a:hover { color: var(--ink); }
+  @media (min-width: 768px) {
+    .auth-trust a { min-height: 0; }
+  }
+
+  /* The hero column: an inset panel, 12px from the viewport edges, r24. */
+  .auth-hero-col {
+    display: none;
+    min-width: 0;
+    padding: 12px 12px 12px 0;
+  }
+  @media (min-width: 1024px) {
+    .auth-hero-col { display: flex; }
+  }
+  .auth-hero-col > * { flex: 1; }
+  @media (min-width: 1024px) {
+    .auth-split .auth-band { display: none; }
+  }
+
+  /* ── The camp canvas (DESIGN_V3 §3.15) ───────────────────────────────────
+     Paper #F7F4F1 / #121316; the ember glow top right in the theme's --glow
+     (a blue-theme person sees a blue camp), dusk bottom left, lake bottom
+     right, white rings, 2% grain. The ember layer carries .45 at opacity
+     .667 (= .30), so the first run's ignition steps it to .45 by opacity. */
+  .auth-camp {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: #F7F4F1;
+    display: grid;
+    place-items: center;
+  }
+  .auth-camp[data-panel] {
+    border-radius: 24px;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .dark .auth-camp { background: #121316; }
+  .auth-camp-layer {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .auth-camp-ember {
+    background: radial-gradient(900px 560px at 85% -10%, rgb(var(--glow) / 0.45), transparent 62%);
+    opacity: 0.667;
+    transition: opacity 600ms var(--ease-out);
+  }
+  .dark .auth-camp-ember { opacity: 0.58; }
+  .auth-camp[data-lit] .auth-camp-ember { opacity: 1; }
+  .auth-camp-dusk {
+    background:
+      radial-gradient(700px 500px at -5% 115%, rgb(123 97 217 / 0.16), transparent 62%),
+      radial-gradient(600px 420px at 105% 115%, rgb(14 151 166 / 0.13), transparent 60%);
+  }
+  .dark .auth-camp-dusk {
+    background:
+      radial-gradient(700px 500px at -5% 115%, rgb(123 97 217 / 0.18), transparent 62%),
+      radial-gradient(600px 420px at 105% 115%, rgb(14 151 166 / 0.12), transparent 60%);
+  }
+  .auth-camp-grain {
+    opacity: 0.02;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  .dark .auth-camp-grain { mix-blend-mode: screen; }
+  @media (prefers-reduced-transparency: reduce) {
+    .auth-camp-grain { display: none; }
+  }
+  /* Half strength, no rings: the soft band over a centred page, and the glow
+     behind the consent card. */
+  .auth-camp[data-soft] { background: transparent; }
+  .auth-camp[data-soft] .auth-camp-ember { opacity: 0.333; }
+  .auth-camp[data-soft] .auth-camp-dusk { opacity: 0.5; }
+  .auth-softband {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 120px;
+    z-index: 0;
+    pointer-events: none;
+    /* It fades into the page instead of ending on a hard line. */
+    -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent);
+    mask-image: linear-gradient(180deg, #000 30%, transparent);
+  }
+  /* The first run's swatch preview: a fresh fade of the ember each time the
+     hovered theme changes (400ms). */
+  .auth-camp[data-preview] .auth-camp-ember { animation: auth-fade-in 400ms var(--ease-out) both; }
+
+  .auth-orbit { stroke: rgb(255 255 255 / 0.75); }
+  .dark .auth-orbit { stroke: rgb(255 255 255 / 0.07); }
+  .auth-orbit-empty { stroke: var(--line-3); }
+  .auth-caption {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 510;
+    letter-spacing: 0;
+    color: var(--ink-3);
+  }
+
+  /* The composition, 520px, centred. Parallax moves the wrapper (rAF,
+     transform only). */
+  .auth-hero {
+    position: relative;
+    width: 520px;
+    height: 520px;
+    max-width: 100%;
+  }
+  .auth-hero svg { overflow: visible; }
+  .auth-parallax { transition: transform 300ms var(--ease-out); }
+  .auth-rings {
+    transform-origin: 260px 260px;
+    animation: auth-rings-in 700ms var(--ease-out) both;
+  }
+  .auth-rot-outer { transform-origin: 260px 260px; animation: auth-spin 120s linear infinite; }
+  .auth-rot-mid { transform-origin: 260px 260px; animation: auth-spin 90s linear infinite reverse; }
+  .auth-rot-inner { transform-origin: 260px 260px; animation: auth-spin 60s linear infinite; }
+  /* Avatars stay upright: each counter-rotates on its own centre. */
+  .auth-upright-outer { transform-origin: 0 0; animation: auth-spin 120s linear infinite reverse; }
+  .auth-upright-mid { transform-origin: 0 0; animation: auth-spin 90s linear infinite; }
+  .auth-upright-inner { transform-origin: 0 0; animation: auth-spin 60s linear infinite reverse; }
+  .auth-pop {
+    transform-origin: 0 0;
+    animation: auth-pop 320ms var(--ease-spring) both;
+    animation-delay: calc(200ms + var(--i, 0) * 80ms);
+  }
+  [data-paused] .auth-rot-outer, [data-paused] .auth-rot-mid, [data-paused] .auth-rot-inner,
+  [data-paused] .auth-upright-outer, [data-paused] .auth-upright-mid, [data-paused] .auth-upright-inner {
+    animation-play-state: paused;
+  }
+  .auth-chip {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 360px;
+    white-space: nowrap;
+    padding: 8px 12px 8px 8px;
+    border-radius: 12px;
+    background: var(--pop);
+    box-shadow: var(--e3);
+    font-size: 13px;
+    line-height: 18px;
+    letter-spacing: -0.003em;
+    animation: auth-rise 400ms var(--ease-out) 500ms both;
+  }
+  .auth-chip + .auth-chip { animation-delay: 620ms; }
+  .auth-chip-sub { font-size: 12px; line-height: 16px; color: var(--ink-3); letter-spacing: 0; }
+  .auth-chip-tile {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .auth-chip-tile svg { width: 16px; height: 16px; }
+
+  /* The ignition: the gradient ring fades in over the grey one on a spring,
+     1 -> 1.06 -> 1. */
+  .auth-ignite { opacity: 0; transform-origin: 260px 260px; }
+  .auth-camp[data-lit] .auth-ignite { animation: auth-ignite 900ms var(--ease-spring) both; }
+  .auth-camp[data-lit][data-instant] .auth-ignite { animation: none; opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-rings,
+    .auth-rot-outer, .auth-rot-mid, .auth-rot-inner,
+    .auth-upright-outer, .auth-upright-mid, .auth-upright-inner,
+    .auth-pop, .auth-chip, .auth-ignite,
+    .auth-camp[data-preview] .auth-camp-ember { animation: none !important; }
+    .auth-camp[data-lit] .auth-ignite { opacity: 1; }
+    .auth-parallax { transition: none; transform: none !important; }
+  }
+
+  /* ── Type ─────────────────────────────────────────────────────────────── */
+  .auth-lead {
+    font-size: 15px;
+    line-height: 23px;
+    letter-spacing: -0.009em;
+    color: var(--ink-2);
+  }
+  .auth-hint {
+    font-size: 12.5px;
+    line-height: 18px;
+    letter-spacing: 0;
+    color: var(--ink-2);
+  }
+
+  /* ── Fields (F3) ──────────────────────────────────────────────────────── */
+  .auth-label {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 510;
+    color: var(--ink);
+  }
+  /* With field-surface (globals.css): raised at e1, the halo on focus, the
+     danger halo when invalid. 44px and 16px on a phone (iOS doesn't zoom),
+     40px and 15px from md. */
+  .auth-input {
+    display: block;
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 20px;
+    color: var(--ink);
+    outline: none;
+  }
+  @media (min-width: 768px) {
+    .auth-input { height: 40px; font-size: 15px; }
+  }
+  .auth-input[readonly] { color: var(--ink-2); }
+  .auth-input[data-pad-end] { padding-right: 44px; }
+  .auth-shake { animation: auth-shake 280ms var(--ease-out); }
+  .auth-field-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--danger-ink);
+  }
+  .auth-field-error svg { width: 14px; height: 14px; margin-top: 2px; flex: none; }
+  .auth-caps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    line-height: 18px;
+    letter-spacing: 0;
+    color: var(--warning-ink);
+  }
+  /* The show/hide button: 32px inside the right edge, the eye crossfading. */
+  .auth-eye {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    width: 32px;
+    height: 32px;
+    margin-top: -16px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+  }
+  .auth-eye:hover { color: var(--ink); background: var(--hover); }
+  .auth-eye:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .auth-eye svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity 140ms var(--ease-out); }
+  .auth-eye[aria-pressed="true"] .auth-eye-show,
+  .auth-eye[aria-pressed="false"] .auth-eye-hide { opacity: 0; }
+  @media (max-width: 767px) {
+    /* A 44px target inside a 44px field. */
+    .auth-eye { right: 0; width: 44px; height: 44px; margin-top: -22px; }
+  }
+  .auth-match {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    margin-top: -7px;
+    width: 14px;
+    height: 14px;
+    color: var(--success-ink);
+    pointer-events: none;
+    animation: auth-check 220ms var(--ease-spring) both;
+  }
+
+  /* The strength meter: four 3px segments of 44px, gap 4; danger, sun, moss,
+     moss; the word on the right. Each segment fills by scaleX over 200ms. */
+  .auth-strength { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+  .auth-strength i {
+    position: relative;
+    width: 44px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--press);
+    overflow: hidden;
+  }
+  .auth-strength i::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--seg, var(--press));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 200ms var(--ease-out);
+  }
+  .auth-strength i[data-on]::after { transform: scaleX(1); }
+  .auth-strength[data-level="1"] { --seg: var(--destructive); }
+  .auth-strength[data-level="2"] { --seg: var(--camp-sun); }
+  .auth-strength[data-level="3"], .auth-strength[data-level="4"] { --seg: var(--camp-moss); }
+  .auth-strength-word { margin-left: 8px; font-size: 12.5px; line-height: 16px; letter-spacing: 0; color: var(--ink-2); }
+  .auth-strength[data-level="1"] .auth-strength-word { color: var(--danger-ink); }
+  .auth-strength[data-level="3"] .auth-strength-word,
+  .auth-strength[data-level="4"] .auth-strength-word { color: var(--success-ink); }
+
+  /* ── The notice card (refusals, form problems) ────────────────────────── */
+  .auth-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .auth-notice-tile {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .auth-notice-tile svg { width: 16px; height: 16px; }
+  .auth-notice[data-tone="error"] .auth-notice-tile { background: color-mix(in oklab, var(--destructive) 12%, var(--raised)); color: var(--danger-ink); }
+  .auth-notice[data-tone="warning"] .auth-notice-tile { background: var(--camp-sun-tint); color: var(--camp-sun-ink); }
+  .auth-notice[data-tone="neutral"] .auth-notice-tile { background: var(--raised); box-shadow: var(--e1); color: var(--ink-3); }
+
+  /* ── Identity chip, step pill, providers ──────────────────────────────── */
+  .auth-chipid {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 4px;
+    border-radius: 16px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 510;
+    max-width: 100%;
+  }
+  .auth-chipid-address { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-avatar {
+    flex: none;
+    border-radius: 9999px;
+    display: inline-grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 600;
+  }
+  .auth-steppill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 12px 0 10px;
+    border-radius: 15px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 510;
+    color: var(--ink-3);
+    letter-spacing: 0;
+  }
+  .auth-steppill i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-4); }
+  .auth-steppill i[data-on] { background: var(--brand); }
+  .auth-providers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .auth-providers > .auth-wide { grid-column: 1 / -1; }
+  .auth-mark { width: 18px; height: 18px; flex: none; }
+
+  /* The two-step email: the password step slides in from the right; Change
+     reverses. */
+  .auth-step-in { animation: auth-step-in 220ms var(--ease-out) both; }
+  .auth-step-back { animation: auth-step-back 220ms var(--ease-out) both; }
+
+  /* The checking skeleton: the form's exact anatomy with a 1.2s shimmer (a
+     translateX gradient). */
+  .auth-skel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--press);
+  }
+  .auth-skel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+    transform: translateX(-100%);
+    animation: auth-shimmer 1.2s ease-in-out infinite;
+  }
+  .dark .auth-skel::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent); }
+
+  /* ── The two-step check (F4) ──────────────────────────────────────────── */
+  .auth-otp { position: relative; display: flex; gap: 8px; width: max-content; max-width: 100%; }
+  .auth-otp > input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: 0;
+    padding: 0;
+    font-size: 16px;
+    caret-color: transparent;
+    color: transparent;
+    background: transparent;
+    z-index: 1;
+    cursor: text;
+  }
+  .auth-otp-gap { width: 8px; flex: none; }
+  .auth-otp-cell {
+    position: relative;
+    width: 44px;
+    height: 52px;
+    border-radius: 10px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    transition: box-shadow 140ms var(--ease-out);
+  }
+  .auth-otp-cell[data-active] {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+  .auth-otp[data-invalid] .auth-otp-cell {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--destructive) 12%, transparent);
+  }
+  .auth-otp[data-invalid][data-shake] { animation: auth-shake-lg 300ms var(--ease-out); }
+  .auth-otp-digit { display: block; animation: auth-digit 160ms var(--ease-spring) both; }
+  .auth-otp-caret {
+    width: 1.5px;
+    height: 24px;
+    background: var(--brand);
+    animation: auth-caret 1s steps(1) infinite;
+  }
+  .auth-otp-cell::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 11px;
+    box-shadow: 0 0 0 2px var(--camp-moss);
+    opacity: 0;
+  }
+  .auth-otp[data-complete] .auth-otp-cell::after {
+    animation: auth-wave 600ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+  .auth-shield-tile {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+  }
+  .auth-shield-tile svg { width: 22px; height: 22px; }
+
+  /* ── Signed-out moments ───────────────────────────────────────────────── */
+  .auth-breathe { animation: auth-breathe 1.2s ease-in-out infinite alternate; }
+  .auth-spot { position: relative; display: inline-block; }
+  .auth-badge {
+    position: absolute;
+    right: 6px;
+    bottom: 10px;
+    width: 26px;
+    height: 26px;
+    border-radius: 9999px;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 3px var(--sheet);
+    animation: auth-check 220ms var(--ease-spring) both;
+  }
+  .auth-badge svg { width: 14px; height: 14px; }
+  .auth-countdown { font-variant-numeric: tabular-nums; }
+  .auth-fade-out { animation: auth-fade-out 200ms var(--ease-out) both; }
+  .auth-fade-in { animation: auth-fade-in 140ms var(--ease-out) both; }
+
+  /* ── The consent card (F9) ────────────────────────────────────────────── */
+  .auth-consent {
+    width: 100%;
+    max-width: 440px;
+    border-radius: 16px;
+    background: var(--raised);
+    box-shadow: var(--e3);
+    overflow: clip;
+  }
+  .auth-hand { display: flex; justify-content: center; align-items: center; gap: 12px; padding-top: 28px; }
+  .auth-hand-mark {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 18px;
+    font-weight: 590;
+    color: var(--ink-2);
+  }
+  .auth-hand-mark .auth-badge { right: -8px; bottom: -8px; width: 20px; height: 20px; }
+  .auth-dots { display: flex; gap: 4px; width: 32px; justify-content: center; }
+  .auth-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-4); }
+  .auth-dots[data-wait] i { animation: auth-dot 1.2s ease-in-out infinite; }
+  .auth-dots[data-wait] i:nth-child(2) { animation-delay: 200ms; }
+  .auth-dots[data-wait] i:nth-child(3) { animation-delay: 400ms; }
+  .auth-dots[data-done] i { background: var(--camp-moss); animation: auth-check 220ms var(--ease-spring) both; }
+  .auth-dots[data-done] i:nth-child(2) { animation-delay: 80ms; }
+  .auth-dots[data-done] i:nth-child(3) { animation-delay: 160ms; }
+  .auth-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    cursor: pointer;
+  }
+  .auth-option[data-selected] { box-shadow: 0 0 0 1.5px var(--brand), 0 1px 2px rgb(16 18 26 / 0.05); }
+  .auth-option:has(:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .auth-agent-new {
+    width: 32px;
+    height: 32px;
+    border-radius: 32%;
+    display: grid;
+    place-items: center;
+    box-shadow: inset 0 0 0 1.5px var(--line-3);
+    color: var(--ink-2);
+    flex: none;
+  }
+  .auth-agent-new svg { width: 14px; height: 14px; }
+  .auth-radio {
+    margin-left: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px var(--line-3);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .auth-option[data-selected] .auth-radio { box-shadow: inset 0 0 0 1.5px var(--brand); }
+  .auth-option[data-selected] .auth-radio::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--brand);
+    animation: auth-check 220ms var(--ease-spring) both;
+  }
+  .auth-scope {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 36px;
+    font-size: 14px;
+    line-height: 20px;
+    cursor: pointer;
+  }
+  @media (max-width: 767px) {
+    .auth-scope { min-height: 44px; }
+  }
+  .auth-scope-raw {
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 11.5px;
+    line-height: 16px;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  .auth-tag-sun {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 5px;
+    background: var(--camp-sun-tint);
+    color: var(--camp-sun-ink);
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 510;
+    white-space: nowrap;
+  }
+  .auth-consent-foot {
+    background: var(--sunken);
+    box-shadow: inset 0 1px 0 var(--line);
+    padding: 16px 24px 20px;
+  }
+  @media (max-width: 767px) {
+    .auth-consent-foot { position: sticky; bottom: 0; z-index: 2; }
+  }
+
+  /* ── First run (E2, E3) ───────────────────────────────────────────────── */
+  .auth-swatches { display: grid; grid-template-columns: repeat(3, 72px); gap: 16px 24px; justify-content: center; }
+  @media (max-width: 767px) {
+    .auth-swatches { grid-template-columns: repeat(3, 96px); gap: 12px; }
+  }
+  .auth-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    border-radius: 16px;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 510;
+  }
+  .auth-swatch-face {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #F7F4F1;
+    box-shadow: var(--e1);
+    display: grid;
+    place-items: center;
+    transition: transform 140ms var(--ease-out);
+  }
+  @media (max-width: 767px) {
+    .auth-swatch-face { width: 96px; height: 96px; }
+  }
+  .dark .auth-swatch-face { background: #121316; }
+  .auth-swatch-face::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(80px 60px at 85% 0%, rgb(var(--glow) / 0.5), transparent 70%);
+  }
+  .auth-swatch-bar {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 10px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--brand);
+  }
+  .auth-swatch:hover .auth-swatch-face { transform: translateY(-2px); box-shadow: var(--e2); }
+  .auth-swatch:focus-visible { outline: none; }
+  .auth-swatch:focus-visible .auth-swatch-face,
+  .auth-swatch[aria-checked="true"] .auth-swatch-face { outline: 2px solid var(--brand); outline-offset: 3px; }
+  .auth-swatch-check {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: var(--brand-foreground);
+    display: grid;
+    place-items: center;
+    animation: auth-check 220ms var(--ease-spring) both;
+  }
+  .auth-swatch-check svg { width: 12px; height: 12px; }
+
+  .auth-chipfield {
+    min-height: 96px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 10px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    cursor: text;
+  }
+  .auth-chipfield:focus-within {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+  .auth-chipfield input {
+    flex: 1;
+    min-width: 160px;
+    height: 26px;
+    border: 0;
+    background: transparent;
+    outline: none;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  @media (min-width: 768px) {
+    .auth-chipfield input { font-size: 14px; }
+  }
+  .auth-emailchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 4px;
+    border-radius: 13px;
+    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 510;
+    animation: auth-chip-in 220ms var(--ease-spring) both;
+  }
+  .auth-emailchip[data-invalid] {
+    background: color-mix(in oklab, var(--destructive) 10%, var(--raised));
+    color: var(--danger-ink);
+  }
+  .auth-emailchip[data-selected] { box-shadow: inset 0 0 0 1.5px var(--brand); }
+  .auth-emailchip button {
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+  }
+  .auth-emailchip button:hover { color: var(--ink); background: var(--press); }
+  .auth-emailchip svg { width: 12px; height: 12px; }
+
+  /* ── The new member's welcome card (E5) ───────────────────────────────── */
+  .welcome-card {
+    margin: 12px 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    transform-origin: top center;
+  }
+  .welcome-card[data-leaving] { animation: welcome-out 180ms var(--ease-out) both; }
+  .welcome-stack { display: flex; }
+  .welcome-stack > * + * { margin-left: -6px; }
+  .welcome-stack > * { box-shadow: 0 0 0 2px var(--raised); }
+
+  /* ── The keyboard tip (E7) ────────────────────────────────────────────── */
+  .ktip {
+    width: 300px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--pop);
+    box-shadow: var(--e3);
+    animation: ktip-in 240ms var(--ease-out) both;
+  }
+  .ktip-row { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: 13px; line-height: 18px; }
+  .ktip-keys { display: flex; gap: 4px; min-width: 52px; }
+  .ktip-key { transition: transform 90ms var(--ease-out), background-color 90ms var(--ease-out); }
+  .ktip-key[data-pressed] { transform: translateY(1px); background: var(--press); }
+  .ktip-tick { width: 14px; height: 14px; color: var(--success-ink); margin-left: auto; animation: auth-check 220ms var(--ease-spring) both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-shake, .auth-otp[data-shake], .auth-otp-digit, .auth-otp-caret,
+    .auth-otp[data-complete] .auth-otp-cell::after, .auth-breathe, .auth-step-in,
+    .auth-step-back, .auth-skel::after, .auth-dots i, .auth-badge, .auth-match,
+    .auth-emailchip, .auth-swatch-check, .welcome-card[data-leaving], .ktip,
+    .ktip-tick, .auth-fade-out, .auth-fade-in, .auth-option[data-selected] .auth-radio::after {
+      animation: none !important;
+    }
+  }
+
+  @keyframes auth-spin { to { transform: rotate(360deg); } }
+  @keyframes auth-rings-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+  @keyframes auth-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+  @keyframes auth-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes auth-ignite { 0% { opacity: 0; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes auth-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+  @keyframes auth-shake-lg { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  @keyframes auth-step-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes auth-step-back { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes auth-shimmer { to { transform: translateX(100%); } }
+  @keyframes auth-digit { from { transform: scale(0.9); } to { transform: scale(1); } }
+  @keyframes auth-caret { 0% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes auth-wave { 0% { opacity: 0; } 40% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes auth-check { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+  @keyframes auth-breathe { from { transform: scale(1); } to { transform: scale(1.04); } }
+  @keyframes auth-dot { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  @keyframes auth-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes auth-fade-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-8px); } }
+  @keyframes auth-chip-in { from { transform: scale(0.8); } to { transform: scale(1); } }
+  @keyframes welcome-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.98); } }
+  @keyframes ktip-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+}

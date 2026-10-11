@@ -1,0 +1,42 @@
+/* Design v3, admin area: the guest slice (design/v3-areas/admin.md §7 G3, and
+   G1's frame done small inside the guest channel page). Imported by
+   app/globals.css. Transform and opacity only; the global backstop stills it
+   under prefers-reduced-motion. */
+@layer components {
+  /* The page sits in content's PublicFrame (G1); the channel is on a sheet
+     inset 8px, full bleed on a phone. */
+  .guest-sheet {
+    background: var(--sheet);
+    animation: guest-sheet-in 320ms var(--ease-out) both;
+  }
+  @media (min-width: 640px) {
+    .guest-sheet {
+      margin: 0 8px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--e-sheet);
+      overflow: clip;
+    }
+  }
+
+  /* A logo mark or a ring glyph: a circle by nature, not a pill. */
+
+  /* The name gate becomes the composer: the gate fades out as the message
+     box and its placeholder fade in, in the same card, over 220ms. */
+  .guest-gate[data-leaving] {
+    animation: guest-fade-out 220ms var(--ease-out) both;
+    pointer-events: none;
+  }
+  .guest-compose[data-entering] {
+    animation: guest-fade-in 220ms var(--ease-out) both;
+  }
+
+  @keyframes guest-sheet-in {
+    from { opacity: 0; transform: translateY(8px); }
+  }
+  @keyframes guest-fade-in {
+    from { opacity: 0; }
+  }
+  @keyframes guest-fade-out {
+    to { opacity: 0; }
+  }
+}

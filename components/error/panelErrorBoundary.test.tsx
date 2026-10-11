@@ -30,6 +30,9 @@ describe("a panel's crash", () => {
     )
     expect(screen.getByText("The page")).toBeTruthy()
     expect(screen.getByRole("alert").textContent).toMatch(/This panel hit a problem/)
+    // Design v3 (shell §V1): centred, with the 56px crash spot.
+    expect(screen.getByRole("alert").className).toMatch(/items-center/)
+    expect(screen.getByRole("alert").querySelector("[data-spot-crash]")?.getAttribute("width")).toBe("56")
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
     expect(onClose).toHaveBeenCalled()
     broken = false

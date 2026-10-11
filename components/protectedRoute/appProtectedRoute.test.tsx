@@ -132,3 +132,58 @@ describe("whether a failure means the session is gone", () => {
     expect(sessionGone(undefined)).toBe(false)
   })
 })
+
+// Design v3 (shell §L1): the app opens on a splash, never a centred spinner.
+describe("the splash while the profile loads", () => {
+  beforeEach(() => sessionStorage.clear())
+  afterEach(() => {
+    vi.useRealTimers()
+    sessionStorage.clear()
+  })
+
+  it("draws the ring and names the workspace, with no spinner anywhere", async () => {
+    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    const view = page()
+    await act(async () => {})
+    expect(screen.getByRole("status").textContent).toMatch(/^Opening /)
+    expect(view.container.querySelector("[data-splash-ring] .splash-ring-draw")).toBeTruthy()
+    expect(view.container.querySelector(".animate-spin, svg.lucide-loader-circle, svg.lucide-loader")).toBeNull()
+    expect(view.container.querySelector(".app-frame.splash")).toBeTruthy()
+  })
+
+  it("says it is still connecting after 8 seconds, and Try again asks again", async () => {
+    vi.useFakeTimers()
+    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    page()
+    await act(async () => void vi.advanceTimersByTime(8100))
+    expect(screen.getByText(/Still connecting to/)).toBeTruthy()
+    screen.getByRole("button", { name: "Try again" }).click()
+    expect(mutate).toHaveBeenCalled()
+  })
+
+  it("shows the skeleton shell instead in a tab that has opened the app before", async () => {
+    sessionStorage.setItem("onecamp:opened", "1")
+    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    const view = page()
+    await act(async () => {})
+    expect(view.container.querySelector("[data-skeleton-shell]")).toBeTruthy()
+    expect(view.container.querySelector("[data-splash-ring]")).toBeNull()
+  })
+
+  it("puts an error on the same frame, with the crash spot", async () => {
+    profile = { isLoading: false, isValidating: false, isError: new Error("Network Error"), data: undefined }
+    const view = page()
+    await act(async () => {})
+    expect(view.container.querySelector("[data-splash-error] [data-spot-crash]")).toBeTruthy()
+  })
+
+  it("fades the shell in after the splash", async () => {
+    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    const view = page()
+    await act(async () => {})
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "u", user_name: "Sam" } } }
+    view.rerender(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
+    await act(async () => {})
+    expect(screen.getByText("the app").parentElement?.className).toBe("shell-enter")
+  })
+})

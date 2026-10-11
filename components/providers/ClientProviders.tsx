@@ -19,7 +19,7 @@ export function ClientProviders({
   children: React.ReactNode;
 }) {
   return (
-    <ThemeProvider defaultTheme="light" storageKey="ui-theme">
+    <ThemeProvider defaultTheme="system" storageKey="ui-theme">
       <ActiveThemeProvider>
         <PersistGate loading={null} persistor={persistor}>
           <Provider store={store}>

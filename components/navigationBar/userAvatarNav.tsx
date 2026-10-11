@@ -9,7 +9,6 @@ import {getAvatarFallbackClass} from "@/lib/utils/getAvatarColor";
 import {cn} from "@/lib/utils/helpers/cn";
 import {USER_STATUS_ONLINE} from "@/types/user";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import { statusColors } from "@/lib/colors";
 
 interface UserAvatarNavProp {
     toolTipString?: string
@@ -36,7 +35,7 @@ export const UserAvatarNav = memo(({toolTipString, userProfileObjKey, userName, 
                         <AvatarImage src={imageSrc}/>
                         <AvatarFallback className={cn("text-xs font-semibold", getAvatarFallbackClass(userName))}>{nameInitial}</AvatarFallback>
                     </Avatar>
-                    {isOnline && <div className={`h-2.5 w-2.5 md:h-2 md:w-2 ring-[1px] ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}></div>}
+                    {isOnline && <span data-presence="" className="presence-dot [--presence-ring:var(--frame)]" />}
                 </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="flex items-center gap-4">

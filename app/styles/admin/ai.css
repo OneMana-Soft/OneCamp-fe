@@ -1,0 +1,564 @@
+/* Design v3, admin area: the ai slice. Imported by app/globals.css. */
+
+/* S5 agents and skills (admin.md §S5): the agent cards, the new-agent
+   stepper, the governance sentence and the agent's birth. Transform and
+   opacity only (app/motionCost.test.ts). */
+@layer components {
+  /* An agent card: the raised surface at e1, r12, a sunken footer strip. */
+  .agent-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--raised);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--e1);
+    overflow: clip;
+  }
+  .agent-card-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+  }
+  .agent-card-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 8px 6px 16px;
+    background: var(--sunken);
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+
+  /* The stepper of a new agent: four segments, the ones reached filled
+     with the progress colour. The fill scales on x, so nothing reflows. */
+  .agent-step-bar {
+    position: relative;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--press);
+    overflow: hidden;
+  }
+  .agent-step-bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--brand);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 220ms var(--ease-spring);
+  }
+  .agent-step[data-reached="true"] .agent-step-bar::after {
+    transform: scaleX(1);
+  }
+
+  /* The governance sentence: a note, not a control. */
+  .agent-governance {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+
+  /* The agent's birth: the square pops 0.9 to 1 and the spark inside it
+     scales from nothing with a 20 degree turn, both on the spring. Not a
+     celebration burst; it never runs under reduced motion (the component
+     leaves the class off, and this block stills it as a backstop). */
+  .agent-birth {
+    animation: agent-birth-pop 320ms var(--ease-spring) both;
+  }
+  .agent-birth svg {
+    animation: agent-birth-spark 320ms var(--ease-spring) 80ms both;
+  }
+  @keyframes agent-birth-pop {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes agent-birth-spark {
+    from { transform: scale(0) rotate(-20deg); }
+    to { transform: scale(1) rotate(0deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .agent-birth,
+    .agent-birth svg {
+      animation: none;
+    }
+  }
+
+  /* A skill in the library: a card like an app's. */
+  .skill-card {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--raised);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--e1);
+  }
+}
+
+/* S6 assistants, A23 activity (admin.md §A23): the AI activity rows in the
+   audit log's anatomy, neutral chips, and a run's step timeline. Transform
+   and opacity only (app/motionCost.test.ts). */
+@layer components {
+  /* A neutral chip (§1.5): a category or a model is never a hue. */
+  .ai-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 160px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 6px;
+    background: var(--press);
+    color: var(--ink-2);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  /* An activity row: time (56px), the 22px actor square, the sentence. */
+  .ai-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 56px 22px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 12px;
+    min-height: 44px;
+    padding: 11px 16px;
+  }
+  .ai-rows > .ai-row + .ai-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .ai-row-time {
+    padding-top: 2px;
+    white-space: nowrap;
+  }
+  .ai-row-actor {
+    display: block;
+    width: 22px;
+    height: 22px;
+  }
+  .ai-row-chips {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 4px;
+  }
+  @media (max-width: 639px) {
+    .ai-row { grid-template-columns: 22px minmax(0, 1fr); }
+    .ai-row-time { display: none; }
+    .ai-row-chips { display: none; }
+  }
+
+  /* An agent's runs: rows between inset hairlines on one card. */
+  .ai-runs {
+    background: var(--raised);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--e1);
+  }
+  .ai-run { position: relative; }
+  .ai-run + .ai-run::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .ai-run-head {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px 12px;
+    text-align: left;
+    border-radius: var(--radius-lg);
+  }
+  .ai-run-head:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .ai-chevron { transition: transform 180ms var(--ease-out); }
+  .ai-run[data-open="true"] .ai-chevron { transform: rotate(90deg); }
+  .ai-run-body { padding: 4px 16px 16px 38px; }
+
+  /* The step timeline: 20px nodes on a 1.5px --line-2 rail. */
+  .ai-steps {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ai-steps::before {
+    content: "";
+    position: absolute;
+    left: 9.25px;
+    top: 10px;
+    bottom: 10px;
+    width: 1.5px;
+    background: var(--line-2);
+  }
+  .ai-step {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+  }
+  .ai-step-note { padding-left: 30px; }
+  .ai-node {
+    position: relative;
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--raised);
+    box-shadow: inset 0 0 0 1.5px var(--line-2);
+    color: var(--ink-3);
+  }
+  .ai-node svg { width: 12px; height: 12px; }
+  .ai-node[data-tone="ok"] { background: var(--camp-moss); box-shadow: none; color: #fff; }
+  .ai-node[data-tone="fail"] { background: var(--destructive); box-shadow: none; color: #fff; }
+  .ai-node-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--ink-3); }
+}
+
+/* A15 AI & agents (admin.md §A15, mock M6): the sub-page tab bar, the
+   status card, the self-test rows, the stat tiles, the live bar, the folded
+   cards of Advanced and the drill's sequence. Transform and opacity only
+   (app/motionCost.test.ts); the global reduced-motion rule stills them. */
+@layer components {
+  /* A note or a mark on the sunken surface with an inset hairline. */
+  .ai-sunken-note {
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+
+  /* The tab bar: 40px, a hairline under it, one sliding ink underline. */
+  .ai-tabs-bar {
+    position: relative;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+  .ai-tabs-list {
+    position: relative;
+    display: flex;
+    height: 40px;
+    align-items: stretch;
+    gap: 4px;
+    overflow-x: auto;
+  }
+  .ai-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px;
+    white-space: nowrap;
+    font-size: 13.5px;
+    line-height: 20px;
+    color: var(--ink-2);
+    border-radius: 6px 6px 0 0;
+    transition: color 140ms var(--ease-out);
+  }
+  .ai-tab:hover { color: var(--foreground); }
+  .ai-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .ai-tab[data-state="active"] { color: var(--foreground); font-weight: 510; }
+  /* One element for every tab: 1px wide, scaled to the tab's width and moved
+     to its left edge, so neither width nor left ever animates. */
+  .ai-tab-ink {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 2px;
+    background: var(--foreground);
+    transform-origin: left center;
+    transition: transform 220ms var(--ease-spring), opacity 120ms var(--ease-out);
+    pointer-events: none;
+  }
+
+  /* The status card: r16, e1, 24px in; the 48px agent square. */
+  .ai-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 24px;
+    border-radius: 16px;
+  }
+  .ai-hero-mark {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 32%;
+    color: #fff;
+  }
+  /* The one master switch, 36x20 here, its knob 16px. */
+
+  /* A self-test check: a 32px row, a 16px glyph that resolves. */
+  .ai-check-row {
+    display: flex;
+    min-height: 32px;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 16px;
+  }
+  .ai-check-glyph {
+    display: grid;
+    width: 16px;
+    height: 20px;
+    flex-shrink: 0;
+    place-items: center;
+  }
+  .ai-check-ok,
+  .ai-check-fail {
+    display: grid;
+    width: 16px;
+    height: 16px;
+    place-items: center;
+    border-radius: 999px;
+    color: #fff;
+  }
+  .ai-check-ok { background: var(--camp-moss); }
+  .ai-check-fail { background: var(--destructive); }
+  .ai-glyph-pop { animation: ai-glyph-pop 220ms var(--ease-spring) both; }
+  @keyframes ai-glyph-pop {
+    from { transform: scale(0.4); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .ai-check-result {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--sunken);
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+
+  /* A stat tile: 96px, r12, e1, the number 28/32 600 tabular. */
+  .ai-stat {
+    display: flex;
+    min-height: 96px;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+  }
+  .ai-stat-value {
+    font-size: 28px;
+    line-height: 32px;
+    font-weight: 600;
+  }
+  @media (max-width: 639px) {
+    .ai-stat { min-height: 72px; }
+  }
+
+  /* An agent at work: a 2px live bar in the agent hue, breathing on opacity
+     while its run is going. */
+  .ai-live-row {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    padding-left: 14px;
+  }
+  .ai-live-row + .ai-live-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .ai-live-bar {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--agent);
+    opacity: 0.25;
+  }
+  .ai-live-row[data-live="true"] .ai-live-bar { animation: ai-live 1.6s ease-in-out infinite alternate; }
+  @keyframes ai-live {
+    from { opacity: 0.4; }
+    to { opacity: 1; }
+  }
+
+  /* What an agent's history suggests: a row per suggestion. */
+  .ai-learning-row {
+    position: relative;
+    padding: 12px 16px;
+  }
+  .ai-learning-row + .ai-learning-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* Where today's spend goes: a row per person or channel. */
+  .ai-spend-row {
+    position: relative;
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px;
+  }
+  .ai-spend-row + .ai-spend-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* A card folded to its title row. The cards inside an open one lose their
+     own surface, so it reads as one card of rows. */
+  .ai-fold-head {
+    display: flex;
+    width: 100%;
+    min-height: 56px;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    text-align: left;
+  }
+  .ai-fold-head:hover { background: var(--hover); }
+  .ai-fold-head:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .ai-fold-chevron { transition: transform 180ms var(--ease-out); }
+  [data-collapsible-card][data-open="true"] .ai-fold-chevron { transform: rotate(180deg); }
+  .ai-fold-body {
+    padding-bottom: 8px;
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+  .ai-fold-body .set-card {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  /* The governance drill: three rows, 400ms apart; the refusal's shield
+     springs. */
+  .ai-drill-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 10px 16px;
+    animation: ai-drill-in 240ms var(--ease-out) both;
+  }
+  .ai-drill-row + .ai-drill-row { box-shadow: inset 0 1px 0 var(--line); }
+  @keyframes ai-drill-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  .ai-drill-glyph {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--sunken);
+    color: var(--ink-3);
+  }
+  .ai-drill-row[data-tone="refused"] .ai-drill-glyph {
+    background: color-mix(in oklab, var(--destructive) 12%, transparent);
+    color: var(--danger-ink);
+    animation: ai-glyph-pop 320ms var(--ease-spring) 120ms both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ai-drill-row,
+    .ai-drill-row[data-tone="refused"] .ai-drill-glyph,
+    .ai-glyph-pop,
+    .ai-live-row[data-live="true"] .ai-live-bar { animation: none; }
+    .ai-live-row[data-live="true"] .ai-live-bar { opacity: 1; }
+  }
+}
+
+/* S6 Your AI assistants (admin.md §S6): the connect dialog's option cards
+   and its numbered steps. */
+@layer components {
+  .assistant-option {
+    display: flex;
+    min-height: 56px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    text-align: left;
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    box-shadow: var(--e1);
+    transition: box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
+  }
+  .assistant-option:hover { transform: translateY(-1px); }
+  .assistant-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .assistant-option[aria-checked="true"] {
+    box-shadow: 0 0 0 1px var(--brand), var(--e2);
+  }
+  .assistant-step-num {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--press);
+    color: var(--ink-2);
+    font-size: 12px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* A23 data inventory: the download control that morphs from a counting pill
+   to a ready link. */
+@layer components {
+  .inventory-pill {
+    display: inline-flex;
+    height: 28px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--press);
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 510;
+    animation: inventory-pill-in 180ms var(--ease-out) both;
+  }
+  .inventory-pill-ready {
+    background: var(--raised);
+    color: var(--foreground);
+    box-shadow: var(--e1);
+  }
+  .inventory-pill-ready:hover { background: var(--hover); }
+  .inventory-pill-ready:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  @keyframes inventory-pill-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* The overview's one master switch, 36x20 with a 16px knob. Unlayered, so it
+   wins over the switch's own utilities (h-4 w-7, translate-x-3); the knob
+   moves with the same `translate` property they use, so the two never add. */
+.ai-big-switch { height: 20px; width: 36px; }
+.ai-big-switch > span { width: 16px; height: 16px; }
+.ai-big-switch[data-state="checked"] > span { translate: 16px 0; }

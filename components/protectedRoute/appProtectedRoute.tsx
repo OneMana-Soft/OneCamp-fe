@@ -1,8 +1,7 @@
 "use client";
 
-import { Loader2 } from "@/lib/icons";
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
@@ -13,6 +12,10 @@ import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus}
 import { UserProfileResponseSchema } from "@/lib/validations/schemas";
 import axios from "axios";
 import { ErrorState } from "@/components/ui/error-state";
+import { Button } from "@/components/ui/button";
+import { SpotCrash } from "@/components/error/shellSpots";
+import { SplashFrame, SplashRing, serverHost, workspaceName } from "@/components/protectedRoute/Splash";
+import { SkeletonShell } from "@/components/protectedRoute/SkeletonShell";
 import { endSession, onSessionEndedElsewhere } from "@/lib/sessionEnd";
 // The store registers its own reset for endSession; importing it makes sure
 // that registration has run.
@@ -40,6 +43,21 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     // Guard against double-firing the redirect under StrictMode and against
     // the effect re-running while we wait on the BE logout.
     const handledRef = useRef(false);
+    // Whether the splash (or the skeleton shell) was on screen, so the shell
+    // fades in after it and only after it.
+    const splashShown = useRef(false);
+    if (!userProfile.data?.data) splashShown.current = true;
+    const [reopening] = useState(openedBefore);
+    const [slow, setSlow] = useState(false);
+    const waiting = !userProfile.data?.data && !userProfile.isError;
+    useEffect(() => {
+        if (!waiting) {
+            setSlow(false);
+            return;
+        }
+        const t = setTimeout(() => setSlow(true), SPLASH_SLOW_MS);
+        return () => clearTimeout(t);
+    }, [waiting]);
 
     // Signed out in another tab: that tab has told this one, which has let go
     // of the member's things (lib/sessionEnd). A full load of the login page
@@ -116,6 +134,11 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
         }
 
         if(userProfile.data?.data) {
+            try {
+                sessionStorage.setItem(OPENED_KEY, "1");
+            } catch {
+                /* private mode: the splash shows each time, which is fine */
+            }
             // The reducer ignores empty/undefined emoji-status payloads
             // (profile-fetch responses omit the field when no active
             // status exists, and we don't want that absence to clobber
@@ -130,22 +153,60 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     }, [userProfile.isError, userProfile.isLoading, userProfile.isValidating, userProfile.data, userProfile.mutate, router, dispatch]);
 
     if (userProfile.data?.data) {
-        return children;
+        // After the splash, the shell fades up once (160ms, opacity). Straight
+        // from the cache it simply appears.
+        return splashShown.current ? <div className="shell-enter">{children}</div> : children;
     }
 
     // The profile couldn't be read, but the session is fine: say so, and try
-    // again (SWR also retries on its own).
+    // again (SWR also retries on its own). On the splash's frame, so the
+    // moment does not jump to a white page.
     if (userProfile.isError && !sessionGone(userProfile.isError)) {
         return (
-            <div className="flex h-dvh items-center justify-center px-4">
-                <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} />
-            </div>
+            <SplashFrame data-splash-error="">
+                <div className="flex flex-col items-center">
+                    <SpotCrash />
+                    <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} className="py-4 [&_[data-empty-icon]]:hidden" />
+                </div>
+            </SplashFrame>
         );
     }
 
+    return <AppSplash slow={slow} onRetry={() => void userProfile.mutate()} reopening={reopening} />;
+}
+
+/** Whether this tab has opened the app before: then a reload shows the skeleton shell, not the splash. */
+const OPENED_KEY = "onecamp:opened";
+function openedBefore(): boolean {
+    try {
+        return sessionStorage.getItem(OPENED_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
+
+/** How long the splash waits before it says it is still connecting. */
+export const SPLASH_SLOW_MS = 8000;
+
+/**
+ * The app opening (design v3, shell §L1). Never a centred spinner: the frame,
+ * then from 150ms the glow and the ring drawn once with "Opening <workspace>";
+ * past 8s it says it is still connecting, with a way to try again. A tab that
+ * has opened the app before shows the skeleton shell instead.
+ */
+export function AppSplash({ slow, onRetry, reopening }: { slow: boolean; onRetry: () => void; reopening: boolean }) {
+    if (reopening && !slow) return <SkeletonShell />;
     return (
-        <div className='flex justify-center items-center h-dvh space-x-3'>
-            <Loader2 className="size-10 animate-spin" />
-        </div>
+        <SplashFrame role="status" aria-live="polite">
+            <SplashRing />
+            {slow ? (
+                <div className="flex flex-col items-center gap-2">
+                    <p className="text-xs text-ink-3">Still connecting to {serverHost()}…</p>
+                    <Button variant="ghost" size="sm" onClick={onRetry}>Try again</Button>
+                </div>
+            ) : (
+                <p className="splash-line text-xs text-ink-3">Opening {workspaceName()}</p>
+            )}
+        </SplashFrame>
     );
 }

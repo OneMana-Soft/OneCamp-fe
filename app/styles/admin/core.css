@@ -1,0 +1,285 @@
+/* Design v3, admin and settings (design/v3-areas/admin.md §1). The settings
+   card, its rows, footer and states; the save dock; the settings nav that
+   takes the sidebar's place; the page frame's entrance. Imported by
+   app/globals.css, so the area's rules live in one file and the end of
+   globals.css stays free for other waves.
+
+   Motion is transform and opacity only (app/motionCost.test.ts): a halo that
+   flashes is a pseudo-element whose opacity moves, never a box-shadow that
+   animates. Everything here also stops under prefers-reduced-motion through
+   the global backstop in globals.css; the blocks below only swap a movement
+   for its still version where the spec names one. */
+@layer components {
+  /* ---------- The settings card (§1.3) ---------- */
+  .set-card {
+    position: relative;
+    background: var(--raised);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--e1);
+    overflow: clip;
+    transition: box-shadow 140ms var(--ease-out);
+  }
+  /* Dirty: the ring takes the accent at 35 %, the drop stays. */
+  .set-card[data-dirty="true"] {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 35%, transparent), 0 1px 2px rgb(16 18 26 / 0.05);
+  }
+  .set-card[data-danger="true"] {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent), 0 1px 2px rgb(16 18 26 / 0.05);
+  }
+  /* Jumped to (search, a deep link): the ring and a 3px halo, fading over
+     1.2s. The halo is drawn on ::after so only its opacity moves. */
+  .set-flash {
+    position: relative;
+  }
+  .set-flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+    animation: set-flash 1200ms var(--ease-out) both;
+  }
+  @keyframes set-flash {
+    0%, 30% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* The global backstop cuts animations to 0.01ms, so the still halo is a
+       plain state: shown while the class is on (flashCard removes it after
+       1.3s). */
+    .set-flash::after { animation: none; opacity: 1; }
+  }
+
+  /* Rows: 56px at least, the words and the control on a grid so one card's
+     controls line up; hairlines inset 16px from the left. */
+  .set-row {
+    position: relative;
+    min-height: 56px;
+    padding: 14px 16px;
+  }
+  .set-card > .set-row + .set-row::before,
+  .set-card > * + .set-row::before,
+  .set-rows > .set-row + .set-row::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  /* A row that is one target (a link row, a switch row whose words toggle). */
+  .set-row[data-target="true"] {
+    cursor: pointer;
+    transition: background-color 140ms var(--ease-out);
+  }
+  .set-row[data-target="true"]:hover {
+    background: var(--hover);
+  }
+  .set-row[data-disabled="true"] {
+    cursor: default;
+  }
+  .set-row[data-disabled="true"]:hover {
+    background: transparent;
+  }
+  .set-row[data-shake="true"] {
+    animation: set-shake 240ms var(--ease-in-out) both;
+  }
+  @keyframes set-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-3px); }
+    40%, 80% { transform: translateX(3px); }
+  }
+
+  /* The card's footer, for a card that saves in one go: a sunken strip with
+     what saving does on the left and Save on the right. Always drawn, so the
+     card never changes height while you type. */
+  .set-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 10px 16px;
+    background: var(--sunken);
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+
+  /* The saved tick: a moss check that springs in beside the label, stays
+     1.6s and fades. */
+  .saved-tick {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--success-ink, var(--ok));
+    animation: saved-tick-in 220ms var(--ease-spring) both, saved-tick-out 300ms var(--ease-out) 1600ms forwards;
+  }
+  @keyframes saved-tick-in {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes saved-tick-out {
+    to { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .saved-tick { animation: saved-tick-out 1ms linear 1600ms forwards; }
+  }
+
+  /* A field drawn by a wrapper (a number with its unit, a chip input): the
+     halo when the input inside has focus. */
+  .field-surface:is([data-number-unit], [data-chip-field]):focus-within {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+
+  /* ---------- The save dock (§1.3): only for multi-card forms ---------- */
+  .set-dock {
+    z-index: 10;
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: min(560px, 100%);
+    min-height: 48px;
+    padding: 8px 8px 8px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--pop);
+    box-shadow: var(--e3);
+    animation: set-dock-in 240ms var(--ease-out) both;
+  }
+  .set-dock[data-nudge="true"] {
+    animation: set-dock-nudge 280ms var(--ease-in-out) both;
+  }
+  @keyframes set-dock-in {
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes set-dock-nudge {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .set-dock-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 9999px;
+    background: var(--brand);
+  }
+
+  /* ---------- The page frame (§1.2) ---------- */
+  /* A section switch: the new page fades up 6px over 180ms. */
+  .set-page {
+    animation: set-page-in 180ms var(--ease-out) both;
+  }
+  @keyframes set-page-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---------- The settings nav (§1.1) ---------- */
+  /* Entering settings, the nav fades in from x -8. */
+  .snav {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    animation: snav-in 180ms var(--ease-out) both;
+  }
+  @keyframes snav-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .snav-back {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    border-radius: var(--radius-md);
+    color: var(--ink);
+    font-weight: 510;
+    transition: background-color 140ms var(--ease-out);
+  }
+  .snav-back:hover { background: var(--hover); }
+  .snav-back svg { color: var(--ink-3); }
+  .snav-search {
+    margin: 6px 0 8px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 10px;
+    border-radius: var(--radius-md);
+    background: var(--raised);
+    box-shadow: var(--e1);
+    color: var(--ink-3);
+    transition: box-shadow 140ms var(--ease-out);
+  }
+  .snav-search:focus-within {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+  .snav-search input {
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+  }
+  .snav-search input::placeholder { color: var(--ink-3); }
+  .snav-sect {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    margin-top: 14px;
+    color: var(--ink-3);
+  }
+  .snav-rows {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  /* The one selected chip, under the rows, moved by transform between them. */
+  .snav-chip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 30px;
+    border-radius: var(--radius-md);
+    background: var(--raised);
+    box-shadow: var(--e-sel);
+    pointer-events: none;
+    transition: transform 220ms var(--ease-spring), opacity 120ms var(--ease-out);
+  }
+  .snav-chip[data-instant="true"] { transition: none; }
+  .snav-row {
+    position: relative;
+    z-index: 1;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px;
+    border-radius: var(--radius-md);
+    color: var(--ink-2);
+    transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  .snav-row svg { color: var(--ink-3); }
+  .snav-row:hover { background: var(--hover); color: var(--ink); }
+  .snav-row:hover svg { color: var(--ink); }
+  .snav-row[aria-current="page"] { color: var(--ink); font-weight: 510; background: transparent; }
+  .snav-row[aria-current="page"] svg { color: var(--brand); }
+  /* With no chip measured yet (first paint, tests), the current row draws
+     its own. */
+  .snav-rows:not([data-chip]) .snav-row[aria-current="page"] {
+    background: var(--raised);
+    box-shadow: var(--e-sel);
+  }
+  .snav-row[data-hit="true"] { background: var(--hover); color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) {
+    .snav { animation: none; }
+    .snav-chip { transition: none; }
+  }
+}

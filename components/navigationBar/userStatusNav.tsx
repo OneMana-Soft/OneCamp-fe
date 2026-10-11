@@ -81,7 +81,7 @@ export function UserStatusNav({userUUID, hideWhenEmpty = false}: {userUUID: stri
                     { emojiInfo
                         ?
                         emojiInfo.skins[0].native
-                        :<SmilePlus aria-hidden="true" className="h-[18px] w-[18px] text-muted-foreground hover:cursor-pointer" strokeWidth={1.75} />
+                        :<SmilePlus aria-hidden="true" className="h-[18px] w-[18px] text-muted-foreground hover:cursor-pointer" />
                     }
                     </Button>
                 </TooltipTrigger>

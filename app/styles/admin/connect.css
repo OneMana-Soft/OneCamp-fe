@@ -1,0 +1,665 @@
+/* Design v3, admin area: the connect slice (design/v3-areas/admin.md A14,
+   A16, A18, A19, A20, S3, S4). Imported by app/globals.css.
+
+   Motion is transform and opacity only (app/motionCost.test.ts); every
+   decorative movement stops under prefers-reduced-motion through the global
+   backstop, and the blocks below give a still version where the spec names
+   one. */
+@layer components {
+  /* ---------- Shared parts (components/admin/connectParts.tsx) ---------- */
+
+  /* A tool's mark: monochrome ink-2 on sunken, a hairline ring. A source is a
+     category, never a hue (§1.5). */
+  .cx-mark {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+    color: var(--ink-2);
+    font-size: 0.8125rem;
+    font-weight: 590;
+    line-height: 1;
+    user-select: none;
+  }
+  .cx-mark svg { width: 16px; height: 16px; }
+  .cx-mark[data-size="28"] { width: 28px; height: 28px; border-radius: 8px; font-size: 0.75rem; }
+  .cx-mark[data-size="20"] { width: 20px; height: 20px; border-radius: 6px; font-size: 0.6875rem; }
+  .cx-mark[data-size="20"] svg { width: 12px; height: 12px; }
+
+  /* A state: a 6px dot and a word at 13/510. */
+  .cx-state {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    font-weight: 510;
+    color: var(--ink);
+  }
+  .cx-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--ink-3);
+    transition: background-color 220ms var(--ease-out);
+  }
+  .cx-dot[data-tone="success"] { background: var(--success); }
+  .cx-dot[data-tone="warning"] { background: var(--warning); }
+  .cx-dot[data-tone="danger"] { background: var(--destructive); }
+  .cx-dot[data-tone="info"] { background: var(--info); }
+  .cx-dot[data-pulse="true"] { animation: cx-pulse 1.6s ease-in-out infinite; }
+  @keyframes cx-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* The neutral chip: 22px, r6, 12/510, the hover fill with an inset ring and
+     a 14px ink-3 glyph. */
+  .cx-chip {
+    display: inline-flex;
+    max-width: 100%;
+    height: 22px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 7px;
+    border-radius: var(--radius-sm);
+    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 510;
+    color: var(--ink);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .cx-chip svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--ink-3); }
+
+  /* A connection card: r12 e1, a 48px header, rows inset 16px. */
+  .cx-conn {
+    position: relative;
+    background: var(--raised);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--e1);
+    overflow: clip;
+  }
+  .cx-conn-head {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px 8px 8px;
+  }
+  .cx-conn-head > .cx-mark { margin-left: 4px; }
+  .cx-conn > * + * { box-shadow: inset 0 1px 0 var(--line); }
+  .cx-linked {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px 10px 16px;
+  }
+  .cx-linked + .cx-linked { box-shadow: inset 16px 1px 0 var(--raised), inset 0 1px 0 var(--line); }
+  .cx-linked-glyph { width: 12px; height: 12px; flex-shrink: 0; color: var(--ink-3); }
+
+  /* ---------- A14 Import ---------- */
+
+  /* The source picker: a 4-column grid of 72px cards (2 on a phone), Slack
+     first and two columns wide. Raised at e1; hover e2 and a 1px lift. The
+     picked one wears the accent ring, so the choice is plain at a glance. */
+  .cx-imp-sources {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  @media (min-width: 640px) {
+    .cx-imp-sources { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  .cx-imp-source {
+    position: relative;
+    display: flex;
+    min-height: 72px;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    box-shadow: var(--e1);
+    text-align: left;
+    cursor: pointer;
+    transition: box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
+  }
+  .cx-imp-source[data-wide="true"] { grid-column: span 2 / span 2; }
+  @media (hover: hover) {
+    .cx-imp-source:hover { box-shadow: var(--e2); transform: translateY(-1px); }
+  }
+  .cx-imp-source:active { transform: translateY(0); }
+  .cx-imp-source:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .cx-imp-source[aria-checked="true"] {
+    box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--brand) 70%, transparent), 0 1px 2px rgb(16 18 26 / 0.05);
+  }
+  .cx-imp-source-line { font-size: 0.78125rem; line-height: 1.125rem; color: var(--ink-2); }
+
+  /* A job row: the 28px mark, the name and its state, a tabular meta line,
+     and on the right the bar while it runs or the ⋯ when it is done. Two
+     lines on a phone: the right side goes under the words. */
+  .cx-imp-job {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 8px;
+    align-items: center;
+    min-height: 64px;
+    padding: 12px 12px 12px 16px;
+    outline: none;
+  }
+  @media (min-width: 640px) {
+    .cx-imp-job { grid-template-columns: auto minmax(0, 1fr) auto; }
+  }
+  .cx-imp-job-side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    grid-column: 2 / -1;
+  }
+  @media (min-width: 640px) {
+    .cx-imp-job-side { grid-column: auto; justify-content: flex-end; }
+  }
+  .cx-imp-job-below { grid-column: 2 / -1; }
+  .cx-imp-meta {
+    font-size: 0.78125rem;
+    line-height: 1.125rem;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .cx-imp-job[data-highlighted="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 10px;
+    pointer-events: none;
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 55%, transparent);
+  }
+  /* The list of rows: the settings card, rows between inset hairlines. */
+  .cx-imp-list > li + li { box-shadow: inset 16px 1px 0 var(--raised), inset 0 1px 0 var(--line); }
+
+  /* The progress bar: 160×6 on the pressed track; the fill is the progress
+     gradient, sized by scaleX (never width) over 600ms, and while it runs a
+     40px sheen of white at 25 % crosses it every 1.6s. */
+  .cx-imp-bar {
+    position: relative;
+    width: 160px;
+    max-width: 100%;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--press);
+    overflow: hidden;
+  }
+  .cx-imp-bar-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transform-origin: left center;
+    transition: transform 600ms var(--ease-out);
+    overflow: hidden;
+  }
+  .cx-imp-bar[data-running="true"] .cx-imp-bar-fill::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.25), transparent);
+    animation: cx-imp-sheen 1.6s linear infinite;
+  }
+  @keyframes cx-imp-sheen {
+    from { transform: translateX(-40px); }
+    to { transform: translateX(160px); }
+  }
+  /* Parts ticking over: the number crossfades. */
+  .cx-imp-tick { display: inline-block; animation: cx-imp-tick 220ms var(--ease-out); }
+  @keyframes cx-imp-tick {
+    from { opacity: 0.2; }
+    to { opacity: 1; }
+  }
+
+  /* "7 errors": the one tinted chip, sun, because it means something. */
+  .cx-imp-errors {
+    display: inline-flex;
+    height: 22px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 7px;
+    border-radius: var(--radius-sm);
+    background: var(--camp-sun-tint);
+    color: var(--camp-sun-ink);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 510;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: transform 90ms var(--ease-out);
+  }
+  .cx-imp-errors:active { transform: translateY(0.5px); }
+  .cx-imp-errors:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  @media (max-width: 767px) {
+    .cx-imp-errors { height: 32px; padding: 0 10px; }
+  }
+
+  /* What came across: lines stream in (opacity, 30ms apart) when the import
+     has just finished, and the block wears a moss ring that fades over 2s. */
+  .cx-imp-digest { position: relative; border-radius: 10px; }
+  .cx-imp-digest[data-fresh="true"]::after {
+    content: "";
+    position: absolute;
+    inset: -6px -8px;
+    border-radius: 10px;
+    pointer-events: none;
+    box-shadow: 0 0 0 1px var(--success);
+    animation: cx-imp-ring 2s var(--ease-out) both;
+  }
+  @keyframes cx-imp-ring {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  .cx-imp-digest[data-fresh="true"] .cx-imp-line {
+    animation: cx-imp-line 240ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 30ms);
+  }
+  @keyframes cx-imp-line {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* The plan's stepper: one 3px segment per step, moss when done, the
+     accent for the step you are on, the pressed track ahead. */
+  .cx-imp-steps { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; gap: 6px; }
+  .cx-imp-step { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+  .cx-imp-step-bar { height: 3px; border-radius: 999px; background: var(--press); }
+  .cx-imp-step[data-state="done"] .cx-imp-step-bar { background: var(--success); }
+  .cx-imp-step[data-state="current"] .cx-imp-step-bar { background: var(--brand); }
+  .cx-imp-step-label { font-size: 0.75rem; line-height: 1rem; font-weight: 510; color: var(--ink-3); }
+  .cx-imp-step[data-state="current"] .cx-imp-step-label { color: var(--ink); }
+  .cx-imp-step[data-state="done"] .cx-imp-step-label { color: var(--ink-2); }
+
+  /* A note inside a dialog (warnings, a problem): sunken, an inset ring, r10;
+     a note, not a control, so no e1. */
+  .cx-imp-note {
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+    padding: 10px 12px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cx-imp-bar[data-running="true"] .cx-imp-bar-fill::after { animation: none; opacity: 0; }
+    .cx-imp-digest[data-fresh="true"]::after { animation: cx-imp-ring-still 2s steps(1, end) both; }
+    @keyframes cx-imp-ring-still { 0% { opacity: 1; } 100% { opacity: 0; } }
+  }
+
+  /* ---------- A16 / S4 Workflows ---------- */
+
+  /* A workflow row: 64px, the name over the token sentence, then the run
+     count, the switch and ⋯. */
+  .set-card > .cx-wf-row {
+    display: flex;
+    min-height: 64px;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 10px 12px 10px 16px;
+  }
+  /* The sentence: 13px ink-2 words between 22px neutral tokens. */
+  .cx-wf-sentence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    font-size: 0.8125rem;
+    line-height: 1.375rem;
+    color: var(--ink-2);
+  }
+  .cx-wf-sentence .cx-chip { max-width: 22rem; }
+  /* A failed switch with reduced motion: the shake's still version, the row
+     tinted in danger for a moment (WorkflowsCard holds data-flash by a timer;
+     nothing animates). */
+  .cx-wf-row::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--destructive) 9%, transparent);
+    opacity: 0;
+  }
+  .cx-wf-row[data-flash="true"]::after { opacity: 1; }
+
+  /* The editor: the AI draft as a sunken note; the When and Then cards (r12,
+     e1) joined by a 24px dashed connector with an arrow circle. */
+  .cx-wf-draft {
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .cx-wf-block {
+    padding: 12px 16px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    box-shadow: var(--e1);
+  }
+  .cx-wf-connector {
+    position: relative;
+    display: flex;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+  }
+  .cx-wf-connector-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    border-left: 1.5px dashed var(--line-3);
+    transform-origin: top;
+    animation: cx-wf-draw 180ms var(--ease-out) both;
+  }
+  .cx-wf-connector-arrow {
+    position: relative;
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--raised);
+    box-shadow: 0 0 0 1px var(--line-2);
+    color: var(--ink-3);
+  }
+  .cx-wf-connector-arrow svg { width: 10px; height: 10px; }
+  @keyframes cx-wf-draw {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+  /* An action block inside Then; one just added slides in. */
+  .cx-wf-action {
+    position: relative;
+    padding: 10px 12px 12px;
+    border-radius: var(--radius-md);
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .cx-wf-action[data-enter="true"] { animation: cx-wf-enter 220ms var(--ease-out) both; }
+  @keyframes cx-wf-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cx-wf-connector-line,
+    .cx-wf-action[data-enter="true"] { animation: none; }
+  }
+
+  /* ---------- A18 / S3 Integrations and connectors ---------- */
+
+  /* Rows inside a connection card, at its 16px inset. */
+  .cx-int-note { padding: 12px 16px; }
+  .cx-int-step { padding: 14px 16px; }
+  .cx-int-step + .cx-int-step { box-shadow: inset 0 1px 0 var(--line); }
+  .cx-int-subhead {
+    padding: 12px 16px 4px;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 510;
+    color: var(--ink-2);
+  }
+  .cx-int-empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  .cx-int-health { padding: 12px 16px 14px; }
+
+  /* A row that needs someone (a failing connection, a nearly spent limit):
+     a glyph, the words and the way out, on a faint sun wash. */
+  .cx-int-banner {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px 10px 16px;
+    background: color-mix(in oklab, var(--warning) 7%, var(--raised));
+  }
+  .cx-int-banner[data-connection-banner="danger"] {
+    background: color-mix(in oklab, var(--destructive) 6%, var(--raised));
+  }
+
+  /* The account a connector reads from: a 20px mark, the address, when. */
+  .cx-int-account {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 10px 3px 3px;
+    border-radius: 999px;
+    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
+
+  /* Back from a sign-in round trip: the dot's colour crossfades off → on (its
+     own transition) and a ring springs out of it once. The ring is a
+     pseudo-element whose scale and opacity move, never a box-shadow. */
+  .cx-int-morph .cx-dot { position: relative; }
+  .cx-int-morph .cx-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1.5px var(--success);
+    opacity: 0;
+    animation: cx-int-ring 640ms var(--ease-spring) both;
+  }
+  @keyframes cx-int-ring {
+    0% { opacity: 0.7; transform: scale(0.6); }
+    100% { opacity: 0; transform: scale(2.2); }
+  }
+
+  /* The Slack bridge's two marks, Slack ⇄ OneCamp. While a channel is
+     linked, a dot travels between them (1.2s, ease-in-out); idle, it rests
+     under the arrow. */
+  .cx-int-bridge {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+  }
+  .cx-int-bridge-track {
+    position: relative;
+    display: inline-flex;
+    width: 24px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  .cx-int-bridge-arrow { width: 16px; height: 16px; color: var(--ink-3); }
+  .cx-int-bridge-dot {
+    position: absolute;
+    left: 50%;
+    bottom: -3px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 999px;
+    background: var(--ink-4);
+  }
+  .cx-int-bridge[data-syncing="true"] .cx-int-bridge-dot {
+    background: var(--success);
+    animation: cx-int-travel 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes cx-int-travel {
+    0% { transform: translateX(-12px); }
+    100% { transform: translateX(12px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cx-int-bridge[data-syncing="true"] .cx-int-bridge-dot { animation: none; }
+    .cx-int-morph .cx-dot::after { animation: none; }
+  }
+
+  /* ---------- A19 Apps / A20 Webhooks ---------- */
+
+  /* A20: a webhook is one 56px row; hairlines inset 16px between rows. */
+  .cx-wh-item { position: relative; }
+  .cx-wh-item + .cx-wh-item::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .cx-wh-row {
+    display: flex;
+    min-height: 56px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 8px 8px 16px;
+  }
+  .cx-wh-dir { display: inline-flex; flex-shrink: 0; color: var(--ink-3); }
+  .cx-wh-dir svg { width: 16px; height: 16px; }
+  .cx-wh-words { flex: 1 1 auto; }
+  .cx-wh-events { display: flex; flex-shrink: 1; min-width: 0; max-width: 40%; align-items: center; gap: 4px; overflow: hidden; }
+  .cx-wh-state { flex-shrink: 0; max-width: 11rem; }
+  .cx-wh-actions { display: flex; flex-shrink: 0; align-items: center; }
+  /* Phone: two lines. Name, switch and actions on the first; the chips and
+     the state wrap under the words. */
+  @media (max-width: 639px) {
+    .cx-wh-row { flex-wrap: wrap; row-gap: 6px; }
+    .cx-wh-dir { display: none; }
+    .cx-wh-words { flex-basis: calc(100% - 140px); }
+    .cx-wh-events { order: 5; max-width: none; flex-basis: 100%; flex-wrap: wrap; }
+    .cx-wh-state { order: 6; max-width: none; }
+  }
+  .cx-wh-detail {
+    display: grid;
+    gap: 16px;
+    padding: 4px 16px 16px 44px;
+  }
+  @media (max-width: 639px) { .cx-wh-detail { padding-left: 16px; } }
+  /* Code and keys (§1.4): mono 12.5 on sunken, r8, an inset --line-2 ring. */
+  .cx-wh-code {
+    display: block;
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+    font-family: var(--font-mono);
+    font-size: 0.78125rem;
+    line-height: 1.125rem;
+    color: var(--ink);
+  }
+  .cx-wh-pre { white-space: pre-wrap; word-break: break-word; }
+  .cx-wh-picker {
+    border-radius: var(--radius-md);
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+
+  /* A19: an app's icon, 40px at r10 (36 in a list row) on sunken with a
+     hairline ring; the fallback glyph is ink-3. */
+  .cx-app-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+    color: var(--ink-3);
+  }
+  .cx-app-icon[data-size="sm"] { width: 36px; height: 36px; }
+  .cx-app-icon-lg { width: 48px; height: 48px; }
+  .cx-app-icon img { width: 24px; height: 24px; object-fit: contain; }
+  .cx-app-icon[data-size="sm"] img, .cx-app-icon-lg img { width: 100%; height: 100%; object-fit: cover; }
+  .cx-app-icon svg { width: 20px; height: 20px; }
+
+  /* The directory: 3 across at the wide column, 2 at 720, 1 on a phone. */
+  .cx-app-grid-wrap { container-type: inline-size; }
+  .cx-app-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  @container (min-width: 520px) { .cx-app-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @container (min-width: 860px) { .cx-app-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .cx-app-card {
+    position: relative;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    box-shadow: var(--e1);
+    transition: box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
+  }
+  .cx-app-card-live:hover { box-shadow: var(--e2); transform: translateY(-1px); }
+  .cx-app-card-live:has(.cx-app-open:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+  /* The whole card opens the sheet; the install slot sits above that layer. */
+  .cx-app-open {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    cursor: pointer;
+    outline: none;
+  }
+  .cx-app-action { position: relative; z-index: 1; }
+  /* Install, in a slot of one width: the labels stack and crossfade. */
+  .cx-app-slot { display: inline-grid; min-width: 104px; }
+  .cx-app-slot > .cx-app-slot-label {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    opacity: 0;
+    transform: scale(0.96);
+    transition: opacity 160ms var(--ease-out), transform 220ms var(--ease-spring);
+  }
+  .cx-app-slot > .cx-app-slot-label[data-show="true"] { opacity: 1; transform: none; }
+  .cx-app-installed { min-width: 104px; justify-content: flex-end; }
+  @media (prefers-reduced-motion: reduce) {
+    .cx-app-card-live:hover { transform: none; }
+  }
+
+  /* Installed apps: rows between inset hairlines in the settings card. */
+  .cx-app-list > * { position: relative; }
+  .cx-app-list > * + *::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  /* A group inside the app editor: sunken, an inset hairline, no border. */
+  .cx-app-panel {
+    border-radius: var(--radius-lg);
+    background: var(--sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+}

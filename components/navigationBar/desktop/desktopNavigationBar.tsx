@@ -2,578 +2,394 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { useLaterList } from "@/hooks/useLater";
-import React, {useEffect, useMemo, useRef, useState} from "react";
-import { isCurrentPath } from "@/lib/utils/isCurrentPath";
-import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components/ui/resizable";
-import { sidebarSizes, startsAsRail } from "@/lib/ui/sidebarSize";
-import type { ImperativePanelHandle } from "react-resizable-panels";
-import {cn} from "@/lib/utils/helpers/cn";
-import {DesktopChildrenNavType, DesktopNavType} from "@/types/nav";
-import { Users, Hash, MessageCircle, Star } from "@/lib/icons";
-import { ClipboardList, File as FileIcon, LayoutDashboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
-import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
-import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
-import {useHydrateUserSidebar} from "@/hooks/useHydrateUserSidebar";
-import {
-    app_channel_path,
-    app_chat_path,
-    app_project_path,
-    app_project_team,
-    app_grp_chat_path, app_doc_path, app_board_path
-} from "@/types/paths";
-import {useDispatch, useSelector} from "react-redux";
-import {openUI} from "@/store/slice/uiSlice";
-import {usePathname} from "next/navigation";
-import {getOtherUserId} from "@/lib/utils/getOtherUserId";
-import type {RootState} from "@/store/store";
-import {sortChannelList} from "@/lib/utils/sortChannelList";
-import {InlineDocCreator} from "@/components/doc/inlineDocCreator";
-import {InlineBoardCreator} from "@/components/board/inlineBoardCreator";
-import {sortChatList} from "@/lib/utils/sortChatList";
-import {isExternalUser} from "@/lib/utils/isExternalUser";
-import {buildPrimaryNavLinks} from "@/lib/nav/primaryNavLinks";
-import {FOCUS_SECTION_KEY, FOCUS_SECTION_TITLE, FOLDED_NAV_TITLES, partitionByTitle} from "@/lib/nav/focusMode";
-import {useSidebarDisclosure} from "@/lib/nav/sidebarDisclosure";
+import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils/helpers/cn";
+import type { DesktopChildrenNavType } from "@/types/nav";
+import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar";
+import { app_channel_path, app_chat_path, app_grp_chat_path, app_project_path } from "@/types/paths";
+import { openUI } from "@/store/slice/uiSlice";
+import { getOtherUserId } from "@/lib/utils/getOtherUserId";
+import type { RootState } from "@/store/store";
+import { sortChannelList } from "@/lib/utils/sortChannelList";
+import { sortChatList } from "@/lib/utils/sortChatList";
+import { isExternalUser } from "@/lib/utils/isExternalUser";
+import { buildPrimaryNavLinks, inboxBadgeCount } from "@/lib/nav/primaryNavLinks";
+import { FOLDED_NAV_TITLES, partitionByTitle } from "@/lib/nav/focusMode";
+import { useSidebarDisclosure } from "@/lib/nav/sidebarDisclosure";
 import { userDisplayName } from "@/lib/utils/userDisplayName"
+import {
+    SIDEBAR_COLLAPSED_COOKIE,
+    SIDEBAR_DEFAULT_PX,
+    SIDEBAR_RAIL_PX,
+    SIDEBAR_WIDTH_COOKIE,
+    atSidebarBound,
+    clampSidebarWidth,
+    savedSidebar,
+} from "@/lib/ui/sidebarSize";
+import { SidebarHeader } from "@/components/navigationBar/desktop/SidebarHeader";
+import { SidebarSearchRow } from "@/components/navigationBar/desktop/SidebarSearchRow";
+import { PrimaryNav, SidebarSection } from "@/components/navigationBar/desktop/desktopSideNavigationBar";
+import { SidebarFoot } from "@/components/navigationBar/desktop/SidebarFoot";
+import { SidebarRail } from "@/components/navigationBar/desktop/SidebarRail";
+import { FootPill } from "@/components/error/OfflineNotice";
+import { SidebarSkeleton } from "@/components/protectedRoute/SkeletonShell";
+import { SettingsNav, rememberAppRoute } from "@/components/navigationBar/desktop/SettingsNav";
+import { inSettingsShell } from "@/lib/adminSections";
 
-
-/**
- * The window's width, followed only when it changes: the address bar of a
- * tablet's browser changes the height on most scrolls, and a height change
- * must not re-render the whole sidebar.
- */
-function useWindowWidth(): number {
-    // Read at once: the shell mounts only in the browser (after the profile
-    // loads), and the first render's sizes are the ones the saved layout is
-    // applied against. Starting at 0 gave the old percentages for a frame,
-    // so a tablet's rail could be collapsed to 4% before the pixel sizes came.
-    const [width, setWidth] = useState(() => (typeof window === "undefined" ? 0 : window.innerWidth));
-    useEffect(() => {
-        const update = () => setWidth((w) => (w === window.innerWidth ? w : window.innerWidth));
-        update();
-        window.addEventListener("resize", update);
-        return () => window.removeEventListener("resize", update);
-    }, []);
-    return width;
+const setCookie = (name: string, value: string) => {
+    document.cookie = `${name}=${value}; path=/; max-age=31536000`
 }
 
-export function DesktopNavigationBar({
-                                        children,
-                                    }: Readonly<{
-    children: React.ReactNode;
-}>) {
+/** The sidebar's middle scrolls; a 12px fade shows where there is more. */
+function useScrollFades() {
+    const ref = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const el = ref.current
+        if (!el) return
+        const update = () => {
+            el.dataset.moreAbove = el.scrollTop > 1 ? "true" : "false"
+            el.dataset.moreBelow = el.scrollTop + el.clientHeight < el.scrollHeight - 1 ? "true" : "false"
+        }
+        update()
+        el.addEventListener("scroll", update, { passive: true })
+        const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update)
+        ro?.observe(el)
+        if (el.firstElementChild) ro?.observe(el.firstElementChild)
+        return () => {
+            el.removeEventListener("scroll", update)
+            ro?.disconnect()
+        }
+    }, [])
+    return ref
+}
 
+/**
+ * The seam between the sidebar and the sheet is its resize handle (S2): drag
+ * from 216 to 320px, double-click for 248, arrow keys step 8px. It shakes 2px
+ * once at a bound, and a 22px readout says the width while it is dragged.
+ * The width snaps; it never animates (it would lay the sheet out each frame).
+ */
+function SidebarSeam({ width, onWidth, onDone }: { width: number; onWidth: (w: number) => void; onDone: (w: number) => void }) {
+    const [dragging, setDragging] = useState(false)
+    const [shake, setShake] = useState(false)
+    const last = useRef(width)
+    const bump = () => {
+        setShake(false)
+        requestAnimationFrame(() => setShake(true))
+    }
+    const set = (asked: number) => {
+        const bound = atSidebarBound(asked)
+        const w = clampSidebarWidth(asked)
+        if (bound && w === last.current) {
+            if (!shake) bump()
+        }
+        last.current = w
+        onWidth(w)
+    }
+    return (
+        <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the sidebar"
+            aria-valuenow={width}
+            aria-valuemin={216}
+            aria-valuemax={320}
+            tabIndex={0}
+            data-dragging={dragging ? "true" : undefined}
+            data-shake={shake ? "true" : undefined}
+            className="shell-seam"
+            onAnimationEnd={() => setShake(false)}
+            onDoubleClick={() => {
+                onWidth(SIDEBAR_DEFAULT_PX)
+                onDone(SIDEBAR_DEFAULT_PX)
+            }}
+            onKeyDown={(e) => {
+                if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                    e.preventDefault()
+                    const w = clampSidebarWidth(width + (e.key === "ArrowLeft" ? -8 : 8))
+                    if (w === width) bump()
+                    onWidth(w)
+                    onDone(w)
+                }
+            }}
+            onPointerDown={(e) => {
+                if (e.button !== 0) return
+                e.currentTarget.setPointerCapture(e.pointerId)
+                last.current = width
+                setDragging(true)
+            }}
+            onPointerMove={(e) => {
+                if (!dragging) return
+                set(e.clientX)
+            }}
+            onPointerUp={(e) => {
+                if (!dragging) return
+                e.currentTarget.releasePointerCapture(e.pointerId)
+                setDragging(false)
+                onDone(last.current)
+            }}
+        >
+            <i />
+            {dragging && <span className="shell-seam-readout">{width} px</span>}
+        </div>
+    )
+}
+
+export function DesktopNavigationBar({ children }: Readonly<{ children: React.ReactNode }>) {
     const dispatch = useDispatch();
-
-    // Split once per navigation rather than once per render: every nav memo
-    // below keys off this array, and a fresh array each render made all of
-    // them miss and re-render the whole sidebar.
     const pathname = usePathname()
     const path = useMemo(() => pathname.split('/'), [pathname])
-    const [isCollapsed, setIsCollapsed] = useState(false);
-    const [panelSizes, setPanelSizes] = useState([16, 84]); // Default sizes
 
-    // Section open state is remembered across reloads: focus mode folds
-    // destinations away by default, so re-opening one has to stick.
-    // Projects, channels and docs start open: they are where the work is,
-    // and nothing else on the screen leads to them, so a first visit with
-    // all three folded showed headings with nothing under them. Closing
-    // one is remembered like any other choice.
+    // The sidebar as this person left it, in pixels (lib/ui/sidebarSize).
+    // The shell mounts only in the browser, after the profile has loaded, so
+    // the cookie is read on the first render: no frame at another width.
+    const [{ width, collapsed }, setSidebar] = useState(() =>
+        typeof document === "undefined" ? { width: SIDEBAR_DEFAULT_PX, collapsed: false } : savedSidebar(document.cookie, window.innerWidth),
+    )
+    const setWidth = useCallback((w: number) => setSidebar((s) => ({ ...s, width: w })), [])
+    const setCollapsed = useCallback((c: boolean) => {
+        setSidebar((s) => ({ ...s, collapsed: c }))
+        setCookie(SIDEBAR_COLLAPSED_COOKIE, JSON.stringify(c))
+    }, [])
+
+    // ⌘\ folds the sidebar to the rail and opens it again; instant (a key).
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            // A chord, not text: it works from a composer too, as in Linear.
+            if (!(e.metaKey || e.ctrlKey) || e.key !== "\\" || e.altKey || e.shiftKey) return
+            e.preventDefault()
+            setSidebar((s) => {
+                setCookie(SIDEBAR_COLLAPSED_COOKIE, JSON.stringify(!s.collapsed))
+                return { ...s, collapsed: !s.collapsed }
+            })
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [])
+
+    // Where the sheet starts and ends, for whatever floats in its corners
+    // (CornerStack) and the right panel's own inset.
+    useLayoutEffect(() => {
+        const root = document.documentElement
+        root.style.setProperty("--shell-left-inset", `${collapsed ? SIDEBAR_RAIL_PX : width}px`)
+        return () => {
+            root.style.removeProperty("--shell-left-inset")
+        }
+    }, [collapsed, width])
+
+    // Springs and fades are for what changes while you watch, not for the
+    // first paint: they start a moment after the sidebar arrives.
+    const [settled, setSettled] = useState(false)
+    useEffect(() => {
+        const t = window.setTimeout(() => setSettled(true), 800)
+        return () => window.clearTimeout(t)
+    }, [])
+
     const [isProjectOpen, setIsProjectOpen] = useSidebarDisclosure("projects", true);
-    const [isTeamOpen, setIsTeamOpen] = useSidebarDisclosure("teams", false);
     const [isChannelOpen, setIsChannelOpen] = useSidebarDisclosure("channels", true);
-    const [isChatOpen, setIsChatOpen] = useSidebarDisclosure("chats", false);
+    const [isChatOpen, setIsChatOpen] = useSidebarDisclosure("chats", true);
     const [isFavOpen, setIsFavOpen] = useSidebarDisclosure("favorites", true);
-    const [isDocsOpen, setIsDocsOpen] = useSidebarDisclosure("docs", true);
-    const [isBoardsOpen, setIsBoardsOpen] = useSidebarDisclosure("boards", false);
-    const [isMoreOpen, setIsMoreOpen] = useSidebarDisclosure(FOCUS_SECTION_KEY, false);
-    const [isDocCreatorOpen, setIsDocCreatorOpen] = useState(false);
-    const [isBoardCreatorOpen, setIsBoardCreatorOpen] = useState(false);
-
-    const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
 
     // Seeds the sidebar's lists and badges, as every layout must.
     const userSideNav = useHydrateUserSidebar()
-
+    const self = userSideNav.data?.data
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
-
-    const projectNavGrp = [] as DesktopChildrenNavType[]
-    const teamNavGrp = [] as DesktopChildrenNavType[]
-    const channelNavGrp = [] as DesktopChildrenNavType[]
-    const dmNavGrp = [] as DesktopChildrenNavType[]
-
     const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
     const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
 
-
-    // In pixels, whatever the window: at least 200px open and a 56px rail
-    // (lib/ui/sidebarSize). In percent of a tablet's width they were 123 and 31.
-    const windowWidth = useWindowWidth();
-    const sizes = sidebarSizes(windowWidth);
-    const navCollapsedSize = sizes.rail;
-
-    const totalDMUnread = useMemo(() => 
+    const totalDMUnread = useMemo(() =>
         (userSidebarState.userChats || []).reduce((acc, chat) => acc + (chat.dm_unread || 0), 0),
         [userSidebarState.userChats]
     );
-
-    const totalChannelUnread = useMemo(() => 
+    const totalChannelUnread = useMemo(() =>
         (userSidebarState.userChannels || []).reduce((acc, channel) => acc + (channel.unread_post_count || 0), 0),
         [userSidebarState.userChannels]
     );
 
-    const isAdmin = userSideNav.data && userSideNav.data.data.user_is_admin
+    const isAdmin = !!self?.user_is_admin
     const laterDue = useLaterList("open").data?.data.due ?? 0
+    const counts = {
+        channel: totalChannelUnread,
+        dm: totalDMUnread,
+        activity: userSidebarState.totalUnreadActivityCount,
+        laterDue,
+        tasksDue: self?.user_overdue_task_count ?? 0,
+        // This edition has no AI, so no nudges.
+        urgentNudges: 0,
+    }
 
-    const navLinks: DesktopNavType[] = useMemo(
-        () => buildPrimaryNavLinks(
-            path,
-            {
-                channel: totalChannelUnread,
-                dm: totalDMUnread,
-                activity: userSidebarState.totalUnreadActivityCount,
-                laterDue,
-            },
-            !!isAdmin,
-        ),
-        [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin, laterDue],
+    const navLinks = useMemo(
+        () => buildPrimaryNavLinks(path, counts, isAdmin),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [path, counts.channel, counts.dm, counts.activity, counts.laterDue, counts.tasksDue, counts.urgentNudges, isAdmin],
     );
+    const { kept: primary, folded: more } = useMemo(() => partitionByTitle(navLinks, FOLDED_NAV_TITLES), [navLinks]);
 
-    // Focus mode: the surfaces people live in keep the rail; the rest fold
-    // behind one disclosure that remembers having been opened.
-    const {kept: railNavLinks, folded: foldedNavLinks} = useMemo(
-        () => partitionByTitle(navLinks, FOLDED_NAV_TITLES),
-        [navLinks],
-    );
-
-    const isOnFoldedDestination = foldedNavLinks.some(l => l.variant === "sidebarActive");
-
+    // A live arrival in Inbox while the window is focused and Inbox isn't
+    // open: its badge rings once (N1).
+    const inboxCount = inboxBadgeCount(counts)
+    const [inboxPulse, setInboxPulse] = useState(false)
+    const prevInbox = useRef(inboxCount)
     useEffect(() => {
-        // Navigating to a folded destination opens the section, so the page
-        // you are on is never hidden inside a closed one.
-        if (isOnFoldedDestination) setIsMoreOpen(true);
-    }, [isOnFoldedDestination, setIsMoreOpen]);
+        const rose = inboxCount > prevInbox.current
+        prevInbox.current = inboxCount
+        if (!rose || !settled || path[2] === "inbox" || !document.hasFocus()) return
+        setInboxPulse(true)
+        const t = window.setTimeout(() => setInboxPulse(false), 1200)
+        return () => window.clearTimeout(t)
+    }, [inboxCount, settled, path])
 
-    const moreNavLinks: DesktopNavType[] = useMemo(() => {
-        if (foldedNavLinks.length === 0) return [];
-        if (isCollapsed) {
-            // The icon rail has no room for a disclosure, so the entry
-            // expands the sidebar onto the opened section instead.
-            return [{
-                title: FOCUS_SECTION_TITLE,
-                label: "",
-                icon: MoreHorizontal,
-                variant: isOnFoldedDestination ? "sidebarActive" : "ghost",
-                path: "#",
-                action: () => {
-                    setIsMoreOpen(true);
-                    sidebarPanelRef.current?.expand();
-                },
-            }];
-        }
-        return [{
-            title: FOCUS_SECTION_TITLE,
-            label: "",
-            icon: MoreHorizontal,
-            variant: "ghost",
-            path: "#",
-            isOpen: isMoreOpen,
-            setIsOpen: setIsMoreOpen,
-            children: foldedNavLinks.map((link): DesktopChildrenNavType => ({
-                title: link.title,
-                path: link.path || "#",
-                variant: link.variant,
-                icon: link.icon,
-            })),
-        }];
-    }, [foldedNavLinks, isCollapsed, isMoreOpen, setIsMoreOpen, isOnFoldedDestination]);
+    const projectRows: DesktopChildrenNavType[] = (userSidebarState.userProjects || []).filter(Boolean).map((p) => ({
+        title: p.project_name,
+        path: `${app_project_path}/${p.project_uuid}`,
+        variant: (path.length > 3 && path[2] === "project" && path[3] == p.project_uuid) ? "sidebarActive" : "ghost",
+        project_uuid: p.project_uuid,
+    }))
 
-    const primaryNavLinks = useMemo(
-        () => [...railNavLinks, ...moreNavLinks],
-        [railNavLinks, moreNavLinks],
-    );
-
-    // Every project at a glance (ProjectsOverview), as Docs opens with All docs.
-    projectNavGrp.push({
-        title: "All projects",
-        path: app_project_path,
-        variant: (path.length === 3 && path[2] == 'project') ? "sidebarActive" : "ghost",
-        icon: ClipboardList,
+    const favChannelUUIDs = new Set((userSidebarState.userFavChannels || []).map(f => f.ch_uuid));
+    const channelRow = (c: (typeof userSidebarState.userChannels)[number]): DesktopChildrenNavType => ({
+        title: c.ch_name,
+        unread_count: c?.unread_post_count,
+        path: `${app_channel_path}/${c.ch_uuid}`,
+        variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
+        isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
+        isPrivate: !!c.ch_private,
+        muted: c.notification_type === "none",
     })
-    for (const p of (userSidebarState.userProjects || []).filter(Boolean)) {
-        projectNavGrp.push({
-            title: p.project_name,
-            path: `${app_project_path}/${p.project_uuid}`,
-            variant:(path.length > 3 && path[3] == p.project_uuid) ? "sidebarActive" : "ghost",
-            project_uuid: p.project_uuid
-        })
-    }
+    const starredRows = sortChannelList((userSidebarState.userFavChannels || []).filter(Boolean), favChannelUUIDs).map(channelRow)
+    const channelRows = sortChannelList((userSidebarState.userChannels || []).filter((c) => c && !favChannelUUIDs.has(c.ch_uuid))).map(channelRow)
 
-    for (const t of (userSidebarState.userTeams || []).filter(Boolean)) {
-        teamNavGrp.push({
-            title: t.team_name,
-            path: `${app_project_team}/${t.team_uuid}`,
-            variant: (path.length > 3 && path[3] == t.team_uuid) ? "sidebarActive" : "ghost",
-            hue_id: t.team_uuid,
-        })
-    }
-
-    const favChannelUUIDs = new Set(
-        (userSidebarState.userFavChannels || []).map(f => f.ch_uuid)
-    );
-
-    // Build favorites list
-    const favChannelNavGrp = [] as DesktopChildrenNavType[];
-    for (const c of sortChannelList((userSidebarState.userFavChannels || []).filter(Boolean), favChannelUUIDs)) {
-        favChannelNavGrp.push({
-            title: c.ch_name,
-            unread_count: c?.unread_post_count,
-            path: `${app_channel_path}/${c.ch_uuid}`,
-            variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
-            isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
-            isFavorite: true,
-            hue_id: c.ch_uuid,
-        })
-    }
-
-    // Build regular channels list (non-favorites only)
-    const nonFavChannels = (userSidebarState.userChannels || []).filter(c => !favChannelUUIDs.has(c.ch_uuid));
-    for (const c of sortChannelList(nonFavChannels.filter(Boolean))) {
-        channelNavGrp.push({
-            title: c.ch_name,
-            unread_count: c?.unread_post_count,
-            path: `${app_channel_path}/${c.ch_uuid}`,
-            variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
-            isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
-            isFavorite: false,
-            hue_id: c.ch_uuid,
-        })
-    }
-
-
+    const dmRows: DesktopChildrenNavType[] = []
     for (const d of sortChatList((userSidebarState.userChats || []).filter(Boolean))) {
-        let p = ''
-        let v: "default" | "ghost" | "sidebarActive"
-
-        const dm_participants = d.dm_participants.filter((t) => t && t.user_uuid != userSideNav.data?.data?.user_uuid)
-
-        // External users can't be DMed. Defence-in-depth — drop any DM
-        // entry whose only other participant is external so they never
-        // surface as a clickable DM in the sidebar.
-        if (dm_participants.length === 1 && isExternalUser(dm_participants[0])) {
-            continue
-        }
-
-        if(dm_participants.length > 1) {
-
+        const others = d.dm_participants.filter((t) => t && t.user_uuid != self?.user_uuid)
+        // External users can't be DMed: drop any DM whose only other person is external.
+        if (others.length === 1 && isExternalUser(others[0])) continue
+        const isGroup = others.length > 1
+        let p: string
+        let active: boolean
+        if (isGroup) {
             p = `${app_grp_chat_path}/${d.dm_grouping_id}`
-            v =  (path.length > 4 && path[4] == d.dm_grouping_id) ? "sidebarActive" : "ghost"
-        }else {
-            const u = getOtherUserId(d.dm_grouping_id, userSideNav.data?.data.user_uuid ||'')
+            active = path.length > 4 && path[4] == d.dm_grouping_id
+        } else {
+            const u = getOtherUserId(d.dm_grouping_id, self?.user_uuid || '')
             p = `${app_chat_path}/${u}`
-            v =  (path.length > 3 && path[3] == u) ? "sidebarActive" : "ghost"
+            active = path.length > 3 && path[3] == u
         }
-
-        const isGroup = dm_participants.length > 1
-        dmNavGrp.push({
-            title: dm_participants.length == 0 ? displayNameOf(userSideNav.data?.data) || '' : dm_participants.map((item) => userDisplayName(item)).join(", "),
-            // A group is drawn as a team is: the people glyph in its own hue.
-            // Its stacked faces were 32px wide and started its name at 56,
-            // where every other row's starts at 40.
-            ...(isGroup ? { icon: Users, hue_id: d.dm_grouping_id } : {}),
+        dmRows.push({
+            title: others.length == 0 ? displayNameOf(self) || '' : others.map((item) => userDisplayName(item)).join(", "),
             unread_count: d?.dm_unread,
-            userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),
+            // Every unread DM is about you: it takes the brand badge.
+            badge: true,
+            userProfile: others.length == 0 ? d.dm_participants[0] : (others.length == 1 ? others[0] : undefined),
+            userParticipants: isGroup ? others : undefined,
             path: p,
-            variant: v,
+            variant: active ? "sidebarActive" : "ghost",
             isCallActive: chatCallStatus[d.dm_grouping_id]?.active || false,
         })
     }
 
-    // There is no Recent group. It listed the place you were already in a
-    // second time (and a third, with the active state), so #engineering showed
-    // up under Recent, under Channels and highlighted. ⌘K and Home already
-    // carry recent places; the sidebar lists each thing once.
+    const scrollRef = useScrollFades()
 
-    const favNavLinks: DesktopNavType[] = favChannelNavGrp.length > 0 ? [
-        {
-            title: 'Favorites',
-            label: "",
-            icon: Star,
-            variant: "ghost",
-            path: "#",
-            isOpen: isFavOpen,
-            setIsOpen: setIsFavOpen,
-            children: favChannelNavGrp,
-        },
-    ] : [];
-
-    const secondaryNavLinks:DesktopNavType[] = [
-        {
-            title: 'projects',
-            label: "",
-            icon: ClipboardList,
-            variant: "ghost",
-            path: "#",
-            action: ()=>{dispatch(openUI({ key: 'createProject' }))},
-            isOpen: isProjectOpen,
-            setIsOpen: setIsProjectOpen,
-            children: projectNavGrp
-        },
-        {
-            title: 'teams',
-            label: "",
-            icon: Users,
-            variant: "ghost",
-            path: "#",
-            action: isAdmin ? ()=>{dispatch(openUI({ key: 'createTeam' }))} : undefined,
-            isOpen: isTeamOpen,
-            setIsOpen: setIsTeamOpen,
-            children: teamNavGrp
-        },
-        {
-            title: 'channels',
-            label: "",
-            icon: Hash,
-            variant: "ghost",
-            path: "#",
-            action: ()=>{dispatch(openUI({ key: 'createChannel' }))},
-            isOpen: isChannelOpen,
-            setIsOpen: setIsChannelOpen,
-            children: channelNavGrp
-        },
-
-        {
-            // The place is "Direct messages" wherever a heading names it; the
-            // nav item above keeps the short "DMs".
-            title: 'direct messages',
-            label: "",
-            icon: MessageCircle,
-            variant: "ghost",
-            path: "#",
-            action: ()=>{dispatch(openUI({ key: 'createChatMessage' }))},
-            isOpen: isChatOpen,
-            setIsOpen: setIsChatOpen,
-            children: dmNavGrp
-        },
-        {
-            title: 'Docs',
-            label: "",
-            icon: FileIcon,
-            variant: "ghost",
-            path: "#",
-            isOpen: isDocsOpen,
-            setIsOpen: setIsDocsOpen,
-            action: () => setIsDocCreatorOpen((prev) => !prev),
-            children: [
-                {
-                    title: "All docs",
-                    path: app_doc_path,
-                    variant: (path.length === 3 && path[2] == 'doc') ? "sidebarActive" : "ghost",
-                    icon: FileIcon,
-                } as DesktopChildrenNavType,
-                ...(userSidebarState.userDocs || []).map((d): DesktopChildrenNavType => ({
-                    title: d.doc_title,
-                    path: `${app_doc_path}/${d.doc_uuid}`,
-                    variant: (path.length > 3 && path[3] == d.doc_uuid) ? "sidebarActive" : "ghost",
-                    icon: FileIcon,
-                    hue_id: d.doc_uuid,
-                })),
-            ],
-            inlineCreator: <InlineDocCreator isOpen={isDocCreatorOpen} onOpenChange={setIsDocCreatorOpen} />,
-        },
-        {
-            title: 'Boards',
-            label: "",
-            icon: LayoutDashboard,
-            variant: "ghost",
-            path: "#",
-            isOpen: isBoardsOpen,
-            setIsOpen: setIsBoardsOpen,
-            action: () => setIsBoardCreatorOpen((prev) => !prev),
-            children: [
-                {
-                    title: "All boards",
-                    path: app_board_path,
-                    variant: (path.length === 3 && path[2] == 'board') ? "sidebarActive" : "ghost",
-                    icon: LayoutDashboard,
-                } as DesktopChildrenNavType,
-                ...(userSidebarState.userBoards || []).map((b): DesktopChildrenNavType => ({
-                    title: b.board_title,
-                    path: `${app_board_path}/${b.board_uuid}`,
-                    variant: (path.length > 3 && path[3] == b.board_uuid) ? "sidebarActive" : "ghost",
-                    icon: LayoutDashboard,
-                })),
-            ],
-            inlineCreator: <InlineBoardCreator isOpen={isBoardCreatorOpen} onOpenChange={setIsBoardCreatorOpen} />,
-        },
-    ];
-
-    // Reveal the group holding the page you are on, once per arrival. Boards is
-    // collapsed by default, so /app/board showed nothing selected anywhere in
-    // the sidebar. Opening it on arrival (rather than forcing it open) keeps the
-    // chevron working: collapse it again and it stays collapsed until you move.
+    // Settings and Admin take the sidebar's place (design v3, admin §1.1):
+    // the settings nav, with "Back to app" returning to the last place
+    // outside them, which is remembered here as the person moves.
+    const settingsShell = inSettingsShell(pathname)
     useEffect(() => {
-        for (const group of [...favNavLinks, ...secondaryNavLinks]) {
-            if (!group.isOpen && group.setIsOpen && group.children?.some((c) => c.variant === "sidebarActive")) {
-                group.setIsOpen(true)
-            }
-        }
-        // Only on arrival: the groups' identities change on every render.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (!inSettingsShell(pathname)) rememberAppRoute(pathname + window.location.search)
     }, [pathname])
 
-
-    useEffect(() => {
-        // Read the collapsed state cookie
-        const collapsedCookie = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('react-resizable-root-panels:collapsed='));
-        
-        // Nobody has chosen: a tablet-width window starts with the rail, so a
-        // channel and a thread fit beside it; anything wider starts open.
-        const savedCollapsed = collapsedCookie 
-            ? JSON.parse(collapsedCookie.split('=')[1]) 
-            : startsAsRail(window.innerWidth);
-        const { rail, min } = sidebarSizes(window.innerWidth);
-        const defaults = savedCollapsed ? [rail, 100 - rail] : [Math.max(16, min), 100 - Math.max(16, min)];
-
-        // Read the layout cookie — but only apply if it matches collapsed state
-        const layoutCookie = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('react-resizable-sidebar-panels:layout:mail='));
-        
-        let targetSizes: number[];
-        
-        if (layoutCookie) {
-            const layoutSizes = JSON.parse(layoutCookie.split('=')[1]);
-            const sidebarWidth = layoutSizes[0];
-            // Sanity check: a saved width that disagrees with the saved state
-            // (open but rail-wide, or collapsed but wider than the rail) is
-            // reset to the defaults for that state. The rail's width in
-            // percent depends on the window, so it is measured, not 8%.
-            const looksCollapsed = sidebarWidth <= rail + 0.5;
-            if (savedCollapsed !== looksCollapsed) {
-                targetSizes = defaults;
-            } else {
-                targetSizes = layoutSizes;
-            }
-        } else {
-            // No layout cookie — use defaults matching collapsed state
-            targetSizes = defaults;
-        }
-
-        setIsCollapsed(savedCollapsed);
-        setPanelSizes(targetSizes);
-
-        // CRITICAL: Imperatively sync panel width with cookie state.
-        // defaultSize only applies on mount; state updates don't resize the panel.
-        // Without this, the panel stays at its initial defaultSize while isCollapsed
-        // reflects the cookie, causing "expanded width + collapsed content" mismatch.
-        const panel = sidebarPanelRef.current;
-        if (panel) {
-            if (savedCollapsed) {
-                panel.collapse();
-            } else {
-                panel.resize(targetSizes[0]);
-            }
-        }
-    }, []);
-
-    const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    const handleLayout = (sizes: number[]) => {
-        if (layoutTimeoutRef.current) {
-            clearTimeout(layoutTimeoutRef.current);
-        }
-        layoutTimeoutRef.current = setTimeout(() => {
-            document.cookie = `react-resizable-sidebar-panels:layout:mail=${JSON.stringify(sizes)}; path=/; max-age=31536000`;
-        }, 300);
-    };
+    // The full sidebar: in place, or floating in the rail's peek.
+    const sidebarIn = (onPin?: () => void) => settingsShell ? (
+        <>
+            <Suspense fallback={null}>
+                <SettingsNav isAdmin={isAdmin} />
+            </Suspense>
+            <FootPill />
+        </>
+    ) : (
+        <>
+            <SidebarHeader isAdmin={isAdmin} onCollapse={() => setCollapsed(true)} onPin={onPin} />
+            <SidebarSearchRow />
+            <PrimaryNav links={primary} more={more} inboxPulse={inboxPulse} />
+            <div ref={scrollRef} className="shell-scroll mt-0.5">
+                {/* Until the sidebar's data answers, its sections are skeleton
+                    rows at the real heights (mock M1), never a spinner. */}
+                {!userSideNav.data ? <SidebarSkeleton /> : null}
+                <div hidden={!userSideNav.data}>
+                    {/* Starred only when something is. */}
+                    <SidebarSection title="Starred" open={isFavOpen} setOpen={setIsFavOpen} rows={starredRows} />
+                    <SidebarSection
+                        title="Projects"
+                        href={app_project_path}
+                        open={isProjectOpen}
+                        setOpen={setIsProjectOpen}
+                        onAdd={() => dispatch(openUI({ key: 'createProject' }))}
+                        addLabel="New project"
+                        rows={projectRows}
+                        cap={8}
+                        invite={{ label: "Start a project", onClick: () => dispatch(openUI({ key: 'createProject' })) }}
+                    />
+                    <SidebarSection
+                        title="Channels"
+                        open={isChannelOpen}
+                        setOpen={setIsChannelOpen}
+                        onAdd={() => dispatch(openUI({ key: 'createChannel' }))}
+                        addLabel="New channel"
+                        rows={channelRows}
+                        invite={{ label: "Create a channel", onClick: () => dispatch(openUI({ key: 'createChannel' })) }}
+                    />
+                    <SidebarSection
+                        title="Direct messages"
+                        open={isChatOpen}
+                        setOpen={setIsChatOpen}
+                        onAdd={() => dispatch(openUI({ key: 'createChatMessage' }))}
+                        addLabel="New message"
+                        rows={dmRows}
+                        invite={{ label: "Message someone", onClick: () => dispatch(openUI({ key: 'createChatMessage' })) }}
+                    />
+                </div>
+            </div>
+            <FootPill />
+            <SidebarFoot />
+        </>
+    )
+    const sidebar = sidebarIn()
 
     return (
         // data-app-viewport: on a tablet, fitted to what the on-screen
         // keyboard leaves while it is up (lib/ui/visualViewport.ts).
-        <div data-app-viewport="" className="flex flex-col h-dvh overflow-hidden bg-canvas">
-            <DesktopNavigationTopBar />
-            <div className="flex-1 overflow-hidden">
-                <ResizablePanelGroup
-                    direction="horizontal"
-                    onLayout={handleLayout}
-                    className="h-full"
-                >
-                    <ResizablePanel
-                        ref={sidebarPanelRef}
-                        defaultSize={panelSizes[0]}
-                        collapsedSize={navCollapsedSize}
-                        collapsible={true}
-                        minSize={sizes.min}
-                        maxSize={sizes.max}
-                        onCollapse={() => {
-                            setIsCollapsed(true)
-                            setTimeout(() => {
-                                document.cookie = `react-resizable-root-panels:collapsed=${JSON.stringify(true)}; path=/; max-age=31536000`
-                            }, 0)
-                        }}
-                        onExpand={() => {
-                            setIsCollapsed(false)
-                            setTimeout(() => {
-                                document.cookie = `react-resizable-root-panels:collapsed=${JSON.stringify(false)}; path=/; max-age=31536000`
-                            }, 0)
-                        }}
-                        // Its width snaps when it folds or opens. flex-basis is
-                        // layout: animating it laid the whole app out again on
-                        // every frame, and will-change on it promoted a layer
-                        // that could not help (motionCost.test.ts).
-                        className={cn(
-                            "flex flex-col overflow-hidden",
-                            isCollapsed && "min-w-[0.5rem]"
-                        )}
+        // The frame is neutral graphite with the theme's glow and grain; the
+        // top bar is gone (design v3, shell A1), so the sheet runs 8px from
+        // every edge.
+        <div data-app-viewport="" data-shell="v3" className="app-frame flex h-dvh overflow-hidden">
+            {collapsed ? (
+                <SidebarRail
+                    primary={primary}
+                    places={[...projectRows, ...starredRows]}
+                    isAdmin={isAdmin}
+                    onExpand={() => setCollapsed(false)}
+                    peek={(pin) => <aside aria-label="Sidebar" className="shell-side h-full w-full" data-settled="true">{sidebarIn(pin)}</aside>}
+                />
+            ) : (
+                <>
+                    <aside
+                        aria-label="Sidebar"
+                        data-settled={settled ? "true" : undefined}
+                        className="shell-side h-full flex-none"
+                        // The seam beside it is the sidebar's last 8px: rows end 8px
+                        // short of the sheet, which starts at the width.
+                        style={{ width: `${width - 8}px`, paddingRight: 0 }}
                     >
-                        <DesktopSideNavigationBar isCollapsed={isCollapsed} links={primaryNavLinks} />
-                        {favNavLinks.length > 0 && (
-                            <div className="pt-1">
-                                <DesktopSideNavigationBar isCollapsed={isCollapsed} links={favNavLinks} />
-                            </div>
-                        )}
-                        <div className="flex-1 overflow-y-scroll pb-4">
-                            <DesktopSideNavigationBar isCollapsed={isCollapsed} links={secondaryNavLinks} />
-                        </div>
-                        {/* On the icons' column (centred on 24px) and the names'
-                            line (40px), open or as the rail. */}
-                        <div className={cn("h-9 flex items-center justify-start", isCollapsed ? "px-1.5" : "px-2")}>
-                            {isCollapsed ? (
-                                <button
-                                    onClick={() => {
-                                        sidebarPanelRef.current?.expand()
-                                    }}
-                                    className="h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                                    title="Expand sidebar"
-                                >
-                                    <PanelLeftOpen className="h-4 w-4" strokeWidth={1.75} />
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => {
-                                        sidebarPanelRef.current?.collapse()
-                                    }}
-                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 h-7 px-2 rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                                    title="Collapse sidebar"
-                                >
-                                    <PanelLeftClose className="h-4 w-4" strokeWidth={1.75} />
-                                    <span>Collapse</span>
-                                </button>
-                            )}
-                        </div>
-                    </ResizablePanel>
-                    <ResizableHandle className="w-2 bg-transparent" />
-                    <ResizablePanel defaultSize={panelSizes[1]} minSize={20} className="overflow-hidden w-full min-w-0 pb-2 pr-2">
-                        {/* The work sits on the sheet; the canvas around it is the chrome. */}
-                        <div className="app-sheet h-full overflow-hidden">{children}</div>
-                    </ResizablePanel>
-                </ResizablePanelGroup>
-            </div>
+                        {sidebar}
+                    </aside>
+                    <SidebarSeam width={width} onWidth={setWidth} onDone={(w) => setCookie(SIDEBAR_WIDTH_COOKIE, String(w))} />
+                </>
+            )}
+            <main data-shell-main="" className={cn("relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2")}>
+                {children}
+            </main>
         </div>
-
-
     );
 }

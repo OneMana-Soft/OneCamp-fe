@@ -1,27 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Inter, Inter_Tight } from "next/font/google";
+// The phone layer (design v3, mobile.md): after globals, so it outranks the
+// shell's phone block at equal specificity.
+import "./phone.css";
+import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ClientProviders } from "@/components/providers/ClientProviders";
 import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecovery";
+import { splashLinks } from "@/lib/pwa/splash";
 
+// One face for the whole app (design v3, "Type"): Inter, variable, with its
+// optical-size axis, so a 14px label takes the text cut and a 30px title the
+// display cut (globals.css). It retired Inter Tight, the display face, whose
+// built-in tightening collided words at 14px. Self-hosted at build time by
+// next/font, which matters for a product customers run on their own machines
+// behind their own firewall: nothing here calls out to Google at runtime.
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
-});
-
-// Headings only: Inter Tight, Inter's display cut, at 500 and 600. It is the
-// same family as the text, so a heading is quieter and tighter rather than a
-// second voice; Bricolage's quirky terminals were the template tell. Variable,
-// self-hosted at build time by next/font, which matters for a product
-// customers run on their own machines behind their own firewall: nothing here
-// calls out to Google at runtime.
-const displayFace = Inter_Tight({
-  subsets: ["latin"],
-  variable: "--font-display-face",
-  display: "swap",
-  weight: ["500", "600"],
+  axes: ["opsz"],
 });
 
 // metadataBase makes the generated card URLs absolute. Without it Next emits a
@@ -90,9 +88,9 @@ export const viewport: Viewport = {
   // matches the manifest's theme_color and background_color, so the install
   // splash doesn't flash a different colour into the app shell. ThemeColorMeta
   // then keeps the tag equal to the background the user actually chose.
-  // Matches --canvas in the light theme, the colour of the top bar the browser
+  // Matches --frame in the light theme (design v3), the colour of the frame the browser
   // chrome continues. The manifest carries the same value.
-  themeColor: "#f5f6f7",
+  themeColor: "#f3f4f6",
 };
 
 export default function RootLayout({
@@ -105,7 +103,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${displayFace.variable}`}
+      className={inter.variable}
     >
       <head>
         {/* Calls to the API carry credentials, so the warmed connection must too. */}
@@ -118,6 +116,11 @@ export default function RootLayout({
             meant the home-screen icon fell back to a screenshot of the page.
             This is an opaque 180px PNG, the size iOS actually asks for. */}
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        {/* The installed app's launch screen: the frame's colour, light or
+            dark, so a dark app never starts on a white flash (lib/pwa/splash). */}
+        {splashLinks().map((l) => (
+          <link key={l.href} rel="apple-touch-startup-image" href={l.href} media={l.media} />
+        ))}
         <link rel="icon" href="/logo.svg" type="image/svg+xml" sizes="any" />
         {/* Before the app runs: a page from before a deploy reloads into the new build. */}
         <script dangerouslySetInnerHTML={{ __html: CHUNK_RECOVERY_SCRIPT }} />

@@ -22,7 +22,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { NoticeBar } from "@/components/banner/NoticeBar"
+import { NoticeBar, noticeActionClass } from "@/components/banner/NoticeBar"
 import { useClientConfig } from "@/hooks/useClientConfig"
 
 const DISMISSED_KEY = "onecamp:email-off-banner-dismissed"
@@ -53,13 +53,18 @@ export function EmailOffBanner({ isAdmin }: { isAdmin?: boolean }) {
     }
 
     return (
-        <NoticeBar tone="warning" onDismiss={dismiss}>
-            {/* Says what an admin sees happen, then the one fix. */}
-            This workspace can&apos;t send email yet, so invitations and password resets won&apos;t arrive.{" "}
-            <Link href="/app/admin?tab=email-settings" className="font-medium underline underline-offset-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
-                Add a sending key in Admin settings
-            </Link>
-            .
+        <NoticeBar
+            tone="warning"
+            onDismiss={dismiss}
+            lead="Email is off."
+            action={
+                <Link href="/app/admin?tab=email-settings" className={noticeActionClass}>
+                    Set up email
+                </Link>
+            }
+        >
+            {/* Says what an admin sees happen; the action is the one fix. */}
+            Invitations and password resets won&apos;t arrive until an admin adds a sending key.
         </NoticeBar>
     )
 }

@@ -9,6 +9,7 @@
 // It renders a small stack of dismissible cards pinned bottom-right plus a
 // toast for immediate awareness.
 
+import { CornerCard } from "@/components/ui/CornerStack"
 import React, { useEffect, useState, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
 import BlockKitCard from "./BlockKitCard"
@@ -60,16 +61,13 @@ const GlobalCommandHost: React.FC = () => {
         <>
             <MemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
             {cards.length > 0 && (
-                <div
-                    className="fixed right-2 z-[var(--z-toast,400)] flex w-[min(360px,calc(100vw-1rem))] flex-col gap-2"
-                    style={{
-                        bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
-                    }}
-                >
+                // The right-hand corner stack places them (components/ui/CornerStack),
+                // above the demo prompt and under the toasts.
+                <CornerCard side="right" order={1} className="flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2">
                     {cards.map((card) => (
                         <div
                             key={card.id}
-                            className="relative rounded-xl border border-border bg-card p-3 shadow-lg animate-msg-fade-in"
+                            className="relative rounded-xl bg-pop p-3.5 text-ink shadow-e3"
                         >
                             <div className="flex items-start gap-2">
                                 <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -96,7 +94,7 @@ const GlobalCommandHost: React.FC = () => {
                             </div>
                         </div>
                     ))}
-                </div>
+                </CornerCard>
             )}
         </>
     )
