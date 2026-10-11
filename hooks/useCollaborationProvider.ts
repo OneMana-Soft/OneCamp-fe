@@ -6,8 +6,11 @@
 "use client"
 
 import * as React from 'react'
+import type * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { memberCollabToken, forgetCollabToken } from '@/lib/collabToken'
+import { SCHEMA_MANIFEST_HASH } from '@/components/minimal-tiptap/schemaManifest'
+import { markSchemaOutdated } from '@/lib/schemaOutdated'
 
 interface CollaborationConfig {
   enabled: boolean
@@ -29,6 +32,20 @@ interface CollaborationConfig {
   userId: string
   color?: string
   profileKey?: string
+  /**
+   * What the editor holds now, called just before this tab drops its copy of
+   * the doc because the server's copy is a different one (see "ONE COPY"
+   * below). When the tab had edits the server never confirmed, they are kept
+   * as `recovered`, for the person to copy back by hand: never merged.
+   */
+  keepEdits?: () => { html: string; text: string } | null
+}
+
+/** Edits a tab could not send before its copy of the doc was replaced. */
+export interface RecoveredEdits {
+  html: string
+  text: string
+  at: number
 }
 
 interface AwarenessUser {
@@ -42,6 +59,50 @@ type CollabStatus = 'connecting' | 'connected' | 'disconnected' | 'synced' | 'of
 
 const DEV = process.env.NODE_ENV !== 'production'
 const log = (...args: unknown[]) => { if (DEV) console.log(...args) }
+
+/**
+ * Why the server refused to open a doc it could not read (it never serves one
+ * empty: an empty doc's first edit was saved over the stored one). The doc
+ * page says "Couldn't open this doc" with Retry.
+ */
+export const UNAVAILABLE_REASON = 'document-unavailable'
+
+/**
+ * The collaboration URL, carrying the hash of the schema manifest this build's
+ * editor was made with. The server opens a doc read-only for a tab built
+ * against an older manifest, which would delete the blocks it does not know
+ * (oneCamp collaboration-service schemaGate.js).
+ */
+export function collabUrl(base: string): string {
+  const url = base.trim()
+  if (!url) return url
+  return `${url}${url.includes('?') ? '&' : '?'}schema=${SCHEMA_MANIFEST_HASH}`
+}
+
+/** The server's stateless messages this hook acts on. */
+export function collabNotice(payload: string): 'epoch-changed' | 'schema-outdated' | null {
+  try {
+    const type = JSON.parse(payload)?.type
+    return type === 'epoch-changed' || type === 'schema-outdated' ? type : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Which copy of the doc a Y.Doc holds: the server stamps each rebuild from
+ * HTML with its epoch (the doc id and the body's hash) in the `meta` map
+ * (oneCamp collaboration-service lineage.js). Null for a doc built before that.
+ */
+export function epochIn(doc: Y.Doc | null | undefined): string | null {
+  if (!doc) return null
+  const v = doc.getMap('meta').get('epoch')
+  return typeof v === 'string' ? v : null
+}
+
+// At most this many fresh copies a minute: a server that kept asking would
+// otherwise spin the page.
+const MAX_RELOADS_PER_MINUTE = 3
 
 // discardLocalCopy deletes the IndexedDB copy the old cache kept for a
 // document, named by its id. Best effort: private mode or a blocked database
@@ -68,6 +129,46 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
   const [activeUsers, setActiveUsers] = React.useState<number>(0)
   const [awarenessUsers, setAwarenessUsers] = React.useState<AwarenessUser[]>([])
   const [synced, setSynced] = React.useState(false)
+  // A doc the server could not read: refused, never opened empty.
+  const [openError, setOpenError] = React.useState<'unavailable' | null>(null)
+  // The server lets this tab read but not write (an older editor, a guest).
+  const [readOnly, setReadOnly] = React.useState(false)
+  // Edits kept aside when this tab's copy was replaced by the server's.
+  const [recovered, setRecovered] = React.useState<RecoveredEdits | null>(null)
+  // Bumped to drop this tab's copy and open the doc afresh.
+  const [generation, setGeneration] = React.useState(0)
+  const keepEditsRef = React.useRef(config?.keepEdits)
+  keepEditsRef.current = config?.keepEdits
+  const reloadsRef = React.useRef<number[]>([])
+
+  // ---------------------------------------------------------------------------
+  // ONE COPY. When the server's copy of the doc is not the one this tab holds
+  // (its body was restored or rewritten while the tab was away), merging the
+  // two would put every block in twice, for everyone. The server says so
+  // ("epoch-changed") and drops this tab's edits; the tab then drops its own
+  // copy and opens the doc again. Edits it had not had confirmed are kept
+  // aside (`recovered`), never merged.
+  const freshCopy = React.useCallback((why: 'epoch' | 'retry') => {
+    const now = Date.now()
+    reloadsRef.current = reloadsRef.current.filter((t) => now - t < 60_000)
+    if (why === 'epoch' && reloadsRef.current.length >= MAX_RELOADS_PER_MINUTE) return
+    reloadsRef.current.push(now)
+    const current = providerRef.current
+    if (why === 'epoch' && current?.hasUnsyncedChanges) {
+      try {
+        const kept = keepEditsRef.current?.()
+        if (kept && kept.text.trim()) setRecovered({ ...kept, at: now })
+      } catch {
+        // nothing to keep
+      }
+    }
+    setOpenError(null)
+    setReadOnly(false)
+    setSynced(false)
+    setGeneration((g) => g + 1)
+  }, [])
+  const retry = React.useCallback(() => freshCopy('retry'), [freshCopy])
+  const dismissRecovered = React.useCallback(() => setRecovered(null), [])
 
   // Keep status ref in sync for synchronous checks
   React.useEffect(() => {
@@ -128,6 +229,8 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
     }
 
     log('[Collab] Connecting, docId:', config.documentId)
+    // The epoch of the copy this provider opened, once synced.
+    const epochRef: { current: string | null } = { current: null }
 
     const provider = new HocuspocusProvider({
       // No fallback. This used to default to OUR collaboration server, so an
@@ -135,7 +238,7 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
       // somebody else's host: the token is rejected there, so the document never
       // syncs, and the only symptom is editing that quietly does not save. An
       // empty URL fails immediately and locally, which is the honest failure.
-      url: (process.env.NEXT_PUBLIC_COLLABORATION_URL || '').trim(),
+      url: collabUrl(process.env.NEXT_PUBLIC_COLLABORATION_URL || ''),
       name: config.documentId,
       // Async token provider: invoked on every (re)connect, so an expired
       // 5-min JWT is transparently replaced on the next attempt.
@@ -145,6 +248,13 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
         statusRef.current = data.status
       },
       onAuthenticationFailed: ({ reason }: { reason: string }) => {
+        // The server could not read the doc and refused to open it rather
+        // than serve it empty: say so, with Retry (nothing typed can be saved
+        // over the stored copy, because the editor never had it).
+        if (reason === UNAVAILABLE_REASON) {
+          setOpenError('unavailable')
+          return
+        }
         // Do NOT tear down or hand-roll a reconnect here. The provider will
         // reconnect on its own and call `fetchCollabToken` again for a fresh
         // token. Tearing down here is exactly what caused the storm.
@@ -152,7 +262,27 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
         // The next attempt must not be handed the token just refused.
         if (!config.tokenFetcher) forgetCollabToken()
       },
+      onAuthenticated: ({ scope }: { scope: string }) => {
+        setReadOnly(scope === 'readonly')
+      },
+      onStateless: ({ payload }: { payload: string }) => {
+        const notice = collabNotice(payload)
+        if (notice === 'epoch-changed') freshCopy('epoch')
+        if (notice === 'schema-outdated') {
+          setReadOnly(true)
+          markSchemaOutdated()
+        }
+      },
       onSynced: () => {
+        // The copy this tab holds: if a later sync shows another, the doc was
+        // replaced underneath (see ONE COPY).
+        const epoch = epochIn(provider.document)
+        if (epochRef.current && epoch && epoch !== epochRef.current) {
+          freshCopy('epoch')
+          return
+        }
+        if (epoch) epochRef.current = epoch
+        setOpenError(null)
         setSynced(true)
         setStatus('synced')
         statusRef.current = 'synced'
@@ -200,7 +330,7 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
       setActiveUsers(0)
       setAwarenessUsers([])
     }
-  }, [config?.enabled, config?.documentId, fetchCollabToken])
+  }, [config?.enabled, config?.documentId, fetchCollabToken, generation, freshCopy])
 
   // IDLE TAB HANDLING
   React.useEffect(() => {
@@ -302,5 +432,10 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
     synced,
     activeUsers,
     awarenessUsers,
+    openError,
+    readOnly,
+    recovered,
+    dismissRecovered,
+    retry,
   }
 }

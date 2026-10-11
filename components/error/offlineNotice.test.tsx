@@ -11,6 +11,7 @@ vi.mock("@/hooks/useUpdateReady", () => ({ useUpdateReady: () => ({ ready, reloa
 
 import { FootPill, OfflineNotice } from "@/components/error/OfflineNotice"
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity"
+import { markSchemaOutdated, resetSchemaOutdated } from "@/lib/schemaOutdated"
 
 // Design v3 (shell T3): one pill says the connection state, above the
 // sidebar's foot on a desktop and floating above the tab bar elsewhere.
@@ -21,6 +22,7 @@ afterEach(() => {
   noteNetworkOk()
   mqtt = undefined
   ready = false
+  resetSchemaOutdated()
   vi.restoreAllMocks()
 })
 
@@ -103,5 +105,16 @@ describe("the connection pill", () => {
     expect(layout).not.toMatch(/OfflineNotice/)
     const root = readFileSync(join(__dirname, "..", "providers", "ClientProviders.tsx"), "utf8")
     expect(root).toMatch(/<OfflineNotice\s*\/>/)
+  })
+
+  // The collaboration server opened a doc read-only because this tab's editor
+  // is older than its own (a deploy added a block type this tab would delete).
+  it("asks to reload to keep editing when the editor is older than the server's", () => {
+    render(<FootPill />)
+    act(() => markSchemaOutdated())
+    expect(pill()?.textContent).toMatch(/A newer version of OneCamp is ready\. Reload to keep editing/)
+    expect(pill()?.getAttribute("data-connection-pill")).toBe("update")
+    screen.getByRole("button", { name: "Reload" }).click()
+    expect(reload).toHaveBeenCalled()
   })
 })
