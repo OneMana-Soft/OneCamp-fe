@@ -7,6 +7,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu"
 import { ChevronsUpDown, CircleHelp, Gift, PanelLeft, Pin, Settings, Shield, SquarePen, UserPlus } from "@/lib/icons"
 import { openUI } from "@/store/slice/uiSlice"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
 
 /** The workspace's name, as the install was configured. */
 export function orgName(): string {
@@ -170,6 +171,7 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
   const router = useRouter()
   const name = orgName()
   const host = workspaceHost()
+  useEffect(() => watchInputModality(), [])
 
   return (
     <Menu.Root>
@@ -179,6 +181,7 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
           align="start"
           sideOffset={4}
           aria-label="Workspace"
+          onCloseAutoFocus={returnFocusOnlyForKeys}
           className="shell-menu shell-pop z-[var(--z-dropdown)] origin-[var(--radix-dropdown-menu-content-transform-origin)]"
         >
           <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">

@@ -151,6 +151,22 @@ describe("the workspace header and menu", () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "OneCamp Demo workspace menu" })))
   })
 
+  // Radix put focus back on the trigger however the menu closed, and Chrome
+  // drew the 2px ring on the trigger the mouse had just used (the foot wore
+  // one after every pick from the profile menu). A key still brings it back.
+  it("leaves no ring on its trigger when a pointer picked the item", async () => {
+    vi.stubEnv("NEXT_PUBLIC_ORG_NAME", "OneCamp Demo")
+    render(<TooltipProvider><SidebarHeader isAdmin={false} onCollapse={() => {}} /></TooltipProvider>)
+    const trigger = screen.getByRole("button", { name: "OneCamp Demo workspace menu" })
+    trigger.focus()
+    open("OneCamp Demo workspace menu")
+    const item = screen.getByRole("menuitem", { name: /Invite people/ })
+    fireEvent.pointerDown(item)
+    fireEvent.click(item)
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull())
+    expect(document.activeElement).not.toBe(trigger)
+  })
+
   it("links out to the product site only where one is configured", () => {
     vi.stubEnv("NEXT_PUBLIC_ORG_NAME", "OneCamp Demo")
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_SITE", "")

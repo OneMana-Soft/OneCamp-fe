@@ -29,6 +29,7 @@ import { USER_STATUS_ONLINE, type UserProfileInterface } from "@/types/user"
 import { PauseNotificationsDialog, pauseLeftLabel } from "@/components/notifications/PauseNotificationsDialog"
 import { AppearanceControl } from "@/components/navigationBar/appearanceControl"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
+import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
 
 /** The person's own status: the emoji and words, unless it has expired. */
 function useOwnStatus(userUUID: string | undefined) {
@@ -230,6 +231,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
   const status = useOwnStatus(profile?.user_uuid)
   const post = usePost()
   const [pauseOpen, setPauseOpen] = useState(false)
+  useEffect(() => watchInputModality(), [])
 
   const clearStatus = () => {
     if (!profile?.user_uuid) return
@@ -244,7 +246,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
       <Menu.Root>
         <Menu.Trigger asChild>{children}</Menu.Trigger>
         <Menu.Portal>
-          <Menu.Content side="top" align="start" sideOffset={6} aria-label="Profile and settings" className="shell-menu shell-pop z-[var(--z-dropdown)]">
+          <Menu.Content side="top" align="start" sideOffset={6} aria-label="Profile and settings" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)]">
             <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
               <FootAvatar profile={profile} size={36} />
               <div className="min-w-0 flex-1">
