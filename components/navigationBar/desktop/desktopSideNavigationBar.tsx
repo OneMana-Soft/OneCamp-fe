@@ -20,7 +20,7 @@ import { BotTag } from "@/components/ui/botTag";
 import { isAIBot } from "@/lib/botCopy";
 import { useBotKindMap } from "@/hooks/useBotKinds";
 import { destinationHue } from "@/lib/destinationHue";
-import { lastInputWasPointer } from "@/lib/ui/inputModality";
+import { lastInputWasPointer, returnFocusOnlyForKeys } from "@/lib/ui/inputModality";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
@@ -211,7 +211,7 @@ function MoreRow({ links }: { links: DesktopNavType[] }) {
         </button>
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Content side="right" align="start" sideOffset={6} aria-label="More places" className="shell-menu shell-pop z-[var(--z-dropdown)] !w-56">
+        <Menu.Content side="right" align="start" sideOffset={6} aria-label="More places" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)] !w-56">
           {links.map((l) => {
             const hue = destinationHue(String(l.path || "").split("?")[0]);
             return (
