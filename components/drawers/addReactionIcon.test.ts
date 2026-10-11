@@ -15,7 +15,9 @@ describe("the add-reaction icon in long-press drawers", () => {
   })
 
   it.each(drawers)("%s uses the Lucide icon, not an image", (file) => {
-    const src = readFileSync(join(DIR, file), "utf8")
+    let src = readFileSync(join(DIR, file), "utf8")
+    // A drawer drawn by the v3 message sheet (C61) takes its icon from there.
+    if (src.includes("<MessageActionSheet")) src = readFileSync(join(DIR, "messageActionSheet.tsx"), "utf8")
     expect(src).not.toMatch(/addEmoji/)
     if (/Pick another reaction|onAddEmoji|onAddReaction/.test(src)) expect(src).toMatch(/<SmilePlus\b/)
   })

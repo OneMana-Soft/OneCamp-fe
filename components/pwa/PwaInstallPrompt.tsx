@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { CornerCard } from "@/components/ui/CornerStack";
 import { X, Share } from "@/lib/icons";
 import { pwaPromptKind, type PwaPromptKind } from "@/lib/utils/pwaPrompt";
 
@@ -106,9 +107,10 @@ export function PwaInstallPrompt() {
   if (!kind) return null;
 
   return (
-    // Above the mobile bottom navigation, not on it.
-    <div className="fixed left-4 right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[var(--z-devtools)] md:bottom-4 md:left-auto md:right-4 md:w-[400px] animate-in fade-in slide-in-from-bottom-2 duration-300 motion-reduce:animate-none">
-      <div className="relative flex items-center gap-3 rounded-xl border border-border/60 bg-background p-3 pr-10 shadow-lg">
+    // In the left-hand corner stack (components/ui/CornerStack), above the
+    // phone's tab bar; it sat on the devtools layer, over every dialog.
+    <CornerCard side="left" order={2} className="w-full md:w-[400px]">
+      <div className="relative flex items-center gap-3 rounded-xl bg-pop p-3 pr-10 text-ink shadow-e3">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg">
           <Image src="/logo.svg" alt="" fill className="object-cover" />
         </div>
@@ -141,6 +143,6 @@ export function PwaInstallPrompt() {
           <X className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </CornerCard>
   );
 }

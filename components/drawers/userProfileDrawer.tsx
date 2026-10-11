@@ -4,8 +4,8 @@ import {
     Bell,
     Bookmark,
     Calendar,
-    CircleUser,
     ClipboardCheck,
+    Focus,
     LogOut,
     Moon,
     BellOff,
@@ -18,10 +18,10 @@ import {
     LayoutDashboard,
     File as FileIcon, Inbox as InboxIcon } from "@/lib/icons"
 import { Plug } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 import { useLogout } from "@/hooks/useLogout"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { ThemeSwatches } from "@/components/navigationBar/appearanceControl"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { CAP_AGENT_MANAGE, CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
@@ -32,9 +32,18 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { useState } from "react"
-
-import { Switch } from "@/components/ui/switch"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
+import { displayNameOf } from "@/lib/personName"
+import { useStatusIsExpired } from "@/hooks/useStatusIsExpired"
+import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData"
+import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction"
+import { useStartFocus } from "@/hooks/useStartFocus"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { PhoneSelfAvatar } from "@/components/navigationBar/mobile/phoneSelfAvatar"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { phoneSheet } from "@/components/drawers/phoneSheet"
+import { youStatusLine } from "@/components/drawers/youStatusLine"
 import { destinationHue } from "@/lib/destinationHue"
 import {
     Drawer,
@@ -49,36 +58,29 @@ interface ProfileDrawerProps {
     setOpenState: (state: boolean) => void
 }
 
+type ThemeChoice = "light" | "dark" | "system"
+
 /**
- * A row whose control is a switch rather than a destination.
- *
- * It used to be a DrawerItem with the Switch in a trailing slot, which put a
- * button inside a button: invalid markup that React warns about, that gives
- * the row two overlapping hit targets, and that assistive tech reads
- * inconsistently. The switch is the only control, and the visible label names
- * it rather than a duplicate aria-label.
+ * Theme as one 44px row with a three-way choice (design v3, M2 and Ph3): sun,
+ * moon, Auto. It was a "Dark mode" switch, which could not say "match my
+ * device", the default.
  */
-function DrawerSwitchRow({
-    icon: Icon,
-    label,
-    checked,
-    onCheckedChange,
-}: {
-    icon: LucideIcon
-    label: string
-    checked: boolean
-    onCheckedChange: (checked: boolean) => void
-}) {
-    const labelId = `drawer-switch-${label.replace(/\s+/g, "-").toLowerCase()}`
+function ThemeRow({ value, onChange }: { value: ThemeChoice; onChange: (v: ThemeChoice) => void }) {
     return (
-        <div className="w-full h-12 flex items-center gap-3 px-3 rounded-md text-sm font-medium">
-            <span className="flex size-8 shrink-0 items-center justify-center">
-                <Icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
-            </span>
-            <span id={labelId} className="flex-1 truncate">
-                {label}
-            </span>
-            <Switch checked={checked} onCheckedChange={onCheckedChange} aria-labelledby={labelId} />
+        <div data-theme-row="" className="w-full h-11 flex items-center gap-3 px-3">
+            <span id="drawer-theme-label" className="flex-1 truncate text-body leading-5">Theme</span>
+            <SegmentedControl<ThemeChoice>
+                aria-labelledby="drawer-theme-label"
+                value={value}
+                onValueChange={onChange}
+                className="flex-nowrap rounded-[7px] bg-press p-0.5"
+                itemClassName="h-7 min-w-9 px-2 text-2xs md:h-7 rounded-[5px] data-[state=checked]:bg-raised data-[state=checked]:ring-0 data-[state=checked]:shadow-e1"
+                options={[
+                    { value: "light", label: <span className="sr-only">Light</span>, icon: Sun, title: "Light" },
+                    { value: "dark", label: <span className="sr-only">Dark</span>, icon: Moon, title: "Dark" },
+                    { value: "system", label: "Auto", title: "Match my device" },
+                ]}
+            />
         </div>
     )
 }
@@ -92,7 +94,7 @@ function DrawerSection({ label }: { label: string }) {
     return (
         // Sentence case, as the desktop sidebar's groups: a label read on
         // every visit is not a thing to shout (DESIGN.md, "Navigation").
-        <p className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+        <p className="px-3 pt-3 pb-1.5 text-2xs font-medium text-ink-3">
             {label}
         </p>
     )
@@ -109,6 +111,18 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const [inviteOpen, setInviteOpen] = useState(false)
     const [pauseOpen, setPauseOpen] = useState(false)
     const { pausedUntil, focusUntil } = usePauseNotifications()
+    const { startFocus, starting } = useStartFocus()
+    const me = selfProfile.data?.data
+
+    // Your status text, as the rest of the app reads it: Redux's copy, and
+    // nothing once it has expired (the server never says it did).
+    const myStatus = useSelector((state: RootState) => (me?.user_uuid ? state.users.usersStatus[me.user_uuid]?.emojiStatus : undefined))
+    const cached = myStatus?.status_user_emoji_id ? myStatus : null
+    const expired = useStatusIsExpired(cached ?? null)
+    const status = cached && !expired ? cached : null
+    const emojiData = useEmojiMartData(!!status?.status_user_emoji_id)
+    const emoji = status ? findEmojiMartEmojiByEmojiID(emojiData.data, status.status_user_emoji_id ?? "")?.skins?.[0]?.native : null
+    const statusLine = youStatusLine({ focusUntil, pausedUntil, emoji, text: status?.status_user_emoji_desc })
 
     const closeDrawer = () => setOpenState(false)
 
@@ -117,19 +131,72 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
         closeDrawer()
     }
 
-    const isDark = theme === "dark"
+    const themeChoice: ThemeChoice = theme === "dark" || theme === "light" ? theme : "system"
 
     return (
         <>
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
-            <DrawerContent>
+        <Drawer detent="large" onOpenChange={closeDrawer} open={drawerOpenState}>
+            <DrawerContent {...phoneSheet}>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle className="capitalize">
                         {process.env.NEXT_PUBLIC_ORG_NAME}
                     </DrawerTitle>
                     <DrawerDescription>App menu</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="px-2 pt-1 pb-5 space-y-px">
+                    {/* You first (design v3, Ph3): who you are and the state
+                        you are in, and the three things you set about
+                        yourself. Your avatar on the Home bar opens here. */}
+                    <DrawerSection label="You" />
+                    <button
+                        type="button"
+                        data-you-row=""
+                        aria-label={`Your profile: ${displayNameOf(me)}, ${statusLine}`}
+                        onClick={() => handleNavigate("/app/profile")}
+                        className="w-full min-h-14 flex items-center gap-3 px-3 py-2 rounded-[10px] text-left transition-colors hover:bg-hover active:bg-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    >
+                        <PhoneSelfAvatar profile={me} size={32} focus={!!focusUntil} paused={!!pausedUntil && !focusUntil} ring="var(--pop)" />
+                        <span className="flex-1 min-w-0">
+                            <span className="block truncate text-body leading-5 font-medium text-ink">{displayNameOf(me)}</span>
+                            <span data-you-status="" className="block truncate text-2xs text-ink-3">
+                                {focusUntil ? <><b className="font-medium text-brand-text">In focus</b>{statusLine.slice("In focus".length)}</> : statusLine}
+                            </span>
+                        </span>
+                    </button>
+                    <DrawerItem
+                        icon={Focus}
+                        neutralTile
+                        label={focusUntil ? statusLine : "Start focus time"}
+                        description={focusUntil ? undefined : "1 hour, notifications held"}
+                        disabled={starting}
+                        onClick={() => {
+                            if (focusUntil) {
+                                // Focus comes from a calendar event and ends with
+                                // it; the pause dialog says so.
+                                setPauseOpen(true)
+                                closeDrawer()
+                                return
+                            }
+                            void startFocus().then((ok) => ok && closeDrawer())
+                        }}
+                    />
+                    <DrawerItem
+                        icon={BellOff}
+                        neutralTile
+                        label={pauseMenuLabel(pausedUntil, null)}
+                        onClick={() => {
+                            setPauseOpen(true)
+                            closeDrawer()
+                        }}
+                    />
+                    <ThemeRow value={themeChoice} onChange={setTheme} />
+                    {/* The theme colour, the account menu's swatches at a finger's
+                        44px (hub P2's AppearanceControl, shared). */}
+                    <div data-theme-swatches="" className="flex h-11 items-center gap-3 px-3">
+                        <span className="shrink-0 text-body leading-5">Colour</span>
+                        <ThemeSwatches touch />
+                    </div>
+
                     {/* Channels used to lead this list while sitting in the bottom bar
                         two centimetres below, spending the drawer's first row on the
                         one destination that never needed it. */}
@@ -142,9 +209,9 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     />
                     <DrawerItem
                         icon={InboxIcon}
-                        label="Inbox"
-                        hue={destinationHue("/app/inbox")}
-                        onClick={() => handleNavigate("/app/inbox")}
+                        label="Mail"
+                        hue={destinationHue("/app/mail")}
+                        onClick={() => handleNavigate("/app/mail")}
                     />
                     <DrawerItem
                         icon={Bookmark}
@@ -189,8 +256,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             <DrawerItem
                                 icon={Bell}
                                 label="AI activity"
-                        hue={destinationHue("/app/activity?tab=ai")}
-                                onClick={() => handleNavigate("/app/activity?tab=ai")}
+                        hue={destinationHue("/app/inbox?tab=ai")}
+                                onClick={() => handleNavigate("/app/inbox?tab=ai")}
                             />
                             {/* The agent builder, and with it the shared skill library,
                                 had no entry anywhere in the interface. The page existed
@@ -250,31 +317,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         />
                     )}
 
-                    <div className="my-2 border-t border-border/60" />
-
-                    <DrawerItem
-                        icon={CircleUser}
-                        label="Your profile"
-                        onClick={() => handleNavigate("/app/profile")}
-                    />
-
-                    <DrawerItem
-                        icon={BellOff}
-                        label={pauseMenuLabel(pausedUntil, focusUntil)}
-                        onClick={() => {
-                            setPauseOpen(true)
-                            closeDrawer()
-                        }}
-                    />
-
-                    <DrawerSwitchRow
-                        icon={isDark ? Moon : Sun}
-                        label="Dark mode"
-                        checked={isDark}
-                        onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-                    />
-
-                    <div className="my-2 border-t border-border/60" />
+                    <div className="mx-3 my-2 h-px bg-line" />
 
                     <DrawerItem
                         icon={LogOut}

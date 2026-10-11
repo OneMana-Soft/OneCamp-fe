@@ -97,7 +97,7 @@ export function DmGroupChatMessageLongPressDrawer({ drawerOpenState, handleEmoji
 
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="medium" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <div className="w-full mb-6 relative">
                     <DrawerHeader className="hidden">
@@ -128,7 +128,7 @@ export function DmGroupChatMessageLongPressDrawer({ drawerOpenState, handleEmoji
                                 aria-label="Pick another reaction"
                                 onClick={() => onAddEmoji()}
                             >
-                                <SmilePlus aria-hidden="true" className="h-[22px] w-[22px] text-muted-foreground" strokeWidth={1.75} />
+                                <SmilePlus aria-hidden="true" className="h-[22px] w-[22px] text-muted-foreground" />
                             </Button>
                         </div>
 

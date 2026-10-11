@@ -4,6 +4,8 @@ import { Plus, Users } from "@/lib/icons"
 import { ClipboardList } from "lucide-react"
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
@@ -35,13 +37,14 @@ export function MyTaskOptionsDrawer({
     }
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>My tasks</DrawerTitle>
                     <DrawerDescription>Task and navigation actions.</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="My tasks">
                     <DrawerItem
                         icon={Plus}
                         label="Create task"
@@ -57,6 +60,8 @@ export function MyTaskOptionsDrawer({
                         label="Projects"
                         onClick={() => handleNavigate(app_project_path)}
                     />
+                </SheetGroup>
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

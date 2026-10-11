@@ -3,6 +3,8 @@
 import { RotateCcw, Trash, Users } from "@/lib/icons"
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
@@ -114,13 +116,14 @@ export function ProjectLongPressDrawer({
     if (!projectId) return null
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>Project actions</DrawerTitle>
                     <DrawerDescription>Quick actions for this project.</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="Project">
                     {(isAdmin || isMember) && (
                         <DrawerItem
                             icon={Users}
@@ -128,14 +131,26 @@ export function ProjectLongPressDrawer({
                             onClick={handleProjectMembers}
                         />
                     )}
-                    {isAdmin && (
+                    {isAdmin && isDeleted && (
                         <DrawerItem
-                            icon={isDeleted ? RotateCcw : Trash}
-                            label={isDeleted ? "Unarchive project" : "Archive project"}
+                            icon={RotateCcw}
+                            label="Unarchive project"
                             onClick={handleArchiveAction}
-                            destructive={!isDeleted}
                         />
                     )}
+                </SheetGroup>
+                    {/* What destroys is alone, and last (design v3, mobile C7). */}
+                    {isAdmin && !isDeleted && (
+                        <SheetGroup label="Archive">
+                            <DrawerItem
+                                icon={Trash}
+                                label="Archive project"
+                                onClick={handleArchiveAction}
+                                destructive
+                            />
+                        </SheetGroup>
+                    )}
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

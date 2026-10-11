@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 let aiOn = true
 let admin = true
@@ -15,13 +15,24 @@ vi.mock("@/hooks/useCapabilities", () => ({
     useCapabilities: () => ({ can: (c: string) => caps.includes(c) }),
 }))
 vi.mock("@/hooks/useFetch", () => ({
-    useFetchOnlyOnce: () => ({ data: { data: { user_is_admin: admin } } }),
+    useFetchOnlyOnce: () => ({ data: { data: { user_is_admin: admin, user_uuid: "u1", user_name: "Sam Rivera" } } }),
 }))
 vi.mock("@/hooks/useLogout", () => ({ useLogout: () => ({ logout: () => {} }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: (p: string) => pushed.push(p) }) }))
-vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme: () => {} }) }))
+vi.mock("@/components/activeTheme/activeTheme", () => ({ useThemeConfig: () => ({ activeTheme: "onecamp", setActiveTheme: () => {} }) }))
+vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme: (t: string) => themeSet.push(t) }) }))
 vi.mock("@/components/invite/MemberInviteDialog", () => ({ MemberInviteDialog: () => null }))
-vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil: null }) }))
+let focusUntil: Date | null = null
+let pausedUntil: Date | null = null
+let themeSet: string[] = []
+const started: number[] = []
+vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil, focusUntil }) }))
+vi.mock("react-redux", () => ({ useSelector: () => undefined }))
+vi.mock("@/hooks/useStartFocus", () => ({ useStartFocus: () => ({ startFocus: async () => (started.push(1), true), starting: false }) }))
+vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
+vi.mock("@/components/navigationBar/mobile/phoneSelfAvatar", () => ({
+    PhoneSelfAvatar: ({ focus, paused }: { focus?: boolean; paused?: boolean }) => <span data-avatar="" data-focus={focus || undefined} data-paused={paused || undefined} />,
+}))
 vi.mock("@/components/notifications/PauseNotificationsDialog", () => ({
     PauseNotificationsDialog: () => null,
     pauseMenuLabel: () => "Pause notifications…",
@@ -34,6 +45,10 @@ beforeEach(() => {
     admin = true
     caps = []
     pushed.length = 0
+    focusUntil = null
+    pausedUntil = null
+    themeSet = []
+    started.length = 0
 })
 afterEach(cleanup)
 
@@ -98,15 +113,85 @@ describe("the mobile More drawer", () => {
         expect(document.querySelectorAll("button button").length).toBe(0)
     })
 
-    it("still toggles the theme, named by the label people can see", () => {
+    // Design v3 (Ph3, M2): one row with a three-way choice. A "Dark mode"
+    // switch could not say "match my device", which is the default.
+    it("sets the theme with a three-way choice named Theme", () => {
         open()
-        const toggle = screen.getByRole("switch")
-        expect(toggle.getAttribute("aria-labelledby")).toBeTruthy()
-        expect(document.getElementById(toggle.getAttribute("aria-labelledby")!)?.textContent).toBe("Dark mode")
+        const group = screen.getByRole("radiogroup", { name: "Theme" })
+        expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent).toBe("Theme")
+        const radios = within(group).getAllByRole("radio")
+        expect(radios.map((r) => r.getAttribute("title"))).toEqual(["Light", "Dark", "Match my device"])
+        fireEvent.click(radios[1])
+        expect(themeSet).toEqual(["dark"])
+    })
+
+    // The account menu's theme colours (hub P2), each a 44px target here.
+    it("offers the six theme colours at a finger's size, spread to the row's edges", () => {
+        open()
+        const colours = screen.getByRole("radiogroup", { name: "Theme colour" })
+        const swatches = [...colours.querySelectorAll("[data-theme-swatch]")]
+        expect(swatches).toHaveLength(6)
+        // A 24px circle touched as 44 (2.5 × 4 = 10px past each side).
+        for (const s of swatches) expect(s.className).toMatch(/\bsize-6\b[\s\S]*after:-inset-2\.5/)
+    })
+})
+
+describe("the More sheet's You section", () => {
+    it("comes first, with you, your state and the things you set about yourself", () => {
+        open()
+        const headings = ["You", "Work", "Workspace"].map((t) => screen.getByText(t))
+        expect(headings[0].compareDocumentPosition(headings[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        const you = screen.getByRole("button", { name: /^Your profile: Sam Rivera, Active/ })
+        fireEvent.click(you)
+        expect(pushed).toEqual(["/app/profile"])
+        expect(screen.getByRole("button", { name: /^Start focus time/ })).toBeTruthy()
+        expect(screen.getByRole("button", { name: /^Pause notifications/ })).toBeTruthy()
+    })
+
+    it("starts an hour of focus from the row", async () => {
+        open()
+        fireEvent.click(screen.getByRole("button", { name: /^Start focus time/ }))
+        await Promise.resolve()
+        expect(started).toEqual([1])
+    })
+
+    it("says you are in focus, and rings your avatar, while you are", () => {
+        focusUntil = new Date(Date.now() + 30 * 60_000)
+        open()
+        expect(document.querySelector("[data-you-status]")?.textContent).toMatch(/^In focus until /)
+        expect(document.querySelector("[data-avatar]")?.hasAttribute("data-focus")).toBe(true)
+        expect(screen.queryByRole("button", { name: /^Start focus time/ })).toBeNull()
+    })
+
+    it("says notifications are paused, and badges your avatar", () => {
+        pausedUntil = new Date(Date.now() + 60 * 60_000)
+        open()
+        expect(document.querySelector("[data-you-status]")?.textContent).toMatch(/^Notifications paused until /)
+        expect(document.querySelector("[data-avatar]")?.hasAttribute("data-paused")).toBe(true)
+    })
+
+    it("ends with Sign out in danger ink, on no red fill", () => {
+        open()
+        const out = screen.getByRole("button", { name: "Sign out" })
+        expect(out.className).toMatch(/text-danger-ink/)
+        expect(out.className).not.toMatch(/bg-destructive/)
     })
 })
 
 describe("the More menu's look", () => {
+    it("is the v3 sheet: pop, e4, no border, a 32% scrim and a 36x5 grabber", () => {
+        open()
+        const sheet = document.querySelector("[data-phone-sheet]") as HTMLElement
+        // Every sheet's look now (components/ui/drawer, design v3 mobile C5):
+        // no border class at all, and the grabber drawn by app/phone.css.
+        expect(sheet.className.split(/\s+/)).toEqual(expect.arrayContaining(["bg-pop", "shadow-e4"]))
+        expect(sheet.className.split(/\s+/)).not.toContain("border")
+        expect(sheet.getAttribute("data-detent")).toBe("large")
+        expect(sheet.querySelector("[data-drawer-handle]")?.hasAttribute("data-v3-grabber")).toBe(true)
+        const scrim = document.querySelector("[data-vaul-overlay]") as HTMLElement
+        expect(scrim.className).toContain("bg-[rgb(10_11_14/0.32)]")
+    })
+
     // Group labels were uppercase and tracked; DESIGN.md keeps labels read on
     // every visit in sentence case. Places sit on a tile in their hue (the
     // playful layer), the same hue wherever that place is listed.
@@ -130,5 +215,7 @@ describe("the More menu's look", () => {
         expect(tileOf("AI activity")?.className).toContain("hue-dusk")
         expect(tileOf("Sign out")).toBeNull()
         expect(screen.getByRole("button", { name: /^Your profile/ })).toBeTruthy()
+        // A row is 44px.
+        expect(screen.getByRole("button", { name: /^My tasks/ }).className.split(/\s+/)).toContain("h-11")
     })
 })

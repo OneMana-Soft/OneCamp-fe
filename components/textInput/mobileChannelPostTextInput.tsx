@@ -2,28 +2,21 @@
 
 import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
-import {openUI} from "@/store/slice/uiSlice";
-import {useDispatch, useSelector} from "react-redux";
-import {
-    updateChannelMessageReplyIncrement
-} from "@/store/slice/channelSlice";
-import {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {usePost} from "@/hooks/usePost";
-import {RootState} from "@/store/store";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {CreateCommentResInterface, CreateUpdateCommentReqInterface} from "@/types/comment";
-import {
-    clearChannelCommentMsgInputState,
-    createChannelComment,
-    createOrUpdateChannelCommentMsg
-} from "@/store/slice/channelCommentSlice";
-import {ChannelCommentFileUpload} from "@/components/fileUpload/channelCommentFileUpload";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import { openUI } from "@/store/slice/uiSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { updateChannelMessageReplyIncrement } from "@/store/slice/channelSlice";
+import { UserProfileInterface } from "@/types/user";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { usePost } from "@/hooks/usePost";
+import { RootState } from "@/store/store";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { CreateCommentResInterface, CreateUpdateCommentReqInterface } from "@/types/comment";
+import { clearChannelCommentMsgInputState, createChannelComment, createOrUpdateChannelCommentMsg } from "@/store/slice/channelCommentSlice";
+import { ChannelCommentFileUpload } from "@/components/fileUpload/channelCommentFileUpload";
+import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
 
 // Module-level, so a composer with no draft yet gets the same value on every
 // store change: a fresh {} per call re-drew it, editor and all, whenever
@@ -54,7 +47,8 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 // Update initialHeight based on the entire content height
-                setInitialHeight(Math.max(entry.contentRect.height, 30) + 70);
+                // The card and its 12px margins, plus the 12px grip above it.
+                setInitialHeight(Math.max(entry.contentRect.height, 30) + 12);
             }
         });
 
@@ -106,9 +100,9 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelCommentFileUpload' })) }}
                         throttleDelay={300}
-                        noBorder={true}
-                        className={cn("max-w-full rounded-xl h-auto border-none")}
-                        editorContentClassName="overflow-auto mb-2"
+                        variant="phone"
+                        expanded={isExpanded}
+                        onExpandedChange={setIsExpanded}
                         output="html"
                         content={channelPostState.commentMsgBody}
                         placeholder={THREAD_COMPOSER_PLACEHOLDER}
@@ -116,18 +110,17 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(channelPostState.filesUploaded?.length ?? 0) > 0}
-                        editorClassName="focus:outline-none px-5"
+                        editorClassName="focus:outline-none"
                         onChange={(content ) => {
 
                             dispatch(createOrUpdateChannelCommentMsg({channelId, body: content as string}))
                         }}
-                        fixedToolbarToBottom={true}
                     >
 
 
 
                     </MinimalTiptapTextInput>
-                    <div className='pb-2'>
+                    <div className='px-3'>
                         <ChannelCommentFileUpload channelId={channelId} />
 
                     </div>

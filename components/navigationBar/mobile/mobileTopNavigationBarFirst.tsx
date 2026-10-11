@@ -2,7 +2,7 @@
 
 import {usePathname, useRouter} from "next/navigation";
 import {useDispatch} from "react-redux";
-import {OrgAvatarNav} from "@/components/navigationBar/orgAvatarNav";
+import {PhoneMark} from "@/components/navigationBar/mobile/phoneMark";
 import {openUI} from "@/store/slice/uiSlice";
 import { ArrowLeft } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
@@ -23,7 +23,10 @@ function BackButton() {
     );
 }
 
-/** The workspace's menu, on the top level of each tab. */
+/**
+ * The workspace's menu, on the top level of each tab: the 24px gradient mark
+ * (design v3, M8) in a 44px target, opening the workspace sheet.
+ */
 function OrgButton() {
     const dispatch = useDispatch();
     return (
@@ -31,9 +34,9 @@ function OrgButton() {
             type="button"
             onClick={() => dispatch(openUI({ key: 'orgProfileDrawer' }))}
             aria-label="Open organization profile"
-            className="h-11 w-11 flex items-center justify-center rounded-full"
+            className="h-11 w-11 flex items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
-            <OrgAvatarNav/>
+            <PhoneMark/>
         </button>
     );
 }
@@ -55,7 +58,7 @@ export function MobileTopNavigationBarFirst() {
             case "admin":
             case "calendar":
             case "profile":
-            case "activity":
+            case "mail":
             case "later":
             case "inbox":
             case "user":

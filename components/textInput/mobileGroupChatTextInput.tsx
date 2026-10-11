@@ -4,18 +4,17 @@ import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
-import {openUI} from "@/store/slice/uiSlice";
-import {useDispatch, useSelector} from "react-redux";
-import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
-import {RootState} from "@/store/store";
-import {createOrUpdateGroupChatBody} from "@/store/slice/groupChatSlice";
-import {usePublishTyping} from "@/hooks/usePublishTyping";
-import {useUploadFile} from "@/hooks/useUploadFile";
+import { openUI } from "@/store/slice/uiSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { GroupChatFileUpload } from "@/components/fileUpload/groupChatFileUpload";
+import { ComposerAIButton } from "@/components/ai/ComposerAIButton";
+import { RootState } from "@/store/store";
+import { createOrUpdateGroupChatBody } from "@/store/slice/groupChatSlice";
+import { usePublishTyping } from "@/hooks/usePublishTyping";
+import { useUploadFile } from "@/hooks/useUploadFile";
 import CommandSurface from "@/components/command/CommandSurface";
 
 const EMPTY_CHAT_INPUT_STATE = {};
@@ -25,6 +24,8 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
     const [isExpanded, setIsExpanded] = useState(false);
+    // Draft with AI opens from "+" and the tool strip (C45, C48).
+    const [aiOpen, setAiOpen] = useState(false);
     const [initialHeight, setInitialHeight] = useState(126); // Default height
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'groupChat', targetId: grpId });
@@ -39,7 +40,8 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 // Update initialHeight based on the entire content height
-                setInitialHeight(Math.max(entry.contentRect.height, 30) + 70);
+                // The card and its 12px margins, plus the 12px grip above it.
+                setInitialHeight(Math.max(entry.contentRect.height, 30) + 12);
             }
         });
 
@@ -75,9 +77,10 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                             await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
                         }}
                         throttleDelay={300}
-                        noBorder={true}
-                        className={cn("max-w-full h-auto")}
-                        editorContentClassName="overflow-auto mb-2"
+                        variant="phone"
+                        onDraftWithAI={() => setAiOpen(true)}
+                        expanded={isExpanded}
+                        onExpandedChange={setIsExpanded}
                         output="html"
                         content={chatInputState.chatBody}
                         contentRevision={chatInputState.restoredUnsent}
@@ -87,14 +90,15 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(chatInputState.filesUploaded?.length ?? 0) > 0}
-                        editorClassName="focus:outline-none px-5"
+                        editorClassName="focus:outline-none"
                         onChange={(content ) => {
                             publishTyping(content?.toString() || '')
                             dispatch(createOrUpdateGroupChatBody({grpID: grpId, body: content?.toString()||'' }))
                         }}
-                        fixedToolbarToBottom={true}
                         aiSlot={
                             <ComposerAIButton
+                                open={aiOpen}
+                                onOpenChange={setAiOpen}
                                 getText={() => chatInputState.chatBody || ""}
                                 onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
                             />
@@ -104,7 +108,7 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
 
 
                     </MinimalTiptapTextInput>
-                    <div className='pb-2'>
+                    <div className='px-3'>
                         <GroupChatFileUpload groupChatID={grpId}/>
 
                     </div>

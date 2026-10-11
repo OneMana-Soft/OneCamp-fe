@@ -10,9 +10,8 @@ const dispatched: unknown[] = []
 vi.mock("next/navigation", () => ({ usePathname: () => pathname, useRouter: () => ({ back: vi.fn(), replace: vi.fn() }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => (a: unknown) => dispatched.push(a), useSelector: () => false }))
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "u1", user_is_admin: false } } }), useFetch: () => ({}) }))
-vi.mock("@/components/ai/NudgeBell", () => ({ default: () => <button>Nudges</button> }))
-vi.mock("@/components/navigationBar/userStatusNav", () => ({ UserStatusNav: () => <button>Set your status</button> }))
-vi.mock("@/components/navigationBar/userAvatarNav", () => ({ UserAvatarNav: () => <span>SR</span> }))
+vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil: null, focusUntil: null }) }))
+vi.mock("@/components/navigationBar/mobile/phoneSelfAvatar", () => ({ PhoneSelfAvatar: () => <span>SR</span> }))
 
 import { MobileTopNavigationBarSecond } from "./mobileTopNavigationBarSecond"
 import { MobileTopNavigationBarThird } from "./mobileTopNavigationBarThird"
@@ -50,10 +49,11 @@ describe("the phone's top bar", () => {
   it("opens the menu from the avatar by tap or keyboard, a 44px target", () => {
     pathname = "/app/home"
     render(<MobileTopNavigationBarThird />)
-    const menu = screen.getByRole("button", { name: "Open menu" })
+    const menu = screen.getByRole("button", { name: "Your profile" })
     expect(menu.className.split(/\s+/)).toEqual(expect.arrayContaining(["h-11", "w-11"]))
+    // A real button: Enter and Space press it natively.
+    expect(menu.tagName).toBe("BUTTON")
     fireEvent.click(menu)
-    fireEvent.keyDown(menu, { key: "Enter" })
-    expect(dispatched).toHaveLength(2)
+    expect(dispatched).toHaveLength(1)
   })
 })

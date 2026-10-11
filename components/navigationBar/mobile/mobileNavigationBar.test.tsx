@@ -7,10 +7,11 @@ import { cleanup, render, screen } from "@testing-library/react"
 // the note's height: the task's last fields were cut off and its comment box
 // started below the screen.
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/app/task/t1" }))
+let pathname = "/app/task/t1"
+vi.mock("next/navigation", () => ({ usePathname: () => pathname, useRouter: () => ({ back: () => {}, replace: () => {} }) }))
 vi.mock("@/hooks/useHydrateUserSidebar", () => ({ useHydrateUserSidebar: () => {} }))
 vi.mock("@/components/navigationBar/mobile/mobileTopNavigationBar", () => ({
-  MobileTopNavigationBar: () => <div data-testid="top" />,
+  MobileTopNavigationBar: ({ glow, large }: { glow?: boolean; large?: boolean }) => <div data-testid="top" data-glow={glow || undefined} data-large={large || undefined} />,
 }))
 vi.mock("@/components/navigationBar/mobile/mobileBottomNavigationBar", () => ({
   MobileBottomNavigationBar: () => <nav aria-label="Primary" />,
@@ -18,7 +19,10 @@ vi.mock("@/components/navigationBar/mobile/mobileBottomNavigationBar", () => ({
 
 import { MobileNavigationBar } from "./mobileNavigationBar"
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  pathname = "/app/task/t1"
+})
 
 describe("the phone shell", () => {
   it("puts notices above the page's scroller, so a full-height page fits under them", () => {
@@ -57,5 +61,43 @@ describe("the phone shell", () => {
       </MobileNavigationBar>,
     )
     expect(container.querySelector("[data-app-banners]")).toBeNull()
+  })
+
+  // Design v3, mobile C2 and F5.
+  it("opens a tab's list on a large title, spoken once by the bar, with the theme's glow", () => {
+    pathname = "/app/chat"
+    const { container } = render(
+      <MobileNavigationBar>
+        <div data-testid="page" />
+      </MobileNavigationBar>,
+    )
+    const large = container.querySelector("[data-large-title]") as HTMLElement
+    expect(large.textContent).toBe("Direct messages")
+    expect(large.getAttribute("aria-hidden")).toBe("true")
+    expect(large.className).toContain("text-display")
+    expect(screen.getByTestId("top").getAttribute("data-large")).toBe("true")
+    expect(screen.getByTestId("top").getAttribute("data-glow")).toBe("true")
+    expect(container.querySelector("[data-app-scroller]")?.getAttribute("data-glow")).toBe("true")
+  })
+
+  it("gives a pushed page neither a large title nor the glow", () => {
+    pathname = "/app/channel/abc"
+    const { container } = render(
+      <MobileNavigationBar>
+        <div data-testid="page" />
+      </MobileNavigationBar>,
+    )
+    expect(container.querySelector("[data-large-title]")).toBeNull()
+    expect(container.querySelector("[data-app-scroller]")?.hasAttribute("data-glow")).toBe(false)
+    expect(screen.getByTestId("top").hasAttribute("data-glow")).toBe(false)
+  })
+
+  it("is the card a large sheet pushes back", () => {
+    const { container } = render(
+      <MobileNavigationBar>
+        <div data-testid="page" />
+      </MobileNavigationBar>,
+    )
+    expect(container.querySelector("[data-app-viewport]")?.hasAttribute("data-vaul-drawer-wrapper")).toBe(true)
   })
 })

@@ -3,6 +3,8 @@
 import { Pencil, Users } from "@/lib/icons"
 import {
     Drawer,
+    SheetCancel,
+    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
@@ -56,7 +58,7 @@ export function TeamOptionsDrawer({
         selfProfile.data?.data.user_is_admin || teamInfo.data?.data.team_is_admin
 
     return (
-        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle className="capitalize">
@@ -64,7 +66,8 @@ export function TeamOptionsDrawer({
                     </DrawerTitle>
                     <DrawerDescription>Team options</DrawerDescription>
                 </DrawerHeader>
-                <div className="p-3 pb-6 space-y-0.5">
+                <div className="pb-2">
+                    <SheetGroup label="Team">
                     <DrawerItem
                         icon={Users}
                         label="Team members"
@@ -77,6 +80,8 @@ export function TeamOptionsDrawer({
                             onClick={editTeamName}
                         />
                     )}
+                </SheetGroup>
+                    <SheetCancel />
                 </div>
             </DrawerContent>
         </Drawer>

@@ -6,25 +6,24 @@ import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
-import {openUI} from "@/store/slice/uiSlice";
-import {useDispatch, useSelector} from "react-redux";
+import { openUI } from "@/store/slice/uiSlice";
+import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
-import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
-import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
-import {usePublishTyping} from "@/hooks/usePublishTyping";
-import {useUploadFile} from "@/hooks/useUploadFile";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { createOrUpdateChatBody } from "@/store/slice/chatSlice";
+import { ChatFileUpload } from "@/components/fileUpload/chatFileUpload";
+import { ComposerAIButton } from "@/components/ai/ComposerAIButton";
+import { usePublishTyping } from "@/hooks/usePublishTyping";
+import { useUploadFile } from "@/hooks/useUploadFile";
+import { getGroupingId } from "@/lib/utils/getGroupingId";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { UserProfileInterface } from "@/types/user";
+import { GetEndpointUrl } from "@/services/endPoints";
 import CommandSurface from "@/components/command/CommandSurface";
 import { useStableCallback } from "@/hooks/useStableCallback";
-import { celebrate } from "@/lib/celebrate";
+import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 const EMPTY_CHAT_INPUT_STATE = {};
 
 export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string) => boolean | void}) => {
@@ -34,12 +33,14 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
     const [isExpanded, setIsExpanded] = useState(false);
+    // Draft with AI opens from "+" and the tool strip (C45, C48).
+    const [aiOpen, setAiOpen] = useState(false);
     const [initialHeight, setInitialHeight] = useState(126); // Default height
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
-    // A first message here bursts sparks from Send (lib/celebrate).
+    // A first message here bursts from the new row's avatar (C60).
     const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrate(editorRef.current?.querySelector('button[aria-label="Send"]'))
+        if (handleSend(latestContent)) celebrateFirstMessage()
     })
 
 
@@ -54,7 +55,8 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 // Update initialHeight based on the entire content height
-                setInitialHeight(Math.max(entry.contentRect.height, 30) + 70);
+                // The card and its 12px margins, plus the 12px grip above it.
+                setInitialHeight(Math.max(entry.contentRect.height, 30) + 12);
             }
         });
 
@@ -91,9 +93,10 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                             await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
                         }}
                         throttleDelay={300}
-                        noBorder={true}
-                        className={cn("max-w-full h-auto")}
-                        editorContentClassName="overflow-auto mb-2"
+                        variant="phone"
+                        onDraftWithAI={() => setAiOpen(true)}
+                        expanded={isExpanded}
+                        onExpandedChange={setIsExpanded}
                         output="html"
                         content={chatInputState.chatBody}
                         contentRevision={chatInputState.restoredUnsent}
@@ -103,14 +106,15 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(chatInputState.filesUploaded?.length ?? 0) > 0}
-                        editorClassName="focus:outline-none px-5"
+                        editorClassName="focus:outline-none"
                         onChange={(content ) => {
                             publishTyping(content?.toString() || '')
                             dispatch(createOrUpdateChatBody({chatUUID: chatId, body: content?.toString()||'' }))
                         }}
-                        fixedToolbarToBottom={true}
                         aiSlot={
                             <ComposerAIButton
+                                open={aiOpen}
+                                onOpenChange={setAiOpen}
                                 getText={() => chatInputState.chatBody || ""}
                                 onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
                             />
@@ -120,7 +124,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
 
 
                     </MinimalTiptapTextInput>
-                    <div className='pb-2'>
+                    <div className='px-3'>
                         <ChatFileUpload chatUUID={chatId}/>
                     </div>
                 </div>

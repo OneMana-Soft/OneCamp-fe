@@ -3,6 +3,7 @@
 import type React from "react"
 import { useEffect, useLayoutEffect, useRef } from "react"
 import { motion, useAnimation, useDragControls, useReducedMotion, type PanInfo } from "framer-motion"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface DraggableDrawerProps {
     children: React.ReactNode
@@ -142,17 +143,28 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
             // Same home-indicator reservation as ui/drawer.tsx. This is the
             // composer on every channel, DM, group chat and thread, so the send
             // button and toolbar sat in the OS gesture strip on every message.
-            className="fixed bottom-0 left-0 border-t right-0 max-h-dvh rounded-t-3xl opacity-100 bg-background top-shadow pb-[env(safe-area-inset-bottom)]"
+            // Design v3 chat, C48: no sheet at rest, a floating card (the
+            // composer's own) over the conversation, 12px from the edges.
+            // Expanded, the whole screen is the sheet.
+            className={cn(
+                "fixed bottom-0 left-0 right-0 max-h-dvh opacity-100 pb-[env(safe-area-inset-bottom)]",
+                // At rest, the sheet fades in behind the card so a row passing
+                // under it never shows through the 12px around it.
+                isExpanded ? "bg-sheet" : "bg-gradient-to-t from-sheet from-70% to-transparent",
+            )}
         >
+            {/* The drag stays as a second way to expand: a 12px strip along the
+                top, its pill drawn only while the sheet is the whole screen. */}
             <div
-                className="w-full py-3 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none"
+                data-drawer-grip=""
+                className="flex h-3 w-full cursor-grab items-center justify-center touch-none active:cursor-grabbing"
                 onPointerDown={(e) => dragControls.start(e)}
             >
-                <div className="h-1.5 w-[100px] rounded-full bg-muted-foreground/40"></div>
+                {isExpanded && <div className="h-[5px] w-9 rounded-full bg-line-3" />}
             </div>
             <div
-                className="overflow-y-auto p-1 pt-0 [touch-action:auto]"
-                style={{ height: "calc(100% - 30px)" }}
+                className="overflow-y-auto [touch-action:auto]"
+                style={{ height: "calc(100% - 12px)" }}
             >
                 {children}
             </div>

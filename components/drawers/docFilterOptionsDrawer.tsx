@@ -24,7 +24,7 @@ export function DocFilterOptionsDrawer({drawerOpenState, setOpenState}: channelO
     }
 
     return (
-        <Drawer  onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="large" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <div className=" w-full mb-6">
                     <DrawerHeader className='hidden'>

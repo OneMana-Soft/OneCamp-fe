@@ -13,11 +13,16 @@ import { oklchToRgb, parseOklch, rgbToHex } from "@/lib/color/oklch"
  * about: the manifest equals --background, whatever --background becomes.
  */
 /** A light-theme token from globals.css, resolved to #rrggbb. */
-function lightToken(name: "background" | "canvas"): string {
+function lightToken(name: string): string {
   const css = readFileSync(resolve(__dirname, "..", "..", "app", "globals.css"), "utf8")
-  const root = css.slice(css.indexOf(":root {"))
-  const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(root)
+  const root = css.slice(css.indexOf(":root {"), css.indexOf("\n}", css.indexOf(":root {")))
+  const m = new RegExp(`\\s--${name}:\\s*([^;]+);`).exec(root)
   if (!m) throw new Error(`could not find --${name} in the light theme`)
+  // Design v3 writes the shadcn names as aliases (--background: var(--sheet))
+  // and the surfaces as hex.
+  const ref = /^var\(--([a-z-]+)\)$/.exec(m[1].trim())
+  if (ref) return lightToken(ref[1])
+  if (/^#[0-9a-f]{6}$/i.test(m[1].trim())) return m[1].trim().toLowerCase()
   const parsed = parseOklch(m[1].trim())
   if (!parsed) throw new Error(`--${name} is not oklch: ${m[1]}`)
   return rgbToHex(oklchToRgb(parsed.l, parsed.c, parsed.h))

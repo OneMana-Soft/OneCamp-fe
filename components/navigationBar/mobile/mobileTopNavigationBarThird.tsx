@@ -1,13 +1,11 @@
 "use client"
 
-import { displayNameOf } from "@/lib/personName"
+import { PhoneHuddleButton } from "@/components/navigationBar/mobile/phoneConversationTitle";
 import {usePathname, useRouter} from "next/navigation";
-import {UserStatusNav} from "@/components/navigationBar/userStatusNav";
-import {UserAvatarNav} from "@/components/navigationBar/userAvatarNav";
 import {useDispatch, useSelector} from "react-redux";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
-import { Filter, Plus, SendHorizontal } from "@/lib/icons";
+import { Filter, Plus, Search, SendHorizontal } from "@/lib/icons";
 import type { ReactNode } from "react";
 import { Ellipsis } from "@/lib/icons";
 import {RootState} from "@/store/store";
@@ -17,7 +15,9 @@ import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
 import {MobileBoardCreateButton} from "@/components/navigationBar/mobile/mobileBoardCreateButton";
-import NudgeBell from "@/components/ai/NudgeBell";
+import { openPalette } from "@/lib/ui/palette";
+import { PhoneSelfAvatar } from "@/components/navigationBar/mobile/phoneSelfAvatar";
+import { usePauseNotifications } from "@/hooks/usePauseNotifications";
 
 /**
  * The one way a list says "make another": a 44px "+" named for what it makes.
@@ -43,38 +43,39 @@ export function MobileTopNavigationBarThird() {
     const fwdMsgSendClicked = useSelector((state: RootState) => state.fwdMsg.fwdMsgInputInputState.mobileViewSendClicked);
 
     const router = useRouter();
+    const { pausedUntil, focusUntil } = usePauseNotifications();
     const openMenu = () => dispatch(openUI({ key: 'userProfileDrawer' }));
 
     const renderComponent = () => {
         switch (path[2]) {
             case "home":
 
-                // Home only: it is where you start, and the bell, your status
-                // and your menu are yours, not a page's. On every page that
-                // listed them (search, settings, tables, templates and more)
-                // they took 140px of the bar, pushed the title 48px off centre
-                // and cut a section's name to "Your AI…".
-                // 44px targets for a thumb, 4px apart: the bell and the status
-                // button are the desktop's 36px controls, sized up here.
-                return <div className='flex items-center gap-1 justify-end [&_button]:size-11'>
-                    <NudgeBell />
-                    <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
-                    {/* Was a bare div with onClick: no role, no name, no keyboard. */}
-                    <div
-                        role="button"
-                        tabIndex={0}
-                        aria-label="Open menu"
+                // Home only: it is where you start, and search and your menu
+                // are yours, not a page's (design v3, Ph1). The bell is gone:
+                // notifications and nudges are the Inbox tab below (N1), and
+                // your status is on your avatar and in the More sheet's You
+                // row. 44px targets for a thumb.
+                return <div className='flex items-center gap-0.5 justify-end'>
+                    <button
+                        type="button"
+                        aria-label="Search or ask"
+                        onClick={() => openPalette()}
+                        className="h-11 w-11 flex items-center justify-center rounded-md text-ink-2 active:bg-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    >
+                        <Search className="size-5" aria-hidden="true" />
+                    </button>
+                    <button
+                        type="button"
+                        aria-label="Your profile"
                         onClick={openMenu}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault()
-                                openMenu()
-                            }
-                        }}
                         className="h-11 w-11 flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                     >
-                        <UserAvatarNav userUUID={selfProfile.data?.data.user_uuid} userName={displayNameOf(selfProfile.data?.data)} userProfileObjKey={selfProfile.data?.data.user_profile_object_key}/>
-                    </div>
+                        <PhoneSelfAvatar
+                            profile={selfProfile.data?.data}
+                            focus={!!focusUntil}
+                            paused={!!pausedUntil && !focusUntil}
+                        />
+                    </button>
                 </div>;
 
 
@@ -105,7 +106,8 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
-                        <Button aria-label='Project options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectOptionsDrawer', data: { projectUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
+                        {/* No "⋯" here: the project header line's menu is the one,
+                            holding the tools, notifications, name and members. */}
 
                     </div>
                 break
@@ -133,7 +135,8 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 4)
                     return <CreateButton label='New channel' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} />
                 if(path.length < 5)
-                    return <div className='flex space-x-1'>
+                    return <div className='flex items-center'>
+                        <PhoneHuddleButton kind="channel" id={path[3]} />
                         <Button aria-label='Channel options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
                         </div>
                 break
@@ -156,7 +159,10 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5) {
 
                     return (
-                        <Button aria-label='Chat options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'chatOptionsDrawer', data: {chatUUID: path[3]} }))}}><Ellipsis className='h-5'/></Button>
+                        <div className='flex items-center'>
+                            <PhoneHuddleButton kind="dm" id={path[3]} />
+                            <Button aria-label='Chat options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'chatOptionsDrawer', data: {chatUUID: path[3]} }))}}><Ellipsis className='h-5'/></Button>
+                        </div>
                     )
 
                 }
