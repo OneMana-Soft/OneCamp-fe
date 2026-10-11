@@ -177,13 +177,14 @@ export function GuestNameForm({ onName }: { onName: (name: string) => void }) {
         e.preventDefault()
         if (draft.trim()) onName(draft.trim())
       }}
-      className="border-t p-3"
+      className="px-3 pb-3"
     >
-      <div className="mx-auto grid w-full max-w-3xl gap-1.5">
-        <label htmlFor={id} className="text-xs text-muted-foreground">Your name, as the team will see it</label>
+      {/* Design v3 (admin §7 G3): the floating composer card, r12 at e2. */}
+      <div className="mx-auto grid w-full max-w-3xl gap-1.5 rounded-lg bg-raised p-3 shadow-e2">
+        <label htmlFor={id} className="text-xs font-medium text-foreground">Your name, as the team will see it</label>
         <div className="flex gap-2">
           <Input ref={box} id={id} name="name" value={draft} onChange={(e) => setDraft(e.target.value)} autoComplete="name" maxLength={GUEST_NAME_MAX} />
-          <Button type="submit" disabled={!draft.trim()}>Continue</Button>
+          <Button type="submit" size="sm" className="h-8" disabled={!draft.trim()}>Continue</Button>
         </div>
       </div>
     </form>
@@ -223,8 +224,9 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
     else setText("")
   }
   return (
-    <div className="border-t p-3">
-      <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
+    <div className="px-3 pb-3">
+      {/* Design v3 (admin §7 G3): the floating composer card, r12 at e2, Send a 28px r8 square. */}
+      <div className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-lg bg-raised p-2 shadow-e2">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -240,8 +242,8 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
           maxLength={4000}
           className="max-h-40 min-h-10 resize-none"
         />
-        <Button size="icon" variant={quiet ? "outline" : "default"} onClick={send} disabled={busy || !text.trim()} aria-label="Send">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        <Button size="icon-sm" variant={quiet ? "outline" : "default"} onClick={send} disabled={busy || !text.trim()} aria-label="Send" className="shrink-0">
+          {busy ? <Loader2 className="animate-spin" /> : <Send />}
         </Button>
       </div>
       {error && <p role="alert" className="mx-auto mt-1 max-w-3xl text-xs text-danger-ink">{error}</p>}

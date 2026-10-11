@@ -23,7 +23,11 @@ import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuest
 import { useFetch } from "@/hooks/useFetch"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { GUEST_HUE } from "@/components/guest/guestUi"
-import { formatDistanceToNow } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
+import { Switch } from "@/components/ui/switch"
+import { AccessCard, LinkAccessTile } from "@/components/dialog/shareParts"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ChevronDown, Loader2 } from "@/lib/icons"
 
 interface GuestLinkSectionProps {
   resourceType: GuestResourceType
@@ -32,6 +36,8 @@ interface GuestLinkSectionProps {
   /** Inside a dialog that is only about sharing: no heading of its own, and
    *  the options show at once instead of behind a button. */
   embedded?: boolean
+  /** As the share dialog's "Anyone with the link" card, with a switch (D19). */
+  card?: boolean
 }
 
 // A UI-only sentinel. It never travels as a ttl, because 0 already means "use
@@ -76,7 +82,11 @@ const RESOURCE: Record<GuestResourceType, {
   },
 }
 
-export function GuestLinkSection({ resourceType, resourceId, canShare, embedded = false }: GuestLinkSectionProps) {
+export function GuestLinkSection(props: GuestLinkSectionProps) {
+  return props.card ? <GuestLinkCard {...props} /> : <GuestLinkPanel {...props} />
+}
+
+function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }: GuestLinkSectionProps) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const expiryId = React.useId()
@@ -140,7 +150,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
   }
 
   return (
-    <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-3 pt-4 border-t border-border"}>
+    <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-3 pt-4 border-t border-line"}>
       {embedded ? (
         !link && <p className="text-sm text-muted-foreground">{kind.blurb}</p>
       ) : (
@@ -153,7 +163,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex items-center gap-3 rounded-md p-2 -mx-2 text-left transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          className="flex items-center gap-3 rounded-md p-2 -mx-2 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
           {/* In the hue the shared page will wear for its guests. */}
           <Tile hue={GUEST_HUE} size="lg">
@@ -246,7 +256,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
                 }
               }
               return (
-                <li key={l.id} className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-highlight">
+                <li key={l.id} className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-hover">
                   <span className="min-w-0 flex-1 truncate">
                     {permission}
                     <span className="text-xs text-muted-foreground">
@@ -284,3 +294,216 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
   )
 }
 
+
+/**
+ * "Anyone with the link" as the share dialog's second card (content.md D19):
+ * the globe on moss, "Off" or "On · Can comment · expires 9 Nov", and a
+ * switch. Turning it on opens the card (its options rise in) on two ghost
+ * menus (who and how long) and Create link; the new link then shows once, in
+ * a read-only field with Copy. Links already live list under it with Turn
+ * off. Turning the switch off asks first, then turns every live link off.
+ */
+function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionProps) {
+  const { toast } = useToast()
+  const confirm = useConfirm()
+  const kind = RESOURCE[resourceType]
+  const [open, setOpen] = React.useState(false)
+  const [ttlHours, setTtlHours] = React.useState(24 * 30)
+  const [capability, setCapability] = React.useState<GuestCapability>(kind.start)
+  const [creating, setCreating] = React.useState(false)
+  const [link, setLink] = React.useState("")
+  const [copied, setCopied] = React.useState(false)
+  const links = useFetch<{ data: ResourceGuestLink[] }>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
+  const [turningOff, setTurningOff] = React.useState<string | null>(null)
+
+  if (!canShare) return null
+
+  const live = links.data?.data ?? []
+  const on = open || !!link || live.length > 0
+  const permissionOf = (c: GuestCapability) => (c === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel)
+  const first = live[0]
+  const status = first
+    ? ["On", permissionOf(first.capability), first.expires_at ? `expires ${format(new Date(first.expires_at), "d MMM")}` : "doesn't expire"].join(" · ")
+    : on
+      ? "On · make the link below"
+      : "Off"
+
+  const create = async () => {
+    setCreating(true)
+    try {
+      const never = ttlHours === NEVER
+      const res = await createGuestLink(resourceType, resourceId, never ? undefined : ttlHours, kind.write ? capability : "view", never)
+      setLink(guestResourceLink(resourceType, res.token))
+      void links.mutate()
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status
+      toast({
+        title: "Couldn't create the link",
+        description: apiErrorMessage(e, status === 403 ? `Guest access is off for this workspace, or you can't share this ${kind.noun}.` : "Try again in a moment."),
+        variant: "destructive",
+      })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const turnOff = async (ids: string[]) => {
+    for (const id of ids) {
+      setTurningOff(id)
+      try {
+        await turnOffGuestLink(id)
+      } catch (e: unknown) {
+        toast({ title: "Couldn't turn the link off", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      }
+    }
+    setTurningOff(null)
+    await links.mutate()
+  }
+
+  const onSwitch = (next: boolean) => {
+    if (next) {
+      setOpen(true)
+      return
+    }
+    if (!live.length) {
+      setOpen(false)
+      setLink("")
+      return
+    }
+    confirm({
+      title: "Turn off this link?",
+      description: "Anyone using it loses access now.",
+      confirmText: "Turn off",
+      destructive: true,
+      onConfirm: () => {
+        void turnOff(live.map((l) => l.id)).then(() => {
+          setOpen(false)
+          setLink("")
+        })
+      },
+    })
+  }
+
+  const expiryLabel = EXPIRY_OPTIONS.find((o) => o.hours === ttlHours)?.label ?? ""
+  return (
+    <AccessCard
+      tile={<LinkAccessTile />}
+      label="Anyone with the link"
+      description={status}
+      data-guest-link-card=""
+      aside={<Switch checked={on} onCheckedChange={onSwitch} aria-label="Anyone with the link" className="data-[state=checked]:bg-[var(--camp-moss-a2)]" />}
+    >
+      {on ? (
+          <div className="content-rise flex flex-col gap-2 pl-11 pt-2" data-guest-link-options="">
+            {!link ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {kind.write ? (
+                  <GhostMenu
+                    label={permissionOf(capability)}
+                    name="Permission"
+                    options={[{ value: "view", label: kind.viewLabel }, { value: kind.write, label: kind.writeLabel ?? kind.viewLabel }]}
+                    onSelect={(v) => setCapability(v as GuestCapability)}
+                  />
+                ) : null}
+                <GhostMenu
+                  label={ttlHours === NEVER ? "Does not expire" : `Expires in ${expiryLabel}`}
+                  name="Link expires"
+                  options={EXPIRY_OPTIONS.map((o) => ({ value: String(o.hours), label: o.hours === NEVER ? o.label : `Expires in ${o.label}` }))}
+                  onSelect={(v) => setTtlHours(Number(v))}
+                />
+                <Button variant="secondary" size="sm" className="ml-auto h-7 gap-1.5" onClick={() => void create()} disabled={creating}>
+                  {creating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Link2 className="size-3.5" aria-hidden="true" />}
+                  Create link
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={link}
+                    readOnly
+                    aria-label="Guest link"
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="h-8 min-w-0 flex-1 rounded-lg bg-raised px-2.5 font-mono text-meta text-ink-2 shadow-e1 outline-none focus-visible:ring-1 focus-visible:ring-brand/50"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 shrink-0 gap-1.5"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(link)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 1500)
+                      } catch {
+                        /* clipboard blocked; the field stays selectable */
+                      }
+                    }}
+                  >
+                    {copied ? <Check className="size-3.5 text-[var(--camp-moss-ink)]" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+                <p className="text-meta text-ink-3">Copy it now: it won&apos;t be shown again.</p>
+              </>
+            )}
+            {live.length > (link ? 1 : 0) ? (
+              <div className="grid">
+                <p className="text-meta font-medium text-ink-2">{link ? "Other links" : "Links that work now"}</p>
+                {(link ? live.slice(1) : live).map((l) => (
+                  <div key={l.id} className="flex h-9 items-center gap-2 text-ui-sm text-ink">
+                    <span className="min-w-0 flex-1 truncate">
+                      {permissionOf(l.capability)}
+                      <span className="text-ink-3">
+                        {" · "}
+                        {l.expires_at ? `ends ${formatDistanceToNow(new Date(l.expires_at), { addSuffix: true })}` : "doesn't expire"}
+                        {l.mine ? " · yours" : ""}
+                      </span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 shrink-0 px-2 text-danger-ink hover:text-danger-ink"
+                      disabled={turningOff === l.id}
+                      onClick={() =>
+                        confirm({
+                          title: `Turn off the “${permissionOf(l.capability)}” link?`,
+                          description: "Anyone using it loses access at once, and the link stops working for good. You can make a new one any time.",
+                          confirmText: "Turn off link",
+                          destructive: true,
+                          onConfirm: () => void turnOff([l.id]),
+                        })
+                      }
+                    >
+                      {turningOff === l.id ? "Turning off…" : "Turn off"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+      ) : null}
+    </AccessCard>
+  )
+}
+
+/** A 28 px ghost menu: "Can view ▾". */
+function GhostMenu({ label, name, options, onSelect }: { label: string; name: string; options: { value: string; label: string }[]; onSelect: (v: string) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-ui-sm font-medium text-ink-2" aria-label={`${name}: ${label}`}>
+          {label}
+          <ChevronDown className="size-3.5" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {options.map((o) => (
+          <DropdownMenuItem key={o.value} onSelect={() => onSelect(o.value)}>
+            {o.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

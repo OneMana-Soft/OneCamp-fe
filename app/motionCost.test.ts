@@ -41,6 +41,35 @@ const KEYFRAME_EXCEPTIONS: Record<string, string> = {
   // A 20 px sweep on the AI's "still writing" mark, while it streams: one
   // small element repaints, nothing moves.
   "text-shimmer": "background-position",
+  // The ring in the workspace mark draws itself once a day (design v3, shell
+  // S3): one 16px glyph repaints for 600ms.
+  "shell-ring-draw": "stroke-dashoffset",
+  // The logo ring drawing once on the splash (design v3, shell §L1): one 56px
+  // stroke repaints for 600ms while nothing else is on screen.
+  "ring-draw": "stroke-dashoffset",
+  // The moss check drawing once when a pull to refresh lands (design v3,
+  // mobile L4): one 36px glyph repaints for 200ms.
+  "ptr-draw": "stroke-dashoffset",
+  // A chart's line drawing itself in, once, on first view: one path's dash
+  // offset repaints for 480 ms, nothing moves (content.md T18).
+  "chart-line-draw": "stroke-dashoffset",
+  // A running focus block's hatch drifting (content.md C11): one block
+  // repaints its background, nothing moves.
+  "calendar-hatch-drift": "background-position",
+  // The hub's `draw` (app/hub.css): a ring or the greeting's arc drawn once,
+  // 600 ms, on one small SVG. Paint on a few hundred pixels; nothing moves.
+  "hub-draw": "stroke-dashoffset",
+  // The composer's formatting row (design v3 chat, C40) reveals by clip-path
+  // inside room the card already took: nothing lays out, and Chromium clips
+  // on the compositor.
+  "format-reveal": "clip-path",
+  // The work area's tick and arrow draws (work.md §1.3): stroke-dashoffset on
+  // a 16 px check or a 1.5 px dependency path. One small path repaints;
+  // nothing is laid out.
+  "work-tick-draw": "stroke-dashoffset",
+  // The work area's landed flash (Atlassian's post-drop acknowledgement): a
+  // background fade on the one card or row that moved, once, for 700 ms.
+  "work-landed": "background-color",
 }
 
 // Layout motion that predates this guard, by file: progress bars that grow
@@ -50,6 +79,9 @@ const KEYFRAME_EXCEPTIONS: Record<string, string> = {
 const LAYOUT_MOTION_BASELINE: Record<string, number> = {
   "components/ai/DocAiAssistantPanel.tsx": 2,
   "components/attachments/videoPlayer.tsx": 1,
+  // The public booking card's width-step between its steps (content.md K01),
+  // the one layout motion the spec asks for; still under reduced motion.
+  "components/booking/BookingFlow.tsx": 1,
   "components/fileUpload/AudioPlayer.tsx": 1,
   "components/minimal-tiptap/extensions/collapsible/components/collapsible-view.tsx": 1,
   "components/minimal-tiptap/extensions/poll/poll-view.tsx": 1,

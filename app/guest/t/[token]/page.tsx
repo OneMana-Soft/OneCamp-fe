@@ -3,12 +3,18 @@
 import { use } from "react";
 import { getGuestTable } from "@/services/guestService";
 import { GuestTableViewer } from "@/components/guest/GuestTableViewer";
-import { GuestBand, GuestLinkGone, GuestNotYet, GuestTypeTile, useGuestAnswer } from "@/components/guest/guestUi";
-import { Table as TableIcon, Eye } from "@/lib/icons";
-import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { Eye } from "@/lib/icons";
+import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame";
+import { TableGlyph } from "@/components/table/TableGlyph";
 
 const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
 
+/**
+ * A table shared with someone outside the workspace (content.md T21): the
+ * finished public page (band, mark, half-strength glow, credit) with the
+ * table on a paper card, read only, in the grid's own look.
+ */
 export default function GuestTablePage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
 
@@ -16,36 +22,37 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
     const { data: bundle, trouble } = useGuestAnswer(`table:${token}`, () => getGuestTable(token));
 
     if (!bundle) {
-        return (
-            <GuestNotYet trouble={trouble} gone={gone} shape="table" label="Opening the shared table…" />
-        );
+        return <GuestNotYet trouble={trouble} gone={gone} shape="table" label="Opening the shared table…" />;
     }
     if (!bundle.table || !Array.isArray(bundle.fields)) return gone;
 
+    const name = bundle.table?.name || "Shared table";
+    const rows = bundle.rows || [];
     return (
-        <div className="min-h-dvh w-full bg-background">
-            <GuestBand />
-            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
-                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                    <GuestTypeTile>
-                        <TableIcon />
-                    </GuestTypeTile>
-                    {/* The page's heading, as the doc and board pages have; a long
-                        name truncates rather than pushing the badges off the bar. */}
-                    <h1 className="truncate" title={bundle.table?.name || undefined}>
-                        {bundle.table?.name || "Shared table"}
-                    </h1>
+        <PublicFrame
+            surface="guest-table"
+            // The page's heading; a long name truncates rather than pushing the tag off the bar.
+            title={<span title={name}>{name}</span>}
+            actions={
+                <span className="chip h-6 gap-1 text-ink-2">
+                    <Eye className="size-3" aria-hidden="true" /> Read only
+                </span>
+            }
+            mainClassName="px-0 pt-2 sm:px-6 sm:pt-6"
+        >
+            <PaperCard className="max-w-[1120px] overflow-hidden">
+                <div className="flex items-start gap-3 px-5 pb-4 pt-6 sm:px-8 sm:pt-8">
+                    <TableGlyph size="lg" icon={bundle.table?.icon} id={bundle.table?.id} />
+                    <div className="min-w-0">
+                        <p className="truncate font-display text-title-1 text-ink">{name}</p>
+                        <p className="mt-0.5 text-ui text-ink-2">
+                            {bundle.table?.description ? `${bundle.table.description} · ` : ""}
+                            {rows.length} {rows.length === 1 ? "row" : "rows"}
+                        </p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <MadeWithOneCamp surface="guest-table" className="hidden sm:block" />
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
-                        <Eye className="h-3 w-3" /> Read only
-                    </span>
-                </div>
-            </header>
-            <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-                <GuestTableViewer fields={bundle.fields} rows={bundle.rows} />
-            </main>
-        </div>
+                <GuestTableViewer fields={bundle.fields} rows={rows} />
+            </PaperCard>
+        </PublicFrame>
     );
 }

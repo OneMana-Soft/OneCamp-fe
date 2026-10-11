@@ -14,12 +14,16 @@ import type { SystemCheckReport } from "@/services/systemCheckService"
 //     says which it is.
 
 const runSystemCheck = vi.fn()
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false }) }))
 vi.mock("@/services/systemCheckService", () => ({
     runSystemCheck: () => runSystemCheck(),
     systemCheckUrl: "/admin/system-check",
 }))
 
 import SystemCheckCard from "@/components/admin/SystemCheckCard"
+import { TooltipProvider } from "@/components/ui/tooltip"
+// Each tile names its check with its scope as a tooltip.
+const renderCard = () => render(<TooltipProvider><SystemCheckCard /></TooltipProvider>)
 
 const report = (over: Partial<SystemCheckReport> = {}): SystemCheckReport => ({
     healthy: 0,
@@ -53,9 +57,9 @@ describe("SystemCheckCard", () => {
             }),
         )
 
-        render(<SystemCheckCard />)
+        renderCard()
 
-        await waitFor(() => expect(screen.getByText("entity-links")).toBeTruthy())
+        await waitFor(() => expect(screen.getByText("Entity links")).toBeTruthy())
         expect(
             screen.getByText(/does not prove linking a doc works end to end/),
             "a healthy check must still state its scope",
@@ -80,16 +84,16 @@ describe("SystemCheckCard", () => {
             }),
         )
 
-        render(<SystemCheckCard />)
+        renderCard()
 
         await waitFor(() => expect(screen.getByText(/67 of 69 queued syncs/)).toBeTruthy())
-        expect(screen.getByText(/1 of 1 need attention/)).toBeTruthy()
+        expect(screen.getByText("1 needs attention")).toBeTruthy()
     })
 
     it("does not report an empty build as all clear", async () => {
         runSystemCheck.mockResolvedValue(report())
 
-        render(<SystemCheckCard />)
+        renderCard()
 
         await waitFor(() => expect(screen.getByText(/No checks in this build/)).toBeTruthy())
         expect(
@@ -104,9 +108,9 @@ describe("SystemCheckCard", () => {
         runSystemCheck.mockRejectedValueOnce(new Error("network down"))
         runSystemCheck.mockReturnValue(new Promise(() => {}))
 
-        render(<SystemCheckCard />)
+        renderCard()
 
-        expect(await screen.findByText("Couldn't load the health check")).toBeTruthy()
+        expect(await screen.findByText(/Couldn't load the health check/)).toBeTruthy()
         expect(screen.getByText("network down")).toBeTruthy()
         expect(screen.getByRole("heading", { level: 2, name: "Installation health" })).toBeTruthy()
         // One way to try again: the error's own button, not a second "Run again" beside it.
@@ -139,9 +143,9 @@ describe("SystemCheckCard", () => {
             }),
         )
 
-        const { container } = render(<SystemCheckCard />)
+        const { container } = renderCard()
 
-        await waitFor(() => expect(screen.getByText("storage")).toBeTruthy())
+        await waitFor(() => expect(screen.getByText("Storage")).toBeTruthy())
         const text = container.textContent ?? ""
         expect(
             text.indexOf("Services this install needs"),
@@ -167,7 +171,7 @@ describe("SystemCheckCard", () => {
             }),
         )
 
-        render(<SystemCheckCard />)
+        renderCard()
 
         const note = await waitFor(() => screen.getByText(/invitations are silently not sent/))
 
@@ -203,7 +207,7 @@ describe("SystemCheckCard", () => {
             }),
         )
 
-        render(<SystemCheckCard />)
+        renderCard()
 
         // An all-green read-only page reads as a working product unless it says
         // otherwise, which is the false comfort the whole feature exists to stop.
@@ -218,7 +222,7 @@ describe("how the health check reads", () => {
     // jumped in when it came.
     it("stands rows of the checks' shape in while it checks", () => {
         runSystemCheck.mockReturnValue(new Promise(() => {}))
-        render(<SystemCheckCard />)
+        renderCard()
         expect(screen.getByRole("status", { name: "Checking the installation" })).toBeTruthy()
         expect(screen.getByRole("button", { name: "Checking…" })).toBeTruthy()
     })
@@ -235,23 +239,22 @@ describe("how the health check reads", () => {
                 ],
             }),
         )
-        render(<SystemCheckCard />)
+        renderCard()
         const list = await screen.findByRole("list", { name: "Services this install needs" })
         expect(list.querySelectorAll("li")).toHaveLength(2)
     })
 
-    // The verdict was a tinted chip; a state is a dot and a word, as the task
-    // panel's status reads, beside the section's one action.
-    it("says its verdict as a status word on the title's row, beside Run again", async () => {
+    // Design v3 (A21): the verdict is the hero's summary, beside its ring and Run again.
+    it("says its verdict in the summary hero, beside Run again", async () => {
         runSystemCheck.mockResolvedValue(
             report({ healthy: 1, total: 1, checks: [{ name: "email", kind: "dependency", describe: "A key is set.", healthy: true, took_ms: 2 }] }),
         )
-        render(<SystemCheckCard />)
+        renderCard()
         const verdict = await screen.findByText("All 1 healthy")
-        expect(verdict.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
-        const action = verdict.closest("[data-section-action]") as HTMLElement
-        expect(action).toBeTruthy()
-        expect(action.querySelector("button")?.textContent).toMatch(/Run again/)
+        const hero = verdict.closest("[data-health-hero]") as HTMLElement
+        expect(hero).toBeTruthy()
+        expect(hero.querySelector("[data-health-ring]")).toBeTruthy()
+        expect(hero.querySelector("button")?.textContent).toMatch(/Run again/)
     })
 
     // A bordered card with a p-4 header and a 32px tile beside a 16px title,
@@ -259,8 +262,8 @@ describe("how the health check reads", () => {
     // to Health moved the title 17px right and down.
     it("is a flat section with a plain h2 title, like every other admin tab", async () => {
         runSystemCheck.mockResolvedValue(report({ healthy: 1, total: 1, checks: [{ name: "email", kind: "dependency", describe: "A key is set.", healthy: true, took_ms: 2 }] }))
-        const { container } = render(<SystemCheckCard />)
-        await screen.findByText("email")
+        const { container } = renderCard()
+        await screen.findByText("Email")
         const root = container.firstElementChild as HTMLElement
         expect(root.tagName).toBe("SECTION")
         expect(root.className).not.toMatch(/(^|\s)border(\s|$)/)
@@ -274,11 +277,11 @@ describe("how the health check reads", () => {
     // first group's real heading, so nothing moves when the answer lands.
     it("stands the list's own rows in, under the first group's heading", () => {
         runSystemCheck.mockReturnValue(new Promise(() => {}))
-        render(<SystemCheckCard />)
+        renderCard()
         const status = screen.getByRole("status", { name: "Checking the installation" })
         expect(screen.getByRole("heading", { level: 3, name: "Services this install needs" })).toBeTruthy()
         const rows = status.querySelectorAll("li")
         expect(rows.length).toBe(4)
-        rows.forEach((li) => expect(li.className).toContain("px-4 py-3"))
+        rows.forEach((li) => expect(li.className).toContain("cfg-tile"))
     })
 })

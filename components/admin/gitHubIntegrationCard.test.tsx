@@ -65,13 +65,17 @@ describe("the GitHub integration", () => {
     expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Not Configured" }))
   })
 
-  it("offers Connect GitHub once, as an outline button under the plug", () => {
+  // Design v3 (A18): a connection card says it isn't connected in its header
+  // and offers Connect there, as the one primary on it. It was an outline
+  // button under a plug spot, an empty state for something that has a name.
+  it("offers Connect GitHub once, as the card header's primary", () => {
     given(false)
     const { container } = render(<GitHubIntegrationCard />)
     const connects = screen.getAllByRole("button", { name: /Connect GitHub/ })
     expect(connects).toHaveLength(1)
-    expect(connects[0].className).not.toMatch(/\bbg-primary\b/)
-    expect(container.querySelector("[data-empty-illustration]")).not.toBeNull()
+    expect(connects[0].className).toMatch(/\bbg-brand\b/)
+    expect(connects[0].closest("header")).toBeTruthy()
+    expect(container.querySelector("[data-state-word]")?.textContent).toBe("Not connected")
   })
 
   // The card was a full-height scroll box between two sections that aren't.

@@ -39,11 +39,15 @@ vi.mock("@/services/importService", async (orig) => ({
   cancelImportJob: (...a: unknown[]) => cancelImportJob(...(a as [])),
   createImportJob: (...a: unknown[]) => createImportJob(...(a as [])),
 }))
+const fx = vi.hoisted(() => ({ celebrate: vi.fn(() => 8), springPop: vi.fn(() => null) }))
+vi.mock("@/lib/celebrate", () => ({ celebrate: fx.celebrate, springPop: fx.springPop, prefersReducedMotion: () => false }))
 vi.mock("@/components/admin/ImportConnectDialog", () => ({
   ImportConnectDialog: ({ open }: { open: boolean }) => (open ? <p>connect dialog open</p> : null),
 }))
 
 const ImportCard = (await import("./ImportCard")).default
+const { ImportJobRow } = await import("./ImportJobRow")
+const { ImportStepper, SLACK_STEPS } = await import("./importParts")
 const { importProviderLabel } = await import("@/services/importService")
 
 afterEach(() => {
@@ -129,9 +133,9 @@ describe("the import card", () => {
     providersState = { isLoading: true }
     render(<ImportCard />)
     const loading = screen.getByRole("status", { name: "Loading the tools" })
-    expect(loading.className).toContain("bg-muted")
-    expect(loading.className).toContain("p-1")
-    expect(loading.querySelectorAll("[class*='h-9']").length).toBe(6)
+    expect(loading.className).toContain("bg-press")
+    expect(loading.className).toContain("p-0.5")
+    expect(loading.querySelectorAll("[class*='h-8']").length).toBe(6)
   })
 
   it("writes ClickUp as ClickUp", () => {
@@ -207,5 +211,89 @@ describe("the import card before a provider is picked", () => {
     expect(screen.getByText(/Jira ·/)).toBeTruthy()
     expect(screen.getByText("Acme")).toBeTruthy()
     expect(screen.queryByText("Acme Slack")).toBeNull()
+  })
+})
+
+// Design v3, admin §A14 (mock M5). Importing is the moment a buyer decides, so
+// it reads as a product, not a form:
+// - the tools are source cards (a neutral mark and the name), not a strip of
+//   eight words; Slack is first and hands off to its own section's upload;
+// - a finished import keeps what's left (Roll back among it) behind one ⋯,
+//   where three outline buttons per row used to sit;
+// - finishing is one of the area's four celebrations, once per import: the
+//   ids already celebrated are kept in this browser, so a retried run that
+//   finishes again, or the same import seen in a second tab, stays quiet.
+describe("the import screen, v3", () => {
+  it("offers each tool as a source card with a mark and a name, Slack first and wide", () => {
+    discover = async () => []
+    render(<ImportCard />)
+    const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-source-card]"))
+    expect(cards.map((c) => c.getAttribute("data-source-card"))).toEqual(["slack", "jira", "asana"])
+    expect(cards[0].getAttribute("data-wide")).toBe("true")
+    expect(cards[0].textContent).toMatch(/Channels, threads, files/)
+    for (const c of cards) {
+      const mark = c.querySelector("[data-source-mark]") as HTMLElement
+      expect(mark, "a mark").toBeTruthy()
+      // Neutral: a source is a category, never a hue (§1.5).
+      expect(mark.className).not.toMatch(/camp|hue/)
+      expect(c.textContent).toMatch(/Slack|Jira|Asana/)
+    }
+    expect(screen.getByRole("radio", { name: "Asana" }).textContent).toMatch(/Projects, tasks, comments/)
+  })
+
+  it("hands Slack's card to the Slack section, which owns the upload", () => {
+    discover = async () => []
+    const heard = vi.fn()
+    window.addEventListener("onecamp:slack-import-new", heard)
+    render(<ImportCard />)
+    fireEvent.click(document.querySelector('[data-source-card="slack"]') as HTMLElement)
+    expect(heard).toHaveBeenCalledOnce()
+    window.removeEventListener("onecamp:slack-import-new", heard)
+  })
+
+  it("keeps a finished import's Roll back behind its ⋯", () => {
+    discover = async () => []
+    jobs = [{ ...running, id: "f1", status: "completed", chunks_done: 2, errors_total: 3 }]
+    render(<ImportCard />)
+    expect(screen.queryByRole("button", { name: /Roll back/ })).toBeNull()
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for Acme" }), { key: "Enter" })
+    expect(screen.getByRole("menuitem", { name: "Roll back" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "See 3 errors" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Roll back" }))
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ confirmText: "Roll back import", destructive: true }))
+  })
+
+  it("celebrates an import finishing once per job id, even across remounts", () => {
+    window.localStorage.removeItem("onecamp:import-celebrated")
+    fx.celebrate.mockClear()
+    const h = { onPlan: vi.fn(), onDiscard: vi.fn(), onCancel: vi.fn(), onRollback: vi.fn(), onRetryFailed: vi.fn(), onInvite: vi.fn(), onShowErrors: vi.fn() }
+    const j = (status: string) => ({ ...running, id: "once-1", status }) as never
+    const first = render(<ImportJobRow job={j("running")} {...h} />)
+    first.rerender(<ImportJobRow job={j("completed")} {...h} />)
+    expect(fx.celebrate).toHaveBeenCalledTimes(1)
+    // Celebrated from the status dot.
+    expect((fx.celebrate.mock.calls[0] as unknown[])[0]).toHaveProperty("className", "cx-dot")
+    first.unmount()
+    // The same import, seen running and finishing again (a retried run, a
+    // second tab): no second burst.
+    const again = render(<ImportJobRow job={j("running")} {...h} />)
+    again.rerender(<ImportJobRow job={j("completed")} {...h} />)
+    expect(fx.celebrate).toHaveBeenCalledTimes(1)
+    again.unmount()
+    // Another import finishing is its own moment.
+    const other = render(<ImportJobRow job={{ ...(j("running") as object), id: "once-2" } as never} {...h} />)
+    other.rerender(<ImportJobRow job={{ ...(j("completed") as object), id: "once-2" } as never} {...h} />)
+    expect(fx.celebrate).toHaveBeenCalledTimes(2)
+  })
+
+  // The plan dialogs say where they sit in the flow: only the steps the flow
+  // really has (upload, check the plan, bring it in). There is no people
+  // mapping or channel choice to show as a step.
+  it("draws the flow's real steps, the done ones done and the current one marked", () => {
+    render(<ImportStepper steps={SLACK_STEPS} current={1} />)
+    const steps = screen.getAllByRole("listitem")
+    expect(steps.map((s) => s.getAttribute("data-state"))).toEqual(["done", "current", "next"])
+    expect(steps[1].getAttribute("aria-current")).toBe("step")
+    expect(steps[0].textContent).toMatch(/Upload the export \(done\)/)
   })
 })

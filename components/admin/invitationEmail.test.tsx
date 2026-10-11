@@ -93,17 +93,46 @@ describe("the invitation email", () => {
     expect(document.querySelector(".text-primary svg, svg.text-primary")).toBeNull()
   })
 
-  // From, Subject and To started at 1059, 1048 and 1059px, and "Subject" ran
-  // into its value: the labels had no column of their own.
-  it("lines the preview's values up in one column beside their labels", () => {
+  // Design v3 (admin A10): the preview is an email frame (raised, r12, e2)
+  // whose 40px sunken header gives From and Subject in one label column
+  // (cfg-mail-head is a grid).
+  it("frames the preview with a From and Subject header in one label column", () => {
     state.config = ready()
     render(<EmailSettingsCard />)
     const from = screen.getByText("From")
     expect(from.tagName).toBe("DT")
     const list = from.closest("dl") as HTMLElement
-    expect(list.className).toContain("grid-cols-[4.5rem_minmax(0,1fr)]")
-    expect(Array.from(list.querySelectorAll("dt")).map((d) => d.textContent)).toEqual(["From", "Subject", "To"])
-    expect(list.querySelectorAll("dd")).toHaveLength(3)
+    expect(list.className).toContain("cfg-mail-head")
+    expect(list.closest("[data-email-frame]")?.className).toContain("cfg-mail")
+    expect(Array.from(list.querySelectorAll("dt")).map((d) => d.textContent)).toEqual(["From", "Subject"])
+    expect(list.querySelectorAll("dd")).toHaveLength(2)
+  })
+
+  // The preview follows typing once it settles (120ms), not on every key.
+  it("follows the form after typing settles", async () => {
+    vi.useFakeTimers()
+    try {
+      state.config = ready()
+      render(<EmailSettingsCard />)
+      fireEvent.change(screen.getByLabelText("Subject"), { target: { value: "Come and join us" } })
+      expect(screen.getByText("Join Kestrel on OneCamp")).toBeTruthy()
+      await act(async () => void vi.advanceTimersByTime(130))
+      expect(screen.getByText("Come and join us")).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // On a phone the preview waits under the form behind "Preview ⌄".
+  it("collapses the preview behind a toggle when there's no room beside the form", () => {
+    state.config = ready()
+    render(<EmailSettingsCard />)
+    const toggle = screen.getByRole("button", { name: "Preview" })
+    expect(toggle.getAttribute("aria-expanded")).toBe("false")
+    const frame = document.querySelector("[data-email-frame]") as HTMLElement
+    expect(frame.className).toMatch(/(^|\s)hidden(\s|$)/)
+    fireEvent.click(toggle)
+    expect(frame.className).not.toMatch(/(^|\s)hidden(\s|$)/)
   })
 
   // The body lost the email's own formatting (its heading and its link drew as
@@ -121,16 +150,15 @@ describe("the invitation email", () => {
     expect(doc).not.toContain("<script")
   })
 
-  // The drop zone was a dashed box inside a bordered box.
-  it("offers the logo in one box", () => {
+  // The drop zone was a dashed box inside a bordered box. It is now the
+  // card's one dashed drop zone (cfg-drop), and nothing in it has a border.
+  it("offers the logo in one drop zone inside its card", () => {
     state.config = ready()
     render(<EmailSettingsCard />)
     const section = screen.getByRole("heading", { level: 3, name: "Logo" }).closest("section") as HTMLElement
-    const boxes = Array.from(section.querySelectorAll("*")).filter(
-      (el) => el.tagName !== "BUTTON" && /(^|\s)border(-2)?(\s|$)/.test(el.getAttribute("class") ?? ""),
-    )
-    expect(boxes).toHaveLength(1)
-    expect(boxes[0].className).toContain("border-dashed")
+    expect(section.querySelectorAll(".cfg-drop")).toHaveLength(1)
+    const boxes = Array.from(section.querySelectorAll("*")).filter((el) => /(^|\s)border(-2)?(\s|$)/.test(el.getAttribute("class") ?? ""))
+    expect(boxes).toHaveLength(0)
   })
 
   // The sender address's field takes the row's width when the row is too

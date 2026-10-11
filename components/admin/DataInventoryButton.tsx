@@ -16,7 +16,7 @@
  * threaded through the page.
  */
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -27,24 +27,78 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Database } from "@/lib/icons"
+import { Database, Download, Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PersonActionWord, personActionClass } from "@/components/admin/PeopleFrame"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
     getPersonalDataInventory,
     type PersonalDataInventory,
 } from "@/services/dataSubjectService"
 
+/** The counts as a CSV an admin can keep with the request it answers. */
+export function inventoryCsv(inv: PersonalDataInventory): string {
+    const q = (v: string | number) => {
+        const t = String(v)
+        return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+    }
+    return ["table,column,rows", ...inv.locations.map((l) => [q(l.table), q(l.column), q(l.rows)].join(","))].join("\n") + "\n"
+}
+
+/**
+ * The download (design v3, admin §A23): one control that morphs, a pill that
+ * says "Counting rows…" while the counts run, then a "Download ready" link to
+ * the CSV. The file is made in the browser from the counts on screen.
+ */
+function InventoryDownload({ inventory, loading, name }: { inventory: PersonalDataInventory | null; loading: boolean; name: string }) {
+    const [href, setHref] = useState<string | null>(null)
+    useEffect(() => {
+        if (!inventory || typeof URL.createObjectURL !== "function") {
+            setHref(null)
+            return
+        }
+        const url = URL.createObjectURL(new Blob([inventoryCsv(inventory)], { type: "text/csv" }))
+        setHref(url)
+        return () => URL.revokeObjectURL?.(url)
+    }, [inventory])
+    if (loading || !inventory) {
+        return (
+            <span data-inventory-download="counting" className="inventory-pill" aria-live="polite">
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                Counting rows…
+            </span>
+        )
+    }
+    if (!href) return null
+    const file = `data-inventory-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person"}.csv`
+    return (
+        <a data-inventory-download="ready" href={href} download={file} className="inventory-pill inventory-pill-ready">
+            <Download className="size-3.5" aria-hidden="true" />
+            Download ready
+        </a>
+    )
+}
+
 interface Props {
     userUUID: string
     /** Shown in the dialog title so an admin knows whose data they are looking at. */
     displayName: string
+    /**
+     * Opened from somewhere else (a row's ⋯ menu): the caller holds whether it
+     * is open, and the dialog draws no trigger of its own.
+     */
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
 }
 
-export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) => {
-    const [open, setOpen] = useState(false)
+export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName, open: heldOpen, onOpenChange: onHeldChange }) => {
+    const [ownOpen, setOwnOpen] = useState(false)
+    const held = heldOpen !== undefined
+    const open = held ? heldOpen : ownOpen
+    const setOpen = (next: boolean) => {
+        if (held) onHeldChange?.(next)
+        else setOwnOpen(next)
+    }
     const [loading, setLoading] = useState(false)
     const [inventory, setInventory] = useState<PersonalDataInventory | null>(null)
     const { toast } = useToast()
@@ -67,13 +121,18 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
 
     const onOpenChange = (next: boolean) => {
         setOpen(next)
-        // Fetch on open, and again on re-open: rows change, and a stale count is
-        // worse than a slow one when it is being used as evidence.
-        if (next) void load()
     }
+
+    // Fetch on open, and again on re-open: rows change, and a stale count is
+    // worse than a slow one when it is being used as evidence.
+    useEffect(() => {
+        if (open) void load()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open])
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
+            {!held && (
             <Tooltip>
                 <TooltipTrigger asChild>
                     <DialogTrigger asChild>
@@ -83,16 +142,17 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
                         <Button
                             type="button"
                             variant="ghost"
-                            className={personActionClass()}
+                            className="h-11 gap-1.5 px-3 text-xs text-muted-foreground sm:h-8 sm:w-8 sm:gap-0 sm:px-0"
                             aria-label={`Show where data for ${displayName} is stored`}
                         >
                             <Database className="size-4" aria-hidden="true" />
-                            <PersonActionWord>Data</PersonActionWord>
+                            <span className="sm:sr-only">Data</span>
                         </Button>
                     </DialogTrigger>
                 </TooltipTrigger>
                 <TooltipContent>Where this person&apos;s data is stored</TooltipContent>
             </Tooltip>
+            )}
 
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
@@ -102,11 +162,15 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
                     </DialogDescription>
                 </DialogHeader>
 
+                <div className="flex justify-end">
+                    <InventoryDownload inventory={inventory} loading={loading} name={displayName} />
+                </div>
+
                 {loading ? (
                     // The table's own shape while the counts run, not a spinner.
                     <div role="status" aria-label="Counting rows across every table" className="space-y-3">
                         <Skeleton className="h-4 w-56" />
-                        <div className="divide-y divide-border rounded-lg border border-border">
+                        <div data-settings-card="" className="set-card divide-y divide-border">
                             {[0, 1, 2, 3, 4].map((i) => (
                                 <div key={i} className="flex items-center gap-4 px-3 py-2">
                                     <Skeleton className={i % 2 === 0 ? "h-3 w-32" : "h-3 w-40"} />
@@ -133,7 +197,7 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
                             location{inventory.locations.length === 1 ? "" : "s"}.
                         </p>
 
-                        <div className="max-h-[52vh] overflow-auto rounded-lg border border-border">
+                        <div data-settings-card="" className="set-card max-h-[52vh] overflow-auto">
                             <table className="w-full border-collapse text-sm">
                                 <thead className="sticky top-0 bg-muted/80">
                                     <tr>

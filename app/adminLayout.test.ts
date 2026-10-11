@@ -47,6 +47,7 @@ function stripComments(source: string): string {
 }
 
 const pageSource = stripComments(rawSource)
+const sectionsSource = readFileSync(join(process.cwd(), "lib/adminSections.ts"), "utf8")
 
 describe("admin page scroll ownership", () => {
   it("has exactly one scroll container", () => {
@@ -90,9 +91,9 @@ describe("admin page scroll ownership", () => {
 describe("admin page optional subsystems", () => {
   it("does not include an AI Models tab in the non-AI snapshot", () => {
     expect(
-      rawSource,
+      rawSource + sectionsSource,
       "the AI Models tab and its AI-only cards are removed from this non-AI snapshot",
-    ).not.toMatch(/value: "ai-models"/)
+    ).not.toMatch(/value="ai-models"|key: "ai-models"/)
   })
 
   it("hides the Transcription tab when calling is unavailable", () => {
@@ -181,8 +182,8 @@ describe("admin page honours a deep link to a gated tab", () => {
  */
 describe("import is one tab", () => {
     it("does not offer two tabs for the same question", () => {
-        expect(rawSource).not.toMatch(/value: "slack-import"/)
-        expect(rawSource).toMatch(/value: "import"/)
+        expect(sectionsSource).not.toMatch(/key: "slack-import"/)
+        expect(sectionsSource).toMatch(/key: "import"/)
     })
 
     it("keeps both cards, so nothing was dropped in the merge", () => {
@@ -203,23 +204,20 @@ describe("import is one tab", () => {
 })
 
 /**
- * The sections are grouped in a side menu, not a strip of seventeen tabs.
- *
- * The strip scrolled sideways, hid most tabs on a laptop, and scattered related
- * ones. These pin the parts of the fix that are easy to undo in a later edit.
+ * The sections are grouped in the settings nav (design v3, admin §1.1), from
+ * one list (lib/adminSections), and the page has a TabsContent for each.
  */
 describe("admin sections are grouped", () => {
-    const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
-    const values = [...groupsBlock.matchAll(/value: "([^"]+)"/g)].map((m) => m[1])
+    const adminKeys = [...sectionsSource.matchAll(/key: "([^"]+)",[\s\S]*?href: admin\("([^"]+)"\)/g)].map((m) => m[2])
 
-    it("puts every section in exactly one group", () => {
-        expect(values.length).toBeGreaterThan(15)
-        expect(new Set(values).size, "a section listed twice appears twice in the menu").toBe(values.length)
+    it("puts every admin section in the map exactly once", () => {
+        expect(adminKeys.length).toBeGreaterThan(15)
+        expect(new Set(adminKeys).size, "a section listed twice appears twice in the nav").toBe(adminKeys.length)
     })
 
-    it("has a TabsContent for every section in the menu, and none without one", () => {
+    it("has a TabsContent for every section in the nav, and none without one", () => {
         const contents = [...rawSource.matchAll(/<TabsContent\s+value="([^"]+)"/g)].map((m) => m[1]).sort()
-        expect(contents).toEqual([...values].sort())
+        expect(contents).toEqual([...adminKeys].sort())
     })
 
     it("keeps General to the workspace, with access and the audit log in their own sections", () => {
@@ -230,49 +228,49 @@ describe("admin sections are grouped", () => {
     })
 
     it("still sends the old audit log address to the audit log", () => {
-        expect(rawSource).toMatch(/rawTab === "settings" && hash === "#audit-log" \? "audit"/)
+        expect(sectionsSource).toMatch(/raw === "settings" && hash === "#audit-log"\) return "audit"/)
+        expect(rawSource).toMatch(/normaliseAdminTab\(rawTab, hash\)/)
     })
 
-    it("no longer scrolls a strip of tabs sideways", () => {
-        expect(pageSource).not.toMatch(/scrollTabs|tabsScrollRef/)
+    it("no longer scrolls a strip of tabs sideways, or draws a menu in the page", () => {
+        expect(pageSource).not.toMatch(/scrollTabs|tabsScrollRef|<TabsList|<TabsTrigger|<select/)
     })
 })
 
 /**
- * A section's code comes when the pointer or focus reaches it in the menu, so
- * opening it rarely waits (the cards themselves load on first open:
- * app/adminFirstLoad.test.ts).
+ * A section's code comes when the pointer or focus reaches its row in the
+ * settings nav, so opening it rarely waits.
  */
 describe("admin sections load ahead of the click", () => {
-    it("preloads a section when the pointer or focus reaches its menu item", () => {
-        const trigger = rawSource.slice(rawSource.indexOf("<TabsTrigger"), rawSource.indexOf("</TabsTrigger>"))
-        expect(trigger).toMatch(/onPointerEnter=\{\(\) => preloadSection\(value\)\}/)
-        expect(trigger).toMatch(/onFocus=\{\(\) => preloadSection\(value\)\}/)
+    const preload = readFileSync(join(process.cwd(), "components/admin/adminPreload.ts"), "utf8")
+    const nav = readFileSync(join(process.cwd(), "components/navigationBar/desktop/SettingsNav.tsx"), "utf8")
+
+    it("preloads a section when the pointer or focus reaches its nav row", () => {
+        expect(nav).toMatch(/onPointerEnter=\{place\.group !== "you" \? \(\) => preloadAdminSection\(place\.key\)/)
+        expect(nav).toMatch(/onFocus=\{place\.group !== "you" \? \(\) => preloadAdminSection\(place\.key\)/)
     })
 
     it("has a preload for every section the page loads lazily", () => {
-        const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
-        const values = [...groupsBlock.matchAll(/value: "([^"]+)"/g)].map((m) => m[1]).filter((v) => v !== "users")
-        const preloadBlock = rawSource.slice(rawSource.indexOf("const PRELOAD"), rawSource.indexOf("const preloaded"))
-        const missing = values.filter((v) => !new RegExp(`(^|\\s)"?${v}"?: \\(\\) =>`, "m").test(preloadBlock))
+        const keys = [...sectionsSource.matchAll(/href: admin\("([^"]+)"\)/g)].map((m) => m[1]).filter((v) => v !== "users")
+        const missing = keys.filter((v) => !new RegExp(`(^|\\s)"?${v}"?: \\(\\) =>`, "m").test(preload))
         expect(missing).toEqual([])
     })
 })
 
 /**
- * The playful layer: the menu's sections sit on hued tiles, one camp hue per
- * group (components/admin/adminHues), so the menu scans as five places in five
- * colours rather than nineteen icons in grey, or nineteen colours.
+ * Colour (design v3, admin §1.5): the nav carries no tiles; each section's one
+ * hue is on its page header's tile, one hue per group.
  */
-describe("admin menu colours", () => {
-    it("gives every group a hue from the admin palette", () => {
-        const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
-        const keys = [...groupsBlock.matchAll(/key: "([^"]+)"/g)].map((m) => m[1])
-        expect(keys).toEqual(["people", "workspace", "ai", "connections", "system"])
+describe("admin colours", () => {
+    it("gives every admin group one hue", () => {
+        const block = sectionsSource.slice(sectionsSource.indexOf("export const SETTINGS_GROUP_HUE"), sectionsSource.indexOf("}", sectionsSource.indexOf("export const SETTINGS_GROUP_HUE")))
+        const keys = [...block.matchAll(/^\s+(\w+): "/gm)].map((m) => m[1])
+        expect(keys).toEqual(["workspace", "ai", "connections", "records", "system"])
     })
 
-    it("draws each section's icon on its group's tile", () => {
-        const trigger = rawSource.slice(rawSource.indexOf("<TabsTrigger"), rawSource.indexOf("</TabsTrigger>"))
-        expect(trigger).toMatch(/<Tile hue=\{ADMIN_GROUP_HUE\[group\.key\]\} size="sm">/)
+    it("draws the section's hue on the page header's tile, and no tile in the nav", () => {
+        expect(rawSource).toMatch(/<PageFrameHeader[\s\S]{0,80}hue=\{place\.hue\}/)
+        const nav = readFileSync(join(process.cwd(), "components/navigationBar/desktop/SettingsNav.tsx"), "utf8")
+        expect(nav).not.toMatch(/<Tile\b/)
     })
 })

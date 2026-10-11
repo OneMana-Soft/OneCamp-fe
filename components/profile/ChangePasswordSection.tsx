@@ -1,12 +1,19 @@
 "use client"
 
-import { useCallback, useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { LoaderCircle } from "@/lib/icons";
-import { AuthField, PasswordField } from "@/components/auth/AuthShell";
-import AuthService from "@/services/auth/AuthService";
-import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
+// The password row of Sign-in and security (design v3, admin D1): what you
+// have, and "Change…", which opens a dialog with the three fields and a
+// strength meter (four segments, danger to sun to moss, and a word).
+
+import { useCallback, useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SettingsRowsSkeleton } from "@/components/ui/settingsSection"
+import { LoaderCircle, Check } from "@/lib/icons"
+import { AuthField, PasswordField } from "@/components/auth/AuthShell"
+import AuthService from "@/services/auth/AuthService"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { passwordStrength } from "@/components/profile/passwordStrength"
+import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * Whether this account has a password. Throws when the server couldn't be
@@ -15,202 +22,232 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
  * password "No password yet" and offered to set one.
  */
 async function checkHasPassword(): Promise<boolean> {
-    const res = await axiosInstance.get("/auth/has-password", OWN_ERRORS);
-    return res.data?.has_password === true;
+  const res = await axiosInstance.get("/auth/has-password", OWN_ERRORS)
+  return res.data?.has_password === true
+}
+
+const SEGMENT = ["", "bg-destructive", "bg-warning", "bg-success", "bg-success"] as const
+
+/** The 4-segment meter and its word, under the new password. */
+export function StrengthMeter({ password }: { password: string }) {
+  const { score, word } = passwordStrength(password)
+  if (!password) return null
+  return (
+    <div data-strength={score} className="flex items-center gap-3" aria-live="polite">
+      <div className="grid flex-1 grid-cols-4 gap-1" aria-hidden="true">
+        {[1, 2, 3, 4].map((i) => (
+          <span key={i} className={cn("h-1 rounded-sm", i <= score ? SEGMENT[score] : "bg-press")} />
+        ))}
+      </div>
+      <span className="w-16 text-right text-2xs font-medium text-muted-foreground">
+        <span className="sr-only">Password strength: </span>
+        {word}
+      </span>
+    </div>
+  )
+}
+
+function PasswordDialog({
+  open,
+  onOpenChange,
+  hasPassword,
+  onChanged,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  hasPassword: boolean
+  onChanged: () => void
+}) {
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (open) return
+    setCurrentPassword("")
+    setNewPassword("")
+    setConfirmPassword("")
+    setError("")
+    setShowCurrent(false)
+    setShowNew(false)
+  }, [open])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (hasPassword && !currentPassword) return setError("Enter your current password first.")
+    if (newPassword.length < 8) return setError("Use at least 8 characters for the new password.")
+    if (newPassword.length > 72) return setError("Use 72 characters or fewer for the new password.")
+    if (newPassword !== confirmPassword) return setError("The two new passwords are different. Type the same one in both.")
+    setSubmitting(true)
+    try {
+      const result = await AuthService.changePassword(currentPassword, newPassword)
+      if (result.ok) {
+        onChanged()
+        onOpenChange(false)
+      } else {
+        setError(result.msg || "Couldn't change your password. Try again.")
+      }
+    } catch {
+      setError("Couldn't change your password. Check your connection and try again.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{hasPassword ? "Change your password" : "Set a password"}</DialogTitle>
+          <DialogDescription>
+            {hasPassword ? "Your current password stops working once the new one is saved." : "Then you can sign in by email as well."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          {hasPassword && (
+            <PasswordField
+              id="current-password"
+              name="current-password"
+              label="Current password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+              visible={showCurrent}
+              onVisibleChange={setShowCurrent}
+            />
+          )}
+          <div className="space-y-2">
+            <PasswordField
+              id="new-password"
+              name="new-password"
+              label="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+              hint="At least 8 characters."
+              required
+              minLength={8}
+              visible={showNew}
+              onVisibleChange={setShowNew}
+            />
+            <StrengthMeter password={newPassword} />
+          </div>
+          <AuthField
+            id="confirm-new-password"
+            name="confirm-new-password"
+            label="Type the new one again"
+            type={showNew ? "text" : "password"}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
+          {error && (
+            <p role="alert" className="text-xs text-danger-ink text-pretty">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+              {submitting ? "Saving…" : hasPassword ? "Change password" : "Set password"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 export function ChangePasswordSection() {
-    // null while it is checked, "failed" when it couldn't be.
-    const [hasPassword, setHasPassword] = useState<boolean | null | "failed">(null);
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [currentPassword, setCurrentPassword] = useState("");
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-    const [showNewPassword, setShowNewPassword] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
+  // null while it is checked, "failed" when it couldn't be.
+  const [hasPassword, setHasPassword] = useState<boolean | null | "failed">(null)
+  const [open, setOpen] = useState(false)
+  const [changed, setChanged] = useState(false)
 
-    const load = useCallback(() => {
-        setHasPassword(null);
-        checkHasPassword()
-            .then(setHasPassword)
-            .catch(() => setHasPassword("failed"));
-    }, []);
+  const load = useCallback(() => {
+    setHasPassword(null)
+    checkHasPassword()
+      .then(setHasPassword)
+      .catch(() => setHasPassword("failed"))
+  }, [])
 
-    useEffect(() => {
-        load();
-    }, [load]);
+  useEffect(() => {
+    load()
+  }, [load])
 
-    const resetForm = () => {
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        setError("");
-        setShowCurrentPassword(false);
-        setShowNewPassword(false);
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError("");
-        setSuccess("");
-
-        if (hasPassword && !currentPassword) {
-            setError("Enter your current password first.");
-            return;
-        }
-
-        if (newPassword.length < 8) {
-            setError("Use at least 8 characters for the new password.");
-            return;
-        }
-
-        if (newPassword.length > 72) {
-            setError("Use 72 characters or fewer for the new password.");
-            return;
-        }
-
-        if (newPassword !== confirmPassword) {
-            setError("The two new passwords are different. Type the same one in both.");
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            const result = await AuthService.changePassword(currentPassword, newPassword);
-            if (result.ok) {
-                setSuccess(result.msg || "Password changed.");
-                setHasPassword(true);
-                resetForm();
-                setTimeout(() => {
-                    setIsExpanded(false);
-                    setSuccess("");
-                }, 2000);
-            } else {
-                setError(result.msg || "Couldn't change your password. Try again.");
-            }
-        } catch {
-            setError("Couldn't change your password. Check your connection and try again.");
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    // The row keeps its place while it is checked, so the rows under it do
-    // not jump when the answer comes.
-    if (hasPassword === null) {
-        return (
-            <div role="status" aria-label="Checking your password" className="flex items-center justify-between gap-6 px-4 py-3">
-                <div className="min-w-0 flex-1 space-y-2 pt-0.5" aria-hidden="true">
-                    <Skeleton className="h-3.5 w-20" />
-                    <Skeleton className="h-3 w-3/5" />
-                </div>
-                <Skeleton className="h-8 w-32 shrink-0" aria-hidden="true" />
-            </div>
-        );
-    }
-
-    if (hasPassword === "failed") {
-        return (
-            <div className="flex items-center justify-between gap-6 px-4 py-3">
-                <div className="min-w-0 space-y-1">
-                    <h3 className="text-sm font-medium leading-5">Couldn&apos;t check your password</h3>
-                    <p className="text-xs text-muted-foreground text-pretty">
-                        Nothing has changed. This is usually a connection problem: try again in a moment.
-                    </p>
-                </div>
-                <Button variant="outline" size="sm" className="shrink-0" onClick={load}>
-                    Try again
-                </Button>
-            </div>
-        );
-    }
-
-    const title = hasPassword ? "Change password" : "Set a password";
-    const description = hasPassword
-        ? "The password you sign in with by email."
-        : "You sign in another way. Add a password to sign in by email too.";
-
+  // The row keeps its place while it is checked, so the rows under it do
+  // not jump when the answer comes.
+  if (hasPassword === null) {
     return (
-        <div className="space-y-4 px-4 py-3">
-            <div className="flex items-center justify-between gap-6">
-                <div className="min-w-0 space-y-1">
-                    <h3 className="text-sm font-medium leading-5">{hasPassword ? "Password" : "No password yet"}</h3>
-                    <p className="text-xs text-muted-foreground text-pretty">{description}</p>
-                </div>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    aria-expanded={isExpanded}
-                    onClick={() => {
-                        setIsExpanded(!isExpanded);
-                        if (isExpanded) resetForm();
-                    }}
-                >
-                    {isExpanded ? "Cancel" : title}
-                </Button>
-            </div>
+      <div role="status" aria-label="Checking your password" className="contents">
+        <SettingsRowsSkeleton rows={1} control="button" />
+      </div>
+    )
+  }
 
-            {success && !isExpanded && (
-                <p role="status" className="text-sm text-success-ink">{success}</p>
-            )}
-
-            {isExpanded && (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {hasPassword && (
-                        <PasswordField
-                            id="current-password"
-                            name="current-password"
-                            label="Current password"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            autoComplete="current-password"
-                            required
-                            visible={showCurrentPassword}
-                            onVisibleChange={setShowCurrentPassword}
-                        />
-                    )}
-
-                    <PasswordField
-                        id="new-password"
-                        name="new-password"
-                        label="New password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        autoComplete="new-password"
-                        hint="At least 8 characters."
-                        required
-                        minLength={8}
-                        visible={showNewPassword}
-                        onVisibleChange={setShowNewPassword}
-                    />
-
-                    <AuthField
-                        id="confirm-new-password"
-                        name="confirm-new-password"
-                        label="Type the new one again"
-                        type={showNewPassword ? "text" : "password"}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        autoComplete="new-password"
-                        required
-                        minLength={8}
-                    />
-
-                    {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
-                    {success && <p role="status" className="text-sm text-success-ink">{success}</p>}
-
-                    <div className="flex justify-end">
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                            {isSubmitting ? "Saving…" : hasPassword ? "Change password" : "Set password"}
-                        </Button>
-                    </div>
-                </form>
-            )}
+  if (hasPassword === "failed") {
+    return (
+      <div className="set-row flex items-center justify-between gap-6">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium leading-5">Couldn&apos;t check your password</h3>
+          <p className="text-xs text-muted-foreground text-pretty">Nothing has changed. This is usually a connection problem: try again in a moment.</p>
         </div>
-    );
+        <Button variant="secondary" size="sm" className="shrink-0" onClick={load}>
+          Try again
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div data-setting-row="" className="set-row flex items-center justify-between gap-6">
+      <div className="min-w-0">
+        <h3 className="flex items-center gap-2 text-sm font-medium leading-5">
+          {hasPassword ? "Password" : "No password yet"}
+          {changed && (
+            <span data-saved-tick="" className="saved-tick inline-flex items-center gap-1 text-2xs font-medium">
+              <Check className="size-3.5" aria-hidden="true" />
+              Changed
+            </span>
+          )}
+        </h3>
+        <p className="text-xs text-muted-foreground text-pretty">
+          {hasPassword ? "The password you sign in with by email." : "You sign in another way. Add a password to sign in by email too."}
+        </p>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="shrink-0"
+        aria-label={hasPassword ? "Change password" : "Set a password"}
+        onClick={() => setOpen(true)}
+      >
+        {hasPassword ? "Change…" : "Set a password…"}
+      </Button>
+      <span className="sr-only" role="status" aria-live="polite">
+        {changed ? "Password changed" : ""}
+      </span>
+      <PasswordDialog
+        open={open}
+        onOpenChange={setOpen}
+        hasPassword={hasPassword}
+        onChanged={() => {
+          setHasPassword(true)
+          setChanged(true)
+          window.setTimeout(() => setChanged(false), 2400)
+        }}
+      />
+    </div>
+  )
 }

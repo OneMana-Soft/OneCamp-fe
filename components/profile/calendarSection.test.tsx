@@ -12,7 +12,7 @@ vi.mock("@/lib/axiosInstance", () => ({ default: { get, post }, OWN_ERRORS: { su
 // The confirm is answered yes at once.
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (o: { onConfirm: () => void }) => o.onConfirm() }))
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme: vi.fn() }) }))
-vi.mock("@/components/activeTheme/ColorThemePicker", () => ({ ColorThemePicker: () => null }))
+vi.mock("@/components/activeTheme/activeTheme", () => ({ VALID_COLOR_THEMES: [], useThemeConfig: () => ({ activeTheme: "onecamp", setActiveTheme: vi.fn() }) }))
 vi.mock("@/components/profile/ChangePasswordSection", () => ({ ChangePasswordSection: () => null }))
 vi.mock("@/components/profile/TwoFactorSection", () => ({ TwoFactorSection: () => null }))
 vi.mock("@/components/profile/PasskeySection", () => ({ PasskeySection: () => null }))
@@ -31,7 +31,7 @@ describe("the Google Calendar row", () => {
   it("says the status couldn't be checked, without offering to connect, and tries again", async () => {
     get.mockRejectedValueOnce(new Error("Network Error")).mockResolvedValueOnce(connected)
     render(<CalendarSection />)
-    expect(await screen.findByText("Couldn't check your Google Calendar connection")).toBeInTheDocument()
+    expect(await screen.findByText(/Couldn't load your Google Calendar connection/)).toBeInTheDocument()
     expect(screen.queryByText("Not connected")).toBeNull()
     expect(screen.queryByRole("button", { name: /^connect/i })).toBeNull()
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: /try again/i })))
@@ -76,7 +76,10 @@ describe("the Google Calendar row", () => {
     render(<CalendarSection />)
     const sw = await screen.findByRole("switch", { name: "Put task due dates on my calendar" })
     await act(async () => void fireEvent.click(sw))
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Calendar sync is paused."))
+    // The row's own failure (design v3, admin §1.3): the reason under its label
+    // in danger ink, said to a screen reader, and the switch put back.
+    await waitFor(() => expect(screen.getByText("Calendar sync is paused.")).toBeInTheDocument())
+    expect(screen.getByRole("status")).toHaveTextContent("Not saved. Calendar sync is paused.")
     expect(screen.getByRole("switch", { name: "Put task due dates on my calendar" })).toHaveAttribute("aria-checked", "false")
   })
 })

@@ -1,21 +1,19 @@
 "use client"
-import MembersList from "@/components/member/membersList";
 import {useFetch} from "@/hooks/useFetch";
-import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
 import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
-import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberCombobox";
 import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 
 
-interface memberContentProp {
-    channelId: string
-}
-
-const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
+/**
+ * A channel's members and what can be done to them (make or remove an admin,
+ * add, remove), optimistic, with the lists they read. Read by the channel's
+ * Details sheet (components/channel/details).
+ */
+export function useChannelMembers(channelId: string) {
     const channelInfo = useFetch<ChannelInfoInterfaceResp>(channelId ? GetEndpointUrl.ChannelMemberInfoWithAdminFlagInfo + '/' + channelId : '')
     const post = usePost()
 
@@ -166,33 +164,5 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
 
     }
 
-
-
-    return (
-        <div className='flex-1 min-h-0 flex flex-col gap-y-6 w-full'>
-            {(channelInfo.data?.channel_info.ch_is_admin || (channelInfo.data?.channel_info.ch_is_member && !channelInfo.data?.channel_info.ch_private)) && (
-                <div className="flex-shrink-0 flex flex-col gap-4">
-                    <AddChannelMemberCombobox handleAddMember={handleAddMember} channelId={channelId} />
-                </div>
-            )}
-            <div className="flex-1 min-h-0 flex flex-col">
-                {channelInfo.data?.channel_info.ch_is_admin && (
-                    <div className="mb-4 flex-shrink-0">
-                        <GuestLinkSection resourceType="channel" resourceId={channelId} canShare />
-                    </div>
-                )}
-                <MembersList
-                    isAdmin={channelInfo.data?.channel_info.ch_is_admin || false}
-                    usersList={channelInfo.data?.channel_info.ch_members || []}
-                    isLoading={channelInfo.isLoading}
-                    handleMakeAdmin={handleMakeAdmin}
-                    handleRemoveAdmin={handleRemoveAdmin}
-                    handleRemoveMember={handleRemoveMember}
-                    blockExitForUUID={channelInfo.data?.channel_info.ch_created_by.user_uuid}
-                />
-            </div>
-        </div>
-    )
+    return { channelInfo, usersList, handleMakeAdmin, handleRemoveAdmin, handleAddMember, handleRemoveMember }
 }
-
-export default ChannelMemberContent

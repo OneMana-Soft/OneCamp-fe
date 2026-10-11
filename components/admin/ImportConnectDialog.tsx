@@ -233,7 +233,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
         </div>
 
         {problem && (
-          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-danger-ink">
+          <p role="alert" className="cx-imp-note text-sm text-danger-ink">
             {problem}
           </p>
         )}

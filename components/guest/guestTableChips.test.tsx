@@ -25,16 +25,26 @@ const row = (id: string, stage: string): TableRow => ({ id, table_id: "t1", valu
 describe("a shared table's option chips", () => {
   afterEach(() => cleanup())
 
-  it("wear their picked colour as a camp hue, tint behind ink", () => {
+  const chipOf = (label: string) => screen.getByText(label).closest("[data-option-chip]") as HTMLElement
+  const dotOf = (label: string) => chipOf(label).querySelector("[data-chip-dot]")?.getAttribute("class") || ""
+
+  it("are neutral chips with a dot in their camp hue, as a member sees them", () => {
     render(<GuestTableViewer fields={[field]} rows={[row("r1", "Shortlisted"), row("r2", "Blocked"), row("r3", "Signed"), row("r4", "Unsorted")]} />)
-    const chip = (label: string) => screen.getByText(label).className
-    expect(chip("Shortlisted")).toMatch(/\bhue-sky\b.*\bbg-hue-tint\b.*\btext-hue-ink\b/)
-    expect(chip("Blocked")).toMatch(/\bhue-berry\b/)
-    expect(chip("Signed")).toMatch(/\bhue-moss\b/)
-    // No colour picked: neutral.
-    expect(chip("Unsorted")).toMatch(/\bbg-muted\b/)
+    expect(chipOf("Shortlisted").className).toMatch(/\bbg-hover\b/)
+    expect(dotOf("Shortlisted")).toMatch(/\bhue-sky\b/)
+    expect(dotOf("Blocked")).toMatch(/\bhue-berry\b/)
+    expect(dotOf("Signed")).toMatch(/\bhue-moss\b/)
+    // No colour picked: a neutral dot.
+    expect(dotOf("Unsorted")).toMatch(/\bbg-ink-3\b/)
     for (const label of ["Shortlisted", "Blocked", "Signed"]) {
-      expect(chip(label)).not.toMatch(/destructive|danger|success|warning|-500\//)
+      expect(chipOf(label).outerHTML).not.toMatch(/destructive|danger|success|warning|-500\//)
     }
+  })
+
+  it("wear their camp hue as a tint behind ink when the column opts in", () => {
+    const tinted = { ...field, config: JSON.stringify({ ...JSON.parse(field.config), tinted: true }) } as TableField
+    render(<GuestTableViewer fields={[tinted]} rows={[row("r1", "Shortlisted"), row("r4", "Unsorted")]} />)
+    expect(chipOf("Shortlisted").className).toMatch(/\bhue-sky\b.*\bbg-hue-tint\b.*\btext-hue-ink\b/)
+    expect(chipOf("Unsorted").className).toMatch(/\bbg-hover\b/)
   })
 })

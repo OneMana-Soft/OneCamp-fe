@@ -11,11 +11,12 @@ import { SectionHeader } from "./SectionHeader"
 afterEach(cleanup)
 
 describe("a settings section's header", () => {
-  it("names the section in the page's h1, beside its tile in the section's hue", () => {
+  it("names the section in the page's h1, beside its 36px tile in the section's hue", () => {
     render(<SectionHeader href="/app/settings/api-tokens" />)
     const h1 = screen.getByRole("heading", { level: 1 })
     expect(h1).toHaveAccessibleName("API tokens")
-    expect(h1.querySelector("[class*='hue-']")?.className).toMatch(/\bhue-berry\b/)
+    // The 36px tile beside it (design v3, admin §1.2), in the section's hue.
+    expect(document.querySelector("[data-page-tile]")?.className).toMatch(/\bhue-berry\b/)
   })
 
   it("opens every section page", () => {

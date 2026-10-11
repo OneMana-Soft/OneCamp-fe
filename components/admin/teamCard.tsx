@@ -12,7 +12,7 @@ import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInter
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { AdminTeamList } from "./AdminTeamList"
-import { Plus, Users } from "@/lib/icons"
+import { Plus } from "@/lib/icons"
 import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
 
 const TeamsCard = () => {
@@ -125,8 +125,7 @@ const TeamsCard = () => {
     } else if (loaded && filteredTeams.length === 0) {
         state = normalisedSearch ? (
             <PeopleNoMatch
-                icon={Users}
-                title={`No teams match ${quoted(search)}`}
+                title={`No team matches ${quoted(search)}.`}
                 hint="Check the spelling, or try part of the name."
                 onClear={() => setSearch("")}
             />
@@ -135,9 +134,9 @@ const TeamsCard = () => {
             // thing to do about it.
             <PeopleFirstRun
                 title="No teams yet"
-                description="Teams group the people who work together, with their own channels and projects."
+                description="Teams group people so you can share projects with all of them at once."
                 action={
-                    <Button variant="outline" size="sm" onClick={newTeam}>
+                    <Button size="sm" onClick={newTeam}>
                         New team
                     </Button>
                 }
@@ -147,14 +146,15 @@ const TeamsCard = () => {
 
     return (
         <PeopleFrame
-            title="Teams"
+            label="Teams"
             count={peopleCount({ shown: filteredTeams.length, total: allTeams.length, more: hasMore, filtering: !!normalisedSearch, loaded })}
-            description="The groups people work in here."
+            columns={["Members"]}
+            cols="120px"
             search={{ value: search, onChange: setSearch, placeholder: "Search teams…", label: "Search teams", name: "team-search" }}
             // The tab's one action. There was no way to make a team from here,
             // though the app has the dialog for it.
             action={
-                <PeopleAction icon={Plus} onClick={newTeam}>
+                <PeopleAction icon={Plus} kbd="n" onClick={newTeam}>
                     New team
                 </PeopleAction>
             }

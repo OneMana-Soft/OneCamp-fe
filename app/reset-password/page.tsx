@@ -2,16 +2,18 @@
 
 import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { useRef, useState, Suspense } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
-import { SpotError } from "@/components/ui/graphics/spots"
+import { AuthField, AuthHeading, AuthShell, FormProblem, MatchCheck, PasswordField, StrengthMeter, authControl } from "@/components/auth/AuthShell"
+import { SpotKey } from "@/components/auth/authSpots"
+import { toast } from "@/hooks/use-toast"
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token") || ""
+  const router = useRouter()
 
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -27,13 +29,20 @@ function ResetPasswordForm() {
   const passwordRef = useRef<HTMLInputElement>(null)
   const confirmRef = useRef<HTMLInputElement>(null)
 
+  // Changed: back to sign-in, where the toast says what to do next.
+  useEffect(() => {
+    if (outcome !== "reset") return
+    toast({ title: "Password changed. Sign in with the new one.", tone: "success" })
+    router.push("/")
+  }, [outcome, router])
+
   if (!token) {
     return (
       <>
-        <AuthHeading title="This link is incomplete" art={<SpotError />}>
+        <AuthHeading title="This link is missing or used" art={<SpotKey />}>
           It&apos;s missing the part that says whose password to reset. Ask for a new link and open it from the email.
         </AuthHeading>
-        <Button variant="outline" className={authControl} asChild><Link href="/forgot-password">Ask for a new link</Link></Button>
+        <Button size="lg" className={authControl} asChild><Link href="/forgot-password">Request a new one</Link></Button>
       </>
     )
   }
@@ -82,7 +91,7 @@ function ResetPasswordForm() {
         <AuthHeading title="Your password is changed">
           Sign in with the new one.
         </AuthHeading>
-        <Button className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
+        <Button size="lg" className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
       </div>
     )
   }
@@ -92,10 +101,10 @@ function ResetPasswordForm() {
   if (outcome === "link_refused") {
     return (
       <div role="status">
-        <AuthHeading title="This link has expired" art={<SpotError />}>
+        <AuthHeading title="This link has expired" art={<SpotKey />}>
           A reset link works once, for an hour. Ask for a new one and open it from the email.
         </AuthHeading>
-        <Button className={authControl} asChild><Link href="/forgot-password">Ask for a new link</Link></Button>
+        <Button size="lg" className={authControl} asChild><Link href="/forgot-password">Request a new one</Link></Button>
       </div>
     )
   }
@@ -106,10 +115,14 @@ function ResetPasswordForm() {
         <AuthHeading title="Your account signs in with single sign-on">
           It has no OneCamp password to reset. Sign in with single sign-on instead.
         </AuthHeading>
-        <Button className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
+        <Button size="lg" className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
       </div>
     )
   }
+
+  const matches = confirmPassword.length > 0 && password === confirmPassword
+  // The second field rings in danger once it is as long as the first and still differs.
+  const mismatch = confirmPassword.length >= password.length && confirmPassword.length > 0 && !matches
 
   return (
     <>
@@ -130,6 +143,7 @@ function ResetPasswordForm() {
           error={errorField === "password" ? error : undefined}
           visible={showPassword}
           onVisibleChange={setShowPassword}
+          below={<StrengthMeter password={password} />}
         />
 
         <AuthField
@@ -142,15 +156,16 @@ function ResetPasswordForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          hint={password && confirmPassword && password === confirmPassword ? "They match." : undefined}
           error={errorField === "confirm" ? error : undefined}
+          aria-invalid={errorField === "confirm" || mismatch ? true : undefined}
+          end={matches ? <MatchCheck /> : undefined}
           // The show button on the first field shows both.
           type={showPassword ? "text" : "password"}
         />
 
         {errorField === null && <FormProblem>{error}</FormProblem>}
 
-        <Button type="submit" className={authControl} disabled={isLoading}>
+        <Button type="submit" size="lg" className={authControl} aria-busy={isLoading || undefined}>
           {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
           {isLoading ? "Saving…" : "Save new password"}
         </Button>

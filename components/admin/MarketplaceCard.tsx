@@ -1,25 +1,26 @@
 "use client"
 
-// MarketplaceCard — the curated "App Store" for the workspace. A grid of
-// popular apps (Giphy, Zoom, Jira, Linear, …) each installable with ONE click.
-// Install pre-fills the app's commands and OAuth boilerplate; apps that need a
-// credential are installed immediately and flagged "Set up" so the admin
-// finishes in the app editor. One-click Uninstall removes the app, its
-// commands, and its stored secrets. Optimistic UI + toasts keep it snappy.
+// MarketplaceCard — the curated directory of apps for the workspace (design
+// v3, admin §A19). A grid of app cards (3 across at the wide column, 2 at
+// 720, 1 on a phone): the raised surface at e1, r12, a 40px icon, the name,
+// one line, and its state. Hover lifts it to e2. Clicking a card opens a side
+// sheet with what it adds and what it needs. Install is one click: the button
+// becomes a spinner, then "Installed ✓", in a slot of one width so nothing
+// beside it moves. Apps that need a credential are installed and flagged
+// "Finish setup", which opens the app editor. A category is a neutral chip
+// (§1.5): hue is identity, never a category.
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
 import { useCallback, useMemo, useState } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useToast } from "@/hooks/use-toast"
-import { Check, RefreshCw, AlertCircle, Trash2, Search } from "@/lib/icons"
+import { Check, RefreshCw, AlertCircle, Trash2, Search, KeyRound, Globe, LogIn } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
@@ -29,30 +30,37 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { listMarketplace, installTemplate, uninstallTemplate } from "@/services/appService"
 import AppIcon from "@/components/admin/AppIcon"
 import { CommandChip } from "@/components/admin/appParts"
+import { NeutralChip, StateWord } from "@/components/admin/connectParts"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import type { MarketplaceItem } from "@/types/app"
+import type { MarketplaceItem, SetupField } from "@/types/app"
 
-/** The directory's grid, the same for its cards and their placeholders. */
-const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2"
+/** The directory's grid, by the width of its column: 3 at 944, 2 at 720, 1 on a phone. */
+const GRID = "cx-app-grid"
 
 /** A card of the directory while it loads, in a loaded card's shape. */
 function MarketplaceCardSkeleton() {
     return (
-        <div aria-hidden="true" className="flex flex-col rounded-lg border border-border/70 p-3">
+        <div aria-hidden="true" className="cx-app-card">
             <div className="flex items-start gap-3">
-                <Skeleton className="size-10 shrink-0 rounded-lg" />
+                <Skeleton className="size-10 shrink-0 rounded-[10px]" />
                 <div className="min-w-0 flex-1 space-y-2 py-0.5">
                     <Skeleton className="h-3.5 w-24" />
                     <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-2/3" />
                 </div>
             </div>
-            <Skeleton className="mt-2 h-5 w-16 rounded-sm" />
-            <div className="mt-3 border-t border-border/50 pt-2">
-                <Skeleton className="h-8 w-full rounded-md" />
+            <div className="mt-3 flex items-center justify-between">
+                <Skeleton className="h-[22px] w-16 rounded-sm" />
+                <Skeleton className="h-7 w-24 rounded-md" />
             </div>
         </div>
     )
+}
+
+/** What a setup field means for the workspace, said plainly, with a neutral glyph. */
+const NEEDS: Record<SetupField["type"], { icon: typeof KeyRound; line: (name: string) => string }> = {
+    secret: { icon: KeyRound, line: (name) => `Keeps a key you give it for ${name}, stored encrypted.` },
+    oauth_cred: { icon: LogIn, line: (name) => `Signs in to ${name} for the workspace.` },
+    handler_url: { icon: Globe, line: () => "Sends the command's text to its own address to answer it." },
 }
 
 export default function MarketplaceCard({ onConfigure, onChanged }: {
@@ -67,7 +75,10 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
         revalidateOnFocus: false,
     })
     const [busySlug, setBusySlug] = useState<string | null>(null)
+    // Installed in this visit: the slot says "Installed ✓" until the list re-reads.
+    const [justInstalled, setJustInstalled] = useState<string | null>(null)
     const [confirmRemove, setConfirmRemove] = useState<MarketplaceItem | null>(null)
+    const [open, setOpen] = useState<MarketplaceItem | null>(null)
     const [query, setQuery] = useState("")
     const [activeCategory, setActiveCategory] = useState<string>("All")
 
@@ -82,9 +93,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
     }, [apps])
 
     // Filter by search query and the active category, into ONE grid ordered
-    // by category, each card naming its own. Under All every category used to
-    // get its own two-column grid, so a category of one app left half a row
-    // empty, and the directory read as unfinished.
+    // by category, each card naming its own.
     const shown = useMemo(() => {
         const q = query.trim().toLowerCase()
         return (apps || [])
@@ -104,6 +113,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
         setBusySlug(item.slug)
         try {
             const app = await installTemplate(item.slug)
+            setJustInstalled(item.slug)
             await mutate()
             onChanged?.()
             // If the app still needs a credential, guide the admin straight to setup.
@@ -133,6 +143,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             onChanged?.()
             toast({ title: `${item.name} removed` })
             setConfirmRemove(null)
+            setOpen(null)
         } catch (e) {
             toast({ title: `Couldn't remove ${item.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
@@ -141,6 +152,8 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
     }, [confirmRemove, mutate, onChanged, toast])
 
     const q = query.trim()
+    // The sheet shows the latest answer for the app it opened on.
+    const openItem = open ? (apps || []).find((a) => a.slug === open.slug) ?? open : null
 
     return (
         <SettingsSection level={3} title="App directory" description="Install in one click. Apps that need a key are flagged so you can finish setup.">
@@ -160,9 +173,8 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                     />
                 </div>
                 {/* Filters, so a pressed state rather than a selection in the
-                    accent: chips at the 4px radius. A category is a thing with
-                    a colour of its own, so the chosen one shows its camp hue's
-                    tint and ink ("All" stays neutral); the rest stay quiet. */}
+                    accent. A category is a neutral chip (§1.5): the chosen one
+                    is raised at e1, the rest stay quiet. */}
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Category">
                     {categories.map((cat) => (
                         <button
@@ -171,12 +183,10 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                             aria-pressed={activeCategory === cat}
                             onClick={() => setActiveCategory(cat)}
                             className={cn(
-                                "h-11 rounded-sm border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 md:h-8",
-                                activeCategory !== cat
-                                    ? "border-transparent text-muted-foreground hover:text-foreground"
-                                    : cat === "All"
-                                      ? "border-border bg-highlight text-foreground"
-                                      : cn(HUE_CLASS[hueFor(cat)], "border-transparent bg-hue-tint text-hue-ink"),
+                                "h-11 rounded-sm px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 md:h-8",
+                                activeCategory === cat
+                                    ? "bg-raised text-foreground shadow-e1"
+                                    : "text-muted-foreground hover:bg-hover hover:text-foreground",
                             )}
                         >
                             {cat}
@@ -186,8 +196,10 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             </div>
 
             {isLoading ? (
-                <div role="status" aria-label="Loading the app directory" className={GRID}>
-                    {[0, 1, 2, 3].map((i) => <MarketplaceCardSkeleton key={i} />)}
+                <div className="cx-app-grid-wrap">
+                    <div role="status" aria-label="Loading the app directory" className={GRID}>
+                        {[0, 1, 2, 3, 4, 5].map((i) => <MarketplaceCardSkeleton key={i} />)}
+                    </div>
                 </div>
             ) : error ? (
                 // Before any "no match": a failed read said `No apps match “”.`,
@@ -202,7 +214,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                         description="Try another word, or look through every category."
                         action={
                             <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
                                 onClick={() => {
                                     setQuery("")
@@ -217,19 +229,37 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                     <EmptyState icon={Plug} hue={ADMIN_GROUP_HUE.connections} title="The directory is empty on this server" />
                 )
             ) : (
+                <div className="cx-app-grid-wrap">
                 <div data-app-grid="" className={GRID}>
                     {shown.map((item) => (
                         <MarketplaceAppCard
                             key={item.slug}
                             item={item}
                             busy={busySlug === item.slug}
+                            fresh={justInstalled === item.slug}
+                            onOpen={() => setOpen(item)}
                             onInstall={() => handleInstall(item)}
                             onConfigure={() => item.app_id && onConfigure(item.app_id)}
-                            onRemove={() => setConfirmRemove(item)}
                         />
                     ))}
                 </div>
+                </div>
             )}
+
+            <Sheet open={!!openItem} onOpenChange={(o) => !o && setOpen(null)}>
+                <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
+                    {openItem && (
+                        <AppSheetBody
+                            item={openItem}
+                            busy={busySlug === openItem.slug}
+                            fresh={justInstalled === openItem.slug}
+                            onInstall={() => handleInstall(openItem)}
+                            onConfigure={() => openItem.app_id && onConfigure(openItem.app_id)}
+                            onRemove={() => setConfirmRemove(openItem)}
+                        />
+                    )}
+                </SheetContent>
+            </Sheet>
 
             <Dialog open={!!confirmRemove} onOpenChange={(o) => !o && setConfirmRemove(null)}>
                 <DialogContent>
@@ -252,84 +282,155 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
     )
 }
 
-// MarketplaceAppCard renders one app tile with its one-click action.
-function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
+/**
+ * Install, in a slot of one width: "Install", then a spinner, then
+ * "Installed ✓". The labels sit on top of each other and crossfade, so the
+ * width never animates and nothing beside the button moves.
+ */
+export function InstallSlot({ item, busy, fresh, onInstall, onConfigure }: {
     item: MarketplaceItem
     busy: boolean
+    fresh: boolean
+    onInstall: () => void
+    onConfigure: () => void
+}) {
+    if (item.installed && item.needs_setup) {
+        return (
+            <Button size="sm" variant="secondary" className="cx-app-slot gap-1 text-warning-ink" onClick={onConfigure}>
+                <AlertCircle aria-hidden="true" /> Finish setup
+            </Button>
+        )
+    }
+    const state = busy ? "busy" : item.installed ? "done" : "idle"
+    if (state === "done" && !fresh) {
+        return (
+            <StateWord tone="success" className="cx-app-installed">
+                Installed
+            </StateWord>
+        )
+    }
+    return (
+        <Button
+            size="sm"
+            variant={state === "idle" ? "secondary" : "ghost"}
+            className="cx-app-slot"
+            data-install-state={state}
+            onClick={state === "idle" ? onInstall : undefined}
+            disabled={state !== "idle"}
+            aria-busy={state === "busy" || undefined}
+            aria-label={state === "idle" ? `Install ${item.name}` : state === "busy" ? `Installing ${item.name}` : `${item.name} installed`}
+        >
+            <span className="cx-app-slot-label" data-show={state === "idle" ? "true" : undefined}>Install</span>
+            <span className="cx-app-slot-label" data-show={state === "busy" ? "true" : undefined} aria-hidden="true">
+                <RefreshCw className="animate-spin" />
+            </span>
+            <span className="cx-app-slot-label text-success-ink" data-show={state === "done" ? "true" : undefined}>
+                Installed <Check aria-hidden="true" />
+            </span>
+        </Button>
+    )
+}
+
+// MarketplaceAppCard: one app as a card. The whole card opens the sheet; the
+// install slot sits above that layer, so the two never nest.
+function MarketplaceAppCard({ item, busy, fresh, onOpen, onInstall, onConfigure }: {
+    item: MarketplaceItem
+    busy: boolean
+    fresh: boolean
+    onOpen: () => void
+    onInstall: () => void
+    onConfigure: () => void
+}) {
+    return (
+        <div data-app-card="" className="cx-app-card cx-app-card-live">
+            <button type="button" className="cx-app-open" onClick={onOpen} aria-label={`About ${item.name}`} />
+            <div className="flex items-start gap-3">
+                <AppIcon src={item.icon_url} alt="" size="md" />
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        <span className="truncate text-sm font-medium text-foreground">{item.name}</span>
+                        {item.featured && <span className="text-2xs text-ink-3">Popular</span>}
+                    </div>
+                    <p className="mt-0.5 truncate text-2xs text-muted-foreground">{item.description}</p>
+                </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2">
+                {/* Its category, as a neutral chip: the grid is one list, so each card says it. */}
+                {item.category ? (
+                    <NeutralChip>
+                        <span data-app-category="">{item.category}</span>
+                    </NeutralChip>
+                ) : <span />}
+                <div className="cx-app-action">
+                    <InstallSlot item={item} busy={busy} fresh={fresh} onInstall={onInstall} onConfigure={onConfigure} />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/** The side sheet: what the app adds, what it needs, and install or remove. */
+function AppSheetBody({ item, busy, fresh, onInstall, onConfigure, onRemove }: {
+    item: MarketplaceItem
+    busy: boolean
+    fresh: boolean
     onInstall: () => void
     onConfigure: () => void
     onRemove: () => void
 }) {
+    const needs = item.setup ?? []
     return (
-        <div data-app-card="" className="flex flex-col rounded-lg border border-border/70 bg-card p-3">
-            <div className="flex items-start gap-3">
-                <AppIcon src={item.icon_url} alt={item.name} size="md" />
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-sm truncate">{item.name}</span>
-                        {item.featured && (
-                            <Badge variant="secondary" className="text-2xs">Popular</Badge>
-                        )}
+        <>
+            <SheetHeader className="space-y-3">
+                <div className="flex items-center gap-3">
+                    <AppIcon src={item.icon_url} alt="" size="md" />
+                    <div className="min-w-0">
+                        <SheetTitle className="truncate">{item.name}</SheetTitle>
+                        {item.category && <p className="text-2xs text-muted-foreground">{item.category}</p>}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.description}</p>
                 </div>
-            </div>
-
-            <div className="mt-2 flex flex-wrap items-center gap-1">
-                {/* Its category, in the category's own hue, as the filter
-                    shows it: the grid is one list now, so each card says it. */}
-                {item.category && (
-                    <span
-                        data-app-category=""
-                        className={cn(HUE_CLASS[hueFor(item.category)], "rounded-sm bg-hue-tint px-1.5 py-0.5 text-2xs font-medium text-hue-ink")}
-                    >
-                        {item.category}
-                    </span>
+                <SheetDescription>{item.description}</SheetDescription>
+            </SheetHeader>
+            <div className="mt-5 flex-1 space-y-5 overflow-y-auto">
+                {(item.commands?.length ?? 0) > 0 && (
+                    <section aria-labelledby={`app-${item.slug}-cmds`} className="space-y-2">
+                        <h3 id={`app-${item.slug}-cmds`} className="text-xs font-medium text-muted-foreground">Adds these commands</h3>
+                        <div className="flex flex-wrap gap-1">
+                            {item.commands.map((c) => <CommandChip key={c} command={c} />)}
+                        </div>
+                    </section>
                 )}
-                {(item.commands || []).slice(0, 4).map((c) => (
-                    <CommandChip key={c} command={c} />
-                ))}
+                <section aria-labelledby={`app-${item.slug}-needs`} className="space-y-2">
+                    <h3 id={`app-${item.slug}-needs`} className="text-xs font-medium text-muted-foreground">What it uses</h3>
+                    <ul className="space-y-2">
+                        <li className="flex items-start gap-2 text-xs text-muted-foreground">
+                            <Check className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                            Answers only when someone types one of its commands.
+                        </li>
+                        {needs.map((f) => {
+                            const n = NEEDS[f.type]
+                            return (
+                                <li key={f.key} data-app-need={f.type} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                    <n.icon className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                                    <span>
+                                        {n.line(item.name)}
+                                        {f.required ? "" : " Optional."}
+                                    </span>
+                                </li>
+                            )
+                        })}
+                    </ul>
+                    {item.setup_note && <p className="text-xs text-muted-foreground">{item.setup_note}</p>}
+                </section>
             </div>
-
-            <div className="flex items-center gap-2 mt-3 pt-2 border-t border-border/50">
-                {!item.installed ? (
-                    <Button variant="outline"
-                        size="sm"
-                        className="flex-1 h-8"
-                        onClick={onInstall}
-                        disabled={busy}
-                    >
-                        {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "Install"}
+            <div className="flex items-center justify-between gap-2 pt-4">
+                {item.installed ? (
+                    <Button variant="destructive" size="sm" onClick={onRemove} disabled={busy}>
+                        <Trash2 aria-hidden="true" /> Uninstall
                     </Button>
-                ) : (
-                    <>
-                        {item.needs_setup ? (
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 h-8 gap-1 border-warning/60 text-warning-ink"
-                                onClick={onConfigure}
-                            >
-                                <AlertCircle className="h-3.5 w-3.5" /> Finish setup
-                            </Button>
-                        ) : (
-                            <span className="flex-1 inline-flex items-center gap-1 text-xs text-success-ink font-medium">
-                                <Check className="h-3.5 w-3.5" /> Installed
-                            </span>
-                        )}
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-danger-ink"
-                            onClick={onRemove}
-                            disabled={busy}
-                            aria-label={`Uninstall ${item.name}`}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </>
-                )}
+                ) : <span />}
+                <InstallSlot item={item} busy={busy} fresh={fresh} onInstall={onInstall} onConfigure={onConfigure} />
             </div>
-        </div>
+        </>
     )
 }

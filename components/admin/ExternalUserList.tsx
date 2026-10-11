@@ -6,8 +6,8 @@ import { Unlink } from "@/lib/icons"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { PEOPLE_LIST, PeopleMoreLine, PersonAction, PersonRow } from "@/components/admin/PeopleFrame"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { PeopleMoreLine, PeopleRows, PersonRow, PersonTag, RowMenu } from "@/components/admin/PeopleFrame"
 
 export interface ExternalUserItem {
   user_uuid: string
@@ -76,14 +76,14 @@ export const ExternalUserList: React.FC<ExternalUserListProps> = ({
 
   // No scroller of its own: the admin page's tab region scrolls.
   return (
-    <TooltipProvider>
-      <ul className={PEOPLE_LIST}>
+    <>
+      <PeopleRows label="External users">
         {users.map((user) => (
           <ExternalUserRow key={user.user_uuid} user={user} isSubmitting={isSubmitting} onUnlink={onUnlink} />
         ))}
-      </ul>
+      </PeopleRows>
       {hasMore && <PeopleMoreLine sentinelRef={sentinelRef} loading={isLoading} />}
-    </TooltipProvider>
+    </>
   )
 }
 
@@ -99,16 +99,17 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
   return (
     <PersonRow
       leading={
-        <Avatar className="size-9 shrink-0">
+        <Avatar className="size-8 shrink-0">
           <AvatarImage src={user.github_avatar_url || ""} alt="" />
           <AvatarFallback className={cn("text-2xs font-semibold", getAvatarFallbackClass(displayName))}>
             {getNameInitials(displayName)}
           </AvatarFallback>
         </Avatar>
       }
-      // No "External" tag: every row on this tab is one, so it said nothing,
-      // and it made these rows a line taller than every other tab's.
       title={displayName}
+      // Someone outside the company: the guest tag beside a person avatar
+      // (never a different shape).
+      tags={<PersonTag tone="guest">Guest</PersonTag>}
       // Two lines like every people row: the GitHub login folds into the
       // second, beside the address.
       meta={
@@ -129,16 +130,18 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
           {user.user_email_id}
         </>
       }
-      actions={
-        <PersonAction
-          icon={Unlink}
-          word="Unlink"
-          tip="Unlink GitHub account"
-          tone="danger"
-          onClick={() => onUnlink(user.user_uuid)}
-          disabled={isSubmitting}
-          aria-label={`Unlink GitHub account for ${displayName}`}
-        />
+      menu={
+        <RowMenu label={`Actions for ${displayName}`}>
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={isSubmitting}
+            onSelect={() => onUnlink(user.user_uuid)}
+            aria-label={`End access: unlink GitHub account for ${displayName}`}
+          >
+            <Unlink aria-hidden="true" />
+            End access…
+          </DropdownMenuItem>
+        </RowMenu>
       }
     />
   )

@@ -26,7 +26,8 @@ afterEach(() => {
   api.set.mockReset()
 })
 
-const saveBar = () => screen.getByRole("region", { name: "Unsaved changes" })
+// Design v3 (A11): a typed number saves from the card's own footer, not the dock.
+const saveBar = () => document.querySelector("[data-card-footer]") as HTMLElement
 
 describe("the redaction window", () => {
   it("is called what it does, not Archive's word", async () => {
@@ -64,17 +65,26 @@ describe("the redaction window", () => {
     await act(async () => void fireEvent.click(within(saveBar()).getByRole("button", { name: "Save" })))
     expect(api.set).toHaveBeenCalledWith(30)
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Saved as 190 days" }))
-    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull()
+    expect(within(saveBar()).getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true)
   })
 
-  // A row's control takes the list's one height, the field's own; a plain h-8
-  // lost to the field's md:h-9, so the class said one thing and the page another.
-  it("keeps the days field at the list's one control height", async () => {
+  // The 190-day floor is the server's, said inline beside the number.
+  it("states the floor inline, in the server's own number", async () => {
+    api.get.mockResolvedValue(policy)
+    const { container } = render(<RetentionCard />)
+    await screen.findByDisplayValue("365")
+    expect(container.querySelector("[data-retention-floor]")?.textContent).toBe("Minimum 190 days.")
+    expect(container.querySelector("#audit-retention")).toBeTruthy()
+  })
+
+  // A number with its unit inside the field ("365 days"), at the field's height.
+  it("draws the days as a number with its unit", async () => {
     api.get.mockResolvedValue(policy)
     render(<RetentionCard />)
     const days = await screen.findByDisplayValue("365")
-    expect(days.className).not.toMatch(/(^|\s)h-8(\s|$)/)
-    expect(days.className).toContain("md:h-9")
+    const field = days.closest("[data-number-unit]") as HTMLElement
+    expect(field.className).toContain("md:h-8")
+    expect(field.textContent).toContain("days")
   })
 
   it("says the server's reason for a failed read, under the title", async () => {

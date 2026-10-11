@@ -44,6 +44,7 @@ import {
   type SlackImportPlan,
 } from "@/services/slackImportService"
 import { importProblemOf, jobChanged, type ImportProblem } from "@/services/importService"
+import { ImportStepper, SLACK_STEPS } from "@/components/admin/importParts"
 
 interface Props {
   jobId: string
@@ -180,6 +181,8 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
           </DialogDescription>
         </DialogHeader>
 
+        <ImportStepper steps={SLACK_STEPS} current={1} />
+
         {planning && !plan && (
           <div role="status" aria-label="Reading the export" className="space-y-2 py-2">
             <SkeletonRows rows={5} avatar={false} lines={1} />
@@ -213,7 +216,7 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
             </dl>
 
             {(stale || planning) && (
-              <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+              <div role="status" className="cx-imp-note flex flex-wrap items-center gap-2 text-sm">
                 {planning ? (
                   <span className="flex items-center gap-1.5 text-muted-foreground">
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Counting again…
@@ -230,7 +233,7 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
             )}
 
             {plan.warnings && plan.warnings.length > 0 && (
-              <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
+              <div className="cx-imp-note text-xs">
                 <div className="mb-2 flex items-center gap-2 font-medium">
                   <AlertTriangle className="h-4 w-4 text-warning-ink" aria-hidden="true" />
                   {plan.warnings.length} {plan.warnings.length === 1 ? "warning" : "warnings"}

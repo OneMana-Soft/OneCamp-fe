@@ -11,41 +11,32 @@ import {Skeleton} from "@/components/ui/skeleton";
 import {Lock, RefreshCw} from "@/lib/icons";
 
 /**
- * The admin page's frame while the gate asks who you are: its header, the
- * menu down the side and the first rows of a section, at the sizes the page
- * draws them, so the page arrives into its own shape instead of replacing a
- * spinner in the middle of nothing.
+ * The admin page's frame while the gate asks who you are (design v3, admin
+ * §1.2): the section header (a 36px tile, a title and a line) and the first
+ * card of rows, at the sizes the page draws them, so the page arrives into its
+ * own shape. The settings nav is already in the sidebar.
  */
 function AdminFrameSkeleton() {
     return (
         <div role="status" aria-label="Loading Admin" className="flex h-full min-h-0 flex-col bg-background">
-            <div className="shrink-0 border-b border-border px-4 py-5 sm:px-6 lg:px-8" aria-hidden="true">
-                <div className="mx-auto w-full max-w-6xl space-y-2">
-                    <Skeleton className="h-3.5 w-20" />
-                    <Skeleton className="h-7 w-28" />
+            <div className="mx-auto w-full max-w-[944px] px-4 pb-24 pt-6 sm:px-6 sm:pt-10" aria-hidden="true">
+                <div className="mb-8 flex items-start gap-4">
+                    <Skeleton className="size-9 shrink-0 rounded-[10px] max-sm:hidden" />
+                    <div className="flex-1 space-y-2 pt-1">
+                        <Skeleton className="h-6 w-36" />
+                        <Skeleton className="h-3.5 w-72 max-w-full" />
+                    </div>
                 </div>
-            </div>
-            <div className="px-4 py-6 sm:px-6 lg:px-8" aria-hidden="true">
-                <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
-                    <div className="hidden w-52 shrink-0 space-y-2 lg:block">
-                        {Array.from({ length: 8 }).map((_, i) => (
-                            <Skeleton key={i} className={i % 3 === 0 ? "h-3 w-20" : "h-7 w-full"} />
-                        ))}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-4">
-                        <Skeleton className="h-5 w-32" />
-                        <div className="divide-y divide-border rounded-lg border border-border">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <div key={i} className="flex items-center gap-3 px-3 py-2.5">
-                                    <Skeleton variant="circle" className="h-9 w-9 shrink-0" />
-                                    <div className="flex-1 space-y-1.5">
-                                        <Skeleton className={i % 2 === 0 ? "h-3.5 w-32" : "h-3.5 w-40"} />
-                                        <Skeleton className="h-3 w-56 max-w-full" />
-                                    </div>
-                                </div>
-                            ))}
+                <div className="set-card">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="set-row flex items-center gap-3">
+                            <Skeleton variant="circle" className="size-8 shrink-0" />
+                            <div className="flex-1 space-y-1.5">
+                                <Skeleton className={i % 2 === 0 ? "h-3.5 w-32" : "h-3.5 w-40"} />
+                                <Skeleton className="h-3 w-56 max-w-full" />
+                            </div>
                         </div>
-                    </div>
+                    ))}
                 </div>
             </div>
         </div>

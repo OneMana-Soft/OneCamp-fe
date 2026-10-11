@@ -3,9 +3,14 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 // The five people tabs (Members, Admins, Teams, Invitations, External users)
 // draw one frame. Each built its own: the search and the action sat in three
-// places, the first row started 65 to 151px down depending on the tab, titles
-// were an h2 on one tab and divs on four, actions 32 or 36px, rows 58 to 81px,
-// and the skeleton had 6 rows on one tab and 3 on the rest.
+// places, the first row started 65 to 151px down depending on the tab, rows
+// were 58 to 81px, and each row carried two or three bare icon buttons whose
+// meaning was invisible without hovering.
+//
+// Design v3 (admin A2, mock M3): the page frame names the section, so the
+// frame opens on its toolbar; the list has no outer box, a header row on
+// --sunken, 52px rows in one anatomy (a 32px mark, a name over a meta line,
+// the tab's columns), and every action lives in the row's ⋯ menu.
 
 globalThis.IntersectionObserver ??= class {
   observe() {}
@@ -87,86 +92,106 @@ afterEach(cleanup)
 const frameOf = (container: HTMLElement) => container.querySelector("[data-people-frame]") as HTMLElement
 
 describe.each(TABS)("the $name tab", ({ name, Card, search, action, leading }) => {
-  it("opens with the frame's header: its name as an h2, then one line", () => {
+  it("draws no title of its own: the page frame names the section, the frame opens on its toolbar", () => {
     const { container } = render(<Card />)
     const frame = frameOf(container)
-    expect(frame).toBeTruthy()
-    const header = frame.children[0] as HTMLElement
-    expect(header.hasAttribute("data-people-header")).toBe(true)
-    const h2 = screen.getByRole("heading", { level: 2, name })
-    expect(header.contains(h2)).toBe(true)
-    expect(h2.className).toContain("text-base")
-    // One line, written to fit a phone (about 48 characters at 390px), so the
-    // toolbar starts at the same height on every tab.
-    const description = header.querySelector("p") as HTMLElement
-    expect(description.className).toContain("truncate")
-    expect(description.textContent!.length).toBeLessThanOrEqual(48)
+    expect(frame.getAttribute("aria-label")).toBe(name)
+    expect(frame.querySelector("h1, h2")).toBeNull()
+    expect(frame.children[0].hasAttribute("data-people-toolbar")).toBe(true)
   })
 
-  it("has its search and its one action in the toolbar row, always the frame's second row", () => {
+  it("has its search and its one action in the 44px toolbar", () => {
     const { container } = render(<Card />)
-    const toolbar = frameOf(container).children[1] as HTMLElement
-    expect(toolbar.hasAttribute("data-people-toolbar")).toBe(true)
-    expect(toolbar.className).toContain("h-11")
-    expect(toolbar.className).toContain("md:h-8")
+    const toolbar = frameOf(container).children[0] as HTMLElement
+    expect(toolbar.className).toContain("people-toolbar")
     const field = screen.getByRole("searchbox", { name: search })
     expect(toolbar.contains(field)).toBe(true)
     // 32px from md up, 44px on a phone (the field's own floor there).
     expect(field.className).toMatch(/(^|\s)h-8(\s|$)/)
     expect(field.className).toContain("max-md:h-11")
+    expect(field.getAttribute("aria-keyshortcuts")).toBe("/")
     if (action) {
-      const button = screen.getAllByRole("button", { name: action })[0]
-      expect(toolbar.contains(button)).toBe(true)
-      expect(button.className).toContain("h-11")
-      expect(button.className).toContain("md:h-8")
+      const button = screen.getAllByRole("button", { name: action }).find((b) => toolbar.contains(b))!
+      expect(button).toBeTruthy()
+      expect(button.className).toContain("md:h-7")
     } else {
       expect(toolbar.querySelectorAll("button").length).toBe(0)
     }
   })
 
-  it(`loads as ${PEOPLE_SKELETON_ROWS} of the rows it will show, under the same header and toolbar`, () => {
+  it(`loads as ${PEOPLE_SKELETON_ROWS} of the rows it will show, in the list's own grid`, () => {
     state.mode = "loading"
     const { container } = render(<Card />)
     const frame = frameOf(container)
-    expect(frame.children[1].hasAttribute("data-people-toolbar")).toBe(true)
+    expect(frame.children[0].hasAttribute("data-people-toolbar")).toBe(true)
     const skeleton = frame.querySelector("ul[aria-busy='true']") as HTMLElement
-    expect(skeleton.className).toMatch(/divide-y/)
+    expect(skeleton.className).toContain("people-rows")
     const rows = skeleton.querySelectorAll(":scope > li")
     expect(rows.length).toBe(PEOPLE_SKELETON_ROWS)
-    expect(rows[0].className).toContain("min-h-14")
-    const mark = rows[0].querySelector(".size-9") as HTMLElement
+    expect(rows[0].className).toContain("people-row")
+    const mark = rows[0].querySelector(".size-8") as HTMLElement
     expect(mark.className).toContain(leading === "avatar" ? "rounded-full" : "rounded-lg")
   })
 
-  it("draws every row in one anatomy: a 36px mark, two lines, its actions at the end", () => {
+  it("draws every row in one anatomy: no outer box, a 32px mark, two lines, the ⋯ at the end", () => {
     const { container } = render(<Card />)
+    const body = container.querySelector("[data-people-body]") as HTMLElement
+    expect(body.className).not.toMatch(/\bborder\b/)
+    expect(body.querySelector("[data-people-head]")?.className).toContain("people-head")
     const row = container.querySelector("[data-person-row]") as HTMLElement
-    expect(row).toBeTruthy()
-    expect(row.className).toContain("min-h-14")
-    expect(row.querySelector(".size-9")).toBeTruthy()
-    const lines = row.querySelectorAll(".leading-5, .leading-4")
-    expect(lines.length).toBe(2)
-    // On a phone the actions take a line of their own, with their words.
-    const actions = row.querySelector("[data-person-actions]") as HTMLElement
-    expect(actions.className).toContain("w-full")
-    for (const b of Array.from(actions.querySelectorAll("button"))) {
-      expect(b.querySelector(".sm\\:sr-only")?.textContent).toBeTruthy()
-      expect(b.className).toContain("h-11")
-      expect(b.className).toContain("sm:h-8")
-    }
+    expect(row.className).toContain("people-row")
+    expect(row.querySelector("[data-person-mark] .size-8, [data-person-mark] [data-team-mark]")).toBeTruthy()
+    expect(row.querySelector("[data-person-name]")?.className).toContain("font-medium")
+    expect(row.querySelector(".people-meta")).toBeTruthy()
   })
 
-  it("says a search matched nobody with the tile, a description and Clear search", async () => {
+  it("keeps every action in the row's ⋯ menu, never as bare buttons on the row", () => {
+    const { container } = render(<Card />)
+    const row = container.querySelector("[data-person-row]") as HTMLElement
+    const actions = row.querySelector("[data-person-actions]") as HTMLElement
+    const buttons = Array.from(actions.querySelectorAll("button"))
+    expect(buttons.length).toBe(1)
+    expect(buttons[0].hasAttribute("data-row-menu")).toBe(true)
+    expect(buttons[0].getAttribute("aria-haspopup")).toBe("menu")
+    // Outside the actions cell, the only button is the row's own way in.
+    const others = Array.from(row.querySelectorAll("button")).filter((b) => !actions.contains(b))
+    expect(others.length).toBeLessThanOrEqual(1)
+  })
+
+  it("says a search matched nobody with the magnifier spot, a description and Clear search", async () => {
     const { container } = render(<Card />)
     await act(async () => {
       fireEvent.change(screen.getByRole("searchbox", { name: search }), { target: { value: "zzzz" } })
     })
     const state = container.querySelector("[data-people-state]") as HTMLElement
     expect(state).toBeTruthy()
-    expect(state.querySelector(".hue-sky [data-empty-icon]")).toBeTruthy()
-    expect(state.querySelector("p")?.textContent).toBeTruthy()
+    expect(state.querySelector("[data-empty-illustration] svg[data-spot]")).toBeTruthy()
+    expect(state.textContent).toMatch(/matches “zzzz”\./)
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
     expect((screen.getByRole("searchbox", { name: search }) as HTMLInputElement).value).toBe("")
+  })
+})
+
+// The ⋯ shows on hover from a pointer, and must be visible on a touch screen,
+// where there is no hover (components/hoverOnlyActions.test.ts's rule).
+describe("the row menu on a touch screen", () => {
+  it("is hidden only inside @media (hover: hover)", async () => {
+    const { readFileSync } = await import("node:fs")
+    const css = readFileSync("app/styles/admin/people.css", "utf8")
+    const hover = css.indexOf("@media (hover: hover)")
+    const hide = css.indexOf(".people-row .people-menu {")
+    expect(hover).toBeGreaterThan(-1)
+    expect(hide).toBeGreaterThan(hover)
+    expect(css.slice(0, hover)).not.toMatch(/\.people-menu\s*\{[^}]*opacity:\s*0/)
+  })
+})
+
+describe("the members list's columns", () => {
+  it("names the role as a word, with a shield for an admin, never a coloured pill", () => {
+    const { container } = render(<UserCard />)
+    const role = container.querySelector("[data-member-role]") as HTMLElement
+    expect(role.textContent).toMatch(/^(Admin|Member)$/)
+    expect(role.className).not.toMatch(/bg-/)
   })
 })
 
@@ -178,6 +203,8 @@ describe("a people tab with nothing in it yet", () => {
       const { container } = render(<Card />)
       const state_ = container.querySelector("[data-people-state]") as HTMLElement
       expect(state_.querySelector("[data-empty-illustration] svg")).toBeTruthy()
+      // A first run is the 96px spot (the accent tone), not the 64px one.
+      expect(state_.querySelector("[data-empty-illustration]")?.className).toContain("size-24")
     },
   )
 })

@@ -27,6 +27,96 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { FALLBACK_EVENT_TYPES, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
+import axiosInstance from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { StateWord } from "@/components/admin/connectParts"
+import { PlayCircle } from "lucide-react"
+
+interface TestDelivery {
+  event_type: string
+  request_body?: string
+  response_status?: number
+  response_body?: string
+  success: boolean
+  duration_ms?: number
+  error_message?: string
+}
+
+const pretty = (raw?: string) => {
+  if (!raw) return ""
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
+/**
+ * Send a test (design v3, admin §A20): fires the test event and shows what
+ * went and what came back, in mono, with the answer's status as a dot and a
+ * word. The test endpoint answers before the delivery is logged, so it reads
+ * the newest log entry a moment later.
+ */
+function SendTest({ webhookId }: { webhookId: string }) {
+  const [state, setState] = useState<"idle" | "sending" | "done" | "failed">("idle")
+  const [delivery, setDelivery] = useState<TestDelivery | null>(null)
+  const [problem, setProblem] = useState("")
+  const send = async () => {
+    setState("sending")
+    setProblem("")
+    setDelivery(null)
+    try {
+      await axiosInstance.post(`${PostEndpointUrl.TestWebhook}/${webhookId}/test`)
+      await new Promise((r) => setTimeout(r, 1500))
+      const res = await axiosInstance.get(`${GetEndpointUrl.GetWebhookLogs}/${webhookId}/logs?page=1&page_size=1`)
+      const log: TestDelivery | undefined = res.data?.logs?.[0]
+      if (log) {
+        setDelivery(log)
+        setState("done")
+      } else {
+        setProblem("Sent. The delivery isn't in the log yet; it shows under Recent deliveries in a moment.")
+        setState("failed")
+      }
+    } catch (e) {
+      setProblem(apiErrorMessage(e, "Couldn't send the test. Try again."))
+      setState("failed")
+    }
+  }
+  const status = delivery?.response_status
+  return (
+    <div data-send-test="" className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">Send a test</p>
+          <p className="text-xs text-muted-foreground">Sends a test event to the address saved now.</p>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={send} disabled={state === "sending"} aria-busy={state === "sending" || undefined}>
+          {state === "sending" ? <RefreshCw className="animate-spin" aria-hidden="true" /> : <PlayCircle aria-hidden="true" />}
+          {state === "sending" ? "Sending…" : "Send a test"}
+        </Button>
+      </div>
+      {problem && (
+        <p role="status" className="text-xs text-muted-foreground">
+          {problem}
+        </p>
+      )}
+      {delivery && (
+        <div className="space-y-2" aria-live="polite">
+          <StateWord tone={delivery.success ? "success" : "danger"}>
+            {status ? `${status} · ` : ""}
+            {delivery.success ? "Delivered" : "Failed"}
+            {delivery.duration_ms !== undefined ? ` · ${delivery.duration_ms} ms` : ""}
+          </StateWord>
+          {delivery.error_message && <p className="text-xs text-danger-ink">{delivery.error_message}</p>}
+          <p className="text-2xs font-medium text-muted-foreground">Request</p>
+          <pre className="cx-wh-code cx-wh-pre max-h-32 overflow-auto p-2.5">{pretty(delivery.request_body) || "No request body was recorded."}</pre>
+          <p className="text-2xs font-medium text-muted-foreground">Response</p>
+          <pre className="cx-wh-code cx-wh-pre max-h-32 overflow-auto p-2.5">{pretty(delivery.response_body) || "No response body was recorded."}</pre>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface WebhookData {
   id: string
@@ -234,6 +324,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
               onCheckedChange={(v) => setForm(f => ({ ...f, is_active: v }))}
             />
           </div>
+          {webhook?.type === "outgoing" && webhook.id && <SendTest webhookId={webhook.id} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>

@@ -33,12 +33,22 @@ describe("a doc shared with a guest", () => {
   it("is headed with its name", async () => {
     getGuestCollabSession.mockResolvedValue({ ok: true, data: { ...session, title: "Launch brief" } })
     await open()
-    expect(screen.getByRole("heading", { name: "Launch brief" })).toBeInTheDocument()
+    expect(screen.getAllByRole("heading", { name: "Launch brief" }).length).toBeGreaterThan(0)
+  })
+
+  it("reads on a paper card at the doc's measure, the title in the doc's title type", async () => {
+    getGuestCollabSession.mockResolvedValue({ ok: true, data: { ...session, title: "Launch brief", capability: "comment" } })
+    await open()
+    const paper = document.querySelector("[data-guest-doc-paper]")!
+    expect(paper.className).toMatch(/max-w-\[816px\]/)
+    expect(paper.querySelector("[data-doc-measure]")?.className).toMatch(/doc-measure/)
+    expect(paper.querySelector("h1")?.className).toMatch(/text-doc-title/)
+    expect(screen.getByText("Can comment")).toBeInTheDocument()
   })
 
   it("says it's a shared document when it has no name", async () => {
     getGuestCollabSession.mockResolvedValue({ ok: true, data: session })
     await open()
-    expect(screen.getByRole("heading", { name: "Shared document" })).toBeInTheDocument()
+    expect(screen.getAllByRole("heading", { name: "Shared document" }).length).toBeGreaterThan(0)
   })
 })

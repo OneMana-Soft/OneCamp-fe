@@ -78,3 +78,42 @@ describe("the way in to sharing, in a share dialog", () => {
     expect(open.querySelector(".rounded-full")).toBeNull()
   })
 })
+
+describe("anyone with the link, as the share dialog's card (D19)", () => {
+  afterEach(() => {
+    cleanup()
+    live.links = undefined
+    confirm.mockReset()
+    turnOffGuestLink.mockReset()
+  })
+
+  it("is a switch on a card with the globe on moss, Off until turned on", () => {
+    render(<GuestLinkSection card resourceType="doc" resourceId="d1" canShare />)
+    const sw = screen.getByRole("switch", { name: "Anyone with the link" })
+    expect(sw.getAttribute("aria-checked")).toBe("false")
+    expect(screen.getByText("Off")).toBeInTheDocument()
+    expect(document.querySelector(`[data-access-tile="link"] .${HUE_CLASS.moss}`)).not.toBeNull()
+  })
+
+  it("turning on opens the options and Create link makes a 30-day read-only link", async () => {
+    createGuestLink.mockReset().mockResolvedValue({ token: "tok" })
+    render(<GuestLinkSection card resourceType="doc" resourceId="d1" canShare />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
+    expect(createGuestLink).toHaveBeenCalledWith("doc", "d1", 24 * 30, "view", false)
+    expect(screen.getByRole("textbox", { name: "Guest link" })).toHaveValue("https://acme.test/guest/p/tok")
+  })
+
+  it("says what a live link allows, and asks before switching it off", async () => {
+    live.links = { data: [{ id: "l1", capability: "comment", expires_at: "2026-11-09T09:00:00Z", created_at: "2026-10-01T09:00:00Z", mine: true }] }
+    render(<GuestLinkSection card resourceType="doc" resourceId="d1" canShare />)
+    expect(screen.getByText("On · Can comment · expires 9 Nov")).toBeInTheDocument()
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    const asked = confirm.mock.calls[0][0]
+    expect(asked.title).toBe("Turn off this link?")
+    expect(asked.description).toBe("Anyone using it loses access now.")
+    expect(turnOffGuestLink).not.toHaveBeenCalled()
+    await act(async () => asked.onConfirm())
+    expect(turnOffGuestLink).toHaveBeenCalledWith("l1")
+  })
+})

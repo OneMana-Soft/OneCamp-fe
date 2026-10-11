@@ -1,35 +1,28 @@
 "use client"
 
 /**
- * GuestTableViewer — a read-only render of a shared table for an external guest.
- * Tables are Postgres-backed (not collaborative), so the guest gets a clean
- * static view of the bundle. Deliberately isolated from the member DataTableGrid
- * (which is edit/MQTT/auth-coupled): no inline editing, no live subscription, no
- * authenticated calls.
+ * GuestTableViewer — a read-only render of a shared table for an external
+ * guest, in the members' grid look (content.md T21): a sticky header with each
+ * column's type glyph, hairline rows, the primary column frozen, neutral
+ * chips, raised link chips and numbers in the column's format. Deliberately
+ * isolated from the member DataTableGrid (which is edit/MQTT/auth-coupled):
+ * no inline editing, no live subscription, no authenticated calls.
  */
 
 import * as React from "react"
-import {
-  TableField,
-  TableRow,
-  RelationRef,
-  SelectOption,
-  parseFieldConfig,
-  parseRowValues,
-  computedOf,
-} from "@/services/tableService"
+import "@/components/table/table.css"
+import { TableField, TableRow, RelationRef, SelectOption, parseFieldConfig, parseRowValues, computedOf } from "@/services/tableService"
 import { Check } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
-import { shortDate } from "@/lib/utils/date/shortDate"
-import { OptionChip } from "@/components/table/optionChip"
+import { OptionChip, chipsTinted } from "@/components/table/optionChip"
+import { FIELD_GLYPH, dayOf, isNumeric } from "@/components/table/gridCells"
+import { formatNumber, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface GuestTableViewerProps {
   fields: TableField[]
   rows: TableRow[]
 }
-
-// The chip a member sees too (components/table/optionChip).
-const Chip = OptionChip
 
 function CellValue({ field, value }: { field: TableField; value: unknown }) {
   if (value === null || value === undefined || value === "") {
@@ -39,32 +32,41 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
   switch (field.type) {
     case "formula":
     case "rollup": {
-      // As the grid shows it: a number in the reader's format, a date in
-      // words, a tick, or what went wrong.
       const result = computedOf(field).result
       const shown = showFormulaValue(value, result)
-      if (shown.kind === "error") return <span className="text-danger-ink" title={shown.message}>Error</span>
-      return <span>{formulaText(value, result)}</span>
+      if (shown.kind === "error")
+        return (
+          <span className="text-meta font-medium text-danger-ink" title={shown.message}>
+            #ERROR
+          </span>
+        )
+      return <span className="text-ink-2">{formulaText(value, result)}</span>
     }
 
     case "checkbox":
-      return value ? <Check className="h-4 w-4 text-foreground" /> : <span className="sr-only">Empty</span>
+      return value ? <Check className="size-4 text-camp-moss" aria-label="Yes" /> : <span className="sr-only">No</span>
 
-    case "select": {
-      const opts = parseFieldConfig(field).options as SelectOption[] | undefined
-      const match = opts?.find((o) => o.label === String(value))
-      return <Chip label={String(value)} color={match?.color} />
+    case "number": {
+      const n = formatNumber(value, numberFormatOf(field))
+      if (!n) return <span>{String(value)}</span>
+      return (
+        <span className={cn(n.negative && "text-danger-ink")}>
+          {n.prefix ? <span className="text-ink-3">{n.prefix}</span> : null}
+          {n.text}
+          {n.suffix}
+        </span>
+      )
     }
 
+    case "select":
     case "multi_select": {
-      const opts = parseFieldConfig(field).options as SelectOption[] | undefined
+      const opts = (parseFieldConfig(field).options as SelectOption[] | undefined) || []
       const arr = Array.isArray(value) ? value : [value]
       return (
         <span className="flex flex-wrap gap-1">
           {arr.map((v, i) => {
             const label = String(v)
-            const match = opts?.find((o) => o.label === label)
-            return <Chip key={i} label={label} color={match?.color} />
+            return <OptionChip key={i} label={label} color={opts.find((o) => o.label === label)?.color} tinted={chipsTinted(field)} />
           })}
         </span>
       )
@@ -76,27 +78,33 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
       return (
         <span className="flex flex-wrap gap-1">
           {refs.map((r, i) => (
-            <Chip key={r?.id || i} label={r?.label || String(r?.id || "")} />
+            <span key={r?.id || i} className="inline-flex h-[22px] items-center rounded-md bg-raised px-1.5 text-meta font-medium text-ink shadow-e1">
+              {r?.label || String(r?.id || "")}
+            </span>
           ))}
         </span>
       )
     }
 
     case "date": {
-      const d = new Date(String(value))
-      return <span>{isNaN(d.getTime()) ? String(value) : shortDate(d)}</span>
+      const d = dayOf(value)
+      return <span>{d ? shortDay(d) : String(value)}</span>
     }
 
-    case "url":
-      return (
-        <a href={String(value)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-          {String(value)}
+    case "url": {
+      const href = safeHref(String(value))
+      return href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="text-brand-text hover:underline">
+          {urlHost(String(value))}
         </a>
+      ) : (
+        <span>{String(value)}</span>
       )
+    }
 
     case "email":
       return (
-        <a href={`mailto:${String(value)}`} className="text-primary hover:underline">
+        <a href={`mailto:${String(value)}`} className="text-ink hover:underline">
           {String(value)}
         </a>
       )
@@ -111,25 +119,40 @@ export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
   const sortedRows = React.useMemo(() => [...rows].sort((a, b) => a.position - b.position), [rows])
 
   if (sortedFields.length === 0) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">This table has no columns yet.</p>
+    return <p className="px-8 pb-12 pt-6 text-center text-ui text-ink-3">This table has no columns yet.</p>
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-sm">
+    <div className="v3-grid overflow-x-auto pb-4" data-guest-table="">
+      <table className="w-full border-separate border-spacing-0 text-ui">
         <thead>
-          <tr className="border-b border-border bg-muted/40">
-            {sortedFields.map((f) => (
-              <th key={f.id} className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap">
-                {f.name}
-              </th>
-            ))}
+          <tr>
+            {sortedFields.map((f, i) => {
+              const G = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+              return (
+                <th
+                  key={f.id}
+                  scope="col"
+                  data-frozen={i === 0 || undefined}
+                  className={cn(
+                    "h-9 whitespace-nowrap px-3 text-ui-sm font-medium text-ink-2",
+                    isNumeric(f) ? "text-right" : "text-left",
+                    i === 0 && "!left-0 pl-5 sm:pl-8",
+                  )}
+                >
+                  <span className={cn("inline-flex items-center gap-1.5", isNumeric(f) && "flex-row-reverse")}>
+                    <G className="size-3.5 text-ink-3" aria-hidden />
+                    {f.name}
+                  </span>
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
           {sortedRows.length === 0 ? (
             <tr>
-              <td colSpan={sortedFields.length} className="px-3 py-10 text-center text-sm text-muted-foreground">
+              <td colSpan={sortedFields.length} className="px-3 py-10 text-center text-ui text-ink-3">
                 No rows yet.
               </td>
             </tr>
@@ -137,9 +160,17 @@ export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
             sortedRows.map((row) => {
               const values = parseRowValues(row)
               return (
-                <tr key={row.id} className="border-b border-border/60 last:border-0 transition-colors hover:bg-highlight">
-                  {sortedFields.map((f) => (
-                    <td key={f.id} className="px-3 py-2 align-top">
+                <tr key={row.id}>
+                  {sortedFields.map((f, i) => (
+                    <td
+                      key={f.id}
+                      data-frozen={i === 0 || undefined}
+                      className={cn(
+                        "h-10 px-3 py-2 align-middle text-ink",
+                        isNumeric(f) && "text-right tabular-nums",
+                        i === 0 && "!left-0 pl-5 font-medium sm:pl-8 max-sm:max-w-[140px] max-sm:truncate",
+                      )}
+                    >
                       <CellValue field={f} value={values[f.id]} />
                     </td>
                   ))}
@@ -152,4 +183,3 @@ export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
     </div>
   )
 }
-

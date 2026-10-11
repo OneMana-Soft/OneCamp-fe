@@ -21,7 +21,6 @@ import {
 } from "@/services/guestService"
 import {
   GUEST_POLL_MS,
-  GuestBand,
   GuestComposer,
   GuestLinkGone,
   GuestMessageView,
@@ -39,12 +38,15 @@ import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
-import { workToolbar } from "@/components/task/workFrame"
-import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { useStoredState } from "@/hooks/useStoredState"
 import type { TimelineTask } from "@/lib/timeline"
 import { Textarea } from "@/components/ui/textarea"
-import { Progress } from "@/components/ui/progress"
+import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { hueFor } from "@/lib/campHue"
+import { relativeTime } from "@/lib/utils/relativeTime"
+import { GuestCard, GuestStatusGlyph, awaitsReview } from "@/components/guest/GuestReview"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 // A board changes slower than a conversation.
@@ -94,21 +96,10 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
   const [view, setView] = useState<GuestProjectView | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [mode, setMode] = useStoredState<GuestMode>(`oc_guest_view:${token}`, "board", isMode)
-  // Board or Timeline: the first control in the view's 32px toolbar row.
-  const modeSwitch = (
-    // The shared segmented control, 44px on a phone; from md its well is
-    // trimmed to p-0.5 so it is the toolbar row's 32px.
-    <SegmentedControl
-      value={mode}
-      onValueChange={(v) => isMode(v) && setMode(v)}
-      aria-label="Show the tasks as"
-      className="md:p-0.5"
-      options={[
-        { value: "board", label: "Board" },
-        { value: "timeline", label: "Timeline" },
-      ]}
-    />
-  )
+  const [reviewOnly, setReviewOnly] = useState(false)
+  // The guest's name, given in a task's panel; verdicts on cards go under it.
+  const [guestName] = useGuestName(token)
+  const projectHue = hueFor(view?.project || token)
   const narrow = useNarrow()
   const timelineTasks = useMemo(() => timelineTasksOf(view), [view])
 
@@ -134,95 +125,123 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
   if (state === "missing" || !view) return <GuestLinkGone />
 
   const pct = view.total_tasks ? Math.round((view.done_tasks / view.total_tasks) * 100) : 0
+  const reviewing = view.columns.flatMap((c) => c.tasks.filter(awaitsReview))
+  const tabs: { value: GuestTab; label: string; count?: number }[] = [
+    { value: "board", label: "Board" },
+    { value: "timeline", label: "Timeline" },
+    ...(view.can_comment ? [{ value: "review" as const, label: "Needs your review", count: reviewing.length }] : []),
+  ]
+  const tab: GuestTab = mode === "timeline" ? "timeline" : reviewOnly && view.can_comment ? "review" : "board"
+  const pick = (t: GuestTab) => {
+    setReviewOnly(t === "review")
+    setMode(t === "timeline" ? "timeline" : "board")
+  }
+  const columns = tab === "review" ? [{ status: "inReview", label: "Needs your review", tasks: reviewing }] : view.columns
+  const approve = async (taskId: string) => {
+    const res = await reviewGuestTask(token, taskId, { display_name: guestName, decision: "approved", note: "" })
+    if (res.ok) void refresh(true)
+    return res.ok ? null : sendFailedText(res)
+  }
 
   return (
-    <main className="flex h-dvh flex-col bg-background">
-      <GuestBand />
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6">
-        <GuestTypeTile>
-          <FolderKanban />
-        </GuestTypeTile>
-        <h1 className="min-w-0 flex-1 truncate font-semibold sm:flex-none">{view.project}</h1>
-        <span className="shrink-0 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
-        <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto">
-          {/* The app's progress bar, which the workspace's theme colours. */}
-          <Progress value={pct} aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`} className="h-1.5 flex-1 sm:w-24 sm:flex-none" />
-          <span className="tabular-nums" aria-hidden="true">{view.done_tasks} of {view.total_tasks} done</span>
-        </div>
-      </header>
-      <GuestTroubleNote trouble={trouble} />
-      <div className="flex min-h-0 flex-1">
-        <section className={`min-w-0 flex-1 overflow-auto p-4 sm:px-6 ${open ? "hidden md:block" : ""}`}>
-          {/* One measure for the page: at 1440 the columns ran edge to edge under
-              a half-width update. */}
-          <div className="mx-auto max-w-6xl">
-          <div className="max-w-3xl">
-            <GuestUpdates updates={view.updates ?? []} />
-          </div>
-          {view.total_tasks === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">No tasks here yet.</p>
-          ) : mode === "timeline" ? (
-            <div className="h-[calc(100dvh-13rem)] min-h-[24rem]">
-              <ProjectTimeline projectId="" viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} leading={modeSwitch} />
+    // The client view (design v3, work.md W51): the project's light on the
+    // frame, a sheet inset from the window, the project's tile and a ring of
+    // how far along it is, the latest update as the feature card, then the
+    // board in the app's card anatomy.
+    <main data-guest-project="" className={`${HUE_CLASS[projectHue]} relative isolate flex min-h-dvh flex-col bg-frame`}>
+      <div aria-hidden="true" data-project-band="" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[280px] [background:radial-gradient(640px_280px_at_120px_0px,color-mix(in_oklab,var(--hue)_10%,transparent),transparent)]" />
+      <div className="mx-auto flex w-full max-w-[1120px] min-h-0 flex-1 flex-col p-0 sm:p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-sheet shadow-sheet sm:rounded-2xl">
+          <header className="flex items-start gap-3.5 px-4 pb-4 pt-5 sm:px-7 sm:pt-6">
+            <ProjectTile id={view.project} size={36} />
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-title-1 font-semibold text-foreground">{view.project}</h1>
+              <p className="mt-0.5 text-ui-sm text-ink-2">Shared with you · updated {relativeTime(view.generated_at)}</p>
             </div>
-          ) : (
-            <>
-            {/* The switch leads one 32px toolbar row on both views, as the
-                timeline's own row does: the timeline started 44px lower under
-                two stacked rows. */}
-            <div data-work-toolbar="" className={workToolbar}>{modeSwitch}</div>
-            <div className="mt-4 grid gap-4 md:grid-flow-col md:auto-cols-[minmax(14rem,1fr)]">
-              {view.columns.map((col) => (
-                <section key={col.status} aria-label={col.label} className="flex min-w-0 flex-col gap-2">
-                  <h2 className="flex items-baseline gap-2 px-1 text-sm font-medium text-foreground">
-                    {col.label}
-                    <span className="text-xs font-normal tabular-nums text-muted-foreground">{col.tasks.length}</span>
-                  </h2>
-                  {col.tasks.length === 0 && <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">Nothing here</p>}
-                  {col.tasks.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setOpen(t.id)}
-                      aria-current={open === t.id ? "true" : undefined}
-                      className={`rounded-lg border bg-card p-3 text-left transition-colors hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${open === t.id ? "border-primary/60" : ""}`}
-                    >
-                      <p className="break-words text-sm font-medium">{t.name}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        {t.status_label !== col.label && <span className="rounded bg-muted px-1.5 py-0.5">{t.status_label}</span>}
-                        {t.due_date && (
-                          <span className={`flex items-center gap-1 ${isOverdue(t) ? "text-danger-ink" : ""}`}>
-                            <Calendar className="h-3 w-3" aria-hidden />
-                            {isOverdue(t) ? "Overdue · " : ""}{day(t.due_date)}
-                          </span>
-                        )}
-                        {t.assignee && (
-                          <span className="flex min-w-0 items-center gap-1">
-                            <User className="h-3 w-3 shrink-0" aria-hidden />
-                            <span className="truncate">{t.assignee}</span>
-                          </span>
-                        )}
-                        {view.can_comment && t.comment_count > 0 && (
-                          <span className="flex items-center gap-1">
-                            <MessageSquare className="h-3 w-3" aria-hidden />
-                            <span className="tabular-nums">{t.comment_count}</span>
-                          </span>
-                        )}
+            <div className="flex shrink-0 items-center gap-2.5">
+              <ProgressRing value={pct} size={40} weight={3} label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>
+                <span className="text-micro font-semibold">{view.done_tasks}/{view.total_tasks}</span>
+              </ProgressRing>
+              <span className="tag bg-camp-sun-tint text-camp-sun-ink">Guest</span>
+            </div>
+          </header>
+          <GuestTroubleNote trouble={trouble} />
+          <div className="flex min-h-0 flex-1">
+            <section className={`min-w-0 flex-1 overflow-auto pb-6 ${open ? "hidden md:block" : ""}`}>
+              {(view.updates?.length ?? 0) > 0 && (
+                <div className="px-4 pb-4 sm:px-7">
+                  <GuestUpdates updates={view.updates ?? []} />
+                </div>
+              )}
+              <GuestTabs tabs={tabs} value={tab} onChange={pick} />
+              {view.total_tasks === 0 ? (
+                <p className="py-16 text-center text-sm text-ink-2">No tasks here yet.</p>
+              ) : tab === "timeline" ? (
+                <div className="h-[calc(100dvh-15rem)] min-h-[24rem] px-4 pt-3 sm:px-7">
+                  <ProjectTimeline projectId="" viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} />
+                </div>
+              ) : tab === "review" && reviewing.length === 0 ? (
+                <p className="py-16 text-center text-sm text-ink-2">Nothing waits on you. Thank you.</p>
+              ) : (
+                <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pt-4 sm:snap-none sm:px-7">
+                  {columns.map((col) => (
+                    <section key={col.status} aria-label={col.label} className="flex w-[calc(100vw-48px)] shrink-0 snap-center flex-col rounded-xl bg-sunken p-2 dark:bg-white/[0.02] sm:w-[280px]">
+                      <h2 className="flex h-8 items-center gap-2 px-1.5 text-ui-sm font-medium text-foreground">
+                        <GuestStatusGlyph status={col.status} />
+                        {col.label}
+                        <span className="text-ui-sm font-normal tabular-nums text-ink-3">{col.tasks.length}</span>
+                      </h2>
+                      <div className="flex flex-col gap-2 pt-1">
+                        {col.tasks.length === 0 && <p className="rounded-[10px] px-3 py-4 text-center text-xs text-ink-3">Nothing here</p>}
+                        {col.tasks.map((t) => (
+                          <GuestCard
+                            key={t.id}
+                            task={t}
+                            opened={open === t.id}
+                            showComments={view.can_comment}
+                            canReview={view.can_comment && !!guestName}
+                            onOpen={() => setOpen(t.id)}
+                            onReview={() => approve(t.id)}
+                          />
+                        ))}
                       </div>
-                      {t.review && <div className="mt-2"><ReviewBadge review={t.review} /></div>}
-                    </button>
+                    </section>
                   ))}
-                </section>
-              ))}
-            </div>
-            </>
-          )}
-          <MadeWithOneCamp surface="guest-project" className="mt-8" />
+                </div>
+              )}
+            </section>
+            {open && <TaskPanel token={token} taskId={open} onClose={() => setOpen(null)} onCommented={() => void refresh(true)} />}
           </div>
-        </section>
-        {open && <TaskPanel token={token} taskId={open} onClose={() => setOpen(null)} onCommented={() => void refresh(true)} />}
+        </div>
+        <MadeWithOneCamp surface="guest-project" className="py-5" />
       </div>
     </main>
+  )
+}
+
+type GuestTab = "board" | "timeline" | "review"
+
+/** The client view's tabs, in the app's tab language (work.md W17): one underline that slides. */
+function GuestTabs({ tabs, value, onChange }: { tabs: { value: GuestTab; label: string; count?: number }[]; value: GuestTab; onChange: (t: GuestTab) => void }) {
+  const i = Math.max(0, tabs.findIndex((t) => t.value === value))
+  return (
+    <div role="tablist" aria-label="Show the tasks as" className="relative flex h-10 items-stretch border-b border-line px-2 sm:px-5">
+      {tabs.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          role="tab"
+          aria-selected={t.value === value}
+          data-guest-tab={t.value}
+          onClick={() => onChange(t.value)}
+          className={`relative flex items-center gap-1.5 px-3 text-ui outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${t.value === value ? "font-medium text-foreground" : "text-ink-2 hover:text-foreground"}`}
+        >
+          {t.label}
+          {t.count != null && t.count > 0 && <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-camp-sun-tint px-1 text-micro font-medium text-camp-sun-ink">{t.count}</span>}
+          {t.value === value && <span aria-hidden="true" data-tab-underline="" data-index={i} className="absolute inset-x-2 -bottom-px h-0.5 rounded-[2px] bg-foreground [animation:work-fade-in_180ms_var(--ease-out)_both]" />}
+        </button>
+      ))}
+    </div>
   )
 }
 

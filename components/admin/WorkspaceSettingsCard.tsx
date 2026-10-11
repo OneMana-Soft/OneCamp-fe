@@ -1,42 +1,41 @@
 "use client"
 
-// WorkspaceSettingsCard — admin UI for operational settings that previously
-// required editing env files + redeploying: per-file upload limit, the sign-up
-// allow-list. The email key moved to the Email section (EmailProviderCard), so
-// email is configured in one place. DB-first with env fallback. Changes apply
-// without a restart.
+// WorkspaceSettingsCard: the operational settings that once needed an env
+// file and a redeploy, the per-file upload limit and the sign-up allow-list.
+// DB-first with env fallback; changes apply without a restart.
+//
+// Design v3 (admin A7, mock M1): a batched card. Its footer says what saving
+// does and holds Save, always drawn so the card never changes height while
+// you type. The upload size is a number with its unit inside the field; the
+// allow-list is chips, each one checked as it is made, and a public domain
+// is refused under the field before a request is sent.
 
-import { useRef, useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ErrorState } from "@/components/ui/error-state"
-import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
-import { useToast } from "@/hooks/use-toast"
+import { useId, useRef, useState } from "react"
+import { SettingRow, SettingsCard, SettingsCardError, SettingsCardFooter, SettingsRowsSkeleton, SettingsSection } from "@/components/ui/settingsSection"
+import { NumberUnitInput } from "@/components/ui/settingsControls"
+import { ChevronDown } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
 import { updateWorkspaceSettings, useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
-import { appMutate as globalMutate } from "@/lib/swrMutate";
+import { appMutate as globalMutate } from "@/lib/swrMutate"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { AllowListChipInput } from "@/components/admin/AllowListChipInput"
+import { PUBLIC_DOMAIN_LINE, entryProblem, isPublicDomain } from "@/components/admin/allowListEntries"
 
-/** Where a value comes from, as a short sentence after its help. */
+/** Where a value comes from, when that is worth saying after its help. */
 const SOURCE: Record<string, string> = {
-    db: "Set here.",
     env: "Set in the server's environment file; saving here overrides it.",
-    default: "The default.",
-    none: "Not set.",
 }
 
-type Draft = { uploadLimit: string; allowedUsers: string }
+type Draft = { uploadLimit: string; allowedUsers: string[] }
 
 const draftOf = (s: WorkspaceSettings): Draft => ({
     uploadLimit: String(s.upload_limit_mb),
-    allowedUsers: s.allowed_users?.join(", ") ?? "",
+    allowedUsers: s.allowed_users ?? [],
 })
-const entries = (text: string) => text.split(",").map((s) => s.trim()).filter(Boolean)
-const sameList = (a: string, b: string) => entries(a).join(",") === entries(b).join(",")
+const sameList = (a: string[], b: string[]) => a.join(",") === b.join(",")
 
 export default function WorkspaceSettingsCard() {
-    const { toast } = useToast()
     // One read of the workspace's settings, shared with the read receipts,
     // guest access and email cards: four requests became one, and a save here
     // reaches the others.
@@ -47,21 +46,26 @@ export default function WorkspaceSettingsCard() {
     const [saving, setSaving] = useState(false)
     // Said under the field it is about, not in a toast that leaves with the error.
     const [sizeError, setSizeError] = useState("")
-    // Why the server wouldn't save the allow-list (a public email domain, say).
+    // Why the server wouldn't save the allow-list, in its own words.
     const [accessRefusal, setAccessRefusal] = useState("")
+    const [howOpen, setHowOpen] = useState(false)
+    const howId = useId()
     const sizeRef = useRef<HTMLInputElement>(null)
-    const listRef = useRef<HTMLTextAreaElement>(null)
+    const listRef = useRef<HTMLInputElement>(null)
 
     const saved = settings ? draftOf(settings) : null
-    const draft: Draft = edits ?? saved ?? { uploadLimit: "", allowedUsers: "" }
+    const draft: Draft = edits ?? saved ?? { uploadLimit: "", allowedUsers: [] }
     const sizeChanged = !!saved && draft.uploadLimit !== saved.uploadLimit
     const listChanged = !!saved && !sameList(draft.allowedUsers, saved.allowedUsers)
     const dirty = sizeChanged || listChanged
     const edit = (patch: Partial<Draft>) => setEdits({ ...draft, ...patch })
+    // Entries the list can't hold: Save waits until they are gone.
+    const refused = draft.allowedUsers.filter((e) => entryProblem(e))
+    const hasPublic = draft.allowedUsers.some(isPublicDomain)
     // What a save answered goes into the shared read, so every card shows it.
     const store = (s: WorkspaceSettings) => mutate({ data: s }, { revalidate: false })
 
-    const discard = () => {
+    const reset = () => {
         setEdits(null)
         setSizeError("")
         setAccessRefusal("")
@@ -76,6 +80,10 @@ export default function WorkspaceSettingsCard() {
                 sizeRef.current?.focus()
                 return
             }
+        }
+        if (refused.length) {
+            listRef.current?.focus()
+            return
         }
         setSaving(true)
         try {
@@ -93,7 +101,7 @@ export default function WorkspaceSettingsCard() {
             }
             if (listChanged) {
                 try {
-                    const s = await updateWorkspaceSettings({ allowed_users: entries(draft.allowedUsers) }, { ownErrors: true })
+                    const s = await updateWorkspaceSettings({ allowed_users: draft.allowedUsers }, { ownErrors: true })
                     if (s) await store(s)
                 } catch (err) {
                     setAccessRefusal(serverMessage(err, "Couldn't save the allow-list. Try again."))
@@ -102,9 +110,9 @@ export default function WorkspaceSettingsCard() {
                 }
             }
             // Saved: the form follows the server's answer again (the list as
-            // the server wrote it back).
+            // the server wrote it back). The card's ring settles; a routine
+            // save needs no toast.
             setEdits(null)
-            toast({ title: "Workspace settings saved" })
         } finally {
             setSaving(false)
         }
@@ -114,106 +122,106 @@ export default function WorkspaceSettingsCard() {
     if (isError || (!isLoading && !settings)) {
         // No form at all: the fields would be empty, and saving an empty
         // allow-list over a failed read made the workspace invite-only.
-        body = <ErrorState compact subject="the workspace settings" onRetry={() => void mutate()} />
-    } else if (!settings) {
-        // The rows' own shape: a setting with its field at the end, then the
-        // allow-list's words over its box.
         body = (
-            <SettingsList>
-                <div aria-busy="true" aria-label="Loading the workspace settings" className="flex items-center justify-between gap-6 px-4 py-3">
-                    <div className="min-w-0 flex-1 space-y-2">
-                        <Skeleton className="h-4 w-56" />
-                        <Skeleton className="h-3 w-80 max-w-full" />
-                    </div>
-                    <Skeleton className="h-9 w-24 shrink-0" />
-                </div>
-                <div aria-hidden="true" className="space-y-2 px-4 py-3">
-                    <Skeleton className="h-4 w-64" />
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                </div>
-            </SettingsList>
+            <SettingsCard>
+                <SettingsCardError what="the workspace settings" onRetry={() => void mutate()} />
+            </SettingsCard>
+        )
+    } else if (!settings) {
+        body = (
+            <SettingsCard aria-label="Loading the workspace settings">
+                <SettingsRowsSkeleton rows={2} control="field" />
+            </SettingsCard>
         )
     } else {
+        const listError = accessRefusal || (hasPublic ? PUBLIC_DOMAIN_LINE : "")
         body = (
-            <>
-                <SettingsList>
-                    <div>
-                        <SettingRow
-                            label="Largest file a member can upload"
-                            description={<>Someone who picks a bigger file is told at once, before anything uploads. {SOURCE[settings.upload_limit_source] ?? ""}</>}
-                            controlId="upload-limit"
-                        >
-                            <Input
-                                ref={sizeRef}
-                                id="upload-limit"
-                                name="upload-limit"
-                                type="number"
-                                inputMode="numeric"
-                                min={1}
-                                value={draft.uploadLimit}
-                                onChange={(e) => {
-                                    edit({ uploadLimit: e.target.value })
-                                    setSizeError("")
-                                }}
-                                className="w-24 text-right tabular-nums"
-                                aria-invalid={sizeError ? true : undefined}
-                                aria-describedby={sizeError ? "upload-limit-error upload-limit-desc" : "upload-limit-desc"}
-                            />
-                            <span className="text-sm text-muted-foreground">MB</span>
-                        </SettingRow>
-                        {sizeError && (
-                            <p id="upload-limit-error" role="alert" className="-mt-1 px-4 pb-3 text-sm text-danger-ink">
-                                {sizeError}
-                            </p>
-                        )}
-                    </div>
-                    {/* Its words over a field as wide as the row, at the same
-                        padding as the row above. */}
-                    <SettingRow
-                        layout="stacked"
-                        label="Who can join without an invitation"
-                        description={
-                            <>
-                                Emails and domains, separated by commas; empty means invitation only. A listed address joins
-                                by signing in with Google or GitHub. A domain like @example.com admits a Google Workspace
-                                account that example.com manages: not GitHub, and not a personal Google account with an address
-                                there. Public email domains like @gmail.com can&apos;t be added. {SOURCE[settings.allowed_users_source] ?? ""}
-                            </>
-                        }
-                        controlId="allowed-users"
+            <SettingsCard
+                dirty={dirty}
+                footer={
+                    <SettingsCardFooter
+                        hint="Applies as soon as it's saved, no restart."
+                        dirty={dirty}
+                        saving={saving}
+                        onSave={() => void save()}
+                        onReset={reset}
+                        saveDisabled={refused.length > 0}
+                    />
+                }
+            >
+                <SettingRow
+                    label="Largest file a member can upload"
+                    description={<>Bigger files are refused before they upload. {SOURCE[settings.upload_limit_source] ?? ""}</>}
+                    controlId="upload-limit"
+                >
+                    <NumberUnitInput
+                        ref={sizeRef}
+                        id="upload-limit"
+                        name="upload-limit"
+                        unit="MB"
+                        min={1}
+                        value={draft.uploadLimit}
+                        onChange={(e) => {
+                            edit({ uploadLimit: e.target.value })
+                            setSizeError("")
+                        }}
+                        invalid={!!sizeError}
+                        aria-describedby={sizeError ? "upload-limit-error upload-limit-desc" : "upload-limit-desc"}
+                    />
+                </SettingRow>
+                {sizeError && (
+                    <p id="upload-limit-error" role="alert" className="-mt-2 px-4 pb-3 text-xs text-danger-ink">
+                        {sizeError}
+                    </p>
+                )}
+                <SettingRow
+                    layout="stacked"
+                    label="Who can join without an invitation"
+                    description={<>People with these addresses can sign in with Google or GitHub. {SOURCE[settings.allowed_users_source] ?? ""}</>}
+                    controlId="allowed-users"
+                >
+                    <AllowListChipInput
+                        id="allowed-users"
+                        inputRef={listRef}
+                        value={draft.allowedUsers}
+                        onChange={(next) => {
+                            edit({ allowedUsers: next })
+                            setAccessRefusal("")
+                        }}
+                        invalid={!!accessRefusal}
+                        describedBy={["allowed-users-desc", listError && "allowed-users-refusal", howOpen && howId].filter(Boolean).join(" ")}
+                    />
+                    {listError && (
+                        <p id="allowed-users-refusal" role="alert" className="mt-2 text-xs text-danger-ink text-pretty">
+                            {listError}
+                        </p>
+                    )}
+                    {/* The three lines of help this replaced, one press away. */}
+                    <button
+                        type="button"
+                        aria-expanded={howOpen}
+                        aria-controls={howId}
+                        onClick={() => setHowOpen((o) => !o)}
+                        className="mt-2 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
-                        <Textarea
-                            ref={listRef}
-                            id="allowed-users"
-                            name="allowed-users"
-                            autoComplete="off"
-                            spellCheck={false}
-                            value={draft.allowedUsers}
-                            onChange={(e) => {
-                                edit({ allowedUsers: e.target.value })
-                                setAccessRefusal("")
-                            }}
-                            placeholder="alice@example.com, @example.com"
-                            rows={3}
-                            aria-invalid={accessRefusal ? true : undefined}
-                            aria-describedby={accessRefusal ? "allowed-users-refusal allowed-users-desc" : "allowed-users-desc"}
-                        />
-                        {accessRefusal && (
-                            <p id="allowed-users-refusal" role="alert" className="mt-2 text-sm text-danger-ink">{accessRefusal}</p>
-                        )}
-                    </SettingRow>
-                </SettingsList>
-                <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={discard} what="workspace settings" />
-            </>
+                        How this works
+                        <ChevronDown className={cn("size-3.5 transition-transform duration-150", howOpen && "rotate-180")} aria-hidden="true" />
+                    </button>
+                    {howOpen && (
+                        <p id={howId} className="cfg-reveal mt-1.5 max-w-[60ch] text-xs text-muted-foreground text-pretty">
+                            Empty means invitation only. A listed address joins by signing in with Google or GitHub. A
+                            domain like @example.com admits a Google Workspace account that example.com manages: not
+                            GitHub, and not a personal Google account with an address there. Public email domains like
+                            @gmail.com can&apos;t be added.
+                        </p>
+                    )}
+                </SettingRow>
+            </SettingsCard>
         )
     }
 
     return (
-        <SettingsSection
-            title="Workspace"
-            description="Uploads, and who can join without an invitation. Changes apply as soon as they're saved, with no restart."
-        >
+        <SettingsSection id="general-workspace" title="Workspace" description="Applies to everyone here.">
             {body}
         </SettingsSection>
     )

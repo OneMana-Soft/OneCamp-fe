@@ -63,8 +63,44 @@ describe("the two-step code", () => {
     expect(screen.getByRole("alert").textContent).toBe("Enter one of your recovery codes.")
   })
 
-  it("is as tall as the page's other fields and buttons", () => {
-    render(<TwoFactorPrompt onSubmit={vi.fn(async () => null)} onCancel={() => {}} />)
-    expect(field().className).toContain("md:h-10")
+  // Design v3 (F4): six cells driven by one real input, so paste and the
+  // phone's one-time-code autofill still work.
+  it("draws six cells over one real one-time-code input", () => {
+    const { container } = render(<TwoFactorPrompt onSubmit={vi.fn(async () => null)} onCancel={() => {}} />)
+    expect(container.querySelectorAll("[data-otp-cell]")).toHaveLength(6)
+    expect(field().getAttribute("autocomplete")).toBe("one-time-code")
+    expect(field().getAttribute("inputmode")).toBe("numeric")
+    expect(screen.getByRole("heading", { name: "Two-step check" })).toBeTruthy()
+  })
+
+  it("fills every cell from a pasted code and sends it", async () => {
+    const onSubmit = vi.fn(async () => null)
+    const { container } = render(<TwoFactorPrompt onSubmit={onSubmit} onCancel={() => {}} />)
+    await act(async () => void fireEvent.change(field(), { target: { value: "code: 482 913" } }))
+    expect(onSubmit).toHaveBeenCalledWith("482913")
+    const cells = [...container.querySelectorAll("[data-otp-cell]")].map((c) => c.textContent)
+    expect(cells).toEqual(["4", "8", "2", "9", "1", "3"])
+  })
+
+  it("moves back a cell on backspace", async () => {
+    const { container } = render(<TwoFactorPrompt onSubmit={vi.fn(async () => null)} onCancel={() => {}} />)
+    act(() => field().focus())
+    await act(async () => void fireEvent.change(field(), { target: { value: "123" } }))
+    expect(container.querySelectorAll("[data-otp-cell]")[3].hasAttribute("data-active")).toBe(true)
+    // Backspace deletes the last digit of the one value, so the caret steps back.
+    await act(async () => void fireEvent.change(field(), { target: { value: "12" } }))
+    expect(container.querySelectorAll("[data-otp-cell]")[2].hasAttribute("data-active")).toBe(true)
+    expect(container.querySelectorAll("[data-otp-cell]")[2].textContent).toBe("")
+  })
+
+  it("rings a wrong code in danger, clears every cell and goes back to the first", async () => {
+    const onSubmit = vi.fn(async () => ({ msg: "That code didn't work. Check it and try again.", expired: false }))
+    const { container } = render(<TwoFactorPrompt onSubmit={onSubmit} onCancel={() => {}} />)
+    await act(async () => void fireEvent.change(field(), { target: { value: "111111" } }))
+    await screen.findByText("That code didn't work. Check it and try again.")
+    expect(container.querySelector("[data-otp]")?.hasAttribute("data-invalid")).toBe(true)
+    expect([...container.querySelectorAll("[data-otp-cell]")].every((c) => c.textContent === "")).toBe(true)
+    expect(document.activeElement).toBe(field())
+    expect(container.querySelectorAll("[data-otp-cell]")[0].hasAttribute("data-active")).toBe(true)
   })
 })

@@ -4,15 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { QRCodeSVG } from "qrcode.react"
 
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SettingsRowsSkeleton } from "@/components/ui/settingsSection"
 import {
     AlertTriangle,
     Check,
-    CheckCircle2,
     Copy,
     Download,
     LoaderCircle,
-    Smartphone,
+    ShieldCheck,
 } from "@/lib/icons"
 import { TwoFactorCodeField } from "@/components/auth/TwoFactorCodeField"
 import { downloadTextFile } from "@/lib/utils/file/downloadTextFile"
@@ -32,8 +32,8 @@ import TwoFactorService, { type TwoFactorStatus } from "@/services/twoFactorServ
 type View =
     /** Collapsed. The only state that renders when nothing is happening. */
     | { name: "summary" }
-    /** Scanning a QR and entering the first code. Nothing is enforced yet. */
-    | { name: "enrolling"; secret: string; uri: string }
+    /** Scanning a QR (step 1), then entering the first code (step 2). Nothing is enforced yet. */
+    | { name: "enrolling"; secret: string; uri: string; step: 1 | 2 }
     /** The one and only showing of the recovery codes. */
     | { name: "codes"; codes: string[] }
     /** Confirming a code in order to turn the factor off. */
@@ -100,7 +100,7 @@ export function TwoFactorSection() {
         try {
             const result = await TwoFactorService.beginSetup()
             if (result.ok) {
-                setView({ name: "enrolling", secret: result.data.secret, uri: result.data.uri })
+                setView({ name: "enrolling", secret: result.data.secret, uri: result.data.uri, step: 1 })
                 return
             }
             // TOTP_KEK is an operator condition. The person clicking "Turn on" can do nothing about it,
@@ -191,26 +191,22 @@ export function TwoFactorSection() {
     // The row keeps its place while it is checked, so the rows under it do not jump.
     if (status === null) {
         return (
-            <div role="status" aria-label="Checking two-step verification" className="flex items-center justify-between gap-6 px-4 py-3">
-                <div className="min-w-0 flex-1 space-y-2 pt-0.5" aria-hidden="true">
-                    <Skeleton className="h-3.5 w-36" />
-                    <Skeleton className="h-3 w-3/4" />
-                </div>
-                <Skeleton className="h-8 w-20 shrink-0" aria-hidden="true" />
+            <div role="status" aria-label="Checking two-step verification" className="contents">
+                <SettingsRowsSkeleton rows={1} control="button" />
             </div>
         )
     }
 
     if (status === "failed") {
         return (
-            <div className="flex items-center justify-between gap-6 px-4 py-3">
-                <div className="min-w-0 space-y-1">
+            <div className="set-row flex items-center justify-between gap-6">
+                <div className="min-w-0">
                     <h3 className="text-sm font-medium leading-5">Couldn&apos;t check two-step verification</h3>
                     <p className="text-xs text-muted-foreground text-pretty">
                         Nothing has changed. This is usually a connection problem: try again in a moment.
                     </p>
                 </div>
-                <Button variant="outline" size="sm" className="shrink-0" onClick={() => void load()}>
+                <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void load()}>
                     Try again
                 </Button>
             </div>
@@ -219,63 +215,68 @@ export function TwoFactorSection() {
 
     const enrolled = status.enrolled
     const lowOnCodes = enrolled && status.unusedRecoveryCodes <= LOW_RECOVERY_CODE_THRESHOLD
+    const left = `${status.unusedRecoveryCodes} recovery ${status.unusedRecoveryCodes === 1 ? "code" : "codes"} left`
 
-    const description = enrolled
-        ? `On: a code from your authenticator app is required to sign in. ${status.unusedRecoveryCodes} recovery ${
-              status.unusedRecoveryCodes === 1 ? "code" : "codes"
-          } left.`
-        : "Off. Turn it on to need a code from your phone as well as your password."
+    // Closing the dialog: never while the codes are on screen (only Done, once
+    // they are saved, leaves that step), otherwise back to the row.
+    const onDialogChange = (open: boolean) => {
+        if (open || view.name === "codes") return
+        backToSummary()
+    }
+
+    const step = view.name === "enrolling" ? view.step : view.name === "codes" ? 3 : 0
 
     return (
-        <div className="space-y-4 px-4 py-3">
+        <div data-setting-row="" className="set-row space-y-3">
             <div className="flex items-center justify-between gap-6">
-                <div className="min-w-0 space-y-1">
+                <div className="min-w-0">
                     <h3 className="text-sm font-medium leading-5">Two-step verification</h3>
-                    <p className="text-xs text-muted-foreground text-pretty">{description}</p>
+                    {enrolled ? (
+                        <p data-two-factor="on" className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <ShieldCheck className="size-3.5 text-success-ink" aria-hidden="true" />
+                            <span className="font-medium text-foreground">On · authenticator app</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{left}</span>
+                        </p>
+                    ) : (
+                        <p data-two-factor="off" className="text-xs text-muted-foreground text-pretty">
+                            Off. Turn it on to need a code from your phone as well as your password.
+                        </p>
+                    )}
                 </div>
-
-                {/* No control while the codes are on screen: every button here navigates away from the
-                    only chance to save them. */}
-                {view.name === "summary" && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0"
-                        disabled={busy}
-                        onClick={() => {
-                            setNotice("")
-                            if (enrolled) {
-                                resetEntry()
-                                setView({ name: "disabling" })
-                            } else {
-                                void beginSetup()
-                            }
-                        }}
-                    >
-                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                        {enrolled ? "Turn off" : "Turn on"}
-                    </Button>
-                )}
-                {view.name !== "summary" && view.name !== "codes" && (
-                    <Button variant="ghost" size="sm" className="shrink-0" onClick={backToSummary}>
-                        Cancel
-                    </Button>
-                )}
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={busy && view.name === "summary"}
+                    onClick={() => {
+                        setNotice("")
+                        if (enrolled) {
+                            resetEntry()
+                            setView({ name: "disabling" })
+                        } else {
+                            void beginSetup()
+                        }
+                    }}
+                >
+                    {busy && view.name === "summary" && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                    {enrolled ? "Turn off" : "Turn on"}
+                </Button>
             </div>
 
             {notice !== "" && view.name === "summary" && (
-                <div className="flex items-center space-x-2 text-sm text-success-ink animate-in fade-in">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>{notice}</span>
-                </div>
+                <p role="status" className="flex items-center gap-1.5 text-xs text-success-ink">
+                    <Check className="size-3.5" aria-hidden="true" />
+                    {notice}
+                </p>
             )}
 
             {/* Shown in the summary, not buried in the enrolment flow: a user who is low on codes has
                 nothing to do here yet, but they should know before the day it matters. */}
             {lowOnCodes && view.name === "summary" && (
-                <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
-                    <p className="text-muted-foreground">
+                <div className="you-note">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-ink" aria-hidden="true" />
+                    <p className="text-xs text-muted-foreground text-pretty">
                         {status.unusedRecoveryCodes === 0
                             ? "You have no recovery codes left. If you lose your authenticator app you will need an administrator to reset this. Turn two-step verification off and on again to get a new set."
                             : "You are running low on recovery codes. Turn two-step verification off and on again to get a new set."}
@@ -284,217 +285,203 @@ export function TwoFactorSection() {
             )}
 
             {operatorError !== "" && (
-                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
-                    <div className="space-y-1">
-                        <p className="font-medium">Two-step verification is not configured on this server</p>
-                        <p className="text-muted-foreground">{operatorError}</p>
+                <div role="alert" className="you-note">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger-ink" aria-hidden="true" />
+                    <div className="space-y-0.5">
+                        <p className="text-xs font-medium">Two-step verification is not configured on this server</p>
+                        <p className="text-xs text-muted-foreground">{operatorError}</p>
                     </div>
                 </div>
             )}
 
-            {view.name === "summary" && error !== "" && (
-                <p className="text-sm text-danger-ink animate-in fade-in">{error}</p>
-            )}
+            {view.name === "summary" && error !== "" && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
 
-            {view.name === "enrolling" && (
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault()
-                        void confirmSetup(code)
-                    }}
-                    className="space-y-4 "
-                >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                        {/*
-                            EXPLICIT WHITE BACKGROUND AND DARK MODULES, not theme colours. A QR code is
-                            read by a camera, not by a person, and it needs light quiet-zone contrast to
-                            resolve. Inheriting the dark theme would render an unscannable code that
-                            looks perfectly fine to whoever is testing in light mode.
-                        */}
-                        <div className="shrink-0 self-center rounded-lg bg-white p-3 sm:self-start">
-                            <QRCodeSVG value={view.uri} size={148} bgColor="#ffffff" fgColor="#000000" level="M" />
-                        </div>
+            <Dialog open={view.name !== "summary"} onOpenChange={onDialogChange}>
+                <DialogContent className="sm:max-w-md">
+                    {view.name === "disabling" ? (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>Turn off two-step verification?</DialogTitle>
+                                <DialogDescription>
+                                    Enter a current code to turn this off. Removing your second factor is the first thing
+                                    someone with a stolen session would try, so it has to be proved.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault()
+                                    void disable(code)
+                                }}
+                                className="space-y-3"
+                            >
+                                <TwoFactorCodeField
+                                    id="totp-disable-code"
+                                    value={code}
+                                    onChange={(next) => {
+                                        setError("")
+                                        setCode(next)
+                                    }}
+                                    // No auto-submit here. Turning protection OFF should take a
+                                    // deliberate press rather than completing itself on the sixth digit.
+                                    usingRecoveryCode={usingRecoveryCode}
+                                    busy={busy}
+                                    inputRef={codeRef}
+                                    error={error}
+                                    autoFocus
+                                />
+                                <button
+                                    type="button"
+                                    className="rounded-sm text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                                    onClick={() => {
+                                        setUsingRecoveryCode((v) => !v)
+                                        setCode("")
+                                        setError("")
+                                    }}
+                                >
+                                    {usingRecoveryCode ? "Use your authenticator app" : "Use a recovery code"}
+                                </button>
+                                <div className="flex justify-end gap-2 pt-1">
+                                    <Button type="button" variant="ghost" onClick={backToSummary}>
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" variant="destructive" disabled={busy || code.trim() === ""}>
+                                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                                        Turn off two-step verification
+                                    </Button>
+                                </div>
+                            </form>
+                        </>
+                    ) : view.name !== "summary" ? (
+                        <>
+                            <DialogHeader>
+                                <p data-step={step} className="text-2xs font-medium text-ink-3">Step {step} of 3</p>
+                                <DialogTitle>
+                                    {step === 1 ? "Scan this code" : step === 2 ? "Enter the code it shows" : "Save your recovery codes"}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    {step === 1
+                                        ? "Open an authenticator app on your phone and scan the code."
+                                        : step === 2
+                                          ? "Type the 6-digit code from your authenticator app to finish."
+                                          : "These are shown once and can't be shown again. Each one works a single time, in place of your authenticator app."}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <ol aria-hidden="true" className="grid grid-cols-3 gap-1">
+                                {[1, 2, 3].map((i) => (
+                                    <li key={i} className={i <= step ? "h-1 rounded-sm bg-brand" : "h-1 rounded-sm bg-press"} />
+                                ))}
+                            </ol>
 
-                        <div className="min-w-0 flex-1 space-y-3">
-                            <div className="flex items-start gap-2">
-                                <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                <p className="text-xs text-muted-foreground">
-                                    Scan this with an authenticator app, then enter the 6-digit code it shows.
-                                </p>
-                            </div>
+                            {view.name === "enrolling" && view.step === 1 && (
+                                <div className="space-y-4">
+                                    {/*
+                                        EXPLICIT WHITE BACKGROUND AND DARK MODULES, not theme colours, in dark too.
+                                        A QR code is read by a camera, not by a person, and it needs light
+                                        quiet-zone contrast to resolve.
+                                    */}
+                                    <div data-qr-tile="" className="you-qr">
+                                        <QRCodeSVG value={view.uri} size={144} bgColor="#ffffff" fgColor="#000000" level="M" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-xs text-muted-foreground">Can&apos;t scan? Enter this key instead:</p>
+                                        {/* break-all so a 32-character key does not push the dialog wide on a phone. */}
+                                        <code className="block break-all rounded-md bg-sunken px-2.5 py-1.5 font-mono text-2xs">{view.secret}</code>
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <Button type="button" variant="ghost" onClick={backToSummary}>
+                                            Cancel
+                                        </Button>
+                                        <Button type="button" onClick={() => setView({ ...view, step: 2 })}>
+                                            Next
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
 
-                            <div className="space-y-1">
-                                <p className="text-xs text-muted-foreground">
-                                    Can&apos;t scan? Enter this key instead:
-                                </p>
-                                {/* break-all so a 32-character key does not push the card wide on a
-                                    phone; selectable because typing it is the whole point of showing it. */}
-                                <code className="block break-all rounded bg-muted/60 px-2 py-1.5 font-mono text-xs">
-                                    {view.secret}
-                                </code>
-                            </div>
-                        </div>
-                    </div>
+                            {view.name === "enrolling" && view.step === 2 && (
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault()
+                                        void confirmSetup(code)
+                                    }}
+                                    className="space-y-4"
+                                >
+                                    <TwoFactorCodeField
+                                        id="totp-enrol-code"
+                                        value={code}
+                                        onChange={(next) => {
+                                            setError("")
+                                            setCode(next)
+                                        }}
+                                        onComplete={(next) => void confirmSetup(next)}
+                                        // Enrolment proves possession of the NEW secret, so only an authenticator code
+                                        // can do it. No recovery codes exist yet: they are issued by this step.
+                                        usingRecoveryCode={false}
+                                        // Busy, not disabled, while the code is checked: a browser drops the focus
+                                        // of a field that becomes disabled and won't give it back.
+                                        busy={busy}
+                                        inputRef={codeRef}
+                                        error={error}
+                                        label="Enter the 6-digit code to finish"
+                                        autoFocus
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <Button type="button" variant="ghost" onClick={() => setView({ ...view, step: 1 })}>
+                                            Back
+                                        </Button>
+                                        <Button type="submit" disabled={busy || code.trim() === ""}>
+                                            {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                                            Turn on two-step verification
+                                        </Button>
+                                    </div>
+                                </form>
+                            )}
 
-                    <TwoFactorCodeField
-                        id="totp-enrol-code"
-                        value={code}
-                        onChange={(next) => {
-                            setError("")
-                            setCode(next)
-                        }}
-                        onComplete={(next) => void confirmSetup(next)}
-                        // Enrolment proves possession of the NEW secret, so only an authenticator code
-                        // can do it. No recovery codes exist yet — they are issued by this step.
-                        usingRecoveryCode={false}
-                        // Busy, not disabled, while the code is checked: a browser
-                        // drops the focus of a field that becomes disabled and won't
-                        // give it back, so after a wrong code the next one went
-                        // nowhere until the person clicked back in.
-                        busy={busy}
-                        inputRef={codeRef}
-                        error={error}
-                        label="Enter the 6-digit code to finish"
-                        autoFocus
-                    />
-
-                    <Button type="submit" className="w-full" disabled={busy || code.trim() === ""}>
-                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                        Turn on two-step verification
-                    </Button>
-                </form>
-            )}
-
-            {view.name === "codes" && (
-                <div className="space-y-3 ">
-                    <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium">Save your recovery codes now</p>
-                            <p className="text-xs text-muted-foreground">
-                                These are shown once and cannot be retrieved later. Each one works a single
-                                time, in place of your authenticator app.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-muted/40 p-3 font-mono text-xs sm:grid-cols-2">
-                        {view.codes.map((c) => (
-                            <span key={c} className="select-all tracking-wider">
-                                {c}
-                            </span>
-                        ))}
-                    </div>
-
-                    {error !== "" && <p className="text-xs text-danger-ink">{error}</p>}
-
-                    <div className="flex flex-wrap gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => void copyCodes(view.codes)}
-                        >
-                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                            {copied ? "Copied" : "Copy"}
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => downloadCodes(view.codes)}
-                        >
-                            <Download className="h-4 w-4" />
-                            Download
-                        </Button>
-                    </div>
-
-                    {/*
-                        An explicit acknowledgement, and the only way out of this view. A plain "Done"
-                        button is pressed reflexively; a checkbox that gates it makes the user answer the
-                        question. The codes cannot be shown again, so a reflexive dismissal here is an
-                        account one bad day away from an administrator reset.
-                    */}
-                    <label className="flex items-start gap-2 text-xs">
-                        <input
-                            type="checkbox"
-                            checked={savedAcknowledged}
-                            onChange={(e) => setSavedAcknowledged(e.target.checked)}
-                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
-                        />
-                        <span className="text-muted-foreground">
-                            I have saved these codes somewhere I can get to without my phone
-                        </span>
-                    </label>
-
-                    <Button
-                        type="button"
-                        className="w-full"
-                        disabled={!savedAcknowledged}
-                        onClick={backToSummary}
-                    >
-                        Done
-                    </Button>
-                </div>
-            )}
-
-            {view.name === "disabling" && (
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault()
-                        void disable(code)
-                    }}
-                    className="space-y-3 "
-                >
-                    <p className="text-xs text-muted-foreground">
-                        Enter a current code to turn this off. Removing your second factor is the first thing
-                        someone with a stolen session would try, so it has to be proved.
-                    </p>
-
-                    <TwoFactorCodeField
-                        id="totp-disable-code"
-                        value={code}
-                        onChange={(next) => {
-                            setError("")
-                            setCode(next)
-                        }}
-                        // No auto-submit here, unlike the other two. Turning protection OFF should take a
-                        // deliberate press rather than completing itself on the sixth digit.
-                        usingRecoveryCode={usingRecoveryCode}
-                        busy={busy}
-                        inputRef={codeRef}
-                        error={error}
-                        autoFocus
-                    />
-
-                    <div className="flex items-center justify-between gap-3">
-                        <button
-                            type="button"
-                            className="rounded-sm text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                            onClick={() => {
-                                setUsingRecoveryCode((v) => !v)
-                                setCode("")
-                                setError("")
-                            }}
-                        >
-                            {usingRecoveryCode ? "Use your authenticator app" : "Use a recovery code"}
-                        </button>
-                    </div>
-
-                    <Button
-                        type="submit"
-                        variant="destructive"
-                        className="w-full"
-                        disabled={busy || code.trim() === ""}
-                    >
-                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                        Turn off two-step verification
-                    </Button>
-                </form>
-            )}
+                            {view.name === "codes" && (
+                                <div className="space-y-3">
+                                    <div data-recovery-codes="" className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg bg-sunken p-3 font-mono text-xs">
+                                        {view.codes.map((c) => (
+                                            <span key={c} className="select-all">
+                                                {c}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {error !== "" && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button type="button" variant="secondary" size="sm" onClick={() => void copyCodes(view.codes)}>
+                                            {copied ? <Check className="size-3.5 text-success-ink" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+                                            {copied ? "Copied" : "Copy"}
+                                        </Button>
+                                        <Button type="button" variant="secondary" size="sm" onClick={() => downloadCodes(view.codes)}>
+                                            <Download className="size-3.5" aria-hidden="true" />
+                                            Download
+                                        </Button>
+                                    </div>
+                                    {/*
+                                        An explicit acknowledgement, and the only way out of this step. A plain "Done"
+                                        is pressed reflexively; a checkbox that gates it makes the person answer the
+                                        question. The codes cannot be shown again.
+                                    */}
+                                    <label className="flex items-start gap-2 text-xs">
+                                        <input
+                                            type="checkbox"
+                                            checked={savedAcknowledged}
+                                            onChange={(e) => setSavedAcknowledged(e.target.checked)}
+                                            className="mt-0.5 size-4 shrink-0 rounded accent-primary"
+                                        />
+                                        <span className="text-muted-foreground">I have saved these codes somewhere I can get to without my phone</span>
+                                    </label>
+                                    <div className="flex justify-end">
+                                        <Button type="button" disabled={!savedAcknowledged} onClick={backToSummary}>
+                                            Done
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

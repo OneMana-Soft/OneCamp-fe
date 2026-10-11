@@ -40,10 +40,11 @@ const ZERO = "0001-01-01T00:00:00Z"
 
 describe("the people group's hue", () => {
   // The empty and no-match states are the tab's (PeopleFrame), drawn by the card.
-  it("puts the icon of an admin search that matched nobody on a sky tile", () => {
+  // Design v3 (A2): a search that matched nobody is the magnifier spot, in the people hue.
+  it("draws an admin search that matched nobody with the sky magnifier spot", () => {
     render(<AdminCard />)
     fireEvent.change(screen.getByRole("searchbox", { name: "Search admins" }), { target: { value: "zzzz" } })
-    expect(document.querySelector("[data-people-state] .hue-sky [data-empty-icon]")).toBeTruthy()
+    expect(document.querySelector("[data-people-state] [data-empty-illustration] svg.hue-sky")).toBeTruthy()
   })
 
   it("draws an admin's avatar without an orange shield", () => {
@@ -67,12 +68,11 @@ describe("the people group's hue", () => {
     expect(within(empty).getByRole("button", { name: "Invite people" })).toBeTruthy()
   })
 
-  it("keeps the sky icon tile when a search matches no invitation", () => {
+  it("still welcomes the first invitation while a search runs over none", () => {
     render(<InvitationCard />)
     fireEvent.change(screen.getByRole("searchbox", { name: "Search invitations" }), { target: { value: "zzzz" } })
     const empty = document.querySelector("[data-people-state]") as HTMLElement
-    expect(empty.querySelector("[data-empty-illustration]")).toBeNull()
-    expect(empty.querySelector(".hue-sky [data-empty-icon]")).toBeTruthy()
+    expect(empty.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
   })
 
   it("puts the add-admin dialog's title icon on a sky tile, not in the accent", async () => {
@@ -91,9 +91,11 @@ describe("the people group's hue", () => {
     expect(title.querySelector(".text-primary")).toBeNull()
   })
 
-  it("puts the team members dialog's title icon on a sky tile", () => {
+  // Design v3 (A4): the team opens in a side sheet titled with its own mark, in its hue.
+  it("titles the team's side sheet with the team's own mark", () => {
     render(<AdminTeamMembersDialog isOpen onOpenChange={vi.fn()} teamId="t1" teamName="Design" />)
     const title = document.querySelector("[role='dialog'] h2")!
-    expect(title.querySelector(".hue-sky svg")).toBeTruthy()
+    expect(title.querySelector("[data-team-mark].avatar-person")).toBeTruthy()
+    expect(document.querySelector("[data-team-sheet]")?.className).toContain("sm:max-w-[452px]")
   })
 })

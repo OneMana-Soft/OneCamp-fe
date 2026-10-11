@@ -64,7 +64,8 @@ describe("how a Slack import's row reads", () => {
   // "ID 11111111 · started —": a fragment of a uuid and an em dash.
   it("says when it started in plain words, with no id", () => {
     row(job("completed", { started_at: "2026-10-09T09:01:00Z" }))
-    expect(screen.getByText("Started")).toBeTruthy()
+    // One meta line now (§A14): "Started 9 Oct, 9:01 AM · 12,400 items · …".
+    expect(screen.getByText(/^Started /)).toBeTruthy()
     expect(screen.queryByText(/\bID\b/)).toBeNull()
     cleanup()
     const { container } = row(job("validating"))

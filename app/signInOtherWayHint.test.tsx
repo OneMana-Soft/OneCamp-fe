@@ -34,7 +34,9 @@ afterEach(() => {
 async function tryAPassword() {
   render(<SignInPage />)
   fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: "sam@example.com" } })
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a-password" } })
+  // Two steps (design v3, D3): the address, then the password.
+  fireEvent.click(screen.getByRole("button", { name: "Continue with email" }))
+  fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "a-password" } })
   await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in" })))
 }
 

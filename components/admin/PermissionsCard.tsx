@@ -3,13 +3,20 @@
 // PermissionsCard — admin UI for the generic capability-permission policies.
 // Each delegatable capability (create workflows, invite members, …) can be
 // kept admins-only or opened to all members. Mirrors Slack's Permissions page.
+//
+// Design v3 (admin A9): each row asks "who", so its control is a segmented
+// "Admins · Everyone", not an on/off switch with a third line repeating the
+// switch's state. It saves on change with the saved tick; a refusal slides
+// the thumb back and says why under the label. The note above the card says
+// what opening a capability never does, with the shield in the agent hue
+// because it names agents.
 
 import { useEffect, useState } from "react"
-import { appMutate as mutate } from "@/lib/swrMutate";
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { ErrorState } from "@/components/ui/error-state"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/hooks/use-toast"
+import { appMutate as mutate } from "@/lib/swrMutate"
+import { SettingRow, SettingsCard, SettingsCardError, SettingsRowsSkeleton, SettingsSection } from "@/components/ui/settingsSection"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { useSaveStatus } from "@/components/ui/saveStatus"
+import { ShieldCheck } from "@/lib/icons"
 
 import { GetEndpointUrl } from "@/services/endPoints"
 import {
@@ -19,14 +26,55 @@ import {
     type CapabilityPolicy,
 } from "@/services/capabilityService"
 
+type Who = "admins_only" | "all_members"
+
+const WHO_OPTIONS = [
+    { value: "admins_only", label: "Admins" },
+    { value: "all_members", label: "Everyone" },
+] as const
+
+function PermissionRow({ policy, onSaved }: { policy: CapabilityPolicy; onSaved: (who: Who) => void }) {
+    const meta = CAPABILITY_META[policy.capability] || { label: policy.capability, description: "" }
+    const saved: Who = policy.policy === "all_members" ? "all_members" : "admins_only"
+    // Shown at once while it saves; back to the saved value on a refusal.
+    const [pending, setPending] = useState<Who | null>(null)
+    const { status, run } = useSaveStatus()
+    const id = `permission-${policy.capability.replace(/[^\w-]/g, "-")}`
+
+    const choose = async (who: Who) => {
+        if (who === saved) return
+        setPending(who)
+        const ok = await run(() => setCapabilityPolicy(policy.capability, who))
+        if (ok) {
+            onSaved(who)
+            // Refresh the current user's resolved capability set so any gated UI
+            // (e.g. the Agents page) reflects the change immediately.
+            mutate(GetEndpointUrl.MyCapabilities)
+        }
+        setPending(null)
+    }
+
+    return (
+        <SettingRow label={meta.label} description={meta.description} controlId={id} status={status}>
+            <SegmentedControl
+                id={id}
+                aria-label={meta.label}
+                aria-describedby={`${id}-desc`}
+                value={pending ?? saved}
+                onValueChange={(v) => void choose(v as Who)}
+                options={WHO_OPTIONS}
+                disabled={status.state === "saving"}
+            />
+        </SettingRow>
+    )
+}
+
 export default function PermissionsCard() {
-    const { toast } = useToast()
     const [policies, setPolicies] = useState<CapabilityPolicy[]>([])
     const [loading, setLoading] = useState(true)
     // A failed load is said as such: it left the section blank under its
     // heading, beside a toast that soon left, with nothing to do about it.
     const [failed, setFailed] = useState(false)
-    const [busy, setBusy] = useState<string | null>(null)
 
     const load = () => {
         setLoading(true)
@@ -41,96 +89,41 @@ export default function PermissionsCard() {
         load()
     }, [])
 
-    const handleToggle = async (capability: string, allMembers: boolean) => {
-        const next = allMembers ? "all_members" : "admins_only"
-        setBusy(capability)
-        // Optimistic update.
-        setPolicies((prev) =>
-            prev.map((p) => (p.capability === capability ? { ...p, policy: next } : p)),
-        )
-        try {
-            await setCapabilityPolicy(capability, next)
-            const label = CAPABILITY_META[capability]?.label ?? capability
-            toast({ title: allMembers ? `${label}: every member can now` : `${label}: admins only now` })
-            // Refresh the current user's resolved capability set so any gated UI
-            // (e.g. the Agents page) reflects the change immediately, not after a
-            // focus/reload.
-            mutate(GetEndpointUrl.MyCapabilities)
-        } catch {
-            // Roll back on failure; interceptor shows the error.
-            setPolicies((prev) =>
-                prev.map((p) =>
-                    p.capability === capability
-                        ? { ...p, policy: allMembers ? "admins_only" : "all_members" }
-                        : p,
-                ),
-            )
-        } finally {
-            setBusy(null)
-        }
-    }
+    const store = (capability: string, who: Who) =>
+        setPolicies((prev) => prev.map((p) => (p.capability === capability ? { ...p, policy: who } : p)))
 
     let body: React.ReactNode
     if (loading) {
         body = (
-            <SettingsList>
-                {Array.from({ length: 4 }).map((_, i) => (
-                    <div
-                        key={i}
-                        aria-busy={i === 0 ? "true" : undefined}
-                        aria-label={i === 0 ? "Loading the member permissions" : undefined}
-                        aria-hidden={i === 0 ? undefined : "true"}
-                        className="flex items-start justify-between gap-4 px-4 py-3"
-                    >
-                        <div className="space-y-1.5">
-                            <Skeleton className={i % 2 === 0 ? "h-4 w-36" : "h-4 w-44"} />
-                            <Skeleton className="h-3 w-72 max-w-full" />
-                        </div>
-                        <Skeleton className="mt-0.5 h-5 w-9" />
-                    </div>
-                ))}
-            </SettingsList>
+            <SettingsCard aria-label="Loading the member permissions">
+                <SettingsRowsSkeleton rows={4} control="button" />
+            </SettingsCard>
         )
     } else if (failed) {
-        body = <ErrorState compact subject="the member permissions" onRetry={load} />
+        body = (
+            <SettingsCard>
+                <SettingsCardError what="the member permissions" onRetry={load} />
+            </SettingsCard>
+        )
     } else {
         body = (
-            // One rhythm: each permission is a switch row named by its label,
-            // so clicking the words toggles it, as Settings does.
-            <SettingsList>
-                {policies.map((p) => {
-                    const meta = CAPABILITY_META[p.capability] || {
-                        label: p.capability,
-                        description: "",
-                    }
-                    const allMembers = p.policy === "all_members"
-                    return (
-                        <SwitchRow
-                            key={p.capability}
-                            label={meta.label}
-                            description={
-                                <>
-                                    {meta.description}
-                                    <span className="mt-1 block font-medium text-foreground/80">
-                                        {allMembers ? "All members can" : "Admins only"}
-                                    </span>
-                                </>
-                            }
-                            checked={allMembers}
-                            disabled={busy === p.capability}
-                            onChange={(v) => void handleToggle(p.capability, v)}
-                        />
-                    )
-                })}
-            </SettingsList>
+            <SettingsCard>
+                {policies.map((p) => (
+                    <PermissionRow key={p.capability} policy={p} onSaved={(who) => store(p.capability, who)} />
+                ))}
+            </SettingsCard>
         )
     }
 
     return (
         <SettingsSection
             title="Member permissions"
-            description="Choose which capabilities members can use on their own. Off means admins only. Members always act within their own access: opening a capability never lets anyone exceed what they could already do. Changes save as you make them."
+            description="Who can use each capability on their own. Changes save as you make them."
         >
+            <p data-permissions-note="" className="flex items-center gap-2 text-xs text-muted-foreground text-pretty">
+                <ShieldCheck className="size-4 shrink-0 text-agent-ink" aria-hidden="true" />
+                Members always act within their own access. Agents act within their sponsor&apos;s.
+            </p>
             {body}
         </SettingsSection>
     )

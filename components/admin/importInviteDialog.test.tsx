@@ -141,7 +141,8 @@ describe("how the invite dialog reads", () => {
     // The list's own frame and rows (a box, a name, an address), where it was
     // the generic rows in a box of their own.
     expect(status.tagName).toBe("UL")
-    expect(status.className).toContain("rounded-md")
+    // Design v3 (§1.3): the settings card, raised at e1, not a 1px grey box.
+    expect(status.className).toContain("set-card")
     const rows = status.querySelectorAll("li")
     expect(rows.length).toBe(4)
     expect(rows[0].className).toContain("px-3 py-2")
@@ -155,12 +156,13 @@ describe("how the invite dialog reads", () => {
     expect(document.querySelector(".border-dashed")).toBeNull()
   })
 
-  // Its title's icon was orange, the colour that means "press me".
-  it("puts its title's icon on the workspace tile, not in the accent", () => {
+  // Its title's icon was orange, the colour that means "press me", then a sun
+  // tile. Design v3 (§1.5): a hue is identity, and a dialog's title is not one.
+  it("keeps its title plain: no accent icon, no hued tile", () => {
     people = offer(null)
-    const { baseElement } = render(<ImportInviteDialog jobId="j1" label="Acme" open onOpenChange={() => {}} />)
+    render(<ImportInviteDialog jobId="j1" label="Acme" open onOpenChange={() => {}} />)
     const title = screen.getByRole("heading", { name: /Invite the people who came across/ })
     expect(title.querySelector(".text-primary")).toBeNull()
-    expect(baseElement.querySelector(".hue-sun")).toBeTruthy()
+    expect(title.querySelector("[class*='hue-']")).toBeNull()
   })
 })

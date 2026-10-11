@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { RefreshCw } from "@/lib/icons"
 import { archiveEntity } from "@/components/admin/archiveEntities"
 import { archiveProblem } from "@/components/admin/archiveProblem"
@@ -51,9 +50,10 @@ export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, ent
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2.5">
-            <Tile hue={entity.hue} size="sm">
+            {/* The kind's neutral mark, as its rows draw it (design v3, A13). */}
+            <span className="archive-mark" aria-hidden="true">
               <Icon />
-            </Tile>
+            </span>
             Archive old {name} now?
           </AlertDialogTitle>
           <AlertDialogDescription asChild>

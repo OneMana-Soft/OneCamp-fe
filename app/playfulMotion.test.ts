@@ -24,8 +24,8 @@ describe("the spring", () => {
     expect(keyframes).toMatch(/45% \{ scale: 1\.12; \}/)
   })
 
-  it("takes 220 ms on the house curve", () => {
-    expect(theme).toMatch(/--animate-spring:\s*spring-pop 220ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);/)
+  it("takes 220 ms on the out-curve", () => {
+    expect(theme).toMatch(/--animate-spring:\s*spring-pop 220ms cubic-bezier\(0\.22, 1, 0\.36, 1\);/)
   })
 
   it("lets a travelling thumb overshoot slightly, also in 220 ms", () => {
@@ -47,9 +47,33 @@ describe("the spring", () => {
   })
 })
 
+/**
+ * The motion tokens of design v3 (§3.14): press 90ms, hover 140, pop 180 on
+ * one out-curve; panel 240 on an in-out curve; the spring 220; storefront
+ * page entrances 320. Every bare `transition` takes the hover timing.
+ */
+describe("the motion tokens", () => {
+  const root = block(":root {")
+  it("names the curves and the durations", () => {
+    expect(root).toMatch(/--ease-out:\s*cubic-bezier\(0\.22, 1, 0\.36, 1\);/)
+    expect(root).toMatch(/--ease-in-out:\s*cubic-bezier\(0\.65, 0, 0\.35, 1\);/)
+    for (const [name, ms] of [["press", 90], ["hover", 140], ["pop", 180], ["panel", 240], ["spring", 220], ["page", 320]] as const) {
+      expect(root, `--duration-${name}`).toMatch(new RegExp(`--duration-${name}:\\s*${ms}ms;`))
+    }
+  })
+
+  it("gives every bare transition the hover timing on the out-curve", () => {
+    expect(theme).toMatch(/--default-transition-duration:\s*140ms;/)
+    expect(theme).toMatch(/--default-transition-timing-function:\s*cubic-bezier\(0\.22, 1, 0\.36, 1\);/)
+    expect(block("@utility transition-modal {")).toMatch(/transition-duration:\s*240ms;[\s\S]*var\(--ease-in-out\)/)
+  })
+})
+
 describe("reduced motion", () => {
   it("stills every animation and transition, the spring included", () => {
-    const at = CSS.lastIndexOf("@media (prefers-reduced-motion: reduce) {")
+    // The global backstop, the block that stills everything (*, ::before,
+    // ::after); components keep reduced-motion blocks of their own too.
+    const at = CSS.lastIndexOf("@media (prefers-reduced-motion: reduce) {\n  *, *::before")
     const reduced = CSS.slice(at, CSS.indexOf("\n}", at))
     expect(reduced).toMatch(/animation-duration:\s*0\.01ms !important;/)
     expect(reduced).toMatch(/transition-duration:\s*0\.01ms !important;/)

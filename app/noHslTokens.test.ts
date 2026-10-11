@@ -3,8 +3,8 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 /**
- * The colour tokens are complete oklch colours (globals.css), so wrapping one in
- * hsl() is invalid CSS and the browser silently draws nothing: the editor's
+ * The colour tokens are complete colours (globals.css: hex, rgba() and
+ * oklch() since design v3), so wrapping one in hsl() is invalid CSS and the browser silently draws nothing: the editor's
  * colour swatches, the block handle's hover and a focus ring all shipped that
  * way. Use var(--token), or color-mix(in oklch, var(--token) N%, transparent)
  * for a tint.
@@ -20,8 +20,11 @@ function sources(dir: string, out: string[] = []): string[] {
 }
 
 describe("colour tokens", () => {
-  it("are oklch, which is why hsl() around them is wrong", () => {
-    expect(readFileSync("app/globals.css", "utf8")).toMatch(/--foreground:\s*oklch\(/)
+  it("are complete colours, which is why hsl() around them is wrong", () => {
+    const css = readFileSync("app/globals.css", "utf8")
+    expect(css).toMatch(/--ink:\s*#[0-9A-Fa-f]{6};/)
+    expect(css).toMatch(/--line:\s*rgba\(/)
+    expect(css).toMatch(/--brand:\s*oklch\(/)
   })
 
   it("are never wrapped in hsl()", () => {

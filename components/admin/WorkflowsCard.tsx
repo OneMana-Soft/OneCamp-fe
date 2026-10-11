@@ -1,58 +1,181 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection";
-import { StatusWord } from "@/components/ui/statusWord";
-import { Tile } from "@/components/ui/graphics/Tile";
+import { SettingsList, SettingsSection, sectionActionClass, useShake } from "@/components/ui/settingsSection";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useUserAvatar } from "@/hooks/useUserAvatar";
+import { getNameInitials } from "@/lib/utils/getNameInitials";
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
+import { displayNameOf } from "@/lib/personName";
+import { prefersReducedMotion } from "@/lib/celebrate";
+import type { UserListResponseInterface, UserProfileDataInterface, UserProfileInterface } from "@/types/user";
+import { SavedTick, useSaveStatus } from "@/components/ui/saveStatus";
+import { Switch } from "@/components/ui/switch";
+import { SpotPlug } from "@/components/ui/graphics";
 import { cn } from "@/lib/utils/helpers/cn";
 import { apiErrorMessage } from "@/lib/utils/apiError";
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues";
-import { WORKFLOWS_DESCRIPTION, WorkflowsListSkeleton } from "@/components/admin/workflowsParts";
+import { RowMenu, StateWord } from "@/components/admin/connectParts";
+import {
+    EXAMPLE_SENTENCE,
+    WORKFLOWS_DESCRIPTION,
+    WorkflowSentence,
+    WorkflowsListSkeleton,
+    workflowSentence,
+    type SentenceNames,
+} from "@/components/admin/workflowsParts";
 import type { CampHue } from "@/lib/campHue";
-import { Switch } from "@/components/ui/switch";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
-import { Plus, Trash2, Pencil, MessageSquare, ListTodo, EyeOff, Shield, Flag, LayoutTemplate, Zap, UserPlus } from "@/lib/icons";
+import { Plus, Trash2, Pencil, LayoutTemplate } from "@/lib/icons";
+import type { ChannelInfoListInterfaceResp } from "@/types/channel";
+import type { ProjectInfoInterface } from "@/types/project";
 import {
     Workflow,
-    WorkflowActionType,
     parseWorkflow,
+    parseTaskStatusConfig,
     setWorkflowActive,
     deleteWorkflow,
 } from "@/services/workflowService";
 import { WorkflowEditDialog } from "./WorkflowEditDialog";
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog";
 
-// actionLabel renders a compact badge body for an action type: a 14px icon,
-// the dense chip's size, and the action in words.
-function actionLabel(type: WorkflowActionType): React.ReactNode {
-    switch (type) {
-        case "reply":
-            return <><MessageSquare className="h-3.5 w-3.5" /> Reply</>;
-        case "reply_ephemeral":
-            return <><EyeOff className="h-3.5 w-3.5" /> Private reply</>;
-        case "create_task":
-            return <><ListTodo className="h-3.5 w-3.5" /> Create task</>;
-        case "warn_user":
-            return <><Shield className="h-3.5 w-3.5" /> Warn</>;
-        case "delete_message":
-            return <><Trash2 className="h-3.5 w-3.5" /> Delete</>;
-        case "flag_to_channel":
-            return <><Flag className="h-3.5 w-3.5" /> Flag</>;
-        default:
-            return type;
-    }
+/** "1 run", "3 runs": every run so far (the server counts no week). */
+function runsLabel(n: number): string {
+    return `${n.toLocaleString("en")} ${n === 1 ? "run" : "runs"}`;
+}
+
+/** How many people the owner lookup reads in one go: the admin list's own page size. */
+const OWNER_PAGE_SIZE = 100;
+
+/**
+ * Who made a workflow, on the admin page: a 20px avatar and their name, from
+ * the admin users list. Nothing when they aren't in it (the list is read one
+ * page at a time and a departed person may be gone).
+ */
+function WorkflowOwner({ user }: { user: UserProfileDataInterface }) {
+    const { src } = useUserAvatar(user.user_profile_object_key);
+    const name = displayNameOf(user);
+    return (
+        <span data-workflow-owner={user.user_uuid} className="hidden min-w-0 max-w-40 items-center gap-1.5 sm:inline-flex" title={`Made by ${name}`}>
+            <Avatar className="size-5 shrink-0">
+                <AvatarImage src={src} alt="" />
+                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(name))}>{getNameInitials(name).slice(0, 1)}</AvatarFallback>
+            </Avatar>
+            <span className="truncate text-xs text-muted-foreground">{name}</span>
+        </span>
+    );
+}
+
+/** How long a failed switch's row stays tinted when motion is reduced (the shake's still version). */
+const FLASH_MS = 900;
+
+/**
+ * One workflow as a 64px row of the settings card (design v3, admin A16): its
+ * name and state, the sentence of what it does with its nouns as neutral
+ * tokens, then how often it has run, a switch that saves on change (the saved
+ * tick beside the name; on failure the switch springs back and the reason sits
+ * under the sentence), and ⋯ for Edit, Save as a template and Delete.
+ */
+function WorkflowRow({
+    wf,
+    names,
+    onEdit,
+    onPublish,
+    onDelete,
+    onChanged,
+    busy,
+    owner,
+}: {
+    wf: Workflow;
+    owner?: UserProfileDataInterface;
+    names: SentenceNames;
+    onEdit: () => void;
+    onPublish: () => void;
+    onDelete: () => void;
+    onChanged: () => void;
+    busy: boolean;
+}) {
+    const { status, run } = useSaveStatus();
+    // A failed switch shakes its row (x ±3px twice, §1.6); with reduced motion
+    // the row is tinted for a moment instead, held by a timer because the
+    // global backstop cuts every animation to nothing.
+    const { shake, onAnimationEnd } = useShake(status);
+    const [flash, setFlash] = useState(false);
+    const failures = status.failures ?? 0;
+    useEffect(() => {
+        if (!failures || !prefersReducedMotion()) return;
+        setFlash(true);
+        const t = setTimeout(() => setFlash(false), FLASH_MS);
+        return () => clearTimeout(t);
+    }, [failures]);
+    const [on, setOn] = useState(wf.is_active);
+    useEffect(() => setOn(wf.is_active), [wf.is_active]);
+    const { keywords, actions } = parseWorkflow(wf);
+    const tc = parseTaskStatusConfig(wf);
+    const parts = workflowSentence(
+        { trigger_type: wf.trigger_type, channel_id: wf.channel_id, keywords, match_type: wf.match_type, actions, task: tc },
+        names,
+    );
+    const toggle = async (next: boolean) => {
+        setOn(next);
+        const held = await run(() => setWorkflowActive(wf.id, next));
+        if (held) onChanged();
+        else setOn(!next);
+    };
+    return (
+        <div
+            data-workflow-row=""
+            data-shake={shake ? "true" : undefined}
+            data-flash={flash ? "true" : undefined}
+            onAnimationEnd={onAnimationEnd}
+            className="set-row cx-wf-row"
+        >
+            <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                    <span className="min-w-0 truncate text-sm font-medium text-foreground">{wf.name}</span>
+                    {!on && <StateWord tone="neutral">Paused</StateWord>}
+                    {wf.last_error && <StateWord tone="danger">Last run failed</StateWord>}
+                    <SavedTick status={status} />
+                </div>
+                <WorkflowSentence parts={parts} className="mt-1" />
+                {status.state === "error" && status.error && (
+                    <p className="mt-1 text-xs text-danger-ink text-pretty">{status.error}</p>
+                )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 self-center">
+                {owner && <WorkflowOwner user={owner} />}
+                <span className="hidden text-2xs tabular-nums text-muted-foreground sm:inline">{runsLabel(wf.run_count ?? 0)}</span>
+                <Switch
+                    checked={on}
+                    disabled={busy || status.state === "saving"}
+                    aria-busy={status.state === "saving" || undefined}
+                    onCheckedChange={(v) => void toggle(v)}
+                    aria-label={`Run ${wf.name}`}
+                />
+                <RowMenu
+                    label={`Actions for ${wf.name}`}
+                    items={[
+                        { label: "Edit", icon: Pencil, onSelect: onEdit },
+                        { label: "Save as a template", icon: LayoutTemplate, onSelect: onPublish },
+                        { label: "Delete", icon: Trash2, onSelect: onDelete, destructive: true, disabled: busy, separated: true },
+                    ]}
+                />
+            </div>
+        </div>
+    );
 }
 
 /**
  * `hue` is the colour of the place it is shown in: the admin page's AI and
- * automation group by default; a settings page passes its own section's.
+ * automation group by default; a settings page passes its own section's. It
+ * colours the empty state's spot, the one hued thing in the list.
  *
  * `withTitle` false is the settings page's variant: the page's h1 already says
  * "Workflows" and holds New workflow, so the card draws no title or button of
@@ -64,13 +187,24 @@ const WorkflowsCard = ({
     withTitle = true,
     creating: creatingProp,
     onCreatingChange,
+    scope = "all",
 }: {
     hue?: CampHue;
+    /**
+     * "all" is the admin page: every workflow, each with who made it. "mine"
+     * is the personal settings page: only the ones the signed-in person made
+     * (the server answers an admin with everyone's).
+     */
+    scope?: "all" | "mine";
     withTitle?: boolean;
     creating?: boolean;
     onCreatingChange?: (open: boolean) => void;
 } = {}) => {
     const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
+    // The names the sentences use: the editor reads the same two lists, so
+    // they are usually cached already.
+    const { data: channelsData } = useFetch<ChannelInfoListInterfaceResp>(GetEndpointUrl.GetAllActiveChannelList);
+    const { data: projectData } = useFetch<{ data: ProjectInfoInterface[] }>(GetEndpointUrl.projectListByAdminUID);
     const { toast } = useToast();
     const confirm = useConfirm();
     const [editing, setEditing] = useState<Workflow | null>(null);
@@ -80,20 +214,32 @@ const WorkflowsCard = ({
     const [publishing, setPublishing] = useState<Workflow | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
 
-    const workflows = data?.data || [];
+    // The admin page names each workflow's maker, from the admin users list;
+    // the personal page needs only who is signed in.
+    const { data: usersData } = useFetch<UserListResponseInterface>(
+        scope === "all" ? `${GetEndpointUrl.GetAdminUserList}?pageIndex=0&pageSize=${OWNER_PAGE_SIZE}` : "",
+    );
+    const { data: selfData } = useFetch<UserProfileInterface>(scope === "mine" ? GetEndpointUrl.SelfProfile : "");
+    const selfUuid = selfData?.data?.user_uuid;
+    const owners = useMemo(() => {
+        const m = new Map<string, UserProfileDataInterface>();
+        for (const u of Array.isArray(usersData?.data) ? usersData.data : []) if (u?.user_uuid) m.set(u.user_uuid, u);
+        return m;
+    }, [usersData]);
 
-    const handleToggle = async (wf: Workflow, next: boolean) => {
-        setBusyId(wf.id);
-        try {
-            await setWorkflowActive(wf.id, next);
-            toast({ title: next ? "Workflow enabled" : "Workflow paused" });
-            mutate();
-        } catch {
-            // axios interceptor surfaces the error toast
-        } finally {
-            setBusyId(null);
-        }
-    };
+    const all = data?.data || [];
+    // Until the signed-in person is known, the personal page lists none rather
+    // than someone else's.
+    const workflows = scope === "mine" ? all.filter((w) => !!selfUuid && w.created_by === selfUuid) : all;
+
+    const names = useMemo<SentenceNames>(() => {
+        const ch = new Map<string, string>();
+        for (const c of (Array.isArray(channelsData?.channels_list) ? channelsData.channels_list : [])) ch.set(c.ch_uuid, c.ch_name);
+        const pr = new Map<string, string>();
+        const projects = Array.isArray(projectData?.data) ? projectData.data : [];
+        for (const p of projects) if (p?.project_uuid && isZeroEpoch(p.project_deleted_at || "")) pr.set(p.project_uuid, p.project_name);
+        return { channel: (id) => ch.get(id), project: (id) => pr.get(id) };
+    }, [channelsData, projectData]);
 
     const handleDelete = async (wf: Workflow) => {
         confirm({
@@ -148,98 +294,38 @@ const WorkflowsCard = ({
         // workflows yet", a claim about the workspace with no way to try again.
         <ErrorState compact subject="the workflows" detail={apiErrorMessage(isError) || undefined} onRetry={() => void mutate()} />
     ) : workflows.length === 0 ? (
-        <EmptyState
-            icon={Zap}
-            hue={hue}
-            title="No workflows yet"
-            description="For example: when a message mentioning “bug” is posted in #support, create a task and reply “Thanks, we’re on it.”"
-        />
+        // The first time there are none: the 96px spot, and an example said
+        // in the rows' own grammar, so the empty state teaches how one reads.
+        <SettingsList>
+            <EmptyState
+                tone="accent"
+                illustration={<SpotPlug hue={hue} />}
+                title="Automate the busywork"
+                description={
+                    <span className="flex flex-col items-center gap-2">
+                        <span>Rules that act when something happens, for example:</span>
+                        <WorkflowSentence as="span" parts={EXAMPLE_SENTENCE} className="justify-center" />
+                    </span>
+                }
+                descriptionClassName="max-w-md"
+            />
+        </SettingsList>
     ) : (
-        <div className="divide-y divide-border rounded-lg border border-border">
-            {workflows.map((wf) => {
-                const { keywords, actions } = parseWorkflow(wf);
-                const joins = wf.trigger_type === "user_joined_channel";
-                return (
-                    <div key={wf.id} data-workflow-row="" className="flex items-start gap-3 px-4 py-3">
-                        {/* What sets it off, on a tile in the place's hue, as
-                            Archive's rules lead with their kind. */}
-                        <Tile hue={hue} size="md">{joins ? <UserPlus /> : <MessageSquare />}</Tile>
-                        <div className="min-w-0 flex-1 space-y-1.5">
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <span className="truncate text-sm font-medium">{wf.name}</span>
-                                {!wf.is_active && <StatusWord className="text-xs">Paused</StatusWord>}
-                                {wf.last_error && <StatusWord tone="danger" className="text-xs">Last run failed</StatusWord>}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {joins ? (
-                                    <>When someone joins the channel →</>
-                                ) : (
-                                    <>
-                                        When a message
-                                        {keywords.length > 0 ? (
-                                            <> mentioning{" "}
-                                                <span className="text-foreground font-medium">
-                                                    {keywords.slice(0, 3).join(", ")}
-                                                    {keywords.length > 3 ? "…" : ""}
-                                                </span>
-                                                {" "}({wf.match_type === "all" ? "all" : "any"})
-                                            </>
-                                        ) : (
-                                            <> (any message)</>
-                                        )}{" "}
-                                        is posted →
-                                    </>
-                                )}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                                {actions.map((a, i) => (
-                                    <Badge key={i} variant="outline" className="gap-1 text-2xs font-normal">
-                                        {actionLabel(a.type)}
-                                    </Badge>
-                                ))}
-                                <span className="text-2xs text-muted-foreground">
-                                    · ran {wf.run_count} {wf.run_count === 1 ? "time" : "times"}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-1">
-                            <Switch
-                                checked={wf.is_active}
-                                disabled={busyId === wf.id}
-                                onCheckedChange={(v) => handleToggle(wf, v)}
-                                aria-label={`Run ${wf.name}`}
-                                className="mr-1"
-                            />
-                            <Button variant="ghost" size="icon" aria-label="Edit this workflow" className="h-8 w-8" onClick={() => setEditing(wf)} title="Edit">
-                                <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Save as a template"
-                                className="h-8 w-8"
-                                onClick={() => setPublishing(wf)}
-                                title="Save as a template"
-                            >
-                                <LayoutTemplate className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Delete this workflow"
-                                className="h-8 w-8 text-danger-ink hover:text-danger-ink"
-                                disabled={busyId === wf.id}
-                                onClick={() => handleDelete(wf)}
-                                title="Delete"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
+        <SettingsList aria-label="Workflows">
+            {workflows.map((wf) => (
+                <WorkflowRow
+                    key={wf.id}
+                    wf={wf}
+                    names={names}
+                    owner={scope === "all" ? owners.get(wf.created_by) : undefined}
+                    busy={busyId === wf.id}
+                    onEdit={() => setEditing(wf)}
+                    onPublish={() => setPublishing(wf)}
+                    onDelete={() => handleDelete(wf)}
+                    onChanged={() => void mutate()}
+                />
+            ))}
+        </SettingsList>
     );
 
     const dialogs = (

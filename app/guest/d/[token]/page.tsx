@@ -4,63 +4,79 @@ import { use, useCallback } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestDocViewer } from "@/components/guest/GuestDocViewer";
 import { GuestDocComments } from "@/components/guest/GuestDocComments";
-import { GuestBand, GuestLinkGone, GuestNotYet, GuestTypeTile, useGuestAnswer } from "@/components/guest/guestUi";
-import { FileText, Eye, MessageSquare } from "@/lib/icons";
-import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { useGuestAnswer } from "@/components/guest/guestUi";
+import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame";
+import { PublicGone, PublicPaperSkeleton } from "@/components/guest/publicStates";
+import { retryingText } from "@/services/publicApi";
+import { Eye, MessageSquare } from "@/lib/icons";
+import { cn } from "@/lib/utils/helpers/cn";
 
-const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
+const WORKSPACE = process.env.NEXT_PUBLIC_ORG_NAME || undefined
 
+/**
+ * A doc shared with someone outside the workspace (content.md D20): the
+ * public frame (band, mark, half-strength glow), the workspace and the title
+ * in the header with the permission tag, and the doc on an 816 px paper card
+ * at the doc's own reading scale. The guest comments sit on a second card.
+ * On a phone there is no card: the sheet runs full width.
+ */
 export default function GuestDocPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
 
-    // 1. Validate the link and resolve the document name before mounting the
-    //    collaborative viewer, trying again while the server is busy or out of
-    //    reach. A dead link, or one to something else, is "no longer available".
+    // Validate the link and resolve the document name before mounting the
+    // collaborative viewer, trying again while the server is busy or out of
+    // reach. A dead link, or one to something else, has stopped working.
     const { data: session, trouble } = useGuestAnswer(`collab:${token}`, () => getGuestCollabSession(token));
 
-    // 2. The collab provider refetches a fresh short-lived guest token on every
-    //    (re)connect; the backend re-validates the grant each time, so a revoked
-    //    or expired link stops working immediately.
+    // The collab provider refetches a fresh short-lived guest token on every
+    // (re)connect; the backend re-validates the grant each time, so a revoked
+    // or expired link stops working at once.
     const tokenFetcher = useCallback(() => guestCollabToken(token), [token]);
 
+    if (trouble === "gone" || (session && (session.resource_type !== "doc" || !session.document_name))) {
+        return <PublicGone surface="guest-doc" />
+    }
     if (!session) {
         return (
-            <GuestNotYet trouble={trouble} gone={gone} shape="page" label="Opening the shared document…" />
-        );
+            <PublicFrame surface="guest-doc" workspaceName={WORKSPACE} mainClassName="sm:px-6 sm:pt-12">
+                <PublicPaperSkeleton label={trouble ? retryingText[trouble] : "Opening the shared document…"} />
+            </PublicFrame>
+        )
     }
-    if (session.resource_type !== "doc" || !session.document_name) return gone;
-    const documentName = session.document_name;
     const canComment = session.capability === "comment";
+    const title = session.title || "Shared document"
 
     return (
-        <div className="min-h-dvh w-full bg-background">
-            <GuestBand />
-            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
-                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                    <GuestTypeTile>
-                        <FileText />
-                    </GuestTypeTile>
-                    <h1 className="truncate">{session.title || "Shared document"}</h1>
+        <PublicFrame
+            surface="guest-doc"
+            workspaceName={WORKSPACE}
+            title={<span className="max-sm:hidden">{title}</span>}
+            actions={<PermissionTag canComment={canComment} />}
+            mainClassName="gap-4 sm:gap-6 sm:px-6 sm:pt-12"
+        >
+            <PaperCard elevation="sheet" className="max-w-[816px] px-5 pb-10 pt-6 sm:px-12 sm:pb-14 sm:pt-14" data-guest-doc-paper="">
+                <div className="mx-auto w-full max-w-[var(--doc-measure)]" data-doc-measure="">
+                    <h1 className="text-doc-title text-ink [text-wrap:balance] max-sm:text-title-1">{title}</h1>
+                    <GuestDocViewer documentName={session.document_name} tokenFetcher={tokenFetcher} />
                 </div>
-                <div className="flex items-center gap-3">
-                    <MadeWithOneCamp surface="guest-doc" className="hidden sm:block" />
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
-                        {canComment ? (
-                            <>
-                                <MessageSquare className="h-3 w-3" /> Can comment
-                            </>
-                        ) : (
-                            <>
-                                <Eye className="h-3 w-3" /> Read only
-                            </>
-                        )}
-                    </span>
-                </div>
-            </header>
-            <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-                <GuestDocViewer documentName={documentName} tokenFetcher={tokenFetcher} />
-                <GuestDocComments token={token} />
-            </main>
-        </div>
+            </PaperCard>
+            <GuestDocComments token={token} />
+        </PublicFrame>
     );
+}
+
+/** 18 px, r5, 11/510: "Can comment" on the sky tint, "Read only" neutral. */
+function PermissionTag({ canComment }: { canComment: boolean }) {
+    return (
+        <span
+            data-permission-tag=""
+            className={cn(
+                "inline-flex h-[18px] items-center gap-1 rounded-[5px] px-1.5 text-micro font-medium",
+                canComment ? "hue-sky bg-hue-tint text-hue-ink" : "bg-sunken text-ink-2",
+            )}
+        >
+            {canComment ? <MessageSquare className="size-3" aria-hidden="true" /> : <Eye className="size-3" aria-hidden="true" />}
+            {canComment ? "Can comment" : "Read only"}
+        </span>
+    )
 }

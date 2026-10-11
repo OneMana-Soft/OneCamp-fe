@@ -26,7 +26,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { Loader2, Users } from "@/lib/icons"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useFetch } from "@/hooks/useFetch"
@@ -101,14 +100,9 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
     <Dialog open={open} onOpenChange={(o) => !sending && onOpenChange(o)}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2.5">
-            {/* The workspace group's tile, as Import is in the admin menu: the
-                icon was orange, the colour that means "press me". */}
-            <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
-              <Users />
-            </Tile>
-            Invite the people who came across
-          </DialogTitle>
+          {/* No tile beside the title: a hue is identity, and a dialog is not
+              one (design v3, §1.5). It was an orange icon, then a sun tile. */}
+          <DialogTitle>Invite the people who came across</DialogTitle>
           <DialogDescription>
             {label ? `From ${label}. ` : ""}
             Their tasks, comments and messages are already here under their names. When they join with this
@@ -118,7 +112,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
 
         {isLoading && !data ? (
           // The list's own rows: a box, a name and an address, at the rows' padding.
-          <ul role="status" aria-label="Loading the people" className="divide-y rounded-md border">
+          <ul role="status" aria-label="Loading the people" className="set-card cx-imp-list">
             {Array.from({ length: 4 }).map((_, i) => (
               <li key={i} aria-hidden="true" className="flex items-center gap-3 px-3 py-2">
                 <Skeleton className="size-4 shrink-0 rounded-sm" />
@@ -164,7 +158,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
                 description="Everyone who came across is already here or invited."
               />
             ) : (
-              <ul className="divide-y rounded-md border" aria-label="People who came across">
+              <ul className="set-card cx-imp-list" aria-label="People who came across">
                 {people.map((p) => {
                   const on = selected.has(p.user_id)
                   const blocked = !on && !roomForAnother(count, seats)

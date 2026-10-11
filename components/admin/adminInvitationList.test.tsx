@@ -3,14 +3,17 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
-import { AdminInvitationList, expiryText } from "./AdminInvitationList"
+import { AdminInvitationList, expiresSoon, expiryText, invitedLine } from "./AdminInvitationList"
 import type { Invitation } from "@/types/user"
 
-// An invitation says where it stands: how long a live one's link has left,
-// Expired once it has run out, and a live one's link can be copied to hand
-// over. An expired or used one has no link to copy.
+// An invitation says where it stands: how long a live one's link has left
+// (sun once under a day), Expired once it has run out, and a live one's link
+// can be copied to hand over. An expired or used one has no link to copy.
+// Design v3 (A5): an invite is not yet a person, so it is drawn as a dashed
+// outline with an envelope, and every action lives in the row's ⋯ menu.
 
-const base = { invited_by: "", created_at: "2026-10-09T10:00:00Z" }
+const NOW = new Date("2026-10-11T10:00:00Z").getTime()
+const base = { invited_by: "arjun@kestrel.example", created_at: "2026-10-09T10:00:00Z" }
 const live: Invitation = { ...base, id: "1", email: "live@example.com", status: "sent", expires_in_days: 6, invite_link: "https://team.example/signup?token=live" }
 const lastDay: Invitation = { ...base, id: "2", email: "soon@example.com", status: "sent", expires_in_days: 1, invite_link: "https://team.example/signup?token=soon" }
 const expired: Invitation = { ...base, id: "3", email: "late@example.com", status: "expired" }
@@ -32,50 +35,58 @@ function list(onCopyLink = vi.fn(), onResend = vi.fn()) {
   return { onCopyLink, onResend }
 }
 
+const openMenu = async (email: string) => {
+  fireEvent.keyDown(screen.getByRole("button", { name: `Actions for the invitation to ${email}` }), { key: "Enter" })
+  return screen.findAllByRole("menuitem")
+}
+
 describe("the admin's invitation list", () => {
-  it("says how long each live link has left", () => {
+  it("says how long each live link has left, as a dot and a word", () => {
     list()
-    expect(screen.getByText("Expires in 6 days")).toBeTruthy()
-    expect(screen.getByText("Expires within a day")).toBeTruthy()
+    expect(screen.getByText("Expires in 6 d").closest("[data-dot-word]")?.getAttribute("data-dot-word")).toBe("neutral")
+    // Under a day left: the word turns sun.
+    expect(screen.getByText("Expires within a day").closest("[data-dot-word]")?.getAttribute("data-dot-word")).toBe("sun")
     expect(screen.getByText("Expired")).toBeTruthy()
   })
 
-  // "Sent  Expires in 6 days" ran the expiry into the status word.
-  it("keeps the expiry apart from the status with a separator, and has none to keep apart when there's no expiry", () => {
+  it("draws a pending invitation as a dashed outline with an envelope, and a joined one as a face", () => {
     list()
-    // The row's second line (PeopleFrame's row: a title line, then a meta line).
-    const meta = (email: string) => screen.getByText(email).closest("[data-person-row]")!.querySelector(".leading-4") as HTMLElement
-    expect(meta(live.email).textContent).toMatch(/Sent·Expires in 6 days$/)
-    expect(meta(expired.email).textContent).not.toContain("·")
+    const mark = (email: string) => screen.getByText(email).closest("[data-person-row]")!.querySelector("[data-invite-avatar]") as HTMLElement
+    expect(mark(live.email).getAttribute("data-invite-avatar")).toBe("pending")
+    expect(mark(live.email).className).toContain("invite-avatar")
+    expect(mark(live.email).querySelector("svg")).toBeTruthy()
+    expect(mark(joined.email).getAttribute("data-invite-avatar")).toBe("joined")
+    expect(mark(joined.email).className).toContain("avatar-person")
   })
 
-  it("copies a live invitation's link, and offers none for an expired or used one", () => {
+  it("says who invited them and when", () => {
+    expect(invitedLine(base, NOW)).toBe("Invited by Arjun · 2 d ago")
+  })
+
+  it("copies a live invitation's link, and offers none for an expired or used one", async () => {
     const { onCopyLink } = list()
-    fireEvent.click(screen.getByRole("button", { name: "Copy the invitation link for live@example.com" }))
+    fireEvent.click((await openMenu(live.email)).find((i) => i.textContent === "Copy link")!)
     expect(onCopyLink).toHaveBeenCalledWith("https://team.example/signup?token=live")
-    expect(screen.queryByRole("button", { name: /Copy the invitation link for late@/ })).toBeNull()
-    expect(screen.queryByRole("button", { name: /Copy the invitation link for in@/ })).toBeNull()
-  })
-
-  it("offers an expired invitation a new link, and a used one nothing to send", () => {
-    const { onResend } = list()
-    fireEvent.click(screen.getByRole("button", { name: "Send late@example.com a new invitation link" }))
-    expect(onResend).toHaveBeenCalledWith("late@example.com")
-    expect(screen.queryByRole("button", { name: /(Resend invitation to|new invitation link).*in@example.com/ })).toBeNull()
-    // A joined one can only be cleared from the list: nothing about it is live.
-    expect(screen.getByRole("button", { name: "Clear in@example.com's invitation from the list" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Revoke the invitation to live@example.com" })).toBeTruthy()
-  })
-})
-
-describe("when an invitation was sent", () => {
-  it("is the app's short date, with the full date in its tooltip, not the browser's locale", () => {
+    cleanup()
     list()
-    // Day before month in any time zone the test runs in ("9 Oct", never "Oct 9").
-    const sent = screen.getAllByText(/^\d{1,2} Oct( 2026)?$/)[0]
-    expect(sent.tagName).toBe("TIME")
-    expect(sent.getAttribute("dateTime")).toBe("2026-10-09T10:00:00Z")
-    expect(sent.getAttribute("title")).toMatch(/^\w+day \d{1,2} October 2026, \d{1,2}:\d{2} (AM|PM)$/)
+    expect((await openMenu(expired.email)).some((i) => i.textContent === "Copy link")).toBe(false)
+  })
+
+  it("offers an expired invitation a new link, and a used one only clearing from the list", async () => {
+    const { onResend } = list()
+    fireEvent.click((await openMenu(expired.email)).find((i) => i.textContent === "Send a new link")!)
+    expect(onResend).toHaveBeenCalledWith("late@example.com")
+    cleanup()
+    list()
+    const items = await openMenu(joined.email)
+    expect(items.map((i) => i.textContent)).toEqual(["Clear from the list"])
+  })
+
+  it("puts Revoke last, in danger ink, for a live one", async () => {
+    list()
+    const items = await openMenu(live.email)
+    expect(items.map((i) => i.textContent)).toEqual(["Resend", "Copy link", "Revoke…"])
+    expect(items.at(-1)!.className).toContain("text-danger-ink")
   })
 })
 
@@ -84,5 +95,12 @@ describe("expiryText", () => {
     expect(expiryText({ status: "expired", expires_in_days: 3 })).toBe("")
     expect(expiryText({ status: "joined" })).toBe("")
     expect(expiryText({ status: "pending" })).toBe("")
+  })
+
+  it("counts hours in the last day, from the token's own expiry", () => {
+    const at = new Date(NOW + 20 * 3_600_000).toISOString()
+    expect(expiryText({ status: "sent", expires_in_days: 1, token_expires_at: at }, NOW)).toBe("Expires in 20 h")
+    expect(expiresSoon({ status: "sent", expires_in_days: 1, token_expires_at: at }, NOW)).toBe(true)
+    expect(expiresSoon({ status: "sent", expires_in_days: 5 }, NOW)).toBe(false)
   })
 })

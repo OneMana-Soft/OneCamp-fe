@@ -63,12 +63,23 @@ describe("the Teams tab", () => {
     expect(state.list.mutate).toHaveBeenCalled()
   })
 
-  it("puts a team's members first in its row, and deleting it last, as Members does", () => {
+  it("puts a team's members first in its ⋯ menu, and deleting it last, as Members does", async () => {
     state.list = { data: { data: [team("t1", "Design", 4)], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<TeamsCard />)
-    const members = screen.getByRole("button", { name: "View members of Design" })
-    const remove = screen.getByRole("button", { name: "Delete Design" })
-    expect(members.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for Design" }), { key: "Enter" })
+    const items = await screen.findAllByRole("menuitem")
+    expect(items[0].textContent).toBe("View members")
+    expect(items.at(-1)?.textContent).toMatch(/^Delete team/)
+  })
+
+  it("opens the team's side sheet from its row, and marks it in the team's own hue", () => {
+    state.list = { data: { data: [team("t1", "Design", 4)], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    const { container } = render(<TeamsCard />)
+    fireEvent.click(screen.getByRole("button", { name: "Open Design" }))
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ key: "teamMembers" }) }))
+    const mark = container.querySelector("[data-team-mark]") as HTMLElement
+    expect(mark.className).toMatch(/hue-\w+ avatar-person/)
+    expect(mark.textContent).toBe("D")
   })
 
   it("says a failed load failed, with Try again", () => {
@@ -84,11 +95,11 @@ describe("the Teams tab", () => {
   it("counts a team of one as one member, and loads as the rows it will show", () => {
     state.list = { data: { data: [team("t1", "Design", 1), team("t2", "Studio", 6)], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     const { unmount } = render(<TeamsCard />)
-    expect(screen.getByText("1 member")).toBeTruthy()
-    expect(screen.getByText("6 members")).toBeTruthy()
+    expect(screen.getByText("1 person")).toBeTruthy()
+    expect(screen.getByText("6 people")).toBeTruthy()
     unmount()
     state.list = { data: undefined, isLoading: true, isError: undefined, mutate: vi.fn() }
     const { container } = render(<TeamsCard />)
-    expect(container.querySelector("ul[aria-busy='true']")?.className).toMatch(/divide-y/)
+    expect(container.querySelector("ul[aria-busy='true']")?.className).toContain("people-rows")
   })
 })

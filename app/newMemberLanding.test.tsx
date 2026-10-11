@@ -66,10 +66,10 @@ describe("accepting an invitation", () => {
   it("opens the channel the new member was put in", async () => {
     nav.search = "token=tok-ana"
     render(<SignupPage />)
-    await screen.findByText("ana@example.com")
+    await screen.findByLabelText("Your name")
     fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Ana" } })
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
-    await act(async () => void fireEvent.submit(screen.getByRole("button", { name: /create account/i }).closest("form")!))
+    await act(async () => void fireEvent.submit(screen.getByRole("button", { name: /^join/i }).closest("form")!))
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(LANDING))
   })
 })

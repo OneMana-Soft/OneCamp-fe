@@ -11,7 +11,9 @@ vi.mock("@/hooks/useResilientPolling", () => ({ useResilientPolling: () => {} })
 vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 const post = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) }, OWN_ERRORS: { suppressErrorToast: true } }))
+const put = vi.fn()
+vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a), put: (...a: unknown[]) => put(...a) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast: (...a: unknown[]) => toast(...a) }))
 
@@ -40,6 +42,7 @@ afterEach(() => {
   answers = {}
   refetch.mockReset()
   post.mockReset()
+  put.mockReset()
   toast.mockReset()
 })
 
@@ -80,11 +83,13 @@ describe("the archive card", () => {
 
   // The counts sat beside grey chips; each kind now has its own tile, the same
   // one as in its rule and its history.
-  it("shows each kind's count on its own hued tile", () => {
+  // Design v3 (A13, §1.5): a kind of thing is a category, so a neutral mark, never a hue.
+  it("shows each kind's count beside its neutral mark", () => {
     answers = { [POLICIES]: { data: { policies: [policy] } }, [JOBS]: { data: { jobs: [] } }, [STATS]: { data: { stats } } }
     render(<ArchiveCard />)
     const counts = screen.getByRole("list", { name: "Archived so far" })
-    expect(counts.querySelector(".hue-sky")).toBeTruthy()
+    expect(counts.querySelector("[data-archive-mark]")?.className).toContain("archive-mark")
+    expect(counts.querySelector("[class*='hue-']")).toBeNull()
     expect(counts.textContent).toContain("18,432")
     expect(counts.textContent).toContain("Channel posts")
   })
@@ -97,7 +102,8 @@ describe("the archive card", () => {
     }
     post.mockRejectedValue({ response: { status: 409, data: { code: "archive_running", error: "an archive job is already running" } } })
     render(<ArchiveCard />)
-    fireEvent.click(screen.getByRole("button", { name: "Restore what this run archived" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for the channel posts run" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Restore what this run archived" }))
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({ title: "Couldn't restore what this run archived", description: "Archiving is running right now. Try again when it finishes." }),
@@ -116,17 +122,42 @@ describe("the archive section's frame", () => {
     [STATS]: { data: { stats } },
   })
 
-  it("is a section with its title, one action on the title's row, and its parts as sections inside it", () => {
+  it("draws no title of its own, keeps Restore items at its top, and its parts as sections", () => {
     answers = loaded()
     const { container } = render(<ArchiveCard />)
     const region = screen.getByRole("region", { name: "Archive" })
-    expect(screen.getByRole("heading", { level: 2, name: "Archive" })).toBeTruthy()
+    expect(region.querySelector("h1")).toBeNull()
     expect(container.querySelector(".rounded-xl")).toBeNull()
-    const action = region.querySelector("[data-section-action]") as HTMLElement
+    const action = region.querySelector("[data-archive-actions]") as HTMLElement
     expect(within(action).getByRole("button", { name: "Restore items" })).toBeTruthy()
-    for (const name of ["Archived so far", "Archive rules", "Archive history"]) {
-      expect(screen.getByRole("heading", { level: 3, name })).toBeTruthy()
+    for (const name of ["Archived so far", "Rules", "History"]) {
+      expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy()
     }
+  })
+
+  // Linear's sentence-form setting: the rule's one number is an inline select that saves at once.
+  it("reads each rule as a sentence whose number saves the moment it changes", async () => {
+    answers = loaded()
+    put.mockResolvedValue({})
+    render(<ArchiveCard />)
+    const rule = document.querySelector("[data-archive-rule='posts']") as HTMLElement
+    expect(rule.textContent).toMatch(/Archive channel posts older than.*every hour\./)
+    const select = within(rule).getByRole("combobox") as HTMLSelectElement
+    expect(select.value).toBe("365")
+    fireEvent.change(select, { target: { value: "90" } })
+    await waitFor(() => expect(put).toHaveBeenCalledWith("/admin/archive/policies/posts", { retention_days: 90, auto_archive: true }, expect.anything()))
+    expect((await within(rule).findAllByText("Saved")).length).toBeGreaterThan(0)
+  })
+
+  it("puts the select back, with the reason, when the server refuses", async () => {
+    answers = loaded()
+    put.mockRejectedValue({ response: { status: 400, data: { msg: "Too short for this kind." } } })
+    render(<ArchiveCard />)
+    const rule = document.querySelector("[data-archive-rule='posts']") as HTMLElement
+    const select = within(rule).getByRole("combobox") as HTMLSelectElement
+    fireEvent.change(select, { target: { value: "30" } })
+    expect(await within(rule).findByRole("alert")).toBeTruthy()
+    expect(select.value).toBe("365")
   })
 
   // The bar's status: a dot and a word, where a run was a tinted pill.
@@ -142,22 +173,21 @@ describe("the archive section's frame", () => {
     expect(within(history).getByText("4 failed").className).toContain("text-danger-ink")
   })
 
-  it("puts each rule's and run's tile at the list rows' one size", () => {
+  it("draws each rule and run as a card row with its 28px mark", () => {
     answers = loaded()
     render(<ArchiveCard />)
     for (const name of ["Archive rules", "Archive history"]) {
       const row = screen.getByRole("list", { name }).querySelector("li") as HTMLElement
-      expect(row.className).toContain("px-4 py-3")
-      expect(row.querySelector(".size-8")).toBeTruthy()
+      expect(row.className).toContain("set-row")
+      expect(row.querySelector(".archive-mark")).toBeTruthy()
     }
   })
 
-  it("says nothing has been archived yet with the workspace's tile, not a boxed line", () => {
+  it("says nothing has been archived yet inside its card, not a boxed line", () => {
     answers = { [POLICIES]: { data: { policies: [] } }, [JOBS]: { data: { jobs: [] } }, [STATS]: { data: { stats } } }
     render(<ArchiveCard />)
-    expect(screen.getByText("No archive rules on this server")).toBeTruthy()
-    expect(screen.getByText("Nothing archived yet")).toBeTruthy()
-    expect(document.querySelectorAll(".hue-sun").length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText("No archive rules on this server").closest("[data-settings-card]")).toBeTruthy()
+    expect(screen.getByText("Nothing archived yet").closest("[data-settings-card]")).toBeTruthy()
     expect(document.querySelector("p.rounded-lg")).toBeNull()
   })
 

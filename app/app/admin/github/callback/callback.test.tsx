@@ -32,7 +32,10 @@ describe("the GitHub return page", () => {
     render(<GitHubCallbackPage />)
     expect(screen.getByRole("heading", { level: 1, name: "Connecting GitHub…" })).toBeTruthy()
     expect(screen.getByRole("status")).toBeTruthy()
-    expect(document.querySelector(".hue-lake")).toBeTruthy()
+    // Design v3 (A22): the 64px plug spot in the connections hue, a spinner over it.
+    const spot = document.querySelector("[data-callback-spot]") as HTMLElement
+    expect(spot.querySelector("svg[data-spot].hue-lake")?.getAttribute("width")).toBe("64")
+    expect(spot.querySelector("[data-spinner] .animate-spin")).toBeTruthy()
     expect(document.querySelector(".bg-gray-900")).toBeNull()
     expect(document.body.textContent).not.toMatch(/Please/)
   })
@@ -56,6 +59,7 @@ describe("the GitHub return page", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Couldn't connect GitHub" })).toBeTruthy()
     expect(screen.getByText("The user has denied your application access.")).toBeTruthy()
     expect(screen.getByRole("link", { name: "Back to Integrations" }).getAttribute("href")).toBe("/app/admin?tab=integrations")
+    expect(document.querySelector("svg[data-spot]")?.getAttribute("width")).toBe("64")
     expect(post).not.toHaveBeenCalled()
   })
 

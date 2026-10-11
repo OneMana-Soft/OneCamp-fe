@@ -34,19 +34,21 @@ afterEach(() => {
 })
 
 describe("external users", () => {
-  it("lists people as rows in one bordered list", () => {
+  it("lists people as rows of the members frame, each with the Guest tag", () => {
     state.list = { data: { data: [person], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<ExternalUsersCard />)
     const row = screen.getByText("Mona Lisa").closest("li")!
-    expect(row.parentElement?.className).toMatch(/divide-y/)
+    expect(row.parentElement?.className).toContain("people-rows")
     expect(row.className).not.toMatch(/\bborder\b/)
+    expect(row.querySelector("[data-person-tag='guest']")?.textContent).toBe("Guest")
   })
 
   it("asks before unlinking someone, and names them", async () => {
     state.list = { data: { data: [person], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     post.makeRequest.mockResolvedValue({})
     render(<ExternalUsersCard />)
-    fireEvent.click(screen.getByRole("button", { name: "Unlink GitHub account for Mona Lisa" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for Mona Lisa" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: /End access/ }))
     expect(post.makeRequest).not.toHaveBeenCalled()
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
       title: "Unlink Mona Lisa from GitHub?",
@@ -70,13 +72,13 @@ describe("external users", () => {
   // One rule on every people tab: nothing ever is a first run, welcomed with
   // the spot in the people group's sky; a search that matched nobody keeps the
   // icon's tile (peopleFrame.test.tsx).
-  it("welcomes an empty list with the sky welcome spot, and loads as one bordered list", () => {
+  it("welcomes an empty list with the sky welcome spot, and loads in the list's own rows", () => {
     state.list = { data: { data: [], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     const { unmount } = render(<ExternalUsersCard />)
     expect(document.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
     unmount()
     state.list = { data: undefined, isLoading: true, isError: undefined, mutate: vi.fn() }
     const { container } = render(<ExternalUsersCard />)
-    expect(container.querySelector("ul[aria-busy='true']")?.className).toMatch(/divide-y/)
+    expect(container.querySelector("ul[aria-busy='true']")?.className).toContain("people-rows")
   })
 })

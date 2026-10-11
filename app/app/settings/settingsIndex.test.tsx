@@ -9,6 +9,10 @@ import { cleanup, render, screen } from "@testing-library/react"
 const { caps, ai } = vi.hoisted(() => ({ caps: { isLoading: false, granted: true }, ai: { state: "available" as string } }))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => caps.granted, isLoading: caps.isLoading }) }))
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeatureState: () => ai.state, useAIAvailable: () => ai.state === "available" }))
+// The index is the phone's screen; on a computer Settings opens on Profile.
+const replace = vi.hoisted(() => vi.fn())
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: true, isTablet: false, isDesktop: false }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }))
 
 import SettingsPage from "./page"
 

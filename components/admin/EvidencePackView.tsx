@@ -23,11 +23,11 @@
  * than what this component was written knowing about.
  */
 
-import React from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Download, ShieldCheck, ShieldAlert } from "@/lib/icons"
+import { CopyButton, middleEllipsis } from "@/components/ui/settingsControls"
+import { Download, Info, ShieldCheck, ShieldAlert } from "@/lib/icons"
 import type { EvidencePack, EvidenceManifestEntry } from "@/services/settingsService"
-import { kicker } from "@/components/ui/pageHeader"
 
 /** A section title a person reads, from an id a programmer wrote. */
 export function sectionTitle(id: string): string {
@@ -74,10 +74,117 @@ export function cellText(value: unknown): string {
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="min-w-0">
-            {/* A quiet label over its value, as the task panel's fields are. */}
-            <dt className={kicker}>{label}</dt>
-            <dd className="mt-0.5 break-words text-sm text-foreground">{value}</dd>
+            <dt className="text-2xs font-medium text-ink-3">{label}</dt>
+            <dd className="mt-1 min-w-0 break-words text-sm text-foreground">{value}</dd>
         </div>
+    )
+}
+
+/**
+ * A long digest on one line: "4dfe57e3…72dd554ee" on screen with copy, the
+ * whole value in its title for a pointer and in print (people.css swaps the
+ * short form for the full one under @media print, where nothing can be
+ * hovered and a reader must be able to compare every character).
+ */
+export function Fingerprint({ value, label = "fingerprint", copy = true }: { value: string; label?: string; copy?: boolean }) {
+    if (!value) return <span className="text-ink-3">none</span>
+    return (
+        <span data-fingerprint="" className="inline-flex min-w-0 items-center gap-1 ev-mono">
+            <span className="ev-short truncate" title={value}>
+                {middleEllipsis(value)}
+            </span>
+            <span className="ev-full">{value}</span>
+            {copy && <CopyButton value={value} label={label} className="ev-print-hide" />}
+        </span>
+    )
+}
+
+/** An id as a column shows it: the first eight characters in mono, the whole in its title. */
+function ShortId({ value }: { value: string }) {
+    return (
+        <span className="font-mono text-2xs" title={value}>
+            <span className="ev-short">{value.slice(0, 8)}</span>
+            <span className="ev-full">{value}</span>
+        </span>
+    )
+}
+
+/** Whether a value looks like an id or a digest: long, with no spaces. Pure. */
+export function looksLikeId(v: unknown): v is string {
+    return typeof v === "string" && v.length >= 20 && !/\s/.test(v) && /^[0-9a-zA-Z_:-]+$/.test(v)
+}
+
+/**
+ * The columns a reader reads first (sequence, time, who, what, summary),
+ * taken from whatever the section's rows carry; "All columns" shows the rest.
+ * A section with none of these keeps its first five. Pure.
+ */
+export function readableColumns(columns: string[]): string[] {
+    const want = [/^seq$/, /(^|_)(time|created_at|at|when|date)$/, /actor|^by$|user|email|agent_name/, /action|^event|kind|tool/, /summary|reason|message|description/]
+    const picked: string[] = []
+    for (const re of want) {
+        const c = columns.find((x) => re.test(x) && !picked.includes(x))
+        if (c) picked.push(c)
+    }
+    return picked.length >= 2 ? picked : columns.slice(0, 5)
+}
+
+function Cell({ value }: { value: unknown }) {
+    if (looksLikeId(value)) return <ShortId value={value} />
+    return <>{cellText(value)}</>
+}
+
+/** Field names (snake_case) in a sentence, set in mono. */
+function withCode(text: string): React.ReactNode {
+    return text.split(/(\b[a-z]+(?:_[a-z0-9]+)+\b)/g).map((part, i) =>
+        /^[a-z]+(?:_[a-z0-9]+)+$/.test(part) ? (
+            <code key={i} className="font-mono text-2xs text-foreground">
+                {part}
+            </code>
+        ) : (
+            part
+        ),
+    )
+}
+
+function SectionTable({ id, rows }: { id: string; rows: Array<Record<string, unknown>> }) {
+    const [all, setAll] = useState(false)
+    const columns = sectionColumns(rows)
+    const readable = readableColumns(columns)
+    const shown = all ? columns : readable
+    const more = columns.length > readable.length
+    return (
+        <>
+            <div className={all ? "mt-3 overflow-x-auto" : "mt-3"} data-ev-table={id}>
+                <table className="ev-table" data-wide={all ? "true" : undefined}>
+                    <thead>
+                        <tr>
+                            {shown.map((c) => (
+                                <th key={c} scope="col">
+                                    {sectionTitle(c)}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, i) => (
+                            <tr key={i}>
+                                {shown.map((c) => (
+                                    <td key={c} className={all ? undefined : "max-w-[18rem] truncate"}>
+                                        <Cell value={row[c]} />
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {more && (
+                <Button variant="ghost" size="xs" className="ev-print-hide mt-1 -ml-2" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+                    {all ? "Fewer columns" : `All columns (${columns.length})`}
+                </Button>
+            )}
+        </>
     )
 }
 
@@ -90,152 +197,115 @@ const EvidencePackView: React.FC<{
     const manifest: EvidenceManifestEntry[] = pack.integrity.manifest ?? []
 
     return (
-        <article className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:px-0 print:py-0">
-            <header className="border-b border-border pb-6">
-                <p className={kicker}>
-                    {pack.pack.product} · Evidence pack
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-                    What happened, when, by whom, and under which policy
-                </h1>
-                <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        // A document: the doc measure (720), its title in doc-title. The page
+        // frame above it carries the breadcrumb and Print; on paper only this.
+        <article className="ev-doc mx-auto max-w-[720px] print:max-w-none">
+            <header>
+                <p className="text-xs font-medium text-ink-2">Evidence pack · {pack.pack.product || "OneCamp"}</p>
+                <h2 className="mt-1 text-doc-title text-balance">What happened, when, by whom, and under which policy</h2>
+                <dl data-ev-meta="" className="mt-6 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
                     <Meta label="Window" value={`${fmt(pack.pack.from)} to ${fmt(pack.pack.to)}`} />
                     <Meta label="Generated" value={fmt(pack.pack.generated_at)} />
                     <Meta label="Generated by" value={pack.pack.generated_by || "unknown"} />
-                    <Meta
-                        label="Pack fingerprint"
-                        value={<span className="font-mono text-xs">{pack.integrity.pack_fingerprint}</span>}
-                    />
+                    <Meta label="Fingerprint" value={<Fingerprint value={pack.integrity.pack_fingerprint} label="pack fingerprint" />} />
                 </dl>
             </header>
 
             {/* The verdict first. It is the one thing a reader came for. */}
-            <section className="mt-8">
-                <h2 className="text-base font-semibold">Integrity</h2>
+            <section className="mt-10" aria-labelledby="ev-integrity">
+                <h3 id="ev-integrity" className="sr-only">
+                    Integrity
+                </h3>
                 {v ? (
-                    <div
-                        className={`mt-3 flex items-start gap-3 rounded-lg border p-4 ${
-                            v.ok ? "border-success/40 bg-success/5" : "border-destructive/40 bg-destructive/5"
-                        }`}
-                    >
-                        {v.ok ? (
-                            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-hidden="true" />
-                        ) : (
-                            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" aria-hidden="true" />
-                        )}
-                        <div className="min-w-0 text-sm">
-                            <p className="font-medium">{v.message}</p>
-                            <p className="mt-1 text-muted-foreground">
-                                {v.checked} row{v.checked === 1 ? "" : "s"} recomputed
+                    <div data-ev-seal="" data-ok={v.ok ? "true" : "false"} className="ev-seal">
+                        <span className="ev-seal-tile" aria-hidden="true">
+                            {v.ok ? <ShieldCheck /> : <ShieldAlert />}
+                        </span>
+                        <div className="min-w-0">
+                            <p className="text-title-3">{v.ok ? "Every entry verifies" : "The chain did not verify"}</p>
+                            <p className="mt-0.5 text-sm text-ink-2">
+                                {v.checked.toLocaleString("en")} row{v.checked === 1 ? "" : "s"} recomputed
                                 {v.redacted ? `, ${v.redacted} taken at their word after redaction` : ""}
                                 {v.partial ? ". A window was checked, not the whole log." : "."}
                             </p>
+                            {!v.ok && <p className="mt-1 text-sm text-danger-ink">{v.message}</p>}
                         </div>
                     </div>
                 ) : (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                        No chain verification travelled with this pack.
-                    </p>
+                    <p className="text-sm text-ink-2">No chain verification travelled with this pack.</p>
                 )}
             </section>
 
-            {/* The manifest, because a digest per section is what lets a reader
-                check this document against the file without trusting either. */}
-            <section className="mt-8">
-                <h2 className="text-base font-semibold">Contents</h2>
-                <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full min-w-[34rem] border-collapse text-left text-sm">
-                        <thead>
-                            <tr className="border-b border-border bg-muted/40">
-                                <th scope="col" className="px-3 py-2 font-medium">Section</th>
-                                <th scope="col" className="px-3 py-2 font-medium">Rows</th>
-                                <th scope="col" className="px-3 py-2 font-medium">Describes</th>
-                                <th scope="col" className="px-3 py-2 font-medium">SHA-256</th>
+            {/* The manifest: a digest per section is what lets a reader check
+                this document against the file without trusting either. */}
+            <section className="ev-section mt-10">
+                <h3 className="text-heading">Contents</h3>
+                <table className="ev-table mt-3">
+                    <thead>
+                        <tr>
+                            <th scope="col">Section</th>
+                            <th scope="col">Rows</th>
+                            <th scope="col" className="max-sm:hidden">Describes</th>
+                            <th scope="col">SHA-256</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {manifest.map((m) => (
+                            <tr key={m.section}>
+                                <th scope="row" className="font-book">
+                                    {sectionTitle(m.section)}
+                                </th>
+                                <td className="tabular-nums">{m.rows}</td>
+                                <td className="text-ink-2 max-sm:hidden">{m.describes}</td>
+                                <td>
+                                    <Fingerprint value={m.sha256} label={`${sectionTitle(m.section)} digest`} copy={false} />
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {manifest.map((m) => (
-                                <tr key={m.section} className="border-b border-border last:border-0 align-top">
-                                    <th scope="row" className="px-3 py-2 font-normal">{sectionTitle(m.section)}</th>
-                                    <td className="px-3 py-2 tabular-nums">{m.rows}</td>
-                                    <td className="px-3 py-2 text-muted-foreground">{m.describes}</td>
-                                    <td className="px-3 py-2 font-mono text-xs break-all">{m.sha256}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                        ))}
+                    </tbody>
+                </table>
             </section>
 
             {/* Every section the pack declared, in the manifest's order. */}
             {manifest.map((m) => {
                 const rows = sectionRows(pack.sections?.[m.section])
-                const columns = sectionColumns(rows)
                 return (
-                    <section key={m.section} className="mt-8 break-inside-avoid">
-                        <h2 className="text-base font-semibold">{sectionTitle(m.section)}</h2>
-                        <p className="mt-0.5 text-sm text-muted-foreground">{m.describes}</p>
-                        {rows.length === 0 ? (
-                            <p className="mt-3 text-sm text-muted-foreground">
-                                Nothing in this window.
-                            </p>
-                        ) : (
-                            <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-                                <table className="w-full min-w-[34rem] border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="border-b border-border bg-muted/40">
-                                            {columns.map((c) => (
-                                                <th key={c} scope="col" className="px-3 py-2 font-medium">
-                                                    {sectionTitle(c)}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {rows.map((row, i) => (
-                                            <tr key={i} className="border-b border-border last:border-0 align-top">
-                                                {columns.map((c) => (
-                                                    <td key={c} className="px-3 py-2 break-words">
-                                                        {cellText(row[c])}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
+                    <section key={m.section} className="ev-section mt-10">
+                        <h3 className="text-heading">{sectionTitle(m.section)}</h3>
+                        <p className="mt-0.5 text-sm text-ink-2">{m.describes}</p>
+                        {rows.length === 0 ? <p className="mt-3 text-sm text-ink-2">Nothing in this window.</p> : <SectionTable id={m.section} rows={rows} />}
                     </section>
                 )
             })}
 
-            {/* Verbatim, both of them. Summarising the verification steps would
-                leave a reader trusting the summary, and softening the limits is
-                the failure the limits exist to prevent. */}
-            <section className="mt-10 break-inside-avoid">
-                <h2 className="text-base font-semibold">How to verify this</h2>
-                <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-                    {pack.how_to_verify?.map((step) => <li key={step}>{step}</li>)}
+            {/* Verbatim, both of them. Summarising the steps would leave a reader
+                trusting the summary, and softening the limits is the failure
+                the limits exist to prevent. */}
+            <section className="ev-section mt-10">
+                <h3 className="text-heading">How to verify this</h3>
+                <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-2">
+                    {pack.how_to_verify?.map((step) => <li key={step}>{withCode(step)}</li>)}
                 </ol>
             </section>
 
-            <section className="mt-8 break-inside-avoid">
-                <h2 className="text-base font-semibold">What this does not prove</h2>
-                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+            <section data-ev-limits="" className="mt-8 rounded-xl bg-sunken p-4">
+                <h3 className="flex items-center gap-2 text-sm font-medium">
+                    <Info className="size-4 text-ink-3" aria-hidden="true" />
+                    What this does not prove
+                </h3>
+                <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-2">
                     {pack.limits?.map((limit) => <li key={limit}>{limit}</li>)}
                 </ul>
             </section>
 
-            <footer className="mt-10 border-t border-border pt-6 text-sm text-muted-foreground">
+            <footer className="mt-10 text-sm text-ink-2">
                 <p>
-                    This page is a reading of pack{" "}
-                    <span className="font-mono text-xs">{pack.integrity.pack_fingerprint}</span>. The
-                    fingerprint is a digest of the JSON, so verification is done against the file and
-                    not against this page or a print of it.
+                    This page is a reading of pack <Fingerprint value={pack.integrity.pack_fingerprint} copy={false} />. The fingerprint is a digest
+                    of the JSON, so verification is done against the file and not against this page or a print of it.
                 </p>
                 {onDownload && (
-                    <Button variant="outline" size="sm" className="mt-4 gap-2 print:hidden" onClick={onDownload}>
-                        <Download className="h-4 w-4" />
+                    <Button variant="secondary" size="sm" className="ev-print-hide mt-4" onClick={onDownload}>
+                        <Download aria-hidden="true" />
                         Download the file this reads
                     </Button>
                 )}

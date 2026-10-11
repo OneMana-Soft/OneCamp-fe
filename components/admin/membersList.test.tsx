@@ -105,7 +105,7 @@ describe("the members list", () => {
   it("says nobody matches when everyone is loaded, and offers to clear the search", async () => {
     render(<UserCard />)
     await type("zzzz")
-    expect(screen.getByRole("heading", { name: /no members match “zzzz”/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /no one matches “zzzz”\./i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /clear search/i }))
     expect((search() as HTMLInputElement).value).toBe("")
   })
@@ -130,9 +130,9 @@ describe("the members list", () => {
     const { container } = render(<UserCard />)
     const skeleton = container.querySelector("[aria-busy='true']") as HTMLElement
     expect(skeleton).not.toBeNull()
-    // One bordered list of hairline rows, like the loaded list, not spaced cards.
-    expect(skeleton.className).toContain("divide-y")
-    expect(skeleton.className).toContain("border")
+    // The loaded list's own rows (design v3: no outer box, hairlines between).
+    expect(skeleton.className).toContain("people-rows")
+    expect(skeleton.className).not.toMatch(/\bborder\b/)
     expect(skeleton.querySelectorAll(":scope > li").length).toBeGreaterThan(3)
     // Nothing under the skeleton: "Loading the rest… 0 so far" belongs under rows.
     expect(screen.queryByText(/loading the rest/i)).toBeNull()
@@ -148,38 +148,34 @@ describe("the members list", () => {
   // A failed first page used to leave the skeleton up for good, and a failed
   // later page left "loading" up for good: neither said anything went wrong.
   // The header said "Members 15" over "Free plan: 14 of 25 people": the list
-  // counts a deactivated account, the plan doesn't. The header now says so.
-  it("says how many in the count are deactivated, once everyone is loaded", () => {
+  // counts a deactivated account, the plan doesn't. Design v3 (A2) gives the
+  // list a filter instead: All · Active · Deactivated.
+  it("shows only the deactivated people under Deactivated, desaturated and tagged", () => {
     const saved = state.people.map((p) => p.user_deleted_at)
     state.people[3].user_deleted_at = "2026-09-30T10:00:00Z"
     state.people[400].user_deleted_at = "2026-10-01T10:00:00Z"
     try {
-      render(<UserCard />)
-      // One line, so it fits a phone and every people tab's toolbar starts at one height.
-      expect(screen.getByText("Everyone with an account here, 2 deactivated.")).toBeInTheDocument()
+      const { container } = render(<UserCard />)
+      fireEvent.click(screen.getByRole("radio", { name: "Deactivated" }))
+      const rows = container.querySelectorAll("[data-person-row]")
+      expect(rows.length).toBe(2)
+      for (const r of Array.from(rows)) {
+        expect(r.getAttribute("data-dimmed")).toBe("true")
+        expect(r.textContent).toContain("Deactivated")
+      }
     } finally {
       state.people.forEach((p, i) => { p.user_deleted_at = saved[i] })
-    }
-  })
-
-  it("says nothing about deactivated people while the rest are loading", () => {
-    state.answeredPages = 1
-    const saved = state.people[3].user_deleted_at
-    state.people[3].user_deleted_at = "2026-09-30T10:00:00Z"
-    try {
-      render(<UserCard />)
-      expect(screen.getByText("Everyone with an account here.")).toBeInTheDocument()
-    } finally {
-      state.people[3].user_deleted_at = saved
     }
   })
 
   // A refused deactivation said "Couldn't deactivate user".
   it("names the person when deactivating them is refused", async () => {
     render(<UserCard />)
-    const [first] = screen.getAllByRole("button", { name: /^Deactivate / })
-    const name = first.getAttribute("aria-label")!.replace(/^Deactivate /, "")
-    await act(async () => void fireEvent.click(first))
+    const [first] = screen.getAllByRole("button", { name: /^Actions for / })
+    const name = first.getAttribute("aria-label")!.replace(/^Actions for /, "")
+    fireEvent.keyDown(first, { key: "Enter" })
+    const item = (await screen.findAllByRole("menuitem")).find((i) => i.textContent?.startsWith("Deactivate"))!
+    await act(async () => void fireEvent.click(item))
     const sent = state.requests.find((r) => String(r.apiEndpoint).includes("deactivate"))
     expect(sent?.failureTitle).toBe(`Couldn't deactivate ${name}`)
     expect(name).not.toMatch(/@/)

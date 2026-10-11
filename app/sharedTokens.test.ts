@@ -4,67 +4,104 @@ import { resolve } from "node:path"
 
 /**
  * The workspace and the storefront (onemana.dev) are one product to a visitor:
- * the page read before paying must look like the app used after. This app
- * writes its palette in OKLCH; the storefront writes the same colours as sRGB
- * triples and pins the same table in its app/sharedTokens.test.ts. Change a
- * shared colour in both repos, or neither.
+ * the page read before paying must look like the app used after. Design v3
+ * (11 Oct 2026) writes its surfaces, inks and lines as the spec's hex and
+ * rgba() and keeps the accent and the status colours in OKLCH; the storefront
+ * pins the same table in its lib/appSystem.ts (and its sharedTokens.test.ts).
+ * Change a shared colour in both repos, or neither.
  */
-const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>> = {
-  // The graphite palette of 10 Oct 2026 (design direction, "Palette tokens"):
-  // signal orange on cool graphite neutrals.
+const SHARED: Record<"light" | "dark", Record<string, string>> = {
+  // Design v3 of 11 Oct 2026 (DESIGN_V3.md §3.2 to §3.5): neutral graphite
+  // surfaces, four ink tiers, alpha lines, and the accent wave 1 solved.
   light: {
-    brand: [204, 74, 11], // #CC4A0B
-    "brand-muted": [255, 241, 232], // #FFF1E8
-    background: [252, 252, 253], // #FCFCFD bg
-    foreground: [20, 22, 26], // #14161A text
-    card: [255, 255, 255], // #FFFFFF surface
-    muted: [245, 246, 247], // #F5F6F7 surface-2
-    "muted-foreground": [95, 100, 112], // #5F6470 text-2
-    "faint-foreground": [138, 143, 153], // #8A8F99 text-3
-    accent: [245, 246, 247],
-    "accent-foreground": [20, 22, 26],
-    border: [228, 229, 232], // #E4E5E8 line
-    input: [211, 213, 218], // #D3D5DA line-strong
-    "agent": [79, 91, 213], // #4F5BD5
-    "agent-foreground": [255, 255, 255],
-    "agent-muted": [238, 240, 253], // #EEF0FD
-    success: [31, 138, 76],
-    warning: [178, 107, 0],
-    destructive: [209, 41, 61],
-    info: [47, 111, 219],
+    frame: "#F3F4F6",
+    sheet: "#FFFFFF",
+    sunken: "#F8F9FA",
+    raised: "#FFFFFF",
+    pop: "#FFFFFF",
+    ink: "#16171B",
+    "ink-2": "#5B5D65",
+    "ink-3": "#8A8C92",
+    "ink-4": "#B9BBC0",
+    line: "rgba(20, 22, 30, 0.075)",
+    "line-2": "rgba(20, 22, 30, 0.12)",
+    "line-3": "rgba(20, 22, 30, 0.18)",
+    hover: "rgba(20, 22, 30, 0.04)",
+    press: "rgba(20, 22, 30, 0.07)",
+    sel: "rgba(20, 22, 30, 0.055)",
+    brand: "#CC4A0B",
+    "brand-text": "#C2410C",
+    "brand-foreground": "#FFFFFF",
+    "brand-muted": "#FCEFE6",
+    agent: "#5B63D6",
+    "agent-muted": "#EEEFFC",
+    "agent-ink": "#3B3FA6",
+    success: "#1F8A4C",
+    warning: "#B26B00",
+    destructive: "#D1293D",
+    info: "#2F6FDB",
     // The meanings as text (the storefront's "-ink" cuts).
-    "success-ink": [23, 107, 58], // #176B3A
-    "warning-ink": [138, 83, 0], // #8A5300
-    "info-ink": [34, 87, 181], // #2257B5
-    "danger-ink": [174, 31, 51], // #AE1F33
+    "success-ink": "#176B3A",
+    "warning-ink": "#8A5300",
+    "info-ink": "#2257B5",
+    "danger-ink": "#AE1F33",
   },
   dark: {
-    brand: [255, 122, 51], // #FF7A33
-    "brand-foreground": [14, 15, 17],
-    "brand-muted": [42, 26, 16], // #2A1A10
-    background: [14, 15, 17], // #0E0F11
-    foreground: [237, 238, 240], // #EDEEF0
-    card: [22, 24, 28], // #16181C
-    muted: [29, 32, 37], // #1D2025
-    "muted-foreground": [155, 160, 170], // #9BA0AA
-    "faint-foreground": [107, 112, 122], // #6B707A
-    accent: [29, 32, 37],
-    "accent-foreground": [237, 238, 240],
-    border: [38, 40, 45], // #26282D
-    input: [51, 54, 61], // #33363D
-    "agent": [163, 171, 245], // #A3ABF5
-    "agent-foreground": [14, 15, 17],
-    "agent-muted": [30, 33, 64], // #1E2140
-    success: [76, 195, 138],
-    warning: [240, 180, 76],
-    destructive: [242, 85, 90],
-    info: [110, 164, 245],
+    frame: "#0B0C0E",
+    sheet: "#131416",
+    sunken: "#0F1012",
+    raised: "#1B1C1F",
+    pop: "#1F2024",
+    ink: "#EEEEF0",
+    "ink-2": "#A8ABB1",
+    "ink-3": "#72747B",
+    "ink-4": "#4A4C52",
+    line: "rgba(255, 255, 255, 0.065)",
+    "line-2": "rgba(255, 255, 255, 0.10)",
+    "line-3": "rgba(255, 255, 255, 0.16)",
+    hover: "rgba(255, 255, 255, 0.04)",
+    press: "rgba(255, 255, 255, 0.07)",
+    sel: "rgba(255, 255, 255, 0.06)",
+    brand: "#FF7A33",
+    "brand-text": "#FF8A4C",
+    "brand-foreground": "#0B0C0E",
+    "brand-muted": "#2A1A10",
+    agent: "#9AA2F6",
+    "agent-muted": "#1E2040",
+    "agent-ink": "#C9CDFB",
+    success: "#4CC38A",
+    warning: "#F0B44C",
+    destructive: "#F2555A",
+    info: "#6EA4F5",
     // On the dark ground the inks are the fills, but for danger.
-    "success-ink": [76, 195, 138],
-    "warning-ink": [240, 180, 76],
-    "info-ink": [110, 164, 245],
-    "danger-ink": [255, 128, 134], // #FF8086
+    "success-ink": "#4CC38A",
+    "warning-ink": "#F0B44C",
+    "info-ink": "#6EA4F5",
+    "danger-ink": "#FF8086",
   },
+}
+
+/**
+ * The shadcn names are aliases of the v3 surfaces and inks, in both modes, so
+ * the hundreds of components that say bg-background or text-muted-foreground
+ * paint the v3 values, and the storefront's names (its lib/appSystem.ts)
+ * point at the same ones.
+ */
+const ALIASES: Record<string, string> = {
+  background: "sheet",
+  foreground: "ink",
+  card: "raised",
+  popover: "pop",
+  muted: "sunken",
+  secondary: "sunken",
+  "muted-foreground": "ink-2",
+  "faint-foreground": "ink-3",
+  accent: "hover",
+  "sidebar-accent": "press",
+  border: "line",
+  input: "line-3",
+  canvas: "frame",
+  sidebar: "frame",
 }
 
 /**
@@ -92,6 +129,17 @@ const CAMP: Record<"light" | "dark", Record<string, string>> = {
     "camp-dusk": "#A795F5", "camp-dusk-tint": "#211B38", "camp-dusk-ink": "#D4CBFB",
     "camp-berry": "#F07AA6", "camp-berry-tint": "#33161F", "camp-berry-ink": "#F9C2D6",
   },
+}
+
+/** The avatar cut (§3.5): the two gradient stops, the same in both modes. */
+const AVATAR: Record<string, string> = {
+  "camp-sun-a1": "#AD7300", "camp-sun-a2": "#855500",
+  "camp-moss-a1": "#3F945B", "camp-moss-a2": "#0E7344",
+  "camp-lake-a1": "#0F919C", "camp-lake-a2": "#006E7D",
+  "camp-sky-a1": "#427FD8", "camp-sky-a2": "#315CB0",
+  "camp-dusk-a1": "#816BD8", "camp-dusk-a2": "#6749AC",
+  "camp-berry-a1": "#CA4B85", "camp-berry-a2": "#A32B5E",
+  "agent-a1": "#6572E4", "agent-a2": "#5050B9",
 }
 
 // OKLCH to 8-bit sRGB (Björn Ottosson's OKLab matrices, then the sRGB curve).
@@ -123,22 +171,52 @@ function tokens(css: string, selector: string): Record<string, string> {
   return out
 }
 
+const hex = (rgb: [number, number, number]) => "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()
+
+/** A value as the table writes it: hex upper-case, rgba() normalised, oklch() converted. */
+function normalise(value: string): string {
+  const v = value.trim()
+  const ok = v.match(/^oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)$/)
+  if (ok) return hex(oklchToRgb(Number(ok[1]), Number(ok[2]), Number(ok[3])))
+  const a = v.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/)
+  if (a) return `rgba(${a[1]}, ${a[2]}, ${a[3]}, ${Number(a[4])})`
+  return v.toUpperCase()
+}
+
+/** Within one step of rounding per channel, for the values the app writes in OKLCH. */
+function same(got: string, want: string): boolean {
+  if (got === normalise(want)) return true
+  const p = (h: string) => (/^#[0-9A-F]{6}$/.test(h) ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : null)
+  const [g, w] = [p(got), p(normalise(want))]
+  return !!g && !!w && g.every((v, i) => Math.abs(v - w[i]) <= 1)
+}
+
 describe("shared tokens", () => {
   const css = readFileSync(resolve(__dirname, "globals.css"), "utf8")
   for (const [theme, selector] of [["light", ":root"], ["dark", ".dark"]] as const) {
+    const got = tokens(css, selector)
+    const resolveVar = (name: string): string | undefined => {
+      const v = got[name]
+      const ref = v?.match(/^var\(--([\w-]+)\)$/)
+      return ref ? resolveVar(ref[1]) : v
+    }
+
     it(`${theme} matches the storefront`, () => {
-      const got = tokens(css, selector)
       for (const [name, want] of Object.entries(SHARED[theme])) {
-        const m = got[name]?.match(/^oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)$/)
-        expect(m, `--${name} is ${got[name]}`).toBeTruthy()
-        const rgb = oklchToRgb(Number(m![1]), Number(m![2]), Number(m![3]))
-        // One step of rounding either way is the same colour on screen.
-        rgb.forEach((v, i) => expect(Math.abs(v - want[i]), `--${name} ${rgb} vs ${want}`).toBeLessThanOrEqual(1))
+        const value = resolveVar(name)
+        expect(value, `--${name} is missing`).toBeTruthy()
+        const n = normalise(value!)
+        expect(same(n, want), `--${name} is ${n}, the shared table says ${want}`).toBe(true)
+      }
+    })
+
+    it(`${theme}: the shadcn names are aliases of the v3 tokens`, () => {
+      for (const [alias, v3] of Object.entries(ALIASES)) {
+        expect(got[alias], `--${alias}`).toBe(`var(--${v3})`)
       }
     })
 
     it(`${theme} camp palette is the storefront's, exactly`, () => {
-      const got = tokens(css, selector)
       const want = CAMP[theme]
       expect(Object.keys(want)).toHaveLength(18)
       for (const [name, hex] of Object.entries(want)) {
@@ -146,4 +224,11 @@ describe("shared tokens", () => {
       }
     })
   }
+
+  it("the avatar cut is the storefront's, exactly, and the same in both modes", () => {
+    const root = tokens(css, ":root")
+    for (const [name, want] of Object.entries(AVATAR)) expect(root[name]?.toUpperCase(), `--${name}`).toBe(want)
+    const dark = tokens(css, ".dark")
+    for (const name of Object.keys(AVATAR)) expect(dark[name], `--${name} is redefined in dark`).toBeUndefined()
+  })
 })

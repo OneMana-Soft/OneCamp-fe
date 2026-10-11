@@ -64,3 +64,61 @@ describe("a visitor's first screen", () => {
     expect(heavyReach(["components/textInput/textInput.tsx"]).some((r) => r.startsWith("@tiptap/"))).toBe(true)
   })
 })
+
+// A project's first screen (design v3 work wave, 11 Oct): its route's script
+// grew from 299 to 380 KB when the board, timeline, updates, files, the
+// phone's page and the project's dialogs all rode in with the list. Each is
+// a chunk of its own now, loaded when its tab or dialog opens. This walks
+// the route's static imports and fails if one of them is reached again, and
+// holds the source the route pulls in under a ceiling that may only go down.
+const PROJECT_ROUTE = "app/app/project/[project-id]/page.tsx"
+const PROJECT_LAZY = [
+  "components/project/projectTaskKanban.tsx",
+  "components/kanbanComponents/TaskBoard.tsx",
+  "components/project/timeline/ProjectTimeline.tsx",
+  "components/projectUpdates/ProjectUpdates.tsx",
+  "components/project/ProjectAttachments.tsx",
+  "components/project/projectListTabs.tsx",
+  "components/project/ProjectStatusesDialog.tsx",
+  "components/project/ProjectFieldsDialog.tsx",
+  "components/project/ProjectFormsDialog.tsx",
+  "components/project/ProjectShareDialog.tsx",
+  "components/project/ProjectTimeDialog.tsx",
+  "components/project/ProjectRatesDialog.tsx",
+  "components/projectTemplates/SaveAsTemplateDialog.tsx",
+  "components/task/cycleBurndownDialog.tsx",
+  "components/charts/SvgChart.tsx",
+  "components/task/taskCreateForm.tsx",
+]
+/** Bytes of source the project route reaches by static import: 1.61 MB before the split, 0.95 MB after. */
+const PROJECT_ROUTE_SOURCE_CEILING = 980_000
+
+function reach(entry: string): Map<string, string | null> {
+  const parent = new Map<string, string | null>([[entry, null]])
+  const queue = [entry]
+  while (queue.length) {
+    const file = queue.shift()!
+    const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+    for (const m of src.matchAll(importRe)) {
+      const next = resolve(m[1], file)
+      if (next && !parent.has(next)) {
+        parent.set(next, file)
+        queue.push(next)
+      }
+    }
+  }
+  return parent
+}
+
+describe("a project's first screen", () => {
+  const reached = reach(PROJECT_ROUTE)
+  it("loads the list only: other tabs, the phone's page and the dialogs are chunks of their own", () => {
+    expect(PROJECT_LAZY.filter((f) => reached.has(f))).toEqual([])
+  })
+
+  it("keeps the source it pulls in under its ceiling", () => {
+    let bytes = 0
+    for (const f of reached.keys()) bytes += readFileSync(f).length
+    expect(bytes, `the project route reaches ${bytes} bytes of source (ceiling ${PROJECT_ROUTE_SOURCE_CEILING})`).toBeLessThanOrEqual(PROJECT_ROUTE_SOURCE_CEILING)
+  })
+})

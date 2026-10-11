@@ -9,16 +9,20 @@ afterEach(cleanup)
 
 // The frame every signed-out page shares.
 describe("the signed-out frame", () => {
-  // The owner's bar (the task panel, 1d8c4dd2): labels quiet, values ink, so the
-  // eye goes to what is typed rather than to the words about it.
-  it("draws a field's label quietly and what is typed in ink", () => {
+  // Design v3 (admin.md F3) changed the label from quiet to ink at 13/510: the
+  // signed-out pages are sparse enough that a muted label read as disabled.
+  // What is typed stays ink, and the field is the raised surface with no
+  // border (field-surface).
+  it("draws a field's label in ink at 13/510, the field raised", () => {
     render(
       <AuthShell>
         <AuthField id="email" label="Email address" defaultValue="sam@example.com" />
       </AuthShell>,
     )
     const classes = (el: Element) => el.className.split(/\s+/)
-    expect(classes(screen.getByText("Email address"))).toContain("text-muted-foreground")
+    expect(classes(screen.getByText("Email address"))).toContain("auth-label")
+    expect(classes(screen.getByText("Email address"))).not.toContain("text-muted-foreground")
+    expect(classes(screen.getByLabelText("Email address"))).toContain("field-surface")
     // The field's own text is ink; only its placeholder is muted.
     expect(classes(screen.getByLabelText("Email address"))).not.toContain("text-muted-foreground")
   })
@@ -60,5 +64,23 @@ describe("standalone links on the signed-out pages", () => {
     for (const f of ["app/forgot-password/page.tsx", "app/unsubscribe/page.tsx", "components/auth/TwoFactorPrompt.tsx"]) {
       expect(readFileSync(f, "utf8"), f).toMatch(/cn\(authLink/)
     }
+  })
+})
+
+// The trust line (F1): the product's claim, with this server's own address.
+// Never a literal domain (app/noHardcodedDeployment.test.ts): the host is read
+// from the page's location.
+describe("the trust line", () => {
+  it("names the host the page is on and says the data stays on it", () => {
+    render(<AuthShell>form</AuthShell>)
+    const line = document.querySelector("[data-trust-line]")!
+    expect(line.textContent).toContain(window.location.host)
+    expect(line.textContent).toContain("self-hosted, your data stays on this server")
+  })
+
+  it("is at the foot of the split shape too, beside the hero", () => {
+    render(<AuthShell side={<svg />}>form</AuthShell>)
+    expect(document.querySelector(".auth-formcol [data-trust-line]")).not.toBeNull()
+    expect(document.querySelector("[data-auth-side] [data-trust-line]")).toBeNull()
   })
 })

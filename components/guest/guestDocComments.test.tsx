@@ -43,10 +43,18 @@ describe("a guest commenting on a shared doc", () => {
     expect(screen.getByLabelText("Comment").tagName).toBe("TEXTAREA")
   })
 
-  it("asks for a name under the name field, and puts the cursor there", async () => {
+  it("keeps Comment off until both the name and the comment are filled", async () => {
     await open()
     write("Looks good")
-    await send()
+    expect(screen.getByRole("button", { name: "Comment" })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Jordan" } })
+    expect(screen.getByRole("button", { name: "Comment" })).toBeEnabled()
+  })
+
+  it("asks for a name under the name field if the form is sent without one, and puts the cursor there", async () => {
+    await open()
+    write("Looks good")
+    await act(async () => fireEvent.submit(screen.getByLabelText("Comment").closest("form")!))
     const nameBox = screen.getByLabelText("Your name")
     expect(nameBox).toHaveAttribute("aria-invalid", "true")
     expect(nameBox).toHaveFocus()
@@ -86,11 +94,22 @@ describe("a guest commenting on a shared doc", () => {
     expect(screen.getByLabelText("Your name")).toHaveValue("Jordan")
   })
 
-  it("lists comments as rows, not boxed cards", async () => {
+  it("lists comments on one card with avatars in the guest's hue, and the count beside the heading", async () => {
     await open("view", [comment])
     const row = screen.getByText("Footer wording, please.").closest("li")!
     expect(row.className).not.toMatch(/\bborder\b|rounded-lg/)
-    // The count is a number beside the heading, not a pill.
+    expect(row.querySelector("[class*='avatar-person']")).toBeTruthy()
+    expect(document.querySelector("[data-guest-comments]")?.className).toMatch(/sm:shadow-e1/)
     expect(screen.getByText("1").className).not.toMatch(/rounded-full/)
+  })
+
+  it("says the team will see a posted comment, which rises in", async () => {
+    createGuestDocComment.mockResolvedValue({ ok: true, data: { ...comment, id: "c3", guest_name: "Jordan", body: "Nice" } })
+    await open()
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Jordan" } })
+    write("Nice")
+    await send()
+    expect(screen.getByText("The team sees your comment beside the doc.")).toBeInTheDocument()
+    expect(screen.getByText("Nice").closest("li")?.className).toMatch(/content-row-in/)
   })
 })

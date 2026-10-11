@@ -36,10 +36,10 @@ import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { AuthHeading, AuthShell, authControl, authLink } from "@/components/auth/AuthShell"
+import { AuthHeading, AuthNotice, AuthShell, authControl, authLink } from "@/components/auth/AuthShell"
 import { cn } from "@/lib/utils/helpers/cn"
 import { apiUrl } from "@/lib/utils/apiUrl"
-import { SpotError, SpotInbox } from "@/components/ui/graphics/spots"
+import { SpotEnvelopeBadge } from "@/components/auth/authSpots"
 
 type Status = "unsubscribed" | "resubscribed" | "missing" | "unknown"
 
@@ -81,7 +81,7 @@ function UnsubscribeContent() {
   if (status === "missing") {
     return (
       <>
-        <AuthHeading title="This link is incomplete" art={<SpotError />}>
+        <AuthHeading title="This link is incomplete" art={<SpotEnvelopeBadge />}>
           Open the unsubscribe link from the email again, or choose which emails you get in your notification settings.
         </AuthHeading>
         <SettingsButton />
@@ -92,19 +92,21 @@ function UnsubscribeContent() {
   if (status === "unsubscribed") {
     return (
       <>
-        <AuthHeading title="You're unsubscribed" art={<SpotInbox />}>
-          OneCamp won&apos;t email you notifications any more. You&apos;ll still see them in the app and on your devices.
+        {/* The envelope with a moss check: done, and nothing more to do. */}
+        <AuthHeading title="You won't get these emails" art={<SpotEnvelopeBadge badge="check" />}>
+          Notification emails from OneCamp are off. You&apos;ll still see them in the app and on your devices.
         </AuthHeading>
-        <div className="space-y-6">
+        <div className="space-y-4">
           {resubscribe && (
-            <form action={resubscribe} method="post" className="space-y-3">
-              <p className="text-sm text-muted-foreground">Changed your mind?</p>
-              <Button type="submit" variant="outline" className={authControl}>
-                Turn emails back on
+            // A real form posting to the API: a link previewer's GET can't
+            // turn emails back on from a leaked address.
+            <form action={resubscribe} method="post">
+              <Button type="submit" variant="secondary" size="lg" className={authControl}>
+                Undo, keep sending them
               </Button>
             </form>
           )}
-          <SettingsLink label="Manage notification settings" />
+          <SettingsLink label="Choose which emails you get" />
         </div>
       </>
     )
@@ -113,16 +115,16 @@ function UnsubscribeContent() {
   if (status === "resubscribed") {
     return (
       <>
-        <AuthHeading title="Emails are back on" art={<SpotInbox />}>
+        {/* The badge swaps to a sun spark with a spring: back on the list. */}
+        <AuthHeading title="You're back on the list" art={<SpotEnvelopeBadge badge="spark" />}>
           OneCamp will email you notifications again. Choose which ones in your notification settings.
         </AuthHeading>
         {isSuppressed && (
-          <div role="note" className="mb-6 space-y-1 rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm">
-            <p className="font-medium">They may not arrive yet</p>
-            <p className="text-muted-foreground">
+          <div className="mb-6">
+            <AuthNotice tone="warning" title="They may not arrive yet" role="note">
               An earlier email to your address bounced or was marked as spam, so OneCamp&apos;s email service is holding
               new ones back. Ask your workspace admin to clear your address.
-            </p>
+            </AuthNotice>
           </div>
         )}
         <SettingsButton />
@@ -132,7 +134,7 @@ function UnsubscribeContent() {
 
   return (
     <>
-      <AuthHeading title="Choose which emails you get">
+      <AuthHeading title="Choose which emails you get" art={<SpotEnvelopeBadge />}>
         Use the unsubscribe link in any email from OneCamp, or change which emails you get in your notification settings.
       </AuthHeading>
       <SettingsButton />
@@ -145,7 +147,7 @@ const SETTINGS = "/app/settings/notifications"
 /** The page's one way on, where there is nothing else to do. */
 function SettingsButton() {
   return (
-    <Button className={authControl} asChild>
+    <Button size="lg" className={authControl} asChild>
       <Link href={SETTINGS}>Open notification settings</Link>
     </Button>
   )

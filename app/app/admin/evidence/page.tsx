@@ -14,14 +14,16 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from "react"
-import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
-import { ChevronLeft, Printer } from "@/lib/icons"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotDocs } from "@/components/ui/graphics"
+import { PageFrame, PageFrameHeader } from "@/components/ui/settingsPage"
+import { FileCheck2, Printer } from "@/lib/icons"
+import { SETTINGS_PLACES } from "@/lib/adminSections"
 import EvidencePackView from "@/components/admin/EvidencePackView"
-import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { usePlan } from "@/hooks/usePlan"
 import { getEvidencePack, downloadEvidencePack, type EvidencePack } from "@/services/settingsService"
 
@@ -46,34 +48,29 @@ function windowFromQuery(params: URLSearchParams): { from?: Date; to?: Date } {
 const AUDIT_LOG_HREF = "/app/admin?tab=audit"
 
 /**
- * The bar above the document in every state: the way back to the audit log,
- * the page's name, and what this state offers. The page had no way back at
- * all, and it opens full-window, so an admin reached Admin again only through
- * the browser's Back or the sidebar. Not printed: it is the furniture around
- * the document, not part of it.
+ * The frame around the document in every state (design v3, A12): the page
+ * frame's header with its breadcrumb (Audit log / Evidence pack), the
+ * Records hue tile, and Print as the one action. The page opens from the
+ * settings nav (Records, Evidence pack) and from the audit log, so the
+ * breadcrumb is its way back. Not printed: it is furniture, not the document.
  */
-function PackBar({ children }: { children?: ReactNode }) {
+function PackFrame({ children, action }: { children: ReactNode; action?: ReactNode }) {
+    const place = SETTINGS_PLACES.find((p) => p.key === "evidence")
     return (
-        <div className="sticky top-0 z-10 border-b border-border/60 bg-background print:hidden">
-            <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
-                <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
-                    <Link
-                        href={AUDIT_LOG_HREF}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                    >
-                        <ChevronLeft className="size-4" aria-hidden="true" />
-                        Audit log
-                    </Link>
-                    <span aria-hidden="true" className="text-muted-foreground">
-                        /
-                    </span>
-                    <span aria-current="page" className="truncate font-medium">
-                        Evidence pack
-                    </span>
-                </nav>
+        <main id="main-content" className="h-full overflow-y-auto bg-background">
+            <PageFrame className="print:max-w-none print:p-0">
+                <PageFrameHeader
+                    hue={place?.hue ?? "lake"}
+                    icon={place?.icon ?? FileCheck2}
+                    title="Evidence pack"
+                    description={place?.description ?? "A record of the log an auditor can check for themselves."}
+                    breadcrumb={[{ label: "Audit log", href: AUDIT_LOG_HREF }, { label: "Evidence pack" }]}
+                    actions={action}
+                    className="ev-print-hide"
+                />
                 {children}
-            </div>
-        </div>
+            </PageFrame>
+        </main>
     )
 }
 
@@ -98,7 +95,9 @@ export default function EvidencePackPage() {
             .catch(() => setFailed(true))
     }, [from, to])
 
-    useEffect(load, [load])
+    useEffect(() => {
+        if (!locked) load()
+    }, [load, locked])
 
     const download = useCallback(() => {
         const w = windowFromQuery(new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }))
@@ -106,58 +105,57 @@ export default function EvidencePackPage() {
     }, [from, to])
 
     if (locked) {
+        // The 96px page spot, what a licence brings, and the way to one.
         return (
-            <main id="main-content" className="h-full overflow-y-auto bg-background">
-                <PackBar />
-                <div className="mx-auto max-w-4xl px-4 py-8">
-                    <PlanLockedNotice what="The evidence pack" upgradeUrl={plan.upgradeUrl} />
-                </div>
-            </main>
+            <PackFrame>
+                <EmptyState
+                    tone="accent"
+                    headingLevel={2}
+                    illustration={<SpotDocs />}
+                    title="Evidence packs come with a licence"
+                    description="A pack is the log with its chain recomputed and every section fingerprinted, a document an auditor can check for themselves. The free plan keeps the log and Verify."
+                    action={
+                        plan.upgradeUrl ? (
+                            <Button asChild size="sm">
+                                <a href={plan.upgradeUrl} target="_blank" rel="noopener noreferrer">
+                                    See the licence
+                                </a>
+                            </Button>
+                        ) : undefined
+                    }
+                />
+            </PackFrame>
         )
     }
 
     if (failed) {
-        // In the page's frame, with its way back: it was the old full-page
-        // error with no bar and no way out but Try again.
         return (
-            <main id="main-content" className="h-full overflow-y-auto bg-background">
-                <PackBar />
-                <div className="mx-auto max-w-4xl px-4 py-8">
-                    <ErrorState
-                        subject="the evidence pack"
-                        detail="The audit log couldn't be read for this window."
-                        onRetry={load}
-                    />
-                </div>
-            </main>
+            <PackFrame>
+                <ErrorState subject="the evidence pack" detail="The audit log couldn't be read for this window." onRetry={load} />
+            </PackFrame>
         )
     }
 
     return (
-        <main id="main-content" className="h-full overflow-y-auto bg-background">
-            <PackBar>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-11 shrink-0 gap-2 md:h-8"
-                    onClick={() => window.print()}
-                    disabled={!pack}
-                >
-                    <Printer />
+        <PackFrame
+            action={
+                <Button variant="secondary" size="sm" className="h-11 md:h-7" onClick={() => window.print()} disabled={!pack}>
+                    <Printer aria-hidden="true" />
                     Print or save as PDF
                 </Button>
-            </PackBar>
-
+            }
+        >
             {pack ? (
                 <EvidencePackView pack={pack} onDownload={download} />
             ) : (
-                <div role="status" aria-label="Assembling the evidence pack" className="mx-auto max-w-4xl space-y-3 px-4 py-8">
-                    <Skeleton className="h-7 w-2/3 rounded" />
-                    <Skeleton className="h-4 w-1/2 rounded" />
-                    <Skeleton className="h-28 w-full rounded" />
+                <div role="status" aria-label="Assembling the evidence pack" className="mx-auto max-w-[720px] space-y-3">
+                    <Skeleton className="h-4 w-40 rounded" />
+                    <Skeleton className="h-9 w-2/3 rounded" />
+                    <Skeleton className="h-16 w-full rounded" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
                     <Skeleton className="h-52 w-full rounded" />
                 </div>
             )}
-        </main>
+        </PackFrame>
     )
 }

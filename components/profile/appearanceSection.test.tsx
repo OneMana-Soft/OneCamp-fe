@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 
 const theme = vi.hoisted(() => ({ current: "light", setTheme: vi.fn() }))
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: theme.current, setTheme: theme.setTheme }) }))
-vi.mock("@/components/activeTheme/ColorThemePicker", () => ({ ColorThemePicker: () => null }))
+vi.mock("@/components/activeTheme/activeTheme", () => ({ VALID_COLOR_THEMES: ["onecamp", "blue"], useThemeConfig: () => ({ activeTheme: "onecamp", setActiveTheme: vi.fn() }) }))
 vi.mock("@/components/profile/ChangePasswordSection", () => ({ ChangePasswordSection: () => null }))
 vi.mock("@/components/profile/TwoFactorSection", () => ({ TwoFactorSection: () => null }))
 vi.mock("@/components/profile/PasskeySection", () => ({ PasskeySection: () => null }))
@@ -41,25 +41,27 @@ describe("the theme choice", () => {
 
   it("chooses a theme when it is clicked", () => {
     render(<AppearanceSection />)
-    fireEvent.click(screen.getByRole("radio", { name: "Match system" }))
+    fireEvent.click(screen.getByRole("radio", { name: "Device" }))
     expect(theme.setTheme).toHaveBeenCalledWith("system")
   })
 })
 
-// The theme and the accent are rows of a settings list, at the padding of the
-// switch rows elsewhere in the profile, not a loose block of their own.
+// The theme and the accent are rows of a settings card, and the theme is a
+// choice of three cards, each a miniature of the app in that mode (design v3,
+// admin D1): it was a segmented control of three words.
 describe("the appearance section", () => {
-  it("sets the theme in a row of a settings list", () => {
+  it("sets the theme in a row of a settings card", () => {
     render(<AppearanceSection />)
-    const row = screen.getByRole("radiogroup", { name: "Theme" }).closest(".px-4.py-3")
+    const row = screen.getByRole("radiogroup", { name: "Theme" }).closest(".set-row")
     expect(row).not.toBeNull()
-    expect(row?.parentElement?.className).toMatch(/divide-y/)
+    expect(row?.parentElement?.className).toMatch(/set-card/)
   })
 
-  it("is the app's segmented control, the height of the inputs in a list", () => {
+  it("draws each theme as a miniature of the app in that mode", () => {
     render(<AppearanceSection />)
     const group = screen.getByRole("radiogroup", { name: "Theme" })
-    expect(group.className).toContain("p-1")
-    expect(within(group).getByRole("radio", { name: /Light/ }).className).toContain("md:h-7")
+    for (const [name, mode] of [["Light", "light"], ["Dark", "dark"], ["Device", "system"]]) {
+      expect(within(group).getByRole("radio", { name }).querySelector(`.you-mini[data-mode="${mode}"]`)).not.toBeNull()
+    }
   })
 })

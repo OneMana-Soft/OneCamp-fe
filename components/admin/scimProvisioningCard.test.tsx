@@ -1,19 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
-// Directory provisioning. Credentials are rows in one list (they were a card
+// Directory provisioning. Credentials are rows of one card (they were a card
 // each), dates read in the app's one format, a missing name is said under the
-// field instead of in a toast, expiry is one choice of three as radios, and
-// the workspace group's hue (sun) carries the icons instead of the accent.
+// field instead of in a toast, and expiry is one choice of three as radios.
+// Design v3 (admin A8): a credential's tile is a neutral glyph on sunken, not
+// a hue (a category is not identity); the endpoint is a code row; a new token
+// is shown once in a reveal card with a sun ring; on the free plan the lock
+// notice sits inside the card, in the controls' place.
 
-const state = vi.hoisted(() => ({ tokens: [] as unknown[], loading: false }))
+const state = vi.hoisted(() => ({ tokens: [] as unknown[], loading: false, locked: false }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () =>
     state.loading
       ? { data: undefined, isLoading: true, isError: undefined, mutate: vi.fn() }
       : { data: { data: { tokens: state.tokens } }, isLoading: false, isError: undefined, mutate: vi.fn() },
 }))
-vi.mock("@/hooks/usePlan", () => ({ usePlan: () => ({ isLocked: () => false, upgradeUrl: undefined }) }))
+vi.mock("@/hooks/usePlan", () => ({ usePlan: () => ({ isLocked: () => state.locked, upgradeUrl: "https://onemana.dev/pricing" }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 const create = vi.hoisted(() => vi.fn())
@@ -35,16 +38,20 @@ afterEach(() => {
   vi.clearAllMocks()
   state.tokens = []
   state.loading = false
+  state.locked = false
 })
 
 describe("directory provisioning", () => {
-  it("lists credentials as rows in one list, with dates in the app's format", () => {
+  it("lists credentials as rows of one card, with dates in the app's format", () => {
     state.tokens = [token("t1", "Okta production"), token("t2", "Azure staging", { last_used_at: null })]
     render(<ScimProvisioningCard />)
     const row = screen.getByText("Okta production").closest("li")!
-    expect(row.parentElement?.className).toMatch(/divide-y/)
-    expect(row.className).not.toMatch(/rounded-xl/)
+    expect(row.className).toContain("set-row")
+    expect(row.closest("[data-settings-card]")).toBeTruthy()
     expect(within(row).getByText(/^Last used \d{1,2} Oct, \d{1,2}:\d{2} (AM|PM)$/)).toBeTruthy()
+    // A category's tile: neutral, never a hue.
+    expect(row.querySelector("[class*='hue-']")).toBeNull()
+    expect(row.querySelector(".bg-sunken svg")).toBeTruthy()
   })
 
   it("says a missing name under the field, and sends nothing", async () => {
@@ -68,23 +75,43 @@ describe("directory provisioning", () => {
     expect(within(group).getByRole("radio", { name: "1 year" }).getAttribute("aria-checked")).toBe("true")
   })
 
-  it("puts its icons on the workspace group's sun tiles, not in the accent", () => {
+  it("shows a new token once, in a reveal card with a sun ring", async () => {
+    create.mockResolvedValue({ plaintext: "scim_ab12_secret", token: token("t9", "Okta") })
     render(<ScimProvisioningCard />)
-    expect(document.querySelector(".hue-sun [data-empty-icon]")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "New credential" }))
-    const title = document.querySelector("[role='dialog'] h2")!
-    expect(title.querySelector(".hue-sun svg")).toBeTruthy()
-    expect(title.querySelector(".text-primary")).toBeNull()
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Okta" } })
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Create credential" })))
+    const reveal = document.querySelector("[data-token-reveal]") as HTMLElement
+    expect(reveal.className).toContain("cfg-reveal-card")
+    expect(reveal.textContent).toMatch(/Copy it now, it won't be shown again/)
+    expect(reveal.querySelector("[data-code-row] code")?.textContent).toBe("scim_ab12_secret")
   })
 
-  // A bordered card with a p-4 header, holding a notice box, a token card and a
-  // setup box with a code box inside: four levels of box, beside Guest access's
-  // flat section. Now one section like the rest, and its header stacks on a phone.
-  it("is a flat section whose action stacks under the words on a phone", () => {
+  it("gives the endpoint as a code row once a credential is live", () => {
+    state.tokens = [token("t1", "Okta production")]
+    render(<ScimProvisioningCard />)
+    const endpoint = screen.getByText("https://api.kestrel.example/scim/v2")
+    expect(endpoint.closest("[data-code-row]")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Copy SCIM base URL" })).toBeTruthy()
+  })
+
+  it("puts the plan lock inside the card in place of the controls", () => {
+    state.locked = true
+    state.tokens = [token("t1", "Okta production")]
+    render(<ScimProvisioningCard />)
+    const notice = screen.getByText(/SCIM provisioning needs a OneCamp licence/)
+    expect(notice.closest("[data-settings-card]")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "New credential" })).toBeNull()
+    expect(screen.queryByText("https://api.kestrel.example/scim/v2")).toBeNull()
+    // A credential made before stays listed and revocable.
+    expect(screen.getByRole("button", { name: "Revoke Okta production" })).toBeTruthy()
+  })
+
+  it("is a section whose action stacks under the words on a phone", () => {
     const { container } = render(<ScimProvisioningCard />)
     const root = container.firstElementChild as HTMLElement
     expect(root.tagName).toBe("SECTION")
-    expect(root.className).not.toMatch(/(^|\s)border(\s|$)/)
+    expect(root.id).toBe("security-scim")
     expect(screen.getByRole("heading", { level: 2, name: "Directory provisioning (SCIM)" })).toBeTruthy()
     const button = screen.getByRole("button", { name: "New credential" })
     const header = button.closest("[data-section-header]") as HTMLElement
@@ -93,23 +120,13 @@ describe("directory provisioning", () => {
     expect(button.className).toContain("md:h-8")
   })
 
-  it("says where to point the identity provider as a section of its own, one box deep", () => {
-    state.tokens = [token("t1", "Okta production")]
-    render(<ScimProvisioningCard />)
-    const h3 = screen.getByRole("heading", { level: 3, name: "Point your identity provider here" })
-    const section = h3.closest("section") as HTMLElement
-    expect(section.className).not.toMatch(/(^|\s)border(\s|$)/)
-    expect(section.className).not.toContain("bg-muted")
-  })
-
   it("stands the list's own rows in while the credentials load", () => {
     state.loading = true
     render(<ScimProvisioningCard />)
     const status = screen.getByRole("status", { name: "Loading SCIM credentials" })
-    expect(status.className).toMatch(/divide-y/)
     const rows = status.querySelectorAll("li")
     expect(rows.length).toBe(2)
-    rows.forEach((li) => expect(li.className).toContain("px-4 py-3"))
+    rows.forEach((li) => expect(li.className).toContain("set-row"))
   })
 
   it("says a dead credential's state in words, and revokes with a 16px icon", () => {

@@ -7,6 +7,10 @@ import { Tile } from "@/components/ui/graphics/Tile"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { SETTINGS_SECTIONS, sectionAccess } from "@/lib/settingsSections"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useMedia } from "@/context/MediaQueryContext"
+import { PROFILE_HREF } from "@/lib/adminSections"
 
 /**
  * A person's settings sections, each on its own hue's tile. A row that waits
@@ -18,6 +22,15 @@ import { SETTINGS_SECTIONS, sectionAccess } from "@/lib/settingsSections"
 export default function SettingsPage() {
   const { can, isLoading } = useCapabilities()
   // This edition has no AI, so its sections never show.
+  const { isMobile } = useMedia()
+  const router = useRouter()
+  // On a computer the settings nav is the index (design v3, admin S1), so
+  // there is no page that only lists links: Settings opens on Profile. A
+  // phone keeps this list, its own screen.
+  useEffect(() => {
+    if (!isMobile) router.replace(PROFILE_HREF)
+  }, [isMobile, router])
+  if (!isMobile) return null
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Yours" title="Settings" />

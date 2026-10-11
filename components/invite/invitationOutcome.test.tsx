@@ -77,3 +77,19 @@ describe("an invitation whose email couldn't go", () => {
     expect(said.className).not.toMatch(/danger/)
   })
 })
+
+// Design v3 (E6): the admin's dialog knows the plan's seats, and says before
+// sending when the addresses would not fit, with the field ringed in sun.
+describe("the admin's dialog on a full free plan", () => {
+  it("rings the field and says how many won't fit", async () => {
+    const seatsFetch = await import("@/hooks/useFetch")
+    vi.spyOn(seatsFetch, "useFetch").mockImplementation(((url: string) =>
+      url.startsWith("/admin/seats")
+        ? { data: { data: { used: 23, limit: 25 } }, mutate: async () => undefined }
+        : { data: { data: [] }, mutate: async () => undefined }) as never)
+    render(<AddInvitationDialog open onOpenChange={vi.fn()} onSuccess={() => {}} />)
+    fireEvent.paste(screen.getByLabelText(/email address/i), { clipboardData: { getData: () => "a@example.com b@example.com c@example.com" } })
+    expect(document.querySelector("[data-chip-field]")?.getAttribute("data-over")).toBe("true")
+    expect(document.querySelector("[data-seat-line]")?.textContent).toContain("2 places left on the free plan. 1 of these won't fit.")
+  })
+})

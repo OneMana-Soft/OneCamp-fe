@@ -3,12 +3,12 @@
 import React from "react"
 import { Invitation } from "@/types/user"
 import { Trash2, Mail, RefreshCw, Copy } from "@/lib/icons"
-import { fullDateTime, shortDate } from "@/lib/utils/date/shortDate"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { PEOPLE_LIST, PERSON_TILE, PersonAction, PersonRow } from "@/components/admin/PeopleFrame"
+import { fullDateTime } from "@/lib/utils/date/shortDate"
+import { hueFor } from "@/lib/campHue"
+import { avatarHueClass } from "@/components/ui/graphics/hues"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { DotWord, PeopleRows, PersonRow, RowMenu, relativeShort } from "@/components/admin/PeopleFrame"
 
 interface AdminInvitationListProps {
   invitations: Invitation[]
@@ -19,40 +19,87 @@ interface AdminInvitationListProps {
   onCopyLink: (link: string) => void
   isSubmitting: boolean
   resendingEmail: string | null
+  /** Ids of invitations accepted while this page was open: they morph into a face. */
+  justJoined?: Set<string>
+  /** The avatar of the row to celebrate from, when it mounts. */
+  celebrateRef?: (id: string) => React.Ref<HTMLSpanElement> | undefined
 }
 
 /**
  * How long a live invitation's link has left, as the server counts it (days,
  * rounded up), or nothing once it can no longer be used. Pure.
  */
-export function expiryText(inv: Pick<Invitation, "status" | "expires_in_days">): string {
-  if (inv.status === "joined" || inv.status === "expired" || inv.expires_in_days == null) return ""
+export function expiryText(inv: Pick<Invitation, "status" | "expires_in_days" | "token_expires_at">, now = Date.now()): string {
+  if (inv.status === "joined" || inv.status === "expired") return ""
+  if (inv.token_expires_at) {
+    const hours = (new Date(inv.token_expires_at).getTime() - now) / 3_600_000
+    if (Number.isFinite(hours) && hours > 0 && hours < 24) return `Expires in ${Math.max(1, Math.round(hours))} h`
+  }
+  if (inv.expires_in_days == null) return ""
   if (inv.expires_in_days <= 1) return "Expires within a day"
-  return `Expires in ${inv.expires_in_days} days`
+  return `Expires in ${inv.expires_in_days} d`
+}
+
+/** Under 24 hours left: the expiry turns sun. Pure. */
+export function expiresSoon(inv: Pick<Invitation, "status" | "expires_in_days" | "token_expires_at">, now = Date.now()): boolean {
+  if (!isLive(inv)) return false
+  if (inv.token_expires_at) {
+    const hours = (new Date(inv.token_expires_at).getTime() - now) / 3_600_000
+    if (Number.isFinite(hours)) return hours < 24
+  }
+  return inv.expires_in_days != null && inv.expires_in_days <= 1
 }
 
 /** Whether an invitation's link still works: sent and not yet used or run out. */
-function isLive(inv: Pick<Invitation, "status">): boolean {
+export function isLive(inv: Pick<Invitation, "status">): boolean {
   return inv.status !== "joined" && inv.status !== "expired"
 }
 
-/** A dot and a word: the status of an invitation is information, not a coloured pill. */
-const STATUS: Record<string, { label: string; tone: StatusTone }> = {
-  sent: { label: "Sent", tone: "info" },
-  joined: { label: "Joined", tone: "success" },
-  // Ran out: nothing is wrong, it needs sending again.
-  expired: { label: "Expired", tone: "neutral" },
-  pending: { label: "Pending", tone: "warning" },
+/** "Invited by Arjun · 2 d ago": the inviter's name before the @. Pure. */
+export function invitedLine(inv: Pick<Invitation, "invited_by" | "created_at">, now = Date.now()): string {
+  const by = (inv.invited_by || "").split("@")[0]
+  const name = by ? by.charAt(0).toUpperCase() + by.slice(1) : ""
+  const when = relativeShort(inv.created_at, now)
+  const ago = when && when !== "just now" ? `${when} ago` : when
+  return [name ? `Invited by ${name}` : "Invited", ago].filter(Boolean).join(" · ")
 }
 
-function statusWord(status: string) {
-  const { label, tone } = STATUS[status] ?? STATUS.pending
-  return <StatusWord tone={tone}>{label}</StatusWord>
+/**
+ * The mark of an invitation (design v3, A5): an invite is not yet a person,
+ * so it is a 32px circle with a dashed ring and an envelope in ink-3. Once
+ * they join it is their face, in their hue.
+ */
+export function InviteAvatar({ inv, joinedNow, spanRef }: { inv: Invitation; joinedNow?: boolean; spanRef?: React.Ref<HTMLSpanElement> }) {
+  if (inv.status === "joined") {
+    return (
+      <span
+        ref={spanRef}
+        data-invite-avatar="joined"
+        className={`invite-face inline-flex size-8 items-center justify-center text-2xs font-semibold ${avatarHueClass(hueFor(inv.email))} ${joinedNow ? "invite-joined" : ""}`}
+      >
+        <span>{getNameInitials(inv.email.split("@")[0])}</span>
+      </span>
+    )
+  }
+  return (
+    <span ref={spanRef} data-invite-avatar="pending" className="invite-avatar size-8">
+      <Mail aria-hidden="true" />
+    </span>
+  )
+}
+
+function Expiry({ inv }: { inv: Invitation }) {
+  if (inv.status === "joined") return <DotWord tone="ok">Joined</DotWord>
+  if (inv.status === "expired") return <DotWord tone="neutral">Expired</DotWord>
+  const text = expiryText(inv)
+  if (!text) return <DotWord tone="neutral">Pending</DotWord>
+  return <DotWord tone={expiresSoon(inv) ? "sun" : "neutral"}>{text}</DotWord>
 }
 
 /**
  * The invitations' rows. The tab's frame (PeopleFrame, in invitationCard)
- * draws the header, the toolbar, the skeleton and the empty and failed states.
+ * draws the toolbar, the header row, the skeleton and the empty and failed
+ * states. Every action is in the row's ⋯: Resend, Copy link, then Revoke.
  */
 export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   invitations,
@@ -61,78 +108,61 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   onCopyLink,
   isSubmitting,
   resendingEmail,
+  justJoined,
+  celebrateRef,
 }) => {
-  // No scroller of its own: the admin page's tab region is the one that
-  // scrolls, so this list sizes to its rows.
   return (
-    <TooltipProvider>
-      <ul className={PEOPLE_LIST}>
-        {invitations.map((inv) => (
+    <PeopleRows label="Invitations">
+      {invitations.map((inv) => {
+        const live = isLive(inv)
+        const now = justJoined?.has(inv.id)
+        return (
           <PersonRow
             key={inv.id}
-            // An invitation is not a person yet: the people group's tile, the
-            // size of a member's face, so the names start where they do on
-            // Members and Admins.
-            leading={
-              <Tile hue={ADMIN_GROUP_HUE.people} className={PERSON_TILE}>
-                <Mail />
-              </Tile>
-            }
+            marker={inv.status === "joined" ? "joined" : "invite"}
+            leading={<InviteAvatar inv={inv} joinedNow={now} spanRef={celebrateRef?.(inv.id)} />}
             title={inv.email}
             meta={
-              <span className="inline-flex items-center gap-2">
-                {/* When it was sent, in the app's one date format, not the browser's. */}
-                <time dateTime={inv.created_at} title={fullDateTime(new Date(inv.created_at))} className="tabular-nums">
-                  {shortDate(new Date(inv.created_at))}
-                </time>
-                {statusWord(inv.status)}
-                {expiryText(inv) && (
-                  <>
-                    {/* A separator, so the expiry doesn't run into the status word. */}
-                    <span aria-hidden="true" className="text-faint-foreground">·</span>
-                    <span>{expiryText(inv)}</span>
-                  </>
-                )}
-              </span>
+              now ? (
+                "Joined just now"
+              ) : (
+                <span title={fullDateTime(new Date(inv.created_at))}>{invitedLine(inv)}</span>
+              )
             }
-            actions={
-              <>
-                {inv.invite_link && isLive(inv) && (
-                  <PersonAction
-                    icon={Copy}
-                    word="Copy"
-                    tip="Copy link"
-                    onClick={() => onCopyLink(inv.invite_link!)}
-                    aria-label={`Copy the invitation link for ${inv.email}`}
-                  />
-                )}
+            cells={[<Expiry key="exp" inv={inv} />]}
+            menu={
+              <RowMenu label={`Actions for the invitation to ${inv.email}`}>
                 {inv.status !== "joined" && (
-                  <PersonAction
-                    icon={RefreshCw}
-                    word={inv.status === "expired" ? "Send" : "Resend"}
-                    tip={inv.status === "expired" ? "Send a new link" : "Send again with a new link"}
-                    iconClassName={resendingEmail === inv.email ? "animate-spin" : undefined}
-                    onClick={() => onResend(inv.email)}
+                  <DropdownMenuItem
                     disabled={isSubmitting || resendingEmail === inv.email}
-                    aria-label={
-                      inv.status === "expired" ? `Send ${inv.email} a new invitation link` : `Resend invitation to ${inv.email}`
-                    }
-                  />
+                    onSelect={() => onResend(inv.email)}
+                    aria-label={inv.status === "expired" ? `Send ${inv.email} a new invitation link` : `Resend invitation to ${inv.email}`}
+                  >
+                    <RefreshCw aria-hidden="true" className={resendingEmail === inv.email ? "animate-spin" : undefined} />
+                    {inv.status === "expired" ? "Send a new link" : "Resend"}
+                  </DropdownMenuItem>
                 )}
-                <PersonAction
-                  icon={Trash2}
-                  word={isLive(inv) ? "Revoke" : "Clear"}
-                  tip={isLive(inv) ? "Revoke invitation" : "Clear from the list"}
-                  tone="danger"
-                  onClick={() => onDelete(inv)}
+                {inv.invite_link && live && (
+                  <DropdownMenuItem onSelect={() => onCopyLink(inv.invite_link!)} aria-label={`Copy the invitation link for ${inv.email}`}>
+                    <Copy aria-hidden="true" />
+                    Copy link
+                  </DropdownMenuItem>
+                )}
+                {inv.status !== "joined" && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  variant={live ? "destructive" : "default"}
                   disabled={isSubmitting}
-                  aria-label={isLive(inv) ? `Revoke the invitation to ${inv.email}` : `Clear ${inv.email}'s invitation from the list`}
-                />
-              </>
+                  onSelect={() => onDelete(inv)}
+                  aria-label={live ? `Revoke the invitation to ${inv.email}` : `Clear ${inv.email}'s invitation from the list`}
+                >
+                  <Trash2 aria-hidden="true" />
+                  {live ? "Revoke…" : "Clear from the list"}
+                </DropdownMenuItem>
+              </RowMenu>
             }
           />
-        ))}
-      </ul>
-    </TooltipProvider>
+        )
+      })}
+    </PeopleRows>
   )
 }

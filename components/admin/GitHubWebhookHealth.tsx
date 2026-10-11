@@ -15,7 +15,11 @@
  *
  * One sentence, not three stat tiles: "40 went through, 2 failed" is what
  * the tiles said, at a size that outshouted the section around them. It
- * sits inside the GitHub section as a sub-section, not a card of its own.
+ * sits inside the GitHub connection card (design v3, A18) as its last row.
+ *
+ * The spec's 24-hour strip of 48 bars needs deliveries per half hour; the
+ * endpoint returns only the day's totals, so the row says them in words
+ * until it does.
  *
  * Polling
  * -------
@@ -27,7 +31,8 @@
 
 import React from "react"
 import { ErrorState } from "@/components/ui/error-state"
-import { StatusWord } from "@/components/ui/statusWord"
+import { StateWord } from "@/components/admin/connectParts"
+import { AlertTriangle } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
@@ -79,7 +84,7 @@ const GitHubWebhookHealth: React.FC = () => {
   ].filter(Boolean).join(" ")
 
   return (
-    <section aria-labelledby="github-webhook-health" className="space-y-2">
+    <section aria-labelledby="github-webhook-health" data-webhook-health="" className="cx-int-health space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* No tile beside a title, like "Linked repositories" above it. */}
         <h3 id="github-webhook-health" className="text-sm font-medium">
@@ -88,9 +93,9 @@ const GitHubWebhookHealth: React.FC = () => {
         {/* A dot and a word, not a pill with an icon. */}
         {!isError && h && total > 0 && (
           h.failed_24h > 0 ? (
-            <StatusWord tone="danger" className="text-xs font-medium">{h.failed_24h} failed in 24 hours</StatusWord>
+            <StateWord tone="danger">{h.failed_24h} failed in 24 hours</StateWord>
           ) : (
-            <StatusWord tone="success" className="text-xs font-medium">Healthy</StatusWord>
+            <StateWord tone="success">Healthy</StateWord>
           )
         )}
       </div>
@@ -111,12 +116,14 @@ const GitHubWebhookHealth: React.FC = () => {
           {h?.last_error_message && (
             // Single-line clip with full text in the title attr so a
             // long stack trace doesn't bloat the section.
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-danger-ink">
-              <p className="mb-0.5 font-medium">Last error</p>
-              <p className="truncate" title={h.last_error_message}>
+            // A glyph and a line in code type, not a tinted bordered box.
+            <p className="flex min-w-0 items-center gap-2 text-xs">
+              <AlertTriangle className="size-3.5 shrink-0 text-danger-ink" aria-hidden="true" />
+              <span className="shrink-0 font-medium text-foreground">Last error</span>
+              <code className="min-w-0 truncate font-mono text-muted-foreground" title={h.last_error_message}>
                 {h.last_error_message}
-              </p>
-            </div>
+              </code>
+            </p>
           )}
           <p className="text-xs text-muted-foreground text-pretty">
             A failed delivery is tried again when GitHub sends its next one. Failures that keep coming usually mean

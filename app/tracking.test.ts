@@ -3,19 +3,24 @@ import { readFileSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 
 /**
- * No negative tracking on text under 20px.
+ * Tracking follows Inter's own metrics (design v3, "Type").
  *
- * On 10 Oct 2026 words ran together across the app: "the Q4 launchis up on
- * staging", "Fixthe signup confirmation email". The cause was letter-spacing:
- * -0.011em on body. An em letter-spacing computes to a fixed length (-0.154px at
- * 14px) and is inherited as that length by every element, and where glyphs are
- * placed on whole pixels (Chrome on Linux at 1x) the fraction tipped word gaps
- * under a pixel's threshold. Measured in a browser, the space between "launch"
- * and "is" was 3.83px with it and 4.00px without, and the screenshot read as
- * one word with it and two without.
+ * tracking(em) = -0.0223 + 0.185 * e^(-0.1745 * px): +0.005em at 11px, 0 at
+ * 12, -0.006em at 14, -0.017em at 20, -0.022em from 44. Every step of the
+ * scale carries its own value with its size (--text-sm--letter-spacing and
+ * the rest), and this holds each one to the formula.
  *
- * Inter is spaced for 13 to 15px as drawn. Tight tracking belongs to display
- * sizes, and a utility that tightens a 14px label is the same bug again.
+ * WHY THIS REPLACED "no negative tracking under 20px". On 10 Oct 2026 words
+ * ran together ("the Q4 launchis up") because body carried -0.011em, inherited
+ * as a fixed -0.154px by every size, on Inter Tight-era metrics. v3's values
+ * are Inter's own, about half that at 14px, and paired with the face's
+ * optical sizes (opsz 14 is the wider text cut). A size still takes only its
+ * own value: an element with no size of its own inherits its parent's, never
+ * a display size's.
+ *
+ * What still fails: a tracking-tight or tracking-[-...] utility on small
+ * text, and any primitive that tightens every caller's text. The scale's
+ * value is the only tightening a 14px label gets.
  */
 const root = resolve(__dirname, "..")
 
@@ -37,11 +42,51 @@ const SMALL = /(?<![\w:-])text-(3xs|2xs|xs|sm|base|lg)(?![\w-])/
 /** tracking-tight, tracking-tighter or an arbitrary negative value. */
 const NEGATIVE = /(?<![\w:-])tracking-(tight|tighter|\[-[^\]]*\])(?![\w-])/
 
+const formula = (px: number) => -0.0223 + 0.185 * Math.exp(-0.1745 * px)
+/**
+ * The one step the spec's table sets off the formula: a 15px heading at 590
+ * is -0.012em (Inter's -0.009 for its size, tightened a step for the weight).
+ */
+const TABLE: Record<string, number> = { heading: -0.012 }
+
 describe("tracking", () => {
-  it("leaves body text and headings at the font's own spacing", () => {
+  const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
+  const theme = css.slice(css.indexOf("@theme inline {"), css.indexOf("\n}", css.indexOf("@theme inline {")))
+  const steps = [...theme.matchAll(/--text-([a-z0-9]+(?:-[a-z0-9]+)*):\s*([\d.]+)rem;/g)].map((m) => ({ name: m[1], px: Number(m[2]) * 16 }))
+
+  it("finds the scale", () => {
+    expect(steps.map((s) => s.name)).toEqual(expect.arrayContaining(["3xs", "2xs", "xs", "sm", "body", "title-1", "display"]))
+  })
+
+  it("gives every step of the scale Inter's tracking for its size", () => {
+    for (const { name, px } of steps) {
+      const m = new RegExp(`--text-${name}--letter-spacing:\\s*(-?[\\d.]+)em;`).exec(theme)
+      expect(m, `--text-${name} has no letter-spacing of its own`).not.toBeNull()
+      const want = TABLE[name] ?? formula(px)
+      expect(Math.abs(Number(m![1]) - want), `--text-${name} (${px}px) is ${m![1]}em, Inter wants ${want.toFixed(4)}em`).toBeLessThanOrEqual(0.0015)
+    }
+  })
+
+  // The real cause of the 10 Oct word collisions, found by rendering the
+  // same line both ways: optimizeLegibility runs words together on Linux at
+  // 1x even at zero tracking. Never on body.
+  it("never asks for text-rendering: optimizeLegibility", () => {
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/text-rendering:\s*optimizeLegibility/)
+  })
+
+  it("gives a word gap back what the tracking takes, so words never run together", () => {
+    const body = css.slice(css.indexOf("  body {\n    font-synthesis-weight"), css.indexOf("  }", css.indexOf("  body {\n    font-synthesis-weight")))
+    expect(body).toMatch(/word-spacing:\s*0\.01em;/)
+  })
+
+  it("keeps v3's features on in the editor, over ProseMirror's own rule", () => {
+    expect(css).toMatch(/html \.ProseMirror \{\s*font-feature-settings: "liga" 0, "cv11", "ss01", "ss03";/)
+  })
+
+  it("sets no letter-spacing on body or headings outside the scale", () => {
     for (const file of ["app/globals.css", ...walk(resolve(root, "components/minimal-tiptap/styles"), [".css"]).map((f) => f.slice(root.length + 1))]) {
-      const css = readFileSync(resolve(root, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
-      expect(css, `${file} sets a negative letter-spacing`).not.toMatch(/letter-spacing:\s*-/)
+      const text = readFileSync(resolve(root, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
+      expect(text, `${file} sets a negative letter-spacing by hand`).not.toMatch(/(?<!-)letter-spacing:\s*-/)
     }
   })
 

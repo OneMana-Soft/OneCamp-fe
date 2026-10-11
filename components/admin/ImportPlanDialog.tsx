@@ -46,6 +46,7 @@ import {
   planImportJob,
   runImportJob,
 } from "@/services/importService"
+import { ImportStepper, TOOL_STEPS } from "@/components/admin/importParts"
 import { Loader2 } from "lucide-react"
 
 const ONECAMP_STATUSES = ["todo", "inProgress", "backlog", "inReview", "canceled", "done"] as const
@@ -190,6 +191,8 @@ export const ImportPlanDialog: React.FC<Props> = ({
           </DialogDescription>
         </DialogHeader>
 
+        <ImportStepper steps={TOOL_STEPS} current={1} />
+
         {problem && !loading ? (
           <div role="alert" className="space-y-3 py-4">
             <p className="break-words text-sm text-danger-ink">{problem.message}</p>
@@ -220,7 +223,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
 
             {/* Warnings, every one of them on request */}
             {warnings.length > 0 && (
-              <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+              <div className="cx-imp-note text-sm">
                 <div className="mb-1 font-medium text-warning-ink">
                   {warnings.length} {warnings.length === 1 ? "warning" : "warnings"}
                 </div>
@@ -239,7 +242,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
 
             {/* Status mapping */}
             {Object.keys(statusMap).length > 0 && (
-              <section aria-labelledby={`${ids}-status`} className="space-y-2 border-t border-border pt-4">
+              <section aria-labelledby={`${ids}-status`} className="space-y-2 border-t border-line pt-4">
                 <div>
                   <h3 id={`${ids}-status`} className="text-sm font-medium">Statuses</h3>
                   <p className="text-xs text-muted-foreground">Which OneCamp status each of the source&apos;s statuses becomes.</p>
@@ -271,7 +274,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
 
             {/* Priority mapping */}
             {Object.keys(priorityMap).length > 0 && (
-              <section aria-labelledby={`${ids}-priority`} className="space-y-2 border-t border-border pt-4">
+              <section aria-labelledby={`${ids}-priority`} className="space-y-2 border-t border-line pt-4">
                 <div>
                   <h3 id={`${ids}-priority`} className="text-sm font-medium">Priorities</h3>
                   <p className="text-xs text-muted-foreground">Which OneCamp priority each of the source&apos;s priorities becomes.</p>

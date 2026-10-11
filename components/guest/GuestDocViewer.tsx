@@ -75,8 +75,8 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
 
   if (!ready) {
     return (
-      <div aria-busy="true" className="grid min-h-[40vh] w-full content-start gap-3 px-1 py-2">
-        <p role="status" className={slow ? "text-sm text-muted-foreground" : "sr-only"}>
+      <div aria-busy="true" className="mt-6 grid min-h-[40vh] w-full content-start gap-3">
+        <p role="status" className={slow ? "text-ui-sm text-ink-3" : "sr-only"}>
           {slow ? "Can't reach the document right now; still trying." : "Opening the document…"}
         </p>
         <div aria-hidden="true" className="grid gap-3">
@@ -94,7 +94,7 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
   return (
     <EditorContent
       editor={editor}
-      className="minimal-tiptap-editor max-w-none px-1 py-2"
+      className="minimal-tiptap-editor mt-4 max-w-none"
     />
   )
 }
