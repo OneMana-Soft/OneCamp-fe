@@ -13,8 +13,11 @@ import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import { clearChannelReplyTarget } from "@/store/slice/channelSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
+import { ChannelWelcome, useWelcomeSend } from "@/components/onboarding/ChannelWelcome";
 
-export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean }) => {
+export const ChannelIdMobile = ({channelId, handleSend: send, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean }) => {
+    // A new member's first landing (admin E5): the welcome card heads the feed.
+    const [handleSend, welcomeSent] = useWelcomeSend(send)
 
     const dispatch = useDispatch();
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
@@ -96,6 +99,7 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
     }
     return (
         <div className='flex flex-col h-full'>
+            <ChannelWelcome channelId={channelId} channelName={channelDisplayName} info={channelInfo.data?.channel_info} show={focusComposer} sent={welcomeSent} className="mx-4 mt-3 shrink-0" />
             <div className="flex-1 min-h-0">
                 <ChannelMessageList channelId={channelId} unreadOnOpen={unreadCount}/>
             </div>

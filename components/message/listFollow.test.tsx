@@ -73,7 +73,7 @@ describe("a conversation the reader is at the bottom of", () => {
       act(() => void vi.advanceTimersByTime(5000))
       handle.scrollToIndex.mockReset()
       rerender(list(items(11)))
-      expect(handle.scrollToIndex).toHaveBeenCalledWith(10, { align: "end" })
+      expect(handle.scrollToIndex).toHaveBeenCalledWith(10, expect.objectContaining({ align: "end" }))
     } finally {
       vi.useRealTimers()
     }
@@ -90,7 +90,7 @@ describe("a conversation the reader has scrolled up in", () => {
     const back = screen.getByRole("button", { name: "2 new messages" })
     fireEvent.click(back)
     expect(jumped).toHaveBeenCalled()
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(11, { align: "end" })
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(11, expect.objectContaining({ align: "end" }))
   })
 
   it("offers the way back, labelled, once a screenful away", () => {
@@ -116,7 +116,7 @@ describe("a conversation still settling as it opens", () => {
       handle.scrollSize = 2600 // rows grew; the view was left 600px above the end
       act(() => reportScroll(1400))
       act(() => void vi.advanceTimersByTime(50))
-      expect(handle.scrollToIndex).toHaveBeenCalledWith(9, { align: "end" })
+      expect(handle.scrollToIndex).toHaveBeenCalledWith(9, expect.objectContaining({ align: "end" }))
       expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull()
     } finally {
       vi.useRealTimers()
@@ -136,7 +136,7 @@ describe("a conversation still settling as it opens", () => {
 describe("the conversation's furniture", () => {
   it("marks where the unread messages start", () => {
     render(list(items(3, [{ type: "unread", key: "unread" }, { type: "item", key: "m4", data: { id: "m4" } }])))
-    expect(screen.getByRole("separator", { name: "New messages" }).textContent).toBe("New")
+    expect(screen.getByRole("separator", { name: "New messages" }).textContent).toBe("NEW")
   })
 
   it("floats the date over the messages without taking room from them", () => {

@@ -32,3 +32,18 @@ describe("which links in a message become cards", () => {
     expect(workLinksIn("/app/task/not-an-id /app/channel/" + T + " /app/home", "x")).toEqual([])
   })
 })
+
+describe("what a work card shows", async () => {
+  const { statusKindOf, checklistOf } = await import("@/components/message/WorkLinkCards")
+  it("draws a task's built-in status as its glyph, a custom one as to do", () => {
+    expect(["backlog", "todo", "inProgress", "inReview", "done", "canceled", "Waiting on legal"].map(statusKindOf)).toEqual([
+      "backlog", "todo", "progress", "review", "done", "cancelled", "todo",
+    ])
+  })
+  it("counts a doc's checklist from its stored body", () => {
+    const li = (checked: boolean) => `<li data-type="taskItem" data-checked="${checked}"><p>x</p></li>`
+    expect(checklistOf(`<ul data-type="taskList">${li(true)}${li(true)}${li(false)}</ul>`)).toEqual({ done: 2, total: 3 })
+    expect(checklistOf("<p>No list</p>")).toEqual({ done: 0, total: 0 })
+    expect(checklistOf(undefined)).toEqual({ done: 0, total: 0 })
+  })
+})

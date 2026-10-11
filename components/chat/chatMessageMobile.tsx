@@ -1,41 +1,25 @@
 import { displayNameOf } from "@/lib/personName"
-import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
-import { BotTag } from "@/components/ui/botTag";
-import { ContinuedGutter } from "@/components/message/continuedGutter";
-import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
-import {cn} from "@/lib/utils/helpers/cn";
-import { Check, X } from "@/lib/icons";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { AgentResultCards } from "@/components/message/AgentResultCards";
-import { WorkLinkCards } from "@/components/message/WorkLinkCards"
-import {useLongPress} from "@/hooks/useLongPress";
-import {useDispatch} from "react-redux";
-import {openUI, closeUI} from "@/store/slice/uiSlice";
-import {StandardReaction, SyncCustomReaction} from "@/types/reaction";
-import {MessagePreview} from "@/components/message/MessagePreview";
-import {app_chat_path, app_user} from "@/types/paths";
-import {usePathname, useRouter} from "next/navigation";
-import {MessageAttachments} from "@/components/message/MessageAttachments";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {BottomMenu} from "@/components/message/bottomMenu";
-import {useCallback, useEffect, useRef, useState} from "react";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
-import { AttachmentMediaReq} from "@/types/attachment";
-import { ConditionalWrap } from "../conditionalWrap/conditionalWrap";
-import {MessageReplyCount} from "@/components/message/messageReplyCount";
-import {ChatInfo} from "@/types/chat";
-import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
-import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
-import {setChatReplyTarget} from "@/store/slice/chatSlice";
-import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
-import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
-import { SendStatus, SendingNote } from "@/components/message/sendStatus";
-import { quoteBarClass } from "@/components/message/quoteBar";
-import {useUserInfoState} from "@/hooks/useUserInfoState";
-import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
-import { makeTaskAction } from "@/lib/task/makeTaskAction";
+import { MobileMessageRow, sheetPreview } from "@/components/message/mobileMessageRow";
+import { mapChatInfoToBaseMessage } from "@/components/message/baseMessageCard";
+import { useLongPress } from "@/hooks/useLongPress";
+import { useDispatch } from "react-redux";
+import { openUI, closeUI } from "@/store/slice/uiSlice";
+import { StandardReaction, SyncCustomReaction } from "@/types/reaction";
+import { app_chat_path, app_user } from "@/types/paths";
+import { usePathname, useRouter } from "next/navigation";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { useCallback, useState, useMemo } from "react";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { UserProfileInterface } from "@/types/user";
+import { AttachmentMediaReq } from "@/types/attachment";
+import { ChatInfo } from "@/types/chat";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
+import { setChatReplyTarget } from "@/store/slice/chatSlice";
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
+import { useUserInfoState } from "@/hooks/useUserInfoState";
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
+import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -47,10 +31,12 @@ interface ChatMessageProps {
     priority?: boolean
     /** Continues the message above it (lib/messageGrouping). */
     continued?: boolean
+    /** Arrived while the reader followed the end (C18). */
+    arrived?: boolean
 }
 
 
-export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReaction, removeChat, updateChat, priority, continued = false}: ChatMessageProps) => {
+export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReaction, removeChat, updateChat, priority, continued = false, arrived = false}: ChatMessageProps) => {
 
     const dispatch = useDispatch();
 
@@ -62,19 +48,10 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
     const[isMessageEditEnabled, setIsMessageEditEnabled] = useState(false);
 
-    const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>({} as UserSelectedOptionInterface)
-    const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
-
-    const [updatedText, setUpdatedText] = useState<string>(chatInfo.chat_body_text||'');
-    const updatedTextRef = useRef<string>(chatInfo.chat_body_text || '');
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const userInfoState = useUserInfoState(chatInfo.chat_from.user_uuid)
-
-    // Route internal /app deep links (e.g. AI citation footers) through client
-    // navigation; disabled while editing.
-    const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
     const handleUserClick = useCallback((e: React.MouseEvent)=>{
         e.preventDefault()
@@ -83,27 +60,10 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
     },[chatInfo.chat_from.user_uuid])
 
-    useEffect(() => {
-        setUserSelectedOption({} as UserSelectedOptionInterface)
-        setReactions({})
-        if (selfProfile.data?.data && chatInfo.chat_reactions) {
-            chatInfo.chat_reactions.forEach((reaction) => {
-                if (reaction.reaction_added_by.user_uuid == selfProfile.data?.data.user_uuid) {
-                    setUserSelectedOption({
-                        reactionId: reaction.uid,
-                        emojiId: reaction.reaction_emoji_id
-                    })
-                }
-                setReactions(prevReactions => ({
-                    ...prevReactions,
-                    [reaction.reaction_emoji_id]: [...(prevReactions[reaction.reaction_emoji_id] || []), displayNameOf(reaction.reaction_added_by)]
-                }));
-
-            })
-        }
-
-
-    }, [chatInfo, selfProfile.data?.data]);
+    // The reader's reaction (one per person), for the sheet's emoji row.
+    const mine = chatInfo.chat_reactions?.find((r) => r?.reaction_added_by?.user_uuid === selfProfile.data?.data?.user_uuid)
+    const userSelectedOption = { reactionId: mine?.uid ?? "", emojiId: mine?.reaction_emoji_id ?? "" }
+    const message = useMemo(() => mapChatInfoToBaseMessage(chatInfo), [chatInfo])
 
     const copyPostText = () => {
         const t = removeHtmlTags(chatInfo.chat_body_text)
@@ -154,6 +114,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                 onReply: handleReply,
                 copyTextToClipboard: copyPostText,
                 messageText: removeHtmlTags(chatInfo.chat_body_text || ""),
+                preview: sheetPreview(message, messageAuthorName(chatInfo.chat_from, userInfoState?.userName)),
                 makeTask: () => {
                     const action = makeTaskAction({ html: chatInfo.chat_body_text, authorName: displayNameOf(chatInfo.chat_from), chatUUID: otherUserUUID, chatMessageID: chatInfo.chat_uuid }, window.location.origin)
                     if (action) dispatch(action)
@@ -204,128 +165,24 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
 
     return (
-
-        <ConditionalWrap
-            condition={!isMessageEditEnabled}
-            wrap={(c) => (
-                <div onClick={handleOnCLick}>{c}</div>
-            )}>
-        <div id={messageDomId(chatInfo.chat_uuid)} className={`relative flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)} >
-
-            {continued && !isMessageEditEnabled ? (
-                <ContinuedGutter createdAt={chatInfo.chat_created_at} authorName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)} sending={chatInfo.chat_send_state === "sending"} />
-            ) : (
-                <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
-                <ChannelMessageAvatar
-                    userName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)}
-                    userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
-                    isBot={!!chatInfo.chat_from?.is_bot}
-                    userUUID={chatInfo.chat_from?.user_uuid}
-                />
-
-            </div>
-            )}
-            <div className='flex-1 min-w-0'>
-                {!(continued && !isMessageEditEnabled) && (
-                <div data-name-line="" className="flex h-5 items-center gap-2">
-                    <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
-                        {messageAuthorName(chatInfo.chat_from, userInfoState.userName)}
-                    </div>
-                    {chatInfo.chat_from?.is_bot && <BotTag userUUID={chatInfo.chat_from.user_uuid} />}
-                    <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
-                        {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}
-
-                    </div>
-                    {chatInfo.chat_send_state === "sending" && <SendingNote />}
-                </div>
-            )}
-                    {chatInfo.chat_reply_to && !isMessageEditEnabled && (
-                        <div
-                            className={`interactive mb-1 pl-2 ${quoteBarClass(chatInfo.chat_reply_to.chat_from)}`}
-                            onClick={(e) => { e.stopPropagation(); scrollToMessage(chatInfo.chat_reply_to?.chat_uuid) }}
-                        >
-                            <MessagePreview
-                                msgBy={chatInfo.chat_reply_to.chat_from}
-                                msgText={chatInfo.chat_reply_to.chat_body_text}
-                                msgUUID={chatInfo.chat_reply_to.chat_uuid}
-                                msgCreatedAt={chatInfo.chat_reply_to.chat_created_at}
-                                vewFooter={false}
-                            />
-                        </div>
-                    )}
-                    <div className='break-words' onClickCapture={handleInternalLinkClick} >
-
-
-                        <MinimalTiptapTextInput
-                            throttleDelay={300}
-                            isOutputText={!isMessageEditEnabled}
-                            className={cn("max-w-full h-auto", isMessageEditEnabled && "p-2 ml-[-4]")}
-                            editorContentClassName={cn("overflow-auto ")}
-                            output="html"
-                            content={chatInfo.chat_body_text}
-                            placeholder={"Edit message…"}
-                            editable={isMessageEditEnabled}
-                            PrimaryButtonIcon={Check}
-                            buttonOnclick={()=>{
-                                updateChat(updatedTextRef.current)
-                                setIsMessageEditEnabled(false)
-
-                            }}
-                            SecondaryButtonIcon={X}
-                            secondaryButtonOnclick={()=>{
-                                setIsMessageEditEnabled(false)
-                            }}
-                            editorClassName="focus:outline-none "
-                            onChange={(content) => {
-                                const s = content as string
-                                updatedTextRef.current = s
-                                setUpdatedText(s)
-
-                            }}
-                        />
-
-                        {chatInfo.chat_from?.is_bot && !isMessageEditEnabled && (
-                            <AgentResultCards text={chatInfo.chat_body_text} />
-                        )}
-
-                        {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
-
-                        {!isMessageEditEnabled && <WorkLinkCards text={chatInfo.chat_body_text} />}
-
-                        {
-                            (chatInfo.chat_fwd_msg_chat || chatInfo.chat_fwd_msg_post) &&
-
-                            <MessagePreview
-                                msgBy={chatInfo.chat_from || chatInfo.chat_fwd_msg_chat?.chat_from}
-                                msgText={chatInfo.chat_fwd_msg_post?.post_text || chatInfo.chat_fwd_msg_chat?.chat_body_text || ''}
-                                msgChannelName={chatInfo.chat_fwd_msg_post?.post_channel?.ch_name}
-                                msgChannelUUID={chatInfo.chat_fwd_msg_post?.post_channel?.ch_uuid}
-                                msgUUID={chatInfo.chat_fwd_msg_post?.post_uuid || chatInfo.chat_fwd_msg_chat?.chat_uuid}
-                                msgCreatedAt={chatInfo.chat_fwd_msg_post?.post_created_at || chatInfo.chat_fwd_msg_chat?.chat_created_at}
-                                vewFooter={true}
-                            />
-                        }
-                    </div>
-
-
-                {
-                    !isMessageEditEnabled && chatInfo.chat_attachments && chatInfo.chat_attachments?.length > 0 &&
-                    <MessageAttachments priority={priority} attachmentSelected={handleSelectAttachment} attachments={chatInfo.chat_attachments} mediaGetUrl={GetEndpointUrl.GetChatMedia + '/' + otherUserUUID}/>
-                }
-
-                {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at} participants={chatInfo.chat_comments.map((c) => ({ uuid: c.comment_by?.user_uuid || "", name: displayNameOf(c.comment_by) || "", profileKey: c.comment_by?.user_profile_object_key }))}/></div>}
-
-                <SendStatus state={chatInfo.chat_send_state} localId={chatInfo.chat_local_id} />
-                { !isMessageEditEnabled && !pending && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
-
-
-
-            </div>
-
-
-
-        </div>
-        </ConditionalWrap>
-
+        <MobileMessageRow
+            message={message}
+            continued={continued}
+            arrived={arrived}
+            priority={priority}
+            editing={isMessageEditEnabled}
+            onEditSave={(body) => {
+                updateChat(body)
+                setIsMessageEditEnabled(false)
+            }}
+            onEditCancel={() => setIsMessageEditEnabled(false)}
+            onOpen={handleOnCLick}
+            onUserClick={handleUserClick}
+            longPress={pending ? {} : longPressEvent}
+            addReaction={addReaction}
+            removeReaction={removeReaction}
+            onSelectAttachment={handleSelectAttachment}
+            mediaGetUrl={GetEndpointUrl.GetChatMedia + '/' + otherUserUUID}
+        />
     )
 }

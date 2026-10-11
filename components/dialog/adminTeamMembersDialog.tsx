@@ -1,16 +1,9 @@
 "use client"
 
 import React from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Users } from "@/lib/icons";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { TeamMemberContent } from "@/components/member/teamMemberContent"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { TeamMark } from "@/components/admin/AdminTeamList"
 
 interface AdminTeamMembersDialogProps {
   isOpen: boolean
@@ -19,31 +12,32 @@ interface AdminTeamMembersDialogProps {
   teamName: string
 }
 
-const AdminTeamMembersDialog: React.FC<AdminTeamMembersDialogProps> = ({
-  isOpen,
-  onOpenChange,
-  teamId,
-  teamName,
-}) => {
+/**
+ * A team, opened from its row in Admin › Teams (design v3, A4): the 452px
+ * side sheet rather than a dialog in the middle of the list, so the list it
+ * came from stays in view. The title carries the team's own mark (its hue,
+ * its initial), as the row does. On a phone it is the whole screen.
+ */
+const AdminTeamMembersDialog: React.FC<AdminTeamMembersDialogProps> = ({ isOpen, onOpenChange, teamId, teamName }) => {
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] h-[80vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 border-b border-border/60 space-y-1">
-          <DialogTitle className="flex items-center gap-2 text-base font-semibold truncate">
-            {/* The people group's hue, as the admin menu draws Teams. */}
-            <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
-              <Users />
-            </Tile>
-            <span className="truncate">{teamName} members</span>
-          </DialogTitle>
-        </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-hidden p-5 pt-3 flex flex-col">
-          {teamId && (
-            <TeamMemberContent teamId={teamId} />
-          )}
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        data-team-sheet=""
+        className="flex flex-col gap-0 p-0 sm:max-w-[452px] max-sm:max-w-none"
+      >
+        <SheetHeader className="flex min-h-[52px] flex-row items-center gap-2.5 space-y-0 px-5 py-3 pr-12 text-left team-sheet-head">
+          <SheetTitle className="flex min-w-0 items-center gap-2.5">
+            <TeamMark team={{ team_uuid: teamId, team_name: teamName }} />
+            <span className="truncate text-title-3">{teamName}</span>
+          </SheetTitle>
+          <SheetDescription className="sr-only">The people in {teamName}.</SheetDescription>
+        </SheetHeader>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5 pt-3">
+          {teamId && <TeamMemberContent teamId={teamId} />}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 

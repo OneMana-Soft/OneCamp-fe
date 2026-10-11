@@ -1,317 +1,236 @@
 "use client"
 
-import { addressOrHandleOf, displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "../ui/dialog";
+/**
+ * A member's profile card (design v3, hub.md P1): a non-modal popover
+ * anchored to whatever was pressed to open it (an avatar, a name, a mention;
+ * see lib/hub/lastAnchor), and a bottom sheet on a phone. It replaced a
+ * 448px modal in the middle of the screen: a profile is a glance, so the page
+ * behind it stays live and Esc or a click outside puts it away.
+ *
+ * This file fetches and places; components/profile/profileCard.tsx draws.
+ */
+import { addressOrHandleOf, displayNameOf, handleOf } from "@/lib/personName"
+import * as React from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useDispatch } from "react-redux"
+import { useRouter } from "next/navigation"
 
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { Badge } from "../ui/badge";
-import {useFetch} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {useUserAvatar} from "@/hooks/useUserAvatar";
-import {useDispatch} from "react-redux";
-import {useEffect} from "react";
-import { statusColors } from "@/lib/colors";
-import {updateUserInfoStatus} from "@/store/slice/userSlice";
-import {useUserInfoState} from "@/hooks/useUserInfoState";
-import {USER_STATUS_ONLINE} from "@/types/user";
-import { MessageSquare } from "@/lib/icons";
-import { useRouter } from "next/navigation";
-import { Button } from "../ui/button";
-import {openUI} from "@/store/slice/uiSlice";
-import {AttachmentMediaReq} from "@/types/attachment";
-import { getNameInitials } from "@/lib/utils/getNameInitials";
-import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
-import { cn } from "@/lib/utils/helpers/cn";
-import { isExternalUser } from "@/lib/utils/isExternalUser";
-import { botProfileCopy } from "@/lib/botCopy";
-import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow";
-import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
-import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction";
-import { useStatusIsExpired } from "@/hooks/useStatusIsExpired";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { Button } from "@/components/ui/button"
+import { PrincipalTag } from "@/components/ui/principalTag"
+import { BotTag } from "@/components/ui/botTag"
+import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder"
+import { AgentStatePill, ProfileCard, type ProfileKind } from "@/components/profile/profileCard"
+import { presenceOf } from "@/components/ui/presenceDot"
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { useUserInfoState } from "@/hooks/useUserInfoState"
+import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData"
+import { useStatusIsExpired } from "@/hooks/useStatusIsExpired"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { updateUserInfoStatus } from "@/store/slice/userSlice"
+import { openUI } from "@/store/slice/uiSlice"
+import { isExternalUser } from "@/lib/utils/isExternalUser"
+import { botProfileCopy } from "@/lib/botCopy"
+import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction"
+import { lastAnchorRect } from "@/lib/hub/lastAnchor"
+import { forgetHoverCard, hoverCardProps } from "@/lib/hub/hoverIntent"
+import { MessageSquare, Pencil, Smile } from "@/lib/icons"
+import type { AttachmentMediaReq } from "@/types/attachment"
+import type { UserProfileInterface } from "@/types/user"
 
-
-interface editProfileDialogProps {
-    userUUID: string;
-    dialogOpenState: boolean;
-    setOpenState: (state: boolean) => void;
+interface OtherProfileDialogProps {
+    userUUID: string
+    dialogOpenState: boolean
+    setOpenState: (state: boolean) => void
 }
 
-const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
-                                                                  dialogOpenState,
-                                                                  setOpenState,
-                                                                  userUUID,
-                                                              }) => {
-    useEffect(() => {
-        if (dialogOpenState) {
-            // Preload the lightbox dialog JS chunk to avoid "black screen" on first click
-            import("@/components/dialog/attachmentLightboxDialog");
-        }
-    }, [dialogOpenState]);
+/** A phone gets the bottom sheet; read once, when the card opens. */
+function isPhone(): boolean {
+    return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 639px)").matches
+}
 
-    const router = useRouter();
-    const profileInfo = useFetch<UserProfileInterface>( userUUID && dialogOpenState ? GetEndpointUrl.SelfProfile + '/'+ userUUID :'')
+const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState, setOpenState, userUUID }) => {
+    const router = useRouter()
+    const dispatch = useDispatch()
+    const profileInfo = useFetch<UserProfileInterface>(userUUID && dialogOpenState ? GetEndpointUrl.SelfProfile + "/" + userUUID : "")
+    const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const p = profileInfo.data?.data
+    const { src: imageSrc } = useUserAvatar(p?.user_profile_object_key)
 
-    const {src: imageSrc} = useUserAvatar(profileInfo.data?.data?.user_profile_object_key);
-
-    const dispatch = useDispatch();
+    // Where it opens, fixed for as long as it is open.
+    const [anchor] = useState(() => lastAnchorRect())
+    const [phone] = useState(isPhone)
 
     useEffect(() => {
+        if (!p) return
+        dispatch(
+            updateUserInfoStatus({
+                userUUID: p.user_uuid || "",
+                profileKey: p.user_profile_object_key || "",
+                userName: p.user_name || "",
+                status: p.user_status || "",
+            }),
+        )
+    }, [p, dispatch])
 
-        if(profileInfo.data?.data) {
-            dispatch(
-                updateUserInfoStatus({
-                    userUUID: profileInfo.data?.data.user_uuid || "",
-                    profileKey: profileInfo.data?.data.user_profile_object_key || "",
-                    userName: profileInfo.data?.data.user_name || "",
-                    status: profileInfo.data?.data.user_status || "",
-                }),
-            )
-        }
+    const live = useUserInfoState(userUUID)
+    const loaded = live && live.deviceConnected !== -1
+    const presence = presenceOf({
+        status: loaded && live.status ? live.status : p?.user_status || "offline",
+        devices: loaded ? live.deviceConnected : p?.user_device_connected || 0,
+    })
 
-    }, [profileInfo.data?.data])
+    // Their status as set now: the live copy (MQTT keeps it current), else the
+    // profile's; an expired one is none.
+    const emojiData = useEmojiMartData()
+    const status = live?.emojiStatus?.status_user_emoji_id ? live.emojiStatus : p?.user_emoji_statuses?.[0] ?? null
+    const expired = useStatusIsExpired(status?.status_user_emoji_id ? status : null)
+    const statusShown = useMemo(() => {
+        if (!status || expired || !status.status_user_emoji_desc) return undefined
+        const emoji = findEmojiMartEmojiByEmojiID(emojiData.data, status.status_user_emoji_id ?? "")?.skins[0].native
+        return { emoji, text: status.status_user_emoji_desc }
+    }, [status, expired, emojiData.data])
 
-    const userStatusState = useUserInfoState(userUUID)
-
-    const isReduxLoaded = userStatusState && userStatusState.deviceConnected !== -1;
-    const currentStatus = isReduxLoaded && userStatusState.status ? userStatusState.status : (profileInfo.data?.data?.user_status || 'offline');
-    const currentDeviceCount = isReduxLoaded ? userStatusState.deviceConnected : (profileInfo.data?.data?.user_device_connected || 0);
-
-    const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
-
-    // Their status, as set now: the live copy in the store (MQTT keeps it
-    // current), else the one the profile came with; an expired one is none.
-    const emojiData = useEmojiMartData();
-    const status = userStatusState?.emojiStatus?.status_user_emoji_id
-        ? userStatusState.emojiStatus
-        : profileInfo.data?.data?.user_emoji_statuses?.[0] ?? null;
-    const statusExpired = useStatusIsExpired(status?.status_user_emoji_id ? status : null);
-    const statusEmoji = status && !statusExpired ? findEmojiMartEmojiByEmojiID(emojiData.data, status.status_user_emoji_id ?? "")?.skins[0].native : undefined;
-    const statusText = status && !statusExpired ? status.status_user_emoji_desc : undefined;
-    const loading = !profileInfo.data?.data;
-
-    const isExternal = isExternalUser(profileInfo.data?.data);
-    const isBot = profileInfo.data?.data?.is_bot === true;
-    // What KIND of bot. Every bot used to be described as the workspace
-    // assistant, including agents that do something else entirely.
-    const botCopy = botProfileCopy(profileInfo.data?.data?.user_bot_kind);
-
-    function closeModal() {
-        setOpenState(false);
-    }
-
+    const isBot = p?.is_bot === true
+    const isExternal = isExternalUser(p)
+    const isSelf = !!userUUID && userUUID === self.data?.data?.user_uuid
+    const botCopy = botProfileCopy(p?.user_bot_kind)
+    const kind: ProfileKind = isBot ? (p?.user_bot_kind === "agent" || p?.user_bot_kind === "assistant" ? "agent" : "bot") : isSelf ? "self" : "person"
     // By the one name rule; a bot made before bots took their name as
     // user_name has its login handle there, and goes by its full name.
-    const shownName = (isBot && profileInfo.data?.data?.user_full_name?.trim()) || displayNameOf(profileInfo.data?.data);
-    const fullName = isBot ? "" : secondaryNameOf(profileInfo.data?.data);
-    const handle = isBot ? "" : handleOf(profileInfo.data?.data);
-    // The address; without one the handle, unless the line above shows it.
-    const contactLine = isBot ? botCopy.subtitle : addressOrHandleOf(profileInfo.data?.data);
-    const showContactLine = !!contactLine && contactLine !== `@${handle}`;
-    const userSeed = shownName || "User";
-    const nameIntial = getNameInitials(userSeed);
+    const name = (isBot && p?.user_full_name?.trim()) || displayNameOf(p)
+    const handle = isBot ? "" : handleOf(p)
+    const subtitle = isBot ? botCopy.subtitle : handle ? undefined : addressOrHandleOf(p) || undefined
 
+    const close = () => {
+        forgetHoverCard()
+        setOpenState(false)
+    }
+    const go = (path: string) => {
+        router.push(path)
+        close()
+    }
+
+    const openPhoto = p?.user_profile_object_key
+        ? () => {
+              const media = {
+                  attachment_uuid: p.user_profile_object_key,
+                  attachment_file_name: `${name} profile image`,
+                  attachment_type: "image",
+                  attachment_size: 0,
+                  attachment_created_at: new Date().toISOString(),
+                  attachment_raw_type: "image/jpeg",
+                  initial_url: imageSrc || "",
+              } as AttachmentMediaReq
+              dispatch(openUI({ key: "attachmentLightbox", data: { media, allMedia: [media], mediaGetUrl: GetEndpointUrl.PublicAttachmentURL } }))
+          }
+        : undefined
+
+    const tags = (
+        <>
+            {p?.user_is_admin && !isBot ? <span className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] bg-sunken px-1.5 text-micro font-medium text-ink-2">Admin</span> : null}
+            {isExternal && !isBot ? <PrincipalTag kind="guest" /> : null}
+            {isBot ? <BotTag userUUID={userUUID} /> : null}
+        </>
+    )
+
+    let actions: React.ReactNode = null
+    if (p) {
+        if (kind === "self") {
+            actions = (
+                <>
+                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => { close(); dispatch(openUI({ key: "selfUserProfile" })) }}>
+                        <Pencil className="size-3.5" /> Edit profile
+                    </Button>
+                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => { close(); dispatch(openUI({ key: "userStatusUpdate", data: { userUUID } })) }}>
+                        <Smile className="size-3.5" /> Set a status
+                    </Button>
+                </>
+            )
+        } else if (kind === "agent" || kind === "person") {
+            // External contacts can't be messaged; the server refuses it too.
+            if (!isExternal || isBot)
+                actions = (
+                    <Button size="sm" className="flex-1" onClick={() => go(`/app/chat/${userUUID}`)}>
+                        <MessageSquare className="size-3.5" /> {isBot ? botCopy.action : "Message"}
+                    </Button>
+                )
+        }
+        // A bot that is no agent has nothing to message: no button at all.
+    }
+
+    let body: React.ReactNode = null
+    if (p && kind === "agent") {
+        body = <p className="text-ui-sm text-ink-2">{name} {botCopy.bio}</p>
+    } else if (p && kind === "bot") {
+        body = <p className="text-ui-sm text-ink-2">{name} {botCopy.bio}</p>
+    } else if (p && isExternal) {
+        body = (
+            <>
+                <p className="text-ui-sm text-ink-2">External contacts can&apos;t be messaged directly. Mention them in a task or comment to work together.</p>
+                <InvitePlaceholder userUUID={userUUID} email={p.user_email_id} name={displayNameOf(p)} />
+            </>
+        )
+    }
+
+    const card = (
+        <ProfileCard
+            kind={kind}
+            hueId={userUUID}
+            name={name}
+            handle={handle || undefined}
+            subtitle={subtitle}
+            photo={imageSrc || undefined}
+            presence={isBot ? undefined : presence}
+            tags={tags}
+            state={kind === "agent" && p?.user_bot_kind === "agent" ? <AgentStatePill active={p?.user_status !== "paused"} /> : undefined}
+            jobTitle={!isBot ? p?.user_job_title : undefined}
+            status={statusShown}
+            body={body}
+            actions={actions}
+            loading={!p}
+            onPhoto={openPhoto}
+            sheet={phone}
+        />
+    )
+
+    if (phone) {
+        return (
+            <Drawer open={dialogOpenState} onOpenChange={(o) => !o && close()}>
+                <DrawerContent data-profile-sheet="" className="p-0">
+                    <DrawerTitle className="sr-only">{name || "Profile"}</DrawerTitle>
+                    {card}
+                </DrawerContent>
+            </Drawer>
+        )
+    }
+
+    // Without a recorded press (a deep link, a test), it opens near the top
+    // of the screen, centred, as a popover still.
+    const box = anchor ?? (typeof window !== "undefined" ? new DOMRect(window.innerWidth / 2, 96, 0, 0) : new DOMRect(0, 0, 0, 0))
     return (
-        <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            {/* One column, 448px: the card's few lines read top to bottom, as the
-                task panel's do. Two columns at 672px spent the width on a 128px
-                photo and left "Nothing else on their profile yet." alone beside it. */}
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="text-base font-semibold">{isBot ? botCopy.title : "Member profile"}</DialogTitle>
-                </DialogHeader>
+        <Popover open={dialogOpenState} onOpenChange={(o) => !o && close()} modal={false}>
+            <PopoverAnchor asChild>
+                <span aria-hidden data-profile-anchor-box="" style={{ position: "fixed", left: box.left, top: box.top, width: box.width, height: box.height, pointerEvents: "none" }} />
+            </PopoverAnchor>
+            <PopoverContent
+                data-profile-popover=""
+                {...hoverCardProps}
+                // Opened by a hover, it must not take the focus from the page.
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                side="bottom"
+                align="start"
+                sideOffset={8}
+                collisionPadding={12}
+                aria-label={name ? `${name}'s profile` : "Profile"}
+                className="hub-pop w-[320px] overflow-hidden rounded-xl bg-pop p-0 shadow-e3"
+            >
+                {card}
+            </PopoverContent>
+        </Popover>
+    )
+}
 
-                <div className="flex flex-col gap-5 pt-1">
-                    {/* Left: Avatar Section */}
-                    <div className="flex flex-col gap-4">
-                      <div data-profile-head="" className="flex items-center gap-4">
-                        <button
-                            type="button"
-                            disabled={!profileInfo.data?.data?.user_profile_object_key}
-                            aria-label={`See ${userSeed}'s photo`}
-                            className="relative rounded-full transition-opacity enabled:cursor-pointer enabled:hover:opacity-90 disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2"
-                            onClick={() => {
-                                if (profileInfo.data?.data?.user_profile_object_key) {
-                                    const media: AttachmentMediaReq = {
-                                        attachment_uuid: profileInfo.data.data.user_profile_object_key,
-                                        attachment_file_name: profileInfo.data.data.user_name + " Profile Image",
-                                        attachment_type: "image",
-                                        attachment_size: 0,
-                                        attachment_created_at: new Date().toISOString(),
-                                        attachment_raw_type: "image/jpeg",
-                                        initial_url: imageSrc || ""
-                                    } as AttachmentMediaReq;
-                                    dispatch(openUI({
-                                        key: 'attachmentLightbox',
-                                        data: {
-                                            media: media,
-                                            allMedia: [media],
-                                            mediaGetUrl: GetEndpointUrl.PublicAttachmentURL
-                                        }
-                                    }));
-                                }
-                            }}
-                        >
-                            <Avatar className="h-16 w-16 ring-1 ring-border/50">
-                                <AvatarImage
-                                    src={imageSrc}
-                                    alt={`${userSeed}'s profile`}
-                                />
-                                <AvatarFallback className={cn("text-lg font-semibold", getAvatarFallbackClass(userSeed))}>
-                                    {nameIntial}
-                                </AvatarFallback>
-                            </Avatar>
-                            {isOnline && (
-                                <span
-                                    aria-hidden
-                                    className={cn(
-                                        "h-3.5 w-3.5 ring-2 ring-background rounded-full absolute bottom-0 right-0",
-                                        statusColors.online.solid,
-                                    )}
-                                />
-                            )}
-                        </button>
-                        <div data-profile-name="" className="min-w-0 flex-1 space-y-0.5">
-                            {loading && (
-                                <div className="flex flex-col gap-2" role="status" aria-label="Loading their profile">
-                                    <Skeleton className="h-6 w-40" />
-                                    <Skeleton className="h-4 w-28" />
-                                </div>
-                            )}
-                            {!loading && (
-                            <div className="flex min-w-0 items-center gap-2">
-                                <h2 className="text-base font-semibold text-foreground truncate">
-                                    {shownName || "Unnamed"}
-                                </h2>
-                                {isBot ? (
-                                    <Badge variant="secondary" className="text-2xs h-5 shrink-0">{botCopy.badge}</Badge>
-                                ) : isExternal ? (
-                                    <Badge variant="secondary" className="text-2xs h-5 shrink-0">External</Badge>
-                                ) : null}
-                            </div>
-                            )}
-                            {/* The green dot says it in colour; this says it in words. */}
-                            {isOnline && <p className="text-xs font-medium text-success-ink">Online</p>}
-                            {(fullName || handle) && (
-                                <p className="text-sm text-muted-foreground truncate">
-                                    {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
-                                </p>
-                            )}
-                            {showContactLine && (
-                                <p className="text-sm text-muted-foreground truncate">{contactLine}</p>
-                            )}
-                        </div>
-                      </div>
-                        {/*
-                          External users are read-only contacts (e.g. GitHub
-                          collaborators surfaced through tasks/comments).
-                          OneCamp users are not allowed to start a DM with
-                          them, so we hide the Message affordance entirely
-                          rather than route to a chat that would fail server
-                          side. The BE still rejects external DM creation as
-                          a defence-in-depth check.
-
-                          We also hide the button while profile data is
-                          still loading — otherwise React renders the
-                          Message button on first paint (when both
-                          `is_external` and the email fallback are
-                          undefined) and only hides it after the SWR
-                          fetch resolves, which is the flash you would
-                          see for an external contact.
-                        */}
-                        {profileInfo.data?.data && (isBot || !isExternal) && (
-                            <Button
-                                variant="secondary"
-                                className="w-full mt-2 gap-2 font-medium"
-                                onClick={() => {
-                                    router.push(`/app/chat/${userUUID}`);
-                                    closeModal();
-                                }}
-                            >
-                                <MessageSquare className="h-4 w-4" />
-                                {isBot ? botCopy.action : "Message"}
-                            </Button>
-                        )}
-                        {profileInfo.data?.data && isExternal && !isBot && (
-                            <>
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                    External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
-                                </p>
-                                {/* An admin can bring an imported placeholder in. */}
-                                <InvitePlaceholder
-                                    userUUID={userUUID}
-                                    email={profileInfo.data.data.user_email_id}
-                                    name={displayNameOf(profileInfo.data.data)}
-                                />
-                            </>
-                        )}
-                    </div>
-
-                    {/* Right: Details Section */}
-                    <div className="flex-1 flex flex-col gap-5">
-                        {isBot ? (
-                            <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">About</p>
-                                <p className="text-sm text-foreground leading-relaxed">
-                                    {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
-                                    {botCopy.invite ? ` ${botCopy.invite}` : ""}
-                                </p>
-                            </div>
-                        ) : (
-                            loading ? (
-                                <div className="space-y-3" aria-hidden="true">
-                                    {[0, 1, 2].map((i) => (
-                                        <div key={i} className={fieldRow()}>
-                                            <Skeleton className="h-3.5 w-16" />
-                                            <Skeleton className="h-4 w-40" />
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                // The name, display name and handle are in the header
-                                // already; this lists what else they have set, a quiet
-                                // label beside each value, as in the task panel. A row
-                                // of "—" for every field nobody filled in said nothing.
-                                <dl className="space-y-1">
-                                    {statusText && (
-                                        <div className={fieldRow()}>
-                                            <dt className={fieldLabel}>Status</dt>
-                                            <dd className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
-                                                {statusEmoji && <span aria-hidden="true">{statusEmoji}</span>}
-                                                <span className="truncate">{statusText}</span>
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {profileInfo.data?.data?.user_job_title && (
-                                        <div className={fieldRow()}>
-                                            <dt className={fieldLabel}>Job title</dt>
-                                            <dd className="truncate text-sm text-foreground">{profileInfo.data.data.user_job_title}</dd>
-                                        </div>
-                                    )}
-                                    {profileInfo.data?.data?.user_hobbies && (
-                                        <div className={fieldRow("start")}>
-                                            <dt className={fieldLabel}>Hobbies</dt>
-                                            <dd className="text-sm text-foreground">{profileInfo.data.data.user_hobbies}</dd>
-                                        </div>
-                                    )}
-                                    {!statusText && !profileInfo.data?.data?.user_job_title && !profileInfo.data?.data?.user_hobbies && (
-                                        <p className="text-sm text-muted-foreground">Nothing else on their profile yet.</p>
-                                    )}
-                                </dl>
-                            )
-                        )}
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
-        );
-};
-
-export default OtherProfileDialog;
+export default OtherProfileDialog

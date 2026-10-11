@@ -267,7 +267,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
               )}
             </div>
             {/* The dialog scrolls when the window is short; Create stays in view. */}
-            <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 border-t bg-background px-6 py-3">
+            <DialogFooter>
               <Button variant="default" type="submit" disabled={!isValid || isSubmitting}>
                 {isSubmitting ? "Creating…" : chosen ? `Create with ${taskCount(chosen.task_count)}` : "Create project"}
               </Button>

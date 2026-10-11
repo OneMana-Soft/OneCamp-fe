@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useCallback, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
 
 import { Button } from "@/components/ui/button";
-import { Forward, Languages, MessageSquareText, Reply } from "@/lib/icons";
+import { MessageSquareText } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ACTION_TIP } from "@/components/MessageDesktopHover/actionTip";
 
@@ -26,6 +26,8 @@ interface MessageDesktopHoverOptionProps {
     chatMessageID?: string;
     channelUUID?: string;
     postUUID?: string;
+    /** A reply in a thread: what Save to memory records. */
+    commentUUID?: string;
     messageText?: string;
     /** Who wrote it, shown beside the message in Later. */
     authorName?: string;
@@ -34,7 +36,7 @@ interface MessageDesktopHoverOptionProps {
     // panel). Rendered only when the surface supplies it.
     onReply?: () => void;
     // onTranslate, when provided, translates this message in place (the surface
-    // owns the translation state + inline render). Rendered as a hover action.
+    // owns the translation state + inline render).
     onTranslate?: () => void;
     getReplyNotification?: () => void;
     setEmojiPopupState?: (open: boolean) => void;
@@ -43,6 +45,11 @@ interface MessageDesktopHoverOptionProps {
     isAdmin?: boolean;
     isOwner: boolean;
     onReactionSelect: (id: string) => void;
+    /**
+     * A reply inside a thread: there is no thread to open from it, and Reply
+     * in thread gives way. The same toolbar otherwise, list and panel alike.
+     */
+    inThread?: boolean;
 }
 
 type QuickReaction = {
@@ -57,8 +64,17 @@ const QUICK_REACTIONS: ReadonlyArray<QuickReaction> = [
     { id: "raised_hands", emoji: "🙌", label: "Nice work" },
 ];
 
-const ICON_BUTTON_CLASS =
-    "h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
+/** The toolbar's buttons (design v3 chat, C19): 26px at r7, icons 16px in ink-3. */
+export const TOOL_BUTTON =
+    "size-[26px] rounded-[7px] p-0 text-ink-3 hover:bg-press hover:text-ink data-[state=open]:bg-press data-[state=open]:text-ink [&_svg]:size-4 [&_svg]:text-current focus-visible:outline-offset-[-2px]";
+
+// A toolbar that appears as the pointer moves from one message to the next
+// does not play its entrance again: one that blinks at every row while the
+// eye scans down the conversation is noise (Campfire waits 150 ms for the
+// same reason). It enters once, when the pointer arrives from outside.
+let toolbarsShown = 0;
+let lastToolbarHidden = -Infinity;
+const RESHOW_MS = 300;
 
 interface HoverIconButtonProps {
     label: string;
@@ -69,15 +85,7 @@ interface HoverIconButtonProps {
 // Labelled by a CSS tip (actionTip.ts), not a Radix tooltip: the toolbar is
 // built on every hover, and the tooltips were most of what that cost.
 const HoverIconButton = ({ label, onClick, children }: HoverIconButtonProps) => (
-    <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={label}
-        data-tip={label}
-        onClick={onClick}
-        className={cn(ICON_BUTTON_CLASS, ACTION_TIP)}
-    >
+    <Button type="button" variant="ghost" size="icon" aria-label={label} data-tip={label} onClick={onClick} className={cn(TOOL_BUTTON, ACTION_TIP)}>
         {children}
     </Button>
 );
@@ -101,8 +109,21 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     onTranslate,
     onReactionSelect,
     chatMessageID,
+    commentUUID,
+    inThread = false,
 }: MessageDesktopHoverOptionProps) => {
     const dispatch = useDispatch();
+    // Decided once, as it mounts: arriving from outside, or from the row above.
+    const [enters] = useState(
+        () => toolbarsShown === 0 && (typeof performance === "undefined" || performance.now() - lastToolbarHidden > RESHOW_MS),
+    );
+    useEffect(() => {
+        toolbarsShown += 1;
+        return () => {
+            toolbarsShown -= 1;
+            lastToolbarHidden = performance.now();
+        };
+    }, []);
 
     const handleOpenThread = useCallback(() => {
         dispatch(
@@ -147,8 +168,6 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     }, [dispatch, messageText, authorName, channelUUID, postUUID, chatUUID, groupUUID, chatMessageID]);
     const onMakeTask = laterLink ? handleMakeTask : undefined;
 
-    const showDropdown = Boolean(isAdmin || isOwner || getReplyNotification || onMakeTask);
-
     const laterID = postUUID || chatMessageID;
     const laterTarget = laterLink && laterID
         ? {
@@ -161,17 +180,15 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
         : null;
 
     return (
-        // Mounted when the message is hovered or focused (BaseMessageCard), so
-        // it rises in once: opacity and 4px, no scale, nothing with reduced
-        // motion. Under the pointer it lifts a pixel more (hover-lift, the
-        // playful layer's one sanctioned lift).
+        // A floating toolbar on the pop surface (design v3 chat, C19): r10 at
+        // e3 with 3px of padding, six slots. It overlaps the row's top edge.
+        // It enters by pop (y 2px and scale .98 to rest in 120 ms) when the
+        // pointer arrives from outside, and not again row to row.
         <div
             role="toolbar"
             aria-label="Message actions"
-            className={cn(
-                "flex items-center gap-0.5 rounded-lg border border-border/60 p-1",
-                "bg-background shadow-overlay hover-lift motion-safe:animate-msg-fade-in",
-            )}
+            data-message-toolbar=""
+            className={cn("pop-surface flex items-center gap-px rounded-[10px] p-[3px]", enters && "animate-toolbar-in")}
         >
             {QUICK_REACTIONS.map(({ id, emoji, label }) => (
                 <Button
@@ -182,59 +199,47 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                     aria-label={`React with ${label}`}
                     data-tip={label}
                     onClick={() => onReactionSelect(id)}
-                    className={cn(
-                        "h-8 w-8 rounded-md text-base leading-none",
-                        "hover:bg-accent motion-safe:transition-transform motion-safe:hover:scale-110",
-                        ACTION_TIP,
-                    )}
+                    className={cn(TOOL_BUTTON, "group/emoji text-base leading-none", ACTION_TIP)}
                 >
-                    <span aria-hidden="true">{emoji}</span>
+                    <span aria-hidden="true" className="inline-block text-base transition-transform duration-[140ms] ease-out group-hover/emoji:scale-[1.15]">{emoji}</span>
                 </Button>
             ))}
+
+            <span aria-hidden="true" className="mx-[3px] h-4 w-px bg-line" />
 
             <AddReactionTrigger
                 onReactionSelect={onReactionSelect}
                 showCustomReactions={false}
                 setPopupState={setEmojiPopupState}
+                className={TOOL_BUTTON}
             />
 
-            <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-border/70" />
-
-            {onReply && (
-                <HoverIconButton label="Reply" onClick={onReply}>
-                    <Reply className="h-4 w-4" />
+            {!inThread && (
+                <HoverIconButton label="Reply in thread" onClick={handleOpenThread}>
+                    <MessageSquareText aria-hidden="true" />
                 </HoverIconButton>
             )}
-
-            <HoverIconButton label="Reply in thread" onClick={handleOpenThread}>
-                <MessageSquareText className="h-4 w-4" />
-            </HoverIconButton>
-
-            <HoverIconButton label="Forward" onClick={handleForward}>
-                <Forward className="h-4 w-4" />
-            </HoverIconButton>
 
             {laterTarget && (
-                <SaveForLaterButton target={laterTarget} onOpenChange={setIsDropdownOpen} />
+                <SaveForLaterButton target={laterTarget} onOpenChange={setIsDropdownOpen} className={TOOL_BUTTON} />
             )}
 
-            {onTranslate && (
-                <HoverIconButton label="Translate" onClick={onTranslate}>
-                    <Languages className="h-4 w-4" />
-                </HoverIconButton>
-            )}
-
-            {showDropdown && (
-                <MessageDesktopDropdown
-                    isAdmin={isAdmin}
-                    isOwner={isOwner}
-                    setIsDropdownOpen={setIsDropdownOpen}
-                    deleteMessage={deleteMessage}
-                    editMessage={editMessage}
-                    getReplyNotification={getReplyNotification}
-                    onMakeTask={onMakeTask}
-                />
-            )}
+            <MessageDesktopDropdown
+                isAdmin={isAdmin}
+                isOwner={isOwner}
+                setIsDropdownOpen={setIsDropdownOpen}
+                deleteMessage={deleteMessage}
+                editMessage={editMessage}
+                getReplyNotification={getReplyNotification}
+                onMakeTask={onMakeTask}
+                onReply={onReply}
+                onForward={postUUID || chatMessageID ? handleForward : undefined}
+                onTranslate={onTranslate}
+                link={laterLink || undefined}
+                laterTarget={laterTarget}
+                messageText={messageText}
+                triggerClassName={TOOL_BUTTON}
+            />
         </div>
     );
 };

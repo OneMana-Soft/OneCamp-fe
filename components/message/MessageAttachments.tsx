@@ -11,7 +11,9 @@ import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {getFriendlyFileExtension} from "@/lib/utils/format/getFriendlyFileExtension";
 import {formatFileSizeForAttachment} from "@/lib/utils/format/formatFileSizeForAttachment";
 import { Download } from "@/lib/icons";
-import { LinkCardBody, linkCardClass } from "@/components/message/LinkCard";
+import { LinkCardBody, NEUTRAL_TILE, hueTileClass, linkCardClass } from "@/components/message/LinkCard";
+import { fileKind, fileTypeHue, splitForMiddle } from "@/lib/utils/file/fileTypeHue";
+import { VoiceClipCard, isVoiceClip } from "@/components/clips/VoiceClipCard";
 
 interface MessageAttachmentProps {
     attachments:  AttachmentMediaReq[];
@@ -20,108 +22,111 @@ interface MessageAttachmentProps {
     priority?: boolean
 }
 
+/** "1:07": a video's length for its chip. */
+export function clipDuration(seconds?: number): string | null {
+    if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return null
+    const s = Math.round(seconds)
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
+}
+
+/**
+ * The pictures and files under a message (design v3 chat, C24 and C25).
+ *
+ * One picture is drawn as it is, at most 480 by 360, r12 with a hairline
+ * ring; two sit side by side, three as one tall and two stacked, four in a
+ * square, and the last of four says "+N" on 40% black for the rest (no blur:
+ * a blurred picture under a number reads as broken). Under the pointer a
+ * picture dims to 96% and never grows. Files are cards of the one card
+ * material, one column for one or two, two columns from three.
+ */
 export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl, priority}:MessageAttachmentProps) => {
     const [loadedUrls, setLoadedUrls] = useState<Record<string, string>>({})
-
 
     const { renderables, nonRenderables } = useMemo(() => {
         const renderables: AttachmentMediaReq[] = []
         const nonRenderables: AttachmentMediaReq[] = []
-
         attachments.forEach((attachment) => {
-            if (isRenderable(attachment)) {
-                renderables.push(attachment)
-            } else {
-                nonRenderables.push(attachment)
-            }
+            if (isRenderable(attachment)) renderables.push(attachment)
+            else nonRenderables.push(attachment)
         })
-
         return { renderables, nonRenderables }
     }, [attachments])
 
     if (!attachments.length) return null
 
+    const shown = renderables.slice(0, ATTACHMENT_MAX_IMAGE_GRID_SIZE)
+    const only = renderables.length === 1
+    const three = shown.length === 3
 
     return (
-
-            // One width for what sits under a message, as the cards' (448px,
-            // the full width on a phone). It was a third of the column: 370px
-            // at 1440 and 170px on a small laptop, with a one-off 16px under it.
-            <div
-                data-message-attachments=""
-                className='mt-1.5 flex w-full max-w-md flex-col items-start justify-start gap-2'
-            >
-                <div className={cn('md:shrink-0', )} />
-
+        <div data-message-attachments="" className="mt-2 flex w-full max-w-[520px] flex-col items-start gap-1.5">
+            {shown.length > 0 && (
                 <div
-                    className={cn('relative flex flex-col justify-start gap-2 w-full')}
+                    data-media-grid={shown.length}
+                    className={cn(
+                        only ? "flex w-fit max-w-full" : "grid w-full max-w-[480px] grid-cols-2 gap-1",
+                        three && "grid-rows-2",
+                    )}
                 >
-
-                    {renderables?.length > 0 && (
-                        <div className='grid grid-cols-2 gap-2 w-full'>
-                            {renderables.slice(0, ATTACHMENT_MAX_IMAGE_GRID_SIZE).map((attachment, index) => {
-                                const only = renderables.length === 1
-                                const overflow = index ===  ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1 && renderables.length >  ATTACHMENT_MAX_IMAGE_GRID_SIZE
-                                const aspectRatio = (attachment.attachment_width && attachment.attachment_height) ? attachment.attachment_width / attachment.attachment_height : 1
-
-                                return (
-                                    <div
-                                        key={attachment.attachment_uuid}
-                                        className={cn('bg-elevated relative flex-1 rounded-xl overflow-hidden border border-border/50 group', {
-                                            'col-span-2 max-h-[30rem]': only,
-                                            'aspect-square': !only
-                                        })}
-                                        style={{ aspectRatio: only ? `${aspectRatio}` : undefined }}
-                                    >
-                                        <div className='pointer-events-none absolute inset-0 z-[var(--z-base)] rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10' />
-
-                                            <button
-                                                type="button"
-                                                data-no-ripple="true"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    e.preventDefault();
-                                                    attachmentSelected({
-                                                        ...attachment,
-                                                        initial_url: loadedUrls[attachment.attachment_uuid]
-                                                    });
-                                                }}
-                                                aria-label={`Open ${attachment.attachment_file_name}`}
-                                                className='relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl transition-transform duration-200 hover:scale-[1.02] motion-reduce:transition-none motion-reduce:hover:scale-100'
-                                            >
-                                                <MessageAttachmentCard
-                                                    priority={priority}
-                                                    attachment={attachment}
-                                                    autoplay={false}
-                                                    mediaGetURL={mediaGetUrl}
-                                                    className="h-full w-full object-cover"
-                                                    onUrlLoaded={(url) => setLoadedUrls(prev => ({ ...prev, [attachment.attachment_uuid]: url }))}
-                                                />
-                                                {overflow && (
-                                                    <div className="absolute inset-0 z-[var(--z-base)] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition duration-150 group-hover:bg-black/50 pointer-events-none">
-                                                        <div className='text-xl font-medium text-white'>
-                                                            +{renderables.length - (ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1)}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </button>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    )}
-
-                    {nonRenderables.length > 0 && (
-                        <div className="flex flex-col gap-2 w-full">
-                            {nonRenderables.map((attachment) => (
-                                <NonRenderableAttachment key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl}/>
-                            ))}
-                        </div>
-                    )}
-
-
+                    {shown.map((attachment, index) => {
+                        const overflow = index === ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1 && renderables.length > ATTACHMENT_MAX_IMAGE_GRID_SIZE
+                        const w = attachment.attachment_width, h = attachment.attachment_height
+                        const ratio = w && h ? w / h : 4 / 3
+                        // One picture keeps its shape inside 480 x 360.
+                        const single = only ? { aspectRatio: `${ratio}`, width: `min(100%, 480px, ${Math.round(360 * ratio)}px)` } : undefined
+                        const duration = attachment.attachment_type === "video" ? clipDuration(attachment.attachment_duration) : null
+                        return (
+                            <button
+                                key={attachment.attachment_uuid}
+                                type="button"
+                                data-no-ripple="true"
+                                data-media-tile=""
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    attachmentSelected({ ...attachment, initial_url: loadedUrls[attachment.attachment_uuid] })
+                                }}
+                                aria-label={`Open ${attachment.attachment_file_name}`}
+                                className={cn(
+                                    "group/media relative flex items-center justify-center overflow-hidden rounded-xl bg-sunken ring-1 ring-inset ring-line",
+                                    "transition-[filter] duration-[140ms] ease-out hover:brightness-[.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                                    only ? "max-h-[360px]" : "aspect-square",
+                                    three && index === 0 && "row-span-2 aspect-auto",
+                                )}
+                                style={single}
+                            >
+                                <MessageAttachmentCard
+                                    priority={priority}
+                                    attachment={attachment}
+                                    autoplay={false}
+                                    mediaGetURL={mediaGetUrl}
+                                    className="h-full w-full object-cover"
+                                    onUrlLoaded={(url) => setLoadedUrls(prev => ({ ...prev, [attachment.attachment_uuid]: url }))}
+                                />
+                                {duration && !overflow && (
+                                    <span className="pointer-events-none absolute bottom-2 right-2 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-micro font-medium tabular-nums text-white">{duration}</span>
+                                )}
+                                {overflow && (
+                                    <span data-media-more="" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-heading font-semibold tabular-nums text-white">
+                                        +{renderables.length - (ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1)}
+                                    </span>
+                                )}
+                            </button>
+                        )
+                    })}
                 </div>
-            </div>
+            )}
+
+            {nonRenderables.length > 0 && (
+                <div data-file-grid="" className={cn("grid w-full gap-1.5", nonRenderables.length >= 3 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
+                    {nonRenderables.map((attachment) => isVoiceClip(attachment) ? (
+                        <VoiceClipCard key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl}/>
+                    ) : (
+                        <NonRenderableAttachment key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl}/>
+                    ))}
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -131,16 +136,17 @@ interface NonRenderableAttachmentProps {
 }
 
 /**
- * A file that is not a picture or a video, as the cards under a message are
- * drawn (LinkCard): its type's icon on a tile, its whole name cut to the
- * card's width, its type and size, and a download mark. One button, so the
- * keyboard reaches it: it was a clickable box (no focus, no name) holding a
- * Download button that showed only on hover, and the name was cut at a fixed
- * count of letters ("OneCamp brand....pdf" with room to spare).
+ * A file that is not a picture or a video (C24): the card material, a tile
+ * in its kind's hue with its type's icon, its name cut in the middle so the
+ * start and the extension both stay, "PDF · 2.4 MB", and a download button
+ * that shows with the pointer (always, on a touch screen). The card itself
+ * downloads too, so the keyboard reaches it in one stop.
  */
 function NonRenderableAttachment({ attachment, mediaGetUrl }: NonRenderableAttachmentProps) {
     const mediaReq = useMediaFetch<GetMediaURLRes>(attachment?.attachment_uuid ? mediaGetUrl +'/'+attachment.attachment_uuid : '')
     const name = attachment.attachment_file_name
+    const hue = fileTypeHue(name, attachment.attachment_raw_type)
+    const [head, tail] = splitForMiddle(name)
 
     const download = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -155,15 +161,21 @@ function NonRenderableAttachment({ attachment, mediaGetUrl }: NonRenderableAttac
             onClick={download}
             data-no-ripple="true"
             data-file-card=""
+            data-file-kind={fileKind(name, attachment.attachment_raw_type)}
             aria-label={`Download ${name}`}
             title={name}
-            className={cn(linkCardClass, "group")}
+            className={cn(linkCardClass, "group max-w-none")}
         >
             <LinkCardBody
-                icon={<FileTypeIcon name={name} fileType={attachment.attachment_raw_type} size={16}/>}
-                title={name}
+                icon={<FileTypeIcon name={name} fileType={attachment.attachment_raw_type} size={18}/>}
+                iconClassName={hue ? hueTileClass(hue) : NEUTRAL_TILE}
+                title={<span data-file-name="" className="flex min-w-0"><span className="truncate">{head}</span><span className="shrink-0 whitespace-pre">{tail}</span></span>}
                 detail={`${getFriendlyFileExtension(attachment.attachment_raw_type, name)} · ${formatFileSizeForAttachment(attachment.attachment_size || 0)}`}
-                trailing={<Download className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" aria-hidden="true"/>}
+                trailing={
+                    <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md pointer-events-none text-ink-3 opacity-0 transition-opacity duration-[140ms] group-hover:bg-hover group-hover:text-ink group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100">
+                        <Download className="size-4"/>
+                    </span>
+                }
             />
         </button>
     )

@@ -21,9 +21,9 @@
 //     message. Safe to run on every render.
 
 import React from "react"
-import { GitBranch, GitPullRequest, GitMerge, ExternalLink } from "@/lib/icons"
+import { ArrowUpRight, GitBranch, GitPullRequest, GitMerge, ExternalLink } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { LinkCardBody, linkCardClass } from "@/components/message/LinkCard"
+import { LinkCardBody, NEUTRAL_TILE, hueTileClass, linkCardClass } from "@/components/message/LinkCard"
 
 // ── Public model ────────────────────────────────────────────────────────────
 
@@ -93,10 +93,12 @@ const ICONS: Record<ResultCardIcon, React.ComponentType<{ className?: string }>>
   external: ExternalLink,
 }
 
+// A merged or open pull request is moss, one still to open is sky, a branch
+// is neutral (design v3 chat, C26): the hues the rest of the app gives them.
 const ACCENTS: Record<ResultCardAccent, string> = {
-  success: "bg-success/10 text-success-ink",
-  primary: "bg-primary/10 text-primary",
-  muted: "bg-muted text-muted-foreground",
+  success: hueTileClass("moss"),
+  primary: hueTileClass("sky"),
+  muted: NEUTRAL_TILE,
 }
 
 function ResultCardChrome({ card }: { card: ResultCard }) {
@@ -104,15 +106,15 @@ function ResultCardChrome({ card }: { card: ResultCard }) {
   return (
     <a href={card.href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className={cn(linkCardClass, "group/rc")}>
       <LinkCardBody
-        icon={<Icon className="h-4 w-4" />}
+        icon={<Icon />}
         iconClassName={ACCENTS[card.accent] || ACCENTS.muted}
         title={card.title}
         detail={card.subtitle}
         detailClassName="font-mono"
         trailing={
-          <span className="flex shrink-0 items-center gap-1 text-2xs font-medium text-muted-foreground transition-colors group-hover/rc:text-foreground">
+          <span className="flex shrink-0 items-center gap-1 text-meta font-medium text-ink-3 transition-colors group-hover/rc:text-ink">
             {card.cta ? <span className="hidden sm:inline">{card.cta}</span> : null}
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ArrowUpRight className="size-4" aria-hidden="true" />
           </span>
         }
       />
@@ -126,7 +128,7 @@ export function AgentResultCards({ text, max, className }: { text: string; max?:
   const cards = React.useMemo(() => extractResultCards(text || "", max), [text, max])
   if (cards.length === 0) return null
   return (
-    <div className={"mt-1.5 flex flex-col gap-1.5 " + (className || "")}>
+    <div data-result-cards="" className={"mt-2 flex flex-col gap-1.5 " + (className || "")}>
       {cards.map((c) => (
         <ResultCardChrome key={c.key} card={c} />
       ))}

@@ -1,31 +1,52 @@
 import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs"
 import { hueFor } from "@/lib/campHue"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { mentionHue, tintMentions } from "./tintMentions"
+import { agentIdsOf, mentionHue, mentionKind, mentionsUser, tintMentions } from "./tintMentions"
 
-// A mention is drawn in the mentioned person's hue, the colour their avatar
-// is (the playful layer of 10 Oct 2026): it was one neutral grey chip for
-// everyone.
+// chat.md C14 / content.md D24: only a mention of you is coloured (brand);
+// anyone else is a neutral chip whose hue moves to a dot; an agent is on the
+// agent tint with the spark where the "@" was. It was every chip in the
+// mentioned person's hue.
 
-const mention = (label: string, extra = "") =>
-  `<span data-type="mention" data-id="u1@0x1" data-label="${label}"${extra}>@${label}</span>`
+const mention = (label: string, id = "u1@0x1", extra = "") =>
+  `<span data-type="mention" data-id="${id}" data-label="${label}"${extra}>@${label}</span>`
 
 describe("tintMentions", () => {
-  it("gives each person mention that person's hue class", () => {
-    const out = tintMentions(`<p>${mention("Sam Rivera")} and ${mention("Maya Chen")}</p>`)
-    expect(out).toContain(`class="${HUE_CLASS[hueFor("Sam Rivera")]}"`)
-    expect(out).toContain(`class="${HUE_CLASS[hueFor("Maya Chen")]}"`)
+  it("marks only a mention of the reader as mention-me", () => {
+    const out = tintMentions(`<p>${mention("Sam Rivera", "me-uuid@0x2")} and ${mention("Maya Chen")}</p>`, { me: "me-uuid" })
+    expect(out).toContain(`data-id="me-uuid@0x2" data-label="Sam Rivera" class="mention-me"`)
+    expect(out.match(/mention-me/g)).toHaveLength(1)
   })
 
-  it("is the same hue the person's avatar is drawn in", () => {
-    // Avatars are seeded by the display name (lib/utils/getAvatarColor).
+  it("gives anyone else the neutral chip with a dot in their hue, and no hue class on the chip", () => {
+    const out = tintMentions(`<p>${mention("Maya Chen")}</p>`)
+    expect(out).toContain(`class="mention-person" data-hue="${hueFor("Maya Chen")}"`)
+    expect(out).not.toMatch(/class="[^"]*\bhue-/)
+  })
+
+  it("puts an agent on the agent tint, with the spark for the @", () => {
+    const out = tintMentions(`<p>${mention("Release Captain", "bot-1")}</p>`, { agentIds: ["bot-1"] })
+    expect(out).toContain(`class="mention-agent"`)
+    expect(out).toContain('class="mention-spark"')
+    expect(out).not.toContain(">@Release")
+    expect(mentionKind("bot-1@0x9", { agentIds: new Set(["bot-1"]) })).toBe("agent")
+  })
+
+  it("reads the agents out of a bot-kind map, and only the AI ones", () => {
+    const ids = agentIdsOf({ rc: "agent", gh: "github" })
+    expect(ids).toContain("rc")
+    expect(ids).not.toContain("gh")
+    expect(agentIdsOf(undefined)).toEqual([])
+  })
+
+  it("draws the dot in the colour the person's avatar is", () => {
     expect(mentionHue("Jonas Weber")).toBe(hueFor("Jonas Weber"))
     expect(mentionHue("@Jonas Weber")).toBe(hueFor("Jonas Weber"))
   })
 
   it("keeps the classes a mention already has, and reads an escaped name", () => {
-    const out = tintMentions(mention("Seán O&#39;Neil", ' class="mention"'))
-    expect(out).toContain(`class="mention ${HUE_CLASS[hueFor("Seán O'Neil")]}"`)
+    const out = tintMentions(mention("Seán O&#39;Neil", "u1", ' class="mention"'))
+    expect(out).toContain(`class="mention mention-person" data-hue="${hueFor("Seán O'Neil")}"`)
   })
 
   it("leaves channel and work-item references, and bodies without a mention, alone", () => {
@@ -33,14 +54,24 @@ describe("tintMentions", () => {
     expect(tintMentions(channel)).toBe(channel)
     expect(tintMentions("<p>No one here</p>")).toBe("<p>No one here</p>")
   })
+
+  it("tells whether a body mentions the reader", () => {
+    expect(mentionsUser(`<p>${mention("Sam", "me@0x1")}</p>`, "me")).toBe(true)
+    expect(mentionsUser(`<p>${mention("Maya", "maya@0x1")}</p>`, "me")).toBe(false)
+    expect(mentionsUser("<p>hi</p>", undefined)).toBe(false)
+  })
 })
 
 describe("the mention chip's style", () => {
-  it("draws in the current hue, with the neutral chip only as a fallback", async () => {
-    const { readFileSync } = await import("node:fs")
-    const css = readFileSync("components/minimal-tiptap/styles/index.css", "utf8")
-    const rule = /\.static-rich span\[data-type="mention"\] \{([^}]*)\}/.exec(css)?.[1] ?? ""
-    expect(rule).toMatch(/background-color:\s*var\(--hue-tint,/)
-    expect(rule).toMatch(/color:\s*var\(--hue-ink,/)
+  const css = readFileSync("components/minimal-tiptap/styles/index.css", "utf8")
+  it("is neutral, with the hue only on the dot", () => {
+    const base = /:is\(\.static-rich, \.minimal-tiptap-editor\) span\[data-type="mention"\],\s*\.chat-mention \{([^}]*)\}/.exec(css)?.[1] ?? ""
+    expect(base).toMatch(/background-color:\s*var\(--hover\)/)
+    expect(base).not.toMatch(/--hue-tint/)
+    expect(css).toMatch(/\.mention-person::before \{[^}]*var\(--mention-dot/)
+  })
+  it("spends the accent on the reader's own mention, and the agent tint on an agent's", () => {
+    expect(css).toMatch(/\.chat-mention\.mention-me \{[^}]*var\(--brand-muted\)/)
+    expect(css).toMatch(/\.chat-mention\.mention-agent \{[^}]*var\(--agent-muted\)/)
   })
 })

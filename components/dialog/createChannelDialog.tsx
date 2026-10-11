@@ -18,6 +18,7 @@ import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {Switch} from "@/components/ui/switch";
 import { AlertCircle, CheckCircle, Loader2, Lock } from "@/lib/icons";
+import { Tile } from "@/components/ui/graphics/Tile";
 import {useEffect, useMemo, useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
 import {
@@ -27,7 +28,11 @@ import {
 import {app_channel_path} from "@/types/paths";
 import { isValidName, nameSchema } from "@/lib/validation/names";
 import {useRouter} from "next/navigation";
-import { ChannelSettingsList, SettingRow } from "@/components/dialog/editChannelDialog";
+
+/** What a channel name looks like as it is typed: lowercase, spaces as hyphens. */
+export function channelSlug(typed: string): string {
+    return typed.toLowerCase().replace(/\s+/g, "-")
+}
 
 const createChannelFormSchema = z.object({
     channel_name: nameSchema("workspace", "Channel name"),
@@ -43,8 +48,11 @@ interface CreateTeamDialogProps {
 }
 
 /**
- * A new channel, laid out as Edit channel is: the name, its availability said
- * under it as it is typed, and the settings as rows between hairlines.
+ * A new channel (design v3 chat, C53): a 480px dialog at r16 and e4, its
+ * title and one line saying what a channel is, the name behind a fixed #
+ * (typed lowercase, spaces becoming hyphens, as channel names are written),
+ * its availability said under it as it is typed, and Private as a setting
+ * row with its tile and switch.
  *
  * It asked for a second step before Create would wake up: "Check
  * availability", an orange button beside the field (two orange buttons in one
@@ -134,72 +142,78 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="max-w-[95vw] sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="text-start">New channel</DialogTitle>
-                    <DialogDescription className="sr-only">
-                        Name the channel and choose who can find it.
+            <DialogContent className="max-w-[95vw] bg-sheet shadow-e4 sm:max-w-[480px]">
+                <DialogHeader className="space-y-1">
+                    <DialogTitle className="text-start text-title-3 font-semibold text-ink">New channel</DialogTitle>
+                    <DialogDescription className="text-start text-ui text-ink-2">
+                        Channels are where a team talks, plans and decides.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                     <div className="space-y-1.5">
-                        <Label htmlFor="newChannelName">Channel name</Label>
+                        <Label htmlFor="newChannelName" className="text-ui-sm font-medium text-ink">Channel name</Label>
                         <Controller
                             name="channel_name"
                             control={control}
                             render={({field}) => (
-                                <Input
-                                    {...field}
-                                    id="newChannelName"
-                                    placeholder="launch-week"
-                                    autoFocus
-                                    autoComplete="off"
-                                />
+                                <div className="relative">
+                                    {/* Decoration: the # is how a channel is written, not part of its name. */}
+                                    <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ui text-ink-3">#</span>
+                                    <Input
+                                        {...field}
+                                        onChange={(e) => field.onChange(channelSlug(e.target.value))}
+                                        id="newChannelName"
+                                        placeholder="launch-week"
+                                        className="pl-7"
+                                        autoFocus
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        aria-describedby="newChannelNameStatus"
+                                    />
+                                </div>
                             )}
                         />
                         {/* Validation and availability, one line, its room kept so
                             nothing below jumps as it changes. */}
-                        <div data-name-status="" className="min-h-[18px] text-xs" aria-live="polite">
+                        <div id="newChannelNameStatus" data-name-status="" className="min-h-5 text-meta" aria-live="polite">
                             {errors.channel_name ? (
-                                <span className="flex items-center gap-1 text-danger-ink">
-                                    <AlertCircle className="h-3.5 w-3.5" />
+                                <span className="flex items-center gap-1.5 text-danger-ink">
+                                    <AlertCircle className="size-3.5" aria-hidden="true" />
                                     {errors.channel_name.message}
                                 </span>
                             ) : waitingForCheck ? (
-                                <span className="flex items-center gap-1 text-muted-foreground">
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    Checking availability…
+                                <span className="flex items-center gap-1.5 text-ink-3">
+                                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                                    Checking #{ch_name.trim()}…
                                 </span>
                             ) : nameAvailable ? (
-                                <span className="flex items-center gap-1 text-success-ink">
-                                    <CheckCircle className="h-3.5 w-3.5" />
-                                    Name is available
+                                <span className="flex items-center gap-1.5 text-success-ink">
+                                    <CheckCircle className="size-3.5" aria-hidden="true" />
+                                    #{ch_name.trim()} is free
                                 </span>
                             ) : nameTaken ? (
-                                <span className="flex items-center gap-1 text-danger-ink">
-                                    <AlertCircle className="h-3.5 w-3.5" />
-                                    Name is already taken
+                                <span className="flex items-center gap-1.5 text-danger-ink">
+                                    <AlertCircle className="size-3.5" aria-hidden="true" />
+                                    Taken. Try #{ch_name.trim()}-2
                                 </span>
                             ) : null}
                         </div>
                     </div>
 
-                    <ChannelSettingsList>
-                        <Controller
-                            name="channel_private"
-                            control={control}
-                            render={({field}) => (
-                                <SettingRow
-                                    icon={<Lock className="h-4 w-4" />}
-                                    label="Private channel"
-                                    description="Only invited members can find and join this channel."
-                                    controlId="new-channel-private"
-                                >
-                                    <Switch id="new-channel-private" checked={field.value} onCheckedChange={field.onChange} />
-                                </SettingRow>
-                            )}
-                        />
-                    </ChannelSettingsList>
+                    <Controller
+                        name="channel_private"
+                        control={control}
+                        render={({field}) => (
+                            <div data-setting-row="" className="flex min-h-14 items-center gap-3 rounded-xl bg-raised px-3 py-2.5 shadow-e1">
+                                <Tile hue="lake" size="md"><Lock aria-hidden="true" /></Tile>
+                                <div className="min-w-0 flex-1">
+                                    <Label htmlFor="new-channel-private" className="text-ui font-medium text-ink">Private channel</Label>
+                                    <p className="text-meta text-ink-3 text-pretty">Only invited members can find and join it.</p>
+                                </div>
+                                <Switch id="new-channel-private" checked={field.value} onCheckedChange={field.onChange} />
+                            </div>
+                        )}
+                    />
 
                     <DialogFooter className="gap-2 sm:gap-2">
                         <Button type="button" variant="ghost" onClick={closeModal} disabled={isSubmitting}>
@@ -208,6 +222,7 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
                         <Button
                             type="submit"
                             disabled={!isValid || isSubmitting || !nameAvailable}
+                            aria-busy={isSubmitting || undefined}
                         >
                             {isSubmitting ? "Creating…" : "Create channel"}
                         </Button>

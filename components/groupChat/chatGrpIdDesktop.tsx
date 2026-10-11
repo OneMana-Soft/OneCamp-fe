@@ -7,20 +7,25 @@ import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
+import { ChatFace } from "@/components/message/chatFace";
+import { WithTooltip } from "@/components/common/withTooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Search } from "@/lib/icons";
+import Link from "next/link";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
+import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
-import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Users, Video, Clapperboard } from "@/lib/icons";
+import { SendHorizontal, Users, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
 import {memo, useEffect, useState} from "react";
 import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
-import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 
 
@@ -32,7 +37,6 @@ import { GrpChatNotificationInterface} from "@/types/chat";
 import {createOrUpdateGroupChatBody, clearGroupChatReplyTarget, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
-import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {ErrorState} from "@/components/error/errorState";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {Button} from "@/components/ui/button";
@@ -49,7 +53,7 @@ import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
-export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
+export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>boolean | void, unreadCount?: number}) => {
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
 
@@ -116,14 +120,12 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     //         }
     // }
 
-    const clickVideoCall = () => {
-        if (!openBeside({ kind: "call-group", id: grpId })) router.push(app_grp_call + "/" + grpId);
-    }
-
-    const UpdateNotification = async () => {
-        const nextNotification = getNextNotification(chatNotification)
-        await postNotification.makeRequest<GrpChatNotificationInterface>({payload:{grp_id: grpId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateGroupChatNotification})
-        setChatNotificationType(nextNotification)
+    // One click chooses a level (C04); nothing cycles any more.
+    const updateNotification = async (next: string) => {
+        const before = chatNotification
+        setChatNotificationType(next)
+        const res = await postNotification.makeRequest<GrpChatNotificationInterface>({payload:{grp_id: grpId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateGroupChatNotification}).catch(() => undefined)
+        if (res === undefined) setChatNotificationType(before)
     }
 
     const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data?.dm_participants || []
@@ -131,68 +133,64 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
     return (
         <div className='flex flex-col h-full relative'>
-            {/* Same shell as the 1:1 header in components/chat/chatIdDesktop.tsx.
-                This was a plain div at text-lg with p-2, no fixed height, no
-                sticky, no background and justify-start, so beside a DM it sat at
-                a different height, scrolled away with the messages, showed the
-                thread through it, and crammed its buttons against the title
-                instead of ranging them right. */}
-            <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
-                <div className='flex items-center gap-2.5 min-w-0'>
-                    <div className='shrink-0'>
-                        <GroupedAvatar users={participants} max={2} overlap={20} className={'!pr-0'}/>
-                    </div>
-                    <div className='flex flex-col min-w-0'>
-                        {/* Joined rather than a span per participant with manual
-                            separators: truncation applies to the whole line, so a
-                            long list ends in an ellipsis instead of a stray comma. */}
-                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>
-                            {participants.map((u) => displayNameOf(u)).join(', ')}
+            {/* A group's header (design v3 chat, C02): 52px on the sheet, a
+                28px two-face stack (the second 4px lower), the names at 15/590
+                truncating to "Maya, Jonas +2", then Huddle, members, search and
+                More. Every icon has a tooltip. */}
+            <header className='sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
+                <span aria-hidden='true' className='relative flex h-8 w-[38px] shrink-0'>
+                    {participants.slice(0, 2).map((u, i) => (
+                        <span key={u.user_uuid} className={cn('absolute rounded-full ring-2 ring-sheet', i === 0 ? 'left-0 top-0' : 'left-[16px] top-1')}>
+                            <ChatFace name={displayNameOf(u)} profileKey={u.user_profile_object_key} userUUID={u.user_uuid} isBot={!!u.is_bot} size={22} />
                         </span>
-                        {/* Mirrors "Active now" on the 1:1 header, so both have a
-                            second line and the two sit at the same height. */}
-                        <span className='text-2xs text-muted-foreground leading-tight'>
-                            {participants.length} {participants.length === 1 ? 'member' : 'members'}
-                        </span>
-                    </div>
-                </div>
-                <div className='flex items-center gap-0.5 shrink-0'>
-                    {
-                        dmParticipantsInfo.data?.data &&
-                        <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                    }
-                    <Button aria-label="Manage members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}> <Users /></Button>
+                    ))}
+                </span>
+                <span data-header-title='' className='truncate text-heading text-ink' title={participants.map((u) => displayNameOf(u)).join(', ')}>
+                    {groupTitle(participants.map((u) => displayNameOf(u)))}
+                </span>
+                <div className='min-w-0 flex-1' />
+                <div className='flex shrink-0 items-center gap-1'>
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
                     <FeatureGate feature={FEATURE_CALLS}>
-                    <Button
-                        size='icon'
-                        aria-label={chatCallActive ? "Join the call in progress" : "Start a call"}
-                        variant={chatCallActive ? 'secondary' : 'ghost'}
-                        className={cn(
-                            "relative transition duration-300",
-                            chatCallActive && "bg-success/10 text-success-ink hover:bg-success/20"
-                        )}
-                        onClick={clickVideoCall}
-                    >
-                        <Video size={18} />
-                        {chatCallActive && (
-                            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
-                            </span>
-                        )}
-                    </Button>
+                        <HuddleButton href={app_grp_call + "/" + grpId} live={chatCallActive} onOpen={(e) => { if (openBeside({ kind: "call-group", id: grpId }, e)) return }} />
                     </FeatureGate>
-                    <Button aria-label="View recordings" size='icon' variant='ghost' onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}> <Clapperboard /></Button>
+                    <WithTooltip label="Members">
+                        <Button aria-label="Manage members" size='icon' variant='ghost' className={HEADER_ICON} onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}><Users aria-hidden='true' /></Button>
+                    </WithTooltip>
+                    <WithTooltip label="Search">
+                        <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
+                            <Link href='/app/search' aria-label='Search'><Search aria-hidden='true' /></Link>
+                        </Button>
+                    </WithTooltip>
+                    <DropdownMenu modal={false}>
+                        <WithTooltip label="More conversation actions">
+                            <DropdownMenuTrigger asChild>
+                                <Button size='icon' variant='ghost' aria-label="More conversation actions" className={HEADER_ICON}><MoreHorizontal aria-hidden='true' /></Button>
+                            </DropdownMenuTrigger>
+                        </WithTooltip>
+                        <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
+                            {dmParticipantsInfo.data?.data && (
+                                <NotificationSubmenu value={chatNotification} onChange={updateNotification} busy={postNotification.isSubmitting} />
+                            )}
+                            <DropdownMenuItem onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}>
+                                <Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </header>
+            {chatCallActive && (
+                <FeatureGate feature={FEATURE_CALLS}>
+                    <HuddleBanner href={app_grp_call + "/" + grpId} onOpen={(e) => { openBeside({ kind: "call-group", id: grpId }, e) }} />
+                </FeatureGate>
+            )}
             <div className="flex-1 overflow-y-auto">
                 <GroupChatMessageList grpId={grpId} unreadOnOpen={unreadCount} />
             </div>
 
-            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
-                <div className="max-w-6xl mx-auto w-full">
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] bg-sheet px-5 pb-[18px]">
+                <div className="w-full max-w-[800px]">
                     <GroupComposer grpId={grpId} handleSend={handleSend} />
                 </div>
             </div>
@@ -207,9 +205,16 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
  * is read here, so the header and the messages above it no longer re-render
  * with each change to it.
  */
+/** "Maya, Jonas and Priya", or "Maya, Jonas +2" when there are more (C02). */
+function groupTitle(names: string[]): string {
+    const first = names.map((n) => n.split(" ")[0])
+    if (first.length <= 3) return first.length < 2 ? first.join("") : `${first.slice(0, -1).join(", ")} and ${first[first.length - 1]}`
+    return `${first.slice(0, 2).join(", ")} +${first.length - 2}`
+}
+
 const GroupComposer = memo(function GroupComposer({ grpId, handleSend }: {
     grpId: string
-    handleSend: (latestContent?: string) => void
+    handleSend: (latestContent?: string) => boolean | void
 }) {
     const dispatch = useDispatch()
     const scheduleSend = useScheduleSend()
@@ -218,7 +223,11 @@ const GroupComposer = memo(function GroupComposer({ grpId, handleSend }: {
     const chatState = useSelector((state: RootState) => state.groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE);
     // The same function for the life of the composer, so the editor's action
     // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    const send = useStableCallback((latestContent?: string) => handleSend(latestContent))
+    const undoSchedule = useUndoSchedule(scheduleSend?.target)
+    // A group's first message celebrates too (C60), from the new row's avatar.
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrateFirstMessage()
+    })
     const onChange = useStableCallback((content: Content) => {
         publishTyping(content as string)
         dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
@@ -255,8 +264,7 @@ const GroupComposer = memo(function GroupComposer({ grpId, handleSend }: {
                 throttleDelay={300}
                 attachmentOnclick={openUpload}
                 onActionFiles={onActionFiles}
-                className={cn("max-w-full h-auto")}
-                editorContentClassName="overflow-auto mb-2"
+                variant="chat"
                 output="html"
                 content={chatState.chatBody}
                 contentRevision={chatState.restoredUnsent}
@@ -266,8 +274,9 @@ const GroupComposer = memo(function GroupComposer({ grpId, handleSend }: {
                 hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
                 buttonOnclick={send}
                 onSchedule={scheduleSend?.schedule}
-                editorClassName="focus:outline-none px-2 py-2"
+                editorClassName="focus:outline-none"
                 onChange={onChange}
+                onUndoSchedule={undoSchedule}
             >
                 <GroupChatFileUpload groupChatID={grpId} />
             </MinimalTiptapTextInput>

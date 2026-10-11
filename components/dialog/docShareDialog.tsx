@@ -1,23 +1,50 @@
 import { displayNameOf } from "@/lib/personName"
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { toast } from "@/hooks/use-toast";
 import { UserProfileDataInterface } from "@/types/user";
 import { DocInfoInterface, DocInfoResponse } from "@/types/doc";
-import AddDocMemberCombobox from "@/components/combobox/addDocMemberCombobox";
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
-import { CopyLinkButton, GeneralAccessMark, ShareUserRow, generalAccessLine, withoutOwner } from "@/components/dialog/shareParts";
+import {
+    AccessCard,
+    GENERAL_ACCESS_LABEL,
+    GeneralAccessMark,
+    ShareFooter,
+    ShareHeading,
+    ShareTokenInvite,
+    ShareUserRow,
+    generalAccessLine,
+    withoutOwner,
+    type GeneralAccess,
+    type ShareRole,
+} from "@/components/dialog/shareParts";
 
 type Role = "editor" | "viewer" | "commenter";
+
+const ROLES: ShareRole[] = [
+    { value: "editor", label: "Can edit" },
+    { value: "commenter", label: "Can comment" },
+    { value: "viewer", label: "Can view" },
+]
+
+const LIST_OF: Record<Role, "doc_editing_users" | "doc_commenting_users" | "doc_reading_users"> = {
+    editor: "doc_editing_users",
+    commenter: "doc_commenting_users",
+    viewer: "doc_reading_users",
+}
+const ADD_KEY: Record<Role, string> = { editor: "add_editors", commenter: "add_commenters", viewer: "add_viewers" }
+const REMOVE_KEY: Record<Role, string> = { editor: "remove_editors", commenter: "remove_commenters", viewer: "remove_viewers" }
+
+const ACCESS_OPTIONS: { value: GeneralAccess; label: string; description: string }[] = [
+    { value: "restricted", label: GENERAL_ACCESS_LABEL.restricted, description: "Only the people above can open it." },
+    { value: "public", label: GENERAL_ACCESS_LABEL.public, description: "Everyone signed in can find it and read it." },
+    { value: "public_comment", label: GENERAL_ACCESS_LABEL.public_comment, description: "Everyone signed in can read it and comment." },
+]
 
 interface DocShareDialogProps {
   dialogOpenState: boolean;
@@ -25,238 +52,177 @@ interface DocShareDialogProps {
   docId?: string;
 }
 
+/**
+ * Share a doc (content.md D18): one token input with the role inside it, the
+ * people with access as 44 px rows whose role is a menu (Remove access is in
+ * it), general access and "Anyone with the link" as two cards, and a footer
+ * with Copy link and Done. Only Invite is primary, and only while someone is
+ * picked.
+ */
 export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId }: DocShareDialogProps) {
-    const dispatch = useDispatch();
     const reduxDocId = useSelector((state: RootState) => state.ui.docShare.docId);
     const docId = propDocId || reduxDocId;
 
-    
-    // Fetch Permissions
-    const { data: permData, mutate: refreshPermissions, isLoading } = useFetch<DocInfoResponse>(
+    const { data: permData } = useFetch<DocInfoResponse>(
         dialogOpenState && docId ? `${GetEndpointUrl.GetDocPermissions}?doc_uuid=${docId}` : ''
     );
-
+    // The title, from the doc itself: the permissions answer doesn't carry it.
+    // The same key the doc page asks for, so SWR answers from its cache.
+    const { data: docInfo } = useFetch<DocInfoResponse>(dialogOpenState && docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '');
     const [permissions, setPermissions] = useState<DocInfoInterface | undefined>(undefined);
-
     useEffect(() => {
-        if (permData?.data) {
-            setPermissions(permData.data);
-        }
+        if (permData?.data) setPermissions(permData.data);
     }, [permData]);
-    const [isUpdating, setIsUpdating] = useState(false);
 
     const updatePermissions = usePost();
     const updateDoc = usePost();
+    const searchUser = usePost();
 
-    const handleClose = () => {
-        setOpenState();
-    };
-
-    // Get Current User for Access Checks
-    const selfProfile = useFetchOnlyOnce<any>(GetEndpointUrl.SelfProfile);
+    const selfProfile = useFetchOnlyOnce<{ data?: UserProfileDataInterface }>(GetEndpointUrl.SelfProfile);
     const currentUser = selfProfile?.data?.data;
-    const isOwner = permissions?.doc_created_by?.user_uuid === currentUser?.user_uuid;
-    // Sharing externally is a privileged action: owners or editors only. The
-    // backend enforces the same, so this just keeps the control from showing to
-    // viewers who can't use it.
+    const isOwner = !!permissions && permissions.doc_created_by?.user_uuid === currentUser?.user_uuid;
+    // Sharing externally is for owners and editors; the backend says the same.
     const canShareExternally = isOwner || !!permissions?.doc_editing_users?.some(u => u.user_uuid === currentUser?.user_uuid);
+    const ownerId = permissions?.doc_created_by?.user_uuid
 
-    // Actions
-    const handleInvite = async (user: UserProfileDataInterface, role: Role) => {
-        if (!isOwner || !docId) return;
-        
-        setIsUpdating(true);
-        const payload: any = { doc_uuid: docId };
-        
-        const roleKey = role === 'editor' ? 'doc_editing_users' : role === 'viewer' ? 'doc_reading_users' : 'doc_commenting_users';
+    /** Puts a person in one role list (or none), in the dialog's copy. */
+    const placeIn = useCallback((user: UserProfileDataInterface, role: Role | null) => {
+        setPermissions(prev => {
+            if (!prev) return prev;
+            const without = (l?: UserProfileDataInterface[]) => (l ?? []).filter(u => u.user_uuid !== user.user_uuid);
+            const next = { ...prev, doc_editing_users: without(prev.doc_editing_users), doc_commenting_users: without(prev.doc_commenting_users), doc_reading_users: without(prev.doc_reading_users) };
+            if (role) next[LIST_OF[role]] = [...next[LIST_OF[role]], user];
+            return next;
+        });
+    }, []);
 
-        if (role === 'editor') payload.add_editors = [user.user_uuid];
-        if (role === 'viewer') payload.add_viewers = [user.user_uuid];
-        if (role === 'commenter') payload.add_commenters = [user.user_uuid];
-
+    const send = useCallback(async (payload: Record<string, unknown>) => {
+        // It throws on failure; each caller says what didn't happen.
         await updatePermissions.makeRequest({
             apiEndpoint: PostEndpointUrl.UpdateDocPermissions,
-            payload,
-            onSuccess: () => {
-                setIsUpdating(false);
-                
-                // Update local state and enforce single role
-                setPermissions(prev => {
-                    if (!prev) return prev;
-                    
-                    // Remove from all other lists first
-                    const removeFromList = (list: UserProfileDataInterface[] | undefined) => list?.filter(u => u.user_uuid !== user.user_uuid) || [];
-                    
-                    const newEditing = roleKey === 'doc_editing_users' ? [...(prev.doc_editing_users || []), user] : removeFromList(prev.doc_editing_users);
-                    const newReading = roleKey === 'doc_reading_users' ? [...(prev.doc_reading_users || []), user] : removeFromList(prev.doc_reading_users);
-                    const newCommenting = roleKey === 'doc_commenting_users' ? [...(prev.doc_commenting_users || []), user] : removeFromList(prev.doc_commenting_users);
-
-                    return {
-                        ...prev,
-                        doc_editing_users: newEditing,
-                        doc_reading_users: newReading,
-                        doc_commenting_users: newCommenting
-                    };
-                });
-
-                toast({ title: "Success", description: `Added ${displayNameOf(user)} as ${role}` });
-            },
-            showToast: true
+            payload: { doc_uuid: docId, ...payload },
+            quiet: true,
         });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- usePost's object changes each render
+    }, [docId]);
+
+    const handleInvite = async (users: UserProfileDataInterface[], role: string) => {
+        if (!isOwner || !docId) return;
+        const r = role as Role
+        await send({ [ADD_KEY[r]]: users.map(u => u.user_uuid) })
+        users.forEach(u => placeIn(u, r))
+        toast({ title: users.length === 1 ? `${displayNameOf(users[0])} can open it now` : `${users.length} people can open it now` });
     };
-    
-    // Privacy Toggle
+
+    const handleRoleChange = async (user: UserProfileDataInterface, from: Role, to: Role) => {
+        placeIn(user, to)
+        try {
+            await send({ [REMOVE_KEY[from]]: [user.user_uuid], [ADD_KEY[to]]: [user.user_uuid] })
+        } catch {
+            placeIn(user, from)
+            toast({ title: "Couldn't change their access", variant: "destructive" })
+        }
+    };
+
+    const handleRemove = async (user: UserProfileDataInterface, role: Role) => {
+        placeIn(user, null)
+        try {
+            await send({ [REMOVE_KEY[role]]: [user.user_uuid] })
+        } catch {
+            placeIn(user, role)
+            toast({ title: "Couldn't remove their access", variant: "destructive" })
+        }
+    };
+
     const handlePrivacyChange = async (val: string) => {
         if (!docId || !isOwner) return;
-        setIsUpdating(true);
-        
         const isPrivate = val === "restricted";
         const isPublicComment = val === "public_comment";
-        const isPublicView = val === "public";
-
-        const payload = {
-            doc_uuid: docId,
-            doc_private: isPrivate,
-            doc_public_comment: isPublicComment
-        };
-
-        await updateDoc.makeRequest({
-            apiEndpoint: PostEndpointUrl.UpdateDoc,
-            payload: payload,
-            onSuccess: () => {
-                setIsUpdating(false);
-                setPermissions(prev => {
-                    if (!prev) return prev;
-                    return {
-                        ...prev,
-                        doc_private: isPrivate,
-                        doc_public_comment: isPublicComment
-                    };
-                });
-            },
-            showToast: true
-        });
+        const before = permissions
+        setPermissions(prev => prev ? { ...prev, doc_private: isPrivate, doc_public_comment: isPublicComment } : prev);
+        try {
+            await updateDoc.makeRequest({
+                apiEndpoint: PostEndpointUrl.UpdateDoc,
+                payload: { doc_uuid: docId, doc_private: isPrivate, doc_public_comment: isPublicComment },
+                quiet: true,
+            });
+        } catch {
+            setPermissions(before)
+            toast({ title: "Couldn't change who can open it", variant: "destructive" })
+        }
     };
 
-    // Remove User Access
-    const handleRemoveUser = async (userUuid: string, role: string) => {
-        if (!docId || !isOwner) return;
-        setIsUpdating(true);
-        
-        const payload: any = { doc_uuid: docId };
-        const roleKey = role === 'editor' ? 'doc_editing_users' : role === 'viewer' ? 'doc_reading_users' : 'doc_commenting_users';
-
-        if (role === 'editor') payload.remove_editors = [userUuid];
-        if (role === 'viewer') payload.remove_viewers = [userUuid];
-        if (role === 'commenter') payload.remove_commenters = [userUuid];
-
-        await updatePermissions.makeRequest({
-            apiEndpoint: PostEndpointUrl.UpdateDocPermissions,
-            payload,
-            onSuccess: () => {
-                setIsUpdating(false);
-                setPermissions(prev => {
-                    if (!prev) return prev;
-                    const currentList = prev[roleKey as keyof DocInfoInterface] as UserProfileDataInterface[] || [];
-                    const updatedList = currentList.filter(u => u.user_uuid !== userUuid);
-                    return {
-                        ...prev,
-                        [roleKey]: updatedList
-                    };
-                });
-            },
-            showToast: true
+    const search = useCallback(async (q: string) => {
+        const res = await searchUser.makeRequest<{ searchText: string }, UserProfileDataInterface[]>({
+            apiEndpoint: PostEndpointUrl.SearchUserForDoc,
+            payload: { searchText: q },
+            quiet: true,
         });
-    };
-    
-    // Determine current general access value
-    let generalAccessValue = "restricted";
-    if (permissions?.doc_private === false) {
-        generalAccessValue = permissions.doc_public_comment ? "public_comment" : "public";
-    }
+        return Array.isArray(res) ? res : []
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- usePost's object changes each render
+    }, []);
+
+    const people = useMemo(() => {
+        const rows: { user: UserProfileDataInterface; role: Role }[] = []
+        for (const role of ["editor", "commenter", "viewer"] as Role[]) {
+            for (const u of withoutOwner(permissions?.[LIST_OF[role]], ownerId)) rows.push({ user: u, role })
+        }
+        return rows
+    }, [permissions, ownerId])
+    const existing = useMemo(() => new Set([ownerId, ...people.map(p => p.user.user_uuid)].filter(Boolean) as string[]), [ownerId, people])
+
+    const generalAccess: GeneralAccess = permissions?.doc_private === false ? (permissions.doc_public_comment ? "public_comment" : "public") : "restricted";
+    const title = (docInfo?.data?.doc_title || permissions?.doc_title)?.trim()
 
     return (
-        <Dialog open={dialogOpenState} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-md grid-cols-[minmax(0,1fr)] gap-0 p-0 overflow-hidden bg-background border-border">
-                <DialogHeader className="p-6 pb-4 text-start">
-                    <DialogTitle className="text-base font-semibold">Share document</DialogTitle>
-                    <DialogDescription className="text-muted-foreground mt-1">
-                        Manage who can see and edit this document.
-                    </DialogDescription>
+        <Dialog open={dialogOpenState} onOpenChange={(open) => !open && setOpenState()}>
+            <DialogContent className="grid-cols-[minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-[480px]" data-share-dialog="doc">
+                <DialogHeader className="px-5 pb-0 pt-5 pr-12 text-start">
+                    <DialogTitle className="truncate text-title-3 text-ink">{title ? `Share “${title}”` : "Share doc"}</DialogTitle>
+                    <DialogDescription className="text-ui-sm text-ink-2">People you add get an email and a link.</DialogDescription>
                 </DialogHeader>
 
-                <div className="px-6 pb-6 flex flex-col gap-6">
-                    {/* Invite Section - Locked if not owner */}
-                   {(isOwner && docId) && (
-                    <div className="flex flex-col relative gap-2">
-                        <AddDocMemberCombobox docId={docId} handleInvite={handleInvite} />
-                    </div>
-                   )}
+                <div className="flex max-h-[min(70dvh,560px)] flex-col gap-5 overflow-y-auto px-5 pb-5 pt-4">
+                    {isOwner && docId ? (
+                        <ShareTokenInvite search={search} roles={ROLES} defaultRole="editor" existing={existing} onInvite={handleInvite} />
+                    ) : null}
 
-                    {/* People with access */}
-                    <div className="flex flex-col gap-3">
-                        <Label className={eyebrowClass}>People with access</Label>
-                        <div className="-mx-2 flex max-h-[240px] flex-col overflow-y-auto">
-                            {/* Owner */}
+                    <section className="flex flex-col gap-1.5">
+                        <ShareHeading>People with access</ShareHeading>
+                        <div className="flex flex-col">
                             {permissions?.doc_created_by && (
-                                <ShareUserRow user={permissions.doc_created_by} role="owner" canRemove={false} />
+                                <ShareUserRow user={permissions.doc_created_by} role="owner" roles={ROLES} canEdit={false} />
                             )}
-
-                            {/* Editors */}
-                            {withoutOwner(permissions?.doc_editing_users, permissions?.doc_created_by?.user_uuid).map(u => (
-                                <ShareUserRow key={u.user_uuid} user={u} role="editor" onRemove={() => handleRemoveUser(u.user_uuid, 'editor')} canRemove={isOwner} />
-                            ))}
-                            {/* Commenters */}
-                            {withoutOwner(permissions?.doc_commenting_users, permissions?.doc_created_by?.user_uuid).map(u => (
-                                <ShareUserRow key={u.user_uuid} user={u} role="commenter" onRemove={() => handleRemoveUser(u.user_uuid, 'commenter')} canRemove={isOwner} />
-                            ))}
-                            {/* Viewers */}
-                            {withoutOwner(permissions?.doc_reading_users, permissions?.doc_created_by?.user_uuid).map(u => (
-                                <ShareUserRow key={u.user_uuid} user={u} role="viewer" onRemove={() => handleRemoveUser(u.user_uuid, 'viewer')} canRemove={isOwner} />
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* General Access */}
-                    <div className="flex flex-col gap-3 pt-4 border-t border-border">
-                        <Label className={eyebrowClass}>General access</Label>
-                        <div className="flex min-w-0 items-center justify-between group">
-                            <div className="flex min-w-0 items-center gap-3">
-                                <GeneralAccessMark restricted={!!permissions?.doc_private} />
-                                <div className="flex min-w-0 flex-col">
-                                    <Select 
-                                        value={generalAccessValue} 
-                                        onValueChange={handlePrivacyChange}
-                                        disabled={isUpdating || !isOwner}
-                                    >
-                                        <SelectTrigger dense className="h-auto p-0 border-none shadow-none focus:ring-0 text-sm font-medium hover:text-foreground transition-colors justify-start gap-1 w-auto">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="restricted">Only people added</SelectItem>
-                                            <SelectItem value="public">Everyone in the workspace</SelectItem>
-                                            <SelectItem value="public_comment">Everyone in the workspace can comment</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                        {generalAccessLine(generalAccessValue as "restricted" | "public" | "public_comment", "doc")}
-                                    </span>
+                            {people.map(({ user, role }) => (
+                                <div key={user.user_uuid} className="content-row-in">
+                                    <ShareUserRow
+                                        user={user}
+                                        role={role}
+                                        roles={ROLES}
+                                        canEdit={isOwner}
+                                        onRoleChange={(to) => void handleRoleChange(user, role, to as Role)}
+                                        onRemove={() => void handleRemove(user, role)}
+                                    />
                                 </div>
-                            </div>
+                            ))}
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Share to web — scoped, expiring external guest link */}
-                    {docId && (
-                        <GuestLinkSection resourceType="doc" resourceId={docId} canShare={canShareExternally} />
-                    )}
-
-                    {/* Footer Actions */}
-                    <div className="flex justify-between items-center pt-2">
-                         <CopyLinkButton />
-                        <Button onClick={handleClose}>Done</Button>
-                    </div>
+                    <section className="flex flex-col gap-2">
+                        <ShareHeading>General access</ShareHeading>
+                        <AccessCard
+                            tile={<GeneralAccessMark value={generalAccess} />}
+                            label={GENERAL_ACCESS_LABEL[generalAccess]}
+                            description={generalAccessLine(generalAccess, "doc")}
+                            options={ACCESS_OPTIONS}
+                            value={generalAccess}
+                            onChange={(v) => void handlePrivacyChange(v)}
+                            disabled={!isOwner}
+                        />
+                        {docId && <GuestLinkSection card resourceType="doc" resourceId={docId} canShare={canShareExternally} />}
+                    </section>
                 </div>
+                <ShareFooter onDone={setOpenState} />
             </DialogContent>
         </Dialog>
     );

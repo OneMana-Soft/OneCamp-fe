@@ -68,10 +68,15 @@ describe("a message's actions", () => {
     expect(toolbars).toBe(0)
   })
 
-  it("come with the pointer and go with it", () => {
+  it("come with the pointer, after a moment's intent, and go with it", () => {
+    vi.useFakeTimers()
     const { container } = row()
     const message = container.querySelector("#msg-p1")!
     fireEvent.pointerEnter(message)
+    // A pointer passing over on its way elsewhere builds nothing (60 ms intent).
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    act(() => { vi.advanceTimersByTime(70) })
+    vi.useRealTimers()
     expect(screen.getByRole("toolbar", { name: "Message actions" })).toBeTruthy()
     fireEvent.pointerLeave(message)
     expect(screen.queryByRole("toolbar")).toBeNull()
@@ -170,6 +175,6 @@ describe("a message sent from here that the server has not confirmed", () => {
 
   it("says it was not sent", () => {
     pendingRow("failed")
-    expect(screen.getByRole("alert").textContent).toContain("Not sent.")
+    expect(screen.getByRole("alert").textContent).toContain("Didn't send.")
   })
 })

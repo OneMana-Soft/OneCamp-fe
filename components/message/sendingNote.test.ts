@@ -9,17 +9,16 @@ import { join } from "node:path"
 // go quiet while sending.
 const ROWS = [
   "components/message/baseMessageCard.tsx",
-  "components/channel/channelMessageMobile.tsx",
-  "components/chat/chatMessageMobile.tsx",
-  "components/groupChat/groupChatMessageMobile.tsx",
+  // The phone rows of channels, DMs and groups (design v3 chat, C07 phone).
+  "components/message/mobileMessageRow.tsx",
 ]
 
 describe("rows that draw a send status", () => {
   it.each(ROWS)("%s says Sending… by its time and in its gutter", (file) => {
     const src = readFileSync(join(__dirname, "..", "..", file), "utf8")
     expect(src).toContain("<SendStatus")
-    expect(src).toMatch(/=== "sending" && <SendingNote \/>/)
-    expect(src).toMatch(/<ContinuedGutter[^>]*sending=\{/)
+    expect(src).toMatch(/(=== "sending"|sending) && <SendingNote \/>/)
+    expect(src).toMatch(/<ContinuedGutter[^>]*sending=\{|data-phone-gutter=""[\s\S]{0,200}<SendingNote compact/)
   })
 
   it("draws nothing over the row's corner", () => {

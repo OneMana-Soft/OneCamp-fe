@@ -39,7 +39,7 @@ describe("Later's tabs", () => {
   it("say they are empty in one frame: a drawing, a title and a sentence, in the same place", () => {
     const saved = mount("open")
     const savedState = saved.container.querySelector("[data-later-state]")!
-    expect(savedState.querySelector("[data-empty-illustration]")).not.toBeNull()
+    expect(savedState.querySelector("[data-hub-spot]")).not.toBeNull()
     expect(screen.getByRole("heading", { name: "Nothing saved for later" })).toBeTruthy()
     const frame = { wrapper: savedState.className, empty: savedState.firstElementChild!.className }
     cleanup()
@@ -47,7 +47,7 @@ describe("Later's tabs", () => {
     const done = mount("done")
     const doneState = done.container.querySelector("[data-later-state]")!
     // Done was one grey line where Saved had a drawing and a title.
-    expect(doneState.querySelector("[data-empty-illustration]")).not.toBeNull()
+    expect(doneState.querySelector("[data-hub-spot]")).not.toBeNull()
     expect(screen.getByRole("heading", { name: "Nothing done yet" })).toBeTruthy()
     expect({ wrapper: doneState.className, empty: doneState.firstElementChild!.className }).toEqual(frame)
   })
@@ -58,20 +58,18 @@ describe("Later's tabs", () => {
     expect(container.querySelector("[data-later-state]")?.textContent).toMatch(/Try again/)
   })
 
-  it("loads in the rows' line boxes: a 20px title and an 18px line, 2px apart", () => {
+  it("loads in the rows' own shape: two-line HubRow skeletons", () => {
     answer = { data: undefined, isLoading: true, isError: false }
     const { container } = mount("open")
-    const bars = [...container.querySelectorAll("[data-later-skeleton-row] span > *")].map((b) => b.className)
-    expect(bars[0]).toContain("h-5")
-    expect(bars[1]).toContain("h-[18px]")
-    expect(bars[1]).toContain("mt-0.5")
+    expect(container.querySelectorAll("[data-later-skeleton-row] [data-hub-skeleton][data-density=two-line]")).toHaveLength(3)
   })
 
-  it("keeps the tab labels still: no count that arrives with the list", () => {
+  // Later is Activity's frame (hub.md L1), never a second one.
+  it("draws in the hub frame, in Activity's 760px column", () => {
     const src = readFileSync(resolve(__dirname, "LaterPage.tsx"), "utf8")
-    expect(src).not.toMatch(/due`/)
-    // Activity's column, not a centred one of its own.
-    expect(src).toMatch(/<PageContainer data-later-frame=""/)
-    expect(src).not.toMatch(/mx-auto w-full max-w-3xl/)
+    expect(src).toMatch(/<HubFrame/)
+    expect(src).toMatch(/<HubTabs/)
+    expect(src).toMatch(/data-later-frame="" [^>]*max-w-\[760px\]/)
+    expect(src).not.toMatch(/SectionTabs/)
   })
 })

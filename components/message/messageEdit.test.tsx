@@ -57,11 +57,11 @@ describe("editing a message", () => {
         </TooltipProvider>
       </Provider>,
     )
-    fireEvent.pointerEnter(container.querySelector("#msg-p1")!)
+    fireEvent.focus(container.querySelector("#msg-p1")!)
     fireEvent.click(screen.getByRole("button", { name: "Edit message" }))
     expect(editorProps.editable).toBe(true)
     expect(editorProps.toggleToolbar).toBe(true)
-    expect(container.textContent).toContain("Escape to cancel · Enter to save")
+    expect(container.textContent).toContain("esc cancel · ⏎ save")
     fireEvent.keyDown(screen.getByTestId("body"), { key: "Escape" })
     expect(editorProps.editable).toBe(false)
     expect(updatePost).not.toHaveBeenCalled()

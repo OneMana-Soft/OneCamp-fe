@@ -8,10 +8,11 @@ export const PRIORITY_ROWS = 5
  * hands rows these rather than an index, so a row's props stay the same when
  * older messages load above it or a new one arrives below (see MessageRow).
  */
-export function rowMeta(index: number, total: number, continued?: boolean): RowMeta {
+export function rowMeta(index: number, total: number, continued?: boolean, arrived?: boolean): RowMeta {
     return {
         priority: index >= total - PRIORITY_ROWS,
         isLast: index === total - 1,
         continued: !!continued,
+        arrived: !!arrived,
     }
 }

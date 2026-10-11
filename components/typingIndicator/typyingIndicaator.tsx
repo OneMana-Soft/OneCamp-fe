@@ -1,73 +1,53 @@
 "use client"
 import { displayNameOf } from "@/lib/personName"
 import { cn } from "@/lib/utils/helpers/cn"
-import { nameList } from "@/lib/utils/format/nameList"
-import {UserProfileDataInterface} from "@/types/user";
-import {TypingAvatar} from "@/components/typingIndicator/typinngAvatar";
-import { AnimatePresence, motion } from "framer-motion"
+import type { UserProfileDataInterface } from "@/types/user"
+import { useBotKindMap } from "@/hooks/useBotKinds"
+import { isAIBot } from "@/lib/botCopy"
 
 interface TypingIndicatorProps {
     users: UserProfileDataInterface[]
     className?: string
 }
 
+/** "Maya Chen is typing", "Maya and Jonas are typing", "Several people are typing". */
+export function typingCopy(names: string[]): string {
+    if (names.length === 0) return ""
+    if (names.length === 1) return `${names[0]} is typing`
+    if (names.length === 2) return `${names[0].split(" ")[0]} and ${names[1].split(" ")[0]} are typing`
+    return "Several people are typing"
+}
+
+/**
+ * Who is typing (design v3 chat, C59): a whisper, not a component. A line of
+ * its own that is always there, 22px, so the composer never jumps when it
+ * fills or empties: three 4px dots bobbing in turn and the words at 12px ink-3.
+ * No avatars, no pill, no border. An agent at work says so in its own ink,
+ * with the shimmer. Under reduced motion the dots stand still at 60%.
+ */
 export function TypingIndicator({ users, className }: TypingIndicatorProps) {
-    const getTypingText = () => nameList(users.map((u) => displayNameOf(u)))
-
-    const renderAvatars = () => {
-        const displayUsers = users.slice(0, 3) // Show max 3 avatars
-
-        return (
-            <div className="flex -space-x-1.5">
-                {displayUsers.map((user, i) => (
-                    <div key={user.user_uuid} className="relative border-[1.5px] border-background rounded-full" style={{ zIndex: 10 - i }}>
-                         <TypingAvatar userName={displayNameOf(user)} userProfileObjKey={user.user_profile_object_key}/>
-                    </div>
-                ))}
-                {users.length > 3 && (
-                    <div className="w-5 h-5 rounded-full bg-muted border-[1.5px] border-background flex items-center justify-center z-0">
-                        <span className="text-2xs font-bold text-muted-foreground">+{users.length - 3}</span>
-                    </div>
-                )}
-            </div>
-        )
-    }
-
+    const kinds = useBotKindMap()
+    const agent = users.find((u) => u.is_bot && isAIBot(kinds?.[u.user_uuid]))
+    const people = users.filter((u) => u !== agent)
+    const text = agent ? `${displayNameOf(agent)} is working` : typingCopy(people.map((u) => displayNameOf(u)))
+    const live = users.length > 0
     return (
-        <AnimatePresence>
-            {users && users.length > 0 && (
-                <motion.div
-                    // Fades in place: a springing, scaling pill drew the eye
-                    // every time someone touched a key in the channel.
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                    transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
-                    className={cn(
-                        // inline-flex + w-fit keeps the pill compact instead
-                        // of stretching to fill its parent on mobile, which
-                        // looked like a clunky full-width banner.
-                        "inline-flex w-fit max-w-full items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground bg-background rounded-md border border-border/60 overflow-hidden",
-                        className,
-                    )}
-                    role="status"
-                    aria-live="polite"
-                    aria-label={`${getTypingText()} ${users.length === 1 ? "is" : "are"} typing`}
-                >
-                    {renderAvatars()}
-
-                    <div className="flex items-center gap-1 px-0.5">
-                        <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full motion-safe:animate-bounce [animation-delay:-0.3s]" />
-                        <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full motion-safe:animate-bounce [animation-delay:-0.15s]" />
-                        <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full motion-safe:animate-bounce" />
-                    </div>
-
-                    <span className="font-medium whitespace-nowrap pl-1 truncate max-w-[110px] sm:max-w-[200px]">{getTypingText()}</span>
-                    <span className="whitespace-nowrap">
-                        {users.length === 1 ? "is typing…" : "are typing…"}
+        <div
+            data-typing-line=""
+            role="status"
+            aria-live="polite"
+            className={cn("flex h-[22px] items-center gap-2 pl-1 text-meta text-ink-3 transition-opacity duration-[140ms]", live ? "opacity-100" : "opacity-0", className)}
+        >
+            {live && (
+                <>
+                    <span aria-hidden="true" className="flex gap-[3px]">
+                        {[0, 1, 2].map((i) => (
+                            <i key={i} className={cn("size-1 rounded-full animate-typing-bob", agent ? "bg-agent" : "bg-ink-3")} style={{ animationDelay: `${i * 0.15}s` }} />
+                        ))}
                     </span>
-                </motion.div>
+                    <span key={text} className={cn("truncate animate-fade-in", agent && "text-agent-ink")}>{text}</span>
+                </>
             )}
-        </AnimatePresence>
+        </div>
     )
 }

@@ -10,7 +10,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import {useCallback, useState} from "react";
-import {DateAndTimePicker} from "@/components/dateAndTimePicker/dateAndTimePicker";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 
 
@@ -59,7 +59,7 @@ const CustomExpirationCalendarDialog: React.FC<CreateTeamDialogProps> = ({
                     </DialogDescription>
                 </DialogHeader>
                 <div className='flex h-full w-full flex-col gap-3'>
-                    <DateAndTimePicker value={date} onChange={setDate}/>
+                    <DateTimePicker value={date} onChange={setDate} aria-label="Expires" />
 
                 </div>
                 <DialogFooter>

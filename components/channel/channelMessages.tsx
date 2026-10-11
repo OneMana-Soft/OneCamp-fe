@@ -12,7 +12,6 @@ import { ChannelMessage } from "@/components/channel/chanelMessage"
 import type { FlatItem, RowMeta } from "@/types/virtual"
 import { useMedia } from "@/context/MediaQueryContext"
 import { ChannelMessageMobile } from "@/components/channel/channelMessageMobile"
-import TouchableDiv from "@/components/animation/touchRippleAnimation"
 import { usePost } from "@/hooks/usePost"
 import type { CreateOrUpdatePostReaction } from "@/types/reaction"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -32,13 +31,15 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import { openUI } from "@/store/slice/uiSlice"
 import { MessageListVirtua } from "@/components/message/MessaageListVirtua"
+import { mentionsUser } from "@/components/message/tintMentions"
 import type { VListHandle } from "virtua"
 import type { RootState } from "@/store/store"
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback"
+import { useToast } from "@/hooks/use-toast"
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen"
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor"
-import { ConversationEmpty } from "@/components/message/conversationEmpty"
+import { ChannelEmpty } from "@/components/message/emptyConversations"
 import { hueFor } from "@/lib/campHue"
 
 interface ChannelMessagesProps {
@@ -79,6 +80,7 @@ export const ChannelMessages = ({
 
     const post = usePost()
 
+    const { toast } = useToast()
     const dispatch = useDispatch()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -141,6 +143,10 @@ export const ChannelMessages = ({
                 },
             })
             .then((res) => {
+                // An answer without the new reaction's id is a failure too: the
+                // pill goes back and a toast says so (design v3 chat, C21). It
+                // used to stay forever, or take the conversation down.
+                if (!reactionId && !res?.reaction_dgraph_id) throw new Error("no reaction id")
                 if (reactionId) {
                    // Update success
                 } else if (res?.reaction_dgraph_id && selfProfile.data?.data) {
@@ -163,6 +169,7 @@ export const ChannelMessages = ({
                 }
             })
             .catch(() => {
+                toast({ title: "Couldn't add the reaction. Try again" })
                 // Revert on failure
                 if (reactionId) {
                     if (oldEmojiId) {
@@ -284,6 +291,12 @@ export const ChannelMessages = ({
             })
     })
 
+    // On a computer, deleting is confirmed in place, inside the message's
+    // More menu (MessageDesktopDropdown, C20); the phone keeps its dialog.
+    const deleteNow = useStableCallback((id: string) => {
+        if (id) executeDeletePost(id)
+    })
+
     const handleDeletePost = useStableCallback((postId: string) => {
         if (!postId) return
 
@@ -336,10 +349,10 @@ export const ChannelMessages = ({
     }, [groupedPosts, unreadAnchor])
 
     const renderItem = useCallback(
-        (post: PostsRes, { priority, continued }: RowMeta) => (
+        (post: PostsRes, { priority, continued, arrived }: RowMeta) => (
             <div>
                 {isMobile ? (
-                    <TouchableDiv rippleBrightness={0.8} rippleDuration={800}>
+                    <>
                         <ChannelMessageMobile
                             postInfo={post}
                             isAdmin={isAdmin}
@@ -358,8 +371,9 @@ export const ChannelMessages = ({
                             }}
                             priority={priority}
                             continued={continued}
+                        arrived={arrived}
                         />
-                    </TouchableDiv>
+                    </>
                 ) : (
                     <ChannelMessage
                         postInfo={post}
@@ -370,20 +384,25 @@ export const ChannelMessages = ({
                         removeReaction={(reactionId: string) => {
                             removeReaction(post.post_uuid, reactionId)
                         }}
-                        removePost={() => {
-                            handleDeletePost(post.post_uuid)
-                        }}
+                        removePost={() => { deleteNow(post.post_uuid) }}
                         updatePost={(body: string) => {
                             handleUpdatePost(body, post.post_uuid)
                         }}
                         priority={priority}
                         continued={continued}
+                    arrived={arrived}
                     />
                 )}
             </div>
         ),
-        [isMobile, isAdmin, channelId, handleDeletePost, createOrUpdateReaction, removeReaction, handleUpdatePost],
+        [isMobile, isAdmin, channelId, handleDeletePost, deleteNow, createOrUpdateReaction, removeReaction, handleUpdatePost],
     )
+    // The row that can't be drawn offers its words; the jump pill counts
+    // what arrived for the reader.
+    const rawText = useCallback((m: PostsRes) => m.post_text, [])
+    const selfIdForPill = selfProfile.data?.data?.user_uuid
+    const isForMe = useCallback((m: PostsRes) => mentionsUser(m.post_text, selfIdForPill), [selfIdForPill])
+
     const containerRef = useRef<VListHandle>(null)
 
     useEffect(() => {
@@ -432,6 +451,8 @@ export const ChannelMessages = ({
         <MessageListVirtua
             items={flatItems}
             renderItem={renderItem}
+            rawText={rawText}
+            isForMe={isForMe}
             getDateHeading={getGroupDateHeading}
             fetchOlderMessage={getOldMessages}
             fetchNewMessage={handleGetNewMessage}
@@ -445,11 +466,7 @@ export const ChannelMessages = ({
             initialScrollOffsetFromTop={scrollPosition?.offset}
             onScroll={debouncedHandleScroll}
             empty={
-                <ConversationEmpty
-                    hue={hueFor(channelId)}
-                    title={channelName ? `No messages in #${channelName} yet` : "No messages yet"}
-                    description="What you write below starts the conversation."
-                />
+                <ChannelEmpty channelId={channelId} />
             }
         />
     )

@@ -33,9 +33,9 @@ describe("a reply's parent", () => {
 describe("a forwarded message", () => {
   it("links to the post it came from", () => {
     render(<MessagePreview vewFooter msgBy={maya} msgText="<p>Ship it</p>" msgChannelName="engineering" msgChannelUUID="ch1" msgUUID="p1" />)
-    const link = screen.getByRole("link", { name: "View message" })
+    const link = screen.getByRole("link", { name: "View original" })
     expect(link.getAttribute("href")).toBe("/app/channel/ch1/p1")
-    expect(screen.getByText(/Posted in #engineering/)).toBeTruthy()
+    expect(screen.getByText(/in #engineering/)).toBeTruthy()
   })
 
   it("says where a forwarded direct message came from, with nothing that does nothing", () => {
@@ -45,10 +45,10 @@ describe("a forwarded message", () => {
     expect(screen.queryByText(/view conversation/i)).toBeNull()
   })
 
-  it("draws its header on one line, with a 24px avatar", () => {
+  it("draws its header on one line, with a 20px avatar", () => {
     const { container } = render(<MessagePreview vewFooter msgBy={maya} msgText="<p>Ship it</p>" msgCreatedAt="2026-10-10T09:00:00Z" />)
     const header = container.querySelector("[data-forwarded] > div")!
     expect(header.className).toContain("items-center")
-    expect(header.querySelector(".h-6.w-6")).toBeTruthy()
+    expect(header.querySelector(".size-5")).toBeTruthy()
   })
 })

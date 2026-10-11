@@ -25,10 +25,9 @@ vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatA
   MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
 vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () => undefined }))
-vi.mock("@/components/MessageDesktopHover/MessageDesktopHoverOptionsForRightPanelChatAndChannel", () => ({
-  MessageDesktopHoverOptionsForRightPanelChatAndChannel: () => null,
+vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel", () => ({
+  MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
-vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1" }))
 vi.mock("@/components/message/AgentResultCards", () => ({ AgentResultCards: () => null }))
 vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null }))
@@ -74,7 +73,7 @@ describe("a channel guest's message", () => {
     const { container } = renderMessage(GUESTS_BOT, STORED)
     expect(screen.getByText("Priya (Acme)")).toBeTruthy()
     expect(screen.queryByText("Guests")).toBeNull()
-    expect(container.querySelectorAll('[aria-hidden="true"]')[0]?.textContent).toBe("Guest")
+    expect(container.querySelectorAll('[data-tag-label]')[0]?.textContent).toBe("Guest")
     expect(container.textContent?.match(/guest/gi)?.length, "one Guest tag, its spoken form, nothing else").toBe(2)
     expect(screen.getByTestId("body").textContent).toBe("<p>Looks good, ship it</p>")
     expect(container.querySelector("[data-relayed-avatar]")?.textContent).toBe("P")
@@ -149,7 +148,7 @@ describe("a Slack person's message", () => {
       "<p><strong>[Ana Ruiz]</strong></p><p>On it</p>",
     )
     expect(screen.getByText("Ana Ruiz")).toBeTruthy()
-    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe("Slack")
+    expect(container.querySelector('[data-tag-label]')?.textContent).toBe("Slack")
     expect(screen.queryByText("Bot")).toBeNull()
     expect(screen.getByTestId("body").textContent).toBe("<p>On it</p>")
     expect(container.querySelector("[data-relayed-avatar]")?.textContent).toBe("AR")
@@ -173,7 +172,7 @@ describe("the reply avatars under a message", () => {
     ])
     // One initial each (a 20px face with two letters at 11px ran into the next
     // one: "MCJW"); still Tom and Priya, never the bot.
-    const faces = [...container.querySelectorAll(".size-5")].map((f) => f.textContent)
+    const faces = [...container.querySelectorAll("[data-participant]")].map((f) => f.textContent)
     expect(faces).toEqual(["T", "P"])
   })
 })

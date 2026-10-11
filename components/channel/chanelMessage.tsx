@@ -22,9 +22,11 @@ interface ChannelMessageProps {
   priority?: boolean
   /** Continues the message above it (lib/messageGrouping). */
   continued?: boolean
+  /** Arrived while the reader followed the end: it rises in once (C18). */
+  arrived?: boolean
 }
 
-export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReaction, isAdmin, removePost, priority, continued }: ChannelMessageProps) => {
+export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReaction, isAdmin, removePost, priority, continued, arrived }: ChannelMessageProps) => {
   const channelId = usePathname().split("/")[3]
   const dispatch = useDispatch()
   // Replying to a guest or Slack person quotes them by name (see lib/relayedAuthor).
@@ -60,6 +62,7 @@ export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReacti
       updatePost={updatePost}
       priority={priority}
       continued={continued}
+      arrived={arrived}
       onAvatarClick={handleUserClick}
       onReply={handleReply}
     />

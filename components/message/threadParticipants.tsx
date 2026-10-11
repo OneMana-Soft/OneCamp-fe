@@ -2,13 +2,10 @@
 
 import { displayNameOf } from "@/lib/personName"
 import * as React from "react";
-import { useUserAvatar } from "@/hooks/useUserAvatar";
-import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/helpers/cn";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
-import { relayedAuthorOf, relayInitials } from "@/lib/relayedAuthor";
+import { ChatFace } from "@/components/message/chatFace";
+import { relayedAuthorOf } from "@/lib/relayedAuthor";
 
 /**
  * ThreadParticipants — a small avatar facepile of the people who replied in a
@@ -23,8 +20,10 @@ export interface ThreadParticipant {
     uuid: string;
     name: string;
     profileKey?: string;
-    /** A guest or Slack person, not a member: neutral initials, no image. */
+    /** A guest or Slack person, not a member: their hue, no image. */
     relayed?: boolean;
+    /** An agent or a bot: drawn as its square, not a person's circle. */
+    isBot?: boolean;
 }
 
 /**
@@ -43,7 +42,7 @@ export function replyParticipants(
         if (relayed) {
             return { uuid: `${by?.user_uuid}:${relayed.kind}:${relayed.name}`, name: relayed.name, relayed: true };
         }
-        return { uuid: by?.user_uuid || "", name: displayNameOf(by) || "", profileKey: by?.user_profile_object_key };
+        return { uuid: by?.user_uuid || "", name: displayNameOf(by) || "", profileKey: by?.user_profile_object_key, isBot: !!by?.is_bot };
     });
 }
 
@@ -51,6 +50,8 @@ interface Props {
     participants: ThreadParticipant[];
     maxShown?: number;
     className?: string;
+    /** Face size in px (20 under a message). */
+    size?: number;
 }
 
 /**
@@ -61,24 +62,12 @@ interface Props {
  * "MC" and "JW" read as one word, "MCJW". A guest or Slack person keeps the
  * neutral face (not a member).
  */
-function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
-    const { src } = useUserAvatar(p.relayed ? undefined : p.profileKey);
-    const initial = (p.relayed ? relayInitials(p.name) : getNameInitials(p.name || "?")).charAt(0);
+function ParticipantAvatar({ p, size }: { p: ThreadParticipant; size: number }) {
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-                <span data-participant="" className="relative inline-flex shrink-0 rounded-full ring-2 ring-background">
-                    <Avatar className="size-5">
-                        {src ? <AvatarImage src={src} alt={p.name} /> : null}
-                        <AvatarFallback
-                            className={cn(
-                                "text-2xs font-semibold leading-none",
-                                p.relayed ? "bg-muted text-muted-foreground" : getAvatarFallbackClass(p.name),
-                            )}
-                        >
-                            {initial}
-                        </AvatarFallback>
-                    </Avatar>
+                <span data-participant="" className="relative inline-flex shrink-0 rounded-full ring-2 ring-sheet">
+                    <ChatFace name={p.name} profileKey={p.profileKey} userUUID={p.uuid} isBot={p.isBot} relayed={p.relayed} size={size} />
                 </span>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-2xs font-medium">
@@ -88,7 +77,7 @@ function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
     );
 }
 
-export function ThreadParticipants({ participants, maxShown = 3, className }: Props) {
+export function ThreadParticipants({ participants, maxShown = 3, className, size = 20 }: Props) {
     const unique = React.useMemo(() => {
         const seen = new Set<string>();
         const out: ThreadParticipant[] = [];
@@ -106,12 +95,13 @@ export function ThreadParticipants({ participants, maxShown = 3, className }: Pr
     const remaining = unique.length - shown.length;
 
     return (
-        <div data-participants="" className={cn("flex items-center -space-x-1", className)}>
+        // Overlapping 6px on a 2px ring of the sheet (design v3, §3.9 stacks).
+        <div data-participants="" className={cn("flex items-center -space-x-1.5", className)}>
             {shown.map((p) => (
-                <ParticipantAvatar key={p.uuid} p={p} />
+                <ParticipantAvatar key={p.uuid} p={p} size={size} />
             ))}
             {remaining > 0 && (
-                <span className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs font-medium text-muted-foreground ring-2 ring-background">
+                <span className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-sunken text-3xs font-medium tabular-nums text-ink-2 ring-2 ring-sheet">
                     +{remaining}
                 </span>
             )}

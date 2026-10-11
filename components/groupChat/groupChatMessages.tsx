@@ -9,7 +9,6 @@ import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
 import {FlatItem, RowMeta} from "@/types/virtual";
 import {useMedia} from "@/context/MediaQueryContext";
-import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {usePost} from "@/hooks/usePost";
 import {CreateOrUpdateChatReaction} from "@/types/reaction";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -18,6 +17,7 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {MessageListVirtua} from "@/components/message/MessaageListVirtua";
+import { mentionsUser } from "@/components/message/tintMentions";
 import {VListHandle} from "virtua";
 import {RootState} from "@/store/store";
 import {ChatInfo, CreateOrUpdateChatsReq} from "@/types/chat";
@@ -30,8 +30,9 @@ import {updateChatScrollPosition, RemoveMessageFromChatList, UpdateMessageTextIn
 import {GroupChatMessage} from "@/components/groupChat/groupChatMessage";
 import {ScrollToBottom} from "@/store/slice/channelSlice";
 import {GroupChatMessageMobile} from "@/components/groupChat/groupChatMessageMobile";
-import { useStableCallback } from "@/hooks/useStableCallback";
-import { ConversationEmpty } from "@/components/message/conversationEmpty";
+import { useStableCallback } from "@/hooks/useStableCallback"
+import { useToast } from "@/hooks/use-toast";
+import { GroupEmpty } from "@/components/message/emptyConversations";
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
 import { hueFor } from "@/lib/campHue";
 
@@ -60,6 +61,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
 
     const post = usePost()
 
+    const { toast } = useToast()
     const dispatch = useDispatch();
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -109,7 +111,11 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                 reaction_emoji_id: emojiId,
                 reaction_dgraph_id: reactionId
             }})
-            .then((res)=>{
+            .then((res) => {
+                // An answer without the new reaction's id is a failure too: the
+                // pill goes back and a toast says so (design v3 chat, C21). It
+                // used to stay forever, or take the conversation down.
+                if (!reactionId && !res?.reaction_dgraph_id) throw new Error("no reaction id")
                 if(reactionId) {
                    // Success
                 } else if (res?.reaction_dgraph_id && selfProfile.data?.data){
@@ -130,6 +136,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                 }
             })
             .catch(() => {
+                toast({ title: "Couldn't add the reaction. Try again" })
                 // Revert
                 if (reactionId) {
                     if (oldEmojiId) {
@@ -236,6 +243,12 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
     })
 
 
+    // On a computer, deleting is confirmed in place, inside the message's
+    // More menu (MessageDesktopDropdown, C20); the phone keeps its dialog.
+    const deleteNow = useStableCallback((id: string) => {
+        if (id) executeDeleteChat(id)
+    })
+
     const handleDeleteChat = useStableCallback((messageId: string) => {
 
         if(!messageId) return
@@ -285,13 +298,10 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "group", grpId }), [grpId]);
 
-    const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued }: RowMeta) => (
+    const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued, arrived }: RowMeta) => (
         <div>
             {isMobile ?
-                <TouchableDiv
-                    rippleBrightness={0.8}
-                    rippleDuration={800}
-                >
+                <>
                     <GroupChatMessageMobile
                         chatInfo={chat}
                         removeChat={()=>{handleDeleteChat(chat.chat_uuid)}}
@@ -300,24 +310,32 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                         updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                         priority={priority}
                         continued={continued}
+                        arrived={arrived}
                         grpId={grpId}
                     />
-                </TouchableDiv>
+                </>
                 :
                 <GroupChatMessage
                     chatInfo={chat}
                     addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                     removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
-                    removePost={()=>{handleDeleteChat(chat.chat_uuid)}}
+                    removePost={() => { deleteNow(chat.chat_uuid) }}
                     updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                     grpId={grpId}
                     priority={priority}
                     continued={continued}
+                    arrived={arrived}
                 />
             }
             {isLast && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    ), [isMobile, grpId, hasMoreNewMsg, receiptTarget, handleDeleteChat, createOrUpdateReaction, removeReaction, handleUpdateChat]);
+    ), [isMobile, grpId, hasMoreNewMsg, receiptTarget, handleDeleteChat, deleteNow, createOrUpdateReaction, removeReaction, handleUpdateChat]);
+
+    // The row that can't be drawn offers its words; the jump pill counts
+    // what arrived for the reader.
+    const rawText = useCallback((m: ChatInfo) => m.chat_body_text, [])
+    const selfIdForPill = selfProfile.data?.data?.user_uuid
+    const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill), [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null);
 
@@ -369,6 +387,8 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
     <MessageListVirtua
         items={flatItems}
         renderItem={renderItem}
+        rawText={rawText}
+        isForMe={isForMe}
         getDateHeading={getGroupDateHeading}
         fetchOlderMessage={getOldMessages}
         fetchNewMessage={handleGetNewMessage}
@@ -382,11 +402,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
         initialScrollOffsetFromTop={scrollPosition?.offset}
         onScroll={debouncedHandleScroll}
         empty={
-            <ConversationEmpty
-                hue={hueFor(grpId)}
-                title="No messages in this group yet"
-                description="What you write below starts the conversation."
-            />
+            <GroupEmpty grpId={grpId} />
         }
         />
 

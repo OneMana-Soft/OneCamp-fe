@@ -7,14 +7,13 @@ import { join } from "node:path"
 // were 56px among 54px ones.
 const ROWS = [
   "components/message/baseMessageCard.tsx",
-  "components/channel/channelMessageMobile.tsx",
-  "components/chat/chatMessageMobile.tsx",
-  "components/groupChat/groupChatMessageMobile.tsx",
+  // The phone rows of channels, DMs and groups (design v3 chat, C07 phone).
+  "components/message/mobileMessageRow.tsx",
   "components/rightPanel/messageContent.tsx",
 ]
 describe("a message's name line", () => {
   it.each(ROWS)("%s holds it at 20px", (f) => {
     const src = readFileSync(join(__dirname, "..", "..", f), "utf8")
-    expect(src).toContain('data-name-line="" className="flex h-5 items-center gap-2"')
+    expect(src).toMatch(/data-name-line="" className="flex h-5 (min-w-0 )?items-center gap-2"/)
   })
 })

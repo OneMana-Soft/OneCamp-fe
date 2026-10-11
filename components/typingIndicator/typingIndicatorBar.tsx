@@ -28,7 +28,9 @@ interface TypingIndicatorBarProps {
 export function TypingIndicatorBar({ users }: TypingIndicatorBarProps) {
     return (
         <div
-            className="fixed inset-x-0 z-[100] px-3 pb-1 pointer-events-none md:static md:bottom-auto md:inset-x-auto md:z-auto md:pointer-events-auto md:shrink-0"
+            // On a computer the line sits just above the composer, 20px in
+            // like the composer's card, always 22px tall (C59).
+            className="fixed inset-x-0 z-[100] px-4 pointer-events-none md:static md:bottom-auto md:inset-x-auto md:z-auto md:w-full md:max-w-[840px] md:px-5 md:shrink-0"
             style={{ bottom: "var(--mobile-drawer-h, 126px)" }}
         >
             <TypingIndicator users={users} />

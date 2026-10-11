@@ -5,18 +5,19 @@ import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Sparkles } from "@/lib/icons"
+import { AgentAvatar, BotAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { useBotKind } from "@/hooks/useBotKinds"
 import { isAIBot } from "@/lib/botCopy"
+import { botGlyph } from "@/components/message/chatFace"
 
 interface ChannelMessageAvatarProps {
     userProfileKey?: string
     userName: string
     /**
-     * A bot is drawn as a different kind of thing: a rounded square, never a
-     * person's pastel circle. The shape carries the meaning, so it survives
-     * colour blindness and a custom profile image. An agent (an AI is behind
-     * it) also takes the agent colour and a small sparkle; the Check-in, Slack
+     * A bot is drawn as a different kind of thing: a 32% square, never a
+     * person's circle (design v3). The shape carries the meaning, so it
+     * survives colour blindness and a custom profile image. An agent (an AI
+     * is behind it) is the agent gradient with the spark; the Check-in, Slack
      * and other plain bots stay neutral, claiming no AI.
      */
     isBot?: boolean
@@ -35,43 +36,19 @@ export const ChannelMessageAvatar = ({
     const nameInitial = getNameInitials(userName)
 
     if (isBot && !isAIBot(kind)) {
-        return (
-            <Avatar className="h-full w-full rounded-[28%] ring-1 ring-border" data-bot-avatar="">
-                <AvatarImage src={imageSrc} className="rounded-[28%]" />
-                <AvatarFallback className="rounded-[28%] bg-muted text-2xs font-semibold text-muted-foreground">
-                    {nameInitial}
-                </AvatarFallback>
-            </Avatar>
-        )
+        return <BotAvatar src={imageSrc}>{botGlyph(kind) ?? nameInitial.slice(0, 1)}</BotAvatar>
     }
 
     if (isBot) {
-        return (
-            <span className="relative block h-full w-full" data-agent-avatar="">
-                <Avatar className="h-full w-full rounded-[28%] ring-1 ring-agent/30">
-                    <AvatarImage src={imageSrc} className="rounded-[28%]" />
-                    <AvatarFallback className="rounded-[28%] bg-agent-muted text-2xs font-semibold text-agent">
-                        {nameInitial}
-                    </AvatarFallback>
-                </Avatar>
-                <span
-                    aria-hidden="true"
-                    className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-agent text-agent-foreground ring-2 ring-background"
-                >
-                    <Sparkles className="h-2 w-2" strokeWidth={2.5} />
-                </span>
-            </span>
-        )
+        return <AgentAvatar src={imageSrc} />
     }
 
     return (
         <Avatar className="h-full w-full">
             <AvatarImage src={imageSrc} />
+            {/* About 37.5% of the 36px disc (design v3, §3.9). */}
             <AvatarFallback
-                className={cn(
-                    "text-2xs font-semibold",
-                    getAvatarFallbackClass(userName),
-                )}
+                className={cn("text-ui-sm leading-none", getAvatarFallbackClass(userName))}
             >
                 {nameInitial}
             </AvatarFallback>

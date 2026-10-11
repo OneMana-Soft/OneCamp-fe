@@ -7,13 +7,14 @@ import { RelayedAvatar } from "@/components/message/relayedAvatar"
 describe("RelayedAvatar", () => {
   afterEach(cleanup)
 
-  it("draws the guest's initials in a neutral circle, with no image", () => {
+  it("draws the guest's initials in their own hue, with no image", () => {
     const { container } = render(<RelayedAvatar name="Priya (Acme)" />)
     const avatar = container.querySelector("[data-relayed-avatar]")
     expect(avatar).toBeTruthy()
     expect(avatar?.className).not.toContain("rounded-[28%]")
     expect(container.textContent).toBe("P")
-    expect(container.innerHTML).toContain("bg-muted")
+    expect(container.innerHTML).toContain("avatar-person")
+    expect(container.innerHTML).not.toContain("bg-muted")
     expect(container.querySelector("img")).toBeNull()
   })
 })
