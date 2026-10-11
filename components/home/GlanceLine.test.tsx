@@ -1,34 +1,46 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
-import { GlanceLine, glanceLoading } from "@/components/home/GlanceLine"
+import { GlanceLine, glanceLoading, glanceText } from "@/components/home/GlanceLine"
 
 /**
- * The glance line replaced four stat tiles that mostly read 0. The two ways it
- * can regress into that again: printing zeros, or printing nothing at all when
- * the workspace is quiet, which reads as a page that failed to load.
+ * Home's summary sentence (hub.md H4): what needs you, then what's next.
+ * Unread channels and DMs left it for the sidebar.
  */
-const item = (count: number, one: string, flag?: string) => ({ count, one, many: one + "s", href: "/app/" + one, flag })
-
 afterEach(cleanup)
 
-describe("GlanceLine", () => {
-  it("leaves out zeros and pluralises the rest", () => {
-    const { container } = render(<GlanceLine items={[item(0, "channel"), item(1, "message"), item(3, "task", "1 overdue")]} />)
-    expect(container.textContent).toBe("1 message · 3 tasks, 1 overdue")
-    expect(screen.getByText("tasks", { exact: false }).closest("a")?.getAttribute("href")).toBe("/app/task")
+const zero = { tasksDue: 0, overdue: 0, mentions: 0, agentRequests: 0 }
+const next = { title: "Launch sync", time: "11:00" }
+
+describe("the summary sentence", () => {
+  it("puts what needs you before the next event", () => {
+    expect(glanceText({ tasksDue: 1, overdue: 1, mentions: 1, agentRequests: 2 }, next)).toBe(
+      "1 task due today, 1 overdue · 1 mention waiting · 2 agent requests · Next: Launch sync at 11:00",
+    )
+    const { container } = render(<GlanceLine counts={{ tasksDue: 1, overdue: 0, mentions: 1, agentRequests: 1 }} next={next} />)
+    expect(container.textContent).toBe("1 task due today · 1 mention waiting · 1 agent request · Next: Launch sync at 11:00")
   })
 
-  it("says so when everything is zero", () => {
-    const { container } = render(<GlanceLine items={[item(0, "channel"), item(0, "task")]} />)
-    expect(container.textContent).toBe("All caught up.")
+  it("never counts unread channels or DMs", () => {
+    const { container } = render(<GlanceLine counts={{ ...zero, tasksDue: 2 }} />)
+    expect(container.textContent).not.toMatch(/unread|channel|message/)
   })
 
-  // Every count reads 0 until the sidebar arrives: a first visit was told
-  // "All caught up." over a backlog.
-  it("holds the line's place, saying nothing, while the counts aren't in", () => {
-    const { container } = render(<GlanceLine loading items={[item(0, "channel"), item(0, "task")]} />)
-    expect(container.textContent).not.toContain("All caught up")
-    expect(screen.getByRole("status", { name: "Counting what's new" })).toBeTruthy()
+  it("has exact words when nothing needs you", () => {
+    expect(glanceText(zero, next)).toBe("Nothing needs you. Next up: Launch sync at 11:00.")
+    expect(glanceText(zero)).toBe("Nothing needs you today.")
+    const { container } = render(<GlanceLine counts={zero} next={next} />)
+    expect(container.textContent).toBe("Nothing needs you. Next up: Launch sync at 11:00.")
+  })
+
+  it("says overdue in danger ink", () => {
+    render(<GlanceLine counts={{ ...zero, tasksDue: 1, overdue: 2 }} />)
+    expect(screen.getByText("2 overdue").className).toMatch(/text-danger-ink/)
+  })
+
+  it("holds the line's place while the counts aren't in", () => {
+    const { container } = render(<GlanceLine loading counts={zero} />)
+    expect(container.textContent).not.toContain("Nothing needs you")
+    expect(screen.getByRole("status", { name: "Counting what needs you" })).toBeTruthy()
   })
 })
 
@@ -39,8 +51,5 @@ describe("glanceLoading", () => {
   it("waits the one render between the answer and the store", () => {
     expect(glanceLoading({ user_channels: [{}], user_dms: [] }, { userChannels: [], userChats: [] })).toBe(true)
     expect(glanceLoading({ user_channels: [{}], user_dms: [] }, { userChannels: [{}], userChats: [] })).toBe(false)
-  })
-  it("is ready at once for a member with no channels or messages", () => {
-    expect(glanceLoading({ user_channels: [], user_dms: [] }, { userChannels: [], userChats: [] })).toBe(false)
   })
 })

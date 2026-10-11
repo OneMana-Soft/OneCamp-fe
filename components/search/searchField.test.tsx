@@ -12,10 +12,10 @@ afterEach(() => cleanup())
 const classes = (el: Element | null) => (el?.className ?? "").split(/\s+/)
 
 describe("SearchField on a phone", () => {
-  it("is 16px text and 44px tall on a phone, 14px and 36px from md up", () => {
+  it("is 16px text and 44px tall on a phone, 14px and 32px from md up (design v3's field)", () => {
     render(<SearchField placeholder="Search channels…" value="" onChange={() => {}} />)
     const field = classes(screen.getByPlaceholderText("Search channels…"))
-    expect(field).toEqual(expect.arrayContaining(["text-base", "md:text-sm", "h-11", "md:h-9"]))
+    expect(field).toEqual(expect.arrayContaining(["text-base", "md:text-sm", "h-11", "md:h-8"]))
     expect(field, "an unprefixed text-sm overrides the phone size").not.toContain("text-sm")
     expect(field).not.toContain("h-9")
   })

@@ -419,11 +419,17 @@ export const ChatComments = () => {
     }
 
 
+    const threadKey = rightPanelState.data.postUUID || rightPanelState.data.chatMessageUUID
     return (
-        <div className="h-full flex flex-col p-4 pb-0">
-            <RightPanelHeader titleKey={'thread'}/>
+        // The thread panel (design v3 chat, C36): a layer of the sheet (the
+        // task panel's darker step in dark). Its contents move, never the
+        // column: x 16px to rest and a fade, 240 ms; another thread fades in.
+        <div key={threadKey} data-right-panel-thread="" className="flex h-full flex-col bg-panel animate-panel-in">
+            <RightPanelHeader titleKey={'thread'} subtitle="in this conversation"/>
 
+            <div className="pt-3" />
             <MessageContent
+                root
                 userInfo={mainMessageData.userInfo}
                 createdAt={mainMessageData.createdAt}
                 content={mainMessageData.content}
@@ -449,7 +455,7 @@ export const ChatComments = () => {
 
             )}
 
-            <div className="flex-1 overflow-y-auto pb-4 pt-2 space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-3 pt-1">
 
 
                 <CommentsList
@@ -463,6 +469,10 @@ export const ChatComments = () => {
 
                 />
 
+
+            </div>
+            {/* The reply box at the panel's foot, the composer at its compact size. */}
+            <div className="shrink-0 px-3 pb-3 pt-1">
                 <MinimalTiptapTextInput
                     throttleDelay={300}
                     attachmentOnclick = {()=>{
@@ -476,12 +486,11 @@ export const ChatComments = () => {
                     ButtonIcon={SendHorizontal}
                     hasAttachments={(chatCommentInputState.filesUploaded?.length ?? 0) > 0}
                     buttonOnclick={handleSend}
-                    className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
-                    editorContentClassName="overflow-auto"
+                    variant="chat"
+                    compact
                     output="html"
                     placeholder={THREAD_COMPOSER_PLACEHOLDER}
                     editable={true}
-                    toggleToolbar={true}
                     editorClassName="focus:outline-none"
                     onChange={(content ) => {
                         dispatch(createOrUpdateChatCommentBody({chatUUID:rightPanelState.data.chatUUID, body: content as string}))

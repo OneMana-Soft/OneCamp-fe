@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { ActivityCard } from "@/components/activity/activityCard"
@@ -8,14 +8,25 @@ import { ActivityFeedFrame } from "@/components/activity/activityFeedFrame"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useFetch } from "@/hooks/useFetch"
-import { EmptyState } from "@/components/ui/empty-state"
-import { ErrorState } from "@/components/ui/error-state"
 import { Button } from "@/components/ui/button"
-import { AtSign, Bell, CheckCircle2, Users } from "@/lib/icons"
-import { SpotSearch, SpotTasks, SpotWelcome } from "@/components/ui/graphics"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { HubEmpty } from "@/components/activity/hubEmpty"
+import { ErrorState } from "@/components/ui/error-state"
+import { HubSegmented } from "@/components/activity/hubFrame"
 import { actorFilters, matchesActor, parseActorFilter, type ActorFilter } from "@/lib/activity/actor"
-import { activityKey, hasSubject, mergeActivityPages, olderPageCursor } from "@/lib/activity/feedPages"
+import { activityKey, collapseEchoes, hasSubject, mergeActivityPages, olderPageCursor } from "@/lib/activity/feedPages"
+import { aggregate, dayGroupOf, priorityGroupOf, PRIORITY_GROUP_ORDER, type FeedEntry } from "@/lib/activity/notification"
+import { isUnread } from "@/lib/activity/readState"
+
+/** A row of the feed list: a group header (A7, A8) or an entry. */
+type FeedListRow = { kind: "header"; label: string; unread: number } | { kind: "entry"; entry: FeedEntry; first: boolean }
+
+/** The who-filter's identity glyph per segment (A3). */
+const WHO_GLYPH: Record<ActorFilter, ReactNode> = {
+    everyone: null,
+    person: <span aria-hidden className="size-2 rounded-full bg-gradient-to-br from-[var(--camp-berry-a1)] to-[var(--camp-berry-a2)]" />,
+    agent: <span aria-hidden className="size-2.5 rounded-[3px] bg-agent" />,
+    app: <span aria-hidden className="size-2.5 rounded-[3px] bg-ink-4" />,
+}
 
 /** The Activity tabs that are views of one feed. */
 export type FeedView = "priority" | "all" | "mentions"
@@ -50,7 +61,27 @@ const wantedFor = (view: FeedView) => (view === "priority" ? 1 : PAGE_SIZE)
  * server built, so a mention is the same item, and the same row, wherever it
  * shows.
  */
-export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAll?: () => void }) {
+export function ActivityFeedList({
+    view,
+    onViewAll,
+    unreadOnly = false,
+    read,
+    onToggleRead,
+    onUnreadKeys,
+    onShowAll,
+}: {
+    view: FeedView
+    onViewAll?: () => void
+    /** Show only unread rows (the header's switch). */
+    unreadOnly?: boolean
+    /** What the reader has marked read (lib/activity/readState); no dots without it. */
+    read?: ReadonlySet<string>
+    onToggleRead?: (keys: string[], read: boolean) => void
+    /** The keys of every unread row in view, for the header's Mark all read and counts. */
+    onUnreadKeys?: (keys: string[]) => void
+    /** Turn the unread-only switch off. */
+    onShowAll?: () => void
+}) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const pathname = usePathname()
@@ -93,7 +124,44 @@ export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAl
     const hasMore = pageData?.data ? (pageData.data.has_more ?? false) : storedHasMore
     // Paging reads every item the server sent (`loaded`); the rows are the ones
     // with something to show.
-    const visible = useMemo(() => loaded.filter((a) => hasSubject(a) && inView[view](a) && matchesActor(a, who)), [loaded, view, who])
+    // One row per thing said: the server can send one sentence as several
+    // records (collapseEchoes says when).
+    const inScope = useMemo(
+        () => collapseEchoes(loaded.filter((a) => hasSubject(a) && inView[view](a) && matchesActor(a, who))),
+        [loaded, view, who],
+    )
+    const unreadOf = useMemo(() => {
+        const set = read ?? new Set<string>()
+        return (a: UnifiedActivityItem) => isUnread(a, activityKey(a), set)
+    }, [read])
+    const visible = useMemo(() => (unreadOnly ? inScope.filter(unreadOf) : inScope), [inScope, unreadOnly, unreadOf])
+
+    // Rows, collapsed (A6) and grouped: by day, or on Priority by what it asks
+    // of you (A8). A header says how many in it are unread.
+    const rows = useMemo<FeedListRow[]>(() => {
+        const entries = aggregate(visible, activityKey)
+        const groupOf = (e: FeedEntry) => (view === "priority" ? priorityGroupOf(e.item) : dayGroupOf(e.item.time))
+        const order: string[] = view === "priority" ? PRIORITY_GROUP_ORDER : ["Today", "Yesterday", "Earlier this week", "Older"]
+        const byGroup = new Map<string, FeedEntry[]>()
+        for (const e of entries) {
+            const g = groupOf(e)
+            byGroup.set(g, [...(byGroup.get(g) ?? []), e])
+        }
+        const out: FeedListRow[] = []
+        for (const g of order) {
+            const list = byGroup.get(g)
+            if (!list?.length) continue
+            out.push({ kind: "header", label: g, unread: read ? list.filter((e) => unreadOf(e.item)).length : 0 })
+            list.forEach((entry, i) => out.push({ kind: "entry", entry, first: i === 0 }))
+        }
+        return out
+    }, [visible, view, read, unreadOf])
+
+    const unreadKeys = useMemo(() => inScope.filter(unreadOf).map(activityKey), [inScope, unreadOf])
+    const unreadSig = unreadKeys.join(",")
+    useEffect(() => {
+        onUnreadKeys?.(unreadSig ? unreadSig.split(",") : [])
+    }, [unreadSig, onUnreadKeys])
 
     // What this view is looking for, and how many pages it has pulled for it.
     // Held against the view and filter it was asked under, so a new view or
@@ -132,19 +200,12 @@ export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAl
     }
 
     const whoFilter = (
-        <ToggleGroup
-            type="single"
+        <HubSegmented
+            label="Show activity from"
             value={who}
-            onValueChange={(v) => v && setWho(v as ActorFilter)}
-            aria-label="Show activity from"
-            className="justify-start"
-        >
-            {actorFilters(aiAvailable).map((f) => (
-                <ToggleGroupItem key={f.value} value={f.value} size="sm" className="extend-touch-target h-7 rounded-md px-2.5 text-xs">
-                    {f.label}
-                </ToggleGroupItem>
-            ))}
-        </ToggleGroup>
+            onChange={(v) => setWho(v as ActorFilter)}
+            segments={actorFilters(aiAvailable).map((f) => ({ value: f.value, label: f.label, glyph: WHO_GLYPH[f.value] }))}
+        />
     )
 
     return (
@@ -158,7 +219,20 @@ export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAl
             // needs them, the one conclusion a failed request must not reach.
             state={
                 isError && visible.length === 0 ? (
-                    <ErrorState subject={view === "mentions" ? "your mentions" : "your activity"} onRetry={() => void mutate()} />
+                    <ErrorState compact subject={view === "mentions" ? "your mentions" : "your activity"} onRetry={() => void mutate()} />
+                ) : visible.length === 0 && unreadOnly && inScope.length > 0 ? (
+                    <HubEmpty
+                        spot="check"
+                        title="Nothing unread"
+                        description="Everything here has been read."
+                        action={
+                            onShowAll ? (
+                                <Button variant="ghost" size="sm" onClick={onShowAll}>
+                                    Show all
+                                </Button>
+                            ) : undefined
+                        }
+                    />
                 ) : visible.length === 0 ? (
                     <FeedEmpty
                         view={view}
@@ -173,8 +247,23 @@ export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAl
             }
         >
             <VirtualInfiniteScroll
-                items={visible}
-                renderItem={(activity: UnifiedActivityItem) => <ActivityCard activity={activity} />}
+                items={rows}
+                renderItem={(row: FeedListRow) =>
+                    row.kind === "header" ? (
+                        <div data-feed-group="" className="flex h-7 items-center pl-14 pr-4 text-meta font-medium text-ink-3">
+                            <span className="flex-1">{row.label}</span>
+                            {row.unread > 0 ? <span className="font-book tabular-nums">{row.unread} unread</span> : null}
+                        </div>
+                    ) : (
+                        <ActivityCard
+                            activity={row.entry.item}
+                            entry={row.entry}
+                            separated={!row.first}
+                            unread={read ? [row.entry.item, ...row.entry.others].some(unreadOf) : undefined}
+                            onToggleRead={onToggleRead}
+                        />
+                    )
+                }
                 onLoadMore={onLoadMore}
                 isLoading={isLoading && visible.length > 0}
                 // A capped filtered view stops asking on scroll and says how to
@@ -187,13 +276,13 @@ export function ActivityFeedList({ view, onViewAll }: { view: FeedView; onViewAl
                         </Button>
                     ) : undefined
                 }
-                keyExtractor={(item) => activityKey(item)}
+                keyExtractor={(row: FeedListRow) => (row.kind === "header" ? `h:${row.label}` : row.entry.key)}
             />
         </ActivityFeedFrame>
     )
 }
 
-/** What a view says when it has nothing to show. Each one carries its spot. */
+/** What a view says when it has nothing to show (A9), start-aligned in the column. */
 function FeedEmpty({
     view,
     who,
@@ -213,13 +302,12 @@ function FeedEmpty({
 }) {
     if (who !== "everyone") {
         return (
-            <EmptyState
-                icon={Users}
-                illustration={<SpotSearch />}
+            <HubEmpty
+                spot="search"
                 title={`Nothing from ${whoLabel} lately`}
                 description="Only your recent activity is searched."
                 action={
-                    <Button variant="outline" size="sm" onClick={onShowEveryone}>
+                    <Button variant="secondary" size="sm" onClick={onShowEveryone}>
                         Show everyone
                     </Button>
                 }
@@ -228,14 +316,13 @@ function FeedEmpty({
     }
     if (view === "priority") {
         return (
-            <EmptyState
-                icon={CheckCircle2}
-                illustration={<SpotTasks />}
+            <HubEmpty
+                spot="check"
                 title="You're all caught up"
-                description="Mentions that ask a question or request action show up here. Nothing needs you right now."
+                description="Mentions that ask something of you, and requests waiting on you, land here."
                 action={
                     onViewAll ? (
-                        <Button variant="outline" size="sm" onClick={onViewAll}>
+                        <Button variant="secondary" size="sm" onClick={onViewAll}>
                             View all activity
                         </Button>
                     ) : undefined
@@ -245,14 +332,13 @@ function FeedEmpty({
     }
     if (view === "mentions") {
         return (
-            <EmptyState
-                icon={AtSign}
-                illustration={<SpotWelcome hue="dusk" />}
+            <HubEmpty
+                spot="bell"
                 title={moreToSearch ? "No recent mentions" : "No mentions yet"}
-                description={moreToSearch ? "Nobody has mentioned you in your recent activity." : "When someone @mentions you, it'll show up here."}
+                description={moreToSearch ? "Nobody has mentioned you in your recent activity." : "When someone @mentions you, it lands here."}
                 action={
                     moreToSearch ? (
-                        <Button variant="outline" size="sm" onClick={onLookFurther}>
+                        <Button variant="secondary" size="sm" onClick={onLookFurther}>
                             Look further back
                         </Button>
                     ) : undefined
@@ -260,5 +346,5 @@ function FeedEmpty({
             />
         )
     }
-    return <EmptyState icon={Bell} illustration={<SpotWelcome />} title="No activity yet" description="Mentions, comments, and reactions will appear here." />
+    return <HubEmpty spot="bell" title="You're all caught up" description="Mentions, replies and assignments land here." />
 }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import "@livekit/components-styles";
@@ -9,21 +8,18 @@ import {
   useTracks,
   useLocalParticipant,
   useRoomContext,
-  ParticipantTile,
+  useConnectionState,
   LayoutContextProvider,
   TrackReferenceOrPlaceholder,
-  TrackReference,
   ParticipantClickEvent,
-  VideoTrack,
-  AudioTrack,
-  ParticipantName,
-  ConnectionQualityIndicator,
 } from "@livekit/components-react";
-import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind } from "livekit-client";
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Loader2, Pin, PinOff } from "@/lib/icons";
+import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, ConnectionState } from "livekit-client";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import { VideoControls } from "./VideoControls";
-import { CameraOffFace, CaptionsOverlay, RecordingIndicator } from "./CallStage";
+import { CallConnecting, CallReconnecting, CaptionsOverlay, PlacePill, RecordingPill } from "./CallStage";
+import { StageTile } from "./StageTile";
+import { captureTiles, flipTiles, type TileRects } from "./stageMotion";
+import { readDevicePrefs } from "./callDevices";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -50,12 +46,12 @@ interface VideoConferenceProps {
 
 
 /**
- * Speaker and grid draw in one frame: the same inset (8px, 16px from a 768px
- * stage) and the dock's 96px kept clear at the bottom. Speaker was p-2 pb-24
- * and grid p-2 @3xl:p-4 pb-20, so in a wide call every tile moved 8px on a
- * switch, and a narrow grid kept 80px clear of an 82px dock.
+ * Speaker and grid draw in one frame (hub.md C4): 12px round the tiles, the
+ * pills' 48px clear at the top, and the dock kept clear at the bottom (the
+ * phone's full-width bar, 84px for the floating dock). Speaker and grid used
+ * different insets once, so every tile moved 8px on a switch.
  */
-export const STAGE_FRAME = "p-2 pb-24 @3xl:p-4 @3xl:pb-24"
+export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px]"
 
 export function VideoConference({
   token,
@@ -72,31 +68,23 @@ export function VideoConference({
   }, [token]);
 
 
+  // The microphone and camera picked in the green room.
+  const [prefs] = useState(() => (typeof window === "undefined" ? {} : readDevicePrefs()));
+
   if (!token) {
-    return (
-      <div
-        role="status"
-        aria-label="Connecting to the call"
-        className="dark flex h-full w-full items-center justify-center bg-background text-foreground"
-      >
-        <div className="text-center">
-            <Loader2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground motion-safe:animate-spin" />
-            <p className="text-sm text-muted-foreground">Connecting to the call…</p>
-        </div>
-      </div>
-    );
+    return <CallConnecting place={place} />;
   }
 
   return (
-    <div className={`dark @container relative w-full bg-background text-foreground overflow-hidden ${embedded ? "h-full" : "h-full md:h-dvh"}`} data-lk-theme="default">
-      {place && (
-        <p className="pointer-events-none absolute left-9 top-9 z-10 max-w-[50%] truncate rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-foreground">
-          Call {place}
-        </p>
-      )}
+    <div
+      className={`dark @container relative w-full overflow-hidden bg-[#0B0C0E] text-foreground before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.10),transparent_68%)] ${embedded ? "h-full" : "h-full md:h-dvh"}`}
+      data-lk-theme="default"
+      data-call-stage=""
+    >
       <LiveKitRoom
-        video={true}
+        video={prefs.videoinput ? { deviceId: prefs.videoinput } : true}
         audio={{ 
+            ...(prefs.audioinput ? { deviceId: prefs.audioinput } : {}),
             echoCancellation: true, 
             noiseSuppression: true, 
             autoGainControl: true,
@@ -111,7 +99,7 @@ export function VideoConference({
         className="h-full w-full"
       >
         <LayoutContextProvider>
-            <MyVideoConference onDisconnect={onDisconnect} parentToggleRecording={toggleRecording} isAdmin={isAdmin} guest={guest} />
+            <MyVideoConference onDisconnect={onDisconnect} parentToggleRecording={toggleRecording} isAdmin={isAdmin} guest={guest} place={place} />
             <RoomAudioRenderer />
         </LayoutContextProvider>
       </LiveKitRoom>
@@ -119,7 +107,7 @@ export function VideoConference({
   );
 }
 
-function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest = false }: { onDisconnect?: () => void , parentToggleRecording: (isRecording: boolean) => void, isAdmin: boolean, guest?: boolean }) {
+function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest = false, place }: { onDisconnect?: () => void , parentToggleRecording: (isRecording: boolean) => void, isAdmin: boolean, guest?: boolean, place?: string }) {
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -293,6 +281,11 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
   // Recording State driven by Room Metadata
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUser, setRecordingUser] = useState<string | null>(null);
+  // When this screen first saw the recording on, for the pill's clock.
+  const [recordingSince, setRecordingSince] = useState<number | null>(null);
+  useEffect(() => {
+    setRecordingSince((was) => (isRecording ? (was ?? Date.now()) : null));
+  }, [isRecording]);
 
 
   
@@ -504,53 +497,66 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
       }
   };
 
-  return (
-    <div className="flex flex-col h-full w-full relative">
-        {isRecording && <RecordingIndicator by={recordingUser} />}
+  // How long this screen has been in the call, for the place pill.
+  const [joinedAt] = useState(() => Date.now());
+  const connection = useConnectionState(room);
+  const reconnecting = connection === ConnectionState.Reconnecting;
 
-        <div className="flex-1 overflow-hidden relative flex bg-background">
+  // The stage's reflow: tiles slide to their new places when the set of
+  // tiles or the layout changes (stageMotion).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const lastRects = useRef<TileRects>(new Map());
+  const tileKey = `${layout}|${tracks.map((t) => `${t.participant.identity}|${t.source}`).join(",")}|${effectiveFocusedTrack ? effectiveFocusedTrack.participant.identity + effectiveFocusedTrack.source : ""}`;
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    flipTiles(stage, lastRects.current);
+    lastRects.current = captureTiles(stage);
+  }, [tileKey]);
+
+  const sameTrack = (a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlaceholder) => a.participant.identity === b.participant.identity && a.source === b.source;
+
+  return (
+    <div className="relative flex h-full w-full flex-col">
+        <PlacePill place={place} since={joinedAt} />
+        {isRecording && <RecordingPill by={recordingUser} since={recordingSince} />}
+        {reconnecting && <CallReconnecting />}
+
+        <div ref={stageRef} className={cn("relative flex flex-1 overflow-hidden transition-opacity duration-200", reconnecting && "opacity-70")}>
             {layout === 'speaker' && effectiveFocusedTrack ? (
-                <div className={cn("flex w-full h-full gap-2", STAGE_FRAME)}>
-                    <FocusedTile 
-                        trackRef={effectiveFocusedTrack}
-                        isPinned={
-                            (focusedTrack?.participant.identity === effectiveFocusedTrack.participant.identity &&
-                                focusedTrack.source === effectiveFocusedTrack.source)
-                        }
-                        onTileClick={() => {
-                            if (focusedTrack) {
-                                setFocusedTrack(null);
-                            } else if (effectiveFocusedTrack) {
-                                setFocusedTrack(effectiveFocusedTrack);
-                            }
-                        }}
-                    />
-                    {/* Other tracks logic needs to exclude effectiveFocusedTrack */}
-                    {tracks.filter(t => t.participant.identity !== effectiveFocusedTrack.participant.identity || t.source !== effectiveFocusedTrack.source).length > 0 && (
-                        <div className="w-[100px] @2xl:w-[220px] h-full flex flex-col gap-2 overflow-y-auto pr-1 shrink-0">
-                             {tracks.filter(t => t.participant.identity !== effectiveFocusedTrack.participant.identity || t.source !== effectiveFocusedTrack.source).map((track) => (
+                <div className={cn("flex h-full w-full gap-2", STAGE_FRAME)}>
+                    <div className="hub-fade-in relative min-w-0 flex-1" key={effectiveFocusedTrack.participant.identity + effectiveFocusedTrack.source}>
+                        <StageTile
+                            trackRef={effectiveFocusedTrack}
+                            size="lg"
+                            contain
+                            pinned={!!focusedTrack && sameTrack(focusedTrack, effectiveFocusedTrack)}
+                            onPin={() => setFocusedTrack(focusedTrack ? null : effectiveFocusedTrack)}
+                        />
+                    </div>
+                    {tracks.some((t) => !sameTrack(t, effectiveFocusedTrack)) && (
+                        <div className="flex h-full w-[104px] shrink-0 flex-col gap-2 overflow-y-auto @2xl:w-[200px]">
+                             {tracks.filter((t) => !sameTrack(t, effectiveFocusedTrack)).map((track) => (
                                  // A button: the thumbnails were clickable divs the
                                  // keyboard couldn't reach.
                                  <button
                                     type="button"
                                     key={track.participant.identity + track.source}
                                     aria-label={`Show ${track.participant.name || track.participant.identity}`}
-                                    className="relative aspect-video w-full shrink-0 cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="relative aspect-video w-full shrink-0 rounded-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                                     onClick={() => onParticipantClick({ participant: track.participant, track: track.publication } as ParticipantClickEvent)}
                                  >
-                                     <ParticipantTile trackRef={track} />
-                                     <CameraOffFace trackRef={track} size="sm" />
+                                     <StageTile trackRef={track} size="sm" />
                                  </button>
                              ))}
                         </div>
                     )}
                  </div>
             ) : (
-
-                    <div className={cn("w-full h-full", STAGE_FRAME)}>
+                    <div className={cn("h-full w-full [&_.lk-grid-layout]:gap-2 [&_.lk-grid-layout]:p-0", STAGE_FRAME)}>
                         <GridLayout tracks={tracks}>
-                        <CustomTile onParticipantClick={onParticipantClick} />
-                    </GridLayout>
+                            <StageTile onParticipantClick={onParticipantClick} />
+                        </GridLayout>
                     </div>
             )}
             
@@ -575,6 +581,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
             onToggleRecording={isAdmin ? toggleRecording : undefined}
             isRecording={isRecording}
             isRecordingLoading={isRecordingActionLoading}
+            recordingSince={recordingSince}
             onToggleCaptions={toggleCaptions}
             showCaptions={showCaptions}
             // AI-free edition: no handler, so VideoControls renders no AI button.
@@ -614,78 +621,4 @@ function captionMessage(state: TranscriberState): string {
         default:
             return "Listening for speech…";
     }
-}
-
-// Sub-component for the Focused Tile in Speaker View
-interface FocusedTileProps {
-    trackRef: TrackReferenceOrPlaceholder;
-    isPinned: boolean;
-    onTileClick: () => void;
-}
-
-function FocusedTile({ trackRef, isPinned, onTileClick }: FocusedTileProps) {
-    return (
-        <div 
-            className="relative flex-1 overflow-hidden rounded-lg border border-border bg-card"
-        >
-            <ParticipantTile 
-                trackRef={trackRef} 
-                className="h-full w-full bg-background [&_video]:object-contain [&_button]:!hidden"
-            >
-                {/* Only render VideoTrack if we have a valid publication (not a placeholder) */}
-                {trackRef.publication && (
-                    <VideoTrack 
-                        trackRef={trackRef as TrackReference} 
-                        className="[&_video]:object-contain" 
-                    />
-                )}
-                {/* AudioTrack handles its own validity internally usually, or is invisible */}
-                {trackRef.publication && <AudioTrack trackRef={trackRef as TrackReference} />}
-                
-                {/* Connection Quality & Name Overlay */}
-                <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-2 rounded-md border border-border bg-popover px-2 py-1 text-sm text-foreground">
-                    <ConnectionQualityIndicator className="h-4 w-4" />
-                    <ParticipantName />
-                </div>
-            </ParticipantTile>
-            <CameraOffFace trackRef={trackRef} size="lg" />
-            
-            {/* Pin or unpin: a real button, named, that says which it is. */}
-            <button
-                type="button"
-                aria-label={isPinned ? "Unpin" : "Pin to the stage"}
-                aria-pressed={isPinned}
-                className="absolute right-4 top-4 z-10 rounded-md border border-border bg-popover p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onTileClick();
-                }}
-            >
-                {isPinned ? (
-                    <PinOff className="w-4 h-4" />
-                ) : (
-                    <Pin className="w-4 h-4" />
-                )}
-            </button>
-        </div>
-    );
-}
-
-// Wrapper to intercept clicks in GridLayout and provide the TrackReference
-function CustomTile({ trackRef, onParticipantClick, ...props }: any) {
-    return (
-        <div 
-            {...props} 
-            className="group relative h-full w-full cursor-pointer bg-background [&_video]:object-contain"
-        >
-            <ParticipantTile 
-                trackRef={trackRef} 
-                className="h-full w-full" 
-                onParticipantClick={onParticipantClick} 
-            />
-            <CameraOffFace trackRef={trackRef} />
-            {/* Hover visual hint */}
-            <div className="pointer-events-none absolute inset-0 rounded-lg transition-colors group-hover:bg-foreground/5" />
-        </div>
-    )
 }

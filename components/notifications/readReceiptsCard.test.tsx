@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-// Read receipts save the moment they are switched. A save that fails puts the
-// switch back and says why, with the server's own words, where it used to say
-// "Could not save that".
+// Read receipts save the moment they are switched, with the row's saved tick
+// (design v3, admin §1.3: never a toast for a routine save). A save that fails
+// puts the switch back and says why, in the server's own words, on the row.
 
 const { state, post, toast } = vi.hoisted(() => ({
   state: { fetch: {} as Record<string, unknown> },
@@ -33,22 +33,18 @@ describe("switching read receipts", () => {
     render(<ReadReceiptsCard />)
     await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Send and see read receipts" })))
 
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Couldn't turn read receipts off",
-        description: "The demo is shared, so this can't change here.",
-        variant: "destructive",
-      }),
-    )
+    expect(screen.getByText("The demo is shared, so this can't change here.")).toBeInTheDocument()
+    expect(toast).not.toHaveBeenCalled()
     // The last write to the cache is the answer as it was.
     expect(mutate).toHaveBeenLastCalledWith(answer, { revalidate: false })
   })
 
-  it("leaves the failure to the card, not to a second global toast", async () => {
+  it("asks quietly for the global toast, and ticks the row when it holds", async () => {
     post.mockResolvedValue({})
     render(<ReadReceiptsCard />)
     await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Send and see read receipts" })))
     expect(post.mock.calls[0][2]).toEqual({ suppressErrorToast: true })
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Read receipts off" }))
+    expect(document.querySelector("[data-saved-tick]")).not.toBeNull()
+    expect(document.getElementById("notifications-read-receipts")).not.toBeNull()
   })
 })

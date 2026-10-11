@@ -1,12 +1,15 @@
 import { displayNameOf } from "@/lib/personName"
 import React from "react";
-import { Hash, Play, Trash2, Users } from "@/lib/icons";
+import { Play, Trash2 } from "@/lib/icons";
 import {RecordingInfoInterface} from "@/types/recording";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import { shortDateTime } from "@/lib/utils/date/shortDate";
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { HUE_CLASS } from "@/components/ui/graphics/hues";
+import { HubRow, HubToolButton } from "@/components/ui/hubRow";
+import { hueFor } from "@/lib/campHue";
+import { formatElapsed } from "@/components/livekit/callLevels";
 import { cn } from "@/lib/utils/helpers/cn";
 
 /** How long a call ran, in words: "45 s", "12 min", "1 h 5 min". */
@@ -27,16 +30,37 @@ export function recordingPlace(rec: RecordingInfoInterface, selfId?: string): st
     return names.length ? names.join(", ") : "Direct message"
 }
 
+/** Whose colour a recording wears: its channel, the other person, or the group. */
+export function recordingHueKey(rec: RecordingInfoInterface, selfId?: string): string {
+    if (rec.recording_channel?.ch_uuid) return rec.recording_channel.ch_uuid
+    const others = (rec.recording_dm?.dm_participants || []).filter((p) => p.user_uuid !== selfId)
+    return others.length === 1 ? others[0].user_uuid : rec.recording_dm?.dm_grouping_id || rec.recording_egress_id
+}
+
 /**
- * One recorded call, as a row of the app's lists (Later, search): the place
- * in its own colour, its name, who started it with how long it ran and its
- * size, and when at the right edge.
- *
- * It was a card of its own: a 48px green tile with a ring and a shadow that
- * grew under the pointer, an orange bar and tint on hover, the title in bold
- * with "# " spaced off the name, the date in a pill, the length in seconds in
- * an orange chip, and a play button in the accent. Given `onOpen`, the row is
- * a button, so it opens from the keyboard too.
+ * The 40 x 28 thumbnail (hub.md C13): the place's hue gradient with a white
+ * play triangle, and the length in its corner when it is known.
+ */
+export function RecordingThumb({ hueKey, seconds }: { hueKey: string; seconds?: number }) {
+    const hue = hueFor(hueKey)
+    return (
+        <span data-recording-thumb="" data-hue={hue} className={cn(HUE_CLASS[hue], "avatar-person relative grid h-7 w-10 place-items-center rounded-[6px]")}>
+            <Play aria-hidden="true" className="size-3 fill-white text-white transition-transform duration-150 group-hover/hubrow:scale-110" />
+            {seconds && seconds > 0 ? (
+                <span data-duration-badge="" className="absolute right-0.5 bottom-0.5 rounded-[3px] bg-black/60 px-[3px] text-3xs font-semibold leading-[14px] tabular-nums text-white">
+                    {formatElapsed(seconds * 1000)}
+                </span>
+            ) : null}
+        </span>
+    )
+}
+
+/**
+ * One recorded call, as a two-line HubRow (hub.md C13): the thumbnail in the
+ * place's colour with its length, the place, who started it and how big, a
+ * Transcript tag when there is one, and when at the right edge. Hover brings
+ * the toolbar: Play and Delete. Given `onOpen`, the row plays it, from the
+ * keyboard too.
  */
 export const RecordingListRecording = ({
     recordingInfo,
@@ -54,72 +78,70 @@ export const RecordingListRecording = ({
     const currentUserId = propUserId || selfProfile?.data?.user_uuid;
     const rec = recordingInfo
     const place = recordingPlace(rec, currentUserId)
-    const others = (rec.recording_dm?.dm_participants || []).filter((p) => p.user_uuid !== currentUserId)
 
     const startedAt = new Date(rec.recording_stared_at)
     const when = Number.isNaN(startedAt.getTime()) ? "" : shortDateTime(startedAt)
+    const time = Number.isNaN(startedAt.getTime()) ? "" : startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
     const starter = displayNameOf(rec.recording_started_by)
     const details = [
         starter ? `Started by ${starter}` : "",
-        rec.recording_duration > 0 ? callLength(rec.recording_duration) : "",
         rec.recording_size > 0 ? `${(rec.recording_size / (1024 * 1024)).toFixed(1)} MB` : "",
     ].filter(Boolean)
+    const transcript = (rec.recording_transcript?.length ?? 0) > 0
 
-    const mark = rec.recording_channel?.ch_uuid ? (
-        <IdentityMark variant="tile" size={24} id={rec.recording_channel.ch_uuid} icon={<Hash strokeWidth={1.75} />} />
-    ) : others.length === 1 ? (
-        <IdentityMark variant="avatar" size={24} id={others[0].user_uuid} label={displayNameOf(others[0])} />
-    ) : (
-        <IdentityMark variant="tile" size={24} id={rec.recording_dm?.dm_grouping_id} icon={<Users strokeWidth={1.75} />} />
-    )
-
-    const body = (
-        <>
-            <span className="-mt-0.5 shrink-0">{mark}</span>
-            <span className="min-w-0 flex-1">
-                <span className="flex items-baseline gap-3">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{place}</span>
-                    {when && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{when}</span>}
-                </span>
-                {details.length > 0 && (
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{details.join(" · ")}</span>
-                )}
-            </span>
-        </>
-    )
-
-    const rowClass = "group/row flex min-w-0 flex-1 items-start gap-3 rounded-md px-2 py-3 text-left transition-colors duration-100 hover:bg-highlight"
+    const del = onDelete && rec.recording_egress_id
+        ? () => onDelete(rec.recording_egress_id)
+        : undefined
 
     return (
-        <div data-recording-row="" className="group/rec flex items-center gap-1">
-            {onOpen ? (
-                <button
-                    type="button"
-                    onClick={onOpen}
-                    aria-label={`Play the recording, ${place}${when ? `, ${when}` : ""}`}
-                    className={cn(rowClass, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70")}
-                >
-                    {body}
-                    {/* Says what a click does, where a pointer can see it. */}
-                    <Play aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-visible/row:opacity-100 [@media(hover:none)]:hidden" />
-                </button>
-            ) : (
-                <div className={rowClass}>{body}</div>
-            )}
-            {onDelete && (
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        if (rec.recording_egress_id) onDelete(rec.recording_egress_id)
-                    }}
-                    aria-label="Delete recording"
-                    title="Delete recording"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-danger-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 group-hover/rec:opacity-100 [@media(hover:none)]:opacity-100"
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
-            )}
-        </div>
-    );
+        <HubRow
+            data-recording-row=""
+            density="two-line"
+            leadSize={40}
+            lead={<RecordingThumb hueKey={recordingHueKey(rec, currentUserId)} seconds={rec.recording_duration} />}
+            title={place}
+            second={
+                details.length || transcript ? (
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">{details.join(" · ")}</span>
+                        {transcript ? (
+                            <span className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] bg-hover px-1.5 text-micro text-ink-2 ring-1 ring-inset ring-line">Transcript</span>
+                        ) : null}
+                    </span>
+                ) : undefined
+            }
+            meta={time || undefined}
+            tools={
+                onOpen || del ? (
+                    <>
+                        {onOpen ? (
+                            <HubToolButton label="Play" onClick={onOpen}>
+                                <Play />
+                            </HubToolButton>
+                        ) : null}
+                        {del ? (
+                            <HubToolButton label="Delete recording" className="text-danger-ink hover:text-danger-ink" onClick={del}>
+                                <Trash2 />
+                            </HubToolButton>
+                        ) : null}
+                    </>
+                ) : undefined
+            }
+            {...(onOpen
+                ? {
+                      role: "button",
+                      tabIndex: 0,
+                      "aria-label": `Play the recording, ${place}${when ? `, ${when}` : ""}`,
+                      onClick: onOpen,
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                          if (e.target !== e.currentTarget) return
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              onOpen()
+                          }
+                      },
+                  }
+                : {})}
+        />
+    )
 };

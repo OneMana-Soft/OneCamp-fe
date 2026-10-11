@@ -1,7 +1,14 @@
-"use client"
 
-import InboxPage from "@/components/inbox/InboxPage"
+"use client";
 
-export default function Page() {
-  return <InboxPage />
+
+import {ActivityListTabs} from "@/components/activity/activityListTabs";
+
+
+export default function ActivityPage() {
+
+
+    return (
+        <ActivityListTabs/>
+    );
 }

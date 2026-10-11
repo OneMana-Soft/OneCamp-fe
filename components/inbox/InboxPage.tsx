@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * InboxPage: the person's own Gmail inside OneCamp.
+ * InboxPage: the person's own Gmail inside OneCamp ("Mail" in design v3).
  *
  * Email is where a lot of work arrives, and it used to arrive in another tab.
  * Here a person reads it beside the work: one click turns it into a task that
@@ -10,21 +10,23 @@
  *
  * Bodies arrive sanitised by the server with remote images removed (an image
  * URL is how a sender learns an email was opened) and are sanitised again here.
+ *
+ * DESIGN V3 (hub.md §5): two panes in the Linear way, a 400px list of feed
+ * rows and a reader with a 720px measure; messages without boxes, earlier
+ * ones folded; a floating reply card; J/K, ↵, Esc, T, R, O and / from the
+ * keyboard.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
-import { springPop } from "@/lib/celebrate"
-import { SpotInbox, SpotPlug, SpotSearch } from "@/components/ui/graphics"
-import { ErrorState } from "@/components/ui/error-state"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { celebrateOnce, springPop } from "@/lib/celebrate"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
-import { ArrowLeft, ExternalLink, Loader2, Search, CircleCheck, Send } from "@/lib/icons"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ArrowLeft, ArrowUp, ExternalLink, Loader2, Lock, MoreHorizontal, RefreshCw, Search, CircleCheck, X } from "@/lib/icons"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { SpotEnvelope, SpotSearchV3 } from "@/components/ui/graphics/hubSpots"
+import { HubRow, HubRowSkeleton } from "@/components/ui/hubRow"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -41,9 +43,11 @@ import {
   senderName,
   shortDate,
   type ConnectionProblem,
+  type InboxMessage,
   type InboxThread,
   type InboxThreadDetail,
 } from "@/services/inboxService"
+import { foldedAtStart, inboxKeyAction, senderAddress, splitQuoted, threadByline } from "@/components/inbox/inboxParts"
 
 function htmlText(html: string): string {
   if (typeof document === "undefined") return ""
@@ -52,6 +56,11 @@ function htmlText(html: string): string {
   return (el.textContent || "").trim()
 }
 
+/** True while the person is typing somewhere, so the page's letter keys stay out of the way. */
+function typing(target: EventTarget | null): boolean {
+  const t = target as HTMLElement | null
+  return Boolean(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))
+}
 
 export default function InboxPage() {
   const { toast } = useToast()
@@ -68,7 +77,12 @@ export default function InboxPage() {
   const [threadError, setThreadError] = useState("")
   const [reply, setReply] = useState("")
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState("")
+  // The keyboard cursor in the list, which J/K move and ↵ opens.
+  const [cursor, setCursor] = useState(-1)
 
+  const searchRef = useRef<HTMLInputElement>(null)
+  const replyRef = useRef<HTMLTextAreaElement>(null)
   // Only the newest list and the newest open conversation may land: a slow
   // answer for an earlier search or an earlier click must not replace it.
   const listSeq = useRef(0)
@@ -134,6 +148,7 @@ export default function InboxPage() {
     setThread(null)
     setThreadError("")
     setReply("")
+    setSendError("")
     try {
       const t = await getInboxThread(id)
       if (seq === openSeq.current) setThread(t)
@@ -143,95 +158,184 @@ export default function InboxPage() {
     }
   }, [handledAsConnection])
 
-  const makeTask = () => {
+  const makeTask = useCallback(() => {
     if (!thread) return
     const last = thread.messages[thread.messages.length - 1]
     const text = last ? htmlText(last.body) : ""
     const { draft, source } = taskFromEmail(thread.subject, last ? senderName(last.from) : "", text, thread.gmail_url)
     dispatch(openUI({ key: "createTask", data: { draft, source } }))
-  }
+  }, [thread, dispatch])
 
   const send = async () => {
     if (!openId || !reply.trim()) return
     setSending(true)
+    setSendError("")
     try {
       await replyToThread(openId, reply)
       setReply("")
-      toast({ title: "Reply sent", description: "It went from your Gmail address, in the same conversation." })
+      // The reply appears at the end of the conversation: the page says it in place.
       await open(openId)
     } catch (e) {
       // The draft stays in the box, so nothing typed is lost.
-      if (!handledAsConnection(e)) toast({ title: "Not sent", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
+      if (!handledAsConnection(e)) setSendError(apiErrorMessage(e, "Your reply was not sent."))
     } finally {
       setSending(false)
     }
   }
 
+  // The keys (I1). Letters only act outside a field; Esc also leaves one.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const action = inboxKeyAction(e)
+      if (!action) return
+      if (typing(e.target) && action !== "back") return
+      const rows = threads ?? []
+      switch (action) {
+        case "next":
+        case "prev": {
+          if (rows.length === 0) return
+          e.preventDefault()
+          setCursor((c) => Math.max(0, Math.min(rows.length - 1, (c < 0 ? (action === "next" ? -1 : rows.length) : c) + (action === "next" ? 1 : -1))))
+          return
+        }
+        case "open":
+          if (cursor >= 0 && rows[cursor]) {
+            e.preventDefault()
+            void open(rows[cursor].id)
+          }
+          return
+        case "back":
+          if (openId) {
+            if (e.target instanceof HTMLElement) e.target.blur()
+            setOpenId(null)
+          }
+          return
+        case "task":
+          e.preventDefault()
+          makeTask()
+          return
+        case "reply":
+          if (thread) {
+            e.preventDefault()
+            replyRef.current?.focus()
+          }
+          return
+        case "gmail":
+          if (thread) window.open(thread.gmail_url, "_blank", "noopener,noreferrer")
+          return
+        case "search":
+          e.preventDefault()
+          searchRef.current?.focus()
+          return
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [threads, cursor, openId, thread, open, makeTask])
+
+
   if (connection) {
     const reconnect = connection === "reconnect"
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
-        <SpotPlug />
-        <h1 className="text-lg font-semibold">{reconnect ? "Reconnect Gmail" : "Bring your email into OneCamp"}</h1>
-        <p className="text-sm text-muted-foreground">
-          {reconnect
-            ? "Your Gmail connection expired or no longer has the access the inbox needs. Connect it again to pick up where you left off."
-            : "Connect Gmail to read your inbox here, turn an email into a task, and reply without leaving the workspace. Only you can see your mail."}
-        </p>
-        <Button onClick={() => void startConnect("gmail", "inbox").catch((e) => toast({ title: "Couldn't connect", description: apiErrorMessage(e, "Try again."), variant: "destructive" }))}>
-          {reconnect ? "Reconnect Gmail" : "Connect Gmail"}
-        </Button>
-      </div>
+      <ConnectFrame
+        spot={<SpotEnvelope badge={reconnect ? "alert" : undefined} />}
+        title={reconnect ? "Reconnect Gmail" : "Bring your email into OneCamp"}
+        body={
+          reconnect
+            ? "Your Gmail connection expired or no longer has the access Mail needs. Connect it again to pick up where you left off."
+            : "Read your inbox here, turn an email into a task, and reply without leaving the workspace."
+        }
+        action={
+          <Button onClick={() => void startConnect("gmail", "inbox").catch((e) => toast({ title: "Couldn't connect", description: apiErrorMessage(e, "Try again."), variant: "destructive" }))}>
+            {reconnect ? "Reconnect Gmail" : "Connect Gmail"}
+          </Button>
+        }
+        privacy
+      />
     )
   }
 
-  const list = (
-    <div className={cn("flex min-h-0 flex-col border-border md:w-[22rem] md:border-r", openId && "hidden md:flex")}>
+  const header = (
+    <div data-inbox-header="" className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line pl-4 pr-3 md:pl-6">
+      <h1 className="text-title-3 font-semibold">Mail</h1>
+      <span className="grow" />
       <form
-        className="flex items-center gap-2 border-b border-border p-3"
+        role="search"
+        className={cn("hub-field relative hidden h-8 w-[280px] items-center rounded-md sm:flex", openId && "max-md:hidden")}
         onSubmit={(e) => {
           e.preventDefault()
           setApplied(query.trim())
         }}
       >
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search mail…" className="pl-8" aria-label="Search mail" name="q" autoComplete="off" />
+        <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-3" aria-hidden />
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search mail"
+          aria-label="Search mail"
+          name="q"
+          autoComplete="off"
+          className="h-full w-full rounded-md bg-transparent pl-8 pr-8 text-ui-sm text-foreground outline-none placeholder:text-ink-3"
+        />
+        {!query ? <kbd className="kbd pointer-events-none absolute right-2">/</kbd> : null}
+      </form>
+      <Button variant="ghost" size="icon-sm" aria-label="Refresh" onClick={() => void load(applied)}>
+        <RefreshCw className="size-4" />
+      </Button>
+    </div>
+  )
+
+  const list = (
+    <div data-inbox-list="" className={cn("flex min-h-0 flex-col md:w-[400px] md:min-w-[360px] md:shrink-0 md:border-r md:border-line", openId && "hidden md:flex")}>
+      {/* On a phone the field sits on the list; from sm it is in the header. */}
+      <form
+        className="border-b border-line p-3 sm:hidden"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setApplied(query.trim())
+        }}
+      >
+        <div className="hub-field relative flex h-11 items-center rounded-[10px]">
+          <Search className="pointer-events-none absolute left-3 size-4 text-ink-3" aria-hidden />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search mail" aria-label="Search mail (phone)" className="h-full w-full bg-transparent pl-9 pr-3 text-base outline-none placeholder:text-ink-3" />
         </div>
       </form>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {applied && threads && threads.length > 0 ? (
+        <div className="flex h-10 shrink-0 items-center gap-2 px-4 text-meta text-ink-3">
+          <span className="hub-chip-rest inline-flex h-[22px] items-center gap-1 rounded-sm pl-2 pr-1 text-meta font-medium text-ink-2">
+            {applied}
+            <button type="button" aria-label="Clear search" onClick={() => { setQuery(""); setApplied("") }} className="grid size-4 place-items-center rounded-xs hover:bg-press">
+              <X className="size-3" />
+            </button>
+          </span>
+          <span className="tabular-nums">{threads.length === 1 ? "1 result" : `${threads.length} results`}</span>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto py-1">
         {threads === null && (
           // The rows' own shape while the list loads, not a spinner.
-          <ul role="status" aria-label="Loading your inbox">
-            {[0, 1, 2, 3, 4].map((i) => (
-              // A row's line boxes (20, 20 and 18px, 2px apart): the bars were
-              // 16, 16 and 12px with 6px gaps, so the fifth row landed 30px lower.
-              <li key={i} data-inbox-skeleton-row="" className="flex gap-3 border-b border-border px-4 py-3">
-                <Skeleton className="mt-0.5 size-7 shrink-0 rounded-full" />
-                <span className="flex flex-1 flex-col gap-0.5">
-                  <Skeleton className="h-5 w-1/3" />
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-[18px] w-5/6" />
-                </span>
-              </li>
+          <div role="status" aria-label="Loading your inbox">
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <HubRowSkeleton key={i} density="feed" />
             ))}
-          </ul>
+          </div>
         )}
-        {/* Failed, nothing found and empty all sit in InboxZero's centred
-            frame: a failure was a red line with no way to try again, and a
-            search with no match one grey sentence. */}
         {listError && (
-          <div data-inbox-state="" className="flex flex-col items-center px-6 py-10 text-center">
-            <ErrorState subject="your inbox" onRetry={() => void load(applied)} />
+          <div data-inbox-state="error" className="mx-4 mt-4 flex items-center gap-3 rounded-lg bg-sunken px-4 py-3">
+            <p className="flex-1 text-ui text-ink-2">Gmail isn’t answering.</p>
+            <Button variant="ghost" size="sm" onClick={() => void load(applied)}>
+              Try again
+            </Button>
           </div>
         )}
         {threads && threads.length === 0 && !listError && (
           applied ? (
-            <div data-inbox-state="" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-              <SpotSearch size={88} />
-              <p className="text-sm font-medium text-foreground">Nothing matches “{applied}”</p>
-              <p className="text-xs text-muted-foreground">Check the spelling, or try fewer words.</p>
-              <Button variant="outline" size="sm" onClick={() => { setQuery(""); setApplied("") }}>
+            <div data-inbox-state="search" className="flex flex-col items-start px-6 pt-16">
+              <SpotSearchV3 className="mb-4" />
+              <p className="text-heading font-semibold text-foreground">Nothing matches “{applied}”</p>
+              <p className="mt-1 text-ui text-ink-2">Check the spelling, or try fewer words.</p>
+              <Button variant="secondary" size="sm" className="mt-4" onClick={() => { setQuery(""); setApplied("") }}>
                 Clear search
               </Button>
             </div>
@@ -240,35 +344,37 @@ export default function InboxPage() {
           )
         )}
         <ul>
-          {threads?.map((t) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => void open(t.id)}
-                aria-current={openId === t.id || undefined}
-                className={cn(
-                  "flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors duration-100",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
-                  // The open conversation is the selection: the soft accent,
-                  // as in the sidebar. Hover is a neutral step.
-                  openId === t.id ? "bg-brand-muted" : "hover:bg-highlight",
-                )}
-              >
-                {/* The sender's colour, the same for every mail from them. */}
-                <IdentityMark variant="avatar" size={28} id={t.from} label={senderName(t.from)} className="mt-0.5" />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className={cn("truncate text-sm", t.unread ? "font-semibold" : "text-foreground/80")}>
-                      {senderName(t.from)}
-                      {t.messages > 1 && <span className="ml-1 text-xs tabular-nums text-muted-foreground">{t.messages}</span>}
-                    </span>
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{shortDate(t.date)}</span>
-                  </span>
-                  <span className={cn("truncate text-sm", t.unread && "font-medium")}>{t.subject || "(no subject)"}</span>
-                  <span className="line-clamp-1 text-xs text-muted-foreground">{t.snippet}</span>
-                </span>
-              </button>
-            </li>
+          {threads?.map((t, i) => (
+            <HubRow
+              key={t.id}
+              as="li"
+              density="feed"
+              leadSize={28}
+              className="min-h-[72px] py-2.5"
+              unread={t.unread}
+              selected={openId === t.id || (cursor === i && !openId)}
+              data-inbox-row=""
+              lead={<IdentityMark variant="avatar" size={28} id={t.from} label={senderName(t.from)} />}
+              title={
+                // The row's one control, stretched over it.
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCursor(i)
+                    void open(t.id)
+                  }}
+                  aria-current={openId === t.id || undefined}
+                  className="text-left text-ui font-medium text-foreground after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand"
+                >
+                  {senderName(t.from)}
+                  {t.messages > 1 && <span className="ml-1.5 text-meta font-book tabular-nums text-ink-3">{t.messages}</span>}
+                </button>
+              }
+              second={<span className="text-foreground">{t.subject || "(no subject)"}</span>}
+              meta={shortDate(t.date)}
+            >
+              <span className="block truncate text-ui-sm text-ink-3">{t.snippet}</span>
+            </HubRow>
           ))}
         </ul>
         {nextToken && (
@@ -284,93 +390,108 @@ export default function InboxPage() {
   )
 
   const detail = (
-    <div className={cn("flex min-h-0 flex-1 flex-col", !openId && "hidden md:flex")}>
+    <div data-inbox-reader="" className={cn("flex min-h-0 flex-1 flex-col", !openId && "hidden md:flex", openId && "hub-panel-in md:animate-none")}>
       {!openId && (
-        <p className="m-auto text-sm text-muted-foreground">Pick a conversation to read it here.</p>
+        // The one centred empty state in the hub: the pane is the frame.
+        <div className="m-auto flex flex-col items-center gap-3 text-center">
+          <SpotEnvelope size={64} />
+          <p className="text-ui text-ink-2">Pick a conversation</p>
+        </div>
       )}
       {openId && (
         <>
-          {/* The list's toolbar height: 69px on a phone (a 44px back button,
-              as its 44px box) and 61px from md, so the reading pane starts
-              where the list did and the two bottom borders meet. */}
-          <div data-inbox-thread-bar="" className="flex min-h-[69px] flex-wrap items-center gap-2 border-b border-border p-3 md:min-h-[61px]">
-            <Button variant="ghost" size="icon" className="size-11 md:hidden" onClick={() => setOpenId(null)} aria-label="Back to the inbox">
+          <div data-inbox-thread-bar="" className="flex min-h-14 shrink-0 items-start gap-2 border-b border-line px-3 py-3 md:px-6">
+            <Button variant="ghost" size="icon" className="size-11 shrink-0 md:hidden" onClick={() => setOpenId(null)} aria-label="Back to the inbox">
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h2 className="mr-auto min-w-0 flex-1 truncate text-base font-semibold">{thread?.subject || " "}</h2>
-            <Button variant="outline" size="sm" onClick={makeTask} disabled={!thread}>
-              <CircleCheck className="mr-2 h-4 w-4" /> Make a task
-            </Button>
-            {thread && (
-              <Button asChild variant="ghost" size="sm">
-                <a href={thread.gmail_url} target="_blank" rel="noopener noreferrer" aria-label="Open in Gmail">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
+            <div className="mr-auto min-w-0 flex-1 self-center">
+              <h2 className="line-clamp-2 text-title-3 font-semibold text-balance">{thread?.subject || " "}</h2>
+              {thread ? <p className="mt-0.5 text-meta text-ink-3">{threadByline(thread.messages)}</p> : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 self-center">
+              <Button variant="secondary" size="sm" onClick={makeTask} disabled={!thread} title="Make a task (T)">
+                <CircleCheck className="size-3.5" /> Make a task
               </Button>
-            )}
+              {thread && (
+                <Button asChild variant="ghost" size="icon-sm">
+                  <a href={thread.gmail_url} target="_blank" rel="noopener noreferrer" aria-label="Open in Gmail" title="Open in Gmail (O)">
+                    <ExternalLink className="size-4" />
+                  </a>
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {threadError && <p className="text-sm text-danger-ink">{threadError}</p>}
-            {!thread && !threadError && (
-              // A message's own shape while the conversation opens.
-              <div role="status" aria-label="Opening the conversation" className="rounded-lg border border-border p-4">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <Skeleton className="size-7 rounded-full" />
-                  <Skeleton className="h-4 w-40" />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-[720px] px-4 py-5 md:px-6" data-inbox-measure="">
+              {threadError && <p className="text-ui-sm text-danger-ink">{threadError}</p>}
+              {!thread && !threadError && (
+                // A message's own shape while the conversation opens, no box.
+                <div role="status" aria-label="Opening the conversation">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="size-7 animate-shimmer rounded-full bg-press" />
+                    <span className="h-3.5 w-40 animate-shimmer rounded-sm bg-press" />
+                  </div>
+                  <div className="space-y-2 pl-10">
+                    <div className="h-3.5 w-11/12 animate-shimmer rounded-sm bg-press" />
+                    <div className="h-3.5 w-4/5 animate-shimmer rounded-sm bg-press" />
+                    <div className="h-3.5 w-2/3 animate-shimmer rounded-sm bg-press" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Skeleton className="h-3.5 w-11/12" />
-                  <Skeleton className="h-3.5 w-4/5" />
-                  <Skeleton className="h-3.5 w-2/3" />
-                </div>
-              </div>
-            )}
-            <div className="space-y-4">
-              {thread?.messages.map((m) => (
-                <article key={m.id} className="rounded-lg border border-border p-4">
-                  <header className="mb-3 flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-2.5">
-                      <IdentityMark variant="avatar" size={28} id={m.from} label={senderName(m.from)} />
-                      <span className="truncate text-sm font-medium">{senderName(m.from)}</span>
-                    </span>
-                    <time dateTime={m.date} title={fullDate(m.date)} className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      {mailDate(m.date)}
-                    </time>
-                  </header>
-                  <SafeHtml html={m.body} sanitizer={sanitizeRichHtml} className="max-w-none break-words" />
-                  {(m.truncated || (m.attachments ?? 0) > 0) && (
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      {m.truncated ? "This email is long and was shortened here. " : ""}
-                      {(m.attachments ?? 0) > 0 ? `${m.attachments} attachment${m.attachments === 1 ? "" : "s"}: ` : ""}
-                      <a href={thread.gmail_url} target="_blank" rel="noopener noreferrer" className="underline">
-                        open in Gmail
-                      </a>
-                    </p>
-                  )}
-                </article>
-              ))}
+              )}
+              {thread ? <Conversation messages={thread.messages} gmailUrl={thread.gmail_url} /> : null}
             </div>
           </div>
           {thread && (
             <form
-              className="flex items-end gap-2 border-t border-border p-3"
+              className="shrink-0 px-4 pb-4 md:px-6"
               onSubmit={(e) => {
                 e.preventDefault()
                 void send()
               }}
             >
-              <Textarea
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                placeholder="Write a reply…"
-                aria-label="Reply"
-                rows={2}
-                className="min-h-[2.5rem] flex-1 resize-y"
-              />
-              <Button type="submit" disabled={!reply.trim() || sending}>
-                {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Reply
-              </Button>
+              <div className="mx-auto max-w-[720px]">
+                {sendError ? (
+                  <p role="alert" className="mb-2 flex items-center gap-2 text-meta text-danger-ink">
+                    {sendError}
+                    <button type="submit" className="font-medium underline-offset-2 hover:underline">
+                      Try again
+                    </button>
+                  </p>
+                ) : null}
+                <div data-inbox-composer="" className="flex min-h-[76px] flex-col rounded-lg bg-raised p-3 shadow-e2">
+                  <textarea
+                    ref={replyRef}
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault()
+                        void send()
+                      }
+                    }}
+                    placeholder={`Reply to ${senderName(thread.messages[thread.messages.length - 1]?.from || "") || "them"}…`}
+                    aria-label="Reply"
+                    rows={2}
+                    className="min-h-10 w-full flex-1 resize-none bg-transparent text-ui text-foreground outline-none placeholder:text-ink-3"
+                  />
+                  <div className="mt-1 flex items-center justify-end gap-2">
+                    <span className="flex items-center gap-1 text-meta text-ink-3">
+                      <kbd className="kbd">⌘↵</kbd> send
+                    </span>
+                    <button
+                      type="submit"
+                      aria-label="Send reply"
+                      disabled={!reply.trim() || sending}
+                      className={cn(
+                        "grid size-7 place-items-center rounded-md transition-colors",
+                        reply.trim() ? "bg-brand text-brand-foreground shadow-primary" : "bg-press text-ink-3",
+                      )}
+                    >
+                      {sending ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUp className="size-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </form>
           )}
         </>
@@ -379,31 +500,128 @@ export default function InboxPage() {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col md:flex-row">
-      {list}
-      {detail}
+    <div className="flex h-full min-h-0 flex-col">
+      {header}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {list}
+        {detail}
+      </div>
     </div>
   )
 }
 
+/** Connect and reconnect (I2): a 440px column at 18vh. */
+function ConnectFrame({ spot, title, body, action, privacy }: { spot: React.ReactNode; title: string; body: string; action?: React.ReactNode; privacy?: boolean }) {
+  return (
+    <div data-inbox-connect="" className="mx-auto flex w-full max-w-[440px] flex-col items-center px-6 pt-[18vh] text-center">
+      {spot}
+      <h1 className="mt-5 text-title-2 font-semibold">{title}</h1>
+      <p className="mt-2 text-ui text-ink-2 text-pretty">{body}</p>
+      {action ? <div className="mt-5">{action}</div> : null}
+      {privacy ? (
+        <p className="mt-3 flex items-center gap-1.5 text-meta text-ink-3">
+          <Lock className="size-3" /> Only you can see your mail here.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** The messages of a conversation (I6): no boxes, earlier ones folded. */
+function Conversation({ messages, gmailUrl }: { messages: InboxMessage[]; gmailUrl: string }) {
+  const [folded, setFolded] = useState(() => foldedAtStart(messages.length))
+  useEffect(() => setFolded(foldedAtStart(messages.length)), [messages.length])
+  return (
+    <div className="divide-y divide-line">
+      {messages.map((m, i) =>
+        folded.has(i) ? (
+          <button
+            key={m.id}
+            type="button"
+            data-inbox-folded=""
+            onClick={() =>
+              setFolded((f) => {
+                const next = new Set(f)
+                next.delete(i)
+                return next
+              })
+            }
+            className="flex h-11 w-full items-center gap-3 text-left text-ui-sm hover:bg-hover"
+          >
+            <IdentityMark variant="avatar" size={20} id={m.from} label={senderName(m.from)} />
+            <span className="shrink-0 font-medium">{senderName(m.from)}</span>
+            <span className="min-w-0 flex-1 truncate text-ink-3">{htmlText(m.body).slice(0, 140)}</span>
+            <time dateTime={m.date} className="shrink-0 text-meta tabular-nums text-ink-3">{mailDate(m.date)}</time>
+          </button>
+        ) : (
+          <Message key={m.id} m={m} gmailUrl={gmailUrl} />
+        ),
+      )}
+    </div>
+  )
+}
+
+function Message({ m, gmailUrl }: { m: InboxMessage; gmailUrl: string }) {
+  const [showQuoted, setShowQuoted] = useState(false)
+  const { body, quoted } = useMemo(() => splitQuoted(m.body), [m.body])
+  return (
+    <article data-inbox-message="" className="py-5 first:pt-0">
+      <header className="flex items-center gap-3">
+        <IdentityMark variant="avatar" size={28} id={m.from} label={senderName(m.from)} />
+        <span className="truncate text-ui font-medium">{senderName(m.from)}</span>
+        <span className="hidden truncate text-meta text-ink-3 sm:inline">{senderAddress(m.from)}</span>
+        <time dateTime={m.date} title={fullDate(m.date)} className="ml-auto shrink-0 text-meta tabular-nums text-ink-3">
+          {mailDate(m.date)}
+        </time>
+      </header>
+      <div className="mt-2 pl-10 text-body">
+        <SafeHtml html={body} sanitizer={sanitizeRichHtml} className="max-w-none break-words" />
+        {quoted ? (
+          <>
+            <button
+              type="button"
+              aria-label={showQuoted ? "Hide the quoted text" : "Show the quoted text"}
+              aria-expanded={showQuoted}
+              onClick={() => setShowQuoted((s) => !s)}
+              className="hub-chip-rest mt-2 grid h-4 w-8 place-items-center rounded-sm text-ink-3 hover:text-foreground"
+            >
+              <MoreHorizontal className="size-3.5" />
+            </button>
+            {showQuoted ? <SafeHtml html={quoted} sanitizer={sanitizeRichHtml} className="mt-2 max-w-none break-words text-ink-2" /> : null}
+          </>
+        ) : null}
+        {(m.truncated || (m.attachments ?? 0) > 0) && (
+          <p className="mt-3 text-meta text-ink-3">
+            {m.truncated ? "This email is long and was shortened here. " : ""}
+            {(m.attachments ?? 0) > 0 ? `${m.attachments} attachment${m.attachments === 1 ? "" : "s"}: ` : ""}
+            <a href={gmailUrl} target="_blank" rel="noopener noreferrer" className="underline">
+              open in Gmail
+            </a>
+          </p>
+        )}
+      </div>
+    </article>
+  )
+}
+
 /**
- * Nothing in the inbox: a small moment, so the line springs once as it
- * arrives (springPop, which stands still for reduced motion). Not a burst:
- * those are for a task done or an import finished.
+ * Inbox zero (I10): the moss envelope with its check, start-aligned in the
+ * list. The check springs, and the day's first inbox zero bursts once
+ * (celebrateOnce); both stand still for reduced motion.
  */
 function InboxZero() {
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     springPop(ref.current)
+    celebrateOnce("inbox-zero", ref.current, { count: 8 })
   }, [])
-  // The playful layer's own example: a small ringed envelope.
   return (
-    <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+    <div data-inbox-state="zero" className="flex flex-col items-start px-6 pt-16">
       <span ref={ref} data-inbox-zero="" className="inline-flex">
-        <SpotInbox size={88} />
+        <SpotEnvelope size={96} hue="moss" badge="done" />
       </span>
-      <p className="text-sm font-medium text-foreground">Your inbox is empty</p>
-      <p className="text-xs text-muted-foreground">New mail lands here.</p>
+      <p className="mt-4 text-heading font-semibold text-foreground">Inbox zero</p>
+      <p className="mt-1 text-ui text-ink-2">Nothing new in Gmail. Back to the work.</p>
     </div>
   )
 }

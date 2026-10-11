@@ -16,6 +16,11 @@ export function activityKey(item: UnifiedActivityItem): string {
   const m = item.mention
   const c = item.comment
   const r = item.reaction
+  // The record's own id, where the server sends one, names the event outright.
+  // Without it, two items of one kind in the same second (the server sent
+  // times to the second until 11 Oct) were one row, and the second was lost.
+  const id = recordId(item)
+  if (id) return [item.activity_type, "id", id].join("|")
   if (item.activity_type === "MENTION" && m) {
     const on =
       m.mention_post?.post_uuid ||
@@ -98,4 +103,81 @@ export function olderPageCursor(oldestTime: string | undefined): string {
   if (Number.isNaN(at)) return oldestTime
   const nextSecond = Math.floor(at / 1000) * 1000 + 1000
   return new Date(nextSecond).toISOString().replace(/\.\d{3}Z$/, "Z")
+}
+
+/**
+ * One row for one thing said, however many records the server sends for it.
+ *
+ * THE DEMO'S DOUBLED MENTIONS (11 Oct). Activity > All showed "Jonas Weber
+ * mentioned you" twice, word for word. The client was not doubling anything:
+ * the server sent two mention records on two different posts. Each nightly
+ * refresh of the demo renames the curated channels out of the way
+ * ("engineering-retired-1791614952") and posts the conversation again in fresh
+ * ones; the visitor stays a member of the old copies, and the feed lists
+ * mentions from every channel the reader is in, archived or not. So every
+ * refresh added an identical copy of each mention, with its own id.
+ *
+ * A reader can do nothing with the second copy of a sentence they have already
+ * been shown, wherever it came from, so the feed shows the newest one: the same
+ * kind of item, by the same person, saying the same words. Different words,
+ * different people or different kinds stay separate rows. Items arrive newest
+ * first, so the first of each kept is the newest.
+ */
+export function collapseEchoes(items: UnifiedActivityItem[]): UnifiedActivityItem[] {
+  const seen = new Set<string>()
+  const out: UnifiedActivityItem[] = []
+  for (const item of items) {
+    // A record the server names by its own id is a real event: two of them
+    // with the same words are two mentions, and both show. Only records with
+    // no id of their own (the demo's copies before 11 Oct) collapse by words.
+    const key = recordId(item) ? "" : echoKey(item)
+    if (key) {
+      if (seen.has(key)) continue
+      seen.add(key)
+    }
+    out.push(item)
+  }
+  return out
+}
+
+/** Kind, author and words, or "" for an item that has no words of its own (a reaction). */
+export function echoKey(item: UnifiedActivityItem): string {
+  if (item.activity_type === "MENTION" && item.mention) {
+    const m = item.mention
+    const by = m.mention_post?.post_by?.user_uuid || m.mention_chat?.chat_from?.user_uuid || m.mention_comment?.comment_by?.user_uuid || ""
+    const text = m.mention_post?.post_text || m.mention_chat?.chat_body_text || m.mention_comment?.comment_text || ""
+    const words = plainWords(text)
+    return by && words ? ["MENTION", by, words].join("|") : ""
+  }
+  if (item.activity_type === "COMMENT" && item.comment) {
+    const c = item.comment
+    const words = plainWords(c.comment_text || "")
+    const by = c.comment_by?.user_uuid || ""
+    return by && words ? ["COMMENT", by, words].join("|") : ""
+  }
+  return ""
+}
+
+/** The words of a message, without its markup, case or spacing. */
+function plainWords(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/g, " ")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+}
+
+/** The record's own id, where the server sends one. */
+function recordId(item: UnifiedActivityItem): string | undefined {
+  return (
+    item.id ||
+    item.mention?.uid ||
+    (item.activity_type === "COMMENT" ? item.comment?.comment_uuid : undefined) ||
+    (item.activity_type === "REACTION" ? item.reaction?.uid : undefined) ||
+    undefined
+  )
 }

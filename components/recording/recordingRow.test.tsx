@@ -7,7 +7,9 @@ import type { RecordingInfoInterface } from "@/types/recording"
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
-const { RecordingListRecording, callLength, recordingPlace } = await import("@/components/recording/recordingListRecording")
+const { RecordingListRecording, callLength, recordingPlace, recordingHueKey } = await import("@/components/recording/recordingListRecording")
+const { recordingDayGroup } = await import("@/components/recording/RecordingsView")
+const { hueFor } = await import("@/lib/campHue")
 const { dateRangeLabel } = await import("@/components/dateRangePicker/dateRangeField")
 
 afterEach(cleanup)
@@ -49,16 +51,38 @@ describe("a recorded call", () => {
     expect(recordingPlace(rec({ recording_channel: undefined as never, recording_dm: grp }), "me")).toBe("Maya Chen, Jonas Weber")
   })
 
-  it("is a button that plays it, with who, how long and how big on one quiet line", () => {
+  it("is a HubRow that plays it, with who started it and how big on one quiet line", () => {
     const onOpen = vi.fn()
     render(<RecordingListRecording recordingInfo={rec()} currentUserId="me" onOpen={onOpen} />)
     const row = screen.getByRole("button", { name: "Play the recording, #engineering, 10 Oct, 10:00 AM" })
     fireEvent.click(row)
     expect(onOpen).toHaveBeenCalled()
-    expect(row.textContent).toContain("Started by Sam Rivera · 12 min · 12.3 MB")
-    // No accent, no card: the hover is the lists' neutral step.
-    expect(row.className).toContain("hover:bg-highlight")
-    expect(row.outerHTML).not.toMatch(/bg-primary|font-bold|rounded-full|shadow-sm/)
+    expect(row.textContent).toContain("Started by Sam Rivera · 12.3 MB")
+    expect(row.getAttribute("data-density")).toBe("two-line")
+    expect(row.outerHTML).not.toMatch(/bg-primary|font-bold|shadow-sm/)
+  })
+
+  it("leads with a thumbnail in the place's hue, its length in the corner", () => {
+    const { container } = render(<RecordingListRecording recordingInfo={rec()} currentUserId="me" />)
+    const thumb = container.querySelector("[data-recording-thumb]")!
+    expect(thumb.getAttribute("data-hue")).toBe(hueFor(recordingHueKey(rec(), "me")))
+    expect(thumb.getAttribute("data-hue")).toBe(hueFor("c1"))
+    expect(container.querySelector("[data-duration-badge]")?.textContent).toBe("12:14")
+    const { container: none } = render(<RecordingListRecording recordingInfo={rec({ recording_duration: 0 })} currentUserId="me" />)
+    expect(none.querySelector("[data-duration-badge]")).toBeNull()
+  })
+
+  it("tags a recording that has a transcript", () => {
+    render(<RecordingListRecording recordingInfo={rec({ recording_transcript: [{}] as never })} currentUserId="me" />)
+    expect(screen.getByText("Transcript")).toBeTruthy()
+  })
+
+  it("groups by day", () => {
+    const now = new Date(2026, 9, 11, 12)
+    expect(recordingDayGroup(new Date(2026, 9, 11, 9).toISOString(), now)).toBe("Today")
+    expect(recordingDayGroup(new Date(2026, 9, 10, 9).toISOString(), now)).toBe("Yesterday")
+    expect(recordingDayGroup(new Date(2026, 9, 7, 9).toISOString(), now)).toBe("Earlier this week")
+    expect(recordingDayGroup(new Date(2026, 8, 1).toISOString(), now)).toBe("Older")
   })
 })
 
@@ -90,9 +114,11 @@ describe("the one recordings UI", () => {
     const src = code("components/recording/RecordingsView.tsx")
     expect(src).toMatch(/<PageHeader title="Recordings" actions=\{rangeField\}>/)
     expect(src).toMatch(/<PageContainer className="flex min-h-0 flex-1 flex-col">/)
-    expect(src).toMatch(/illustration=\{<SpotCalendar \/>\}/)
-    expect(src).toMatch(/className="flex justify-center pt-4 md:pt-10"/)
-    expect(src).toMatch(/mt-0\.5 h-\[18px\]/)
+    expect(src).toMatch(/illustration=\{<SpotRecording \/>\}/)
+    // Start-aligned in the column, as the hub's empties are.
+    expect(src).toMatch(/className="flex justify-start pt-4 md:pt-12"/)
+    expect(src).toMatch(/Show the last 90 days/)
+    expect(src).toMatch(/data-lead="40"/)
     expect(src).not.toMatch(/Global Meeting History|Gathering your recordings/)
   })
 })

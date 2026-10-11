@@ -21,14 +21,14 @@ describe("the Activity feed's frame", () => {
     cleanup()
     const full = parts(render(<ActivityFeedFrame loading={false} filter={<span>who</span>} actions={<button>act</button>}>rows</ActivityFeedFrame>).container)
     expect(full.toolbar!.className).toBe(bare.toolbar!.className)
-    expect(full.toolbar!.className).toContain("h-9")
+    expect(full.toolbar!.className).toContain("h-11")
   })
 
   // The empty and error states centred their column (mx-auto) while the
   // list's started at the panel's edge.
   it("keeps the list's column whatever the body shows", () => {
     const { frame } = parts(render(<ActivityFeedFrame loading={false} state={<p>empty</p>} />).container)
-    expect(frame.className).toContain("max-w-[880px]")
+    expect(frame.className).toContain("max-w-[760px]")
     expect(frame.className).not.toContain("mx-auto")
   })
 
@@ -36,7 +36,7 @@ describe("the Activity feed's frame", () => {
     const { body } = parts(render(<ActivityFeedFrame loading>rows</ActivityFeedFrame>).container)
     const rows = body!.querySelectorAll("[data-feed-skeleton] [data-feed-skeleton-row]")
     expect(rows).toHaveLength(FEED_SKELETON_ROWS)
-    expect((rows[0] as HTMLElement).className).toContain("md:min-h-16")
+    expect(rows[0].querySelector("[data-hub-skeleton][data-density=feed]")).toBeTruthy()
     expect(body!.textContent).not.toContain("rows")
   })
 

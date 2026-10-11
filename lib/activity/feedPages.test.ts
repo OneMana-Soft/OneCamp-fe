@@ -62,3 +62,17 @@ describe("an item with nothing to show", () => {
     expect(hasSubject(a)).toBe(true)
   })
 })
+
+describe("the item's id in its key", () => {
+  const bare = (id: string) => ({ activity_type: "MENTION", id, time: "2026-10-10T06:49:13Z" }) as unknown as UnifiedActivityItem
+  const withUid = (uid: string) => ({ activity_type: "MENTION", time: "2026-10-10T06:49:13Z", mention: { uid } }) as unknown as UnifiedActivityItem
+
+  it("keeps two items of one kind in the same second when their ids differ", () => {
+    expect(mergeActivityPages([[bare("a"), bare("b")]])).toHaveLength(2)
+    expect(mergeActivityPages([[withUid("0x1"), withUid("0x2")]])).toHaveLength(2)
+  })
+
+  it("still shows one item a later page repeats", () => {
+    expect(mergeActivityPages([[bare("a")], [bare("a")]])).toHaveLength(1)
+  })
+})

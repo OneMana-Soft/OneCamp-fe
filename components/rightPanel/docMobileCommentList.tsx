@@ -240,7 +240,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                     <EmptyState
                         icon={MessageSquare}
                         title="No comments yet"
-                        description="Be the first to add a comment to this document."
+                        description="Select any text in the doc and choose Comment, or write one below."
                         // As a task's comments say it: an icon, then the words,
                         // near the top. It was words alone in the panel's middle.
                         className="py-8"
@@ -260,7 +260,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
             </div>
 
             {allowedToComment && (
-                <div className="flex-shrink-0 border-t p-4">
+                <div className="flex-shrink-0 p-3">
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick={() => dispatch(openUI({ key: 'docCommentFileUpload' }))}
@@ -271,7 +271,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(commentState?.filesUploaded?.length ?? 0) > 0}
                         buttonOnclick={createComment}
-                        className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
+                        className={cn("max-w-full h-auto rounded-xl bg-raised p-2 shadow-e2")}
                         editorContentClassName="overflow-auto"
                         output="html"
                         placeholder="Add a comment…"

@@ -3,7 +3,9 @@ import { cleanup, render, screen } from "@testing-library/react"
 import type { UnifiedActivityItem } from "@/types/activity"
 import { hueFor } from "@/lib/campHue"
 
+vi.mock("@/components/later/SaveForLater", () => ({ SaveForLaterButton: () => null }))
 vi.mock("@/hooks/useFetch", () => ({
+  useFetch: () => ({ data: undefined }),
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
@@ -27,9 +29,9 @@ describe("an Activity row", () => {
   // /app/activity is /app/app/channel/…: every mention opened a 404.
   it("is a link to the message, from the app's root", () => {
     render(<ActivityCard activity={mention} />)
-    const link = screen.getByRole("link")
+    const link = document.querySelector("[data-row-link]") as HTMLAnchorElement
     expect(link.getAttribute("href")).toBe("/app/channel/c1/p1")
-    expect(link.textContent).toContain("mentioned you in a post")
+    expect(link.getAttribute("aria-label")).toContain("Jonas Weber mentioned you in")
   })
 
   it("is not a link when there is nothing to open", () => {

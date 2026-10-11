@@ -59,3 +59,55 @@ describe("paletteTargets", () => {
     expect(rankTargets("", targets)).toEqual([])
   })
 })
+
+import { looksLikeQuestion, parsePalettePrefix, titleSegments } from "@/lib/search/paletteMatch"
+
+describe("the field's scope prefixes (S2)", () => {
+  it("turns @, #, > and ? into a scope once something follows", () => {
+    expect(parsePalettePrefix("@maya")).toEqual({ scope: "people", query: "maya" })
+    expect(parsePalettePrefix("#eng")).toEqual({ scope: "channels", query: "eng" })
+    expect(parsePalettePrefix("> new task")).toEqual({ scope: "commands", query: "new task" })
+    expect(parsePalettePrefix("? where are we")).toEqual({ scope: "ask", query: "where are we" })
+  })
+  it("leaves a bare prefix and plain words alone", () => {
+    expect(parsePalettePrefix("#")).toEqual({ scope: null, query: "#" })
+    expect(parsePalettePrefix("launch")).toEqual({ scope: null, query: "launch" })
+  })
+})
+
+describe("looksLikeQuestion (S5)", () => {
+  it("is a question when it ends with ?, runs to four words, or starts with a question word", () => {
+    expect(looksLikeQuestion("launch?")).toBe(true)
+    expect(looksLikeQuestion("where are we on launch")).toBe(true)
+    expect(looksLikeQuestion("summarise engineering")).toBe(true)
+    expect(looksLikeQuestion("draft announcement")).toBe(true)
+    expect(looksLikeQuestion("why")).toBe(true)
+  })
+  it("is a search otherwise", () => {
+    expect(looksLikeQuestion("launch")).toBe(false)
+    expect(looksLikeQuestion("q4 launch plan")).toBe(false)
+    expect(looksLikeQuestion("  ")).toBe(false)
+  })
+})
+
+describe("the match highlight in a title (S10)", () => {
+  it("marks a whole-token match for the highlighter, and a match inside a word as fuzzy", () => {
+    expect(titleSegments("Q4 launch plan", "launch")).toEqual([
+      { text: "Q4 ", match: null },
+      { text: "launch", match: "token" },
+      { text: " plan", match: null },
+    ])
+    expect(titleSegments("Relaunch notes", "launch")).toEqual([
+      { text: "Re", match: null },
+      { text: "launch", match: "fuzzy" },
+      { text: " notes", match: null },
+    ])
+  })
+  it("keeps the title's own spelling and ignores accents and case", () => {
+    expect(titleSegments("Résumé review", "resume").map((s) => s.text).join("")).toBe("Résumé review")
+    expect(titleSegments("Résumé review", "resume")[0]).toEqual({ text: "Résumé", match: "token" })
+  })
+  it("ignores a single letter inside a word", () => {
+    expect(titleSegments("pull", "l")).toEqual([{ text: "pull", match: null }])
+  })
+})

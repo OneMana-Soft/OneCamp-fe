@@ -30,14 +30,12 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Circle, ArrowRight, X, CheckCircle2 } from "@/lib/icons"
+import { Circle, X, CheckCircle2, Users, Sparkles, Mail, Globe, Shield, Download } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { celebrate } from "@/lib/celebrate"
 import { cn } from "@/lib/utils/helpers/cn"
-import { homeGlyph, homeInset } from "@/components/home/homeLines"
 import {
     getOnboardingStatus,
     dismissOnboarding,
@@ -121,7 +119,7 @@ export function holdChecklistPlace(isAdmin: boolean | undefined, loaded: boolean
 /** How long "Hidden. Undo" stays before the server is told. */
 export const UNDO_HIDE_MS = 6_000
 /** Open steps listed before "Show N more". */
-const FIRST_STEPS = 3
+const FIRST_STEPS = 6
 
 interface Props {
     /** Rendered for nobody else; see the note above. */
@@ -233,7 +231,7 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
 
     if (hide !== "no" && isAdmin) {
         return (
-            <div role="status" className={cn("flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border/60 text-sm text-muted-foreground", homeInset)}>
+            <div role="status" className="flex min-h-10 items-center justify-between gap-3 rounded-lg bg-sunken px-4 text-ui text-ink-2">
                 Setup checklist hidden.
                 {hide === "pending" && (
                     <Button variant="ghost" size="sm" className="h-8" onClick={undoHide}>
@@ -263,40 +261,29 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     // a new admin is never left choosing between equal rows.
     const nextId = open[0]?.id
 
+    // Design v3 (hub.md H6): the demo guide's well and step cards, up to six
+    // steps in a 3 x 2 grid, and a segmented progress in place of the ring.
     return (
-        <Card role="region" aria-labelledby="setup-checklist-title" className={cn("py-5", homeInset)}>
-            {/* The heading sits beside how far along the setup is, a ring in
-                the place Home's other cards keep their tile, at a tile's 24px:
-                the ring and every step's circle share one column, and the
-                title and the steps' words one line (homeLines). At 32px the
-                title sat 16px right of the steps. */}
-            <div className="flex items-start gap-3">
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <ProgressRing
-                        value={state.total > 0 ? (state.done / state.total) * 100 : 0}
-                        label={`${state.done} of ${state.total} steps done`}
-                        size={24}
-                        className="-mt-0.5 shrink-0"
-                    />
-                    <div className="min-w-0">
-                        <h2 id="setup-checklist-title" className="text-sm font-semibold">Finish setting up your workspace</h2>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                            {state.done} of {state.total} done. This disappears on its own.
-                        </p>
-                    </div>
-                </div>
+        <section role="region" aria-labelledby="setup-checklist-title" className={WELL} data-setup-checklist="">
+            <div className="flex flex-wrap items-center gap-3 px-1 pb-3.5">
+                <h2 id="setup-checklist-title" className="text-heading font-semibold">Finish setting up your workspace</h2>
+                <SegmentedProgress done={state.done} total={state.total} />
+                <span className="text-meta tabular-nums text-ink-3">
+                    {state.done} of {state.total} done. This disappears on its own.
+                </span>
+                <span className="flex-1" />
                 <Button
                     variant="ghost"
-                    size="icon"
-                    className="relative h-8 w-8 shrink-0 text-muted-foreground after:absolute after:-inset-1.5 hover:text-foreground"
+                    size="icon-xs"
+                    className="relative shrink-0 text-ink-3 after:absolute after:-inset-2 hover:text-foreground"
                     onClick={hideCard}
                     aria-label="Hide the setup checklist"
                 >
-                    <X className="h-4 w-4" />
+                    <X className="size-3.5" />
                 </Button>
             </div>
 
-            <ul className="mt-3 flex flex-col divide-y divide-border/60">
+            <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 {listed.map((step) => (
                     <StepRow
                         key={step.id}
@@ -307,15 +294,10 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 ))}
                 {showSkipped &&
                     skippedSteps.map((step) => (
-                        <li key={step.id} className="flex min-h-12 items-center gap-3 py-1.5">
-                            <span className={homeGlyph} aria-hidden="true"><Circle className="h-4 w-4 text-muted-foreground/40" /></span>
-                            <span className="min-w-0 flex-1 text-sm text-muted-foreground">{step.title}</span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 shrink-0 text-xs text-muted-foreground hover:text-foreground"
-                                onClick={() => toggleSkipped(step.id, false)}
-                            >
+                        <li key={step.id} className="flex min-h-[132px] flex-col gap-2.5 rounded-lg p-3.5 ring-1 ring-inset ring-line">
+                            <StepTile id={step.id} quiet />
+                            <span className="min-w-0 flex-1 text-ui text-ink-3">{step.title}</span>
+                            <Button variant="ghost" size="xs" className="self-start" onClick={() => toggleSkipped(step.id, false)}>
                                 Put back
                             </Button>
                         </li>
@@ -323,17 +305,15 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
             </ul>
 
             {skipFailed && (
-                <p role="alert" className="mt-2 text-xs font-medium text-danger-ink">
+                <p role="alert" className="mt-2 px-1 text-meta font-medium text-danger-ink">
                     Couldn&apos;t set that step aside. Try again.
                 </p>
             )}
 
             {(more > 0 || (skippedSteps.length > 0 && !showSkipped)) && (
-                // Under the steps' words, as the list's last line: the button's
-                // own 6px padding is taken back so its text starts on that line.
-                <div className="mt-1 ml-[1.875rem] flex flex-wrap gap-x-2">
+                <div className="mt-2 flex flex-wrap gap-x-2 px-1">
                     {more > 0 && (
-                        <Button variant="ghost" size="sm" className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAll(true)}>
+                        <Button variant="ghost" size="xs" onClick={() => setShowAll(true)}>
                             Show {more} more
                         </Button>
                     )}
@@ -341,44 +321,88 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                         list you can get them back from, or "not now" is
                         indistinguishable from losing the feature. */}
                     {skippedSteps.length > 0 && !showSkipped && (
-                        <Button variant="ghost" size="sm" className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowSkipped(true)}>
+                        <Button variant="ghost" size="xs" onClick={() => setShowSkipped(true)}>
                             Show {skippedSteps.length} set aside
                         </Button>
                     )}
                 </div>
             )}
-        </Card>
+        </section>
     )
 }
 
-/** One open step: the link to it, and beside it (not inside it) setting it aside. */
+const WELL = "rounded-2xl bg-sunken p-3.5 ring-1 ring-inset ring-line dark:bg-white/[0.025]"
+
+/** 28 x 4px bars, moss when done (hub.md H5, H6). */
+function SegmentedProgress({ done, total }: { done: number; total: number }) {
+    const bars = Math.min(total, 12)
+    const filled = total > 0 ? Math.round((done / total) * bars) : 0
+    return (
+        <span className="flex gap-1" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={total > 0 ? Math.round((done / total) * 100) : 0} aria-label={`${done} of ${total} steps done`} data-segmented-progress="">
+            {Array.from({ length: bars }, (_, i) => (
+                <i key={i} className="relative h-1 w-7 overflow-hidden rounded-[2px] bg-press">
+                    <span className={cn("absolute inset-0 origin-left bg-camp-moss transition-transform duration-[320ms] ease-out", i < filled ? "scale-x-100" : "scale-x-0")} />
+                </i>
+            ))}
+        </span>
+    )
+}
+
+/** Each step's tile, by what it is about (hub.md H6). */
+const STEP_TILES: Record<string, { tone: string; Icon: React.ComponentType<{ className?: string }> }> = {
+    invite: { tone: "bg-camp-sky-tint text-camp-sky", Icon: Users },
+    ai: { tone: "bg-agent-muted text-agent", Icon: Sparkles },
+    model: { tone: "bg-agent-muted text-agent", Icon: Sparkles },
+    email: { tone: "bg-camp-sun-tint text-camp-sun", Icon: Mail },
+    domain: { tone: "bg-camp-lake-tint text-camp-lake", Icon: Globe },
+    sso: { tone: "bg-camp-dusk-tint text-camp-dusk", Icon: Shield },
+    import: { tone: "bg-camp-moss-tint text-camp-moss", Icon: Download },
+}
+
+function StepTile({ id, quiet = false }: { id: string; quiet?: boolean }) {
+    const key = Object.keys(STEP_TILES).find((k) => id.toLowerCase().includes(k))
+    const t = key ? STEP_TILES[key] : { tone: "bg-camp-sky-tint text-camp-sky", Icon: Circle }
+    return (
+        <span aria-hidden="true" className={cn("grid size-8 shrink-0 place-items-center rounded-[9px] [&_svg]:size-[18px]", quiet ? "bg-hover text-ink-3" : t.tone)}>
+            <t.Icon />
+        </span>
+    )
+}
+
+/** One open step as a card: the link to it, and beside it (not inside it) setting it aside. */
 function StepRow({ step, isNext, onSkip }: { step: OnboardingStep; isNext: boolean; onSkip: () => void }) {
     return (
-        <li className="flex items-center gap-2">
-            <Link
-                href={step.href}
-                className="group -mx-2 flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-                <span className={homeGlyph} aria-hidden="true"><Circle className="h-4 w-4 text-muted-foreground" /></span>
-                <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{step.title}</span>
-                    <span className="block text-xs text-muted-foreground">{step.detail}</span>
-                </span>
+        <li
+            className={cn(
+                "group relative flex min-h-[132px] flex-col gap-2.5 rounded-lg bg-sheet p-3.5 transition-[box-shadow,translate] duration-[140ms] ease-out focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand hover:-translate-y-px hover:shadow-e2 dark:bg-[#18191C]",
+                isNext ? "shadow-e2" : "shadow-e1",
+            )}
+            data-setup-step={step.id}
+            data-next={isNext ? "" : undefined}
+        >
+            <span className="flex items-start justify-between">
+                <StepTile id={step.id} />
+                <span
+                    aria-hidden="true"
+                    className={cn("size-5 rounded-full", isNext ? "ring-[1.5px] ring-inset ring-brand" : "ring-[1.5px] ring-inset ring-line-3")}
+                />
+            </span>
+            {/* The whole card is the link: an overlay stretched from the title. */}
+            <Link href={step.href} className="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']">
+                <span className="block text-ui font-medium">{step.title}</span>
+                <span className="mt-0.5 block text-meta text-ink-3">{step.detail}</span>
                 {isNext ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-text">
-                        Start
-                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="mt-2 block text-ui-sm font-medium text-brand-text">
+                        <span>Start</span> →
                     </span>
-                ) : (
-                    <ArrowRight aria-hidden="true" className="pointer-events-none h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                )}
+                ) : null}
             </Link>
             {/* OUTSIDE the Link, not inside it. A button nested in an anchor is
                 invalid, and the click would navigate as well as set the step
                 aside. The label names no provider: "Not coming from Slack"
                 asked a team arriving from Jira the wrong question. */}
             {step.skippable && (
-                <Button variant="ghost" size="sm" className="h-8 shrink-0 text-xs text-muted-foreground hover:text-foreground" onClick={onSkip}>
+                <Button variant="ghost" size="xs" className="relative z-[1] mt-auto self-start" onClick={onSkip}>
                     Nothing to import
                 </Button>
             )}
@@ -400,11 +424,11 @@ function ChecklistDone({ onClose }: { onClose: () => void }) {
         celebrate(ringRef.current)
     }, [])
     return (
-        <Card role="region" aria-labelledby="setup-checklist-done" className={cn("py-5", homeInset)}>
+        <section role="region" aria-labelledby="setup-checklist-done" className={WELL}>
             <div className="flex items-start gap-3">
                 <span ref={ringRef} className="-mt-0.5 shrink-0">
                     <ProgressRing value={100} label="Every step done" size={24}>
-                        <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </ProgressRing>
                 </span>
                 <div className="min-w-0 flex-1">
@@ -415,35 +439,30 @@ function ChecklistDone({ onClose }: { onClose: () => void }) {
                     <X className="h-4 w-4" />
                 </Button>
             </div>
-        </Card>
+        </section>
     )
 }
 
 /** The card's shape while it loads: its header and three step rows. */
 function ChecklistPlaceholder() {
     return (
-        <Card role="status" aria-label="Loading the setup checklist" aria-busy="true" className={cn("py-5", homeInset)}>
+        <div role="status" aria-label="Loading the setup checklist" aria-busy="true" className={WELL}>
             <div aria-hidden="true">
-                <div className="flex items-start gap-3">
-                    <Skeleton variant="circle" className="-mt-0.5 size-6 shrink-0" />
-                    <div className="grid gap-1.5 pt-0.5">
-                        <Skeleton className="h-4 w-56" />
-                        <Skeleton className="h-3 w-44" />
-                    </div>
+                <div className="flex items-center gap-3 px-1 pb-3.5">
+                    <Skeleton className="h-4 w-56" />
+                    <Skeleton className="h-1 w-32" />
                 </div>
-                <div className="mt-3 divide-y divide-border/60">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                     {[0, 1, 2].map((i) => (
-                        <div key={i} className="flex min-h-12 items-center gap-3 py-1.5">
-                            <span className={homeGlyph}><Skeleton variant="circle" className="h-4 w-4" /></span>
-                            <div className="grid flex-1 gap-1.5">
-                                <Skeleton className={i === 1 ? "h-3.5 w-1/2" : "h-3.5 w-2/5"} />
-                                <Skeleton className="h-3 w-3/5" />
-                            </div>
+                        <div key={i} className="flex min-h-[132px] flex-col gap-2.5 rounded-lg bg-sheet p-3.5 shadow-e1 dark:bg-[#18191C]">
+                            <Skeleton className="size-8 rounded-[9px]" />
+                            <Skeleton className="h-3.5 w-2/3" />
+                            <Skeleton className="h-3 w-4/5" />
                         </div>
                     ))}
                 </div>
             </div>
-        </Card>
+        </div>
     )
 }
 

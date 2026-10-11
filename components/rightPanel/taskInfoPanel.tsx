@@ -1,10 +1,8 @@
 "use client"
 import {startTransition, useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {Separator} from "@/components/ui/separator"
 import { TagPicker } from "@/components/tags/TagPicker"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
-import {Button, buttonVariants} from "@/components/ui/button"
-import Link from "next/link"
+import {Button} from "@/components/ui/button"
 import {useDispatch, useSelector} from "react-redux"
 import type {RootState} from "@/store/store"
 import {priorities, type prioritiesInterface} from "@/types/table"
@@ -28,10 +26,8 @@ import {
     updateTaskPriorityInTaskList, updateTaskStartDateInTaskList,
     updateTaskStatusInTaskList,
 } from "@/store/slice/taskInfoSlice"
-import {Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList} from "@/components/ui/tabs"
 import {cn} from "@/lib/utils/helpers/cn"
-import { MessageSquare, Trash2, Github } from "@/lib/icons";
-import { Activity } from "@/lib/icons";
+import { Trash2 } from "@/lib/icons";
 import {TaskGitHubSection} from "@/components/task/taskGitHubSection"
 import {TaskAttachmentsSection} from "@/components/task/taskAttachmentsSection"
 import {LinkedItemsSection} from "@/components/entityLink/LinkedItemsSection"
@@ -53,7 +49,6 @@ import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader
 import {openUI} from "@/store/slice/uiSlice"
 import {TaskCommentBox} from "@/components/task/taskCommentComposer"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
-import {DateField} from "@/components/task/taskDateField"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
 import {TaskCycleField} from "@/components/task/taskCycleField"
 import {TaskTimeSection} from "@/components/task/taskTimeSection"
@@ -67,26 +62,30 @@ import {TaskAssigneePicker} from "@/components/task/taskAssigneePicker"
 import {CommentsList} from "@/components/rightPanel/commentsList"
 import TaskActivitySection from "@/components/task/taskActivitySection"
 import GitHubActivityTab from "@/components/task/GitHubActivityTab"
-import {ColorIcon} from "@/components/colorIcon/colorIcon"
 import type {AttachmentMediaReq} from "@/types/attachment"
 import {SubtasksSection} from "@/components/task/subtasksSection"
 import {TaskDescription} from "@/components/task/taskDescription"
 import {TaskPanelSkeleton} from "@/components/task/taskPanelSkeleton"
 import {TaskDependencies} from "@/components/task/TaskDependencies"
 import {useRouter} from "next/navigation"
-import {app_project_path, app_task_path, app_team_path} from "@/types/paths"
+import {app_task_path} from "@/types/paths"
 import {useMedia} from "@/context/MediaQueryContext"
 import {CreateOrUpdateCommentReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {useTranslation} from "react-i18next";
 import {EmptyState} from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state"
 import { appMutate as mutate } from "@/lib/swrMutate";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import { fieldLabel, fieldRow, inlineValue } from "@/lib/ui/fieldRow"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import TaskStream from "@/components/task/TaskStream"
+import { DatesProperty, MoreFields, entranceStyle, usePanelEntrance } from "@/components/task/panelParts"
+import { propertyLabel, propertyRow, panelSection } from "@/lib/ui/propertyRow"
+import { useTaskTime } from "@/hooks/useTaskTime"
+import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { SpotDocs } from "@/components/ui/graphics/spots"
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -107,13 +106,15 @@ const NO_COMMENTS: CommentInfoInterface[] = []
 
 interface TaskInfoPanelProps {
     taskUUID: string
+    /** On the full task page rather than in the panel: no close, no "open full page". */
+    onPage?: boolean
 }
 
+type StreamFilter = "all" | "comments" | "history" | "github"
 
-/** The body of the panel's Comments, Activity and GitHub tabs: one inset for the three. */
-const PANEL_TAB = "pr-2 pt-2"
 
-export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
+
+export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPanelProps) {
     const dispatch = useDispatch()
     const post = usePost()
     const uploadFile = useUploadFile()
@@ -123,7 +124,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const { connectionState: mqttState } = useMqtt();
     const isMqttHealthy = mqttState.isConnected;
 
-    const {t} = useTranslation()
     const { toast } = useToast()
 
     const fileTaskInputRef = useRef<HTMLInputElement>(null)
@@ -143,6 +143,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const [startDate, setStartDate] = useState<Date | undefined>(undefined)
     const [taskSubTasks, setTaskSubTasks] = useState<TaskInfoInterface[]>([])
     const [taskAttachments, setTaskAttachments] = useState<AttachmentMediaReq[]>([])
+    // The header's hairline shows once the body has scrolled (W28).
+    const [scrolled, setScrolled] = useState(false)
+    const [streamFilter, setStreamFilter] = useState<StreamFilter>("all")
+    const entrance = usePanelEntrance()
+    const taskTime = useTaskTime(taskUUID)
 
     const taskNameUpdateDebounce = useDebounce(taskName, CONSTANTS.DEBOUNCE_DELAY)
     const taskLabelDebounce = useDebounce(taskLabel, CONSTANTS.DEBOUNCE_DELAY)
@@ -790,85 +795,137 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         return () => cancelAnimationFrame(id)
     }, [])
 
+    const hasGitHub = !!(taskInfo.data?.data?.task_github_issue_url || taskInfo.data?.data?.task_github_pr_url || taskInfo.data?.data?.task_github_branch)
+    const streamOptions = useMemo(
+        () => [
+            { value: "all" as const, label: "All" },
+            { value: "comments" as const, label: taskCommentState.length ? `Comments ${taskCommentState.length}` : "Comments" },
+            { value: "history" as const, label: "History" },
+            ...(hasGitHub ? [{ value: "github" as const, label: "GitHub" }] : []),
+        ],
+        [taskCommentState.length, hasGitHub],
+    )
+
+    // A run of comments, drawn by the comments' own list with their real
+    // indexes, so reacting, editing and deleting reach the right one.
+    const renderComments = (start: number, end: number) => (
+        <CommentsList
+            comments={start === 0 && end === taskCommentState.length ? taskCommentState : taskCommentState.slice(start, end)}
+            removeReaction={(reactionId, commentId, idx) => removeCommentReaction(reactionId, commentId, idx + start)}
+            addOrUpdateReaction={(emojiId, reactionId, commentId, idx) => createOrUpdateCommentReaction(emojiId, reactionId, commentId, idx + start)}
+            removeComment={(id, idx) => handleDeleteTaskComment(id, idx + start)}
+            updateComment={(id, body, idx) => handleUpdateTaskComment(id, body, idx + start)}
+            getMediaURL={`${GetEndpointUrl.GetProjectMedia}/${taskInfo.data?.data.task_project.project_uuid}`}
+        />
+    )
+
     // The panel's shape, not a spinner: it fills in place (taskPanelSkeleton).
     if(taskInfo.isLoading) return <TaskPanelSkeleton />
 
+    // A task that isn't there for this person (deleted for good, or in a
+    // project they aren't in) says so, rather than a blank panel or a retry.
+    const loadStatus = (taskInfo.isError as { response?: { status?: number } } | undefined)?.response?.status
+    if (!taskInfo.data?.data && (loadStatus === 403 || loadStatus === 404)) {
+        return (
+            <div className="flex h-full flex-col">
+                <EmptyState
+                    illustration={<SpotDocs hue="dusk" />}
+                    title="You can't see this task"
+                    description="It's in a project you're not in, or it's gone."
+                    action={isDesktop ? <Button variant="secondary" size="sm" onClick={() => dispatch(closeRightPanel())}>Close</Button> : undefined}
+                    className="m-auto"
+                />
+            </div>
+        )
+    }
+    if (!taskInfo.data?.data && taskInfo.isError) {
+        return (
+            <div className="flex h-full flex-col">
+                <ErrorState subject="this task" onRetry={() => void taskInfo.mutate()} className="m-auto" />
+            </div>
+        )
+    }
+
+    const projectUUID = taskInfo.data?.data.task_project?.project_uuid || ""
+    const isDone = selectedStatus?.category === CONSTANTS.STATUS_DONE
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" data-task-panel="">
             <div>
                 <RightPanelTaskHeader
                     isAdmin={isAdmin}
-                    canMarkComplete={canMarkComplete && isAdmin}
+                    canMarkComplete={canMarkComplete}
                     onMarkComplete={() => handleStatusSelect(CONSTANTS.STATUS_DONE)}
+                    onReopen={() => handleStatusSelect("todo")}
                     onDeleteTask={handleDeleteTask}
                     taskUUID={taskUUID}
                     taskName={taskInfo.data?.data.task_name}
                     projectName={taskInfo.data?.data.task_project?.project_name}
+                    projectUUID={projectUUID}
+                    scrolled={scrolled}
+                    onPage={onPage}
                     hasGitHubLink={!!(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch)}
                 />
-                {((isMobile && canMarkComplete) || isDesktop) && <Separator orientation="horizontal" />}
                 {taskIsDeleted && (
-                    <div className="w-full bg-destructive mb-2 text-sm  px-2 py-2 text-primary-foreground flex justify-between items-center">
-                        <div className="flex gap-x-2 items-center">
-                            <Trash2 className="h-5 w-5" />
-                            <span>This task is deleted</span>
-                        </div>
-                        <Button variant="ghost" onClick={handleUndeleteTask} className={'hover:text-destructive-foreground'}>
-                            Undelete
-                        </Button>
+                    // A danger-tint strip, not a solid red bar (W28).
+                    <div data-task-deleted="" className="flex h-10 items-center justify-between gap-2 bg-destructive/10 pl-5 pr-2.5 text-ui-sm text-danger-ink">
+                        <span className="flex items-center gap-2">
+                            <Trash2 className="h-3.5 w-3.5" />
+                            This task is deleted
+                        </span>
+                        {isAdmin && (
+                            <Button variant="ghost" size="sm" onClick={handleUndeleteTask} className="h-7 text-danger-ink hover:bg-destructive/10 hover:text-danger-ink">
+                                Undelete
+                            </Button>
+                        )}
                     </div>
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pt-4 px-2">
-
-
+            <div
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+                onScroll={(e) => {
+                    const past = e.currentTarget.scrollTop > 0
+                    if (past !== scrolled) setScrolled(past)
+                }}
+            >
+                {/* On the full page (W37) the body is two columns: the work on the
+                    left, the properties as a sticky 280px rail on the right. */}
+                <div
+                    data-task-body={onPage ? "page" : "panel"}
+                    className={cn(
+                        "px-6 pb-6 pt-[18px]",
+                        onPage && "mx-auto w-full max-w-[1080px] lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-x-12 lg:px-8 lg:pt-8 lg:[&>*]:col-start-1",
+                    )}
+                    style={entranceStyle(entrance, "body")}
+                >
                 {parentTask && (
-                    <div className="ml-4 pr-4 mb-3 text-sm sm:text-lg break-words">
-                        Parent:{" "}
-                        <button
-                            type="button"
-                            className="hover:underline hover:cursor-pointer text-primary break-words"
-                            onClick={() => handleChangeTask(parentTask.task_uuid)}
-                        >
-                            {parentTask.task_name}
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className="mb-2 inline-flex max-w-full items-center gap-1 text-ui-sm text-ink-3 transition-colors hover:text-foreground"
+                        onClick={() => handleChangeTask(parentTask.task_uuid)}
+                    >
+                        <span className="shrink-0">Subtask of</span>
+                        <span className="truncate font-[510] text-ink-2">{parentTask.task_name}</span>
+                    </button>
                 )}
 
-                <div className="px-2 sm:pl-4 sm:pr-4 pb-4">
-                    {/*
-                      Auto-sizing label chip. The ghost span mirrors the
-                      current value (or placeholder) at the same font-size
-                      so the parent <span> width matches the typed text;
-                      the actual <input> sits absolutely over it. Both
-                      use text-sm (not the Input default text-base)
-                      otherwise the input text would overflow the
-                      ghost-sized container on mobile.
-                    */}
-                    {/* Tags: pills for everyone, a picker of the project's tags for
-                        whoever can edit the task. Nothing at all when there are none
-                        and you can't add any. */}
-                    {(isAdmin || taskLabel.trim() !== "") && (
-                        <div className="-ml-1.5">
-                            <TagPicker
-                                projectId={taskInfo.data?.data.task_project?.project_uuid}
-                                label={taskLabel}
-                                canEdit={isAdmin}
-                                onChange={setTaskLabel}
-                            />
-                        </div>
-                    )}
-
-                    <div className="mt-4 mb-4">
+                    {/* The title: title-2, edited in place, a hover ground behind it (W29). */}
+                    <div className="-mx-1 mb-4 rounded-md transition-colors hover:bg-hover focus-within:bg-transparent" style={entranceStyle(entrance, "title")}>
                         <ResizeableTextInput
                             delay={3000}
                             content={taskInfo.data?.data.task_name || ""}
                             textUpdate={(s: string) => setTaskName({ taskName: s, taskUUID })}
-                            className="!text-xl sm:!text-2xl font-medium"
+                            disabled={!isAdmin}
+                            className="!min-h-0 !border-0 !bg-transparent !px-1 !py-0.5 !text-title-2 !shadow-none"
                         />
                     </div>
 
+                    {/* The six properties that always show, then the rest (W29). */}
+                    <div
+                        data-task-properties=""
+                        className={cn("mb-6", onPage && "lg:sticky lg:top-6 lg:!col-start-2 lg:row-[1/span_40] lg:mb-0 lg:self-start lg:rounded-lg lg:bg-raised lg:p-4 lg:shadow-e1")}
+                    >
                     <TaskStatusPriorityControl
                         isAdmin={isAdmin}
                         selectedStatus={selectedStatus}
@@ -876,11 +933,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         selectedPriority={selectedPriority}
                         onSelectStatus={handleStatusSelect}
                         onSelectPriority={handlePrioritySelect}
-                        onManageStatuses={isAdmin && taskInfo.data?.data.task_project?.project_uuid ? () => setManagingStatuses(true) : undefined}
+                        onManageStatuses={isAdmin && projectUUID ? () => setManagingStatuses(true) : undefined}
                     />
-                    {isAdmin && taskInfo.data?.data.task_project?.project_uuid && (
+                    {isAdmin && projectUUID && (
                         <ProjectStatusesDialog
-                            projectId={taskInfo.data.data.task_project.project_uuid}
+                            projectId={projectUUID}
                             open={managingStatuses}
                             onOpenChange={setManagingStatuses}
                         />
@@ -895,91 +952,60 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         includeAITeammates
                     />
 
-                    <DateField
+                    <DatesProperty
                         isAdmin={isAdmin}
-                        label="Start date"
-                        value={startDate}
-                        onSelect={(d) => {
+                        start={startDate}
+                        due={dueDate}
+                        done={isDone}
+                        onStart={(d) => {
                             setStartDate(d)
                             updateTaskStartDate(d, taskUUID)
                         }}
-                        onClear={() => {
-                            setStartDate(undefined)
-                            updateTaskStartDate(undefined, taskUUID)
-                        }}
-                    />
-                    <DateField
-                        isAdmin={isAdmin}
-                        label="Due date"
-                        value={dueDate}
-                        onSelect={(d) => {
+                        onDue={(d) => {
                             setDueDate(d)
                             updateTaskDueDate(d, taskUUID)
                         }}
-                        onClear={() => {
-                            setDueDate(undefined)
-                            updateTaskDueDate(undefined, taskUUID)
-                        }}
                     />
-                    <TaskRepeatField
-                        taskUUID={taskUUID}
-                        isAdmin={isAdmin}
-                        isSubtask={!!taskInfo.data?.data.task_parent_task?.task_uuid}
-                        dueDate={dueDate}
-                    />
-                    <TaskCycleField
-                        taskUUID={taskUUID}
-                        projectId={taskInfo.data?.data.task_project?.project_uuid}
-                        isAdmin={isAdmin}
-                    />
-                    {taskInfo.data?.data.task_project?.project_uuid && (
-                        <>
-                            <TaskEstimateField
-                                taskUUID={taskUUID}
-                                projectUUID={taskInfo.data.data.task_project.project_uuid}
-                                minutes={taskInfo.data.data.task_estimate_minutes}
-                                canEdit={isAdmin}
-                            />
-                            <TaskTimeSection taskUUID={taskUUID} estimateMinutes={taskInfo.data.data.task_estimate_minutes} />
+                    {projectUUID && (
+                        <TaskEstimateField
+                            taskUUID={taskUUID}
+                            projectUUID={projectUUID}
+                            minutes={taskInfo.data?.data.task_estimate_minutes}
+                            loggedSeconds={taskTime.time?.seconds}
+                            canEdit={isAdmin}
+                        />
+                    )}
+                    {/* Tags: chips for everyone, the picker for whoever can edit. */}
+                    {(isAdmin || taskLabel.trim() !== "") && (
+                        <div className={propertyRow()} data-property="labels">
+                            <span className={propertyLabel}>Labels</span>
+                            <div className="min-w-0">
+                                <TagPicker projectId={projectUUID} label={taskLabel} canEdit={isAdmin} onChange={setTaskLabel} />
+                            </div>
+                        </div>
+                    )}
+                    {projectUUID && <TaskTimeSection taskUUID={taskUUID} estimateMinutes={taskInfo.data?.data.task_estimate_minutes} />}
+
+                    <MoreFields>
+                        <TaskRepeatField
+                            taskUUID={taskUUID}
+                            isAdmin={isAdmin}
+                            isSubtask={!!taskInfo.data?.data.task_parent_task?.task_uuid}
+                            dueDate={dueDate}
+                        />
+                        <TaskCycleField taskUUID={taskUUID} projectId={projectUUID} isAdmin={isAdmin} />
+                        {projectUUID && (
                             <TaskFieldsSection
                                 key={taskUUID}
                                 taskUUID={taskUUID}
-                                projectUUID={taskInfo.data.data.task_project.project_uuid}
-                                values={taskInfo.data.data.task_fields}
+                                projectUUID={projectUUID}
+                                values={taskInfo.data?.data.task_fields}
                                 canEdit={isAdmin}
                                 members={projectMembers}
                             />
-                        </>
-                    )}
-                    <TaskClientReview taskUUID={taskUUID} />
-
-                    <div className={fieldRow()}>
-                        <div className={fieldLabel}>
-                            <div>Project</div>
-                        </div>
-                        <div className="min-w-0">
-                            {/* Links, so they open in a new tab with Ctrl or ⌘ as links do. */}
-                            <Link
-                                href={`${app_project_path}/${taskInfo.data?.data.task_project.project_uuid || ""}`}
-                                className={cn(buttonVariants({ variant: "ghost" }), inlineValue, "w-fit")}
-                            >
-                                <ColorIcon size="xs" name={taskInfo.data?.data.task_project.project_uuid || ""} />
-                                <span className="truncate">{taskInfo.data?.data.task_project.project_name}</span>
-                            </Link>
-                        </div>
-                    </div>
-                    <div className={fieldRow("center", "mb-6")}>
-                        <div className={fieldLabel}>
-                            <div>Team</div>
-                        </div>
-                        <div className="min-w-0">
-                            <Link
-                                href={`${app_team_path}/${taskInfo.data?.data.task_team.team_uuid || ""}`}
-                                className={cn(buttonVariants({ variant: "ghost" }), inlineValue, "w-fit")}
-                            >
-                                <span className="truncate">{taskInfo.data?.data.task_team.team_name}</span>
-                            </Link>
-                        </div>
+                        )}
+                        <TaskClientReview taskUUID={taskUUID} />
+                    </MoreFields>
                     </div>
 
                     {settled ? (<>
@@ -990,6 +1016,73 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         html={taskInfo.data?.data.task_description || ""}
                         canEdit={isAdmin}
                     />
+
+                    <SubtasksSection
+                        isAdmin={isAdmin}
+                        subtasks={taskSubTasks}
+                        projectMembers={projectMembers}
+                        onToggleStatus={(id, newStatus) => {
+                                const patch = statusPatch(newStatus, statusOpts)
+                                setTaskSubTasks((prevSubtasks) =>
+                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, ...patch } : subtask)),
+                                )
+                                updateTaskStatus(newStatus, id, patch)
+                            }
+                        }
+                        onRename={(id, name) => setTaskName({ taskName: name, taskUUID: id })}
+                        onUpdateStart={(id, d) => {
+                                setTaskSubTasks((prevSubtasks) =>
+                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_start_date: d?.toISOString() || "" } : subtask)),
+                                )
+                                updateTaskStartDate(d, id)
+                            }
+                        }
+                        onUpdateDue={(id, d) => {
+                                setTaskSubTasks((prevSubtasks) =>
+                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_due_date: d?.toISOString() || "" } : subtask)),
+                                )
+                                updateTaskDueDate(d, id)
+                            }
+                        }
+                        onUpdateAssignee={(id, userInfo) => {
+                                setTaskSubTasks((prevSubtasks) =>
+                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_assignee: userInfo } : subtask)),
+                                )
+                                updateTaskAssignee(userInfo, id)
+                            }
+                        }
+                        onOpen={handleChangeTask}
+                        onCreateSubtask={handleCreateSubtask}
+                    />
+
+                    {/* A project's top-level tasks wait on one another; subtasks are steps inside a task. */}
+                    {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !taskInfo.data.data.task_parent_task?.task_uuid && (
+                        <TaskDependencies
+                            taskUUID={taskUUID}
+                            taskName={taskInfo.data.data.task_name}
+                            projectUUID={taskInfo.data.data.task_project.project_uuid}
+                            canEdit={isAdmin}
+                            waitingOn={taskInfo.data.data.task_blocked_by ?? []}
+                            blocking={taskInfo.data.data.task_blocks ?? []}
+                            onOpen={handleChangeTask}
+                        />
+                    )}
+
+                    <TaskAttachmentsSection
+                        isAdmin={isAdmin}
+                        attachments={taskAttachments}
+                        previewFiles={taskInputState?.filesPreview || []}
+                        projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
+                        fileInputRef={fileTaskInputRef}
+                        onFileSelect={handleTaskFileUpload}
+                        onRemoveAttachment={deleteTaskAttachment}
+                        onAttachmentClick={handleAttachmentIconClick}
+                        onRemovePreview={removeTaskPreviewFile}
+                    />
+
+                    {taskUUID && (
+                        <LinkedItemsSection sourceType="task" sourceUUID={taskUUID} canEdit={isAdmin} />
+                    )}
 
                     {taskInfo.data?.data && (
                         <div className="mb-4">
@@ -1071,139 +1164,39 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         </div>
                     )}
 
-                    <TaskAttachmentsSection
-                        isAdmin={isAdmin}
-                        attachments={taskAttachments}
-                        previewFiles={taskInputState?.filesPreview || []}
-                        projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
-                        fileInputRef={fileTaskInputRef}
-                        onFileSelect={handleTaskFileUpload}
-                        onRemoveAttachment={deleteTaskAttachment}
-                        onAttachmentClick={handleAttachmentIconClick}
-                        onRemovePreview={removeTaskPreviewFile}
-                    />
-
-                    {taskUUID && (
-                        <LinkedItemsSection sourceType="task" sourceUUID={taskUUID} canEdit={isAdmin} />
-                    )}
-
-                    {/* A project's top-level tasks wait on one another; subtasks are steps inside a task. */}
-                    {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !taskInfo.data.data.task_parent_task?.task_uuid && (
-                        <TaskDependencies
-                            taskUUID={taskUUID}
-                            taskName={taskInfo.data.data.task_name}
-                            projectUUID={taskInfo.data.data.task_project.project_uuid}
-                            canEdit={isAdmin}
-                            waitingOn={taskInfo.data.data.task_blocked_by ?? []}
-                            blocking={taskInfo.data.data.task_blocks ?? []}
-                            onOpen={handleChangeTask}
-                        />
-                    )}
-
-                    <SubtasksSection
-                        isAdmin={isAdmin}
-                        subtasks={taskSubTasks}
-                        projectMembers={projectMembers}
-                        onToggleStatus={(id, newStatus) => {
-                                const patch = statusPatch(newStatus, statusOpts)
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, ...patch } : subtask)),
-                                )
-                                updateTaskStatus(newStatus, id, patch)
-                            }
-                        }
-                        onRename={(id, name) => setTaskName({ taskName: name, taskUUID: id })}
-                        onUpdateStart={(id, d) => {
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_start_date: d?.toISOString() || "" } : subtask)),
-                                )
-                                updateTaskStartDate(d, id)
-                            }
-                        }
-                        onUpdateDue={(id, d) => {
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_due_date: d?.toISOString() || "" } : subtask)),
-                                )
-                                updateTaskDueDate(d, id)
-                            }
-                        }
-                        onUpdateAssignee={(id, userInfo) => {
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_assignee: userInfo } : subtask)),
-                                )
-                                updateTaskAssignee(userInfo, id)
-                            }
-                        }
-                        onOpen={handleChangeTask}
-                        onCreateSubtask={handleCreateSubtask}
-                    />
-
-                    <div className="mt-4">
-                        <Tabs defaultValue="comments" className="w-full">
-                            {/* The project page's underline tabs, not a box of its own. */}
-                            <TabsList className={cn(underlineTabsList, "overflow-x-auto")}>
-                                <TabsTrigger value="comments" className={underlineTab}>
-                                    <MessageSquare className="h-4 w-4" />
-                                    Comments
-                                    {taskCommentState.length > 0 && <span className="tabular-nums text-muted-foreground">{taskCommentState.length}</span>}
-                                </TabsTrigger>
-                                <TabsTrigger value="activities" className={underlineTab}>
-                                    <Activity className="h-4 w-4" />
-                                    Activity
-                                </TabsTrigger>
-                                {(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch) && (
-                                    <TabsTrigger value="github" className={underlineTab}>
-                                        <Github className="h-4 w-4" />
-                                        GitHub
-                                    </TabsTrigger>
-                                )}
-                            </TabsList>
-                            {/* Comments, Activity and GitHub share one body: a switch
-                                moved the first row 16px sideways and 8px down. */}
-                            <TabsContent value="comments" className={PANEL_TAB}>
-                                {taskInfo.isError ? (
-                                    // Ahead of the empty branch: "Be the first to
-                                    // share an update" on a failed fetch invites a
-                                    // comment onto a thread that may already have
-                                    // one, which the user then talks over.
-                                    <ErrorState
-                                        subject="the comments"
-                                        onRetry={() => void taskInfo.mutate()}
-                                        className="py-8"
-                                    />
-                                ) : taskCommentState?.length ? (
-                                    <CommentsList
-                                        comments={taskCommentState}
-                                        removeReaction={removeCommentReaction}
-                                        addOrUpdateReaction={createOrUpdateCommentReaction}
-                                        removeComment={handleDeleteTaskComment}
-                                        updateComment={handleUpdateTaskComment}
-                                        getMediaURL={`${GetEndpointUrl.GetProjectMedia}/${taskInfo.data?.data.task_project.project_uuid}`}
-                                    />
-                                ) : (
-                                    <EmptyState
-                                        icon={MessageSquare}
-                                        title="No comments yet"
-                                        description="Be the first to share an update or ask a question."
-                                        className="py-8"
-                                    />
-                                )}
-                            </TabsContent>
-                            <TabsContent value="activities" className={PANEL_TAB}>
-                                {taskInfo.isError ? (
-                                    // Not "No activities yet" on a failed fetch.
-                                    <ErrorState subject="the activity" onRetry={() => void taskInfo.mutate()} className="py-8" />
-                                ) : (
-                                    <TaskActivitySection taskActivity={taskInfo.data?.data.task_activities} />
-                                )}
-                            </TabsContent>
-                            {(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch) && (
-                                <TabsContent value="github" className={PANEL_TAB}>
-                                    <GitHubActivityTab taskUUID={taskUUID} />
-                                </TabsContent>
-                            )}
-                        </Tabs>
-                    </div>
+                    {/* One stream: comments and history in time order, filtered (W32). */}
+                    <section className="mt-8" data-task-stream="">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <h3 className={panelSection}>Activity</h3>
+                            <SegmentedControl
+                                aria-label="Show"
+                                value={streamFilter}
+                                onValueChange={setStreamFilter}
+                                options={streamOptions}
+                                className="p-0.5"
+                                itemClassName="h-6 px-2 text-xs md:h-6"
+                            />
+                        </div>
+                        {taskInfo.isError ? (
+                            // Not "no comments yet" on a failed fetch: that invites a
+                            // comment onto a thread that may already have one.
+                            <ErrorState subject="the activity" onRetry={() => void taskInfo.mutate()} className="py-8" />
+                        ) : streamFilter === "github" ? (
+                            <GitHubActivityTab taskUUID={taskUUID} />
+                        ) : streamFilter === "history" ? (
+                            <TaskActivitySection taskActivity={taskInfo.data?.data.task_activities} />
+                        ) : streamFilter === "comments" ? (
+                            taskCommentState.length ? renderComments(0, taskCommentState.length) : (
+                                <p className="py-6 text-center text-ui-sm text-ink-3">No comments yet. Ask a question or share where it stands.</p>
+                            )
+                        ) : (
+                            <TaskStream
+                                activities={taskInfo.data?.data.task_activities}
+                                comments={taskCommentState}
+                                renderComments={renderComments}
+                            />
+                        )}
+                    </section>
                     </>) : (
                         // Where the description and the rest go, for the frame before they do.
                         <div aria-hidden className="h-[11.5rem]" />

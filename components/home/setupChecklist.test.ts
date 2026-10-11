@@ -68,7 +68,7 @@ describe("shouldShowChecklist", () => {
 // the same word.
 describe("the Recent card's empty state", () => {
   const dashboard = readFileSync(
-    join(__dirname, "desktop", "desktopDashboard.tsx"),
+    join(__dirname, "HomeLists.tsx"),
     "utf8",
   )
 

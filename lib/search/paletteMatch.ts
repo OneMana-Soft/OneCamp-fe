@@ -119,3 +119,89 @@ export function rankTargets<T extends { label: string; keywords?: readonly strin
     .slice(0, limit)
     .map((x) => x.item)
 }
+
+/* ---------- the field's scope prefixes and the Ask AI heuristic (hub.md S2, S5) ---------- */
+
+/** What a prefix typed at the start of the field narrows the search to. */
+export type PaletteScope = "people" | "channels" | "commands" | "ask"
+
+const PREFIX_SCOPE: Record<string, PaletteScope> = { "@": "people", "#": "channels", ">": "commands", "?": "ask" }
+
+/** The words each scope's chip carries. */
+export const PALETTE_SCOPE_LABEL: Record<PaletteScope, string> = {
+  people: "People",
+  channels: "Channels",
+  commands: "Commands",
+  ask: "Ask AI",
+}
+
+/**
+ * Splits a recognised prefix off the field: "@maya" is people and "maya",
+ * "?" with anything after it is a question for the AI. A prefix becomes a
+ * chip only once something follows it or a space does, so typing "#" alone
+ * does not jump to a chip under the cursor. Pure.
+ */
+export function parsePalettePrefix(input: string): { scope: PaletteScope | null; query: string } {
+  const m = /^([@#>?])(\s?)([\s\S]*)$/.exec(input)
+  if (!m) return { scope: null, query: input }
+  const [, prefix, space, rest] = m
+  if (!rest && !space) return { scope: null, query: input }
+  return { scope: PREFIX_SCOPE[prefix], query: rest }
+}
+
+const QUESTION_START = /^(what|why|how|who|when|where|which|summari[sz]e|draft|explain|should|can|could|is|are|do|does)\b/i
+
+/**
+ * Whether a query reads as a question for the AI rather than a search: it ends
+ * with "?", it is four words or more, or it starts with a question word or
+ * "summarise" or "draft". The palette's "Ask OneCamp AI" row and the search
+ * page's empty state offer the AI only then. Pure.
+ */
+export function looksLikeQuestion(query: string): boolean {
+  const q = query.trim()
+  if (!q) return false
+  if (q.endsWith("?")) return true
+  if (q.split(/\s+/).length >= 4) return true
+  return QUESTION_START.test(q)
+}
+
+/* ---------- the match highlight in a title (hub.md S10) ---------- */
+
+/** A run of a title: a whole-token match is "token", a character-only match "fuzzy". */
+export interface TitleSegment {
+  text: string
+  match: "token" | "fuzzy" | null
+}
+
+/**
+ * The parts of a title a query matched. A word of the title that starts with a
+ * word of the query is a token match, drawn with the sun highlighter; a query
+ * found only inside a word is a fuzzy match, drawn in weight alone. Accents
+ * and case are ignored, and the title's own spelling is kept. Pure.
+ */
+export function titleSegments(title: string, query: string): TitleSegment[] {
+  const words = normaliseQuery(query).split(" ").filter(Boolean)
+  if (!title || words.length === 0) return title ? [{ text: title, match: null }] : []
+  const plain = title.normalize("NFD").replace(/\p{M}/gu, "")
+  // Fold to a comparable string of the same length as the title.
+  const fold = plain.length === title.length ? plain.toLowerCase() : title.toLowerCase()
+  const marks: (TitleSegment["match"])[] = Array.from({ length: title.length }, () => null)
+  for (const w of words) {
+    let from = 0
+    for (let at = fold.indexOf(w, from); at !== -1; at = fold.indexOf(w, from)) {
+      const startOfWord = at === 0 || !/[\p{L}\p{N}]/u.test(fold[at - 1])
+      // A single letter inside a word is noise, not a match.
+      if (startOfWord || w.length > 1) {
+        for (let i = at; i < at + w.length; i++) if (marks[i] !== "token") marks[i] = startOfWord ? "token" : "fuzzy"
+      }
+      from = at + w.length
+    }
+  }
+  const out: TitleSegment[] = []
+  for (let i = 0; i < title.length; i++) {
+    const tail = out[out.length - 1]
+    if (tail && tail.match === marks[i]) tail.text += title[i]
+    else out.push({ text: title[i], match: marks[i] })
+  }
+  return out
+}

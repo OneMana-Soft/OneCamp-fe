@@ -1,29 +1,50 @@
 "use client"
 
 /**
- * Per-user email notification preferences. Reads /user/notificationPreferences,
- * lets the user toggle per-event flags + global on/off + quiet hours, and
- * saves what changed back to the same endpoint when they press Save.
+ * Your notification preferences (design v3, admin S2): email, the digest and
+ * quiet hours. ONE save model, instant: each switch, checkbox and choice
+ * saves the moment it changes and says "Saved" with the row's tick; the time
+ * fields save 600ms after the last keystroke. The page used to say "Changes
+ * here wait for Save" for this card while every other card on it saved at
+ * once, with the Save far below.
  *
- * When the backend reports email_supported=false (RESEND_API_KEY missing
- * on the server), the whole panel is shown but disabled with a clear
- * "your admin hasn't configured email yet" message. A request that FAILED is
- * not that: it says the load failed and offers to try again.
+ * The server takes a partial update (only the fields sent change), so each
+ * change sends just its own field. While a change is in flight it is laid
+ * over the server's answer; when it holds, the answer is updated in place;
+ * when it fails, the control springs back and the row says why. The Read
+ * receipts card reads and updates this same answer.
+ *
+ * Email off for the person: the event rows stay where they are, dimmed and
+ * disabled, under one line, so the page never jumps. Email off on the server
+ * (no provider configured): said once, at the top; a request that FAILED is
+ * not that, and says the load failed with Try again.
+ *
+ * At 720px and wider the events are a matrix: events down the side, a
+ * column per channel the server stores per event. Today that is Email only
+ * (the preference model has no per-event push or in-app flags), so the
+ * matrix has one column; a channel gains a column when the server stores it.
  */
 
-import { useMemo, useState } from "react"
+import * as React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils/helpers/cn"
+import { Checkbox } from "@/components/ui/checkbox"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
-import { SaveBar, SettingRow, SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { ErrorState } from "@/components/ui/error-state"
-import { Skeleton } from "@/components/ui/skeleton"
+import {
+  SettingRow,
+  SettingsCardError,
+  SettingsList,
+  SettingsRowsSkeleton,
+  SettingsSection,
+  SwitchRow,
+} from "@/components/ui/settingsSection"
+import { SavedTick, reasonOf, type SaveStatus } from "@/components/ui/saveStatus"
 import { useFetch } from "@/hooks/useFetch"
-import { toast } from "@/hooks/use-toast"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { AlertTriangle, Moon } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
 
 type Preferences = {
   email_supported: boolean
@@ -44,22 +65,7 @@ type Preferences = {
 }
 
 type FetchResponse = { data: Preferences; status: string }
-
-const DIGEST_OPTIONS = [
-  { value: "off", label: "Off" },
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-] as const
-
-/**
- * The quiet-hours controls: one width, so From, Until and the time zone start
- * on one line down the list (they were w-36, w-36 and w-56), and the input's
- * own height, the list's one height (the digest's segmented control is 36px).
- */
-const QUIET_CONTROL = "w-48"
-
-/** What the person has changed and not saved yet, by field. */
-type Edits = Partial<Preferences>
+type Key = Exclude<keyof Preferences, "email_supported">
 
 const DEFAULTS: Preferences = {
   email_supported: false,
@@ -79,113 +85,199 @@ const DEFAULTS: Preferences = {
   quiet_hours_tz: null,
 }
 
+/** The events, in the order people think of them. */
+export const EMAIL_EVENTS = [
+  { key: "email_dms", label: "Direct messages", help: "A 1:1 chat, or a message in a group you're in." },
+  { key: "email_mentions", label: "Mentions", help: "You're @-mentioned in a channel, post, comment or task." },
+  { key: "email_task_assigned", label: "Task assignments", help: "A task is assigned to you." },
+  { key: "email_task_status", label: "Task status changes", help: "A task you own or watch changes status." },
+  { key: "email_comments", label: "Comments and replies", help: "On posts, docs, tasks or threads you're part of." },
+  { key: "email_calls", label: "Calls", help: "A call starts in a channel or chat you're in." },
+  { key: "email_channel_invites", label: "Channel and project invites", help: "You're added to a new space." },
+] as const satisfies ReadonlyArray<{ key: Key; label: string; help: string }>
 
-/** The server's answer as the card reads it: defaults filled in, and a time zone for quiet hours that have none. */
-function fromServer(data: Partial<Preferences>): Preferences {
-  const merged: Preferences = { ...DEFAULTS, ...data }
-  // If user has quiet hours but no timezone yet, seed with browser TZ.
-  if (merged.quiet_hours_enabled && !merged.quiet_hours_tz) {
-    merged.quiet_hours_tz = browserTZ()
-  }
-  return merged
+/**
+ * The channels the server stores per event, as matrix columns. Push and in
+ * app are not per event in the preference model yet: they get a column here
+ * when it stores them.
+ */
+export const EVENT_CHANNELS = [{ id: "email", label: "Email" }] as const
+
+const DIGEST_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+] as const
+
+const DIGEST_LINE: Record<Preferences["email_digest_frequency"], string> = {
+  off: "No digest. The emails above still arrive as things happen.",
+  daily: "Arrives each morning: overdue commitments and questions still waiting on you.",
+  weekly: "Arrives on Mondays: the week's overdue commitments and questions still waiting on you.",
 }
 
-/** The rows' shape while the settings load, so nothing moves when they arrive. */
-function LoadingRows({ rows }: { rows: number }) {
-  return (
-    <SettingsList>
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-start justify-between gap-4 px-4 py-3" aria-hidden="true">
-          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
-            <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-36" : "w-28")} />
-            <Skeleton className={cn("h-3", i % 3 === 0 ? "w-3/4" : "w-2/3")} />
-          </div>
-          <Skeleton className="mt-0.5 h-5 w-9 shrink-0" />
-        </div>
-      ))}
-    </SettingsList>
+const TEXT_DEBOUNCE_MS = 600
+const SAVED_MS = 1900
+const WIDE = "(min-width: 720px)"
+
+/** Whether the window is 720px or wider: the matrix's breakpoint. */
+function useWide() {
+  return useSyncExternalStore(
+    (on) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => {}
+      const mq = window.matchMedia(WIDE)
+      mq.addEventListener?.("change", on)
+      return () => mq.removeEventListener?.("change", on)
+    },
+    () => (typeof window !== "undefined" && !!window.matchMedia ? window.matchMedia(WIDE).matches : false),
+    () => false,
   )
+}
+
+/** "HH:MM" as minutes since midnight, or null. */
+const minutesOf = (hhmm: string | null) => {
+  if (!hhmm || !/^\d{1,2}:\d{2}/.test(hhmm)) return null
+  const [h, m] = hhmm.split(":").map(Number)
+  return (h % 24) * 60 + (m % 60)
+}
+
+/** Minutes since midnight now, in a time zone (the browser's, if that one is unknown). */
+function nowIn(tz: string | null): number {
+  const d = new Date()
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz || undefined }).formatToParts(d)
+    const h = Number(parts.find((p) => p.type === "hour")?.value)
+    const m = Number(parts.find((p) => p.type === "minute")?.value)
+    if (Number.isFinite(h) && Number.isFinite(m)) return h * 60 + m
+  } catch {
+    /* an unknown zone: the browser's clock */
+  }
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/**
+ * The 24-hour bar: 240×24, the quiet span drawn in --press with a moon at its
+ * start, and the current time as a 2px accent tick. A span past midnight is
+ * drawn in two pieces.
+ */
+export function QuietHoursBar({ start, end, tz }: { start: string | null; end: string | null; tz: string | null }) {
+  const s = minutesOf(start)
+  const e = minutesOf(end)
+  const now = nowIn(tz)
+  const pct = (m: number) => (m / 1440) * 100
+  const spans: Array<[number, number]> = s === null || e === null || s === e ? [] : s < e ? [[s, e]] : [[s, 1440], [0, e]]
+  return (
+    <div data-quiet-bar="" aria-hidden="true" className="you-qbar">
+      {spans.map(([a, b], i) => (
+        <span key={i} data-quiet-span="" className="you-qbar-span" style={{ left: `${pct(a)}%`, width: `${pct(b - a)}%` }} />
+      ))}
+      {s !== null && spans.length > 0 && <Moon className="you-qbar-moon" style={{ left: `min(calc(${pct(s)}% + 4px), calc(100% - 16px))` }} />}
+      <span data-now-tick="" className="you-qbar-now" style={{ left: `${pct(now)}%` }} />
+    </div>
+  )
+}
+
+/** Per-field save statuses, in the shape the rows take (saveStatus.tsx). */
+function useFieldStatuses() {
+  const [statuses, setStatuses] = useState<Partial<Record<Key, SaveStatus>>>({})
+  const timers = useRef<Partial<Record<Key, number>>>({})
+  useEffect(() => {
+    const t = timers.current
+    return () => Object.values(t).forEach((id) => window.clearTimeout(id))
+  }, [])
+  const set = useCallback((key: Key, state: SaveStatus["state"], error?: string) => {
+    window.clearTimeout(timers.current[key])
+    setStatuses((prev) => {
+      const was = prev[key] ?? { state: "idle", failures: 0 }
+      return { ...prev, [key]: { state, error, failures: state === "error" ? was.failures + 1 : was.failures } }
+    })
+    if (state === "saved") {
+      timers.current[key] = window.setTimeout(
+        () => setStatuses((prev) => ({ ...prev, [key]: { failures: prev[key]?.failures ?? 0, state: "idle" } })),
+        SAVED_MS,
+      )
+    }
+  }, [])
+  return { statuses, set }
 }
 
 export function NotificationPreferencesCard() {
   const { data, isLoading, isError, mutate } = useFetch<FetchResponse>(GetEndpointUrl.GetNotificationPreferences)
-  const [saving, setSaving] = useState(false)
+  const wide = useWide()
+  // Changes on their way to the server, laid over its answer. Only these are
+  // kept here: the Read receipts card updates the same answer, and a copy of
+  // the whole answer would throw its change away.
+  const [pending, setPending] = useState<Partial<Preferences>>({})
+  const { statuses, set } = useFieldStatuses()
+  const debounce = useRef<Partial<Record<Key, number>>>({})
+  const dataRef = useRef(data)
+  dataRef.current = data
+  useEffect(() => {
+    const t = debounce.current
+    return () => Object.values(t).forEach((id) => window.clearTimeout(id))
+  }, [])
 
-  // ONLY THE PERSON'S CHANGES ARE KEPT HERE; what is on screen is the server's
-  // answer with them laid over it. The Read receipts card below reads and
-  // updates this same answer, and saves the moment it is switched: when this
-  // card kept a copy of the whole answer and re-copied it whenever the answer
-  // changed, switching Read receipts wiped every unsaved change on the page,
-  // and the save bar with them.
-  const [edits, setEdits] = useState<Edits>({})
-  const server = useMemo(() => (data?.data ? fromServer(data.data) : null), [data?.data])
-  const working = useMemo<Preferences>(() => ({ ...(server ?? DEFAULTS), ...edits }), [server, edits])
+  const server = useMemo(() => (data?.data ? { ...DEFAULTS, ...data.data } : null), [data?.data])
+  const working = useMemo<Preferences>(() => ({ ...(server ?? DEFAULTS), ...pending }), [server, pending])
 
-  /** The fields whose value differs from what is saved: what Save would send. */
-  const changed = useMemo(() => {
-    const diff: Edits = {}
-    if (!server) return diff
-    ;(Object.keys(edits) as (keyof Preferences)[]).forEach((k) => {
-      // server doesn't accept email_supported (read-only)
-      if (k !== "email_supported" && edits[k] !== server[k]) (diff as Record<string, unknown>)[k] = edits[k]
-    })
-    return diff
-  }, [edits, server])
-  const dirty = Object.keys(changed).length > 0
+  const send = useCallback(
+    async (patch: Partial<Preferences>, statusKey: Key) => {
+      set(statusKey, "saving")
+      try {
+        // The row says what went wrong itself, so the global toast stays quiet.
+        await axiosInstance.post(PostEndpointUrl.UpdateNotificationPreferences, patch, OWN_ERRORS)
+        const now = dataRef.current
+        if (now) await mutate({ ...now, data: { ...now.data, ...patch } }, { revalidate: false })
+        set(statusKey, "saved")
+      } catch (e) {
+        set(statusKey, "error", reasonOf(e))
+      } finally {
+        setPending((prev) => {
+          const next = { ...prev }
+          for (const k of Object.keys(patch) as Key[]) if (next[k] === patch[k]) delete next[k]
+          return next
+        })
+      }
+    },
+    [mutate, set],
+  )
 
-  const setField = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
-    setEdits((prev) => ({ ...prev, [key]: value }))
+  /** A switch, checkbox or choice: saved at once. */
+  const change = <K extends Key>(key: K, value: Preferences[K]) => {
+    const patch: Partial<Preferences> = { [key]: value }
+    // Turning quiet hours on with nothing set gives it a sensible night.
+    if (key === "quiet_hours_enabled" && value === true) {
+      if (!working.quiet_hours_start) patch.quiet_hours_start = "22:00"
+      if (!working.quiet_hours_end) patch.quiet_hours_end = "07:00"
+      if (!working.quiet_hours_tz) patch.quiet_hours_tz = browserTZ()
+    }
+    setPending((prev) => ({ ...prev, ...patch }))
+    void send(patch, key)
   }
 
-  const handleSave = async () => {
-    if (!dirty || saving) return
-    // Only changed fields, so the server updates exactly what the user touched.
-    const diff: Edits = { ...changed }
-    // If quiet hours just got enabled, default times so the user has
-    // something sane without filling all fields.
-    if (diff.quiet_hours_enabled === true && !diff.quiet_hours_start && !working.quiet_hours_start) {
-      diff.quiet_hours_start = "22:00"
-    }
-    if (diff.quiet_hours_enabled === true && !diff.quiet_hours_end && !working.quiet_hours_end) {
-      diff.quiet_hours_end = "07:00"
-    }
-    if (diff.quiet_hours_enabled === true && !diff.quiet_hours_tz && !working.quiet_hours_tz) {
-      diff.quiet_hours_tz = browserTZ()
-    }
-
-    setSaving(true)
-    try {
-      // The card says what went wrong itself, so the global toast stays quiet
-      // rather than showing a second message about the same failure.
-      await axiosInstance.post(PostEndpointUrl.UpdateNotificationPreferences, diff, OWN_ERRORS)
-    } catch (e) {
-      // The changes stay on screen, unsaved, for another try.
-      toast({
-        title: "Couldn't save your notification settings",
-        description: apiErrorMessage(e, "Check your connection and try again."),
-        variant: "destructive",
-      })
-      setSaving(false)
-      return
-    }
-    // The saved values become the answer before the changes are let go, so the
-    // switches do not flick back to the old values while it is fetched again.
-    if (data) await mutate({ ...data, data: { ...data.data, ...diff } }, { revalidate: true })
-    setEdits({})
-    setSaving(false)
-    toast({ title: "Notification settings saved" })
+  /** A typed field (a time, the time zone): saved 600ms after the last change. */
+  const type = (key: "quiet_hours_start" | "quiet_hours_end" | "quiet_hours_tz", value: string) => {
+    setPending((prev) => ({ ...prev, [key]: value }))
+    window.clearTimeout(debounce.current[key])
+    debounce.current[key] = window.setTimeout(() => void send({ [key]: value }, key), TEXT_DEBOUNCE_MS)
   }
 
   // A failed request is not "email is off": it says so, and offers a retry.
   if (!server) {
     if (isError && !isLoading) {
-      return <ErrorState subject="your notification settings" onRetry={() => void mutate()} />
+      return (
+        <SettingsSection id="notifications-email" title="Email" description="Which activity reaches your inbox.">
+          <SettingsList>
+            <SettingsCardError what="your notification settings" onRetry={() => void mutate()} />
+          </SettingsList>
+        </SettingsSection>
+      )
     }
     return (
-      <div role="status" aria-label="Loading your notification settings" className="space-y-10">
-        <SettingsSection title="Email" description="Which activity reaches your inbox. Changes here wait for Save.">
-          <LoadingRows rows={1} />
-          <LoadingRows rows={7} />
+      <div role="status" aria-label="Loading your notification settings">
+        <SettingsSection id="notifications-email" title="Email" description="Which activity reaches your inbox.">
+          <SettingsList>
+            <SettingsRowsSkeleton rows={4} />
+          </SettingsList>
         </SettingsSection>
       </div>
     )
@@ -193,170 +285,216 @@ export function NotificationPreferencesCard() {
 
   const supported = working.email_supported
   const masterOff = !supported || !working.email_enabled
-  const discard = () => setEdits({})
+  const timeStatus = [statuses.quiet_hours_start, statuses.quiet_hours_end].find((s) => s && s.state !== "idle")
 
   return (
-    <div className="space-y-10">
-      {!supported && (
-        <p role="status" className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
-          Your workspace admin hasn&apos;t turned email on yet. Push and in-app notifications still work.
-        </p>
-      )}
-      <SettingsSection
-        title="Email"
-        description="Which activity reaches your inbox. Changes here wait for Save."
-      >
+    <div className="space-y-8">
+      <SettingsSection id="notifications-email" title="Email" description="Which activity reaches your inbox. Saved as you change it.">
+        {!supported && (
+          <div role="status" className="you-note">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-ink" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground text-pretty">
+              Your workspace admin hasn&apos;t turned email on yet. Push and in-app notifications still work.
+            </p>
+          </div>
+        )}
         <SettingsList>
           <SwitchRow
+            id="email_enabled"
             label="Email me about activity"
-            description="Turn this off to stop every notification email."
+            description="Off, no notification email is sent at all."
             checked={working.email_enabled && supported}
-            disabled={!supported || saving}
-            onChange={(v) => setField("email_enabled", v)}
+            disabled={!supported}
+            status={statuses.email_enabled}
+            onChange={(v) => change("email_enabled", v)}
           />
-        </SettingsList>
-        {/* The kinds, then when and how often, each under its own heading: the
-            section was four bordered boxes in a row with nothing between them. */}
-        <SettingsSection level={3} title="What you're emailed about" className="pt-3">
-        <SettingsList>
+          <div data-email-events="" data-off={masterOff ? "true" : undefined} className="you-events set-row !p-0">
+            {masterOff && supported && (
+              <p data-events-off="" className="px-4 pt-3 text-xs text-muted-foreground">
+                Turned off for every email.
+              </p>
+            )}
+            <div className={cn("you-events-body", masterOff && "opacity-50")}>
+              {wide ? (
+                <EventMatrix working={working} disabled={masterOff} statuses={statuses} onChange={change} />
+              ) : (
+                <div className="you-event-rows">
+                  {EMAIL_EVENTS.map((ev) => (
+                    <SwitchRow
+                      key={ev.key}
+                      id={ev.key}
+                      label={ev.label}
+                      description={ev.help}
+                      checked={working[ev.key]}
+                      disabled={masterOff}
+                      status={statuses[ev.key]}
+                      onChange={(v) => change(ev.key, v)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <SwitchRow
-            label="Direct messages"
-            description="When someone sends you a 1:1 chat or messages a group you're in."
-            checked={working.email_dms}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_dms", v)}
-          />
-          <SwitchRow
-            label="Mentions"
-            description="When you're @-mentioned in a channel, post, comment or task."
-            checked={working.email_mentions}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_mentions", v)}
-          />
-          <SwitchRow
-            label="Task assignments"
-            description="When a task is assigned to you."
-            checked={working.email_task_assigned}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_task_assigned", v)}
-          />
-          <SwitchRow
-            label="Task status changes"
-            description="When the status of a task you own or watch changes."
-            checked={working.email_task_status}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_task_status", v)}
-          />
-          <SwitchRow
-            label="Comments and replies"
-            description="On posts, docs, tasks or chat threads you're part of."
-            checked={working.email_comments}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_comments", v)}
-          />
-          <SwitchRow
-            label="Calls"
-            description="When a video call starts in a channel or chat you're in."
-            checked={working.email_calls}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_calls", v)}
-          />
-          <SwitchRow
-            label="Channel and project invites"
-            description="When you're added to a new space."
-            checked={working.email_channel_invites}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_channel_invites", v)}
-          />
-        </SettingsList>
-        </SettingsSection>
-        <SettingsSection level={3} title="When and how often" className="pt-3">
-        <SettingsList>
-          <SwitchRow
+            id="email_only_when_offline"
             label="Only when I'm away"
-            description="Skip the email if you're already active in OneCamp on any device."
+            description="Skip the email if you're active in OneCamp on any device."
             checked={working.email_only_when_offline}
-            disabled={masterOff || saving}
-            onChange={(v) => setField("email_only_when_offline", v)}
+            disabled={masterOff}
+            status={statuses.email_only_when_offline}
+            onChange={(v) => change("email_only_when_offline", v)}
           />
-          {/* A choice of one, as a radio group the arrow keys move through. */}
+        </SettingsList>
+      </SettingsSection>
+
+      <SettingsSection id="notifications-digest" title="Digest" description="A summary of what's still open, from your meetings, channels and projects.">
+        <SettingsList>
           <SettingRow
             label="Activity digest"
             controlId="digest"
-            description="A summary of your open items: overdue commitments and unanswered questions OneCamp's AI picked up from your meetings, channels and projects. Weekly digests arrive on Mondays."
+            description={DIGEST_LINE[working.email_digest_frequency] ?? DIGEST_LINE.off}
+            status={statuses.email_digest_frequency}
+            disabled={masterOff}
           >
             <SegmentedControl
               id="digest"
               value={working.email_digest_frequency}
-              onValueChange={(v) => setField("email_digest_frequency", v)}
-              disabled={masterOff || saving}
+              onValueChange={(v) => change("email_digest_frequency", v)}
+              disabled={masterOff}
               aria-label="Activity digest"
               aria-describedby="digest-desc"
               options={DIGEST_OPTIONS}
             />
           </SettingRow>
         </SettingsList>
-        </SettingsSection>
       </SettingsSection>
 
       <SettingsSection
+        id="notifications-quiet"
         title="Quiet hours"
-        description="Push notifications and emails wait until quiet hours end, in your time zone. To go quiet right now, use Pause notifications in your profile menu."
+        description="Push notifications and emails wait until quiet hours end. To go quiet right now, use Pause notifications in your profile menu."
       >
         <SettingsList>
           <SwitchRow
+            id="quiet_hours_enabled"
             label="Hold notifications during quiet hours"
             checked={working.quiet_hours_enabled}
-            disabled={saving}
-            onChange={(v) => setField("quiet_hours_enabled", v)}
+            status={statuses.quiet_hours_enabled}
+            onChange={(v) => change("quiet_hours_enabled", v)}
           />
-          {/* Each time is a row of the list, its control at the row's end at
-              the rows' one height: they were a three-column block at a
-              spacing of its own. */}
           {working.quiet_hours_enabled && (
-            <>
-              <SettingRow label="From" controlId="qh_start">
+            <div data-quiet-range="" className="set-row you-reveal space-y-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <label htmlFor="qh_start" className="sr-only">
+                  From
+                </label>
                 <Input
                   id="qh_start"
                   type="time"
-                  className={QUIET_CONTROL}
+                  className="you-time h-8"
                   value={working.quiet_hours_start || ""}
-                  onChange={(e) => setField("quiet_hours_start", e.target.value)}
+                  onChange={(e) => type("quiet_hours_start", e.target.value)}
                 />
-              </SettingRow>
-              <SettingRow label="Until" controlId="qh_end">
+                <span aria-hidden="true" className="text-sm text-ink-3">
+                  →
+                </span>
+                <label htmlFor="qh_end" className="sr-only">
+                  Until
+                </label>
                 <Input
                   id="qh_end"
                   type="time"
-                  className={QUIET_CONTROL}
+                  className="you-time h-8"
                   value={working.quiet_hours_end || ""}
-                  onChange={(e) => setField("quiet_hours_end", e.target.value)}
+                  onChange={(e) => type("quiet_hours_end", e.target.value)}
                 />
-              </SettingRow>
-              <SettingRow label="Time zone" controlId="qh_tz" description="The clock your quiet hours follow.">
+                <QuietHoursBar start={working.quiet_hours_start} end={working.quiet_hours_end} tz={working.quiet_hours_tz} />
+                <SavedTick status={timeStatus} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="qh_tz" className="you-tz-label">
+                  Time zone
+                </label>
                 <Input
                   id="qh_tz"
-                  className={QUIET_CONTROL}
-                  aria-describedby="qh_tz-desc"
+                  className="you-tz h-7"
                   placeholder={browserTZ()}
                   value={working.quiet_hours_tz || ""}
-                  onChange={(e) => setField("quiet_hours_tz", e.target.value)}
+                  onChange={(e) => type("quiet_hours_tz", e.target.value)}
                   autoComplete="off"
                   spellCheck={false}
                 />
-              </SettingRow>
-            </>
+                <SavedTick status={statuses.quiet_hours_tz} />
+              </div>
+              {(["quiet_hours_start", "quiet_hours_end", "quiet_hours_tz"] as const).map((k) =>
+                statuses[k]?.state === "error" ? (
+                  <p key={k} role="alert" className="text-xs text-danger-ink">
+                    {statuses[k]?.error}
+                  </p>
+                ) : null,
+              )}
+            </div>
           )}
         </SettingsList>
       </SettingsSection>
-
-      <SaveBar
-        dirty={dirty}
-        saving={saving}
-        onSave={() => void handleSave()}
-        onDiscard={discard}
-        what="email and quiet-hours changes"
-      />
     </div>
+  )
+}
+
+/** The events as a matrix: a row per event, a 16px checkbox per channel the server stores. */
+function EventMatrix({
+  working,
+  disabled,
+  statuses,
+  onChange,
+}: {
+  working: Preferences
+  disabled: boolean
+  statuses: Partial<Record<Key, SaveStatus>>
+  onChange: (key: Key, value: boolean) => void
+}) {
+  return (
+    <table data-event-matrix="" className="you-matrix" aria-label="What you're emailed about">
+      <thead>
+        <tr>
+          <th scope="col" className="you-matrix-head text-left">
+            Event
+          </th>
+          {EVENT_CHANNELS.map((c) => (
+            <th key={c.id} scope="col" className="you-matrix-head w-20 text-center">
+              {c.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {EMAIL_EVENTS.map((ev) => {
+          const status = statuses[ev.key]
+          return (
+            <tr key={ev.key} data-event={ev.key}>
+              <th scope="row" className="you-matrix-event">
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{ev.label}</span>
+                  <SavedTick status={status} />
+                </span>
+                {status?.state === "error" ? (
+                  <span className="block text-xs font-normal text-danger-ink">{status.error}</span>
+                ) : (
+                  <span className="block text-xs font-normal text-muted-foreground">{ev.help}</span>
+                )}
+              </th>
+              <td className="text-center align-middle">
+                <Checkbox
+                  aria-label={`${ev.label} by email`}
+                  checked={working[ev.key]}
+                  disabled={disabled}
+                  onCheckedChange={(v) => onChange(ev.key, v === true)}
+                />
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

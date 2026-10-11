@@ -11,7 +11,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { DateRangeField } from "@/components/dateRangePicker/dateRangeField"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SpotCalendar } from "@/components/ui/graphics"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { PageContainer } from "@/components/ui/pageContainer"
@@ -36,6 +36,31 @@ export interface RecordingsViewProps {
 }
 
 const fromData = (res: RecordingPaginationResRaw) => res.data
+
+/** A recording's day group (A7): Today, Yesterday, Earlier this week, Older. Pure. */
+export function recordingDayGroup(at: string, now = new Date()): string {
+    const d = new Date(at)
+    if (Number.isNaN(d.getTime())) return "Older"
+    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+    const diff = Math.round((day(now) - day(d)) / 86_400_000)
+    if (diff <= 0) return "Today"
+    if (diff === 1) return "Yesterday"
+    if (diff < 7) return "Earlier this week"
+    return "Older"
+}
+
+/** The recordings' empty spot: a play tile on a berry disc, a red "rec" dot and a spark. */
+function SpotRecording() {
+    return (
+        <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true" className="hue-berry" data-spot-recording="">
+            <circle cx="48" cy="50" r="32" className="fill-hue-tint" />
+            <rect x="26" y="32" width="44" height="34" rx="8" className="fill-raised" style={{ filter: "drop-shadow(0 2px 3px rgb(16 18 26 / 0.12))" }} />
+            <path d="M44 41.5v15l12-7.5z" className="fill-hue" />
+            <circle cx="66" cy="34" r="3" className="fill-destructive" />
+            <path d="M80 14Q81 19 86 20Q81 21 80 26Q79 21 74 20Q79 19 80 14Z" className="fill-brand" />
+        </svg>
+    )
+}
 
 /**
  * The one recordings UI: /app/recordings and a channel's, a DM's and a group's
@@ -129,11 +154,21 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                 {all.length > 0 ? (
                     <VirtualInfiniteScroll
                         items={all}
-                        renderItem={(rec: RecordingInfoInterface, i: number) => (
-                            <div className={cn(i > 0 && "border-t border-border/60")}>
-                                <RecordingListRecording recordingInfo={rec} currentUserId={currentUserId} onOpen={() => open(rec)} onDelete={remove} />
-                            </div>
-                        )}
+                        renderItem={(rec: RecordingInfoInterface, i: number) => {
+                            // Grouped by day, a header where the day changes.
+                            const group = recordingDayGroup(rec.recording_stared_at)
+                            const head = i === 0 || recordingDayGroup(all[i - 1].recording_stared_at) !== group
+                            return (
+                                <div>
+                                    {head ? (
+                                        <div data-day-group="" className="flex h-7 items-center pl-16 text-meta font-medium text-ink-3">
+                                            {group}
+                                        </div>
+                                    ) : null}
+                                    <RecordingListRecording recordingInfo={rec} currentUserId={currentUserId} onOpen={() => open(rec)} onDelete={remove} />
+                                </div>
+                            )
+                        }}
                         onLoadMore={onLoadMore}
                         hasMore={hasMore}
                         isLoading={isLoading}
@@ -143,7 +178,7 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                 ) : firstLoad ? (
                     <RecordingRowsSkeleton />
                 ) : (
-                    <div data-recordings-state="" className="flex justify-center pt-4 md:pt-10">
+                    <div data-recordings-state="" className="flex justify-start pt-4 md:pt-12">
                         {isError ? (
                             // Ahead of the empty answer: "no recordings in this
                             // range" would send someone changing dates to fix a
@@ -151,9 +186,14 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                             <ErrorState subject="the recordings" onRetry={() => void mutate()} />
                         ) : (
                             <EmptyState
-                                illustration={<SpotCalendar />}
+                                illustration={<SpotRecording />}
                                 title="No recordings in this range"
                                 description={`${subtitle} Pick earlier dates to look further back.`}
+                                action={
+                                    <Button variant="ghost" size="sm" onClick={() => setRange({ from: subDays(new Date(), 90), to: new Date() })}>
+                                        Show the last 90 days
+                                    </Button>
+                                }
                                 className="py-6"
                             />
                         )}
@@ -164,20 +204,21 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
     )
 }
 
-/** Loading, in the rows' own frame: a 24px mark, a 20px title line and an 18px line of details. */
+/** Loading, in the rows' own frame: a 40 x 28 thumbnail, a title line and a line of details. */
 export function RecordingRowsSkeleton() {
     return (
         <div role="status" aria-label="Loading the recordings">
             {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} data-recording-skeleton-row="" aria-hidden="true" className={cn("flex items-start gap-3 px-2 py-3", i > 0 && "border-t border-border/60")}>
-                    <Skeleton className="-mt-0.5 size-6 shrink-0 rounded-md" />
-                    <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-3">
-                            <Skeleton className={cn("h-5", i % 2 === 0 ? "w-1/3" : "w-1/4")} />
-                            <Skeleton className="ml-auto h-4 w-24" />
-                        </span>
-                        <Skeleton className={cn("mt-0.5 h-[18px]", i % 2 === 0 ? "w-1/2" : "w-2/5")} />
+                <div key={i} data-recording-skeleton-row="" aria-hidden="true" className="hub-row" data-density="two-line" data-lead="40">
+                    <span />
+                    <span className="hub-row-lead">
+                        <Skeleton className="h-7 w-10 rounded-[6px]" />
                     </span>
+                    <span className="min-w-0">
+                        <Skeleton className={cn("h-4", i % 2 === 0 ? "w-1/3" : "w-1/4")} />
+                        <Skeleton className={cn("mt-1.5 h-3", i % 2 === 0 ? "w-1/2" : "w-2/5")} />
+                    </span>
+                    <Skeleton className="h-3 w-10" />
                 </div>
             ))}
         </div>

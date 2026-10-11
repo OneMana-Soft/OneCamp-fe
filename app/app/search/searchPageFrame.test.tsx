@@ -1,27 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 
-// The search page on one set of lines (the final visual check, 10 Oct): the
-// back arrow in the results' glyph column and the title on their words' line,
-// the box as wide as the rows, every state in one frame, and a skeleton in the
-// rows' shape.
+// The search page, design v3 (hub.md S7, S8, S9, S13): a 52px header with a
+// ghost back and "Search", the hub's 760px column, a raised 44px field,
+// scope chips, the count line, results grouped by type, and every state
+// start-aligned in the column.
 
 let query = "launch"
+const push = vi.fn()
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(query ? `q=${query}` : ""),
-  useRouter: () => ({ replace: vi.fn(), back: vi.fn(), push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(query ? `q=${encodeURIComponent(query)}` : ""),
+  useRouter: () => ({ replace: vi.fn(), back: vi.fn(), push }),
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }) }))
-vi.mock("@/components/ai/SearchAnswer", () => ({ default: () => null }))
-vi.mock("@/components/ai/ConnectorSearchResults", () => ({ default: () => null }))
-vi.mock("@/lib/utils/helpers/search", () => ({
-  getIcon: () => <span data-testid="tile" />,
-  getHighlightedTitle: (r: { title: string }) => r.title,
-  getHighlightedContext: () => "Q4 launch · Sam Rivera",
-  isResultPreviewable: () => false,
-  searchResultKeys: (rs: unknown[]) => rs.map((_, i) => String(i)),
-}))
-let state = { results: [] as { title: string }[], isLoading: false, debounced: "launch" }
+vi.mock("@/hooks/useClientConfig", async (orig) => ({ ...(await orig<typeof import("@/hooks/useClientConfig")>()), useAIAvailable: () => true }))
+vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
+
+const task = (n: number) => ({ type: "task", task: { task_id: `t${n}`, task_name: `Launch task ${n}`, task_status: "todo", task_project_id: "p1", task_project_name: "Q4 launch", created_date: 1791614952 } })
+const doc = { type: "doc", doc: { doc_uuid: "d1", doc_title: "Q4 launch plan", created_date: 1791614952 } }
+let state = { results: [] as unknown[], isLoading: false, isError: false, debounced: "launch" }
 vi.mock("@/hooks/useSearch", () => ({
   useSearch: () => ({
     inputValue: state.debounced,
@@ -30,6 +29,8 @@ vi.mock("@/hooks/useSearch", () => ({
     results: state.results,
     isLoading: state.isLoading,
     isRefreshing: false,
+    isError: state.isError,
+    retry: vi.fn(),
     handleResultClick: vi.fn(),
     handlePreview: vi.fn(),
     handleSearchSubmit: vi.fn(),
@@ -37,62 +38,89 @@ vi.mock("@/hooks/useSearch", () => ({
 }))
 
 const { default: SearchPage } = await import("@/app/app/search/page")
+const PAGE = readFileSync(join(process.cwd(), "app/app/search/page.tsx"), "utf8")
+const CSS = readFileSync(join(process.cwd(), "app/hub.css"), "utf8")
 
 afterEach(() => {
   cleanup()
   query = "launch"
-  state = { results: [], isLoading: false, debounced: "launch" }
+  state = { results: [], isLoading: false, isError: false, debounced: "launch" }
 })
 
 describe("the search page", () => {
-  it("puts the back arrow in the results' glyph column and the title on their words' line", () => {
-    state.results = [{ title: "Q4 launch" }]
-    render(<SearchPage />)
-    const back = screen.getByRole("button", { name: "Go back" })
-    // 8px gap after a 32px button pulled 4px into the gutter: the arrow's
-    // centre is the tiles' centre and the title starts where row text does.
-    expect(back.className).toContain("-ml-1")
-    expect(back.parentElement!.className).toContain("gap-2")
-    // The header's column is the results' column, so the box ends where the rows do.
-    const header = screen.getByRole("heading", { level: 1 }).closest(".max-w-3xl")
-    expect(header).not.toBeNull()
-    expect(screen.getByRole("search").className).not.toContain("max-w-2xl")
-  })
-
-  it("leaves its name to the phone's top bar: the back-and-title row shows from sm up", () => {
+  it("has a 52px header with a ghost back and the page's name, from sm up", () => {
     render(<SearchPage />)
     const row = document.querySelector("[data-search-title-row]")!
-    expect(row.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "sm:flex"]))
-    // The empty state's heading says what to do, not the page's name again.
-    expect(screen.queryByRole("heading", { name: /^Search$/, level: 2 })).toBeNull()
+    expect(row.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "sm:flex", "h-[52px]"]))
+    expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Search")
   })
 
-  it("says nothing was found and that there is nothing yet in one frame", () => {
+  it("puts everything in the hub's 760px column, and the field at 44px, r10, raised at e1", () => {
     render(<SearchPage />)
-    const none = screen.getByRole("heading", { name: /Nothing matches/ }).parentElement!
-    cleanup()
-    query = ""
-    state = { results: [], isLoading: false, debounced: "" }
-    render(<SearchPage />)
-    const blank = screen.getByRole("heading", { name: "Search your workspace" }).parentElement!
-    expect(blank.className).toBe(none.className)
-    // Both with the magnifier above their words.
-    expect(blank.querySelector("svg")).not.toBeNull()
+    expect(document.querySelector("[data-search-column]")!.className).toContain("max-w-[760px]")
+    const field = document.querySelector("[data-search-field]")!
+    expect(field.className).toContain("h-11")
+    expect(field.className).toContain("rounded-[10px]")
+    expect(field.className).toContain("hub-field")
+    expect(CSS).toMatch(/\.hub-field \{\s*background: var\(--raised\);\s*box-shadow: var\(--e1\);/)
   })
 
-  it("loads in the rows' shape: a 24px tile, a 20px title line and an 18px line, in the rows' padding", () => {
+  it("says the count without the arrow instruction", () => {
+    state.results = [task(1), doc]
+    render(<SearchPage />)
+    expect(document.querySelector("[data-search-count]")!.textContent).toBe("2 results for “launch”")
+  })
+
+  it("groups the results by type, three of each under All, with Show all", () => {
+    state.results = [task(1), task(2), task(3), task(4), doc]
+    render(<SearchPage />)
+    const groups = [...document.querySelectorAll("[data-search-group]")].map((g) => g.getAttribute("data-search-group"))
+    expect(groups).toEqual(["tasks", "docs"])
+    expect(document.querySelectorAll('[data-search-group="tasks"] [data-search-row]')).toHaveLength(3)
+    const more = document.querySelector('[data-search-show-all="tasks"]')!
+    expect(more.textContent).toBe("Show all 4 tasks")
+    fireEvent.click(more)
+    expect(document.querySelectorAll('[data-search-group="tasks"] [data-search-row]')).toHaveLength(4)
+    expect(document.querySelector('[data-search-group="docs"]')).toBeNull()
+  })
+
+  it("shows a scope chip only for types with results, All always, under one sliding knob", () => {
+    state.results = [task(1), doc]
+    render(<SearchPage />)
+    const chips = [...document.querySelectorAll("[data-scope-chips] [role=tab]")].map((c) => c.textContent)
+    expect(chips).toEqual(["All2", "Tasks1", "Docs1"])
+    expect(document.querySelectorAll("[data-scope-knob]")).toHaveLength(1)
+  })
+
+  it("loads in six row-shaped skeletons", () => {
     state.isLoading = true
-    const { container } = render(<SearchPage />)
-    expect(screen.getByRole("status", { name: "Searching across all records" })).toBeTruthy()
-    // The count's line is held while it loads, so the rows land where the skeleton was.
-    expect(container.querySelector('p[aria-live="polite"]')?.className).toContain("h-[18px]")
-    const row = container.querySelector("[data-search-skeleton-row]")!
-    expect(row.className).toContain("px-2")
-    expect(row.className).toContain("py-3")
-    expect(row.className).toContain("gap-3")
-    const [tile, lines] = [...row.children]
-    expect(tile.className).toContain("size-6")
-    expect(lines.children[0].className).toContain("h-5")
-    expect(lines.children[1].className).toContain("h-[18px]")
+    render(<SearchPage />)
+    expect(screen.getByRole("status", { name: "Searching across all records" }).querySelectorAll("[data-hub-skeleton][data-density=two-line]")).toHaveLength(6)
+  })
+
+  it("says nothing matched, start-aligned in the column, and offers no AI, even for a question", () => {
+    render(<SearchPage />)
+    const none = document.querySelector("[data-search-empty=none]")!
+    expect(none.className).toContain("items-start")
+    expect(none.querySelector("[data-hub-spot=search]")).toBeTruthy()
+    expect(screen.getByText("Check the spelling, or try fewer words.")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Ask OneCamp AI/ })).toBeNull()
+    cleanup()
+    state.debounced = "where are we on the launch"
+    render(<SearchPage />)
+    expect(screen.queryByRole("button", { name: /Ask OneCamp AI/ })).toBeNull()
+  })
+
+  it("says search failed in a sunken card, never that nothing matches", () => {
+    state.isError = true
+    render(<SearchPage />)
+    expect(screen.getByText("Search isn’t answering right now.")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
+    expect(screen.queryByText(/Nothing matches/)).toBeNull()
+  })
+
+  it("never centres an empty state on the screen", () => {
+    expect(PAGE).not.toMatch(/data-search-empty[^>]*items-center/)
   })
 })

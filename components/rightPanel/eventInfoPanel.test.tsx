@@ -158,7 +158,7 @@ describe("an event in the side panel", () => {
       expect((el.parentElement as HTMLElement).className).toMatch(/\bspace-y-0\b/)
     }
     // The time pickers write a moment as the app does, not "October 10th, 2026 - 8:00 PM".
-    expect(form.textContent).toMatch(/28 Sep, 9:30\sAM/)
+    expect(form.textContent).toMatch(/Mon 28 Sep · 9:30\sAM/)
   })
 
   it("shows its own shape while it loads, and a way out when the event is gone", () => {
