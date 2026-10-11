@@ -18,7 +18,7 @@ import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { hueFor } from "@/lib/campHue";
 import { cn } from "@/lib/utils/helpers/cn";
-import { MicMeter, NamePlate, StageFace } from "./CallStage";
+import { MicMeter, NamePlate, StageFace, callScreenHeight } from "./CallStage";
 import { CONTROL_KEYS, CONTROL_LABELS, DockButton } from "./VideoControls";
 import { SPEAKING_THRESHOLD } from "./callLevels";
 import { readDevicePrefs, writeDevicePref, type DevicePrefs } from "./callDevices";
@@ -189,7 +189,7 @@ export function PreJoin({
           "relative flex w-full items-center justify-center overflow-hidden bg-sheet px-4 py-8 @container",
           // The frame's campfire glow continues behind the green room.
           "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.14),transparent_68%)]",
-          embedded ? "min-h-full" : "min-h-dvh",
+          callScreenHeight(embedded),
         )}
         data-prejoin=""
       >

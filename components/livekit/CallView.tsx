@@ -107,6 +107,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
         onRejoin={() => setLeft(null)}
         onBack={onLeave}
         backLabel={kind === "channel" && place ? `Back to ${place.replace(/^in /, "")}` : "Back"}
+        embedded={embedded}
       />
     )
   }
