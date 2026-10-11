@@ -204,6 +204,32 @@ describe("the call controls", () => {
   })
 })
 
+describe("the screens that stand in for the stage", () => {
+  // On a call's own page, Connecting and "You left the call" sized to their
+  // content: a dark strip at the top of a white window. They fill it now, the
+  // way the green room does, and fill their pane beside other work.
+  it("fill the window on the call's page and the pane beside other work, as the green room does", async () => {
+    const { CallConnecting, CallLeft, callScreenHeight } = await import("@/components/livekit/CallStage")
+    expect(callScreenHeight()).toBe("min-h-dvh")
+    expect(callScreenHeight(true)).toBe("min-h-full")
+    const screens = [
+      [(e?: boolean) => <CallConnecting place="in #engineering" embedded={e} />, "[data-call-connecting]"],
+      [(e?: boolean) => <CallLeft minutes={3} onRejoin={() => {}} embedded={e} />, "[data-call-left]"],
+      [(e?: boolean) => <PreJoin onJoin={() => {}} username="Sam Rivera" embedded={e} />, "[data-prejoin]"],
+    ] as const
+    for (const [draw, sel] of screens) {
+      const page = render(draw())
+      expect(page.container.querySelector(sel)!.className).toContain("min-h-dvh")
+      page.unmount()
+      const pane = render(draw(true))
+      const cls = pane.container.querySelector(sel)!.className
+      expect(cls).toContain("min-h-full")
+      expect(cls).not.toContain("min-h-dvh")
+      pane.unmount()
+    }
+  })
+})
+
 describe("the guest meeting page", () => {
   // Leaving by mistake was a dead end: "You can close this tab".
   it("offers a way back in after leaving", () => {

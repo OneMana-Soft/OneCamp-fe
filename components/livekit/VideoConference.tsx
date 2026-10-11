@@ -72,7 +72,7 @@ export function VideoConference({
   const [prefs] = useState(() => (typeof window === "undefined" ? {} : readDevicePrefs()));
 
   if (!token) {
-    return <CallConnecting place={place} />;
+    return <CallConnecting place={place} embedded={embedded} />;
   }
 
   return (

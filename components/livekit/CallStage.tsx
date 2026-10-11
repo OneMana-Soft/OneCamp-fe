@@ -352,13 +352,24 @@ export function TypingText({ text = "" }: { text?: string }) {
 }
 
 /**
+ * How tall a call screen is that stands in for the stage: the green room,
+ * connecting and left. On a call's own page it fills the window (the dynamic
+ * viewport, so a phone's toolbar never crops it); beside other work it fills
+ * its pane. Connecting and left once sized to their content on the call page,
+ * a dark strip at the top of a white window.
+ */
+export function callScreenHeight(embedded?: boolean): string {
+  return embedded ? "min-h-full" : "min-h-dvh"
+}
+
+/**
  * Connecting (C11): the ring motif, a gradient core with one dot circling it,
  * and where the call is. It replaced a generic spinner.
  */
-export function CallConnecting({ place }: { place?: string }) {
+export function CallConnecting({ place, embedded }: { place?: string; embedded?: boolean }) {
   const label = placeLabel(place)
   return (
-    <div role="status" aria-label="Connecting to the call" className="dark flex h-full w-full flex-col items-center justify-center gap-4 bg-[#0B0C0E]" data-call-connecting="">
+    <div role="status" aria-label="Connecting to the call" className={cn("dark flex h-full w-full flex-col items-center justify-center gap-4 bg-[#0B0C0E]", callScreenHeight(embedded))} data-call-connecting="">
       <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden>
         <defs>
           <linearGradient id="call-core" x1="0" y1="0" x2="1" y2="1">
@@ -397,6 +408,7 @@ export function CallLeft({
   onBack,
   backLabel,
   recorded = false,
+  embedded,
 }: {
   minutes?: number
   withWhom?: string
@@ -404,10 +416,12 @@ export function CallLeft({
   onBack?: () => void
   backLabel?: string
   recorded?: boolean
+  /** Beside other work (split view) rather than on the call's own page. */
+  embedded?: boolean
 }) {
   const parts = [minutes ? `${minutes} min` : "", withWhom ? `with ${withWhom}` : ""].filter(Boolean).join(" ")
   return (
-    <div className="dark flex h-full w-full items-center justify-center bg-[#0B0C0E] p-4 text-foreground" data-call-left="">
+    <div className={cn("dark flex h-full w-full items-center justify-center bg-[#0B0C0E] p-4 text-foreground", callScreenHeight(embedded))} data-call-left="">
       <div className="hub-pop w-[360px] max-w-full rounded-[16px] bg-[#1B1C1F] p-5 shadow-e4">
         <h2 className="text-title-3 font-semibold">You left the call</h2>
         {parts ? <p className="mt-1 text-ui text-ink-2">{parts}</p> : null}
