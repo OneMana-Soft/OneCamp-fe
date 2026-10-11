@@ -1,0 +1,85 @@
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { Provider } from "react-redux"
+import { configureStore } from "@reduxjs/toolkit"
+
+import desktopRightPanelSlice from "@/store/slice/desktopRightPanelSlice"
+import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
+import { groupTasks, whenOf } from "@/lib/tasks/grouping"
+import type { TaskInfoInterface } from "@/types/task"
+
+vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => vi.fn(async () => ({ changed: 1, failed: 0, unchanged: 0 })) }))
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
+vi.mock("@/lib/celebrate", () => ({ celebrateTask: () => 8, prefersReducedMotion: () => true }))
+
+const { GroupedTaskList, PROJECT_PROPS } = await import("@/components/task/GroupedTaskList")
+
+afterEach(cleanup)
+
+const t = (id: string, status: string, extra: Partial<TaskInfoInterface> = {}) =>
+  ({ task_uuid: id, task_name: `Task ${id}`, task_status: status, task_priority: "medium", task_label: "", task_due_date: "", ...extra }) as TaskInfoInterface
+
+describe("grouping", () => {
+  it("orders status groups as work moves: in progress, in review, to do, backlog, done; cancelled left out", () => {
+    const groups = groupTasks([t("1", "todo"), t("2", "done"), t("3", "inProgress"), t("4", "backlog"), t("5", "inReview"), t("6", "canceled")], "status", BUILT_IN_STATUSES)
+    expect(groups.map((g) => g.key)).toEqual(["inProgress", "inReview", "todo", "backlog", "done"])
+  })
+
+  it("groups My Tasks by when, with Overdue only when there is one and Today always", () => {
+    const now = new Date(2026, 9, 14, 10)
+    const at = (d: number) => new Date(2026, 9, d, 12).toISOString()
+    expect(whenOf(t("a", "todo", { task_due_date: at(13) }), now)).toBe("overdue")
+    expect(whenOf(t("a", "todo", { task_due_date: at(14) }), now)).toBe("today")
+    const groups = groupTasks([t("1", "todo", { task_due_date: at(30) }), t("2", "done")], "when", BUILT_IN_STATUSES, { now })
+    expect(groups.map((g) => g.key)).toEqual(["today", "later", "done"])
+    expect(groups.find((g) => g.key === "done")!.closed).toBe(true)
+  })
+})
+
+function renderList(tasks: TaskInfoInterface[], onAdd?: () => void) {
+  const store = configureStore({ reducer: { rightPanel: desktopRightPanelSlice.reducer } })
+  return render(
+    <Provider store={store}>
+      <GroupedTaskList tasks={tasks} options={BUILT_IN_STATUSES} grouping="status" props={PROJECT_PROPS} canEdit={() => true} projectId="p" onAdd={onAdd} />
+    </Provider>,
+  )
+}
+
+describe("the grouped list (work.md W18, W19)", () => {
+  it("shows Done's newest five, then Show N more", () => {
+    const done = Array.from({ length: 8 }, (_, i) => t(`d${i}`, "done"))
+    renderList([t("1", "todo"), ...done])
+    expect(screen.getByRole("button", { name: "Show 3 more" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 more" }))
+    expect(screen.getAllByText(/^Task d/)).toHaveLength(8)
+  })
+
+  it("gives every row a check, a hover-only select box, and no status or priority words", () => {
+    const { container } = renderList([t("1", "todo"), t("2", "inProgress")])
+    expect(container.querySelectorAll("[data-task-check]")).toHaveLength(2)
+    const select = container.querySelector("[data-row-select]")!
+    expect(select.className).toMatch(/opacity-0/)
+    expect(container.querySelector("[data-task-id]")!.className).toContain("h-10")
+    expect(screen.queryByText("Medium")).toBeNull()
+  })
+
+  it("keeps a row's hover-only controls out of the tree until the row is reached", () => {
+    const { container } = renderList([t("1", "todo"), t("2", "todo")])
+    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
+    expect(screen.queryByRole("button", { name: "Priority of Task 1" })).toBeNull()
+    fireEvent.pointerEnter(container.querySelector("[data-task-id='1']")!)
+    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "Priority of Task 1" })).toBeTruthy()
+  })
+
+  it("adds a task in the group its + belongs to", () => {
+    const onAdd = vi.fn()
+    renderList([t("1", "inProgress")], onAdd)
+    fireEvent.click(screen.getByRole("button", { name: "New task in In progress" }))
+    const input = screen.getByRole("textbox", { name: "New task in In progress" })
+    fireEvent.change(input, { target: { value: "Write the brief" } })
+    fireEvent.submit(input.closest("form")!)
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ key: "inProgress" }), "Write the brief")
+  })
+})

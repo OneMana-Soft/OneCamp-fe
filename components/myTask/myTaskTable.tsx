@@ -1,34 +1,26 @@
 "use client"
 
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
     ColumnFiltersState,
     SortingState,
     VisibilityState,
-    flexRender,
     getCoreRowModel,
     getFacetedRowModel,
     getFacetedUniqueValues,
     getFilteredRowModel,
-    getPaginationRowModel,
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 // <CHANGE> Add Next.js router hooks for URL-based state persistence
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-
-import {TaskTableToolbar} from "@/components/task/taskTableToolbar";
-import {TaskTablePagination} from "@/components/task/taskTablePagination";
-import { KeyboardList, SelectAllHead, TaskTableRow, TaskTableSkeletonRows } from "@/components/task/KeyboardList";
+import { WorkToolbar, type Layout } from "@/components/task/WorkToolbar";
+import { KeyboardList } from "@/components/task/KeyboardList";
+import { GroupedTaskList, MINE_PROPS, type RowProp } from "@/components/task/GroupedTaskList";
+import { useListDisplay, keepsFinished } from "@/hooks/useListDisplay";
+import { Button } from "@/components/ui/button";
+import { openUI } from "@/store/slice/uiSlice";
 import { WorkState } from "@/components/task/workFrame";
 import { ErrorState } from "@/components/ui/error-state";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
@@ -41,15 +33,19 @@ import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
-import { useFitColumns } from "@/hooks/useFitColumns";
-import { columnAlignClass } from "@/components/task/columnAlign"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
+import { statusOptions } from "@/lib/taskStatus"
 
 // No list in the store yet: one empty list, made once, so the table doesn't
 // render again on every change to the store (a new `[]` is never equal to
 // the last).
 const NO_TASKS: TaskInfoInterface[] = []
+
+/** How many tasks the list asks for at once (no pages, work.md W14). */
+const LIST_PAGE = 500
+const ALL_PROPS: RowProp[] = ["project", "priority", "labels", "due", "estimate", "badges"]
+const DISPLAY_DEFAULTS = { grouping: "when" as const, props: MINE_PROPS, showCompleted: "week" as const }
 
 // <CHANGE> Helper function for safe JSON parsing
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
@@ -61,7 +57,7 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
     }
 };
 
-export const MyTaskTable = () => {
+export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void } = {}) => {
     // <CHANGE> Add Next.js router hooks for URL-based pagination
     const router = useRouter();
     const pathname = usePathname();
@@ -94,14 +90,9 @@ export const MyTaskTable = () => {
         searchParams.get("search") || ""
     );
 
-    const [{ pageIndex, pageSize }, setPagination] = useState(() => {
-        const pageFromUrl = searchParams.get("page");
-        const sizeFromUrl = searchParams.get("pageSize");
-        return {
-            pageIndex: pageFromUrl ? Number.parseInt(pageFromUrl, 10) : 0,
-            pageSize: sizeFromUrl ? Number.parseInt(sizeFromUrl, 10) : 10,
-        };
-    });
+    const [pageSize, setPageSize] = useState(LIST_PAGE);
+    const pageIndex = 0;
+    const { display, set: setDisplay, reset: resetDisplay } = useListDisplay("mine", DISPLAY_DEFAULTS);
 
     const taskSearchString = useDebounce(globalFilter, 500);
 
@@ -110,13 +101,6 @@ export const MyTaskTable = () => {
     const hasFiltersChangedRef = useRef(false);
     const urlUpdateTimeoutRef = useRef<NodeJS.Timeout|null>(null);
 
-    const pagination = useCallback(
-        () => ({
-            pageIndex,
-            pageSize,
-        }),
-        [pageIndex, pageSize]
-    );
 
     useLayoutEffect(() => {
         // Reset taskListVisibleInfo on mount so we don't render the
@@ -137,23 +121,16 @@ export const MyTaskTable = () => {
 
     const pageCount = userInfo.data?.pageCount || 1;
     const {columns} = useMyTaskColumn();
-    // Columns that step aside when the table is narrow (a panel open beside it).
-    const tableBoxRef = useRef<HTMLDivElement>(null)
-    const columnIds = useMemo(() => columns.map((c) => String(c.id ?? (c as { accessorKey?: string }).accessorKey ?? "")), [columns])
-    const autoHidden = useFitColumns(tableBoxRef, columnIds, columnVisibility)
-
     const table = useReactTable({
         data: taskListState,
         columns,
         pageCount,
         state: {
             sorting,
-            columnVisibility: { ...columnVisibility, ...autoHidden },
+            columnVisibility,
             columnFilters,
             globalFilter,
-            pagination: pagination(),
         },
-        manualPagination: true,
         getRowId: (originalRow) => originalRow.task_uuid,
         onSortingChange: setSorting,
         onColumnFiltersChange: (c) => {
@@ -162,10 +139,8 @@ export const MyTaskTable = () => {
         },
         onColumnVisibilityChange: setColumnVisibility,
         onGlobalFilterChange: setGlobalFilter,
-        onPaginationChange: setPagination,
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFacetedRowModel: getFacetedRowModel(),
         getFacetedUniqueValues: getFacetedUniqueValues(),
@@ -199,11 +174,11 @@ export const MyTaskTable = () => {
         const filtersChanged = hasFiltersChangedRef.current;
 
         if (searchChanged || filtersChanged) {
-            table.setPageIndex(0);
+            setPageSize(LIST_PAGE);
             prevTaskSearchStringRef.current = taskSearchString;
             hasFiltersChangedRef.current = false;
         }
-    }, [taskSearchString, table]);
+    }, [taskSearchString]);
 
     // <CHANGE> Effect to update API query string
     useEffect(() => {
@@ -218,10 +193,6 @@ export const MyTaskTable = () => {
 
         urlUpdateTimeoutRef.current = setTimeout(() => {
             const params = new URLSearchParams();
-
-            // Pagination
-            params.set("page", pageIndex.toString());
-            params.set("pageSize", pageSize.toString());
 
             // Sorting
             if (sorting.length > 0) {
@@ -251,88 +222,86 @@ export const MyTaskTable = () => {
                 clearTimeout(urlUpdateTimeoutRef.current);
             }
         };
-    }, [pageIndex, pageSize, sorting, columnFilters, columnVisibility, globalFilter, pathname, router]);
+    }, [sorting, columnFilters, columnVisibility, globalFilter, pathname, router]);
 
-    const rowIds = table.getRowModel().rows.map((r) => r.id);
-    // The first rows reach the table through the store, an effect after the
-    // answer, and the request itself starts an effect after the first render
-    // (its query comes from the address). Until the rows are in, the skeleton
-    // stays (not a frame of "Nothing is assigned to you"), and the pagination
-    // waits under it rather than move down as the rows come in.
+    // The first rows reach the list through the store, an effect after the
+    // answer, and the request itself starts an effect after the first render.
+    // Until the rows are in, the skeleton stays.
     const firstLoad = taskListState.length === 0 && (!urlParam || userInfo.isLoading || (userInfo.data?.data.user_tasks?.length ?? 0) > 0);
-    const filtered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
-    // In place of the rows, under the toolbar, as on every tab of a project
-    // (components/task/workFrame): a failed load says so rather than "Nothing
-    // is assigned to you".
+    const filtered = columnFilters.length > 0 || !!globalFilter;
     const failed = userInfo.isError && taskListState.length === 0;
-    const empty = !failed && !firstLoad && !userInfo.isLoading && taskListState.length === 0 && !filtered;
+    const shown = useMemo(
+        () => (display.showCompleted === "all" ? taskListState : taskListState.filter((t) => keepsFinished(t, display.showCompleted))),
+        [taskListState, display.showCompleted],
+    );
+    const sortedBy: RowProp | undefined = sorting[0]?.id === "task_due_date" ? "due" : undefined;
+    const moreToLoad = (userInfo.data?.pageCount ?? 1) > 1;
 
     return (
-        <KeyboardList tasks={taskListState} canEdit={canEditTask} className="space-y-4">
-            <TaskTableToolbar table={table} />
-            {/* Always there, so the columns that step aside when the table is
-                narrow are measured from the first paint, whatever it shows. */}
-            <div ref={tableBoxRef}>
-                {failed ? (
-                    <WorkState>
-                        <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
-                    </WorkState>
-                ) : empty ? (
-                    <WorkState>
-                        <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} />
-                    </WorkState>
-                ) : (
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                    <TableRow key={headerGroup.id}>
-                                        <SelectAllHead ids={rowIds} />
-                                        {headerGroup.headers.map((header) => (
-                                            <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
-                                                {header.isPlaceholder
-                                                    ? null
-                                                    : flexRender(
-                                                        header.column.columnDef.header,
-                                                        header.getContext()
-                                                    )}
-                                            </TableHead>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableHeader>
-                            <TableBody>
-                                {table.getRowModel().rows?.length ? (
-                                    table.getRowModel().rows.map((row) => (
-                                        <TaskTableRow key={row.id} id={row.id}>
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>
-                                                    {flexRender(
-                                                        cell.column.columnDef.cell,
-                                                        cell.getContext()
-                                                    )}
-                                                </TableCell>
-                                            ))}
-                                        </TaskTableRow>
-                                    ))
-                                ) : userInfo.isLoading || firstLoad ? (
-                                    <TaskTableSkeletonRows columns={table.getVisibleLeafColumns().length} rows={pageSize} />
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                            {t("noTasksMatch", { defaultValue: "No tasks match these filters." })}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-            </div>
-            {!firstLoad && !failed && !empty && <TaskTablePagination table={table} />}
+        <KeyboardList tasks={taskListState} canEdit={canEditTask}>
+            <WorkToolbar
+                table={table}
+                grouping={display.grouping}
+                onGrouping={(grouping) => setDisplay({ grouping })}
+                props={display.props}
+                allProps={ALL_PROPS}
+                onProps={(props) => setDisplay({ props })}
+                showCompleted={display.showCompleted}
+                onShowCompleted={(showCompleted) => setDisplay({ showCompleted })}
+                layout="list"
+                onLayout={onLayout}
+                onReset={() => {
+                    resetDisplay();
+                    table.resetColumnFilters();
+                    table.setSorting([]);
+                    table.setGlobalFilter("");
+                }}
+            />
+            {failed ? (
+                <WorkState>
+                    <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
+                </WorkState>
+            ) : (
+                <GroupedTaskList
+                    tasks={shown}
+                    options={MINE_OPTIONS}
+                    grouping={display.grouping}
+                    props={display.props}
+                    canEdit={canEditTask}
+                    loading={firstLoad}
+                    filtered={filtered}
+                    sortedBy={sortedBy}
+                    onClearFilters={() => {
+                        table.resetColumnFilters();
+                        table.setGlobalFilter("");
+                    }}
+                    empty={
+                        <WorkState>
+                            <EmptyState
+                                illustration={<SpotTasks />}
+                                title="Nothing assigned to you"
+                                description="Tasks you're given, or make for yourself, land here."
+                                action={<Button size="sm" variant="secondary" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>New task</Button>}
+                            />
+                        </WorkState>
+                    }
+                />
+            )}
+            {moreToLoad && !firstLoad && (
+                <button
+                    type="button"
+                    onClick={() => setPageSize((n) => n + LIST_PAGE)}
+                    className="flex h-9 w-full items-center pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                >
+                    Show more tasks
+                </button>
+            )}
         </KeyboardList>
     );
 };
+
+/** My Tasks spans projects, so it knows only the built-in statuses; a project's own status still reads by its name. */
+const MINE_OPTIONS = statusOptions();
 
 /** Tasks here come from many projects; each is changed by its own project's admins. */
 const canEditTask = (task: TaskInfoInterface) => Boolean(task.task_project?.project_is_admin)

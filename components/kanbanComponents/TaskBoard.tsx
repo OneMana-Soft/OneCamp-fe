@@ -33,7 +33,7 @@
  * step function skipped every column that already held a card.
  */
 
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { createPortal } from "react-dom"
 import {
     DndContext,
@@ -56,8 +56,10 @@ import { moveKeyOf, spotLabel, stepSpot } from "@/lib/board/keyMove"
 import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
-import { colorDot, isClosedStatus, type StatusOption } from "@/lib/taskStatus"
-import { celebrate } from "@/lib/celebrate"
+import { isClosedStatus, type StatusOption } from "@/lib/taskStatus"
+import { TaskStatusCell } from "@/components/task/taskStatusCell"
+import { celebrateTask, prefersReducedMotion } from "@/lib/celebrate"
+import { BoardActionsContext, type BoardActions } from "@/components/kanbanComponents/boardActions"
 import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
 import { useRowState } from "@/hooks/useListSelection"
@@ -73,10 +75,42 @@ export const BOARD_CLOSED_MAX = 2000
 type Columns = Record<string, TaskInfoInterface[]>
 type Target = { column: string; index: number }
 
+// The drop (work.md §1.3, `drop`): the copy flies to its slot in 200 ms on
+// cubic-bezier(.2,0,0,1) while it settles back to scale 1, no tilt and the
+// resting shadow (the work-dropping class, Item.module.scss). The slot under
+// it keeps its dashed look until it lands.
 const dropAnimation: DropAnimation = {
-    duration: 180,
+    duration: 200,
     easing: "cubic-bezier(0.2, 0, 0, 1)",
-    sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.4" } } }),
+    sideEffects: defaultDropAnimationSideEffects({ className: { dragOverlay: "work-dropping" } }),
+}
+
+/** ms of the drop, after which the card has landed (the flash, the Done check). */
+const DROP_MS = 200
+
+/**
+ * What a card does once it has landed (work.md W22): the brand-muted flash
+ * fading over 700 ms (Atlassian's post-drop acknowledgement; kept under
+ * reduced motion, as a colour fade), and, into Done, its glyph springing in
+ * with the Spark tier from the card. The card is found by id, so the board
+ * renders nothing for it.
+ */
+function landCard(board: HTMLElement | null, taskId: string, intoDone: boolean) {
+    const card = Array.from(board?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === taskId)
+    if (!card) return
+    card.animate?.(
+        [{ backgroundColor: "color-mix(in oklab, var(--brand-muted) 100%, var(--raised))" }, { backgroundColor: "var(--raised)" }],
+        { duration: 700, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)" },
+    )
+    if (!intoDone) return
+    const glyph = card.querySelector<HTMLElement>("[data-card-done-glyph] svg")
+    if (glyph && typeof glyph.animate === "function" && !prefersReducedMotion()) {
+        glyph.animate([{ transform: "scale(0.4)", opacity: 0.6 }, { transform: "scale(1.12)", opacity: 1, offset: 0.6 }, { transform: "scale(1)", opacity: 1 }], {
+            duration: 220,
+            easing: "cubic-bezier(0.3, 1.35, 0.5, 1)",
+        })
+    }
+    celebrateTask(card)
 }
 
 // The board decides where a card lands itself (see onDragMove); dnd-kit's
@@ -123,6 +157,7 @@ export function TaskBoard({
     badgeFor,
     onShowMore,
     lanes,
+    crossProject = false,
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
@@ -145,6 +180,8 @@ export function TaskBoard({
     onShowMore?: (column: string) => void
     /** Swimlanes: rows cutting every column, by person or priority. Memoise it. */
     lanes?: LaneSpec
+    /** Its cards come from many projects (My Tasks): each wears its project's edge and tile. */
+    crossProject?: boolean
 }) {
     const [collapsed, toggleCollapsed] = useCollapsedColumns(boardKey)
     const [foldedLanes, toggleLane] = useCollapsedColumns(boardKey ? `${boardKey}:lanes` : undefined)
@@ -173,6 +210,14 @@ export function TaskBoard({
     const origin = useRef<{ x: number; y: number } | null>(null)
     const boardRef = useRef<HTMLDivElement>(null)
     const dragging = activeTask !== null
+    const tilted = useRef(false)
+    // The gap a column opens for the held card: its height and the 8px between
+    // cards (make-room), set on the board as --room, so no card renders for it.
+    const roomFor = (id: string) => {
+        const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === id)
+        const h = card?.getBoundingClientRect().height ?? 0
+        boardRef.current?.style.setProperty("--room", `${Math.round(h) + 8}px`)
+    }
 
     const canDragRef = useRef(canDrag)
     canDragRef.current = canDrag
@@ -202,6 +247,8 @@ export function TaskBoard({
         const task = active.data.current?.task as TaskInfoInterface | undefined
         if (!task || !canDragTask(task)) return
         origin.current = pointerOf(activatorEvent)
+        tilted.current = activatorEvent ? "touches" in activatorEvent : true
+        roomFor(task.task_uuid)
         setByKeys(false)
         setActiveTask(task)
         // Until the pointer moves, it lands where it is.
@@ -213,6 +260,11 @@ export function TaskBoard({
     const onDragMove = ({ active, delta }: DragMoveEvent) => {
         const board = boardRef.current
         if (!activeTask || !board) return
+        // The lift's tilt leans the way the card first moves (pointer only).
+        if (!tilted.current && Math.abs(delta.x) > 2) {
+            tilted.current = true
+            document.querySelector<HTMLElement>(".work-drag-overlay")?.style.setProperty("--tilt", delta.x < 0 ? "-1.5deg" : "1.5deg")
+        }
         // The pointer for a mouse or finger; the lifted card's centre for keys.
         let x: number, y: number
         if (origin.current) {
@@ -269,11 +321,8 @@ export function TaskBoard({
         // playful layer celebrates, from the card where it lands. Never on
         // the way back out.
         const toDone = visible.find((v) => v.value === splitCell(drop.column).column)?.category === "done" && !isClosedStatus(task.task_status)
+        window.setTimeout(() => landCard(boardRef.current, task.task_uuid, toDone), DROP_MS)
         requestAnimationFrame(() => {
-            if (toDone) {
-                const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === task.task_uuid)
-                celebrate(card)
-            }
             if (!ls) return onMove(task, drop)
             const to = splitCell(drop.column)
             onMove(task, { ...drop, column: to.column }, { from: ls.laneOf(task), to: to.lane })
@@ -320,6 +369,7 @@ export function TaskBoard({
             e.preventDefault()
             e.stopPropagation()
             const index = itemsRef.current[column].findIndex((t) => t.task_uuid === id)
+            roomFor(id)
             setByKeys(true)
             setActiveTask(task)
             aim({ column, index })
@@ -371,6 +421,29 @@ export function TaskBoard({
 
     const liftedId = byKeys ? (activeTask?.task_uuid ?? null) : null
 
+    // The cards' menu: "Move to…" each column, as a drop at its top would.
+    // Made once; it reads the board through refs, so no card renders for it.
+    const visibleRef = useRef(visible)
+    visibleRef.current = visible
+    const moveRef = useRef<(task: TaskInfoInterface, column: string) => void>(() => {})
+    moveRef.current = (task, column) => {
+        const ls = lanesRef.current
+        const list = ls ? cellKey(ls.laneOf(task), column) : column
+        targetRef.current = { column: list, index: 0 }
+        settle(task)
+        targetRef.current = null
+        say(`Moved ${task.task_name} to ${visibleRef.current.find((v) => v.value === column)?.label ?? column}.`)
+    }
+    const actions = useMemo<BoardActions>(
+        () => ({
+            columns: () => visibleRef.current,
+            moveTo: (task, column) => moveRef.current(task, column),
+            canMove: (task) => canDragRef.current(task),
+            crossProject,
+        }),
+        [crossProject],
+    )
+
     // The line stays in view as the keys move it down a long column.
     useEffect(() => {
         if (!byKeys || !target) return
@@ -387,6 +460,7 @@ export function TaskBoard({
             onDragEnd={onDragEnd}
             onDragCancel={finish}
         >
+            <BoardActionsContext.Provider value={actions}>
             {/* Display contents: only here to catch the keys of the cards inside. */}
             <div className="contents" onKeyDownCapture={onKeyDownCapture}>
             {lanes ? (
@@ -408,7 +482,16 @@ export function TaskBoard({
                     badgeFor={badgeFor}
                 />
             ) : (
-            <div ref={boardRef} className="-mx-2 flex h-full pb-4 overflow-x-auto snap-x snap-mandatory sm:snap-none" data-board-scroll="">
+            // Columns 280px apart by 12 (8 on a phone, where each snaps and its
+            // neighbours peek); the last column keeps 20px of room after it, so
+            // nothing is clipped at the board's end.
+            <div className="flex h-full min-h-0 flex-col">
+            <div
+                ref={boardRef}
+                className="flex min-h-0 flex-1 gap-2 overflow-x-auto px-4 pb-4 snap-x snap-mandatory sm:gap-3 sm:px-0 sm:snap-none after:w-1 after:shrink-0 after:content-[''] sm:after:w-5"
+                data-board-scroll=""
+                data-board=""
+            >
                 {visible.map((status) => (
                     <BoardColumn
                         key={status.value}
@@ -425,11 +508,18 @@ export function TaskBoard({
                         total={totals?.[status.value]}
                         badgeFor={badgeFor}
                         onShowMore={onShowMore}
+                        // Only an empty column draws anything for a drag (its
+                        // drop slot), so only it hears of one: a pickup
+                        // re-rendered every column and its cards before.
+                        dragActive={dragging && (items[status.value]?.length ?? 0) === 0}
                     />
                 ))}
             </div>
+            <BoardPager boardRef={boardRef} count={visible.length} />
+            </div>
             )}
             </div>
+            </BoardActionsContext.Provider>
             <p id={instructions} className="sr-only">
                 Press Space to pick the task up, the arrow keys to move it, and Space again to put it down. Escape puts it back.
             </p>
@@ -438,7 +528,7 @@ export function TaskBoard({
             </p>
             {typeof document !== "undefined" &&
                 createPortal(
-                    <DragOverlay dropAnimation={dropAnimation}>
+                    <DragOverlay dropAnimation={dropAnimation} className="work-drag-overlay">
                         {activeTask && !byKeys ? <Item task={activeTask} value={activeTask.task_uuid} dragOverlay /> : null}
                     </DragOverlay>,
                     document.body,
@@ -486,6 +576,7 @@ const BoardColumn = memo(function BoardColumn({
     total,
     badgeFor,
     onShowMore,
+    dragActive,
 }: {
     status: StatusOption
     tasks: TaskInfoInterface[]
@@ -503,25 +594,30 @@ const BoardColumn = memo(function BoardColumn({
     total?: number
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
     onShowMore?: (column: string) => void
+    /** A card is held somewhere on the board. */
+    dragActive: boolean
 }) {
     // A drop target only for the keyboard, whose sensor steps between columns.
     const id = status.value
     const { setNodeRef } = useDroppable({ id, data: { type: "container", children: tasks } })
+    const [adding, setAdding] = useState(false)
+    // Lit only for a card from another column; in its own a card just opens a gap.
+    const isSource = activeId !== null && tasks.some((t) => t.task_uuid === activeId)
+    const count = Math.max(total ?? 0, tasks.length)
     return (
         <Container
             collapsed={collapsed}
             onToggleCollapse={() => onToggleCollapse(id)}
-            footer={onQuickAdd && !collapsed ? <QuickAdd onAdd={(name) => onQuickAdd(id, name)} /> : undefined}
+            onAdd={onQuickAdd ? () => setAdding(true) : undefined}
+            footer={onQuickAdd && !collapsed ? <QuickAdd open={adding} onOpenChange={setAdding} empty={count === 0} onAdd={(name) => onQuickAdd(id, name)} /> : undefined}
             ref={setNodeRef}
             label={id}
             title={status.label}
-            // A status column is marked by its dot, as its tasks are in the
-            // list; the category's icon beside a custom status's dot said it twice.
-            icon={status.swatch || status.dot ? undefined : status.icon}
-            swatchClass={status.swatch ? colorDot(status.swatch) : status.dot}
-            count={Math.max(total ?? 0, tasks.length)}
+            status={status}
+            count={count}
             scrollable
-            hover={lineAt !== null}
+            hover={lineAt !== null && !isSource}
+            dragActive={dragActive}
             data-column={id}
         >
             <CardStack
@@ -588,9 +684,31 @@ function CardStack({
         return () => io.disconnect()
     }, [more, limit])
     const others = shown.filter((t) => t.task_uuid !== activeId).length
+    // Make room (work.md W22): the cards from the line down move aside by the
+    // held card's height and the gap (--room, on the board), 160 ms, so the
+    // gap is where it will land. Set on the cards' elements, not their props:
+    // a step renders no card. In the card's own column, at its own place,
+    // the slot it left already says so and nothing moves.
+    const stack = useRef<HTMLDivElement>(null)
+    const sourceAt = activeId ? shown.findIndex((t) => t.task_uuid === activeId) : -1
+    useLayoutEffect(() => {
+        const slots = stack.current?.querySelectorAll<HTMLElement>(":scope > [data-card-slot]")
+        if (!slots) return
+        const open = lineAt !== null && !(sourceAt >= 0 && lineAt === sourceAt)
+        let pos = 0
+        slots.forEach((el) => {
+            if (el.dataset.cardSlot === activeId) {
+                delete el.dataset.shift
+                return
+            }
+            if (open && pos >= lineAt!) el.dataset.shift = ""
+            else delete el.dataset.shift
+            pos++
+        })
+    }, [lineAt, activeId, sourceAt, shown])
     let k = 0
     return (
-            <div className={cn("flex flex-col gap-2 w-full", className)}>
+            <div ref={stack} className={cn("flex flex-col gap-2 w-full", className)}>
                 {shown.map((task) => {
                     const position = task.task_uuid === activeId ? -1 : k++
                     return (
@@ -640,7 +758,7 @@ function CardStack({
 }
 
 /** Width of a column in lanes: the column heads and every cell share it. */
-const LANE_CELL = "w-[min(288px,calc(100vw-4rem))] shrink-0"
+const LANE_CELL = "w-[min(280px,calc(100vw-32px))] shrink-0"
 
 /**
  * The board in swimlanes: status heads pinned on top, then a row per lane. A
@@ -684,17 +802,16 @@ function LaneGrid({
     return (
         <div ref={boardRef} className="h-full overflow-auto overscroll-contain pb-4" data-board-scroll="">
             <div className="w-max min-w-full">
-                <div className="sticky top-0 z-20 flex gap-3 bg-background/90 pb-2 pl-1 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+                <div className="sticky top-0 z-20 flex gap-3 bg-sheet pb-2 pl-1">
                     {visible.map((status) => {
                         const loaded = inColumn(status.value)
                         const total = totals?.[status.value]
                         const capped = total !== undefined && total > loaded
                         return (
-                            <div key={status.value} className={cn(LANE_CELL, "flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-2")}>
-                                {status.icon && <status.icon className="h-4 w-4 text-muted-foreground" />}
-                                {status.swatch && <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", colorDot(status.swatch))} />}
-                                <h2 className="truncate text-sm font-semibold text-foreground">{status.label}</h2>
-                                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.max(total ?? 0, loaded)}</span>
+                            <div key={status.value} className={cn(LANE_CELL, "flex h-10 items-center gap-2 rounded-lg bg-sunken px-3 dark:bg-white/[.02]")}>
+                                <TaskStatusCell status={status} label="tip" />
+                                <h2 className="truncate text-xs font-[510] text-foreground">{status.label}</h2>
+                                <span className="text-xs tabular-nums text-ink-3">{Math.max(total ?? 0, loaded)}</span>
                                 {capped && onShowMore && loaded < BOARD_CLOSED_MAX && (
                                     <button
                                         type="button"
@@ -797,8 +914,8 @@ const LaneCell = memo(function LaneCell({
             data-column={id}
             className={cn(
                 LANE_CELL,
-                "group/cell flex min-h-[4.5rem] flex-col gap-1 rounded-lg border p-1.5 transition-colors duration-150 [contain:layout]",
-                lineAt !== null ? "border-primary/30 bg-accent/50" : "border-transparent bg-muted/30",
+                "group/cell flex min-h-[4.5rem] flex-col gap-2 rounded-lg p-2 transition-[background-color,box-shadow] duration-[140ms] [contain:layout]",
+                lineAt !== null ? "bg-[color-mix(in_oklab,var(--brand-muted)_45%,var(--sunken))] ring-1 ring-inset ring-brand/35" : "bg-sunken dark:bg-white/[.02]",
             )}
         >
             <CardStack id={id} column={column} tasks={tasks} canDrag={canDrag} activeId={activeId} liftedId={liftedId} describedBy={describedBy} lineAt={lineAt} badgeFor={badgeFor} />
@@ -807,9 +924,13 @@ const LaneCell = memo(function LaneCell({
     )
 })
 
-/** The line where a dragged card will land. It takes no space, so nothing shifts. */
+/**
+ * Where a dragged card will land. On a board the gap the cards open is the
+ * indicator (work.md W22), so this marks the spot without drawing: the keys
+ * keep it in view, and it takes no space.
+ */
 function DropLine({ className }: { className: string }) {
-    return <span aria-hidden="true" data-drop-line="" className={cn("pointer-events-none absolute inset-x-1 z-10 block h-0.5 rounded-full bg-primary", className)} />
+    return <span aria-hidden="true" data-drop-line="" className={cn("pointer-events-none absolute inset-x-1 z-10 block h-0 opacity-0", className)} />
 }
 
 const BoardCard = memo(function BoardCard({
@@ -839,7 +960,10 @@ const BoardCard = memo(function BoardCard({
     })
     const { highlighted, selected } = useRowState(task.task_uuid)
     return (
-        <div className="relative">
+        <div
+            data-card-slot={task.task_uuid}
+            className="relative transition-transform duration-[160ms] ease-out data-[shift]:translate-y-[var(--room,0px)]"
+        >
             {lineAbove && <DropLine className="-top-[5px]" />}
             <Item
                 ref={setNodeRef}
@@ -860,11 +984,28 @@ const BoardCard = memo(function BoardCard({
 })
 
 /**
- * "Add task" at the foot of a column, Asana's way: type a name, Enter adds it
- * here and leaves the box open for the next one; Escape or an empty blur closes.
+ * "New task" at the foot of a column, Asana's way (work.md W20): a ghost row,
+ * 32px and full width, that waits for the column's hover (always there on an
+ * empty column or a touch screen). Typing a name and Enter adds it here and
+ * leaves the box open for the next; Escape or an empty blur closes. The
+ * column's "+" opens it too.
  */
-function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise<boolean>; compact?: boolean }) {
-    const [open, setOpen] = useState(false)
+function QuickAdd({
+    onAdd,
+    compact = false,
+    open: controlled,
+    onOpenChange,
+    empty = false,
+}: {
+    onAdd: (name: string) => Promise<boolean>
+    compact?: boolean
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    empty?: boolean
+}) {
+    const [own, setOwn] = useState(false)
+    const open = controlled ?? own
+    const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOwn(v))
     const [name, setName] = useState("")
     const [busy, setBusy] = useState(false)
     if (!open) {
@@ -873,16 +1014,16 @@ function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise
                 type="button"
                 onClick={() => setOpen(true)}
                 className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-[color,background-color,opacity] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                    "inline-flex items-center gap-1.5 rounded-md text-xs text-ink-3 transition-[color,background-color,opacity] duration-[140ms] hover:bg-hover hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:opacity-100",
                     // In a lane cell it waits for the pointer, so a board of
                     // many cells stays quiet; a touch screen always shows it.
                     compact
-                        ? "self-start text-xs opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                        : "mx-3 mb-3",
+                        ? "self-start px-2 py-1 text-xs [@media(hover:hover)]:opacity-0 group-hover/cell:opacity-100"
+                        : cn("mx-2 mb-2 h-8 shrink-0 px-2", !empty && "[@media(hover:hover)]:opacity-0 group-hover/column:opacity-100"),
                 )}
             >
-                <Plus className="h-4 w-4" />
-                Add task
+                <Plus className="size-3.5" />
+                New task
             </button>
         )
     }
@@ -895,7 +1036,7 @@ function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise
         if (ok) setName("")
     }
     return (
-        <div className={compact ? undefined : "mx-3 mb-3"}>
+        <div className={compact ? undefined : "mx-2 mb-2"}>
             <input
                 autoFocus
                 value={name}
@@ -916,8 +1057,41 @@ function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise
                 placeholder="Task name, then Enter"
                 aria-label="New task name"
                 maxLength={200}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+                className="h-9 w-full rounded-[10px] bg-raised px-3 text-sm shadow-e1 outline-none placeholder:text-ink-3 focus:outline-1 focus:outline-brand/50 focus:ring-[3px] focus:ring-brand/12 disabled:opacity-60"
             />
+        </div>
+    )
+}
+
+/**
+ * On a phone, one column per screen: a 6px dot per column under the board,
+ * the one in view in ink (work.md W20). It follows the board's scroll by
+ * writing to its dots, so scrolling renders nothing.
+ */
+function BoardPager({ boardRef, count }: { boardRef: React.RefObject<HTMLDivElement | null>; count: number }) {
+    const dots = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const board = boardRef.current
+        if (!board) return
+        const paint = () => {
+            const first = board.querySelector<HTMLElement>("[data-column]")
+            const step = (first?.getBoundingClientRect().width ?? board.clientWidth) + 8
+            const at = Math.round(board.scrollLeft / Math.max(1, step))
+            dots.current?.querySelectorAll<HTMLElement>("[data-dot]").forEach((d, i) => {
+                if (i === at) d.dataset.on = ""
+                else delete d.dataset.on
+            })
+        }
+        paint()
+        board.addEventListener("scroll", paint, { passive: true })
+        return () => board.removeEventListener("scroll", paint)
+    }, [boardRef, count])
+    if (count < 2) return null
+    return (
+        <div ref={dots} aria-hidden="true" data-board-pager="" className="flex justify-center gap-1.5 pb-2 sm:hidden">
+            {Array.from({ length: count }, (_, i) => (
+                <span key={i} data-dot="" className="size-1.5 rounded-full bg-ink-4 transition-colors data-[on]:bg-ink" />
+            ))}
         </div>
     )
 }

@@ -98,11 +98,26 @@ describe("the goals list", () => {
     expect(screen.getByText("No check-in yet")).toBeTruthy()
     expect(screen.getByText("1 goal needs a check-in")).toBeTruthy()
     // Progress is drawn against the goal's time.
-    expect(screen.getAllByRole("progressbar")[0].getAttribute("aria-label")).toContain("with 50% of its time gone")
+    expect(screen.getAllByRole("progressbar").some((b) => b.getAttribute("aria-label")?.includes("with 50% of its time gone"))).toBe(true)
+    // Each row leads with its ring (design v3, W42), and a sub-goal has its elbow.
+    expect(rows[0].querySelector("[role=progressbar] svg")).not.toBeNull()
+    expect(rows[1].querySelector("[data-goal-elbow]")).not.toBeNull()
 
-    fireEvent.click(screen.getByRole("radio", { name: /Closed/ }))
+    // Status is a filter in the toolbar's language now, with a chip for what is chosen.
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }))
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Closed/ }))
     expect(screen.getByText("Old goal")).toBeTruthy()
     expect(screen.queryByText("Reach 500 teams")).toBeNull()
+    expect(screen.getByText("Closed goals")).toBeTruthy()
+    // A closed goal shows how it ended, not a ring.
+    expect(screen.getAllByRole("row")[1].querySelector("[data-status-glyph='cancelled']")).not.toBeNull()
+  })
+
+  it("says how far ahead or behind a goal is, in words", () => {
+    list = [summary("Ahead", { progress: 0.73, expected: 0.5 }), summary("Behind", { progress: 0.42, expected: 0.5 })]
+    render(<GoalsView compact={false} />)
+    expect(screen.getByText("23 ahead").className).toContain("text-camp-moss-ink")
+    expect(screen.getByText("8 behind").className).toContain("text-danger-ink")
   })
 
   it("on a phone, shows each goal's card with how far it is as a ring", () => {
@@ -118,8 +133,8 @@ describe("the goals list", () => {
     // New goal is in the toolbar row from the first paint, where it is when
     // there are goals, rather than a second button in the empty state.
     expect(screen.getByRole("button", { name: "New goal" })).toBeTruthy()
-    // The empty state's spot, in the goals' hue (the playful layer).
-    expect(container.querySelector("[data-empty-illustration] svg.hue-sun")).toBeTruthy()
+    // The empty state's spot, on a dusk tint (work.md W42).
+    expect(container.querySelector("[data-empty-illustration] svg.hue-dusk")).toBeTruthy()
   })
 })
 
@@ -147,6 +162,26 @@ describe("a goal's page", () => {
     expect(screen.getByText("50%")).toBeTruthy()
     expect(screen.getByText("410 teams, from 320 to 500 teams")).toBeTruthy()
     expect(screen.getByText("20 points behind its time")).toBeTruthy()
+    // The hero (design v3, W43): a 96 px ring, and no sparkline before two check-ins.
+    const hero = document.querySelector("[data-goal-hero]")!
+    expect(hero.querySelector("[role=progressbar][style*='width: 96px']")).not.toBeNull()
+    expect(hero.querySelector("[data-pace-tick]")).not.toBeNull()
+    expect(document.querySelector("[data-goal-sparkline]")).toBeNull()
+  })
+
+  it("draws its check-ins as a line once there are two, and lists them on a rail", () => {
+    const at = (d: string) => `2026-10-0${d}T10:00:00Z`
+    goalHook.goal = {
+      ...detail(),
+      checkins: [
+        { id: "c2", goal_id: "g1", author_uuid: "me", author_name: "Sam Rivera", health: "on_track", body: "Up again.", value: 410, created_at: at("8"), updated_at: at("8") },
+        { id: "c1", goal_id: "g1", author_uuid: "me", author_name: "Sam Rivera", health: "at_risk", body: "Slow week.", value: 380, created_at: at("1"), updated_at: at("1") },
+      ],
+    }
+    render(<GoalPage goalId="g1" />)
+    expect(document.querySelector("[data-goal-sparkline]")).not.toBeNull()
+    expect(document.querySelector("[data-checkin-rail]")!.children).toHaveLength(2)
+    expect(screen.getByText("380 → 410 teams")).toBeTruthy()
   })
 
   it("checks in with the number moved, or closes the goal", async () => {
@@ -218,6 +253,6 @@ describe("a goal's owner", () => {
     render(<GoalOwner owner={{ user_uuid: "u1", user_full_name: "Maya Chen" }} />)
     const initials = screen.getByText("MC")
     expect(initials.className).toContain(HUE_CLASS[hueFor("Maya Chen")])
-    expect(initials.className).toContain("bg-hue-tint")
+    expect(initials.className).toContain("avatar-person")
   })
 })

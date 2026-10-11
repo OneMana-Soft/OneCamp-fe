@@ -11,12 +11,12 @@ export function GoalOwner({ owner, compact = false, className }: { owner: Owner;
   const name = ownerName(owner)
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)} title={compact ? name : undefined}>
-      <Avatar className="h-5 w-5 shrink-0">
+      <Avatar className="size-[22px] shrink-0">
         <AvatarImage src={src} alt="" />
         {/* Without a photo, the owner's own colour, as everywhere else they appear. */}
         <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(name))}>{getNameInitials(name)}</AvatarFallback>
       </Avatar>
-      {!compact && <span className="truncate text-xs text-muted-foreground">{name}</span>}
+      {!compact && <span className="truncate text-xs text-foreground">{name}</span>}
     </span>
   )
 }

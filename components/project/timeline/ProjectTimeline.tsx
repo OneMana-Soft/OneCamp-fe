@@ -1,10 +1,10 @@
 "use client"
 
 import type * as React from "react"
-import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react"
+import { useSelector } from "react-redux"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { startOfDay } from "date-fns"
-import { MixerHorizontalIcon } from "@radix-ui/react-icons"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,22 +19,28 @@ import {
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectTimeline } from "@/hooks/useProjectTimeline"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { useTimelineView } from "@/hooks/useTimelineView"
 import { useStoredState } from "@/hooks/useStoredState"
-import { CalendarOff, ChevronDown, ChevronRight, CirclePlus } from "@/lib/icons"
+import { CalendarOff, ChevronDown, Plus, SlidersHorizontal } from "@/lib/icons"
+import { useGrow } from "@/hooks/useGrow"
+import { flipBy } from "@/lib/flip"
+import { prefersReducedMotion } from "@/lib/celebrate"
+import { TaskStatusCell } from "@/components/task/taskStatusCell"
+import { StatusGlyph } from "@/components/ui/graphics/glyphs"
+import { statusKindOf } from "@/components/task/taskStatusCell"
+import type { RootState } from "@/store/store"
 import {
   DAY_WIDTH,
   GROUPINGS,
   ZOOMS,
   applyEdit,
   barBox,
-  barColor,
-  dotColor,
+  barHue,
+  bubbleLabel,
   dependencyLinks,
   datesAfter,
   datesForDrop,
@@ -51,7 +57,10 @@ import {
   type TimelineTask,
   type Zoom,
   spanOf,
+  taskDate,
+  zoomStep,
 } from "@/lib/timeline"
+import { statusOptionOf } from "@/lib/taskStatus"
 import { cn } from "@/lib/utils/helpers/cn"
 import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
@@ -60,8 +69,45 @@ import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
 import { TimelineBar } from "./TimelineBar"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
+import { ZoomSwitch } from "./ZoomSwitch"
 
 const ROW_HEIGHT = 36
+/** A group's row: shorter than a task's, on the sunken step (work.md W23). */
+const GROUP_HEIGHT = 32
+/** How long after a move the view watches for bars the move pushed along, to FLIP them. */
+const WATCH_MS = 4000
+
+/** Rounds an orthogonal path's corners (M x y H… V…) with arcs of radius r, so an arrow bends rather than kinks. */
+export function roundPath(path: string, r = 6): string {
+  const pts: { x: number; y: number }[] = []
+  const re = /([MHV])\s*(-?[\d.]+)(?:\s+(-?[\d.]+))?/g
+  let x = 0
+  let y = 0
+  for (let m = re.exec(path); m; m = re.exec(path)) {
+    if (m[1] === "M") {
+      x = Number(m[2])
+      y = Number(m[3])
+    } else if (m[1] === "H") x = Number(m[2])
+    else y = Number(m[2])
+    pts.push({ x, y })
+  }
+  if (pts.length < 3) return path
+  let d = `M${pts[0].x} ${pts[0].y}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const c = pts[i + 1]
+    const inLen = Math.hypot(b.x - a.x, b.y - a.y)
+    const outLen = Math.hypot(c.x - b.x, c.y - b.y)
+    const k = Math.min(r, inLen / 2, outLen / 2)
+    if (k <= 0) continue
+    const p1 = { x: b.x - ((b.x - a.x) / inLen) * k, y: b.y - ((b.y - a.y) / inLen) * k }
+    const p2 = { x: b.x + ((c.x - b.x) / outLen) * k, y: b.y + ((c.y - b.y) / outLen) * k }
+    d += `L${p1.x} ${p1.y}Q${b.x} ${b.y} ${p2.x} ${p2.y}`
+  }
+  const last = pts[pts.length - 1]
+  return `${d}L${last.x} ${last.y}`
+}
 /** How close to an edge a drag starts scrolling the timeline, and how fast. */
 const EDGE = 48
 const EDGE_STEP = 14
@@ -148,12 +194,22 @@ export function ProjectTimeline({
   const [dropDay, setDropDay] = useState<Date | null>(null)
   // A dependency being drawn: from a bar's end handle to the pointer, and the bar it would end on.
   const [linking, setLinking] = useState<{ from: string; x1: number; y1: number; x2: number; y2: number; target: string | null } | null>(null)
+  // The bar the pointer is on: its arrows go ink-2.
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [showDeps, setShowDeps] = useStoredState<boolean>(`oc_timeline_deps:${key}`, true, isBool)
+  const [showWeekends, setShowWeekends] = useStoredState<boolean>(`oc_timeline_weekends:${key}`, true, isBool)
+  // Bars that just landed (a drop or a nudge): the brand-muted flash.
+  const [landed, setLanded] = useState<ReadonlySet<string>>(() => new Set())
+  const [dropRow, setDropRow] = useState<number | null>(null)
+  // The task open in the panel, outlined in brand.
+  const opened = useSelector((s: RootState) => (s.rightPanel?.rightPanelState?.isOpen ? s.rightPanel.rightPanelState.data.taskUUID : ""))
   const helpId = useId()
   const markerId = `dep${helpId.replace(/[^A-Za-z0-9]/g, "")}`
 
   const canEdit = !!data?.can_edit && !compact
   const dayWidth = DAY_WIDTH[zoom]
-  const nameWidth = compact ? 128 : 240
+  const nameWidth = compact ? 140 : 260
+  const projectHue = hueFor(projectId)
 
   const { rows, unscheduled, spans } = useMemo(
     () => timelineRows(tasks, { grouping, statuses, showDone, collapsed }),
@@ -164,10 +220,20 @@ export function ProjectTimeline({
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  // Each row's top: a group's row is 32px, a task's 36.
+  const tops = useMemo(() => {
+    const out: number[] = []
+    let y = 0
+    for (const r of rows) {
+      out.push(y)
+      y += r.kind === "group" ? GROUP_HEIGHT : ROW_HEIGHT
+    }
+    return out
+  }, [rows])
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: (i) => (rows[i]?.kind === "group" ? GROUP_HEIGHT : ROW_HEIGHT),
     overscan: 12,
     scrollMargin: HEADER_HEIGHT,
   })
@@ -179,8 +245,8 @@ export function ProjectTimeline({
       const row = rows.find((r) => r.kind === "task" && r.task.task_uuid === preview.id)
       if (row?.kind === "task") moving = new Map([[preview.id, applyEdit(row.span, preview)]])
     }
-    return dependencyLinks(rows, range, dayWidth, ROW_HEIGHT, moving)
-  }, [rows, range, dayWidth, preview])
+    return dependencyLinks(rows, range, dayWidth, ROW_HEIGHT, moving, tops)
+  }, [rows, range, dayWidth, preview, tops])
 
   // ---- Keeping the same days in view -----------------------------------------
   const { onScroll, goToday } = useTimelineView({
@@ -218,6 +284,24 @@ export function ProjectTimeline({
 
   // ---- Dragging a bar ------------------------------------------------------------
   const drag = useRef<Drag | null>(null)
+
+  // ---- Landing, and the bars a move pushes along ---------------------------------
+  // After a drop or a nudge the view watches for a while: bars whose dates the
+  // server moved along ("shift along") travel to their new places by FLIP,
+  // 30ms apart, so the chain visibly follows. Where each bar was is known
+  // from the data, so nothing is measured. The bar the person moved is
+  // already where they put it, and lands with the brand-muted flash.
+  const watch = useRef<{ until: number; skip: string | null }>({ until: 0, skip: null })
+  const placed = useRef(new Map<string, { x: number; y: number }>())
+  const landTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const land = useCallback((id: string) => {
+    if (landTimer.current) clearTimeout(landTimer.current)
+    setLanded(new Set([id]))
+    landTimer.current = setTimeout(() => setLanded(new Set()), 720)
+  }, [])
+  useEffect(() => () => {
+    if (landTimer.current) clearTimeout(landTimer.current)
+  }, [])
 
   const onBarPointerDown = useCallback(
     (e: PointerEvent, task: TimelineTask, kind: EditKind) => {
@@ -268,6 +352,8 @@ export function ProjectTimeline({
         const next = save && d.moved ? datesAfter(d.task, { kind: d.kind, days: d.days }) : null
         if (next) {
           follow.current = { id: d.task.task_uuid, focus: false }
+          watch.current = { until: Date.now() + WATCH_MS, skip: d.task.task_uuid }
+          land(d.task.task_uuid)
           void reschedule(d.task, next, { shift: shiftAlong })
         }
       }
@@ -285,7 +371,7 @@ export function ProjectTimeline({
       window.addEventListener("keydown", escape, true)
       d.frame = requestAnimationFrame(edgeScroll)
     },
-    [canEdit, dayWidth, nameWidth, reschedule, shiftAlong],
+    [canEdit, dayWidth, nameWidth, reschedule, shiftAlong, land],
   )
 
   // ---- Drawing a dependency --------------------------------------------------------
@@ -365,6 +451,7 @@ export function ProjectTimeline({
       const next = datesAfter(task, { kind: e.shiftKey ? "end" : "move", days: e.key === "ArrowLeft" ? -1 : 1 })
       if (!next) return
       follow.current = { id: task.task_uuid, focus: true }
+      watch.current = { until: Date.now() + WATCH_MS, skip: null }
       void reschedule(task, next, { later: true, shift: shiftAlong })
     },
     [canEdit, onOpenTask, reschedule, shiftAlong],
@@ -378,6 +465,15 @@ export function ProjectTimeline({
     if (!view || !body || e.clientX < view.left + nameWidth) return null
     return dayAt(e.clientX - body.left - nameWidth, range, dayWidth)
   }
+  // The row under the pointer, for the one-day ghost bar that follows it.
+  const rowUnder = (e: DragEvent) => {
+    const body = bodyRef.current?.getBoundingClientRect()
+    if (!body) return null
+    const y = e.clientY - body.top
+    let i = 0
+    while (i + 1 < tops.length && tops[i + 1] <= y) i++
+    return Math.max(0, i)
+  }
   const onDragOver = (e: DragEvent) => {
     if (!canEdit || !e.dataTransfer.types.includes(UNSCHEDULED_DRAG)) return
     const day = dayUnder(e)
@@ -385,6 +481,8 @@ export function ProjectTimeline({
     e.preventDefault()
     e.dataTransfer.dropEffect = "move"
     if (day.getTime() !== dropDay?.getTime()) setDropDay(day)
+    const row = rowUnder(e)
+    if (row !== dropRow) setDropRow(row)
   }
   const onDrop = (e: DragEvent) => {
     const id = e.dataTransfer.getData(UNSCHEDULED_DRAG)
@@ -394,6 +492,8 @@ export function ProjectTimeline({
     if (!canEdit || !task || !day) return
     e.preventDefault()
     follow.current = { id: task.task_uuid, focus: false }
+    watch.current = { until: Date.now() + WATCH_MS, skip: task.task_uuid }
+    land(task.task_uuid)
     void reschedule(task, datesForDrop(day), { shift: shiftAlong })
   }
 
@@ -417,73 +517,111 @@ export function ProjectTimeline({
 
   const todayLeft = offsetOf(today, range, dayWidth)
   const sideShown = sideOpen && unscheduled.length > 0
-  const dropBox = dropDay ? { left: offsetOf(dropDay, range, dayWidth), width: dayWidth } : null
   const truncated = data && data.total > data.tasks.length
   const nothingDated = rows.length === 0
-  const weekShade = zoom !== "month"
+  const weekShade = showWeekends && (zoom === "day" || zoom === "week")
   const gridLines =
     zoom === "day"
       ? Array.from({ length: Math.ceil(range.days / 7) }, (_, i) => i * 7 * dayWidth)
       : null
 
+  // The first reveal: bars grow from their starts, 16ms apart by row, then the arrows draw.
+  const grow = useGrow(`timeline:${key}`, drawn)
+  const growDone = 320 + Math.min(rows.length * 16, 240)
+
+  // Where each drawn bar is, from the data (a dragged bar where it's going).
+  const layoutNow = useMemo(() => {
+    const out = new Map<string, { x: number; y: number }>()
+    rows.forEach((r, i) => {
+      if (r.kind !== "task") return
+      const span = preview?.id === r.task.task_uuid ? applyEdit(r.span, preview) : r.span
+      out.set(r.task.task_uuid, { x: barBox(span, range, dayWidth).left, y: tops[i] })
+    })
+    return out
+  }, [rows, preview, range, dayWidth, tops])
+
+  // Bars a move pushed along travel from where they were; see `watch`.
+  useLayoutEffect(() => {
+    const before = placed.current
+    placed.current = layoutNow
+    const w = watch.current
+    if (Date.now() > w.until || preview) return
+    let n = 0
+    for (const [id, now] of layoutNow) {
+      const was = before.get(id)
+      if (!was || id === w.skip || (was.x === now.x && was.y === now.y)) continue
+      const el = bodyRef.current?.querySelector<HTMLElement>(`[data-bar="${CSS.escape(id)}"]`)
+      if (flipBy(el, was.x - now.x, was.y - now.y, { duration: 240, delay: n * 30 })) n++
+    }
+  }, [layoutNow, preview])
+
+  // A conflict the person just resolved: its arrow draws again, solid, and its "!" pops away.
+  const brokenBefore = useRef(new Map<string, { x: number; y: number }>())
+  const [fixed, setFixed] = useState<ReadonlyMap<string, { x: number; y: number }>>(() => new Map())
+  useLayoutEffect(() => {
+    const now = new Map(links.filter((l) => l.broken && l.mid).map((l) => [l.key, l.mid!]))
+    const resolved = new Map<string, { x: number; y: number }>()
+    for (const [k, mid] of brokenBefore.current) if (!now.has(k) && links.some((l) => l.key === k)) resolved.set(k, mid)
+    brokenBefore.current = now
+    if (resolved.size === 0 || preview || prefersReducedMotion()) return
+    setFixed(resolved)
+    const t = setTimeout(() => setFixed(new Map()), 320)
+    return () => clearTimeout(t)
+  }, [links, preview])
+
+  // T goes to today; - and + zoom out and in (work.md W23). Only while the timeline is on screen.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || !scrollRef.current?.offsetParent) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      if (e.key === "t" || e.key === "T") goToday()
+      else if (e.key === "-") setZoom(zoomStep(zoom, 1))
+      else if (e.key === "+" || e.key === "=") setZoom(zoomStep(zoom, -1))
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [goToday, setZoom, zoom])
+
   const toolRow = (
-    <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div data-work-toolbar="" className={cn(workToolbar, "h-11 justify-between gap-1.5 px-4")}>
+      <div className="flex flex-wrap items-center gap-1.5">
         {leading}
-        {/* Quiet, as every tab's secondary controls are; the zoom is one
-            32px group, the height of the controls beside it. */}
-        <Button variant="ghost" size="sm" className="h-8" onClick={goToday} disabled={!drawn}>
+        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" onClick={goToday} disabled={!drawn} aria-keyshortcuts="T">
           Today
+          <kbd className="kbd">T</kbd>
         </Button>
-        <ToggleGroup
-          type="single"
-          size="sm"
-          value={zoom}
-          onValueChange={(v) => isZoom(v) && setZoom(v)}
-          aria-label="Zoom"
-          className="h-8 rounded-md border p-0.5"
-        >
-          {ZOOMS.map((z) => (
-            <ToggleGroupItem key={z.value} value={z.value} className="h-full px-2.5 text-xs">
-              {z.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <ZoomSwitch value={zoom} onChange={setZoom} />
         {truncated && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-ink-3">
             The newest {data.tasks.length.toLocaleString()} of {data.total.toLocaleString()} tasks
           </span>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button
-          variant={sideShown ? "secondary" : "ghost"}
+          variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
+          className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground aria-pressed:bg-press aria-pressed:text-foreground"
           aria-pressed={sideShown}
           disabled={unscheduled.length === 0}
           title={unscheduled.length === 0 ? "Every open task has a date" : undefined}
           onClick={() => setSideOpen(!sideShown)}
         >
-          <CalendarOff className="h-4 w-4" />
+          <CalendarOff className="size-3.5" />
           Unscheduled
-          <span className="tabular-nums text-muted-foreground">{unscheduled.length}</span>
+          <span className="chip h-[18px] px-1.5 tabular-nums">{unscheduled.length}</span>
         </Button>
-        {/* The one filled button, where the List and the Board keep it. */}
-        {onCreateTask && (
-          <Button size="sm" className="h-8" aria-label="Create task" onClick={onCreateTask}>
-            <CirclePlus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Create task</span>
-          </Button>
-        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" aria-label="View">
-              <MixerHorizontalIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">View</span>
+            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" aria-label="Display">
+              <SlidersHorizontal className="size-3.5" />
+              <span className="hidden sm:inline">Display</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>Group by</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={grouping} onValueChange={(v) => isGrouping(v) && setGrouping(v)}>
               {GROUPINGS.map((g) => (
@@ -496,6 +634,12 @@ export function ProjectTimeline({
             <DropdownMenuCheckboxItem checked={showDone} onCheckedChange={(v) => setShowDone(Boolean(v))}>
               Show done tasks
             </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={showDeps} onCheckedChange={(v) => setShowDeps(Boolean(v))}>
+              Show dependencies
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={showWeekends} onCheckedChange={(v) => setShowWeekends(Boolean(v))}>
+              Show weekends
+            </DropdownMenuCheckboxItem>
             {canEdit && (
               <DropdownMenuCheckboxItem checked={shiftAlong} onCheckedChange={(v) => setShiftAlong(Boolean(v))}>
                 Move waiting tasks along
@@ -503,16 +647,23 @@ export function ProjectTimeline({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* The one filled button, where the List and the Board keep it. */}
+        {onCreateTask && (
+          <Button size="sm" className="h-7 gap-1.5 px-2.5" aria-label="New task" onClick={onCreateTask}>
+            <Plus className="size-3.5" />
+            <span className="hidden sm:inline">New task</span>
+          </Button>
+        )}
       </div>
     </div>
   )
 
-  // The frame: List's radius and its 16px under the tools.
-  const frame = cn(workBody, "relative flex min-h-0 flex-1 overflow-hidden rounded-md border bg-background")
+  // No box (design v3): the grid sits on the sheet under a hairline.
+  const frame = cn(workBody, "relative mt-0 flex min-h-0 flex-1 overflow-hidden border-t border-line bg-sheet")
 
   if (!drawn) {
     return (
-      <div className={cn(HUE_CLASS[hueFor(projectId)], "flex h-full min-h-0 flex-col", className)}>
+      <div data-timeline="" className={cn(HUE_CLASS[projectHue], "flex h-full min-h-0 flex-col", className)}>
         {toolRow}
         <div className={frame}>
           {loadingNow ? (
@@ -524,12 +675,12 @@ export function ProjectTimeline({
           ) : !isError && noTasks ? (
             <WorkState className="flex-1">
               <EmptyState
-                illustration={<SpotCalendar hue={hueFor(projectId)} />}
+                illustration={<SpotCalendar hue={projectHue} />}
                 title="Nothing on the timeline yet"
                 description={
                   given
                     ? "The project's tasks show here as bars across the days they run, once they have dates."
-                    : "A project's tasks show here as bars across the days they run. Add a task with a due date, or start the project from a template."
+                    : "Give tasks a start and due date, and they show here as bars across the days they run."
                 }
               />
             </WorkState>
@@ -539,9 +690,12 @@ export function ProjectTimeline({
     )
   }
 
+  const linkTone = (from: string, to: string) => hovered === from || hovered === to || opened === from || opened === to
+  const drawAt = grow.mode === "animate" ? growDone : 0
+
   return (
-    // The project's hue, which every open bar is drawn in (lib/timeline BAR_OPEN).
-    <div className={cn(HUE_CLASS[hueFor(projectId)], "flex h-full min-h-0 flex-col", className)}>
+    // The project's hue: the bars of statuses with no hue of their own (lib/timeline barHue).
+    <div data-timeline="" className={cn(HUE_CLASS[projectHue], "flex h-full min-h-0 flex-col", className)}>
       {toolRow}
 
       <div className={frame}>
@@ -557,75 +711,131 @@ export function ProjectTimeline({
           <div
             ref={bodyRef}
             className="relative"
-            style={{ height: Math.max(virtualizer.getTotalSize(), nothingDated ? 160 : 0), width: nameWidth + gridWidth }}
+            style={{ height: Math.max(virtualizer.getTotalSize(), nothingDated ? 320 : 0), width: nameWidth + gridWidth }}
             onDragOver={onDragOver}
             onDragLeave={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropDay(null)
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                setDropDay(null)
+                setDropRow(null)
+              }
             }}
-            onDrop={onDrop}
+            onDrop={(e) => {
+              setDropRow(null)
+              onDrop(e)
+            }}
           >
-            {/* Weekends, week lines, today and where a dragged task would land. */}
+            {/* Weekends as sunken columns, week lines, and today's line. */}
             <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: nameWidth, width: gridWidth }}>
               {weekShade && (
-                // One quiet step for weekends: at 70% of --muted they striped
-                // the whole chart, loudest in dark mode, where muted is a
-                // full surface step above the page.
                 <div
-                  className="absolute inset-0 opacity-50 dark:opacity-40"
-                  style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${5 * dayWidth}px, var(--muted) ${5 * dayWidth}px ${7 * dayWidth}px)` }}
+                  data-weekends=""
+                  className="absolute inset-0"
+                  style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${5 * dayWidth}px, var(--sunken) ${5 * dayWidth}px ${7 * dayWidth}px)` }}
                 />
               )}
-              {gridLines?.map((left) => <div key={left} className="absolute inset-y-0 w-px bg-border/50" style={{ left }} />)}
-              {dropBox && <div className="absolute inset-y-0 border-x border-dashed border-primary bg-primary/10" style={dropBox} />}
+              {gridLines?.map((left) => <div key={left} className="absolute inset-y-0 w-px bg-line" style={{ left }} />)}
               {todayLeft >= 0 && todayLeft < gridWidth && (
-                <div className="absolute inset-y-0 w-px bg-primary" style={{ left: todayLeft + dayWidth / 2 }} />
+                <div data-today-line="" className="absolute inset-y-0 z-[5] w-[1.5px] -translate-x-1/2 bg-brand" style={{ left: todayLeft + dayWidth / 2 }} />
               )}
             </div>
 
-            {/* Dependencies: arrows from the end of a task to the start of the one waiting on it, red where the plan can't be kept. */}
-            {(links.length > 0 || linking) && (
-              <svg aria-hidden className="pointer-events-none absolute top-0 overflow-visible" style={{ left: nameWidth, width: gridWidth, height: "100%" }}>
+            {/* Dependencies: 1.5px paths with rounded elbows from the end of a task to the start of the one waiting on it; dashed danger where the plan can't be kept. */}
+            {showDeps && (links.length > 0 || linking) && (
+              <svg aria-hidden data-dependencies="" className="pointer-events-none absolute top-0 z-[6] overflow-visible" style={{ left: nameWidth, width: gridWidth, height: "100%" }}>
                 <defs>
-                  <marker id={`${markerId}-ok`} viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
-                    <path d="M0,0 L6,3 L0,6 z" className="fill-muted-foreground" />
-                  </marker>
-                  <marker id={`${markerId}-broken`} viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
-                    <path d="M0,0 L6,3 L0,6 z" className="fill-destructive" />
-                  </marker>
+                  {(["ok", "near", "broken"] as const).map((tone) => (
+                    <marker key={tone} id={`${markerId}-${tone}`} viewBox="0 0 5 5" refX="4.5" refY="2.5" markerWidth="5" markerHeight="5" orient="auto">
+                      <path d="M0,0 L5,2.5 L0,5 z" style={{ fill: tone === "broken" ? "var(--destructive)" : tone === "near" ? "var(--ink-2)" : "var(--line-3)" }} />
+                    </marker>
+                  ))}
                 </defs>
-                {links.map((l) => (
-                  <path
-                    key={l.key}
-                    d={l.path}
-                    fill="none"
-                    strokeWidth={1.5}
-                    className={l.broken ? "stroke-destructive" : "stroke-muted-foreground"}
-                    markerEnd={`url(#${markerId}-${l.broken ? "broken" : "ok"})`}
-                  />
-                ))}
+                {links.map((l, i) => {
+                  const near = !l.broken && linkTone(l.from, l.to)
+                  const tone = l.broken ? "broken" : near ? "near" : "ok"
+                  const redraw = fixed.has(l.key)
+                  const draws = (drawAt > 0 || redraw) && !l.broken
+                  return (
+                    <path
+                      key={redraw ? `${l.key}:fixed` : l.key}
+                      data-link={l.key}
+                      data-broken={l.broken || undefined}
+                      d={roundPath(l.path, 6)}
+                      fill="none"
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      pathLength={l.broken ? undefined : 1}
+                      strokeDasharray={l.broken ? "4 3" : draws ? 1 : undefined}
+                      style={{
+                        stroke: l.broken ? "var(--destructive)" : near ? "var(--ink-2)" : "var(--line-3)",
+                        transition: "stroke 140ms var(--ease-out)",
+                        animation: draws
+                          ? `work-tick-draw 240ms var(--ease-out) ${redraw ? 0 : drawAt + Math.min(i * 16, 160)}ms both`
+                          : l.broken && drawAt > 0
+                            ? `work-fade-in 240ms var(--ease-out) ${drawAt}ms both`
+                            : undefined,
+                      }}
+                      markerEnd={`url(#${markerId}-${tone})`}
+                    />
+                  )
+                })}
                 {linking && (
-                  <path d={`M${linking.x1} ${linking.y1}L${linking.x2} ${linking.y2}`} fill="none" strokeWidth={1.5} strokeDasharray="4 3" className="stroke-primary" />
+                  <path d={`M${linking.x1} ${linking.y1}L${linking.x2} ${linking.y2}`} fill="none" strokeWidth={1.5} strokeLinecap="round" style={{ stroke: "var(--brand)" }} />
                 )}
               </svg>
             )}
+            {/* A conflict's "!" at its elbow, named on hover; a resolved one pops away. */}
+            {showDeps &&
+              links
+                .filter((l) => l.broken && l.mid)
+                .map((l) => (
+                  <span
+                    key={`!${l.key}`}
+                    data-conflict={l.key}
+                    data-tip={`Starts before ‘${l.fromName ?? "the task it waits on"}’ ends`}
+                    className="work-tip absolute z-[7] flex size-4 items-center justify-center rounded-full bg-destructive text-3xs font-[590] leading-none text-white"
+                    style={{ left: nameWidth + l.mid!.x - 8, top: l.mid!.y - 8 }}
+                  >
+                    !
+                  </span>
+                ))}
+            {[...fixed].map(([k, mid]) => (
+              <span
+                key={`fixed!${k}`}
+                aria-hidden
+                className="pointer-events-none absolute z-[7] flex size-4 items-center justify-center rounded-full bg-destructive text-3xs font-[590] leading-none text-white"
+                style={{ left: nameWidth + mid.x - 8, top: mid.y - 8, animation: "work-glyph-out 160ms var(--ease-out) both" }}
+              >
+                !
+              </span>
+            ))}
 
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]
               const top = item.start - HEADER_HEIGHT
               if (row.kind === "group") {
                 return (
-                  <div key={row.key} className="absolute left-0 flex border-b border-border/60 bg-muted/30" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
+                  <div
+                    key={row.key}
+                    data-timeline-group=""
+                    className={cn("absolute left-0 flex bg-sunken", item.index > 0 && "border-t border-line")}
+                    style={{ top, height: GROUP_HEIGHT, width: nameWidth + gridWidth }}
+                  >
                     <button
                       type="button"
                       aria-expanded={!row.collapsed}
                       onClick={() => toggleGroup(row.id)}
-                      className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r bg-muted px-2 text-left text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-line bg-sunken px-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                       style={{ width: nameWidth }}
                     >
-                      {row.collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
-                      {row.dot && <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", row.dot)} />}
-                      <span className="truncate">{row.label}</span>
-                      <span className="ml-auto font-normal tabular-nums text-muted-foreground">{row.count}</span>
+                      {row.status ? (
+                        <StatusGlyph status={statusKindOf(row.status)} hue={row.status.hue} />
+                      ) : null}
+                      <span className="truncate text-xs font-[510]">{row.label}</span>
+                      <span className="text-xs tabular-nums text-ink-3">{row.count}</span>
+                      <ChevronDown
+                        className={cn("ml-auto size-3.5 shrink-0 text-ink-3 transition-transform duration-[180ms]", row.collapsed && "-rotate-90")}
+                      />
                     </button>
                   </div>
                 )
@@ -633,67 +843,103 @@ export function ProjectTimeline({
               const { task } = row
               const moving = preview?.id === task.task_uuid ? preview : null
               const span = moving ? applyEdit(row.span, moving) : row.span
+              const origin = barBox(row.span, range, dayWidth)
               const box = barBox(span, range, dayWidth)
+              const isMove = moving?.kind === "move"
               const done = task.task_status === "done"
+              const late = !moving && isLate(task, today)
+              const status = statusOptionOf(task, statuses)
+              const milestone = !taskDate(task.task_start_date) && !!taskDate(task.task_due_date)
+              const taskIndex = item.index
               return (
-                <div key={row.key} className="group absolute left-0 flex border-b border-border/50" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
+                <div key={row.key} className="group/trow absolute left-0 flex" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
                   <div
-                    className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r bg-background px-3 group-hover:bg-muted"
+                    className="sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r border-line bg-sheet px-5 transition-colors group-hover/trow:bg-[color-mix(in_oklab,var(--sheet),var(--ink)_4%)]"
                     style={{ width: nameWidth }}
                   >
-                    <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", dotColor(task, statuses))} />
+                    {status && <TaskStatusCell status={status} label="tip" />}
                     <button
                       type="button"
                       tabIndex={-1}
                       onClick={() => !isPending(task) && onOpenTask(task.task_uuid)}
-                      className={cn("truncate text-left text-sm hover:underline", done && "text-muted-foreground line-through")}
+                      className={cn("truncate text-left text-sm leading-5", done ? "text-ink-3" : "text-foreground")}
                       title={task.task_name}
                     >
                       {task.task_name}
                     </button>
                   </div>
-                  <div className="relative" style={{ width: gridWidth }}>
+                  <div className="relative transition-colors group-hover/trow:bg-hover" style={{ width: gridWidth }}>
                     <TimelineBar
                       task={task}
-                      left={box.left}
-                      width={box.width}
-                      color={barColor(task, statuses)}
-                      mark={dotColor(task, statuses)}
+                      left={isMove ? origin.left : box.left}
+                      width={isMove ? origin.width : box.width}
+                      shift={isMove ? box.left - origin.left : 0}
+                      ghost={moving ? origin : null}
+                      hue={barHue(task, statuses, projectHue)}
                       label={spanLabel(span, today)}
-                      dragLabel={moving ? spanLabel(span, today) : undefined}
-                      late={!moving && isLate(task, today)}
+                      bubble={moving ? bubbleLabel(span) : undefined}
+                      late={late}
+                      lateTail={late ? todayLeft + dayWidth - (box.left + box.width) : 0}
                       done={done}
+                      milestone={milestone}
                       canEdit={canEdit && !isPending(task)}
                       stickAt={nameWidth + 4}
                       blocked={task.task_blocked_open ?? 0}
                       onLinkStart={given ? undefined : onLinkStart}
                       linkTarget={linking?.target === task.task_uuid}
+                      selected={opened === task.task_uuid}
+                      landed={landed.has(task.task_uuid)}
+                      grow={grow.bar(taskIndex)}
                       helpId={helpId}
                       onPointerDown={onBarPointerDown}
                       onKeyDown={onBarKeyDown}
                       onClick={onBarClick}
+                      onHover={setHovered}
                     />
                   </div>
                 </div>
               )
             })}
 
+            {/* A task from Unscheduled, held over a day: a one-day ghost bar with its date. */}
+            {dropDay && dropRow != null && (
+              <div
+                aria-hidden
+                data-drop-ghost=""
+                className="pointer-events-none absolute z-[8] h-6 rounded-md bg-hue-tint opacity-80 outline outline-[1.5px] outline-offset-[-1.5px] outline-dashed outline-hue"
+                style={{ left: nameWidth + offsetOf(dropDay, range, dayWidth), top: (tops[dropRow] ?? 0) + 6, width: Math.max(dayWidth, 16) }}
+              >
+                <span className="absolute -top-8 left-0 whitespace-nowrap rounded-md bg-pop px-2 py-1 text-xs font-[510] tabular-nums text-foreground shadow-e3">
+                  {bubbleLabel({ start: dropDay, end: dropDay })}
+                </span>
+              </div>
+            )}
+
             {nothingDated && (
-              <div className="pointer-events-none absolute inset-x-0 top-10 flex justify-center px-4" style={{ paddingLeft: nameWidth }}>
-                <p className="max-w-sm text-center text-sm text-muted-foreground">
-                  {!showDone && tasks.some((t) => t.task_status === "done" && spanOf(t))
-                    ? "Every dated task is done. Show done tasks from View."
-                    : canEdit
-                      ? "No task has a date yet. Drag one from Unscheduled onto a day."
-                      : "No task has a date yet."}
-                </p>
+              <div className="absolute inset-x-0 top-6 flex justify-center px-4" style={{ paddingLeft: nameWidth }}>
+                {!showDone && tasks.some((t) => t.task_status === "done" && spanOf(t)) ? (
+                  <p className="max-w-sm text-center text-sm text-ink-2">Every dated task is done. Show done tasks from Display.</p>
+                ) : (
+                  <EmptyState
+                    illustration={<SpotCalendar hue={projectHue} />}
+                    title="Nothing on the timeline yet"
+                    description={canEdit ? "Give tasks a start and due date, or drag one in from Unscheduled." : "No task has a date yet."}
+                    action={
+                      canEdit && unscheduled.length > 0 && !sideShown ? (
+                        <Button variant="secondary" size="sm" onClick={() => setSideOpen(true)}>
+                          Open Unscheduled
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                )}
               </div>
             )}
           </div>
         </div>
 
         {sideShown && (
-          <UnscheduledPanel tasks={unscheduled} canEdit={canEdit} overlay={compact} onOpenTask={onOpenTask} onClose={() => setSideOpen(false)} />
+          <UnscheduledPanel tasks={unscheduled} statuses={statuses} canEdit={canEdit} onOpenTask={onOpenTask} onClose={() => setSideOpen(false)} />
         )}
       </div>
 
@@ -713,14 +959,19 @@ export function ProjectTimeline({
 function TimelineSkeleton({ nameWidth }: { nameWidth: number }) {
   return (
     <div role="status" aria-label="Loading the timeline" className="flex-1">
-      <div className="border-b" style={{ height: HEADER_HEIGHT }} />
+      <div className="flex border-b border-line" style={{ height: HEADER_HEIGHT }}>
+        <div className="flex shrink-0 items-end border-r border-line px-5 pb-2 text-xs font-[510] text-ink-3" style={{ width: nameWidth }}>
+          Task
+        </div>
+      </div>
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} aria-hidden="true" className="flex items-center border-b border-border/40" style={{ height: ROW_HEIGHT }}>
-          <div className="shrink-0 px-3" style={{ width: nameWidth }}>
+        <div key={i} aria-hidden="true" className="flex items-center" style={{ height: ROW_HEIGHT }}>
+          <div className="flex h-full shrink-0 items-center gap-2.5 border-r border-line px-5" style={{ width: nameWidth }}>
+            <Skeleton className="size-4 rounded-full" />
             <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/4" : "w-1/2")} />
           </div>
-          <div className="relative h-full flex-1 border-l">
-            <Skeleton className="absolute top-1/2 h-5 -translate-y-1/2" style={{ left: `${(i * 7) % 40}%`, width: `${18 + ((i * 13) % 30)}%` }} />
+          <div className="relative h-full flex-1">
+            <Skeleton className="absolute top-1.5 h-6 rounded-md" style={{ left: `${(i * 7) % 40}%`, width: `${18 + ((i * 13) % 30)}%` }} />
           </div>
         </div>
       ))}

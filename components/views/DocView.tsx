@@ -2,10 +2,12 @@
 
 import { displayNameOf } from "@/lib/personName"
 import {useMedia} from "@/context/MediaQueryContext";
-import {DocTopBarBreadcrumb} from "@/components/doc/docTopBarBreadcrumb";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
-import { SaveForLaterButton } from "@/components/later/SaveForLater";
+import { DocHeader, DocShortcutsDialog } from "@/components/docEditor/DocHeader";
+import { ConnectionPill } from "@/components/docEditor/ConnectionPill";
+import { docSaveState, useSlowSave } from "@/components/docEditor/docSaveState";
+import type { Editor } from "@tiptap/react";
 import {LinkedFromSection} from "@/components/entityLink/LinkedFromSection";
 import {cn} from "@/lib/utils/helpers/cn";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -14,19 +16,11 @@ import { UserProfileInterface } from "@/types/user";
 import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
 import {DocInfoResponse} from "@/types/doc";
-import { MessageCircle, Loader2, Download, Keyboard, Maximize, Minimize, Ellipsis, History, Eye } from "@/lib/icons";
-import { WifiOff } from "lucide-react";
+import { Minimize2 } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotError } from "@/components/ui/graphics";
 import Link from "next/link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {useDispatch, useSelector} from "react-redux";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {openUI} from "@/store/slice/uiSlice";
@@ -35,7 +29,7 @@ import {useEffect} from "react";
 import {updateDocCommentCount} from "@/store/slice/createDocCommentSlice";
 import {updateUserDocTitle} from "@/store/slice/userSlice";
 import {useMqttTopic} from "@/hooks/useMqttTopic";
-import { DocPageSkeleton } from "@/components/doc/DocPageSkeleton";
+import { DocBodySkeleton, DocPageSkeleton } from "@/components/doc/DocPageSkeleton";
 import { useDocMessageHandlers } from "@/hooks/useDocMessageHandlers";
 import { usePost } from "@/hooks/usePost";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
@@ -46,50 +40,6 @@ import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { htmlToMarkdown, downloadMarkdown } from "@/lib/utils/exportToMarkdown";
 import { useToast } from "@/hooks/use-toast";
 import type { Content } from '@tiptap/react'
-
-// ---------------------------------------------------------------------------
-// Keyboard shortcuts help panel
-// ---------------------------------------------------------------------------
-const SHORTCUTS = [
-  { keys: ['Ctrl/Cmd', 'B'], action: 'Bold' },
-  { keys: ['Ctrl/Cmd', 'I'], action: 'Italic' },
-  { keys: ['Ctrl/Cmd', 'U'], action: 'Underline' },
-  { keys: ['Ctrl/Cmd', 'K'], action: 'Add link' },
-  { keys: ['Ctrl/Cmd', 'Z'], action: 'Undo' },
-  { keys: ['Ctrl/Cmd', 'Shift', 'Z'], action: 'Redo' },
-  { keys: ['Shift', 'Enter'], action: 'Hard break' },
-  { keys: ['/'], action: 'Slash commands' },
-]
-
-function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">Keyboard shortcuts</DialogTitle>
-          <DialogDescription className="sr-only">
-            Editor keyboard shortcuts reference. Press Escape or click outside to close.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          {SHORTCUTS.map((s) => (
-            <div key={s.action} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{s.action}</span>
-              <div className="flex items-center gap-1">
-                {s.keys.map((k, i) => (
-                  <React.Fragment key={k}>
-                    <kbd className="px-1.5 py-0.5 rounded bg-muted border text-2xs font-mono">{k}</kbd>
-                    {i < s.keys.length - 1 && <span className="text-muted-foreground">+</span>}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -113,7 +63,9 @@ export function DocView({ docId }: { docId: string }) {
     );
     const docInfo = docInfoHelper?.data;
 
-    const lastEditedRelative = useRelativeTime(docInfo?.doc_updated_at || null);
+    // A doc never edited since it was made has no update time: its creation stands in.
+    const editedAt = docInfo?.doc_updated_at && !docInfo.doc_updated_at.startsWith("0001") ? docInfo.doc_updated_at : docInfo?.doc_created_at;
+    const lastEditedRelative = useRelativeTime(editedAt || null);
 
     // Subscribe to document MQTT topic for real-time updates
     useMqttTopic({
@@ -212,24 +164,16 @@ export function DocView({ docId }: { docId: string }) {
 
     const editorReady = !needsCollabBeforeMount || !!provider || collabGraceElapsed;
 
-    // The banner is for a connection lost, not one being made: on opening, the
-    // saved text shows while the socket connects, and "Reconnecting…" there
-    // read as a fault and moved the page when it went. A first connection
-    // that's slow still says so, after five seconds.
+    // A connection lost, not one being made: on opening, the saved text shows
+    // while the socket connects, and the save dot says "connecting" (a ring),
+    // never a banner. The pill (D13) is for a connection that was live.
     const [everSynced, setEverSynced] = React.useState(false);
-    const [slowStart, setSlowStart] = React.useState(false);
     React.useEffect(() => {
         setEverSynced(false);
-        setSlowStart(false);
     }, [docId]);
     React.useEffect(() => {
         if (collabSynced) setEverSynced(true);
     }, [collabSynced]);
-    React.useEffect(() => {
-        if (everSynced || !collaborationConfig?.enabled) return;
-        const t = setTimeout(() => setSlowStart(true), 5000);
-        return () => clearTimeout(t);
-    }, [everSynced, collaborationConfig?.enabled, docId]);
 
     // HTTP fallback auto-save. Only active when collaboration is NOT enabled
     // (read-only viewers, or environments without the collab server). When
@@ -248,6 +192,40 @@ export function DocView({ docId }: { docId: string }) {
 
     // Focus mode
     const [focusMode, setFocusMode] = React.useState(false);
+    // Full width (the More menu's toggle): the page at 1,040 px.
+    const [fullWidth, setFullWidth] = React.useState(false);
+    // The editor, for what the header shows from it (the word count in More).
+    const [editor, setEditor] = React.useState<Editor | null>(null);
+    // The header's hairline shows once the body has scrolled.
+    const [scrolled, setScrolled] = React.useState(false);
+    const bodyRef = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => {
+        const el = bodyRef.current;
+        if (!el) return;
+        const onScroll = (e: Event) => {
+            const t = e.target as HTMLElement;
+            if (t?.classList?.contains("doc-scroll")) setScrolled(t.scrollTop > 4);
+        };
+        el.addEventListener("scroll", onScroll, true);
+        return () => el.removeEventListener("scroll", onScroll, true);
+    });
+    // In focus mode the exit shows while the pointer moves, and fades after 2 s.
+    const [focusChrome, setFocusChrome] = React.useState(true);
+    React.useEffect(() => {
+        if (!focusMode) return;
+        let t: ReturnType<typeof setTimeout>;
+        const wake = () => {
+            setFocusChrome(true);
+            clearTimeout(t);
+            t = setTimeout(() => setFocusChrome(false), 2000);
+        };
+        wake();
+        window.addEventListener("pointermove", wake);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener("pointermove", wake);
+        };
+    }, [focusMode]);
 
     // Exit focus mode on Escape so it's never a trap. Only active in focus
     // mode. An open editor menu (slash, mention, link) or popup has the key
@@ -270,11 +248,11 @@ export function DocView({ docId }: { docId: string }) {
     // Keyboard shortcut listener
     React.useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                const target = e.target as HTMLElement;
-                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-                setShowShortcuts((prev) => !prev);
-            }
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+            if (e.key === '?') setShowShortcuts((prev) => !prev);
+            else if (e.key === 'F' && e.shiftKey) setFocusMode((f) => !f);
         }
         document.addEventListener('keydown', handler);
         return () => document.removeEventListener('keydown', handler);
@@ -334,11 +312,6 @@ export function DocView({ docId }: { docId: string }) {
         saveTitle(docTitleRef.current);
     }, [saveTitle]);
 
-    const displayDocInfo = React.useMemo(() => {
-        if (!docInfo) return null;
-        return { ...docInfo, doc_title: docTitle };
-    }, [docInfo, docTitle]);
-
     // Handle document body changes. In collaboration mode the Yjs provider
     // streams and persists changes, so we skip the HTTP scheduleSave to avoid
     // double-writes. The autosave path is the fallback for non-collab editing.
@@ -360,6 +333,24 @@ export function DocView({ docId }: { docId: string }) {
         downloadMarkdown(docTitle || 'document', markdown);
         toast({ title: 'Exported', description: 'Document downloaded as Markdown.' });
     }, [docInfo?.doc_body, docTitle, toast]);
+
+    // The save dot's state (D12): live docs from the socket, others from their autosave.
+    const slowSave = useSlowSave(collaborationConfig?.enabled ? provider : null);
+    const saveState = docSaveState({
+        live: !!collaborationConfig?.enabled,
+        collabStatus,
+        synced: collabSynced,
+        everSynced,
+        slowSave,
+        saveStatus,
+    });
+    const connectionProblem = !collaborationConfig?.enabled
+        ? null
+        : collabStatus === 'offline'
+        ? 'offline' as const
+        : collabStatus === 'disconnected' && everSynced
+        ? 'reconnecting' as const
+        : null;
 
     // Warn before leaving if there are pending saves
     React.useEffect(() => {
@@ -407,136 +398,66 @@ export function DocView({ docId }: { docId: string }) {
         : undefined;
 
     return (
-        <div className={cn('flex flex-col h-full', focusMode && 'bg-background')}>
-            {/* Desktop top bar — hidden in focus mode */}
+        <div className={cn('flex flex-col h-full bg-sheet', focusMode && 'doc-focus')}>
+            {/* The header (D05): hidden in focus mode and on phones, where
+                the app bar names the doc. */}
             {!focusMode && isDesktop && (
-                <div className='h-14 items-center flex justify-between p-2 pl-4 pr-4 border-b shrink-0 bg-background z-10'>
-                    <DocTopBarBreadcrumb doc={displayDocInfo!} canEdit={hasEditAccess} />
-                    <div className='flex items-center gap-2'>
-                        {/* Active users avatars */}
-                        <ActiveUsersBar users={awarenessUsers} maxShown={4} />
-
-                        <SaveForLaterButton
-                            target={{
-                                itemType: "doc",
-                                itemId: docId,
-                                link: `/app/doc/${docId}`,
-                                title: displayDocInfo?.doc_title || "Untitled doc",
-                            }}
-                        />
-
-                        {/* Focus mode */}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setFocusMode(!focusMode)}
-                            className="gap-1.5 text-muted-foreground hover:text-foreground"
-                            aria-label={focusMode ? 'Exit focus mode' : 'Focus mode'}
-                            title={focusMode ? 'Exit focus mode' : 'Focus mode'}
-                        >
-                            {focusMode ? <Minimize className='h-4 w-4'/> : <Maximize className='h-4 w-4'/>}
-                        </Button>
-
-                        <Button
-                            variant='ghost'
-                            size="sm"
-                            onClick={handleCommentClick}
-                            className="gap-1.5 text-muted-foreground hover:text-foreground"
-                            aria-label={`Comments, ${docCommentCount || 0}`}
-                            title="Comments"
-                        >
-                            <MessageCircle className='h-4 w-4' aria-hidden="true"/>
-                            <span className="text-sm tabular-nums">{docCommentCount || 0}</span>
-                        </Button>
-
-                        {/* Export and shortcuts are occasional, so they live here
-                            rather than as two more icons beside the title. */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" aria-label="More doc actions" title="More">
-                                    <Ellipsis className='h-4 w-4'/>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleExportMarkdown}>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Export as Markdown
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setShowShortcuts(true)}>
-                                    <Keyboard className="mr-2 h-4 w-4" />
-                                    Keyboard shortcuts
-                                </DropdownMenuItem>
-                                {hasEditAccess && (
-                                    <>
-                                        <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}>
-                                            <Eye className="mr-2 h-4 w-4" />
-                                            Viewed by
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}>
-                                            <History className="mr-2 h-4 w-4" />
-                                            Version history
-                                        </DropdownMenuItem>
-                                    </>
-                                )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                </div>
+                <DocHeader
+                    doc={docInfo}
+                    title={docTitle}
+                    canEdit={hasEditAccess}
+                    canShare={hasEditAccess}
+                    scrolled={scrolled}
+                    saveState={saveState}
+                    savedAt={lastSavedAt}
+                    live={!!collaborationConfig?.enabled}
+                    users={awarenessUsers}
+                    commentCount={docCommentCount || 0}
+                    onComments={handleCommentClick}
+                    onRename={(t) => { setDocTitle(t); saveTitle(t); }}
+                    onShare={() => dispatch(openUI({ key: 'docShare', data: docInfo.doc_uuid }))}
+                    focusMode={focusMode}
+                    onFocusMode={() => setFocusMode((f) => !f)}
+                    fullWidth={fullWidth}
+                    onFullWidth={() => setFullWidth((w) => !w)}
+                    onExport={handleExportMarkdown}
+                    onShortcuts={() => setShowShortcuts(true)}
+                    onViewers={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}
+                    onHistory={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}
+                    editor={editor}
+                />
             )}
 
-            {/* Mobile header */}
             {/* On a phone the app bar names the doc and its menu has Share, so
-                this row only shows who else is here, and only when someone is:
-                it was a third bar (Share and your own face) between the app
-                bar and the toolbar, 48px above the title on every doc. */}
+                this row only shows who else is here, and only when someone is. */}
             {!focusMode && isMobile && awarenessUsers.length > 1 && (
-                <div className="shrink-0 flex items-center justify-end px-3 py-2 border-b bg-background" data-doc-presence-row="">
+                <div className="shrink-0 flex items-center justify-end px-3 py-1.5" data-doc-presence-row="">
                     <ActiveUsersBar users={awarenessUsers} maxShown={3} />
                 </div>
             )}
 
-            {/* Connection status banner */}
-            {!focusMode && collaborationConfig?.enabled && (collabStatus === 'offline' || (collabStatus === 'disconnected' && (everSynced || slowStart))) && (
-                <div className={cn(
-                    "shrink-0 px-4 py-1.5 text-xs font-medium flex items-center justify-center gap-2",
-                    collabStatus === 'offline'
-                        ? "bg-warning/10 text-warning-ink border-b border-warning/20"
-                        : "bg-muted/50 text-muted-foreground border-b"
-                )}>
-                    {collabStatus === 'offline' ? (
-                        <>
-                            <WifiOff className="h-3 w-3" />
-                            <span>Working offline. Changes will sync when you reconnect.</span>
-                        </>
-                    ) : (
-                        <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            <span>{everSynced ? "Reconnecting to the live editor…" : "Connecting to the live editor… You're reading the saved copy."}</span>
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* Focus mode exit — always visible so it's never a trap; also exits on Esc. */}
+            {/* Focus mode exit (D26): a 28 px ghost that shows while the
+                pointer moves and fades after 2 s; Esc exits too. */}
             {focusMode && (
-                <div className="fixed top-4 right-4 z-50">
+                <div className={cn("fixed top-4 right-4 z-50 transition-opacity duration-[240ms]", focusChrome ? "opacity-100" : "opacity-0")}>
                     <Button
-                        variant="secondary"
-                        size="sm"
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => setFocusMode(false)}
-                        className="border shadow-overlay"
+                        className="bg-pop shadow-e3"
+                        aria-label="Exit focus mode"
                         title="Exit focus mode (Esc)"
                     >
-                        <Minimize className="h-4 w-4 mr-1.5" />
-                        Exit focus mode
+                        <Minimize2 className="h-4 w-4" />
                     </Button>
                 </div>
             )}
 
             {/* Document content area */}
-            <div className="flex-1 w-full flex flex-col overflow-hidden relative">
+            <div ref={bodyRef} className="flex-1 w-full flex flex-col overflow-hidden relative">
+                {!focusMode && <ConnectionPill problem={connectionProblem} />}
                 {!focusMode && (
-                    <LinkedFromSection refType="doc" refUUID={docId} className="shrink-0 border-b bg-background/40 px-4 py-2.5" />
+                    <LinkedFromSection refType="doc" refUUID={docId} className="shrink-0 px-5 py-2" />
                 )}
                 {editorReady ? (
                     <MinimalTiptapDocInput
@@ -558,23 +479,19 @@ export function DocView({ docId }: { docId: string }) {
                         onTitleChange={handleTitleChange}
                         onTitleBlur={handleTitleBlur}
                         editableTitle={hasEditAccess}
-                        saveStatus={saveStatus}
-                        lastSavedAt={lastSavedAt}
-                        lastEditedAt={docInfo.doc_updated_at}
                         lastEditedRelative={lastEditedRelative}
                         focusMode={focusMode}
+                        fullWidth={fullWidth}
+                        authorName={displayNameOf(docInfo.doc_created_by) || undefined}
+                        onEditor={setEditor}
+                        onComment={handleCommentClick}
                     />
                 ) : (
-                    <div className="flex-1 w-full flex items-center justify-center">
-                        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Connecting to live editor…</span>
-                        </div>
-                    </div>
+                    <DocBodySkeleton />
                 )}
             </div>
 
-            <ShortcutsHelp open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+            <DocShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} />
         </div>
     );
 }

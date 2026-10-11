@@ -26,24 +26,26 @@ function openMenu() {
 }
 
 describe("the project header's actions", () => {
-  it("keeps the project's time as a button of its own", () => {
+  it("keeps the project's time as a button of its own", async () => {
     render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: "Time logged on this project" }))
-    expect(screen.getByTestId("time")).toBeTruthy()
+    expect(await screen.findByTestId("time")).toBeTruthy()
     // A member has nothing else to do here, so there is no empty menu.
     expect(screen.queryByRole("button", { name: "Project actions" })).toBeNull()
   })
 
-  it("lists every admin action by name, and each one does what it says", () => {
+  it("lists every admin action by name, and each one does what it says", async () => {
     const onRename = vi.fn()
     const onMembers = vi.fn()
     render(<ProjectActionsMenu projectId="q4-1" isAdmin isMember onRename={onRename} onMembers={onMembers} />)
     openMenu()
-    for (const name of ["Forms that make tasks", "Share with a client", "Save as a template", "Edit project name", "Manage project members"]) {
+    for (const name of ["Forms that make tasks", "Save as a template", "Edit project name", "Manage project members"]) {
       expect(screen.getByRole("menuitem", { name })).toBeTruthy()
     }
-    fireEvent.click(screen.getByRole("menuitem", { name: "Share with a client" }))
-    expect(screen.getByTestId("share")).toBeTruthy()
+    // Sharing with a client is a word in the header bar (work.md W16), not a menu item.
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
+    fireEvent.click(screen.getByRole("button", { name: "Share" }))
+    expect(await screen.findByTestId("share")).toBeTruthy()
 
     openMenu()
     fireEvent.click(screen.getByRole("menuitem", { name: "Manage project members" }))

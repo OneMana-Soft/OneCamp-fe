@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { hueFor } from "@/lib/campHue"
 
 const LAUNCH_RETRO = [{ board_uuid: "b0a10000-0000-4000-8000-000000000001", board_title: "Launch retro", board_private: false, board_updated_at: "" }]
 let boards: typeof LAUNCH_RETRO = LAUNCH_RETRO
@@ -30,24 +29,31 @@ describe("the boards list", () => {
     render(<BoardsPage />)
     expect(screen.getByRole("heading", { level: 1, name: "Boards" })).toBeTruthy()
     expect(screen.queryByText(/Infinite collaborative canvas/)).toBeNull()
-    expect(screen.getByRole("button", { name: /New board/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /New board/ }).textContent).toMatch(/B$/)
   })
 
-  it("lists each board as a link, a board with no picture in its own hue", () => {
+  it("lists each board as a link on a lifted card, a board with no picture as three notes on the dot grid", () => {
     render(<BoardsPage />)
     const link = screen.getByRole("link", { name: /Launch retro/ })
     expect(link.getAttribute("href")).toMatch(/b0a10000-0000-4000-8000-000000000001$/)
-    expect(link.innerHTML).toContain(`hue-${hueFor("b0a10000-0000-4000-8000-000000000001")}`)
     expect(link.className).toMatch(/hover-lift/)
+    expect(link.className).toMatch(/shadow-e1/)
+    expect(link.querySelector(".dot-ground [data-note-fallback]")).toBeTruthy()
+    expect(screen.getByText("1 board")).toBeTruthy()
   })
 
-  it("with no boards yet, draws a ring of people and ideas over its one sentence and one action", () => {
+  it("with no boards yet, offers the five templates drawn small, and a blank board", () => {
     boards = []
     render(<BoardsPage />)
-    expect(screen.getByRole("heading", { name: "No boards yet" })).toBeTruthy()
-    expect(screen.getByText(/A board is a blank canvas for sketches/)).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Create a board" })).toBeTruthy()
-    expect(spotHue()).toBe("dusk")
+    expect(screen.getByRole("heading", { name: "Think it through together" })).toBeTruthy()
+    const templates = screen.getByRole("list", { name: "Templates" })
+    expect(templates.querySelectorAll("[data-board-template]")).toHaveLength(5)
+    for (const id of ["retro", "brainstorm", "kanban", "journey", "swot"]) {
+      expect(templates.querySelector(`[data-template-preview="${id}"] svg rect`)).toBeTruthy()
+    }
+    expect(screen.getByRole("button", { name: "Blank board" })).toBeTruthy()
+    // No search over nothing.
+    expect(screen.queryByRole("searchbox")).toBeNull()
   })
 
   it("when a search finds nothing, says so under the search drawing", () => {
@@ -57,6 +63,6 @@ describe("the boards list", () => {
     expect(screen.getByRole("heading", { name: "No boards match \u201croadmap\u201d." })).toBeTruthy()
     expect(spotHue()).toBe("lake")
     // Not the first-board invitation: there are boards, just none by that name.
-    expect(screen.queryByRole("button", { name: "Create a board" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Blank board" })).toBeNull()
   })
 })

@@ -15,7 +15,23 @@ import {
   DrawerTrigger,
   DrawerTitle,
 } from "@/components/ui/drawer"
-import { fieldLabel, fieldRow, inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
+import { inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
+import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
+
+/** The quick days above the calendar. */
+const QUICK_DAYS: { label: string; days: number | null }[] = [
+    { label: "Today", days: 0 },
+    { label: "Tomorrow", days: 1 },
+    { label: "Next week", days: 7 },
+    { label: "No date", days: null },
+]
+
+function addDaysFromToday(days: number): Date {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() + days)
+    return d
+}
 
 type DateFieldProps = {
     isAdmin: boolean
@@ -25,12 +41,16 @@ type DateFieldProps = {
     onClear?: () => void
     className?: string
     compact?: boolean // when true, renders inline control without outer grid/label
+    /** Inline and borderless, for a value written inside a property row ("8 Oct → 10 Oct"). */
+    bare?: boolean
+    /** What a bare trigger says with no date. */
+    emptyText?: string
     /** Notifies the parent when the picker opens/closes (e.g. to pin a
         hover-revealed action row so it doesn't fade while picking). */
     onOpenChange?: (open: boolean) => void
 }
 
-export function DateField({ isAdmin, label, value, onSelect, onClear, className, compact = false, onOpenChange }: DateFieldProps) {
+export function DateField({ isAdmin, label, value, onSelect, onClear, className, compact = false, bare = false, emptyText, onOpenChange }: DateFieldProps) {
     const [inputValue, setInputValue] = useState<string>(value ? format(value, "dd/MM/yyyy") : "")
 
     useEffect(() => {
@@ -65,7 +85,20 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
         onOpenChange?.(next)
     }
 
-    const TriggerButton = (
+    const TriggerButton = bare ? (
+        <button
+            type="button"
+            aria-label={`${label}: ${value ? shortDate(value) : "none"}`}
+            className={cn(
+                "-mx-1 inline-flex h-6 items-center rounded-sm px-1 text-sm font-[450] tabular-nums transition-colors hover:bg-hover disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-ring",
+                value ? "text-foreground" : "text-ink-3",
+                className,
+            )}
+            disabled={!isAdmin}
+        >
+            {value ? shortDate(value) : emptyText ?? label}
+        </button>
+    ) : (
         <Button
             variant={compact ? "outline" : "ghost"}
             aria-label={compact ? undefined : `${label}: ${value ? shortDate(value) : "none"}`}
@@ -76,7 +109,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
             )}
             disabled={!isAdmin}
         >
-            {value ? shortDate(value) : <span>{compact ? label : isAdmin ? "Set a date" : "None"}</span>}
+            {value ? shortDate(value) : <span>{compact ? label : isAdmin ? `Add ${label.toLowerCase()}` : "None"}</span>}
             <CalIcon aria-hidden className={compact ? "ml-1 h-3 w-3" : cn(inlineAffordance, "h-3.5 w-3.5")} />
         </Button>
     )
@@ -104,6 +137,28 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
 
             </div>
 
+            {/* Quick days first (work.md W29): the dates people pick most. */}
+            {isAdmin && (
+                <div className="flex flex-wrap gap-1 border-b p-2">
+                    {QUICK_DAYS.map((q) => (
+                        <button
+                            key={q.label}
+                            type="button"
+                            className="chip h-6 cursor-pointer transition-colors hover:bg-press hover:text-foreground"
+                            onClick={() => {
+                                const d = q.days === null ? undefined : addDaysFromToday(q.days)
+                                if (d) onSelect(d)
+                                else if (onClear) onClear()
+                                else onSelect(undefined)
+                                setOpen(false)
+                            }}
+                        >
+                            {q.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <Calendar
                 mode="single"
                 selected={value}
@@ -119,6 +174,9 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                 classNames={{
                     caption_dropdowns: "flex justify-center gap-1",
                     caption_label: "hidden",
+                    // Today is a brand ring; the chosen day a brand fill (W29).
+                    day_today: "ring-[1.5px] ring-inset ring-brand font-[510] text-foreground",
+                    day_selected: "bg-brand text-brand-foreground hover:bg-brand hover:text-brand-foreground focus:bg-brand focus:text-brand-foreground",
                     ...(isMobile ? {
                         months: "w-full flex flex-col space-y-4 sm:space-x-4 sm:space-y-0",
                         month: "space-y-4 w-full",
@@ -184,9 +242,9 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
     if (compact) return Control
 
     return (
-        <div className={fieldRow()}>
+        <div className={propertyRow()} data-field-empty={value ? undefined : ""}>
             <div>
-                <span className={fieldLabel}>{label}</span>
+                <span className={propertyLabel}>{label}</span>
             </div>
             <div className="min-w-0">{Control}</div>
         </div>

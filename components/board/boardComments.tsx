@@ -18,8 +18,9 @@ import { useBoardView } from "@/hooks/useBoardView"
 import { clientToScene, sceneToLocal } from "@/lib/board/viewport"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { MessageCircle, Check, X, Trash, SmilePlus } from "@/lib/icons"
+import { avatarHueClass } from "@/components/ui/graphics/hues"
+import { hueFor } from "@/lib/campHue"
+import { Check, X, Trash, SmilePlus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
 import { usePost } from "@/hooks/usePost"
@@ -58,9 +59,14 @@ interface BoardCommentsProps {
   /** Controlled comment-placement mode (toggle lives in the page chrome). */
   commentMode: boolean
   onCommentModeChange: (on: boolean) => void
+  /** Show resolved pins (faded, with a moss check); hidden otherwise. */
+  showResolved?: boolean
 }
 
-function BoardComments({ provider, api, user, boardId, editable, commentMode, onCommentModeChange }: BoardCommentsProps) {
+/** A person's initials for a 22 px face: one letter below 24 px. */
+const initial = (name: string) => (name || "?").trim().charAt(0).toUpperCase() || "?"
+
+function BoardComments({ provider, api, user, boardId, editable, commentMode, onCommentModeChange, showResolved = false }: BoardCommentsProps) {
   const yDoc = provider.document
   const yComments = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("comments"), [yDoc])
 
@@ -259,26 +265,39 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
         commentMode ? "pointer-events-auto cursor-crosshair" : "pointer-events-none",
       )}
     >
-      {/* Existing pins */}
+      {/* Existing pins: a teardrop holding the author's face, pointing at
+          the spot (its bottom-left corner). Resolved ones fade, wear a moss
+          check, and hide unless "Show resolved" is on. */}
       {comments.map((c) => {
+        if (c.resolved && !showResolved && c.id !== openId) return null
         const pos = pinPos(c.x, c.y)
         if (!pos) return null
         return (
           <button
             key={c.id}
             type="button"
+            data-board-pin=""
             onClick={(e) => {
               e.stopPropagation()
               setOpenId((cur) => (cur === c.id ? null : c.id))
             }}
-            style={{ left: pos.left, top: pos.top }}
+            style={{ left: pos.left, top: pos.top - 28 }}
             className={cn(
-              "pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full rounded-bl-none border shadow-md transition-transform hover:scale-110",
-              c.resolved ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground",
+              "pointer-events-auto absolute flex size-7 items-center justify-center rounded-[14px] rounded-bl-[4px] bg-pop shadow-e2 outline-none transition-transform duration-[140ms] hover:-translate-y-px focus-visible:ring-2 focus-visible:ring-brand",
+              c.resolved && "opacity-60",
+              openId === c.id && "ring-2 ring-brand",
             )}
-            title={c.resolved ? "Resolved comment" : "Comment"}
+            aria-label={`${c.resolved ? "Resolved comment" : "Comment"} by ${c.authorName}`}
+            title={c.resolved ? "Resolved comment" : c.authorName}
           >
-            {c.resolved ? <Check className="h-3.5 w-3.5" /> : <MessageCircle className="h-3.5 w-3.5" />}
+            <span className={cn(avatarHueClass(hueFor(c.authorId || c.authorName)), "avatar-person inline-flex size-[22px] items-center justify-center rounded-[11px] text-micro")}>
+              {initial(c.authorName)}
+            </span>
+            {c.resolved ? (
+              <span className="absolute -right-1 -top-1 inline-flex size-3.5 items-center justify-center rounded-[7px] bg-camp-moss text-white ring-2 ring-pop">
+                <Check className="size-2.5" />
+              </span>
+            ) : null}
           </button>
         )
       })}
@@ -289,12 +308,12 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
         if (!pos) return null
         const cw = overlayRef.current?.clientWidth ?? 0
         const ch = overlayRef.current?.clientHeight ?? 0
-        const PANEL_W = 288
+        const PANEL_W = 320
         const left = Math.min(Math.max(pos.left + 16, 8), Math.max(8, cw - PANEL_W - 8))
         const top = Math.min(Math.max(pos.top - 8, 8), Math.max(8, ch - 200))
         return (
           <div
-            className="pointer-events-auto absolute w-72 rounded-xl border bg-popover shadow-xl"
+            className="content-float pointer-events-auto absolute w-80 rounded-xl bg-pop text-ink shadow-e3"
             style={{ left, top }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -317,12 +336,12 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
         const pos = pinPos(draft.x, draft.y)
         if (!pos) return null
         const cw = overlayRef.current?.clientWidth ?? 0
-        const PANEL_W = 288
+        const PANEL_W = 320
         const left = Math.min(Math.max(pos.left + 16, 8), Math.max(8, cw - PANEL_W - 8))
         const top = Math.max(pos.top - 8, 8)
         return (
           <div
-            className="pointer-events-auto absolute w-72 rounded-xl border bg-popover p-3 shadow-xl"
+            className="content-float pointer-events-auto absolute w-80 rounded-xl bg-pop p-3 text-ink shadow-e3"
             style={{ left, top }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -373,8 +392,8 @@ function CommentThread({
 
   return (
     <div className="flex max-h-[60vh] flex-col">
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-xs font-medium">{comment.resolved ? "Resolved" : "Comment"}</span>
+      <div className="flex h-11 items-center justify-between px-3">
+        <span className="text-ui-sm font-medium text-ink">{comment.resolved ? "Resolved" : "Comment"}</span>
         <div className="flex items-center gap-1">
           {editable && (
             <Button variant="ghost" size="icon" aria-label="Resolve this comment" className="h-6 w-6" onClick={onResolve} title={comment.resolved ? "Reopen" : "Resolve"}>
@@ -392,7 +411,7 @@ function CommentThread({
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
+      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">
         {(comment.messages || []).map((m) => (
           <ThreadMessageRow
             key={m.id}
@@ -405,7 +424,7 @@ function CommentThread({
       </div>
 
       {editable && (
-        <div className="border-t p-2">
+        <div className="border-t border-line p-2">
           <BoardMentionInput
             value={reply}
             onChange={setReply}
@@ -443,16 +462,16 @@ function ThreadMessageRow({
   const reactions = message.reactions || {}
   const reactionEntries = Object.entries(reactions).filter(([, users]) => users.length > 0)
   return (
-    <div className="group/msg flex gap-2">
-      <Avatar className="h-6 w-6 shrink-0">
-        <AvatarFallback className="text-3xs">{message.authorName?.charAt(0)?.toUpperCase() || "?"}</AvatarFallback>
-      </Avatar>
+    <div className="group/msg flex gap-2.5 rounded-xl bg-sunken px-3 py-2.5">
+      <span className={cn(avatarHueClass(hueFor(message.authorId || message.authorName)), "avatar-person inline-flex size-6 shrink-0 items-center justify-center rounded-[12px] text-micro")}>
+        {initial(message.authorName)}
+      </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-xs font-medium">{message.authorName}</span>
-          {relative && <span className="text-2xs text-muted-foreground">{relative}</span>}
+          <span className="truncate text-ui-sm font-semibold text-ink">{message.authorName}</span>
+          {relative && <span className="text-meta text-ink-3">{relative}</span>}
         </div>
-        <p className="whitespace-pre-wrap break-words text-xs text-foreground/90">{message.body}</p>
+        <p className="whitespace-pre-wrap break-words text-ui text-ink">{message.body}</p>
 
         {/* Reactions */}
         {(reactionEntries.length > 0 || editable) && (
@@ -466,8 +485,8 @@ function ThreadMessageRow({
                   disabled={!editable}
                   onClick={() => onToggleReaction(emoji)}
                   className={cn(
-                    "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-2xs transition-colors",
-                    mine ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 bg-muted/40 hover:bg-accent/50",
+                    "flex h-[26px] items-center gap-1 rounded-[13px] px-2 text-meta tabular-nums transition-colors",
+                    mine ? "bg-brand-muted text-brand-text ring-1 ring-inset ring-brand/30" : "bg-raised text-ink-2 shadow-e1 hover:text-ink",
                   )}
                   title={`${users.length} reaction${users.length > 1 ? "s" : ""}`}
                 >
@@ -489,7 +508,7 @@ function ThreadMessageRow({
                 {pickerOpen && (
                   <>
                     <div className="fixed inset-0 z-0" onClick={() => setPickerOpen(false)} />
-                    <div className="absolute z-10 mt-1 flex gap-0.5 rounded-lg border bg-popover p-1 shadow-lg">
+                    <div className="absolute z-10 mt-1 flex gap-0.5 rounded-lg border bg-popover p-1 shadow-e3">
                       {QUICK_REACTIONS.map((emoji) => (
                         <button
                           key={emoji}

@@ -14,7 +14,8 @@ const TABS: Record<string, { toolbar: boolean; states: boolean }> = {
   "components/project/projectTaskKanban.tsx": { toolbar: true, states: true },
   "components/myTask/myTaskKanban.tsx": { toolbar: true, states: true },
   "components/project/timeline/ProjectTimeline.tsx": { toolbar: true, states: true },
-  "components/projectUpdates/ProjectUpdates.tsx": { toolbar: true, states: true },
+  // Design v3 (work.md W27): the updates open on their prompt card, not a toolbar row.
+  "components/projectUpdates/ProjectUpdates.tsx": { toolbar: false, states: true },
   "components/project/ProjectAttachments.tsx": { toolbar: true, states: true },
 }
 
@@ -42,9 +43,11 @@ describe("the task views' tabs share one frame", () => {
 })
 
 describe("the client's project view", () => {
-  it("leads one 32px toolbar row with its Board and Timeline switch on both views", () => {
+  // Design v3 (work.md W51): Board, Timeline and "Needs your review" are one
+  // row of tabs above both views, not a switch inside each view's toolbar.
+  it("puts one row of tabs above both views", () => {
     const src = readFileSync("app/guest/p/[token]/page.tsx", "utf8")
-    expect(src).toContain("leading={modeSwitch}")
-    expect(src).toContain('<div data-work-toolbar="" className={workToolbar}>{modeSwitch}</div>')
+    expect(src).toContain("<GuestTabs tabs={tabs} value={tab} onChange={pick} />")
+    expect(src).not.toContain("leading={modeSwitch}")
   })
 })

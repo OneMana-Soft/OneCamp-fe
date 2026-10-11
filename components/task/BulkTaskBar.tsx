@@ -34,7 +34,7 @@ const FIELDS: { field: ListField; label: string; key: string }[] = [
   { field: "priority", label: "Priority", key: "P" },
 ]
 
-const kbd = "rounded border border-border bg-muted px-1 font-mono text-2xs text-muted-foreground"
+const kbd = "kbd"
 
 /**
  * The selection's toolbar: how many are selected and what to change about
@@ -104,7 +104,7 @@ export function BulkTaskBar({
       <div
         role="toolbar"
         aria-label={`${tasksCount(selected.length)} selected`}
-        className="pointer-events-auto flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto rounded-xl border border-border bg-background/95 p-1.5 pl-3 shadow-lg backdrop-blur motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
+        className="pointer-events-auto flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto rounded-xl border border-border bg-background/95 p-1.5 pl-3 shadow-e3 backdrop-blur motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
       >
         <span className="mr-1 whitespace-nowrap text-sm font-medium tabular-nums">{selected.length} selected</span>
         {readOnly > 0 && (

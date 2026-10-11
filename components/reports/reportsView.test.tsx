@@ -101,4 +101,30 @@ describe("ReportsView", () => {
     expect(screen.getByRole("button", { name: /Projects: All projects/ })).toBeTruthy()
     expect(JSON.parse(localStorage.getItem("oc_report_projects") || "null")).toEqual([])
   })
+
+  it("stands its figures on one sunken band, with the week's change in words and a sparkline (design v3, W44)", () => {
+    const { container } = render(<ReportsView />)
+    const strip = container.querySelector("[data-kpi-strip]")!
+    expect(strip.className).toContain("bg-sunken")
+    expect(strip.querySelectorAll("[data-kpi]")).toHaveLength(4)
+    // Done went 3 → 1: down 2, in danger ink and in words.
+    const down = strip.querySelector("[data-delta='down']")!
+    expect(down.textContent).toBe("↓ 2 on last week")
+    expect(down.className).toContain("text-danger-ink")
+    expect(strip.querySelectorAll("[data-spark]").length).toBeGreaterThan(0)
+  })
+
+  it("draws what each project got done in that project's own hue", async () => {
+    const { hueFor } = await import("@/lib/campHue")
+    const { container } = render(<ReportsView />)
+    const bar = container.querySelector<HTMLElement>("[data-done-bar='q4']")!
+    expect(bar.getAttribute("data-hue")).toBe(hueFor("q4"))
+    expect(bar.style.background).toBe(`var(--camp-${hueFor("q4")})`)
+  })
+
+  it("says so in a sentence when nothing was done or added", () => {
+    answer = { data: { data: { ...report, done: [0, 0], added: [0, 0] } } }
+    const { container } = render(<ReportsView />)
+    expect(container.querySelector("[data-chart-empty]")!.textContent).toBe("Nothing done or added in these 12 weeks.")
+  })
 })

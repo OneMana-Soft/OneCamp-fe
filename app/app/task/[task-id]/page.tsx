@@ -1,53 +1,25 @@
 "use client";
 
-
-import { useEffect, useRef } from "react"
-import { useMedia } from "@/context/MediaQueryContext"
-import { useDispatch } from "react-redux"
-import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import TaskInfoPanel from "@/components/rightPanel/taskInfoPanel"
-import { app_my_task_path } from "@/types/paths"
 
 /**
- * /app/task/[task-id]
+ * /app/task/[task-id]: the full task page (design v3, work.md W37).
  *
- * Mobile renders the TaskInfoPanel as a full-page surface.
- * Desktop has no standalone task page — task details live in the right
- * panel on top of the My Tasks list. If a desktop user lands here
- * directly (deep link, refresh) we open the right panel for the task
- * and replace the URL with /app/myTask so Back doesn't bounce through
- * an empty stub.
- *
- * `handledRef` guards against StrictMode double-invocation re-firing
- * the redirect.
+ * On a phone it is the task panel as a page. On a desktop it was no page at
+ * all: it opened the right panel over My Tasks and replaced the URL, so
+ * "Open the full page" in the panel's header led straight back into the
+ * panel. Now it is the task on its own, in two columns: title, description,
+ * subtasks and activity on the left, the properties as a sticky rail on the
+ * right (TaskInfoPanel's onPage layout).
  */
 export default function Page() {
-    const { isMobile, isDesktop } = useMedia()
-
-    const dispatch = useDispatch()
     const params = useParams()
     const taskId = params?.["task-id"] as string
-    const router = useRouter()
-    const handledRef = useRef(false)
-
-    useEffect(() => {
-        if (isDesktop && !handledRef.current && taskId) {
-            handledRef.current = true
-            dispatch(
-                openRightPanel({
-                    taskUUID: taskId,
-                    chatMessageUUID: "",
-                    chatUUID: "",
-                    channelUUID: "",
-                    postUUID: "",
-                    groupUUID: "",
-                    docUUID: ""
-                }),
-            )
-            router.replace(app_my_task_path)
-        }
-    }, [isDesktop, taskId, dispatch, router])
-
-    return <>{isMobile && <TaskInfoPanel taskUUID={taskId} />}</>
+    if (!taskId) return null
+    return (
+        <div className="h-full min-h-0" data-task-page="">
+            <TaskInfoPanel key={taskId} taskUUID={taskId} onPage />
+        </div>
+    )
 }

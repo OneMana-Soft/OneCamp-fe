@@ -30,49 +30,65 @@ export const TimelineHeader = memo(function TimelineHeader({
   const { top, bottom } = useMemo(() => headerTicks(range, zoom, dayWidth), [range, zoom, dayWidth])
   const todayLeft = offsetOf(today, range, dayWidth)
   const todayKey = zoom === "day" ? today.toISOString() : ""
+  const gridWidth = range.days * dayWidth
+  const todayShown = todayLeft >= 0 && todayLeft < gridWidth
   return (
-    <div className="sticky top-0 z-20 flex border-b bg-background" style={{ height: HEADER_HEIGHT, width: nameWidth + range.days * dayWidth }}>
+    <div
+      data-timeline-header=""
+      className="sticky top-0 z-20 flex border-b border-line bg-sheet"
+      style={{ height: HEADER_HEIGHT, width: nameWidth + gridWidth }}
+    >
       <div
-        className="sticky left-0 z-30 flex shrink-0 items-end border-r bg-background px-3 pb-1.5 text-xs font-medium text-muted-foreground"
+        data-name-column=""
+        className="sticky left-0 z-30 flex shrink-0 items-end bg-sheet px-5 pb-2 text-xs font-[510] border-r border-line text-ink-3"
         style={{ width: nameWidth }}
       >
         {nameLabel}
       </div>
-      <div className="relative" style={{ width: range.days * dayWidth }} aria-hidden>
+      <div className="relative" style={{ width: gridWidth }} aria-hidden>
         {top.map((t) => (
-          <div key={t.key} className="absolute top-0 h-6 border-l border-border/70" style={{ left: t.left, width: t.width }}>
+          <div key={t.key} className="absolute top-0 h-6" style={{ left: t.left, width: t.width }}>
             {t.width >= 36 && (
-              <span className="sticky inline-block truncate px-2 text-xs font-medium leading-6 text-foreground" style={{ left: nameWidth, maxWidth: t.width }}>
+              <span className="sticky inline-block truncate px-2 text-xs font-[510] leading-6 text-ink-2" style={{ left: nameWidth, maxWidth: t.width }}>
                 {t.label}
               </span>
             )}
           </div>
         ))}
-        {bottom.map((t) => (
-          <div
-            key={t.key}
-            className={cn(
-              "absolute bottom-0 flex h-7 items-center overflow-hidden text-2xs text-muted-foreground",
-              zoom === "day" ? "justify-center" : "border-l border-border/50 px-1.5",
-            )}
-            style={{ left: t.left, width: t.width }}
-          >
-            {zoom === "day" ? (
-              <span className={cn("flex h-6 min-w-6 flex-col items-center justify-center rounded-md leading-none tabular-nums", t.key === todayKey && "bg-primary font-semibold text-primary-foreground")}>
-                <span className="text-2xs uppercase opacity-80">{t.sub}</span>
-                <span>{t.label}</span>
-              </span>
-            ) : (
-              t.width >= 30 && <span className="truncate tabular-nums">{t.label}</span>
-            )}
-          </div>
-        ))}
-        {zoom !== "day" && todayLeft >= 0 && todayLeft < range.days * dayWidth && (
+        {bottom.map((t) => {
+          const isToday = zoom === "day" && t.key === todayKey
+          return (
+            <div
+              key={t.key}
+              className={cn("absolute bottom-0 flex h-7 items-center overflow-hidden text-xs tabular-nums text-ink-3", zoom === "day" ? "justify-center" : "px-1.5")}
+              style={{ left: t.left, width: t.width }}
+            >
+              {zoom === "day" ? (
+                // Today is a brand ring round its number (design v3): one
+                // "today" language with the line below it, never a filled disc.
+                <span
+                  data-today={isToday || undefined}
+                  className={cn("flex size-5 items-center justify-center rounded-full leading-none", isToday && "font-[510] text-foreground")}
+                  style={isToday ? { boxShadow: "inset 0 0 0 1.5px var(--brand)" } : undefined}
+                >
+                  {t.label}
+                </span>
+              ) : (
+                t.width >= 30 && <span className="truncate">{t.label}</span>
+              )}
+            </div>
+          )
+        })}
+        {todayShown && (
           <span
-            className="absolute bottom-0 h-1.5 w-1.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-primary"
+            data-today-pill=""
+            className="absolute top-1 z-10 flex h-4 -translate-x-1/2 items-center rounded-md bg-brand px-1.5 text-3xs font-[590] leading-none text-brand-foreground shadow-e1"
             style={{ left: todayLeft + dayWidth / 2 }}
-          />
+          >
+            Today
+          </span>
         )}
+        {todayShown && <span className="absolute bottom-0 h-1.5 w-[1.5px] -translate-x-1/2 bg-brand" style={{ left: todayLeft + dayWidth / 2 }} />}
       </div>
     </div>
   )

@@ -13,6 +13,8 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {ChatInfo, CreateChatRes, CreateOrUpdateChatsReq} from "@/types/chat";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {ChatGrpIdDesktop} from "@/components/groupChat/chatGrpIdDesktop";
+import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
+import { useSWRConfig } from "swr";
 import {GrpChatIdMobile} from "@/components/groupChat/grpChatIdMobile";
 import {
     addPendingGroupChat,
@@ -54,6 +56,7 @@ export function GroupChatView({ grpId }: { grpId: string }) {
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
+    const { cache } = useSWRConfig()
     const latestKey = grpId ? GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId : ''
 
     // A message is in the conversation the moment Send is pressed (lib/chat/pendingSend).
@@ -145,6 +148,16 @@ export function GroupChatView({ grpId }: { grpId: string }) {
 
         dispatch(clearGroupChatInputState({grpId}))
 
+        // The sender's first message here (groups celebrate too, design v3
+        // chat C60): none of theirs held, and the latest page is all there is.
+        const self = selfProfile.data?.data?.user_uuid
+        const held = store.getState().groupChat.chatMessages[grpId] || []
+        const page = cache.get(latestKey)?.data as { data?: { has_more?: boolean } } | undefined
+        const first = !!self && isFirstMessage({
+            mine: held.some((c) => c.chat_from?.user_uuid === self),
+            wholeHistory: page?.data?.has_more === false,
+        }) && claimFirstMessage(`group:${grpId}`)
+
         const localId = newLocalId()
         send(localId, {
             chat_uuid: localId,
@@ -160,6 +173,7 @@ export function GroupChatView({ grpId }: { grpId: string }) {
             chat_comment_count: 0,
         })
         dispatch(updateGroupChatScrollToBottom({grpId, scrollToBottom: true}))
+        return first
     })
 
     // How many were unread on opening, read once (see ChannelView).

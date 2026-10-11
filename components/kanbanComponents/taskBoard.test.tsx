@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => undefined }))
 vi.mock("@/components/task/taskAssigneeCell", () => ({ TaskAssigneeCell: () => null }))
 vi.mock("@/components/task/PRStatusBadge", () => ({ GitHubBadgeGroup: () => null }))
 const celebrate = vi.fn()
-vi.mock("@/lib/celebrate", () => ({ celebrate: (el: Element) => celebrate(el) }))
+vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrate(el), prefersReducedMotion: () => true }))
 
 const { TaskBoard, CARDS_PER_PAGE } = await import("@/components/kanbanComponents/TaskBoard")
 import type { StatusOption } from "@/lib/taskStatus"
@@ -78,7 +78,9 @@ describe("a board of people", () => {
 describe("folding a column", () => {
   it("folds to a strip with no cards, and stays folded on this board", () => {
     const { container } = board()
-    act(() => screen.getByRole("button", { name: "Collapse Done" }).click())
+    // Collapse is in the column's menu (work.md W20).
+    act(() => void fireEvent.keyDown(screen.getByRole("button", { name: "Done column actions" }), { key: "Enter" }))
+    act(() => void fireEvent.click(screen.getByRole("menuitem", { name: "Collapse" })))
     expect(container.querySelector('[data-column="done"]')!.querySelectorAll("[data-task-id]")).toHaveLength(0)
     expect(screen.getByRole("button", { name: "Expand Done" })).toBeTruthy()
     cleanup()
@@ -91,7 +93,7 @@ describe("adding a task in a column", () => {
   it("adds by name into that column and stays open for the next", async () => {
     const onQuickAdd = vi.fn(async () => true)
     board({ onQuickAdd })
-    act(() => screen.getAllByRole("button", { name: /add task/i })[0].click())
+    act(() => screen.getAllByRole("button", { name: /^new task$/i })[0].click())
     const box = screen.getByLabelText("New task name") as HTMLInputElement
     fireEvent.change(box, { target: { value: "Write the release notes" } })
     await act(async () => {
@@ -103,7 +105,7 @@ describe("adding a task in a column", () => {
 
   it("is not offered where the person cannot add", () => {
     board()
-    expect(screen.queryByRole("button", { name: /add task/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: /new task/i })).toBeNull()
   })
 })
 
@@ -264,15 +266,20 @@ describe("completing a card on the board", () => {
     return utils
   }
 
-  it("celebrates from the card when it lands in a done column", () => {
+  // The Spark comes once the card has landed, at the drop's end.
+  const landed = () => act(() => new Promise((r) => setTimeout(r, 260)))
+
+  it("celebrates from the card when it lands in a done column", async () => {
     move(" ", "t-inProgress-0", ["ArrowRight"])
+    await landed()
     expect(celebrate).toHaveBeenCalledTimes(1)
     expect((celebrate.mock.calls[0][0] as HTMLElement).dataset.taskId).toBe("t-inProgress-0")
   })
 
-  it("never celebrates a task moved out of done, or within its column", () => {
+  it("never celebrates a task moved out of done, or within its column", async () => {
     move(" ", "t-done-0", ["ArrowLeft"])
     move(" ", "t-inProgress-0", ["ArrowDown"])
+    await landed()
     expect(celebrate).not.toHaveBeenCalled()
   })
 })
@@ -281,5 +288,59 @@ describe("a card under the pointer", () => {
   it("lifts a pixel (the playful layer's hover-lift), a card being a thing to open", () => {
     const { container } = board({ columns: { todo: many(1) }, visible: [todo] })
     expect(container.querySelector('[data-task-id="t-todo-0"]')!.className).toMatch(/\bhover-lift\b/)
+  })
+})
+
+describe("the v3 board (work.md W20, W22)", () => {
+  it("draws 280px columns on the sunken surface with no border", () => {
+    const { container } = board()
+    const column = container.querySelector<HTMLElement>('[data-column="todo"]')!
+    expect(column.className).toContain("sm:w-[280px]")
+    expect(column.className).toContain("bg-sunken")
+    expect(column.className).not.toMatch(/(^|\s)border(\s|$)|border-border/)
+  })
+
+  it("leaves room after the last column, so nothing is clipped", () => {
+    const { container } = board()
+    expect(container.querySelector("[data-board]")!.className).toMatch(/after:w-1|sm:after:w-5/)
+  })
+
+  it("opens a gap where the held card will land, by moving the cards below", () => {
+    const { container } = board({ columns: { todo: many(3), done: many(2, "done") } })
+    const card = container.querySelector<HTMLElement>('[data-task-id="t-todo-0"]')!
+    act(() => card.focus())
+    act(() => void fireEvent.keyDown(card, { key: " " }))
+    // At its own place nothing moves: the slot it left says so.
+    expect(container.querySelectorAll("[data-shift]")).toHaveLength(0)
+    act(() => void fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" }))
+    const shifted = [...container.querySelectorAll<HTMLElement>("[data-shift]")].map((e) => e.dataset.cardSlot)
+    expect(shifted).toEqual(["t-done-0", "t-done-1"])
+    act(() => void fireEvent.keyDown(document.activeElement!, { key: "Escape" }))
+    expect(container.querySelectorAll("[data-shift]")).toHaveLength(0)
+  })
+
+  it("lights only another column under a held card", () => {
+    const { container } = board({ columns: { todo: many(2), done: many(1, "done") } })
+    const card = container.querySelector<HTMLElement>('[data-task-id="t-todo-0"]')!
+    act(() => card.focus())
+    act(() => void fireEvent.keyDown(card, { key: " " }))
+    expect(container.querySelector('[data-column="todo"]')!.hasAttribute("data-drag-over")).toBe(false)
+    act(() => void fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" }))
+    expect(container.querySelector('[data-column="done"]')!.hasAttribute("data-drag-over")).toBe(true)
+  })
+
+  it("offers every drag as a menu: Move to… each column", () => {
+    const onMove = vi.fn()
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb(0)
+      return 0
+    })
+    const { container } = board({ columns: { todo: many(2), done: [] }, onMove })
+    const card = container.querySelector<HTMLElement>('[data-task-id="t-todo-1"]')!
+    act(() => void fireEvent.keyDown(within(card).getByRole("button", { name: "Card actions" }), { key: "Enter" }))
+    act(() => void fireEvent.keyDown(screen.getByRole("menuitem", { name: "Move to…" }), { key: "ArrowRight" }))
+    act(() => void fireEvent.click(screen.getByRole("menuitem", { name: /Done/ })))
+    expect(onMove).toHaveBeenCalledTimes(1)
+    expect(onMove.mock.calls[0][1]).toMatchObject({ column: "done", index: 0 })
   })
 })

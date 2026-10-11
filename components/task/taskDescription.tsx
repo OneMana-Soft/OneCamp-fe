@@ -7,13 +7,12 @@
 // every change (three a second while typing) rendered the whole panel again,
 // pickers, dates, fields, subtasks and comments included.
 
-import { memo, useCallback, useEffect, useRef } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import type { Content } from "@tiptap/core"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { cn } from "@/lib/utils/helpers/cn"
-import { sectionTitle } from "@/lib/ui/fieldRow"
 import type { CreateTaskInterface } from "@/types/task"
 
 /** How long typing has to stop before the text is saved. */
@@ -86,26 +85,52 @@ export const TaskDescription = memo(function TaskDescription({
     [canEdit, flush],
   )
 
+  // A long description folds at twelve lines with a fade and "Show more"
+  // (W31); focusing it, or asking, shows it all.
+  const box = useRef<HTMLDivElement>(null)
+  const [long, setLong] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const watch = new ResizeObserver(() => setLong(el.scrollHeight > CLAMP_PX + 8))
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [])
+  const clamped = long && !expanded
+
   return (
-    <div className="mb-4 grid gap-2" onBlur={flush}>
-      <h3 className={sectionTitle}>Description</h3>
-      <MinimalTiptapTextInput
-        key={taskUUID}
-        throttleDelay={300}
-        // Formatting folds behind one button, as Linear's issue body does;
-        // Markdown and Ctrl+B still work. The thirteen-button row also asked
-        // the editor what each button could do on every keystroke.
-        toggleToolbar
-        className={cn("h-auto rounded-lg border bg-muted/30")}
-        editorContentClassName="overflow-auto min-h-[7rem]"
-        output="html"
-        content={html}
-        value={html}
-        placeholder={canEdit ? "Add a description…" : "No description."}
-        editable={canEdit}
-        editorClassName="focus:outline-none"
-        onChange={onChange}
-      />
+    <div className="relative mb-6" onBlur={flush} onFocus={() => setExpanded(true)} data-task-description="">
+      <h3 className="sr-only">Description</h3>
+      <div ref={box} className={cn("relative", clamped && "overflow-hidden")} style={clamped ? { maxHeight: CLAMP_PX } : undefined}>
+        <MinimalTiptapTextInput
+          key={taskUUID}
+          throttleDelay={300}
+          // Formatting folds behind one button, as Linear's issue body does;
+          // Markdown and Ctrl+B still work. The thirteen-button row also asked
+          // the editor what each button could do on every keystroke.
+          toggleToolbar
+          // Text on the sheet, with a hover ground to say it can be edited (W31).
+          className={cn("-mx-2 h-auto rounded-md border-0 bg-transparent shadow-none transition-colors", canEdit && "hover:bg-hover focus-within:bg-transparent")}
+          editorContentClassName="overflow-auto min-h-[44px] px-2 text-body"
+          output="html"
+          content={html}
+          value={html}
+          placeholder={canEdit ? "Add a description…" : "No description."}
+          editable={canEdit}
+          editorClassName="focus:outline-none"
+          onChange={onChange}
+        />
+        {clamped && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-[var(--panel,var(--sheet))]" />}
+      </div>
+      {clamped && (
+        <button type="button" onClick={() => setExpanded(true)} className="-ml-2 mt-1 h-6 rounded-sm px-2 text-xs font-[510] text-ink-2 transition-colors hover:bg-hover hover:text-foreground">
+          Show more
+        </button>
+      )}
     </div>
   )
 })
+
+/** Twelve lines of 22px. */
+const CLAMP_PX = 12 * 22

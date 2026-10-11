@@ -41,7 +41,7 @@ export function ProjectFormsDialog({ projectId, open, onOpenChange }: { projectI
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto outline-none sm:max-w-xl" onOpenAutoFocus={focusDialogItself}>
+      <DialogContent className={`max-h-[90dvh] overflow-y-auto outline-none ${editing ? "sm:max-w-4xl" : "sm:max-w-xl"}`} onOpenAutoFocus={focusDialogItself}>
         <DialogHeader>
           <DialogTitle>{editing ? (editing.id ? "Edit form" : "New form") : "Forms"}</DialogTitle>
           <DialogDescription>
@@ -179,8 +179,11 @@ function FormEditor({ projectId, form, onBack, onSaved }: { projectId: string; f
     }
   }
 
+  // Two panes (work.md W46): the questions on the left, the form as it will
+  // look on the right, updating as it is written.
   return (
-    <form onSubmit={save} className="grid gap-4">
+    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+    <form onSubmit={save} className="grid content-start gap-4">
       <div className="grid gap-1.5">
         <Label htmlFor="form-title">Title</Label>
         <Input id="form-title" value={f.title} maxLength={120} placeholder="Design requests" onChange={(e) => set("title", e.target.value)} required />
@@ -193,7 +196,7 @@ function FormEditor({ projectId, form, onBack, onSaved }: { projectId: string; f
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-sm font-medium">Questions</legend>
         {f.fields.map((q, i) => (
-          <div key={q.id} className="grid gap-2 rounded-md border p-3">
+          <div key={q.id} className="grid gap-2 rounded-lg bg-raised p-3 shadow-e1">
             <div className="flex gap-2">
               <Input value={q.label} maxLength={200} aria-label={`Question ${i + 1}`} onChange={(e) => setField(i, { label: e.target.value })} className="h-8" required />
               <Select value={q.type} onValueChange={(v) => setField(i, { type: v as FieldType, options: v === "select" ? q.options ?? ["", ""] : undefined })}>
@@ -250,10 +253,10 @@ function FormEditor({ projectId, form, onBack, onSaved }: { projectId: string; f
         </div>
       </div>
 
-      <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+      <label className="flex items-center justify-between gap-3 rounded-lg bg-sunken p-3 text-sm">
         <span>
           Taking answers
-          <span className="block text-xs text-muted-foreground">Turn off to close the form without deleting it.</span>
+          <span className="block text-xs text-ink-3">Turn off to close the form without deleting it.</span>
         </span>
         <Switch checked={f.active} onCheckedChange={(v) => set("active", v)} />
       </label>
@@ -266,5 +269,32 @@ function FormEditor({ projectId, form, onBack, onSaved }: { projectId: string; f
         </Button>
       </div>
     </form>
+    <FormPreview form={f} />
+    </div>
+  )
+}
+
+/** The form as someone outside will see it: the same card, nothing in it works. */
+export function FormPreview({ form }: { form: ProjectForm }) {
+  return (
+    <aside aria-label="Preview" data-form-preview="" className="hidden content-start gap-2 rounded-xl bg-sunken p-4 md:grid">
+      <p className="text-xs font-medium text-ink-3">Preview</p>
+      <div className="grid gap-4 rounded-lg bg-sheet p-4 shadow-e1" aria-hidden="true">
+        <div className="grid gap-1">
+          <p className="text-heading font-semibold text-foreground">{form.title || "Untitled form"}</p>
+          {form.description && <p className="whitespace-pre-line text-xs text-ink-2">{form.description}</p>}
+        </div>
+        {form.fields.map((q, i) => (
+          <div key={q.id} className="grid gap-1">
+            <p className="flex items-baseline justify-between gap-2 text-xs font-medium text-foreground">
+              {q.label || `Question ${i + 1}`}
+              {q.required && <span className="font-normal text-ink-3">Required</span>}
+            </p>
+            {q.type === "checkbox" ? null : <span className={`block rounded-md bg-raised shadow-e1 ${q.type === "long_text" ? "h-14" : "h-7"}`} />}
+          </div>
+        ))}
+        <span className="inline-flex h-7 w-16 items-center justify-center rounded-md bg-brand text-xs font-medium text-brand-foreground">Send</span>
+      </div>
+    </aside>
   )
 }

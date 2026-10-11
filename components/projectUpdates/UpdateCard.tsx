@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { HealthPill } from "@/components/projectUpdates/HealthPill"
+import { HealthPill, HealthWord } from "@/components/projectUpdates/HealthPill"
+import { healthColor } from "@/components/projectUpdates/healthTone"
 import { UpdateText } from "@/components/projectUpdates/UpdateText"
 import { Eye, Pencil, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -34,6 +35,8 @@ export function UpdateCard({
   onDelete,
   detail,
   noun = "update",
+  variant = "card",
+  foot,
 }: {
   update: CardUpdate
   now: number
@@ -43,13 +46,37 @@ export function UpdateCard({
   onDelete: () => void
   detail?: ReactNode
   noun?: string
+  /**
+   * "feature": the latest update, r16 on e1 with a 4 px band in its health's
+   * colour (work.md W27). "rail": an older one, on the feed's rail with a dot
+   * in its health's colour and the note clamped to three lines. "card": a
+   * plain card (a goal's check-in).
+   */
+  variant?: "feature" | "card" | "rail"
+  /** Under the note: "Since the last update: 4 done · 2 added · 1 late". */
+  foot?: ReactNode
 }) {
   const [confirming, setConfirming] = useState(false)
   const edited = Date.parse(update.updated_at) - Date.parse(update.created_at) > 60_000
+  const [more, setMore] = useState(false)
   return (
-    <article className="group rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border">
-      <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <HealthPill health={update.health} />
+    <article
+      data-update-variant={variant}
+      className={cn(
+        "group relative",
+        variant === "feature" && "overflow-hidden rounded-2xl bg-raised p-5 pt-6 shadow-e1 [animation:work-rise-in_240ms_var(--ease-out)_both]",
+        variant === "card" && "rounded-xl bg-raised p-4 shadow-e1",
+        variant === "rail" && "pb-5 pl-8",
+      )}
+    >
+      {variant === "feature" && (
+        <span aria-hidden="true" data-health-band="" className="absolute inset-x-0 top-0 h-1 origin-left [animation:work-grow-x_320ms_var(--ease-out)_both]" style={{ background: healthColor(update.health) }} />
+      )}
+      {variant === "rail" && (
+        <span aria-hidden="true" data-rail-dot="" className="absolute left-[6px] top-[5px] size-2.5 rounded-full" style={{ background: healthColor(update.health), boxShadow: "0 0 0 3px var(--sheet)" }} />
+      )}
+      <header className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", variant === "rail" ? "mb-1" : "mb-3")}>
+        {variant === "rail" ? null : variant === "feature" ? <HealthWord health={update.health} className="[&>span:last-child]:text-heading" /> : <HealthPill health={update.health} />}
         <p className="min-w-0 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{update.author_name}</span>
           {" · "}
@@ -103,7 +130,20 @@ export function UpdateCard({
         )}
       </header>
       {detail}
-      {update.body && <UpdateText body={update.body} />}
+      {update.body &&
+        (variant === "rail" ? (
+          <>
+            <UpdateText body={update.body} className={cn("text-ink-2", !more && "line-clamp-3")} />
+            {!more && update.body.length > 240 && (
+              <button type="button" onClick={() => setMore(true)} className="mt-1 text-xs font-medium text-ink-3 hover:text-foreground">
+                More
+              </button>
+            )}
+          </>
+        ) : (
+          <UpdateText body={update.body} className={variant === "feature" ? "text-body" : undefined} />
+        ))}
+      {foot && <div className="mt-3 text-xs text-ink-2">{foot}</div>}
     </article>
   )
 }

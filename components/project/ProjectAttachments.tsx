@@ -1,234 +1,250 @@
-import * as React from "react";
-import {useEffect} from "react";
-import {useDispatch, useSelector} from "react-redux";
+"use client"
 
-import {
-    clearProjectAttachmentInputState,
-    deleteProjectAttachmentPreviewFiles,
-    removeProjectAttachmentUploadedFiles,
-} from "@/store/slice/projectAttachmentSlice";
-import {useUploadFile} from "@/hooks/useUploadFile";
-import {Input} from "@/components/ui/input";
-import {RootState} from "@/store/store";
-import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {usePost} from "@/hooks/usePost";
-import {
-    ProjectAddAttachmentInterface,
-    ProjectInfoRawInterface,
-    ProjectRemoveAttachmentInterface
-} from "@/types/project";
-import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttachmentIcon";
-import {AttachmentMediaReq} from "@/types/attachment";
-import {openUI} from "@/store/slice/uiSlice";
-import ProjectAttachment from "@/components/project/projectAttachment";
-import { ErrorState } from "@/components/ui/error-state";
-import { ProjectFilesEmpty, ProjectFilesSkeleton } from "@/components/project/projectFiles";
-import { Button } from "@/components/ui/button";
-import { Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils/helpers/cn";
-import { sectionTitle } from "@/lib/ui/fieldRow";
-import { useEntityLinks } from "@/services/entityLinkService";
-import { EntityLinkPicker } from "@/components/entityLink/EntityLinkPicker";
-import { LinkedItemsList } from "@/components/entityLink/LinkedItemsSection";
-import { WorkState, workBody, workToolbar } from "@/components/task/workFrame";
+import * as React from "react"
 
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ErrorState } from "@/components/ui/error-state"
+import { Check, ChevronDown, LayoutGrid, List, Search, Upload, X } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
+import { sectionTitle } from "@/lib/ui/fieldRow"
+import { isTyping } from "@/lib/goKeys"
+import { useEntityLinks } from "@/services/entityLinkService"
+import { EntityLinkPicker } from "@/components/entityLink/EntityLinkPicker"
+import { LinkedItemsList } from "@/components/entityLink/LinkedItemsSection"
+import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { FileCard, FileRow, UploadingFileCard } from "@/components/project/fileCard"
+import {
+    ProjectFilesEmpty,
+    ProjectFilesNoMatch,
+    ProjectFilesSkeleton,
+    SORTS,
+    TYPE_FILTERS,
+    shownFiles,
+    useProjectFiles,
+    type FileSort,
+    type FileTypeFilter,
+} from "@/components/project/projectFiles"
 
 interface ProjectAttachmentsProps {
     projectId: string;
+    /** The project's name, for "Drop to upload to Q4 launch". */
+    projectName?: string;
     /** A member may link docs and boards; the server checks again. */
     canLink?: boolean;
 }
 
+const VIEW_KEY = "oc-project-files-view"
+
 /**
- * A project's Attachments tab on a computer, in the frame every tab of a
- * project draws in (components/task/workFrame): a toolbar row with "Link a
- * doc or board" and "Add files", then its files and its linked docs and
- * boards, each under its own title, starting where every other tab starts.
- * It was the task panel's linked-items section dropped in a p-4 box (16px
- * down and in from the other tabs, with its own spinner and a bare "None
- * linked."), over a files grid with a second inset.
+ * A project's Files tab on a computer (content.md F01), in the frame every
+ * tab of a project draws in: a toolbar (Type, Sort; search, list or grid,
+ * Link doc or board, Upload), the files as cards or rows, then the docs and
+ * boards linked to the project. The whole tab takes dropped files (F04): an
+ * overlay says where they go, and each upload is a card with a ring that
+ * keeps its failure on the card with Retry.
  */
-export function ProjectAttachments({projectId, canLink = false}: ProjectAttachmentsProps) {
-
-    const dispatch = useDispatch()
-    const post = usePost()
-    const uploadFile = useUploadFile()
+export function ProjectAttachments({ projectId, projectName, canLink = false }: ProjectAttachmentsProps) {
+    const p = useProjectFiles(projectId)
     const fileInputRef = React.useRef<HTMLInputElement>(null)
-
-
-    const projectAttachmentList = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectAttachments + '/' + projectId)
-    const projectInputState = useSelector(
-        (state: RootState) => state.projectAttachment.projectAttachmentInputState
-    );
-
-    useEffect(() => {
-
-        if(projectInputState[projectId] && projectInputState[projectId].filesPreview.length == projectInputState[projectId].filesUploaded.length) {
-            addAttachmentsToProject()
-
+    const [type, setType] = React.useState<FileTypeFilter>("all")
+    const [sort, setSort] = React.useState<FileSort>("newest")
+    const [query, setQuery] = React.useState("")
+    const [searching, setSearching] = React.useState(false)
+    const [view, setView] = React.useState<"grid" | "list">("grid")
+    React.useEffect(() => {
+        try {
+            if (localStorage.getItem(VIEW_KEY) === "list") setView("list")
+        } catch {
+            /* the grid then */
         }
-
-    }, [projectInputState]);
-
-    const addAttachmentsToProject = async () => {
-        // Get the latest state
-        const currentProjectAttachmentState = projectInputState[projectId];
-
-        if (!currentProjectAttachmentState || !currentProjectAttachmentState.filesUploaded || currentProjectAttachmentState.filesUploaded.length === 0) {
-            return;
+    }, [])
+    const chooseView = (v: "grid" | "list") => {
+        setView(v)
+        try {
+            localStorage.setItem(VIEW_KEY, v)
+        } catch {
+            /* for this visit */
         }
-
-        post.makeRequest<ProjectAddAttachmentInterface>({
-            apiEndpoint: PostEndpointUrl.AddAttachmentToProject,
-            payload: {
-                project_uuid: projectId,
-                project_attachments: currentProjectAttachmentState.filesUploaded
-            }
-        }).then(()=>{
-            projectAttachmentList.mutate()
-
-        })
-
-        dispatch(clearProjectAttachmentInputState({projectUUID: projectId}));
-
-    };
-
-
-
-    const handleProjectFileUpload = React.useCallback(
-        async (e: React.ChangeEvent<HTMLInputElement>) => {
-            const files = e.target.files
-            if (!files?.length) return
-
-            await uploadFile.makeRequestToUploadToProject(files, projectId)
-
-            if (fileInputRef.current) {
-                fileInputRef.current.value = ""; // Clear the input
-            }
-
-        },
-        [projectId, uploadFile]
-    )
-
-    const removeProjectPreviewFile = (key: string) => {
-        dispatch(
-            deleteProjectAttachmentPreviewFiles({
-                key,
-                projectUUID: projectId
-            })
-        );
-        dispatch(
-            removeProjectAttachmentUploadedFiles({
-                key,
-                projectUUID: projectId
-            })
-        );
     }
-
-    const handleDelete = (id: string) => {
-
-        if(!id) return
-
-        post.makeRequest<ProjectRemoveAttachmentInterface>({
-            apiEndpoint: PostEndpointUrl.RemoveAttachmentToProject,
-            payload: {
-                attachment_obj_key: id
-            }
-        }).then(()=>{
-            projectAttachmentList.mutate()
-        })
-
-
-    }
-
-    const handleAttachmentIconCLick = (attachmentMedia: AttachmentMediaReq) => {
-
-        if(!projectAttachmentList.data?.data.project_attachments) return
-
-        dispatch(openUI({ key: 'attachmentLightbox', data: {allMedia:  projectAttachmentList.data?.data.project_attachments, media: attachmentMedia, mediaGetUrl: GetEndpointUrl.GetProjectMedia + '/' + projectId} }))
-
-    }
-
-
-
-
-
-    const files = projectAttachmentList.data?.data.project_attachments || []
-    const uploading = projectInputState[projectId]?.filesPreview || []
-    const isAdmin = projectAttachmentList.data?.data.project_is_admin || false
-    const pickFiles = () => fileInputRef.current?.click()
 
     const links = useEntityLinks("project", projectId)
     const linked = links.docs.length + links.boards.length
     const mayLink = canLink && !links.forbidden
-    const loading = projectAttachmentList.isLoading || (links.isLoading && linked === 0)
-    const failed = !!projectAttachmentList.isError && !projectAttachmentList.data
-    const empty = !loading && !failed && files.length === 0 && uploading.length === 0 && linked === 0
+    const loading = p.list.isLoading || (links.isLoading && linked === 0)
+    const failed = !!p.list.isError && !p.list.data
+    const shown = React.useMemo(() => shownFiles(p.files, type, sort, query), [p.files, type, sort, query])
+    const filtering = type !== "all" || !!query.trim()
+    const empty = !loading && !failed && p.files.length === 0 && p.uploading.length === 0 && linked === 0
+    const pickFiles = () => fileInputRef.current?.click()
+
+    // "U" uploads, from anywhere on the tab but a field.
+    React.useEffect(() => {
+        if (!p.isAdmin) return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.metaKey || e.ctrlKey || e.altKey || isTyping(document.activeElement)) return
+            if (e.key === "u" || e.key === "U") {
+                e.preventDefault()
+                fileInputRef.current?.click()
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [p.isAdmin])
+
+    // The drop target: files dragged over the tab show where they will go.
+    const [dragging, setDragging] = React.useState(false)
+    const depth = React.useRef(0)
+    const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
+    const dropProps = p.isAdmin
+        ? {
+              onDragEnter: (e: React.DragEvent) => {
+                  if (!hasFiles(e)) return
+                  e.preventDefault()
+                  depth.current++
+                  setDragging(true)
+              },
+              onDragOver: (e: React.DragEvent) => {
+                  if (hasFiles(e)) e.preventDefault()
+              },
+              onDragLeave: () => {
+                  depth.current = Math.max(0, depth.current - 1)
+                  if (depth.current === 0) setDragging(false)
+              },
+              onDrop: (e: React.DragEvent) => {
+                  if (!hasFiles(e)) return
+                  e.preventDefault()
+                  depth.current = 0
+                  setDragging(false)
+                  p.upload(Array.from(e.dataTransfer.files))
+              },
+          }
+        : {}
+
+    const menu = <T extends string>(label: string, value: T, options: { value: T; label: string }[], onPick: (v: T) => void) => (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 text-ui-sm font-medium text-ink-2" aria-label={`${label}: ${options.find((o) => o.value === value)?.label}`}>
+                    {value === options[0].value && label === "Type" ? "Type" : options.find((o) => o.value === value)?.label}
+                    <ChevronDown className="size-3.5" aria-hidden="true" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-40">
+                {options.map((o) => (
+                    <DropdownMenuItem key={o.value} onSelect={() => onPick(o.value)} className="justify-between gap-4">
+                        {o.label}
+                        {o.value === value ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
 
     return (
-        <div className="flex flex-col pb-4">
-            <div data-work-toolbar="" className={cn(workToolbar, "justify-end")}>
-                {mayLink && (
-                    <EntityLinkPicker
-                        onPick={(refType, refUUID) => links.addLink(refType, refUUID)}
-                        isLinked={links.hasLink}
-                        disabled={links.mutating}
-                        triggerClassName="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
-                    />
-                )}
-                {isAdmin && (
-                    <Button size="sm" className="h-8" onClick={pickFiles}>
-                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                        Add files
-                    </Button>
-                )}
+        <div {...dropProps} data-dragging={dragging} data-files-tab="" className="group/files relative flex flex-col pb-4">
+            <div data-work-toolbar="" className={cn(workToolbar, "min-h-11")}>
+                {menu("Type", type, TYPE_FILTERS, setType)}
+                {menu("Sort", sort, SORTS, setSort)}
+                <div className="ml-auto flex items-center gap-1">
+                    {searching ? (
+                        <label className="flex h-8 w-56 items-center gap-1.5 rounded-lg bg-raised px-2 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+                            <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                            <input
+                                autoFocus
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                onKeyDown={(e) => e.key === "Escape" && (setQuery(""), setSearching(false))}
+                                placeholder="Search files"
+                                aria-label="Search files"
+                                className="min-w-0 flex-1 bg-transparent text-ui-sm text-ink outline-none placeholder:text-ink-3"
+                            />
+                            <button type="button" aria-label="Close search" onClick={() => (setQuery(""), setSearching(false))} className="text-ink-3 hover:text-ink">
+                                <X className="size-3.5" />
+                            </button>
+                        </label>
+                    ) : (
+                        <Button variant="ghost" size="icon" className="size-8 text-ink-2" aria-label="Search files" onClick={() => setSearching(true)}>
+                            <Search className="size-4" />
+                        </Button>
+                    )}
+                    <div role="radiogroup" aria-label="View" className="inline-flex h-7 items-center rounded-md bg-sunken p-0.5">
+                        {([["grid", LayoutGrid, "Grid"], ["list", List, "List"]] as const).map(([v, Icon, name]) => (
+                            <button
+                                key={v}
+                                type="button"
+                                role="radio"
+                                aria-checked={view === v}
+                                aria-label={name}
+                                onClick={() => chooseView(v)}
+                                className={cn("inline-flex size-6 items-center justify-center rounded-[5px] transition-colors", view === v ? "bg-raised text-ink shadow-e1" : "text-ink-3 hover:text-ink")}
+                            >
+                                <Icon className="size-3.5" />
+                            </button>
+                        ))}
+                    </div>
+                    {mayLink && (
+                        <EntityLinkPicker
+                            onPick={(refType, refUUID) => links.addLink(refType, refUUID)}
+                            isLinked={links.hasLink}
+                            disabled={links.mutating}
+                            triggerClassName="h-8 gap-1.5 text-ink-2 hover:text-ink"
+                        />
+                    )}
+                    {p.isAdmin && (
+                        <Button size="sm" className="h-8 gap-1.5" onClick={pickFiles} aria-keyshortcuts="U">
+                            <Upload className="size-3.5" aria-hidden="true" />
+                            Upload
+                            <kbd className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-xs bg-white/20 px-1 text-micro font-medium" aria-hidden="true">U</kbd>
+                        </Button>
+                    )}
+                </div>
             </div>
             <div className={workBody}>
                 {loading ? (
-                    <ProjectFilesSkeleton />
+                    <ProjectFilesSkeleton view={view} />
                 ) : failed ? (
                     <WorkState>
-                        <ErrorState subject="the attachments" onRetry={() => void projectAttachmentList.mutate()} />
+                        <ErrorState subject="the files" onRetry={() => void p.list.mutate()} />
                     </WorkState>
                 ) : empty ? (
-                    <WorkState>
-                        <ProjectFilesEmpty canAdd={isAdmin} />
-                    </WorkState>
+                    <ProjectFilesEmpty onAdd={p.isAdmin ? pickFiles : undefined} />
                 ) : (
                     <div className="space-y-8">
-                        {(files.length > 0 || uploading.length > 0) && (
+                        {(p.files.length > 0 || p.uploading.length > 0) && (
                             <section aria-label="Files">
-                                <h3 className={cn(sectionTitle, "mb-3")}>Files</h3>
-                                <div className="flex flex-wrap items-stretch gap-3">
-                                    {files.map((file) => (
-                                        <ProjectAttachment
-                                            key={file.attachment_uuid}
-                                            attachmentInfo={file}
-                                            isAdmin={isAdmin}
-                                            handleRemoveAttachment={handleDelete}
-                                            projectUUID={projectId}
-                                            handleAttachmentIconCLick={() => { handleAttachmentIconCLick(file) }}
-                                        />
-                                    ))}
-                                    {uploading.map((pfile) => (
-                                        <UploadingAttachmentIcon
-                                            fileName={pfile.fileName}
-                                            progress={pfile.progress}
-                                            fileKey={pfile.key}
-                                            removeFile={() => { removeProjectPreviewFile(pfile.key) }}
-                                            key={pfile.key}
-                                            getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
-                                            attachmentOnCLick={() => {}}
-                                            attachmentType={pfile.attachmentType}
-                                        />
-                                    ))}
-                                </div>
+                                {filtering && shown.length === 0 && p.uploading.length === 0 ? (
+                                    <ProjectFilesNoMatch query={query.trim() || TYPE_FILTERS.find((t) => t.value === type)!.label.toLowerCase()} className="py-10" />
+                                ) : (
+                                    <div key={view} className={cn("content-view-in", view === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-4" : "grid border-t border-line")} data-files-view={view}>
+                                        {p.uploading.map((u) => (
+                                            <UploadingFileCard
+                                                key={u.key}
+                                                view={view}
+                                                name={u.fileName}
+                                                progress={u.progress}
+                                                size={u.size}
+                                                failed={u.failed}
+                                                onCancel={() => p.cancel(u.key)}
+                                                onRetry={u.file ? () => p.retry(u.key) : undefined}
+                                                onRemove={() => p.remove(u.key)}
+                                            />
+                                        ))}
+                                        {shown.map((file) =>
+                                            view === "grid" ? (
+                                                <FileCard key={file.attachment_uuid} file={file} mediaPath={p.mediaPath(file.attachment_uuid)} onOpen={() => p.open(file)} canDelete={p.isAdmin} onDelete={() => p.del(file.attachment_uuid)} />
+                                            ) : (
+                                                <FileRow key={file.attachment_uuid} file={file} mediaPath={p.mediaPath(file.attachment_uuid)} onOpen={() => p.open(file)} canDelete={p.isAdmin} onDelete={() => p.del(file.attachment_uuid)} />
+                                            ),
+                                        )}
+                                    </div>
+                                )}
                             </section>
                         )}
                         {linked > 0 && (
                             <section aria-label="Linked docs and boards">
-                                <h3 className={cn(sectionTitle, "mb-3")}>Linked docs and boards</h3>
+                                <h3 className={cn(sectionTitle, "mb-3 flex items-baseline gap-2")}>
+                                    Linked docs and boards <span className="text-meta font-normal tabular-nums text-ink-3">{linked}</span>
+                                </h3>
                                 <div className="flex max-w-xl flex-col gap-1.5">
                                     <LinkedItemsList docs={links.docs} boards={links.boards} canEdit={mayLink} onRemove={links.removeLink} />
                                 </div>
@@ -237,14 +253,27 @@ export function ProjectAttachments({projectId, canLink = false}: ProjectAttachme
                     </div>
                 )}
             </div>
-            {isAdmin && (
-                <Input
+            {dragging ? (
+                <div
+                    aria-hidden="true"
+                    data-drop-overlay=""
+                    className="content-float pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-3 rounded-xl bg-brand/[0.06] outline-2 -outline-offset-2 outline-dashed outline-brand backdrop-brightness-[.96]"
+                >
+                    <span className="inline-flex size-12 items-center justify-center rounded-xl bg-brand/10 text-brand-text">
+                        <Upload className="size-5" />
+                    </span>
+                    <p className="text-heading font-semibold text-ink">Drop to upload{projectName ? ` to ${projectName}` : ""}</p>
+                </div>
+            ) : null}
+            {p.isAdmin && (
+                <input
                     ref={fileInputRef}
                     type="file"
-                    key={uploading.length}
-                    id="project-file-upload"
                     multiple
-                    onChange={handleProjectFileUpload}
+                    onChange={(e) => {
+                        if (e.target.files?.length) p.upload(Array.from(e.target.files))
+                        e.target.value = ""
+                    }}
                     className="hidden"
                     aria-hidden="true"
                     tabIndex={-1}

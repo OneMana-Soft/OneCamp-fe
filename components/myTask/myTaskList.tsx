@@ -210,6 +210,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     const handleRenderIndex = (taskInfo: TaskInfoInterface) => {
         return (
             <TaskListTask
+                showAssignee={false}
                 taskInfo={taskInfo}
                 isAdmin={taskInfo.task_project.project_is_admin || false}
                 onToggleStatus={handleToggleStatusWithAnimation}

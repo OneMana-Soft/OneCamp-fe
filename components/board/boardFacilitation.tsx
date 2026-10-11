@@ -20,8 +20,9 @@
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { Pause, Play, Plus, Presentation, Timer, Vote, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Pause, Play, Plus, Presentation, Timer, Vote, X } from "@/lib/icons"
+import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { celebrate } from "@/lib/celebrate"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
 import { useBoardView } from "@/hooks/useBoardView"
@@ -279,12 +280,223 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
 
   // ---- Render ------------------------------------------------------------
   const timeUp = !!timer && left === 0 && timer.pausedLeftMs === undefined
+  const lastTen = !!timer && !timeUp && left <= 10_000
   const votesLeft = voting ? voting.perPerson - myVotes.length : 0
   const idle = !timer && !voting && !presenting && presenters.length === 0
+  const top3 = new Set(results.slice(0, 3).filter((r) => r.count > 0).map((r) => r.id))
+
+  // Revealing the results: one spark burst from the winning note's badge,
+  // once per vote, and never under reduced motion (celebrate checks).
+  const celebrated = React.useRef<string | null>(null)
+  const winner = results[0] && (results.length === 1 || results[0].count > results[1].count) ? results[0].id : null
+  React.useEffect(() => {
+    if (!voting?.closedAt || !winner || celebrated.current === voting.id) return
+    celebrated.current = voting.id
+    // A late joiner who opens a board with old results gets no burst.
+    if (Date.now() - voting.closedAt > 10_000) return
+    const raf = requestAnimationFrame(() => celebrate(document.querySelector(`[data-vote-badge="${winner}"]`), { count: 8 }))
+    return () => cancelAnimationFrame(raf)
+  }, [voting, winner])
+
   if (idle && !editable) return null
+
+  const segments: React.ReactNode[] = []
+
+  if (presenting) {
+    segments.push(
+      <Segment key="presenting" tone="about-you">
+        <Presentation className="size-4" aria-hidden />
+        <span>You&apos;re presenting</span>
+        <SegmentButton onClick={() => setPresenting(false)}>Stop</SegmentButton>
+      </Segment>,
+    )
+  } else if (presenters.length > 0) {
+    segments.push(
+      <Segment key="presenter" tone="about-you">
+        <Presentation className="size-4" aria-hidden />
+        {presenter ? (
+          <>
+            <span>Following {presenter.name}</span>
+            <SegmentButton onClick={stopFollowing}>Stop</SegmentButton>
+          </>
+        ) : (
+          <>
+            <span>{presenters[0].name} is presenting</span>
+            <SegmentButton
+              onClick={() => {
+                declined.current.delete(presenters[0].clientId)
+                setFollowing(presenters[0].clientId)
+              }}
+            >
+              Follow
+            </SegmentButton>
+          </>
+        )}
+      </Segment>,
+    )
+  }
+
+  if (voting && !voting.closedAt) {
+    segments.push(
+      <Segment key="voting">
+        <span className="text-ink-2">
+          {editable ? (votesLeft > 0 ? `Voting · ${votesLeft} left` : "Voting · all used") : `${voting.byName} started voting`}
+        </span>
+        {editable && voting.perPerson <= 10 ? (
+          <span className="flex items-center gap-1" aria-hidden="true">
+            {Array.from({ length: voting.perPerson }, (_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "size-2 rounded-[4px] transition-colors",
+                  i < votesLeft ? "bg-brand" : "ring-[1.5px] ring-inset ring-brand",
+                )}
+              />
+            ))}
+          </span>
+        ) : null}
+        {editable && <SegmentButton onClick={endVoting}>End voting</SegmentButton>}
+      </Segment>,
+    )
+  }
+  if (voting?.closedAt) {
+    segments.push(
+      <Segment key="results">
+        <Popover>
+          <PopoverTrigger asChild>
+            <SegmentButton>
+              <Vote className="size-3.5" aria-hidden />
+              {results.length > 1 && results[0].count === results[1].count
+                ? "Results: a tie at the top"
+                : results.length > 0
+                  ? `Results: “${notes.find((n) => n.id === results[0].id)?.text ?? ""}” leads`
+                  : "Results"}
+            </SegmentButton>
+          </PopoverTrigger>
+          <PopoverContent side="top" sideOffset={10} className="content-float w-72 rounded-xl bg-pop p-1.5 shadow-e3">
+            {results.length === 0 ? (
+              <p className="p-2 text-ui-sm text-ink-2">Nobody voted.</p>
+            ) : (
+              <ol className="grid gap-0.5">
+                {results.slice(0, 10).map((r, i) => {
+                  const max = results[0].count || 1
+                  return (
+                    <li key={r.id}>
+                      <button
+                        type="button"
+                        onClick={() => goTo(r.id)}
+                        className="relative flex h-9 w-full items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-ui hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="board-grow absolute inset-y-1 left-1 origin-left rounded-md bg-press"
+                          style={{ width: `calc(${(r.count / max) * 100}% - 8px)`, ["--i" as string]: i }}
+                        />
+                        <span className="relative w-4 text-meta tabular-nums text-ink-3">{i + 1}</span>
+                        <span className="relative min-w-0 flex-1 truncate text-ink">{notes.find((n) => n.id === r.id)?.text}</span>
+                        <span className="relative text-meta font-semibold tabular-nums text-ink">{r.count}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+          </PopoverContent>
+        </Popover>
+        {editable && (
+          <SegmentIcon label="Clear the results" onClick={clearVoting}>
+            <X />
+          </SegmentIcon>
+        )}
+      </Segment>,
+    )
+  }
+
+  if (timer) {
+    const pct = timer.durationMs > 0 ? (left / timer.durationMs) * 100 : 0
+    segments.push(
+      <Segment key="timer" tone={timeUp ? "sun" : undefined}>
+        {timeUp ? (
+          <span className="board-ring-pulse inline-flex">
+            <Timer className="size-4 text-camp-sun-ink" aria-hidden />
+          </span>
+        ) : (
+          <span className={cn("inline-flex", lastTen && "board-timer-sun")}>
+            <ProgressRing value={pct} size={28} weight={2.5} label={`Timer, ${formatClock(left)} left`} />
+          </span>
+        )}
+        <span
+          className={cn("min-w-[3.25rem] text-heading tabular-nums", timeUp ? "text-ui-sm font-medium text-camp-sun-ink" : lastTen ? "text-camp-sun-ink" : "text-ink")}
+          role="timer"
+          aria-live={timeUp ? "assertive" : "off"}
+        >
+          {timeUp ? "Time's up" : formatClock(left)}
+        </span>
+        {editable && !timeUp && (
+          <>
+            {timer.pausedLeftMs !== undefined ? (
+              <SegmentIcon label="Resume" onClick={resumeTimer}>
+                <Play />
+              </SegmentIcon>
+            ) : (
+              <SegmentIcon label="Pause" onClick={pauseTimer}>
+                <Pause />
+              </SegmentIcon>
+            )}
+            <SegmentButton onClick={addMinute}>+1 min</SegmentButton>
+          </>
+        )}
+        {editable && (
+          <SegmentIcon label={timeUp ? "Dismiss" : "Stop the timer"} onClick={() => setShared("timer", null)}>
+            <X />
+          </SegmentIcon>
+        )}
+      </Segment>,
+    )
+  }
+
+  // Starting things (editors).
+  if (editable && (!timer || !voting || !presenting)) {
+    segments.push(
+      <Segment key="start" quiet>
+        {!timer && (
+          <Choice icon={<Timer className="size-3.5" />} label="Timer" options={TIMER_MINUTES.map((m) => ({ label: `${m} min`, onPick: () => startTimer(m) }))} side="top" />
+        )}
+        {!voting && (
+          <Choice
+            icon={<Vote className="size-3.5" />}
+            label="Vote"
+            heading="Votes for each person"
+            options={VOTES_EACH.map((n) => ({ label: `${n} ${n === 1 ? "vote" : "votes"}`, onPick: () => startVoting(n) }))}
+            side="top"
+          />
+        )}
+        {!presenting && (
+          <SegmentButton
+            onClick={() => {
+              setFollowing(null)
+              setPresenting(true)
+            }}
+          >
+            <Presentation className="size-3.5" aria-hidden />
+            Present
+          </SegmentButton>
+        )}
+      </Segment>,
+    )
+  }
 
   return (
     <>
+      {/* Following someone: the sheet gets a 2 px brand frame and a label. */}
+      {presenter && !presenting && (
+        <div className="pointer-events-none absolute inset-0 z-[15] rounded-[inherit] ring-2 ring-inset ring-brand" data-following="">
+          <span className="content-float absolute left-1/2 top-3 -translate-x-1/2 rounded-lg bg-brand px-2.5 py-1 text-meta font-medium text-brand-foreground shadow-e3">
+            Following {presenter.name}
+          </span>
+        </div>
+      )}
+
       {/* Vote dots, anchored to each note's top-right corner. */}
       {voting && view && (
         <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-hidden={!!voting.closedAt}>
@@ -296,8 +508,12 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
             return voting.closedAt ? (
               <span
                 key={n.id}
+                data-vote-badge={n.id}
                 style={{ left: pos.left, top: pos.top }}
-                className="absolute flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow"
+                className={cn(
+                  "content-pop-in absolute flex h-[22px] min-w-[22px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[11px] bg-ink px-1.5 text-micro font-semibold text-sheet shadow-e2",
+                  top3.has(n.id) && "ring-2 ring-camp-moss ring-offset-2 ring-offset-sheet",
+                )}
               >
                 {count}
               </span>
@@ -311,202 +527,56 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
                 aria-label={`${mine ? "Take back your vote for" : "Vote for"} ${n.text}`}
                 title={mine ? "Take your vote back" : "Vote"}
                 className={cn(
-                  "pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  mine ? "border-primary bg-primary text-primary-foreground" : "border-primary/60 bg-background text-primary hover:bg-primary/10",
+                  "pointer-events-auto absolute flex size-[22px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[11px] shadow-e2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                  mine ? "content-pop-in bg-brand text-brand-foreground" : "bg-pop text-ink-3 hover:text-brand-text",
                 )}
               >
-                {mine ? <span className="h-2.5 w-2.5 rounded-full bg-current" /> : <Plus className="h-3.5 w-3.5" />}
+                {mine ? <span className="text-micro font-semibold">1</span> : <Plus className="size-3" />}
               </button>
             ) : null
           })}
         </div>
       )}
 
-      <div
-        className={cn(
-          "pointer-events-none absolute left-1/2 z-20 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-col items-center gap-2",
-          // On a phone, above the canvas's footer and the board's own buttons:
-          // at the top it covered Excalidraw's tool row.
-          isMobile ? "bottom-[7.5rem]" : "bottom-4",
-        )}
-      >
-        {/* Presenting. */}
-        {presenting && (
-          <Bar tone="primary">
-            <Presentation className="h-4 w-4" aria-hidden />
-            <span>You&apos;re presenting. Everyone follows your view.</span>
-            <Button size="sm" variant="secondary" className="h-7" onClick={() => setPresenting(false)}>
-              Stop
-            </Button>
-          </Bar>
-        )}
-        {!presenting && presenters.length > 0 && (
-          <Bar>
-            <Presentation className="h-4 w-4 text-primary" aria-hidden />
-            {presenter ? (
-              <>
-                <span>Following {presenter.name}</span>
-                <Button size="sm" variant="ghost" className="h-7" onClick={stopFollowing}>
-                  Stop following
-                </Button>
-              </>
-            ) : (
-              <>
-                <span>{presenters[0].name} is presenting</span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-7"
-                  onClick={() => {
-                    declined.current.delete(presenters[0].clientId)
-                    setFollowing(presenters[0].clientId)
-                  }}
-                >
-                  Follow
-                </Button>
-              </>
-            )}
-          </Bar>
-        )}
-
-        {/* Voting. */}
-        {voting && !voting.closedAt && (
-          <Bar>
-            <Vote className="h-4 w-4 text-primary" aria-hidden />
-            <span>
-              {editable
-                ? votesLeft > 0
-                  ? `Voting: ${votesLeft} of ${voting.perPerson} ${voting.perPerson === 1 ? "vote" : "votes"} left. Click a note's dot.`
-                  : "You've used all your votes. Click a dot to take one back."
-                : `${voting.byName} started voting.`}
-            </span>
-            {editable && (
-              <Button size="sm" className="h-7" onClick={endVoting}>
-                End voting
-              </Button>
-            )}
-          </Bar>
-        )}
-        {voting?.closedAt && (
-          <Bar>
-            <Vote className="h-4 w-4 text-primary" aria-hidden />
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button size="sm" variant="secondary" className="h-7">
-                  Results
-                  {results.length > 1 && results[0].count === results[1].count
-                    ? ": a tie at the top"
-                    : results.length > 0 && `: “${notes.find((n) => n.id === results[0].id)?.text ?? ""}” leads`}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent side="top" className="w-72 p-2">
-                {results.length === 0 ? (
-                  <p className="p-2 text-sm text-muted-foreground">Nobody voted.</p>
-                ) : (
-                  <ol className="grid gap-0.5">
-                    {results.slice(0, 10).map((r, i) => (
-                      <li key={r.id}>
-                        <button
-                          type="button"
-                          onClick={() => goTo(r.id)}
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                        >
-                          <span className="w-4 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
-                          <span className="min-w-0 flex-1 truncate">{notes.find((n) => n.id === r.id)?.text}</span>
-                          <span className="text-xs font-semibold tabular-nums">{r.count}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </PopoverContent>
-            </Popover>
-            {editable && (
-              <Button size="sm" variant="ghost" className="h-7" onClick={clearVoting} aria-label="Clear the results">
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </Bar>
-        )}
-
-        {/* Timer. */}
-        {timer && (
-          <Bar tone={timeUp ? "warning" : undefined}>
-            <Timer className="h-4 w-4" aria-hidden />
-            <span className="font-semibold tabular-nums" role="timer" aria-live={timeUp ? "assertive" : "off"}>
-              {timeUp ? "Time's up" : formatClock(left)}
-            </span>
-            {editable && !timeUp && (
-              <>
-                {timer.pausedLeftMs !== undefined ? (
-                  <IconButton aria-label="Resume" onClick={resumeTimer}>
-                    <Play className="h-3.5 w-3.5" />
-                  </IconButton>
-                ) : (
-                  <IconButton aria-label="Pause" onClick={pauseTimer}>
-                    <Pause className="h-3.5 w-3.5" />
-                  </IconButton>
-                )}
-                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={addMinute}>
-                  +1 min
-                </Button>
-              </>
-            )}
-            {editable && (
-              <IconButton aria-label={timeUp ? "Dismiss" : "Stop the timer"} onClick={() => setShared("timer", null)}>
-                <X className="h-3.5 w-3.5" />
-              </IconButton>
-            )}
-          </Bar>
-        )}
-
-        {/* Starting things (editors). */}
-        {editable && (!timer || !voting || !presenting) && (
-          <Bar subtle>
-            {!timer && (
-              <Choice icon={<Timer className="h-3.5 w-3.5" />} label="Timer" options={TIMER_MINUTES.map((m) => ({ label: `${m} min`, onPick: () => startTimer(m) }))} side="top" />
-            )}
-            {!voting && (
-              <Choice
-                icon={<Vote className="h-3.5 w-3.5" />}
-                label="Vote"
-                heading="Votes for each person"
-                options={VOTES_EACH.map((n) => ({ label: `${n} ${n === 1 ? "vote" : "votes"}`, onPick: () => startVoting(n) }))}
-                side="top"
-              />
-            )}
-            {!presenting && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 gap-1.5 px-2"
-                onClick={() => {
-                  setFollowing(null)
-                  setPresenting(true)
-                }}
-              >
-                <Presentation className="h-3.5 w-3.5" aria-hidden />
-                Present
-              </Button>
-            )}
-          </Bar>
-        )}
-      </div>
+      {segments.length > 0 && (
+        <div
+          className={cn(
+            "pointer-events-none absolute left-1/2 z-20 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 justify-center",
+            // On a phone, above the canvas's footer and the board's own buttons:
+            // at the top it covered Excalidraw's tool row. On a computer, docked
+            // above the tool bar at the bottom centre.
+            isMobile ? "bottom-[8.5rem]" : "bottom-[72px]",
+          )}
+        >
+          <div
+            role="toolbar"
+            aria-label="Facilitation"
+            data-board-chrome=""
+            data-facilitation=""
+            className="content-float pointer-events-auto flex h-11 max-w-full items-center overflow-x-auto rounded-[22px] bg-pop px-1.5 text-ui-sm text-ink shadow-e3"
+          >
+            {segments.map((seg, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line-2" />}
+                {seg}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   )
 }
 
-function Bar({ children, tone, subtle }: { children: React.ReactNode; tone?: "primary" | "warning"; subtle?: boolean }) {
+/** One part of the facilitation cluster. */
+function Segment({ children, tone, quiet }: { children: React.ReactNode; tone?: "about-you" | "sun"; quiet?: boolean }) {
   return (
     <div
       className={cn(
-        "pointer-events-auto flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-2 rounded-full border px-3 py-1 text-sm shadow-lg",
-        tone === "primary"
-          ? "border-primary bg-primary text-primary-foreground"
-          : tone === "warning"
-            ? "border-warning/40 bg-warning/15 text-foreground"
-            : "bg-popover text-popover-foreground",
-        subtle && "gap-0.5 px-1 opacity-90 hover:opacity-100",
+        "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[16px] px-2",
+        tone === "about-you" && "bg-brand-muted text-brand-text",
+        tone === "sun" && "bg-camp-sun-tint text-camp-sun-ink",
+        quiet && "gap-0.5 px-0.5",
       )}
     >
       {children}
@@ -514,11 +584,36 @@ function Bar({ children, tone, subtle }: { children: React.ReactNode; tone?: "pr
   )
 }
 
-function IconButton({ "aria-label": label, onClick, children }: { "aria-label": string; onClick: () => void; children: React.ReactNode }) {
+const SegmentButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(function SegmentButton(
+  { className, children, type = "button", ...rest },
+  ref,
+) {
   return (
-    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClick} aria-label={label} title={label}>
+    <button
+      ref={ref}
+      type={type}
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-[14px] px-2.5 text-ui-sm font-medium text-ink-2 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:shrink-0",
+        className,
+      )}
+      {...rest}
+    >
       {children}
-    </Button>
+    </button>
+  )
+})
+
+function SegmentIcon({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-[14px] text-ink-3 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:size-3.5"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -539,13 +634,13 @@ function Choice({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-7 gap-1.5 px-2">
+        <SegmentButton>
           {icon}
           {label}
-        </Button>
+        </SegmentButton>
       </PopoverTrigger>
-      <PopoverContent side={side} className="w-44 p-1">
-        {heading && <p className="px-2 py-1 text-xs text-muted-foreground">{heading}</p>}
+      <PopoverContent side={side} sideOffset={10} className="content-float w-44 rounded-xl bg-pop p-1 shadow-e3">
+        {heading && <p className="px-2 py-1 text-meta font-medium text-ink-3">{heading}</p>}
         {options.map((o) => (
           <button
             key={o.label}
@@ -554,7 +649,7 @@ function Choice({
               o.onPick()
               setOpen(false)
             }}
-            className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            className="flex h-8 w-full items-center rounded-lg px-2 text-left text-ui text-ink hover:bg-press focus-visible:bg-press focus-visible:outline-none"
           >
             {o.label}
           </button>

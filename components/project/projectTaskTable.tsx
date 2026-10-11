@@ -2,28 +2,35 @@
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useFitColumns } from "@/hooks/useFitColumns"
 import {
     type ColumnFiltersState,
     type SortingState,
     type VisibilityState,
-    flexRender,
     getCoreRowModel,
     getFacetedRowModel,
     getFacetedUniqueValues,
     getFilteredRowModel,
-    getPaginationRowModel,
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 import { useDebounce } from "@/hooks/useDebounce"
-import { TaskTablePagination } from "@/components/task/taskTablePagination"
-import { TaskTableToolbar } from "@/components/task/taskTableToolbar"
-import { KeyboardList, SelectAllHead, TaskTableRow, TaskTableSkeletonRows } from "@/components/task/KeyboardList"
+import { WorkToolbar, type Layout } from "@/components/task/WorkToolbar"
+import { KeyboardList } from "@/components/task/KeyboardList"
+import { GroupedTaskList, PROJECT_PROPS, type RowProp } from "@/components/task/GroupedTaskList"
+import { useListDisplay, keepsFinished } from "@/hooks/useListDisplay"
+import { usePost } from "@/hooks/usePost"
+import { useTaskUpdate } from "@/hooks/useTaskUpdate"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { openUI } from "@/store/slice/uiSlice"
+import { Button } from "@/components/ui/button"
+import dynamic from "next/dynamic"
+
+const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog))
+import { whenOf, type TaskGroup } from "@/lib/tasks/grouping"
+import { DUE_WEEK, filtersFromAddress, filtersToAddress } from "@/lib/tasks/listAddress"
 import { WorkState } from "@/components/task/workFrame"
 import { ErrorState } from "@/components/ui/error-state"
 import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
@@ -34,15 +41,20 @@ import {useDispatch, useSelector} from "react-redux";
 import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
-import {useTranslation} from "react-i18next";
-import { columnAlignClass } from "@/components/task/columnAlign"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { hueFor } from "@/lib/campHue"
 
 interface ProjectTaskTableProps {
     projectId: string
+    /** The project's tab, so Display's layout switch can move to the board or timeline. */
+    onLayout?: (layout: Layout) => void
 }
+
+/** How many tasks the list asks for at once; "Show more" at the foot asks for this many again. */
+const LIST_PAGE = 500
+const ALL_PROPS: RowProp[] = ["priority", "labels", "due", "assignee", "estimate", "badges"]
+const DISPLAY_DEFAULTS = { grouping: "status" as const, props: PROJECT_PROPS, showCompleted: "all" as const }
 
 // No list in the store yet: one empty list, made once, so the table doesn't
 // render again on every change to the store (a new `[]` is never equal to
@@ -58,13 +70,12 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
     }
 }
 
-export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
+export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps) => {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const dispatch = useDispatch()
 
-    const {t} = useTranslation()
 
     const taskListState = useSelector(
         (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
@@ -73,19 +84,24 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>
         safeJsonParse(searchParams.get("visibility"), {}),
     )
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
-        safeJsonParse(searchParams.get("filters"), []),
-    )
+    // Status, assignee, overdue and due-this-week are words in the address
+    // (?status=open), the rest JSON (lib/tasks/listAddress), so a header count
+    // can filter the list and Back can take it off again.
+    const { options: addressOpts } = useProjectStatuses(projectId)
+    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => filtersFromAddress(searchParams, addressOpts) as ColumnFiltersState)
+    const addressKey = ["status", "assignee", "overdue", "due", "filters"].map((k) => searchParams.get(k) ?? "").join("|")
+    useEffect(() => {
+        const next = filtersFromAddress(searchParams, addressOpts) as ColumnFiltersState
+        setColumnFilters((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [addressKey, addressOpts])
     const [sorting, setSorting] = useState<SortingState>(() => safeJsonParse(searchParams.get("sort"), []))
     const [globalFilter, setGlobalFilter] = useState(() => searchParams.get("search") || "")
-    const [{ pageIndex, pageSize }, setPagination] = useState(() => {
-        const pageFromUrl = searchParams.get("page")
-        const sizeFromUrl = searchParams.get("pageSize")
-        return {
-            pageIndex: pageFromUrl ? Number.parseInt(pageFromUrl, 10) : 0,
-            pageSize: sizeFromUrl ? Number.parseInt(sizeFromUrl, 10) : 10,
-        }
-    })
+    // No pages (work.md W18): the list asks for a large first batch and,
+    // in the rare project with more, more of them at the foot.
+    const [pageSize, setPageSize] = useState(LIST_PAGE)
+    const pageIndex = 0
+    const { display, set: setDisplay, reset: resetDisplay } = useListDisplay(`project:${projectId}`, DISPLAY_DEFAULTS)
 
     const prevTaskSearchStringRef = useRef("")
     const prevColumnFiltersRef = useRef<ColumnFiltersState>([])
@@ -131,7 +147,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
         const filtersChanged = JSON.stringify(prevColumnFiltersRef.current) !== JSON.stringify(columnFilters)
 
         if (searchChanged || filtersChanged) {
-            setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+            setPageSize(LIST_PAGE)
             prevTaskSearchStringRef.current = taskSearchString
             prevColumnFiltersRef.current = columnFilters
         }
@@ -164,11 +180,9 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
 
         // Debounce URL updates to avoid excessive router.replace calls
         debouncedUrlUpdateRef.current = setTimeout(() => {
-            const params = new URLSearchParams()
-
-            // Pagination
-            params.set("page", pageIndex.toString())
-            params.set("pageSize", pageSize.toString())
+            // Keeps what the page put there (the tab), rewrites the list's own.
+            const params = new URLSearchParams(searchParams.toString())
+            for (const k of ["sort", "visibility", "search"]) params.delete(k)
 
             // Sorting
             if (sorting.length > 0) {
@@ -176,9 +190,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
             }
 
             // Filters
-            if (columnFilters.length > 0) {
-                params.set("filters", JSON.stringify(columnFilters))
-            }
+            filtersToAddress(params, columnFilters, statusOpts)
 
             // Column visibility
             if (Object.keys(columnVisibility).length > 0) {
@@ -204,15 +216,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                 clearTimeout(debouncedUrlUpdateRef.current)
             }
         }
-    }, [pageIndex, pageSize, sorting, columnFilters, columnVisibility, globalFilter, pathname, router])
-
-    const pagination = useMemo(
-        () => ({
-            pageIndex,
-            pageSize,
-        }),
-        [pageIndex, pageSize],
-    )
+    }, [sorting, columnFilters, columnVisibility, globalFilter, pathname, router])
 
     const pageCount = projectInfo.data?.pageCount || 1
 
@@ -230,15 +234,6 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
             return next.length === prev.length ? prev : next
         })
     }, [fields, fieldsLoading, fieldsFailed])
-    // Columns that step aside when the table is narrow (a panel open beside it).
-    const tableBoxRef = useRef<HTMLDivElement>(null)
-    // task_cycle never shows, so it takes no room.
-    const columnIds = useMemo(
-        () => columns.map((c) => String(c.id ?? (c as { accessorKey?: string }).accessorKey ?? "")).filter((id) => id !== "task_cycle"),
-        [columns],
-    )
-    const autoHidden = useFitColumns(tableBoxRef, columnIds, columnVisibility)
-
     const table = useReactTable({
         data: taskListState,
         columns,
@@ -246,21 +241,17 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
         state: {
             sorting,
             // task_cycle only carries the cycle filter to the server.
-            columnVisibility: { ...columnVisibility, ...autoHidden, task_cycle: false },
+            columnVisibility: { ...columnVisibility, task_cycle: false },
             columnFilters,
             globalFilter,
-            pagination,
         },
-        manualPagination: true,
         getRowId: (originalRow) => originalRow.task_uuid,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
         onColumnVisibilityChange: setColumnVisibility,
         onGlobalFilterChange: setGlobalFilter,
-        onPaginationChange: setPagination,
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFacetedRowModel: getFacetedRowModel(),
         getFacetedUniqueValues: getFacetedUniqueValues(),
@@ -269,72 +260,110 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     // Only a project's admins change its tasks; everyone can move through them.
     const isAdmin = Boolean(projectInfo.data?.data?.project_is_admin)
     const canEdit = useCallback(() => isAdmin, [isAdmin])
-    const rowIds = table.getRowModel().rows.map((r) => r.id)
-    // The first rows reach the table through the store, an effect after the
-    // answer. Until they do, the skeleton stays (not a frame of "No tasks yet"),
-    // and the pagination waits under it: drawn under the skeleton, it moved
-    // down as the rows came in (a layout shift opening a project).
+    // The first rows reach the list through the store, an effect after the
+    // answer: until they do, the skeleton stays (not a frame of "No tasks yet").
     const firstLoad = taskListState.length === 0 && (projectInfo.isLoading || (projectInfo.data?.data.project_tasks?.length ?? 0) > 0)
     const filtered = columnFilters.length > 0 || !!globalFilter
-    // In place of the rows, under the toolbar, where every tab of a project
-    // says it (components/task/workFrame): a failed load says so rather than
-    // "No tasks yet", and a project with no tasks shows its spot.
     const failed = projectInfo.isError && taskListState.length === 0
-    const empty = !failed && !firstLoad && !projectInfo.isLoading && taskListState.length === 0 && !filtered
+    const dueWeek = columnFilters.some((f) => f.id === DUE_WEEK)
+    const shown = useMemo(() => {
+        let tasks = display.showCompleted === "all" ? taskListState : taskListState.filter((t) => keepsFinished(t, display.showCompleted))
+        // Due this week has no server filter: it is the list's own.
+        if (dueWeek) tasks = tasks.filter((t) => ["today", "week"].includes(whenOf(t)))
+        return tasks
+    }, [taskListState, display.showCompleted, dueWeek])
+    const sortedBy: RowProp | undefined = sorting[0]?.id === "task_due_date" ? "due" : undefined
+
+    const post = usePost()
+    const { revalidateTaskKeys } = useTaskUpdate()
+    const addInGroup = useCallback(
+        async (group: TaskGroup, name: string) => {
+            const res = await post.makeRequest<Record<string, unknown>, { task_uuid?: string }>({
+                apiEndpoint: PostEndpointUrl.CreateTask,
+                payload: { task_name: name, task_project_uuid: projectId },
+            })
+            const status = group.status?.value
+            if (res?.task_uuid && status && status !== "todo") {
+                await post.makeRequest({ apiEndpoint: PostEndpointUrl.UpdateTaskStatus, payload: { task_uuid: res.task_uuid, task_status: status, task_project_uuid: projectId } })
+            }
+            revalidateTaskKeys(projectId)
+        },
+        [post, projectId, revalidateTaskKeys],
+    )
+    const moreToLoad = (projectInfo.data?.pageCount ?? 1) > 1
+    const [managing, setManaging] = useState(false)
 
     return (
-        <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} className="space-y-4">
-            <TaskTableToolbar table={table} projectId={projectId} />
-            {/* Always there, so the columns that step aside when the table is
-                narrow are measured from the first paint, whatever it shows. */}
-            <div ref={tableBoxRef}>
-                {failed ? (
-                    <WorkState>
-                        <ErrorState subject="this project's tasks" onRetry={() => void projectInfo.mutate()} />
-                    </WorkState>
-                ) : empty ? (
-                    <WorkState>
-                        <EmptyState illustration={<SpotTasks hue={hueFor(projectId)} />} title="No tasks yet" description="Create one and it shows here." />
-                    </WorkState>
-                ) : (
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                    <TableRow key={headerGroup.id}>
-                                        <SelectAllHead ids={rowIds} />
-                                        {headerGroup.headers.map((header) => (
-                                            <TableHead key={header.id} colSpan={header.colSpan} className={columnAlignClass(header.column.columnDef.meta)}>
-                                                {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                            </TableHead>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableHeader>
-                            <TableBody>
-                                {table.getRowModel().rows?.length ? (
-                                    table.getRowModel().rows.map((row) => (
-                                        <TaskTableRow key={row.id} id={row.id}>
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id} className={columnAlignClass(cell.column.columnDef.meta)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                                            ))}
-                                        </TaskTableRow>
-                                    ))
-                                ) : projectInfo.isLoading || firstLoad ? (
-                                    <TaskTableSkeletonRows columns={table.getVisibleLeafColumns().length} rows={pageSize} />
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                            {t("noTasksMatch", { defaultValue: "No tasks match these filters." })}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-            </div>
-            {!firstLoad && !failed && !empty && <TaskTablePagination table={table} />}
+        <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts}>
+            <WorkToolbar
+                table={table}
+                projectId={projectId}
+                grouping={display.grouping}
+                onGrouping={(grouping) => setDisplay({ grouping })}
+                props={display.props}
+                allProps={ALL_PROPS}
+                onProps={(props) => setDisplay({ props })}
+                showCompleted={display.showCompleted}
+                onShowCompleted={(showCompleted) => setDisplay({ showCompleted })}
+                layout="list"
+                onLayout={onLayout}
+                onReset={() => {
+                    resetDisplay()
+                    table.resetColumnFilters()
+                    table.setSorting([])
+                    table.setGlobalFilter("")
+                }}
+            />
+            {failed ? (
+                <WorkState>
+                    <ErrorState subject="this project's tasks" onRetry={() => void projectInfo.mutate()} />
+                </WorkState>
+            ) : (
+                <GroupedTaskList
+                    tasks={shown}
+                    options={statusOpts}
+                    grouping={display.grouping}
+                    props={display.props}
+                    canEdit={canEdit}
+                    projectId={projectId}
+                    loading={firstLoad}
+                    filtered={filtered}
+                    sortedBy={sortedBy}
+                    fields={fields}
+                    nameOf={nameOf}
+                    onClearFilters={() => {
+                        table.resetColumnFilters()
+                        table.setGlobalFilter("")
+                    }}
+                    onAdd={isAdmin ? addInGroup : undefined}
+                    onManageStatuses={isAdmin ? () => setManaging(true) : undefined}
+                    empty={
+                        <WorkState>
+                            <EmptyState
+                                illustration={<SpotTasks hue={hueFor(projectId)} />}
+                                title="No tasks yet"
+                                description="Make the first one, or bring them in from Linear, Jira, Asana or Trello."
+                                action={
+                                    <div className="flex items-center gap-2">
+                                        <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button>
+                                        <Button size="sm" variant="secondary" onClick={() => router.push("/app/admin?tab=import")}>Import</Button>
+                                    </div>
+                                }
+                            />
+                        </WorkState>
+                    }
+                />
+            )}
+            {moreToLoad && !firstLoad && (
+                <button
+                    type="button"
+                    onClick={() => setPageSize((n) => n + LIST_PAGE)}
+                    className="flex h-9 w-full items-center pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                >
+                    Show more tasks
+                </button>
+            )}
+            {isAdmin && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
         </KeyboardList>
     )
 }

@@ -1,5 +1,4 @@
 "use client"
-import { shortDate } from "@/lib/utils/date/shortDate"
 
 import React from "react"
 import type { DraggableSyntheticListeners } from "@dnd-kit/core"
@@ -9,23 +8,38 @@ import { Handle, Remove } from "./components"
 
 import styles from "./Item.module.scss"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Button } from "@/components/ui/button"
-import { GitBranch, ArrowUpRight, MessageSquare } from "@/lib/icons"
+import { GitBranch, ArrowUpRight, MessageSquare, MoreHorizontal, Clock, Check } from "@/lib/icons"
 import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge"
-import { format, isToday, isTomorrow, isYesterday } from "date-fns"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
 import { TaskInfoInterface } from "@/types/task"
-import { priorities } from "@/types/table"
-import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
-import { ColorIcon } from "@/components/colorIcon/colorIcon"
-import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
-import { isClosedStatus } from "@/lib/taskStatus"
+import type { RootState } from "@/store/store"
+import { isClosedStatus, statusOptionOf } from "@/lib/taskStatus"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
-import { TagPills } from "@/components/tags/TagPills"
-import { Clock } from "@/lib/icons"
+import { splitTags } from "@/lib/tags"
+import { hueFor } from "@/lib/campHue"
 import { BlockedBadge } from "@/components/task/BlockedBadge"
 import { CardFields } from "@/components/task/fieldValue"
+import { LabelChip } from "@/components/ui/chip"
+import { DueLabel } from "@/components/task/DueLabel"
+import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
+import { TaskStatusCell } from "@/components/task/taskStatusCell"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { displayNameOf } from "@/lib/personName"
+import { useBoardActions } from "@/components/kanbanComponents/boardActions"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Props {
     dragOverlay?: boolean
@@ -70,178 +84,165 @@ interface Props {
 }
 
 /**
- * A due date as the card says it: "Today", "Tomorrow", "Yesterday", else
- * "2 Jun". Whole words: "Tmrw" and "Yday" saved two letters and cost a read.
+ * A card's assignee (design v3, §3.9): a 22 px avatar in the person's hue, or
+ * the agent's square, so an agent never reads as a person.
  */
-function formatDueShort(d: Date): string {
-    if (isToday(d)) return "Today"
-    if (isTomorrow(d)) return "Tomorrow"
-    if (isYesterday(d)) return "Yesterday"
-    return shortDate(d)
+function CardAvatar({ user }: { user: NonNullable<TaskInfoInterface["task_assignee"]> }) {
+    const { src } = useUserAvatar(user.user_profile_object_key)
+    const name = displayNameOf(user)
+    if (user.is_bot && user.user_bot_kind === "agent") {
+        return (
+            <span className="size-[22px] shrink-0" title={name} data-card-avatar="agent">
+                <AgentAvatar src={src} />
+            </span>
+        )
+    }
+    return (
+        <span title={name} data-card-avatar="person" className="inline-flex shrink-0">
+            <IdentityMark variant="avatar" id={user.user_uuid} chosen={user.user_theme_color} label={name} src={src} size={22} />
+        </span>
+    )
 }
 
 /**
- * The card's content, drawn from the task alone.
+ * The card's content, drawn from the task alone (design v3, work.md W21):
+ *   1. labels as dot chips, at most two then "+N" (only when it has some);
+ *   2. the title, 14/20 at 510, two lines at most;
+ *   3. its custom fields shown on cards;
+ *   4. the meta row, 22 px: the priority glyph, the due label, the badges
+ *      (subtasks, comments, blocked, stale, GitHub), and the assignee's
+ *      avatar on the right. On My Tasks the project's tile and name lead it.
+ * A finished card's title goes ink-3 and its status glyph sits top right.
  *
- * While a card is dragged, dnd-kit re-renders every sortable card on every
- * pointer move so it can hand each one its new transform. The card used to
- * rebuild everything each time (avatar, GitHub badges, date formatting,
- * stripping the description's HTML), and on an ordinary laptop that stalled
- * frames for up to 180ms with five cards on the board. Memoised on the task,
- * a pointer move now only moves the cards.
+ * While a card is dragged, dnd-kit re-renders the cards it moves; memoised on
+ * the task, a pointer move never rebuilds a card's contents.
  */
-const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { task: TaskInfoInterface; statusBadge?: string }) {
-    const dispatch = useDispatch()
-    const taskP = priorities.find((p) => p.value == task.task_priority)
-    const dueDate = !isZeroEpoch(task.task_due_date) ? new Date(task.task_due_date) : null
-    const isOverdue = dueDate && dueDate < new Date() && !isClosedStatus(task.task_status)
-    // How long it has sat in this status; finished work is not waiting on anyone.
-    const inStatus = isClosedStatus(task.task_status) ? null : timeInStatus(task.task_status_since, task.task_created_at, Date.now())
-    const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label) || Boolean(statusBadge)
-    const openTask = () => {
-        dispatch(
-            openRightPanel({
-                chatMessageUUID: "",
-                chatUUID: "",
-                channelUUID: "",
-                postUUID: "",
-                taskUUID: task.task_uuid,
-                groupUUID: "",
-                docUUID: "",
-            }),
-        )
-    }
+const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, crossProject }: { task: TaskInfoInterface; statusBadge?: string; crossProject: boolean }) {
+    const done = isClosedStatus(task.task_status)
+    // How long it has sat in this status, shown only once it is stale.
+    const inStatus = done ? null : timeInStatus(task.task_status_since, task.task_created_at, Date.now())
+    const tags = splitTags(task.task_label)
+    const project = crossProject ? task.task_project : undefined
+    const status = done ? statusOptionOf(task) : undefined
 
     return (
         <>
-            {/* Optional meta row — project + label */}
-            {hasMetaRow && (
-                <div className="flex items-center gap-2 min-w-0 text-2xs text-muted-foreground">
-                    {task.task_project && (
-                        <span className="inline-flex items-center gap-1 min-w-0 max-w-[60%]">
-                            <ColorIcon name={task.task_project.project_uuid} size="dot" />
-                            <span className="truncate">{task.task_project.project_name}</span>
-                        </span>
-                    )}
-                    {statusBadge && (
-                        <span className="truncate max-w-[40%] font-medium" title="Status">
-                            {statusBadge}
-                        </span>
-                    )}
-                    <TagPills label={task.task_label} max={2} className="min-w-0" />
+            {tags.length > 0 && (
+                <div className="flex min-w-0 items-center gap-1.5 pr-6" data-card-labels="">
+                    {tags.slice(0, 2).map((t) => (
+                        <LabelChip key={t} label={t} className="h-5" />
+                    ))}
+                    {tags.length > 2 && <span className="chip h-5 text-ink-3">+{tags.length - 2}</span>}
                 </div>
             )}
 
-            {/* Title row — title fills width, with an explicit open
-                affordance on the right (always visible on touch,
-                fades in on hover for desktop). The button stops
-                pointer events so it cannot start a drag. */}
-            <div className="flex items-start gap-2 min-w-0">
-                <div className="text-sm font-medium text-foreground leading-snug line-clamp-2 flex-1 min-w-0" title={task.task_name}>
-                    {task.task_name}
-                </div>
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    className={cn(
-                        "h-6 w-6 -mr-1 -mt-0.5 shrink-0 text-muted-foreground hover:text-foreground",
-                        "md:opacity-0 pointer-events-none md:group-hover:opacity-100 group-hover:pointer-events-auto md:focus-visible:opacity-100 transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
-                    )}
-                    aria-label="Open task"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        openTask()
-                    }}
-                >
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                </Button>
+            <div
+                data-card-title=""
+                className={cn("line-clamp-2 min-w-0 pr-6 text-sm leading-5 font-[510]", done ? "text-ink-3" : "text-foreground")}
+                title={task.task_name}
+            >
+                {task.task_name}
             </div>
 
-            {/* No description preview: two grey lines under every title made a
-                column of six cards a page of text. The panel shows it whole. */}
-
-            {/* The project's own fields its board shows on cards. */}
             <CardFields values={task.task_fields} />
 
-            {/* Footer */}
-            <div className="flex items-center gap-2 mt-1 min-w-0">
-                {/* Assignee on the left, fixed slot — keeps the avatar in the same place across cards. */}
-                <div className="shrink-0">
-                    {task.task_assignee ? (
-                        <TaskAssigneeCell userInfo={task.task_assignee} avatarOnly />
-                    ) : (
-                        <span className="block h-6 w-6" />
-                    )}
-                </div>
-
-                {/* Meta cluster on the right, allowed to wrap. */}
-                <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-2xs text-muted-foreground min-w-0">
-                    {taskP?.value === "high" && (
-                        // Only High: it is the priority that asks for attention.
-                        // Low and Medium on every card were words nobody read.
-                        <span className="inline-flex items-center gap-1" title={`Priority: ${taskP.label}`}>
-                            <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", taskP.dot)} />
-                            {taskP.label}
+            <div className="flex min-h-[22px] min-w-0 items-center gap-2" data-card-meta="">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
+                    {project && (
+                        <span className="inline-flex min-w-0 max-w-[45%] items-center gap-1.5" data-card-project="">
+                            <ProjectTile id={project.project_uuid} size={16} />
+                            <span className="truncate text-xs text-ink-3">{project.project_name}</span>
                         </span>
                     )}
-                    <BlockedBadge count={task.task_blocked_open} />
-                    {task.task_comment_count > 0 && (
-                        <span className="inline-flex items-center gap-0.5" title="Comments">
-                            <MessageSquare className="h-3 w-3" />
-                            {task.task_comment_count}
+                    <TaskPriorityCell priority={task.task_priority} label="tip" />
+                    <DueLabel date={task.task_due_date} done={done} variant="card" />
+                    {statusBadge && (
+                        <span className="max-w-[40%] truncate font-[510] text-ink-2" title="Status">
+                            {statusBadge}
                         </span>
                     )}
                     {task.task_sub_task_count > 0 && (
-                        <span className="inline-flex items-center gap-0.5" title="Subtasks">
-                            <GitBranch className="h-3 w-3" />
+                        <span className="inline-flex items-center gap-1 tabular-nums" title="Subtasks">
+                            <GitBranch className="size-3" aria-hidden="true" />
                             {task.task_sub_task_count}
                         </span>
                     )}
-                    {inStatus && (
+                    {task.task_comment_count > 0 && (
+                        <span className="inline-flex items-center gap-1 tabular-nums" title="Comments">
+                            <MessageSquare className="size-3" aria-hidden="true" />
+                            {task.task_comment_count}
+                        </span>
+                    )}
+                    <BlockedBadge count={task.task_blocked_open} className="text-camp-sun-ink" />
+                    {inStatus?.stale && (
                         <span
-                            className={cn("inline-flex items-center gap-0.5 tabular-nums", inStatus.stale && "text-warning-ink")}
+                            className="inline-flex items-center gap-1 tabular-nums text-warning-ink"
                             title={`In this status for ${inStatus.days} ${inStatus.days === 1 ? "day" : "days"}`}
                         >
-                            <Clock className="h-3 w-3" />
+                            <Clock className="size-3" aria-hidden="true" />
                             {inStatus.short}
                         </span>
                     )}
                     <GitHubBadgeGroup task={task} size="sm" />
-                    {dueDate && (
-                        <span
-                            className={cn(
-                                "tabular-nums",
-                                isOverdue && "text-danger-ink",
-                            )}
-                            title={format(dueDate, "PPP")}
-                        >
-                            {formatDueShort(dueDate)}
-                        </span>
-                    )}
                 </div>
+                {task.task_assignee && <CardAvatar user={task.task_assignee} />}
             </div>
+
+            {status && (
+                <span className="absolute right-3 top-3 transition-opacity group-hover:opacity-0" data-card-done-glyph="">
+                    <TaskStatusCell status={status} label="tip" size={14} />
+                </span>
+            )}
         </>
     )
 })
 
+/** The card's menu: open it, or move it to another column (every drag has a menu alternative). */
+function CardMenu({ task, onOpen }: { task: TaskInfoInterface; onOpen: () => void }) {
+    const board = useBoardActions()
+    const canMove = board ? board.canMove(task) : false
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Card actions"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex size-6 items-center justify-center rounded-sm bg-pop text-ink-3 shadow-e1 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                    <MoreHorizontal className="size-3.5" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onSelect={onOpen}>
+                    <ArrowUpRight className="size-3.5" />
+                    Open
+                </DropdownMenuItem>
+                {board && canMove && (
+                    <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>Move to…</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent className="w-52">
+                            {board.columns().map((c) => (
+                                <DropdownMenuItem key={c.value} onSelect={() => board.moveTo(task, c.value)}>
+                                    {c.custom || c.category ? <TaskStatusCell status={c} label="word" className="text-xs" /> : c.label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
 /**
- * Kanban Item — Notion / Linear–style task card.
- *
- * Layout, top-down, designed to remain readable inside a 320px column:
- *   1. Optional meta row: project tag + label badge (only renders when
- *      either is present, so simple cards stay clean).
- *   2. Title (1–3 line clamp).
- *   3. Optional 2-line description preview.
- *   4. Footer row: assignee avatar on the left (or a placeholder gap),
- *      meta cluster on the right that wraps gracefully — priority dot,
- *      due date, comments, subtasks, GitHub badges. Each item is sized
- *      to render cleanly at 280px wide and shrinks with `flex-wrap`.
- *
- * The whole card opens TaskInfoPanel on click. No separate edit button —
- * the card is the affordance, matching Linear / Notion.
+ * A board card (design v3, work.md W21): raised, resting (e1), r10, lifting
+ * to e2 under the pointer. Its states: opened in the panel (an inset brand
+ * ring on a brand-muted ground), selected for a bulk change (--sel and a
+ * check badge), the keyboard's cursor (an inset ring), held from the keyboard
+ * (ringed and floating), and, while dragged, a dashed slot (Item.module.scss).
+ * The whole card opens the task; its open button and menu wait on hover.
  */
 export const Item = React.memo(
     React.forwardRef<HTMLDivElement, Props>(
@@ -274,6 +275,13 @@ export const Item = React.memo(
             ref,
         ) => {
             const dispatch = useDispatch()
+            const board = useBoardActions()
+            const crossProject = Boolean(board?.crossProject)
+            const edgeHue = crossProject && task.task_project?.project_uuid ? hueFor(task.task_project.project_uuid) : undefined
+            // The task open in the panel beside the board.
+            const opened = Boolean(
+                useSelector((state: RootState) => state.rightPanel?.rightPanelState?.isOpen && state.rightPanel.rightPanelState.data.taskUUID === task.task_uuid),
+            )
 
             // No cursor on <body> while dragging: changing a style on body makes
             // the browser restyle the whole page, the most expensive frame of a
@@ -340,28 +348,34 @@ export const Item = React.memo(
                             disabled && styles.disabled,
                             // select-none: pressing to drag must not start selecting the
                             // card's words, which also scrolled the column under the pointer.
-                            "group flex flex-col gap-1.5 px-3 py-2.5 w-full min-w-0 select-none",
-                            "rounded-lg bg-card border border-border/60",
-                            // A card is a thing to open: it lifts a pixel under the
-                            // pointer (the playful layer's hover-lift; still for
-                            // reduced motion, and never on the lifted copy).
+                            "group group/row relative flex w-full min-w-0 select-none flex-col gap-2 overflow-visible p-3",
+                            // The material (work.md W21): raised, resting, r10.
+                            "rounded-[10px] bg-raised shadow-e1",
+                            // A card is a thing to open: it lifts a pixel to e2 under the
+                            // pointer (hover-lift; still for reduced motion, never the copy).
                             !dragOverlay && !dragging && "hover-lift",
-                            "transition-[border-color,box-shadow,background-color,translate] duration-150",
-                            "hover:border-border",
-                            !handle && "cursor-pointer",
-                            disabled && "opacity-60 pointer-events-none",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                            selected && "border-primary/50 bg-primary/5",
-                            highlighted && "ring-2 ring-ring/40",
-                            lifted && "ring-2 ring-ring shadow-overlay",
+                            !handle && !disabled && "cursor-grab active:cursor-grabbing",
+                            disabled && "cursor-pointer",
+                            "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sunken",
+                            opened && !dragging && "bg-[color-mix(in_oklab,var(--brand-muted)_40%,var(--raised))] ring-[1.5px] ring-inset ring-brand",
+                            selected && "bg-sel",
+                            highlighted && !opened && "ring-1 ring-inset ring-brand/45",
+                            lifted && "ring-2 ring-brand shadow-e3",
+                            // My Tasks: the project's 3px edge along the top, inside the radius.
+                            edgeHue && ["before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:rounded-t-[10px] before:bg-hue before:content-['']", HUE_CLASS[edgeHue]],
                         )}
+                        // The phone's press response for a card (mobile F2): 0.985 while
+                        // a finger is down; never on the copy that follows a drag.
+                        data-press={dragOverlay ? undefined : "card"}
                         data-selected={selected || undefined}
+                        data-opened={opened || undefined}
+                        data-project-edge={edgeHue}
                         style={style}
                         data-cypress="draggable-item"
                         {...(!handle ? listeners : undefined)}
                         {...props}
                         tabIndex={!handle ? 0 : undefined}
-                        onClick={(e) => {
+                        onClick={() => {
                             // Don't open while drag is finishing or while element is being dragged.
                             if (dragOverlay || dragging) return
                             openTask()
@@ -376,12 +390,44 @@ export const Item = React.memo(
                             }
                         }}
                     >
+                        {selected && (
+                            <span aria-hidden="true" className="absolute -left-1.5 -top-1.5 z-10 inline-flex size-4 items-center justify-center rounded-[5px] bg-camp-moss text-white shadow-e1">
+                                <Check className="size-3" />
+                            </span>
+                        )}
                         {selected && <span className="sr-only">Selected.</span>}
-                        <TaskCardBody task={task} statusBadge={statusBadge} />
+                        <TaskCardBody task={task} statusBadge={statusBadge} crossProject={crossProject} />
+
+                        {/* Open, and the card's menu: top right, on hover (always on touch). */}
+                        {!dragOverlay && (
+                            <span
+                                className={cn(
+                                    "absolute right-2 top-2 z-10 inline-flex items-center gap-1 transition-opacity duration-[140ms]",
+                                    "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
+                                    dragging && "hidden",
+                                )}
+                            >
+                                <button
+                                    type="button"
+                                    aria-label="Open task"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onTouchStart={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        openTask()
+                                    }}
+                                    className="inline-flex size-6 items-center justify-center rounded-sm bg-pop text-ink-3 shadow-e1 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                >
+                                    <ArrowUpRight className="size-3.5" />
+                                </button>
+                                <CardMenu task={task} onOpen={openTask} />
+                            </span>
+                        )}
 
                         {/* Drag handle / remove (only present when handle prop is true) */}
                         {(onRemove || handle) && (
-                            <span className="absolute top-2 right-2 inline-flex items-center gap-1">
+                            <span className="absolute bottom-2 right-2 inline-flex items-center gap-1">
                                 {onRemove && <Remove className={styles.Remove} onClick={onRemove} />}
                                 {handle && <Handle {...handleProps} {...listeners} />}
                             </span>

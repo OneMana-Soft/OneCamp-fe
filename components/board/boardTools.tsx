@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CheckSquare, LayoutGrid, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
@@ -26,20 +26,38 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoListRawInterface } from "@/types/project"
 import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templates"
 import { selectedNotes, type BoardElementLike, type SelectedNote } from "@/lib/board/notes"
-import { SpotWelcome } from "@/components/ui/graphics"
-import { hueFor } from "@/lib/campHue"
+import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
+import { TemplatePreview } from "@/components/board/templatePreview"
+import { prefersReducedMotion } from "@/lib/celebrate"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface BoardToolsProps {
   api: ExcalidrawImperativeAPI | null
   editable: boolean
-  /** The board, for its hue: the drawing on its empty canvas wears it. */
+  /** The board (kept for callers; the empty card no longer wears its hue). */
   boardId?: string
 }
 
-export default function BoardTools({ api, editable, boardId }: BoardToolsProps) {
+/**
+ * Lays a template on the board, centred on what the person is looking at,
+ * and brings it into view. The shapes are ordinary Excalidraw elements,
+ * synced like any drawing.
+ */
+export async function insertBoardTemplate(api: ExcalidrawImperativeAPI, t: BoardTemplate) {
+  const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw")
+  const s = api.getAppState()
+  // The middle of what the person is looking at, in scene coordinates.
+  const cx = -s.scrollX + s.width / 2 / s.zoom.value
+  const cy = -s.scrollY + s.height / 2 / s.zoom.value
+  const prefix = `${t.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  const generated = convertToExcalidrawElements(centreAt(t.build(prefix), cx, cy) as never, { regenerateIds: false })
+  api.updateScene({ elements: [...api.getSceneElements(), ...generated] as never })
+  api.scrollToContent(generated as never, { fitToContent: true, animate: !prefersReducedMotion() })
+}
+
+export default function BoardTools({ api, editable }: BoardToolsProps) {
   const [empty, setEmpty] = React.useState(false)
   const [notes, setNotes] = React.useState<SelectedNote[]>([])
-  const [pickerOpen, setPickerOpen] = React.useState(false)
   const [tasksOpen, setTasksOpen] = React.useState(false)
 
   // Follow the scene: is the board empty, and which notes are selected.
@@ -67,62 +85,68 @@ export default function BoardTools({ api, editable, boardId }: BoardToolsProps) 
     return api.onChange((elements, appState) => read(elements, appState as never))
   }, [api])
 
-  const insertTemplate = React.useCallback(
-    async (t: BoardTemplate) => {
-      if (!api) return
-      const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw")
-      const s = api.getAppState()
-      // The middle of what the person is looking at, in scene coordinates.
-      const cx = -s.scrollX + s.width / 2 / s.zoom.value
-      const cy = -s.scrollY + s.height / 2 / s.zoom.value
-      const prefix = `${t.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-      const generated = convertToExcalidrawElements(centreAt(t.build(prefix), cx, cy) as never, { regenerateIds: false })
-      api.updateScene({ elements: [...api.getSceneElements(), ...generated] as never })
-      api.scrollToContent(generated as never, { fitToContent: true, animate: true })
-      setPickerOpen(false)
-    },
-    [api],
-  )
+  // The empty-canvas card leaves on the first shape: a 160 ms fade and a
+  // small scale, then it unmounts.
+  const [cardShown, setCardShown] = React.useState(false)
+  React.useEffect(() => {
+    if (empty) {
+      setCardShown(true)
+      return
+    }
+    const t = setTimeout(() => setCardShown(false), 160)
+    return () => clearTimeout(t)
+  }, [empty])
 
   if (!editable || !api) return null
   const fresh = notes.filter((n) => !n.taskUuid)
 
   return (
     <>
-      {/* Right, under Library: the left side is where Excalidraw opens its
-          style panel whenever something is selected. */}
-      {/* On a phone, low on the left: Excalidraw keeps a column of its own
-          buttons on the right there, under its tool row. */}
-      <div className="pointer-events-none absolute right-3 top-16 z-20 flex flex-col items-end gap-2 max-sm:bottom-[4.5rem] max-sm:left-3 max-sm:right-auto max-sm:top-auto max-sm:items-start" data-board-tools="">
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="secondary" size="sm" className="pointer-events-auto h-8 gap-1.5 shadow-overlay" title="Start from a template">
-              <LayoutGrid className="h-3.5 w-3.5" /> Templates
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-2">
-            <TemplateList onPick={insertTemplate} />
-          </PopoverContent>
-        </Popover>
-        {fresh.length > 0 && (
-          <Button size="sm" className="pointer-events-auto h-8 gap-1.5 shadow-overlay" onClick={() => setTasksOpen(true)}>
-            <CheckSquare className="h-3.5 w-3.5" />
-            {fresh.length === 1 ? "Make a task" : `Make ${fresh.length} tasks`}
-          </Button>
-        )}
-      </div>
+      {/* Selected sticky notes: what they can become, on a floating bar at
+          the top centre of the canvas (it stays put while the board pans). */}
+      {fresh.length > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center max-sm:top-auto max-sm:bottom-[8.5rem]" data-board-tools="">
+          <FloatingBar label="Selected notes" className="pointer-events-auto" data-board-chrome="">
+            <span className="px-2 text-ui-sm text-ink-2 tabular-nums">
+              {fresh.length === 1 ? "1 note" : `${fresh.length} notes`}
+            </span>
+            <FloatingBarDivider />
+            <FloatingBarButton label={fresh.length === 1 ? "Make a task" : `Make ${fresh.length} tasks`} onClick={() => setTasksOpen(true)} className="px-2 text-ink">
+              <TaskCheckGlyph />
+              <span>{fresh.length === 1 ? "Make a task" : `Make ${fresh.length} tasks`}</span>
+            </FloatingBarButton>
+          </FloatingBar>
+        </div>
+      )}
 
-      {empty && !pickerOpen && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="pointer-events-auto w-[min(92vw,26rem)] rounded-xl border border-border bg-popover p-4 shadow-overlay">
-            {/* The board's own ring, in its hue (the one its card and its
-                sidebar row wear), with people and ideas on its orbit. */}
-            <SpotWelcome size={56} hue={hueFor(boardId || "board")} className="mb-2" />
-            <p className="text-sm font-medium">Start from a template</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Or just start drawing. Everyone here sees it live.</p>
-            <div className="mt-3">
-              <TemplateList onPick={insertTemplate} />
-            </div>
+      {cardShown && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
+          <div
+            data-empty-canvas=""
+            className={cn(
+              "content-float pointer-events-auto w-[min(92vw,420px)] rounded-[16px] bg-pop p-5 shadow-e3 transition-[opacity,transform] duration-[160ms] ease-[var(--ease-out)]",
+              !empty && "scale-[0.98] opacity-0",
+            )}
+          >
+            <p className="text-heading text-ink">Start with a template</p>
+            <ul className="mt-3 grid grid-cols-5 gap-2" aria-label="Templates">
+              {BOARD_TEMPLATES.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => void insertBoardTemplate(api, t)}
+                    className="group/tpl flex w-full flex-col items-center gap-1.5 rounded-lg p-0.5 text-center outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    title={t.description}
+                  >
+                    <span className="block w-full overflow-hidden rounded-lg shadow-e1 transition-transform duration-[140ms] group-hover/tpl:-translate-y-px">
+                      <TemplatePreview template={t} height={64} pad={8} />
+                    </span>
+                    <span className="w-full truncate text-meta font-medium text-ink-2 group-hover/tpl:text-ink">{t.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-center text-meta text-ink-3">or just start drawing</p>
           </div>
         </div>
       )}
@@ -132,22 +156,49 @@ export default function BoardTools({ api, editable, boardId }: BoardToolsProps) 
   )
 }
 
-function TemplateList({ onPick }: { onPick: (t: BoardTemplate) => void }) {
+/** The task check, drawn small for the "Make tasks" button. */
+function TaskCheckGlyph() {
   return (
-    <ul className="grid gap-1">
-      {BOARD_TEMPLATES.map((t) => (
-        <li key={t.id}>
-          <button
-            type="button"
-            onClick={() => onPick(t)}
-            className="w-full rounded-md px-2.5 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-          >
-            <span className="block text-sm font-medium">{t.name}</span>
-            <span className="block text-xs text-muted-foreground">{t.description}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5" fill="none">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="4" stroke="currentColor" strokeWidth="1.3" />
+      <path d="m4.8 8.2 2.2 2.2 4.2-4.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/**
+ * Templates, from the board's top-right cluster: a 360 px pop of the five
+ * templates as previews in two columns.
+ */
+export function TemplatesButton({ api, trigger }: { api: ExcalidrawImperativeAPI | null; trigger: React.ReactElement }) {
+  const [open, setOpen] = React.useState(false)
+  if (!api) return null
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="content-float w-[360px] rounded-xl bg-pop p-2 shadow-e3">
+        <p className="px-1.5 pb-2 pt-1 text-meta font-medium text-ink-3">Start from a template</p>
+        <ul className="grid grid-cols-2 gap-2">
+          {BOARD_TEMPLATES.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  void insertBoardTemplate(api, t)
+                  setOpen(false)
+                }}
+                className="group/tpl flex h-[120px] w-full flex-col overflow-hidden rounded-[10px] bg-raised text-left shadow-e1 outline-none transition-transform duration-[140ms] hover:-translate-y-px focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                <TemplatePreview template={t} height={80} pad={10} />
+                <span className="flex flex-1 flex-col justify-center px-2.5">
+                  <span className="truncate text-ui-sm font-medium text-ink">{t.name}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -228,15 +279,16 @@ function NotesToTasksDialog({
             {already > 0 && ` ${already} selected ${already === 1 ? "note is" : "notes are"} already a task and will be skipped.`}
           </DialogDescription>
         </DialogHeader>
-        <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2 text-sm">
+        <ul className="max-h-48 overflow-y-auto rounded-xl bg-sunken p-1 text-ui">
           {fresh.map((n) => (
-            <li key={n.noteId} className="truncate">
-              {n.text}
+            <li key={n.noteId} className="flex h-8 items-center gap-2.5 rounded-lg px-2.5">
+              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-[2px] bg-camp-sun" />
+              <span className="min-w-0 truncate text-ink">{n.text}</span>
             </li>
           ))}
         </ul>
         {!projects.isLoading && (projects.data?.data ?? []).length === 0 ? (
-          <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+          <p className="rounded-xl bg-sunken p-3 text-ui-sm text-ink-2">
             Tasks are made in projects you manage, and you don&apos;t manage one yet. Create a project, or ask a
             project&apos;s admin to make you one of its admins.
           </p>

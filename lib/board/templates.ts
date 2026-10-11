@@ -137,7 +137,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "retro",
     name: "Retrospective",
-    description: "What went well, what to improve, and who does what next.",
+    description: "What went well, what to improve, who does what.",
     build: (p) =>
       columns(p, [
         { name: "Went well", colour: "green", notes: ["What went well?", ""] },
@@ -166,7 +166,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "kanban",
     name: "Kanban",
-    description: "To do, doing, done. Drag notes across; make them tasks when they're real.",
+    description: "To do, doing, done. Notes become tasks.",
     build: (p) =>
       columns(
         p,
@@ -183,7 +183,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "journey",
     name: "User journey",
-    description: "Stages across, what people do, think and feel down.",
+    description: "Stages across; doing, thinking, feeling down.",
     build: (p) => {
       const stages = ["Discover", "Sign up", "First use", "Grow"]
       const rows: { name: string; colour: StickyColour }[] = [

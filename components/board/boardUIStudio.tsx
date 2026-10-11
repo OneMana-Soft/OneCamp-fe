@@ -266,7 +266,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
                 onClick={() => setDevice(d)}
                 className={cn(
                   "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                  device === d ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  device === d ? "bg-background text-foreground shadow-e1" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {d === "mobile" ? <Smartphone className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
@@ -424,7 +424,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
               <div className="absolute inset-0 flex items-center justify-center p-8">
                 <div style={{ transform: `scale(${scale})`, transformOrigin: "center" }}>
                   {device === "mobile" ? (
-                    <div className="rounded-[3rem] border-[10px] border-gray-900 bg-gray-900 shadow-2xl">
+                    <div className="rounded-[3rem] border-[10px] border-[#16171B] bg-[#16171B] dark:border-[#0B0C0E] dark:bg-[#0B0C0E] shadow-e4">
                       <div className="relative overflow-hidden rounded-[2.3rem] bg-white" style={{ width: dims.w, height: dims.h }}>
                         <iframe
                           ref={iframeRef}
@@ -436,12 +436,12 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
                       </div>
                     </div>
                   ) : (
-                    <div className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-2xl">
-                      <div className="flex h-9 items-center gap-2 border-b border-gray-200 bg-gray-50 px-4">
+                    <div className="overflow-hidden rounded-xl bg-white ring-1 ring-line-2 shadow-e4">
+                      <div className="flex h-9 items-center gap-2 border-b border-line bg-sunken px-4">
                         <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
                         <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
                         <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-                        <span className="ml-3 h-5 flex-1 rounded-md bg-gray-200/70" />
+                        <span className="ml-3 h-5 flex-1 rounded-md bg-press" />
                       </div>
                       <iframe
                         ref={iframeRef}

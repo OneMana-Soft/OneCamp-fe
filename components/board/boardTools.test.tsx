@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
-import { hueFor } from "@/lib/campHue"
 
 const seen = vi.fn()
 vi.mock("@/lib/board/notes", async (importOriginal) => {
@@ -42,12 +41,24 @@ afterEach(() => {
 })
 
 describe("a board's tools", () => {
-  it("on an empty canvas, offer the templates under a drawing in the board's own hue", () => {
+  it("on an empty canvas, offer the five templates drawn small on a pop card", () => {
     const { api } = fakeApi()
     render(<BoardTools api={api} editable boardId={BOARD} />)
-    expect(screen.getAllByText("Start from a template").length).toBeGreaterThan(0)
-    const svg = document.querySelector("svg.hue-" + hueFor(BOARD))
-    expect(svg).toBeTruthy()
+    expect(screen.getByText("Start with a template")).toBeTruthy()
+    const card = document.querySelector("[data-empty-canvas]")!
+    expect(card.className).toMatch(/bg-pop/)
+    expect(card.querySelectorAll("[data-template-preview]")).toHaveLength(5)
+    expect(screen.getByText("or just start drawing")).toBeTruthy()
+  })
+
+  it("offer selected notes as tasks on a floating bar", () => {
+    const { api, emit } = fakeApi()
+    render(<BoardTools api={api} editable boardId={BOARD} />)
+    const note = { id: "n1", type: "rectangle", isDeleted: false, boundElements: [{ id: "t1", type: "text" }] }
+    const text = { id: "t1", type: "text", isDeleted: false, containerId: "n1", text: "Ship the SSO fix", originalText: "Ship the SSO fix" }
+    act(() => emit([note, text], { n1: true }))
+    expect(screen.getByRole("toolbar", { name: "Selected notes" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Make a task" })).toBeTruthy()
   })
 
   it("skip the frames of a pan, where the shapes and the selection are the same", () => {

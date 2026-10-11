@@ -3,16 +3,28 @@
 import { useEffect, useState } from "react"
 import { SectionTabs, SectionTabsContent } from "@/components/ui/sectionTabs"
 import { ProjectListTabContent } from "@/components/project/projectListTabContent"
-import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
 import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
-import { ProjectToolButtons } from "@/components/project/ProjectToolButtons"
+import { ProjectActionsMenu, type ProjectMenuExtra } from "@/components/project/ProjectToolButtons"
+import { useDispatch } from "react-redux"
+import { openUI } from "@/store/slice/uiSlice"
+import { usePost } from "@/hooks/usePost"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { getNextNotification } from "@/lib/utils/getNextNotification"
+import { NotificationType } from "@/types/channel"
+import type { ProjectNotificationInterface } from "@/types/project"
+import { Bell, Pencil, Users } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
-import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
-import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
+import dynamic from "next/dynamic"
+import { TabLoading } from "@/components/task/TabLoading"
+
+// Each tab past Tasks is its own chunk, loaded when it is opened.
+const ProjectTaskKanban = dynamic(() => import("@/components/project/projectTaskKanban").then((m) => m.ProjectTaskKanban), { loading: () => <TabLoading kind="board" /> })
+const ProjectTimeline = dynamic(() => import("@/components/project/timeline/ProjectTimeline").then((m) => m.ProjectTimeline), { loading: () => <TabLoading kind="timeline" /> })
+const ProjectUpdates = dynamic(() => import("@/components/projectUpdates/ProjectUpdates").then((m) => m.ProjectUpdates), { loading: () => <TabLoading kind="list" /> })
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTabInAddress } from "@/components/task/keptTabs"
 import { app_task_path } from "@/types/paths"
@@ -51,6 +63,35 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
     const info = projectInfo.data?.data
 
+    // The phone's one "⋯" (the header line's): the project's tools, then
+    // notifications, its name and its members, which the top bar's own
+    // options sheet held while the bar had a second "⋯".
+    const dispatch = useDispatch()
+    const postNotification = usePost()
+    const [notification, setNotification] = useState<string>(NotificationType.NotificationAll)
+    useEffect(() => {
+        if (info?.notification_type) setNotification(info.notification_type)
+    }, [info?.notification_type])
+    const notificationLabel = notification === NotificationType.NotificationAll ? "All messages" : notification === NotificationType.NotificationMention ? "Mentions only" : "Muted"
+    const extra: ProjectMenuExtra[] = [
+        {
+            key: "notifications",
+            label: "Notifications",
+            detail: notificationLabel,
+            Icon: Bell,
+            onSelect: () => {
+                const next = getNextNotification(notification)
+                void postNotification
+                    .makeRequest<ProjectNotificationInterface>({ payload: { project_id: projectId, notification_type: next }, apiEndpoint: PostEndpointUrl.UpdateProjectNotification })
+                    .then(() => setNotification(next), () => undefined)
+            },
+        },
+        ...(info?.project_is_admin
+            ? [{ key: "rename", label: "Edit project name", Icon: Pencil, onSelect: () => dispatch(openUI({ key: "editProjectName", data: { projectUUID: projectId } })) }]
+            : []),
+        { key: "members", label: "Project members", Icon: Users, onSelect: () => dispatch(openUI({ key: "editProjectMember", data: { projectUUID: projectId } })) },
+    ]
+
     return (
         // The project's header block sits above the tabs, so every tab keeps
         // it: its line, its tools, its health and its goal. It was inside the
@@ -59,8 +100,8 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
         <div className="flex h-full flex-col">
             <div className="grid shrink-0 grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
                 <div className="flex items-center gap-1">
-                    <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 truncate" />
-                    <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
+                    <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 overflow-hidden" />
+                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} extra={extra} />
                 </div>
                 {/* Each piece loads on its own, so each has its place from the
                     first paint: the chips in a row of their own that scrolls
@@ -76,7 +117,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 { value: "board", label: "Board" },
                 { value: "timeline", label: "Timeline" },
                 { value: "updates", label: "Updates" },
-                { value: "attachment", label: "Attachments" },
+                { value: "attachment", label: "Files" },
             ]}
             value={selectedTab}
             onValueChange={(v) => setSelectedTab(v as Tab)}

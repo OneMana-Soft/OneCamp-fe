@@ -54,7 +54,7 @@ afterEach(() => {
   h.reachesStore = false
 })
 
-const skeletonRows = (container: HTMLElement) => container.querySelectorAll('tbody tr[aria-hidden="true"]').length
+const skeletonRows = (container: HTMLElement) => container.querySelectorAll("[data-list-skeleton]").length
 
 describe("a task table's first load", () => {
   it("a project's: the skeleton holds, and the pagination waits, until the answer's rows are in", () => {
@@ -78,7 +78,7 @@ describe("a task table's first load", () => {
   it("My Tasks': the skeleton holds, and the pagination waits, until the answer's rows are in", () => {
     h.answer = { data: { data: { user_tasks: [TASK] }, pageCount: 1 }, isLoading: false }
     const { container } = render(<Provider store={store}><MyTaskTable /></Provider>)
-    expect(screen.queryByText("Nothing is assigned to you.")).toBeNull()
+    expect(screen.queryByText("Nothing assigned to you")).toBeNull()
     expect(skeletonRows(container)).toBeGreaterThan(0)
     expect(screen.queryByText(/Rows per page/)).toBeNull()
   })
@@ -86,7 +86,7 @@ describe("a task table's first load", () => {
   it("nothing assigned says so, in place of the table", () => {
     h.answer = { data: { data: { user_tasks: [] }, pageCount: 1 }, isLoading: false }
     render(<Provider store={store}><MyTaskTable /></Provider>)
-    expect(screen.getByText("Nothing is assigned to you.")).toBeTruthy()
+    expect(screen.getByText("Nothing assigned to you")).toBeTruthy()
     expect(screen.queryByText(/Rows per page/)).toBeNull()
   })
 })

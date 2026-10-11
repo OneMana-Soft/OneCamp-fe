@@ -268,21 +268,21 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
               <div className="flex items-center bg-muted rounded-md p-0.5 flex-shrink-0">
                 <button
                   onClick={() => { setSearchType("issues"); setSelectedIssue(null); }}
-                  className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${searchType === "issues" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${searchType === "issues" ? "bg-background shadow-e1 font-medium" : "text-muted-foreground hover:text-foreground"}`}
                   title="Search issues only"
                 >
                   Issues
                 </button>
                 <button
                   onClick={() => { setSearchType("prs"); setSelectedIssue(null); }}
-                  className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${searchType === "prs" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${searchType === "prs" ? "bg-background shadow-e1 font-medium" : "text-muted-foreground hover:text-foreground"}`}
                   title="Search PRs only"
                 >
                   PRs
                 </button>
                 <button
                   onClick={() => { setSearchType("all"); setSelectedIssue(null); }}
-                  className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${searchType === "all" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${searchType === "all" ? "bg-background shadow-e1 font-medium" : "text-muted-foreground hover:text-foreground"}`}
                   title="Search both issues and PRs"
                 >
                   All

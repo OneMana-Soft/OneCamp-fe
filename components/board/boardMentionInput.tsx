@@ -188,7 +188,7 @@ export function BoardMentionInput({
         className={className}
       />
       {dropdownOpen && (
-        <div className="absolute bottom-full left-0 z-20 mb-1 max-h-44 w-full overflow-y-auto rounded-lg border bg-popover shadow-lg">
+        <div className="absolute bottom-full left-0 z-20 mb-1 max-h-44 w-full overflow-y-auto rounded-lg border bg-popover shadow-e3">
           {results.map((u, i) => (
             <button
               key={u.user_uuid}

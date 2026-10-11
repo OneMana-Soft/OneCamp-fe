@@ -1,5 +1,6 @@
 import { displayNameOf } from "@/lib/personName"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { useLazyProfileHover } from "@/hooks/useLazyProfileHover"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -19,6 +20,7 @@ export const TaskAssigneeCell = ({
 }) => {
     const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
     const nameInitial = getNameInitials(displayNameOf(userInfo))
+    const hover = useLazyProfileHover(userInfo.user_uuid)
 
     return (
         <div
@@ -27,6 +29,7 @@ export const TaskAssigneeCell = ({
                 avatarOnly ? "gap-0" : "gap-2",
             )}
             title={avatarOnly ? displayNameOf(userInfo) : undefined}
+            {...hover}
         >
             <Avatar className="w-6 h-6">
                 <AvatarImage src={imageSrc} />

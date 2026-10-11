@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { GoalDialog } from "@/components/goals/GoalDialog"
 import { GoalOwner } from "@/components/goals/GoalOwner"
-import { GoalProgress } from "@/components/goals/GoalProgress"
-import { HealthPill } from "@/components/projectUpdates/HealthPill"
+import { GoalProgress, GoalRing } from "@/components/goals/GoalProgress"
+import { Bar } from "@/components/ui/progress"
+import { celebrateCamp } from "@/lib/celebrate"
+import { HealthPill, HealthWord } from "@/components/projectUpdates/HealthPill"
 import { UpdateCard } from "@/components/projectUpdates/UpdateCard"
 import { UpdateComposer } from "@/components/projectUpdates/UpdateComposer"
 import { UpdateText } from "@/components/projectUpdates/UpdateText"
@@ -153,19 +155,76 @@ function AddProject({ linked, onAdd }: { linked: Set<string>; onAdd: (id: string
   )
 }
 
-/** Where a check-in moved the goal: "410 teams · 50%". */
-function Moved({ c, unit }: { c: GoalCheckIn; unit?: string }) {
+/** Where a check-in moved the goal (W43): "4.5 → 3.5 h" as a chip, from the check-in before it. */
+function Moved({ c, prev, unit }: { c: GoalCheckIn; prev?: GoalCheckIn; unit?: string }) {
   if (c.value === undefined && c.progress === undefined) return null
   return (
-    <p className="mb-2 text-xs tabular-nums text-muted-foreground">
-      {c.value !== undefined && <span className="font-medium text-foreground">{amount(c.value, unit)}</span>}
-      {c.value !== undefined && c.progress !== undefined && " · "}
-      {c.progress !== undefined && `${percent(c.progress)} of the way`}
+    <p className="mb-2 flex flex-wrap items-center gap-1.5 text-xs tabular-nums text-ink-2">
+      {c.value !== undefined && (
+        <span data-moved="" className="chip h-6 text-foreground">
+          {prev?.value !== undefined && prev.value !== c.value ? `${prev.value} → ${amount(c.value, unit)}` : amount(c.value, unit)}
+        </span>
+      )}
+      {c.progress !== undefined && <span>{percent(c.progress)} of the way</span>}
     </p>
   )
 }
 
+/** A health's signal colour, for a check-in's dot on the rail. */
+const RAIL_DOT: Record<string, string> = {
+  on_track: "bg-camp-moss",
+  at_risk: "bg-camp-sun",
+  off_track: "bg-destructive",
+  achieved: "bg-camp-moss",
+  missed: "bg-destructive",
+}
+
 /**
+ * The goal's values over its check-ins (W43): a 1.5 px moss line with a 10 %
+ * area under it and a 4 px dot at its end, drawn once on reveal (600 ms), with
+ * where it started and where it is aiming as ink-3 words. Two or more
+ * check-ins with a value draw it; fewer have nothing to show.
+ */
+export function GoalSparkline({ points, start, target }: { points: number[]; start?: string; target?: string }) {
+  if (points.length < 2) return null
+  const lo = Math.min(...points)
+  const hi = Math.max(...points)
+  const range = hi - lo || 1
+  const W = 300
+  const H = 64
+  const xy = points.map((v, i) => [(i / (points.length - 1)) * W, H - 4 - ((v - lo) / range) * (H - 8)] as const)
+  const line = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ")
+  const [ex, ey] = xy[xy.length - 1]
+  return (
+    <div data-goal-sparkline="" className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-16 w-full overflow-visible" aria-hidden="true">
+        <path d={`${line} L${W} ${H} L0 ${H} Z`} fill="var(--camp-moss)" fillOpacity={0.1} />
+        <path
+          d={line}
+          fill="none"
+          stroke="var(--camp-moss)"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          pathLength={1}
+          strokeDasharray={1}
+          style={{ animation: "work-tick-draw 600ms var(--ease-out) both" }}
+        />
+      </svg>
+      <span aria-hidden="true" className="absolute size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-camp-moss" style={{ left: `${(ex / W) * 100}%`, top: ey }} />
+      {(start || target) && (
+        <div className="mt-1 flex justify-between text-xs text-ink-3">
+          <span>{start}</span>
+          <span>{target}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A goal's page/**
  * A goal's page: how far it has got against its time and where it stands,
  * what serves it (projects and sub-goals, each with its own progress and last
  * word), and its check-ins, the next one drafted from all of that.
@@ -184,6 +243,17 @@ export function GoalPage({ goalId }: { goalId: string }) {
   const [deleting, setDeleting] = useState(false)
   const now = Date.now()
   const linked = useMemo(() => new Set(goal?.project_list.map((p) => p.project_uuid)), [goal])
+  // The Camp tier (W04, W43): a check-in by this person that takes the goal
+  // to its target fires once, from the hero ring, remembered per person.
+  const ringRef = useRef<HTMLDivElement>(null)
+  const checkInsBefore = useRef<number | null>(null)
+  useEffect(() => {
+    if (!goal || checkInsBefore.current === null || goal.checkins.length <= checkInsBefore.current) return
+    checkInsBefore.current = null
+    if ((goal.progress ?? 0) >= 1 || goal.status === "achieved") {
+      if (celebrateCamp(ringRef.current, "goal", goal.id)) toast({ title: `${goal.title} reached its target.` })
+    }
+  }, [goal, toast])
 
   if (notFound) {
     return (
@@ -216,6 +286,12 @@ export function GoalPage({ goalId }: { goalId: string }) {
   const gap = paceGap(goal)
   const late = overdue(goal, localDay())
   const due = checkInDue(goal, now)
+  const target = goal.measure === "number" && goal.target_value !== undefined ? amount(goal.target_value, goal.unit) : undefined
+  // Oldest first: the value each check-in left, else how far along it was.
+  const history = [...goal.checkins].reverse()
+  const byValue = history.filter((c) => c.value !== undefined).map((c) => c.value as number)
+  const spark = byValue.length >= 2 ? byValue : history.filter((c) => c.progress !== undefined).map((c) => (c.progress as number) * 100)
+  const sparkFrom = byValue.length >= 2 && goal.start_value !== undefined ? `Started at ${amount(goal.start_value, goal.unit)}` : undefined
 
   const composerFor = (editing?: GoalCheckIn) => (
     <UpdateComposer
@@ -229,7 +305,10 @@ export function GoalPage({ goalId }: { goalId: string }) {
       edit={editCheckIn}
       endings={open}
       number={goal.measure === "number" && goal.current_value !== undefined ? { current: goal.current_value, unit: goal.unit ?? "" } : undefined}
-      onDone={() => setComposer(null)}
+      onDone={() => {
+        if (!editing) checkInsBefore.current = goal.checkins.length
+        setComposer(null)
+      }}
     />
   )
 
@@ -259,21 +338,21 @@ export function GoalPage({ goalId }: { goalId: string }) {
             <div className="flex min-w-0 flex-1 items-start gap-3">
               {/* No target icon before the title: the breadcrumb already says it is a goal. */}
               <div className="min-w-0 space-y-1.5">
-                <h1 className="font-display text-2xl font-semibold text-balance">{goal.title}</h1>
+                <h1 className="text-title-1 font-[590] text-balance">{goal.title}</h1>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                   <GoalOwner owner={goal.owner} />
                   <span className={cn(late && "font-medium text-danger-ink")}>
                     {open ? (late ? "Was due" : "Due") : "Was due"} {dueLabel(goal.due_date)}
                   </span>
-                  {!open && <HealthPill health={goal.status} />}
-                  {open && goal.health && <HealthPill health={goal.health} />}
+                  {!open && <HealthWord health={goal.status} />}
+                  {open && goal.health && <HealthWord health={goal.health} />}
                 </div>
               </div>
             </div>
             {goal.can_edit && (
               <div className="flex items-center gap-2">
                 {open && !composer && (
-                  <Button size="sm" variant={due ? "default" : "outline"} className="gap-1.5" onClick={() => setComposer({})}>
+                  <Button size="sm" className="gap-1.5" data-due={due || undefined} onClick={() => setComposer({})}>
                     <Megaphone className="h-4 w-4" />
                     Check in
                   </Button>
@@ -303,27 +382,37 @@ export function GoalPage({ goalId }: { goalId: string }) {
           )}
         </header>
 
-        <section aria-label="Progress" className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              {/* Proportional figures at display size; nothing measured yet is said, not drawn as a dash. */}
-              {goal.progress === null ? (
-                <p className="text-lg font-medium text-muted-foreground">Nothing to measure yet</p>
-              ) : (
-                <p className="font-display text-4xl font-semibold">{percent(goal.progress)}</p>
+        {/* The hero (W43): a 96 px ring that fills on reveal, what it measures,
+            the pace bar with its tick and the words for ahead or behind, and
+            the line of its check-ins. */}
+        <section aria-label="Progress" data-goal-hero="" className="flex flex-col gap-6 rounded-lg bg-raised p-6 shadow-e1 sm:flex-row sm:items-center">
+          <div ref={ringRef} className="flex shrink-0 justify-center">
+            <GoalRing goal={goal} size={96} weight={6} duration={480}>
+              {goal.progress !== null && (
+                <span className="flex flex-col items-center">
+                  <span className="text-title-1 font-semibold tabular-nums text-foreground">{percent(goal.progress)}</span>
+                  {target && <span className="max-w-[72px] truncate text-3xs text-ink-3">of {target}</span>}
+                </span>
               )}
-              <p className="text-sm text-muted-foreground">{progressSource(goal)}</p>
-            </div>
-            {gap !== undefined && (
-              <p className={cn("text-sm font-medium", gap <= -25 ? "text-danger-ink" : gap <= -10 ? "text-warning-ink" : "text-success-ink")}>{paceLine(gap)}</p>
-            )}
+            </GoalRing>
           </div>
-          <GoalProgress goal={goal} showLabel={false} />
-          {goal.expected !== undefined && open && (
-            <p className="text-xs text-muted-foreground">
-              The tick is where it would be by now if it moved evenly: {percent(goal.expected)} of its time has gone.
-            </p>
-          )}
+          <div className="min-w-0 flex-1 space-y-3">
+            {goal.progress === null ? (
+              <p className="text-body text-ink-2">Nothing to measure yet</p>
+            ) : (
+              <p className="text-body text-foreground">{progressSource(goal)}</p>
+            )}
+            {goal.progress !== null && (
+              <Bar
+                value={Math.round(Math.min(1, Math.max(0, goal.progress)) * 100)}
+                size={8}
+                pace={goal.expected !== undefined && open ? Math.round(goal.expected * 100) : undefined}
+                label={`${goal.title}: ${percent(goal.progress)} of the way${goal.expected !== undefined && open ? `, with ${percent(goal.expected)} of its time gone` : ""}`}
+              />
+            )}
+            {gap !== undefined && <p className={cn("text-xs font-[510]", gap < 0 ? "text-danger-ink" : "text-camp-moss-ink")}>{paceLine(gap)}</p>}
+            <GoalSparkline points={spark} start={sparkFrom} target={target ? `Aiming for ${target}` : undefined} />
+          </div>
         </section>
 
         {composer && !composer.editing && composerFor()}
@@ -416,17 +505,23 @@ export function GoalPage({ goalId }: { goalId: string }) {
               </div>
             )
           ) : (
-            <ol className="flex flex-col gap-3" aria-label="Check-ins, newest first">
-              {goal.checkins.map((c) =>
+            <ol
+              data-checkin-rail=""
+              className="relative flex flex-col gap-3 pl-7 before:absolute before:bottom-3 before:left-[11px] before:top-3 before:w-px before:bg-line-2"
+              aria-label="Check-ins, newest first"
+            >
+              {goal.checkins.map((c, i) =>
                 composer?.editing?.id === c.id ? (
                   <li key={c.id}>{composerFor(c)}</li>
                 ) : (
-                  <li key={c.id}>
+                  <li key={c.id} className="relative [animation:work-rise-in_240ms_var(--ease-out)_both]">
+                    {/* Its health, as a dot on the rail with a ring in the sheet's colour. */}
+                    <span aria-hidden="true" className={cn("absolute -left-[21px] top-4 size-2.5 rounded-full ring-[3px] ring-sheet", RAIL_DOT[c.health] ?? "bg-ink-3")} />
                     <UpdateCard
                       update={c}
                       now={now}
                       noun="check-in"
-                      detail={<Moved c={c} unit={goal.unit} />}
+                      detail={<Moved c={c} prev={goal.checkins[i + 1]} unit={goal.unit} />}
                       canEdit={c.author_uuid === me}
                       canDelete={goal.can_edit || c.author_uuid === me}
                       onEdit={() => setComposer({ editing: c })}

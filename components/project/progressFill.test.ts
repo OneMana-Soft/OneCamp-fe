@@ -10,7 +10,6 @@ const FILES = [
   "components/goals/GoalProgress.tsx",
   "components/task/cyclesButton.tsx",
   "components/project/ProjectsOverview.tsx",
-  "components/project/ProjectsTimeline.tsx",
   "app/guest/p/[token]/page.tsx",
 ]
 
@@ -20,7 +19,10 @@ describe("progress bars in tasks and projects", () => {
       const src = readFileSync(join(root, f), "utf8")
       // A file may draw the bar itself, or use the app's shared one (the
       // client view's header does), which fills with bg-progress below.
-      const shared = /from "@\/components\/ui\/progress"/.test(src) && /<Progress\b/.test(src)
+      const shared =
+        (/from "@\/components\/ui\/progress"/.test(src) && /<(Progress|Bar)\b/.test(src)) ||
+        // The client view's header is a ring (work.md W51), which fills with the same stops.
+        (/from "@\/components\/ui\/graphics\/ProgressRing"/.test(src) && /<ProgressRing\b/.test(src))
       if (!shared) expect(src).toMatch(/\bbg-progress\b/)
       expect(src).not.toMatch(/bg-foreground\/70/)
     })

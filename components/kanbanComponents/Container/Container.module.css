@@ -26,7 +26,7 @@
   flex-direction: column;
   flex: 1;
   gap: 8px;
-  padding: 12px;
+  padding: 0 8px 8px;
   overflow-y: auto;
   min-height: 0;
   box-sizing: border-box;
@@ -51,4 +51,18 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* A 16px fade where the cards are cut (work.md W20): a mask, not a shadow,
+   set by the scroll handler in Container.tsx with no render. */
+.Fade[data-fade-top] {
+  mask-image: linear-gradient(to bottom, transparent, #000 16px);
+}
+
+.Fade[data-fade-bottom] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+}
+
+.Fade[data-fade-top][data-fade-bottom] {
+  mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
 }

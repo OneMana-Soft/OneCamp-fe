@@ -12,17 +12,16 @@ import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
 import { warmCollabToken } from "@/lib/collabToken";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
-import { cn } from "@/lib/utils/helpers/cn";
-import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye } from "@/lib/icons";
-import { WifiOff } from "lucide-react";
+import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, Sparkles, LayoutGrid, Search, HelpCircle, ImageIcon, Library } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ActiveUsersBar } from "@/components/docEditor/ActiveUsersBar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { useDispatch } from "react-redux";
 import { updateUserBoardTitle, removeUserBoard } from "@/store/slice/userSlice";
@@ -31,7 +30,9 @@ import { app_board_path } from "@/types/paths";
 import { useTheme } from "next-themes";
 import BoardCanvas from "@/components/board/boardCanvas";
 import BoardAIPanel from "@/components/board/boardAIPanel";
-import BoardTools from "@/components/board/boardTools";
+import BoardTools, { TemplatesButton, insertBoardTemplate } from "@/components/board/boardTools";
+import { BoardTitleCluster, ChromeCluster, ClusterButton, ClusterDivider, boardSaveState, useDrawingFade } from "@/components/board/boardChrome";
+import { BOARD_TEMPLATES } from "@/lib/board/templates";
 import BoardFacilitation from "@/components/board/boardFacilitation"
 import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
@@ -40,6 +41,10 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 // "board:" namespace prefix shared with the collaboration service so a single
 // Hocuspocus server routes board vs doc documents to the right backend.
 const BOARD_DOC_PREFIX = "board:";
+
+// Ask AI wears the agent's colour, open or not: brand is for actions.
+const AI_BUTTON = (open: boolean) =>
+  open ? "bg-agent-muted text-agent-ink hover:bg-agent-muted hover:text-agent-ink" : "text-agent hover:text-agent";
 
 export default function BoardPage() {
   const params = useParams();
@@ -92,10 +97,28 @@ export default function BoardPage() {
   // elements to the live scene.
   const [excalApi, setExcalApi] = React.useState<ExcalidrawImperativeAPI | null>(null);
   const [commentMode, setCommentMode] = React.useState(false);
+  const [aiOpen, setAiOpen] = React.useState(false);
+  const [gridOn, setGridOn] = React.useState(false);
+  const [showResolved, setShowResolved] = React.useState(false);
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  useDrawingFade(wrapRef);
 
-  // Notion-like inline title editing (owner / editors only).
+  // A board made from a template on the boards list (?template=retro): lay
+  // the template on once the empty board has synced, then drop the query so
+  // a reload doesn't lay it again.
+  const templateLaid = React.useRef(false);
+  React.useEffect(() => {
+    if (!excalApi || !synced || templateLaid.current) return;
+    const id = new URLSearchParams(window.location.search).get("template");
+    if (!id) return;
+    templateLaid.current = true;
+    const t = BOARD_TEMPLATES.find((x) => x.id === id);
+    if (t && !excalApi.getSceneElements().some((e) => !e.isDeleted)) void insertBoardTemplate(excalApi, t);
+    router.replace(`${app_board_path}/${boardId}`);
+  }, [excalApi, synced, router, boardId]);
+
+  // The board's name, renamed in place in the top-left cluster.
   const [title, setTitle] = React.useState("");
-  const titleSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   React.useEffect(() => {
     if (boardInfo?.board_title) setTitle(boardInfo.board_title);
   }, [boardInfo?.board_title]);
@@ -130,14 +153,6 @@ export default function BoardPage() {
     [boardId, boardInfo, updateBoard, dispatch],
   );
 
-  const handleTitleChange = React.useCallback(
-    (val: string) => {
-      setTitle(val);
-      if (titleSaveTimeoutRef.current) clearTimeout(titleSaveTimeoutRef.current);
-      titleSaveTimeoutRef.current = setTimeout(() => saveTitle(val), 800);
-    },
-    [saveTitle],
-  );
 
   const performDelete = React.useCallback(() => {
     if (!boardId) return;
@@ -185,114 +200,81 @@ export default function BoardPage() {
   }
 
   const offline = collabStatus === "disconnected" || collabStatus === "offline";
+  const saveState = boardSaveState(collabStatus, synced);
+
+  // The board's "More" menu: Excalidraw's own menu items, reached from the
+  // board's cluster (Excalidraw's hamburger and Library button are hidden),
+  // then the board's: who viewed it, its history, linked tasks, delete.
+  const menu = (trigger: React.ReactElement, align: "start" | "end" = "start") => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent align={align} sideOffset={8} className="w-60">
+        {excalApi && (
+          <>
+            <DropdownMenuItem onClick={() => excalApi.updateScene({ appState: { openDialog: { name: "imageExport" } } as never })}>
+              <ImageIcon className="mr-2 size-4" />
+              Export image
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => excalApi.toggleSidebar({ name: "default", tab: "library" })}>
+              <Library className="mr-2 size-4" />
+              Library
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => excalApi.toggleSidebar({ name: "default", tab: "search" })}>
+              <Search className="mr-2 size-4" />
+              Find on board
+            </DropdownMenuItem>
+            <DropdownMenuCheckboxItem
+              checked={gridOn}
+              onCheckedChange={(on) => {
+                setGridOn(on);
+                excalApi.updateScene({ appState: { gridModeEnabled: on } as never });
+              }}
+            >
+              Show grid
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={showResolved} onCheckedChange={setShowResolved}>
+              Show resolved comments
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuItem onClick={() => excalApi.updateScene({ appState: { openDialog: { name: "help" } } as never })}>
+              <HelpCircle className="mr-2 size-4" />
+              Keyboard shortcuts
+            </DropdownMenuItem>
+          </>
+        )}
+        {hasEditAccess && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardViewers", data: { boardId } }))}>
+              <Eye className="mr-2 size-4" />
+              Viewed by
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } }))}>
+              <History className="mr-2 size-4" />
+              Version history
+            </DropdownMenuItem>
+          </>
+        )}
+        {/* Tasks and projects that link this board; nothing when none. */}
+        <LinkedFromSection refType="board" refUUID={boardId} className="mt-1 border-t border-line px-2 pb-1 pt-2" />
+        {isOwner && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
+              <Trash className="mr-2 size-4" />
+              Delete board
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Top bar (desktop only). On mobile the global mobile top nav provides
-          back + title; the canvas uses the full height. */}
-      {!isMobile && (
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background px-2 sm:h-14 sm:px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <Input dense
-            value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            onBlur={() => saveTitle(title)}
-            disabled={!hasEditAccess}
-            placeholder="Untitled board"
-            className="h-8 min-w-0 flex-1 border-none bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0 disabled:cursor-default disabled:opacity-100 sm:text-base"
-            aria-label="Board title"
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <ActiveUsersBar users={awarenessUsers} maxShown={isMobile ? 3 : 4} />
-          {hasEditAccess && (
-            <Button
-              variant={commentMode ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setCommentMode((m) => !m)}
-              className={cn("gap-1.5", !commentMode && "text-muted-foreground hover:text-foreground")}
-              title="Add a comment"
-            >
-              <MessageCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">{commentMode ? "Click to place" : "Comment"}</span>
-            </Button>
-          )}
-          {hasEditAccess && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}
-              className="gap-1.5 text-muted-foreground hover:text-foreground"
-              title="Share board"
-            >
-              <Share2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Share</span>
-            </Button>
-          )}
-          {(hasEditAccess || isOwner) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Board options" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Board options">
-                  <Ellipsis className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {hasEditAccess && (
-                  <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardViewers", data: { boardId } }))}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Viewed by
-                  </DropdownMenuItem>
-                )}
-                {hasEditAccess && (
-                  <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } }))}>
-                    <History className="mr-2 h-4 w-4" />
-                    Version history
-                  </DropdownMenuItem>
-                )}
-                {isOwner && (
-                  <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
-                    <Trash className="mr-2 h-4 w-4" />
-                    Delete board
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
-      )}
-
-      {/* Tasks/projects that link this board (desktop only; renders nothing when none). */}
-      {!isMobile && (
-        <LinkedFromSection refType="board" refUUID={boardId} className="shrink-0 border-b bg-background/40 px-4 py-2.5" />
-      )}
-
-      {/* Offline / reconnecting banner */}
-      {offline && (
-        <div
-          className={cn(
-            "flex shrink-0 items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium",
-            collabStatus === "offline"
-              ? "border-b border-warning/20 bg-warning/10 text-warning-ink"
-              : "border-b bg-muted/50 text-muted-foreground",
-          )}
-        >
-          {collabStatus === "offline" ? (
-            <>
-              <WifiOff className="h-3 w-3" />
-              <span>Working offline. Changes will sync when you reconnect.</span>
-            </>
-          ) : (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Reconnecting to collaboration server…</span>
-            </>
-          )}
-        </div>
-      )}
-
+    // No top bar row (content.md B03): the canvas runs the sheet's full
+    // height, and the board's controls float over it at the top corners.
+    <div ref={wrapRef} className="relative h-full overflow-hidden" data-board-page="">
       {/* Canvas */}
-      <div className="relative min-h-0 flex-1">
+      <div className="absolute inset-0">
         {provider ? (
           <BoardCanvas
             provider={provider}
@@ -309,18 +291,18 @@ export default function BoardPage() {
             onApiReady={setExcalApi}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Connecting to live canvas…</span>
+          <div className="dot-ground flex h-full w-full items-center justify-center">
+            <div className="flex items-center gap-2 text-ui-sm text-ink-3">
+              <Loader2 className="size-4 animate-spin" />
+              <span>Joining the board…</span>
             </div>
           </div>
         )}
 
-        {/* AI generation (edit access only) */}
-        <BoardAIPanel boardId={boardId} api={excalApi} disabled={!hasEditAccess} />
+        {/* AI generation (edit access only), opened from the cluster. */}
+        <BoardAIPanel boardId={boardId} api={excalApi} disabled={!hasEditAccess} open={aiOpen} onOpenChange={setAiOpen} />
 
-        {/* Templates, and sticky notes into tasks (edit access only) */}
+        {/* The empty-canvas templates, and sticky notes into tasks. */}
         <BoardTools api={excalApi} editable={hasEditAccess} boardId={boardId} />
 
         {/* Timer, dot voting and follow-the-presenter */}
@@ -345,6 +327,7 @@ export default function BoardPage() {
             editable={hasEditAccess}
             commentMode={commentMode}
             onCommentModeChange={setCommentMode}
+            showResolved={showResolved}
             user={{
               id: userProfile.data!.data!.user_uuid,
               name:
@@ -352,66 +335,111 @@ export default function BoardPage() {
             }}
           />
         )}
-
-        {/* Mobile share + options affordance (desktop uses the header). Low on
-            the right, above the canvas's own footer: at the top they sat on
-            Excalidraw's tool row and covered its last three tools. */}
-        {isMobile && (
-          <div className="absolute bottom-[4.5rem] right-3 z-20 flex items-center gap-2" data-board-phone-actions="">
-            {hasEditAccess && (
-              <Button
-                variant={commentMode ? "default" : "secondary"}
-                size="icon"
-                onClick={() => setCommentMode((m) => !m)}
-                className="h-9 w-9 rounded-full shadow-overlay"
-                aria-label="Add a comment"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-            )}
-            {hasEditAccess && (
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}
-                className="h-9 w-9 rounded-full shadow-overlay"
-                aria-label="Share board"
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
-            )}
-            {(hasEditAccess || isOwner) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full shadow-overlay" aria-label="Board options">
-                    <Ellipsis className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {hasEditAccess && (
-                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardViewers", data: { boardId } }))}>
-                      <Eye className="mr-2 h-4 w-4" />
-                      Viewed by
-                    </DropdownMenuItem>
-                  )}
-                  {hasEditAccess && (
-                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } }))}>
-                      <History className="mr-2 h-4 w-4" />
-                      Version history
-                    </DropdownMenuItem>
-                  )}
-                  {isOwner && (
-                    <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
-                      <Trash className="mr-2 h-4 w-4" />
-                      Delete board
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Top left: back, name, save dot, More. */}
+      {!isMobile && (
+        <div className="pointer-events-none absolute left-3 top-3 z-30 flex flex-col items-start gap-2">
+          <BoardTitleCluster
+            backHref={app_board_path}
+            title={title}
+            editable={hasEditAccess}
+            onRename={(t) => {
+              setTitle(t);
+              saveTitle(t);
+            }}
+            saveState={saveState}
+            menu={(trigger) => menu(trigger, "start")}
+          />
+          {offline && (
+            <div
+              role="status"
+              className="content-float pointer-events-auto flex h-8 items-center gap-2 rounded-lg bg-pop px-2.5 text-meta text-ink-2 shadow-e3"
+            >
+              {collabStatus === "offline" ? (
+                <>
+                  <WifiOff className="size-3.5 text-camp-sun-ink" />
+                  <span>Working offline. Changes sync when you reconnect.</span>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Reconnecting…</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Top right: who is here, templates, AI, comments, share. */}
+      {!isMobile && (
+        <div className="pointer-events-none absolute right-3 top-3 z-30">
+          <ChromeCluster label="Board tools">
+            {awarenessUsers.length > 0 && (
+              <>
+                <ActiveUsersBar users={awarenessUsers} maxShown={4} className="px-1" />
+                <ClusterDivider />
+              </>
+            )}
+            {hasEditAccess && (
+              <>
+                <TemplatesButton
+                  api={excalApi}
+                  trigger={
+                    <ClusterButton label="Templates">
+                      <LayoutGrid />
+                    </ClusterButton>
+                  }
+                />
+                <ClusterButton label="Ask AI" active={aiOpen} onClick={() => setAiOpen((o) => !o)} className={AI_BUTTON(aiOpen)}>
+                  <Sparkles />
+                </ClusterButton>
+                <ClusterButton
+                  label={commentMode ? "Click the board to place a comment" : "Comment"}
+                  active={commentMode}
+                  onClick={() => setCommentMode((m) => !m)}
+                >
+                  <MessageCircle />
+                </ClusterButton>
+                <ClusterDivider />
+                <Button size="sm" className="h-8 gap-1.5 px-3" onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}>
+                  <Share2 className="size-3.5" />
+                  Share
+                </Button>
+              </>
+            )}
+          </ChromeCluster>
+        </div>
+      )}
+
+      {/* Phone: one cluster low on the right, above the canvas's footer (at
+          the top it sat on Excalidraw's tool row and covered its last tools). */}
+      {isMobile && (
+        <div className="pointer-events-none absolute bottom-[5rem] right-3 z-20 flex items-center gap-2" data-board-phone-actions="">
+          <ChromeCluster label="Board tools" className="h-11 rounded-[14px] [&_button]:size-9">
+            {hasEditAccess && (
+              <>
+                <ClusterButton label="Ask AI" active={aiOpen} onClick={() => setAiOpen((o) => !o)} className={AI_BUTTON(aiOpen)}>
+                  <Sparkles />
+                </ClusterButton>
+                <ClusterButton label="Add a comment" active={commentMode} onClick={() => setCommentMode((m) => !m)}>
+                  <MessageCircle />
+                </ClusterButton>
+                <ClusterButton label="Share board" onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}>
+                  <Share2 />
+                </ClusterButton>
+              </>
+            )}
+            {menu(
+              <ClusterButton label="Board options">
+                <Ellipsis />
+              </ClusterButton>,
+              "end",
+            )}
+          </ChromeCluster>
+        </div>
+      )}
     </div>
   );
 }

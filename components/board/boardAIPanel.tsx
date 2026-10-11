@@ -25,6 +25,9 @@ interface BoardAIPanelProps {
   boardId: string
   api: ExcalidrawImperativeAPI | null
   disabled?: boolean
+  /** Controlled open state (the board's "Ask AI" button). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 // SidekickPlan is the /board/aiPlan response: either clarifying questions
@@ -162,8 +165,19 @@ function uiComponentSkeleton(c: BoardLaidComponent): Record<string, unknown> | n
   }
 }
 
-function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
-  const [open, setOpen] = React.useState(false)
+function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: BoardAIPanelProps) {
+  // Open from the board's top-right cluster (controlled), or from its own
+  // pill where nothing controls it.
+  const [ownOpen, setOwnOpen] = React.useState(false)
+  const controlled = openProp !== undefined
+  const open = controlled ? openProp : ownOpen
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (!controlled) setOwnOpen(next)
+      onOpenChange?.(next)
+    },
+    [controlled, onOpenChange],
+  )
   const [mode, setMode] = React.useState<"compose" | "refine">("compose")
   const [prompt, setPrompt] = React.useState("")
   const [type, setType] = React.useState<BoardDiagramType>("auto")
@@ -370,7 +384,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
       const verb = opts?.replaceGenId ? "Updated" : "Added to"
       toast({ title: `${verb} board`, description: `${generated.length} elements.` })
     },
-    [api, toast],
+    [api, toast, setOpen],
   )
 
   const handleGenerate = React.useCallback((promptOverride?: string) => {
@@ -452,7 +466,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
         setError("The AI could not produce a result. Try rephrasing.")
       }
     })()
-  }, [prompt, type, detailed, isStreaming, isSubmitting, api, boardId, renderGraph])
+  }, [prompt, type, detailed, isStreaming, isSubmitting, api, boardId, renderGraph, setOpen])
 
   // Abort an in-flight stream on unmount.
   React.useEffect(() => {
@@ -627,12 +641,12 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
 
   return (
     <>
-      <div className="pointer-events-none absolute bottom-16 left-1/2 z-20 -translate-x-1/2">
+      <div className="pointer-events-none absolute bottom-[124px] left-1/2 z-30 -translate-x-1/2 max-sm:bottom-[11.5rem]">
         {open ? (
-        <div className="pointer-events-auto w-[min(92vw,30rem)] rounded-xl border bg-popover p-3 shadow-xl">
+        <div data-board-ai="" className="content-float float-below pointer-events-auto w-[min(92vw,32.5rem)] rounded-[16px] bg-pop p-4 text-ink shadow-e3">
           <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-sm font-medium">
-              <Sparkles className="h-4 w-4 text-primary" />
+            <div className="flex items-center gap-1.5 text-heading text-ink">
+              <Sparkles className="size-4 text-agent" />
               <span>{mode === "refine" ? "Refine diagram" : "Generate with AI"}</span>
             </div>
             <Button
@@ -654,10 +668,10 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             <button
               type="button"
               onClick={() => setShowTypes((s) => !s)}
-              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-2xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-meta font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink"
               aria-expanded={showTypes}
             >
-              <Sparkles className="h-3 w-3 text-primary" />
+              <Sparkles className="size-3 text-agent" />
               {type === "auto"
                 ? "Auto · AI picks the best type"
                 : `Type: ${DIAGRAM_TYPES.find((t) => t.value === type)?.label ?? "Auto"}`}
@@ -675,11 +689,13 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                       onClick={() => setType(t.value)}
                       aria-pressed={selected}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition duration-150",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                        "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-meta font-medium transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                        // The chosen kind is the agent's colour, not the
+                        // brand: brand is for actions.
                         selected
-                          ? "border-transparent bg-primary text-primary-foreground shadow-sm"
-                          : "border-border/70 bg-background/50 text-muted-foreground hover:border-border hover:bg-accent hover:text-foreground",
+                          ? "bg-agent-muted text-agent-ink"
+                          : "bg-hover text-ink-2 ring-1 ring-inset ring-line hover:text-ink",
                       )}
                     >
                       <t.Icon className="h-3.5 w-3.5 shrink-0" />
@@ -693,7 +709,8 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
 
           {/* Depth: Quick is one pass; Detailed runs a plan -> expand pipeline
               for a deeper, real-world diagram (slower). */}
-          <div className="mb-2 flex items-center gap-1.5">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="inline-flex rounded-lg bg-hover p-0.5" role="group" aria-label="Depth">
             {([
               { v: false, label: "Quick" },
               { v: true, label: "Detailed" },
@@ -704,25 +721,24 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 onClick={() => setDetailed(opt.v)}
                 aria-pressed={detailed === opt.v}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-2xs font-medium transition-colors",
-                  detailed === opt.v
-                    ? "border-transparent bg-primary/10 text-primary"
-                    : "border-border/70 text-muted-foreground hover:text-foreground",
+                  "h-6 rounded-md px-2.5 text-meta font-medium transition-colors",
+                  detailed === opt.v ? "bg-raised text-ink shadow-sel" : "text-ink-2 hover:text-ink",
                 )}
               >
                 {opt.label}
               </button>
             ))}
-            <span className="text-2xs text-muted-foreground">
+            </div>
+            <span className="text-meta text-ink-3">
               {detailed ? "Plans, then expands for depth" : "Fast single pass"}
             </span>
           </div>
 
           {/* Cluster existing notes: acts on the canvas, not the prompt. Turns a
               divergent brainstorm into themes + a synthesis mind map. */}
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-2.5 py-1.5">
-            <Network className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">
+          <div className="mb-3 flex items-center gap-2 rounded-lg bg-sunken px-2.5 py-1.5">
+            <Network className="size-3.5 shrink-0 text-agent" />
+            <span className="min-w-0 flex-1 truncate text-meta text-ink-2">
               Notes on the board already? Group them into themes.
             </span>
             <Button
@@ -739,8 +755,8 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
           </div>
 
           {synthesis && (
-            <div className="mb-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
+            <div className="mb-2 relative rounded-lg bg-agent-muted/50 p-2.5 pl-3.5 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-lg before:bg-agent before:content-['']">
+              <div className="mb-1.5 flex items-center gap-1.5 text-meta font-medium text-agent-ink">
                 <Network className="h-3.5 w-3.5" />
                 {synthesis.clusters.length} themes
               </div>
@@ -771,7 +787,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             }}
             onKeyDown={handleKeyDown}
             placeholder={PROMPT_PLACEHOLDERS[type] || "Describe what you want to draw…"}
-            className="min-h-[72px] resize-none text-sm"
+            className="min-h-[72px] resize-none text-body"
             maxLength={2000}
             disabled={isStreaming}
           />
@@ -785,10 +801,10 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
           {/* Sidekick plan card: clarifying questions to refine the goal, or an
               ordered build plan to approve. Building happens only on approval. */}
           {plan && (
-            <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+            <div className="mt-2 relative rounded-lg bg-agent-muted/50 p-2.5 pl-3.5 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-lg before:bg-agent before:content-['']">
               {plan.ready ? (
                 <>
-                  <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-meta font-medium text-agent-ink">
                     <Milestone className="h-3.5 w-3.5" />
                     Here&apos;s my plan{plan.title ? `: ${plan.title}` : ""}
                   </div>
@@ -933,10 +949,10 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             </div>
           )}
         </div>
-      ) : (
+      ) : controlled ? null : (
         <Button
           onClick={() => setOpen(true)}
-          className="pointer-events-auto gap-1.5 rounded-full shadow-lg"
+          className="pointer-events-auto gap-1.5 rounded-full shadow-e3"
           size="sm"
         >
           <Sparkles className="h-4 w-4" />

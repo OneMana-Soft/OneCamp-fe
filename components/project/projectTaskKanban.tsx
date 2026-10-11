@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next"
 import { useCallback, useMemo, useState } from "react"
-import { MixerHorizontalIcon } from "@radix-ui/react-icons"
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,7 +10,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { CirclePlus } from "lucide-react"
+import { Plus, SlidersHorizontal } from "@/lib/icons"
 import { useDispatch } from "react-redux"
 import { TaskKanbanColumnPriorityFilter } from "@/components/task/taskKanbanColumnPriorityFilter"
 import { useFetch } from "@/hooks/useFetch"
@@ -25,10 +24,12 @@ import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
-import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
+import dynamic from "next/dynamic"
+
+const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog))
+const ProjectFieldsDialog = dynamic(() => import("@/components/project/ProjectFieldsDialog").then((m) => m.ProjectFieldsDialog))
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 import { CardFieldsContext } from "@/components/task/fieldValue"
-import { ProjectFieldsDialog } from "@/components/project/ProjectFieldsDialog"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { KeyboardList } from "@/components/task/KeyboardList"
 import { usePost } from "@/hooks/usePost"
@@ -206,15 +207,16 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                     they keep their icons and drop their words. They were hidden
                     below 1024px, so a narrow window or a phone had no View. */}
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" className="h-8" aria-label={t("createTask")} onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
-                        <CirclePlus className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">{t("createTask")}</span>
+                    <Button size="sm" className="text-ui-sm" aria-label="New task" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
+                        <Plus className="size-3.5" />
+                        <span className="hidden sm:inline">New task</span>
+                        <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" aria-label={t("view")}>
-                                <MixerHorizontalIcon className="h-4 w-4" />
-                                <span className="hidden sm:inline">{t("view")}</span>
+                            <Button variant="ghost" size="sm" className="text-ui-sm" aria-label="Display">
+                                <SlidersHorizontal className="size-3.5" />
+                                <span className="hidden sm:inline">Display</span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[200px]">
@@ -319,8 +321,8 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                 </CardFieldsContext.Provider>
             </KeyboardList>
             )}
-            {isAdmin && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
-            {isAdmin && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
+            {isAdmin && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
+            {isAdmin && managingFields && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
         </div>
     )
 }

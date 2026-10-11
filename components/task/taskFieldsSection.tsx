@@ -24,7 +24,8 @@ import { Check, ExternalLink, Plus } from "@/lib/icons"
 import { appMutate } from "@/lib/swrMutate"
 import { colorDot } from "@/lib/taskStatus"
 import { OUTSIDE_PROJECT, draftOf, formatFieldValue, parseFieldInput, withField, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
-import { fieldLabel, fieldRow, inlineInput, inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
+import { inlineInput, inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
+import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { DateField } from "@/components/task/taskDateField"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -108,8 +109,8 @@ export function TaskFieldsSection({
   if (fields.length === 0) {
     if (!canEdit || isLoading) return null
     return (
-      <div className={fieldRow()}>
-        <span className={fieldLabel}>Fields</span>
+      <div className={propertyRow()} data-field-empty="">
+        <span className={propertyLabel}>Fields</span>
         <Button type="button" variant="ghost" size="sm" className={cn(inlineValue, "justify-self-start text-muted-foreground")} onClick={() => setManaging(true)}>
           <Plus className="h-3.5 w-3.5" aria-hidden />
           Add a field
@@ -125,7 +126,7 @@ export function TaskFieldsSection({
         <TaskFieldRow key={f.id} field={f} value={values?.[f.id]} canEdit={canEdit} members={members} onSave={(v) => save(f, v)} />
       ))}
       {canEdit && (
-        <div className={fieldRow()}>
+        <div className={propertyRow()} data-field-empty="">
           <span aria-hidden />
           <Button type="button" variant="link" size="sm" className="h-7 justify-self-start px-0 text-xs text-muted-foreground" onClick={() => setManaging(true)}>
             Edit fields
@@ -173,8 +174,8 @@ function TaskFieldRow({
     )
   }
   return (
-    <div className={fieldRow()}>
-      <label htmlFor={id} className={fieldLabel}>
+    <div className={propertyRow()} data-field-empty={formatFieldValue(field, value) ? undefined : ""}>
+      <label htmlFor={id} className={propertyLabel}>
         {field.name}
       </label>
       <div className="min-w-0">

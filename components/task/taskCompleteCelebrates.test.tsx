@@ -3,20 +3,21 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import type { TaskInfoInterface } from "@/types/task"
 
-const celebrate = vi.fn()
-vi.mock("@/lib/celebrate", () => ({ celebrate: (el: Element) => celebrate(el) }))
+const celebrateTask = vi.fn((_el: Element) => 8)
+vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTask(el), prefersReducedMotion: () => false }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import { TaskListTask } from "@/components/task/taskListTask"
 
 afterEach(() => {
   cleanup()
-  celebrate.mockClear()
+  celebrateTask.mockClear()
 })
 
 /**
- * Completing a task is one of the few moments the playful layer celebrates: a
- * burst of camp-hued sparks from the check. Only on the click that completes
- * it; un-ticking a task, or a list of tasks already done, never celebrates.
+ * Completing a task is one of the few moments the work area celebrates: the
+ * Spark tier from the check. Only on the click that completes it; taking a
+ * task back to do, or a list of tasks already done, never celebrates.
  */
 function task(status: "todo" | "done"): TaskInfoInterface {
   return {
@@ -34,31 +35,31 @@ function task(status: "todo" | "done"): TaskInfoInterface {
   } as unknown as TaskInfoInterface
 }
 
-describe("completing a task", () => {
+describe("completing a task on the phone", () => {
   it("bursts from the check that was clicked, and still completes it", () => {
     const onToggle = vi.fn()
     render(<TaskListTask taskInfo={task("todo")} onToggleStatus={onToggle} isAdmin isAnimating={false} />)
-    const check = screen.getByRole("button", { name: "Mark as complete" })
+    const check = screen.getByRole("button", { name: "Mark Post the load test numbers complete" })
     fireEvent.click(check)
-    expect(celebrate).toHaveBeenCalledTimes(1)
-    expect(celebrate).toHaveBeenCalledWith(check)
+    expect(celebrateTask).toHaveBeenCalledTimes(1)
+    expect(celebrateTask).toHaveBeenCalledWith(check)
     expect(onToggle).toHaveBeenCalledWith("t-1", "p-1", "done")
   })
 
   it("does not celebrate taking a task back to do", () => {
     const onToggle = vi.fn()
     render(<TaskListTask taskInfo={task("done")} onToggleStatus={onToggle} isAdmin isAnimating={false} />)
-    fireEvent.click(screen.getByRole("button", { name: "Mark as incomplete" }))
-    expect(celebrate).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Mark Post the load test numbers as not done" }))
+    expect(celebrateTask).not.toHaveBeenCalled()
     expect(onToggle).toHaveBeenCalledWith("t-1", "p-1", "todo")
   })
 
-  it("springs the check in only after a click completed it, never on load", () => {
+  it("fills the check only after a click completed it, never on load", () => {
     const { container, rerender } = render(<TaskListTask taskInfo={task("done")} onToggleStatus={() => {}} isAdmin isAnimating={false} />)
-    expect(container.querySelector(".animate-spring")).toBeNull()
+    expect(container.querySelector("[data-anim='fill']")).toBeNull()
     rerender(<TaskListTask taskInfo={task("todo")} onToggleStatus={() => {}} isAdmin isAnimating={false} />)
-    fireEvent.click(screen.getByRole("button", { name: "Mark as complete" }))
+    fireEvent.click(screen.getByRole("button", { name: /complete$/ }))
     rerender(<TaskListTask taskInfo={task("done")} onToggleStatus={() => {}} isAdmin isAnimating={false} />)
-    expect(container.querySelector(".animate-spring")).not.toBeNull()
+    expect(container.querySelector("[data-anim='fill']")).not.toBeNull()
   })
 })
