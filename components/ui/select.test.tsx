@@ -26,10 +26,10 @@ const trigger = (props: { className?: string; dense?: boolean } = {}) => {
 const classesOf = (el: HTMLElement) => el.className.split(/\s+/)
 
 describe("a select's height", () => {
-  it("is 44px on a phone and 36px from md up when the caller gives none, as a field is", () => {
+  it("is 44px on a phone and 32px from md up when the caller gives none, as a field is", () => {
     const c = classesOf(trigger())
-    expect(c).toEqual(expect.arrayContaining(["h-11", "md:h-9"]))
-    expect(c).not.toContain("h-9")
+    expect(c).toEqual(expect.arrayContaining(["h-11", "md:h-8", "field-surface"]))
+    expect(c).not.toContain("h-8")
   })
 
   it("keeps a caller's h-8 from md up, and the 44px touch target below md", () => {
@@ -45,9 +45,9 @@ describe("a select's height", () => {
     for (const gone of ["h-11", "max-md:h-11", "md:h-9"]) expect(c).not.toContain(gone)
   })
 
-  it("is 36px everywhere when dense with no height of its own", () => {
+  it("is 32px everywhere when dense with no height of its own", () => {
     const c = classesOf(trigger({ dense: true }))
-    expect(c).toContain("h-9")
+    expect(c).toContain("h-8")
     expect(c).not.toContain("h-11")
   })
 

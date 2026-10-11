@@ -1120,6 +1120,8 @@ export interface AgentSkill {
   name: string
   instructions: string
   created_by: string
+  /** Who shared it, as a name to read. Not sent by the server yet; the library says "Shared by" once it is. */
+  created_by_name?: string
   created_at: string
   updated_at: string
   /**

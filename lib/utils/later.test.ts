@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { messageLink, reminderChoices, reminderLabel, toLocalInput } from "./later"
+import { messageLink, reminderChoices, reminderLabel, reminderPill, toLocalInput } from "./later"
 
 // Local-time constructors: the choices are about the person's own clock.
 const d = (y: number, m: number, day: number, h = 0, min = 0) => new Date(y, m - 1, day, h, min)
@@ -70,5 +70,15 @@ describe("messageLink", () => {
 describe("toLocalInput", () => {
   it("formats for datetime-local in local time", () => {
     expect(toLocalInput(d(2026, 1, 5, 7, 3))).toBe("2026-01-05T07:03")
+  })
+})
+
+describe("the reminder pill (hub.md L3)", () => {
+  const now = new Date(2026, 9, 11, 10, 0)
+  it("is neutral for a later day, sun for today, danger once it has come, in 24-hour time", () => {
+    expect(reminderPill(new Date(2026, 9, 12, 9, 0), now)).toEqual({ text: "Tomorrow 09:00", tone: "later" })
+    expect(reminderPill(new Date(2026, 9, 11, 17, 0), now)).toEqual({ text: "Today 17:00", tone: "today" })
+    expect(reminderPill(new Date(2026, 9, 10, 17, 0), now)).toEqual({ text: "Overdue · Yesterday", tone: "overdue" })
+    expect(reminderPill(new Date(2026, 9, 11, 9, 30), now)).toEqual({ text: "Overdue · 09:30", tone: "overdue" })
   })
 })

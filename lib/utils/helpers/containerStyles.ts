@@ -20,6 +20,6 @@ export const CONTAINER_STYLES = {
     ),
     borders: 'border border-border', // Use shadcn/ui border classes
     background: 'bg-background', // Use shadcn/ui background classes
-    shadows: 'shadow-sm', // Use shadcn/ui shadow classes
+    shadows: 'shadow-e1', // Use shadcn/ui shadow classes
     rounded: 'rounded-md' // Use shadcn/ui rounded classes
 }

@@ -45,7 +45,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
                 "group relative flex items-start gap-3 px-4 py-3 cursor-pointer select-none",
                 "border-b border-border/40 last:border-b-0",
                 "transition-colors duration-150 ease-out",
-                "hover:bg-accent/40 active:bg-accent",
+                "hover:bg-accent/40 active:bg-press",
                 "data-[pressed=true]:bg-accent",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             )}

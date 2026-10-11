@@ -16,32 +16,28 @@
  * Three of the ten silently did nothing, and had done for as long as they were
  * offered. There is a test next to this file now that makes that impossible.
  *
- * WHAT A THEME IS NOW. The accent, and the frame it is washed into. Not a
- * whole palette. Every theme sets the same six tokens, in light and dark
- * (themeCoverage.test.ts):
- *   --brand          the accent: the one action, focus, the selection, links,
- *                    switches that are on, checked boxes, progress;
+ * WHAT A THEME IS NOW (design v3, 11 Oct 2026). The accent, and its light on
+ * the frame. Not a whole palette. Every theme sets the same seven tokens, in
+ * light and dark (themeCoverage.test.ts):
+ *   --brand          the accent: the one action, focus, the selected nav icon,
+ *                    mention and DM badges, links, switches that are on,
+ *                    progress;
  *   --brand-text     the accent as text (every theme but the house one was
  *                    solved to pass as text already, so it is the accent);
- *   --brand-muted    the soft accent ground under a selected row;
- *   --brand-wash     the frame: the sidebar, the top bar and the phone's
- *                    navigation, a very light tint of the theme's hue (a deep
- *                    one in dark), as Slack's themes recolour its sidebar;
+ *   --brand-muted    the ground for "this is about you": a mention row, the
+ *                    current agenda event, the selected task row;
  *   --progress-from, --progress-to: what progress fills with: the logo's
- *                    gradient for the house theme, the accent for the rest.
+ *                    gradient for the house theme, the accent for the rest;
+ *   --glow, --glow2  the campfire glow on the frame (globals.css .app-frame),
+ *                    as RGB triples: a radial of the theme's hue behind the
+ *                    workspace mark, and a fainter second light low down. The
+ *                    hue is the accent's own OKLCH hue (glowHue.test.ts).
  *
- * Wave 1 made the accent so scarce that a theme had almost nothing left to
- * colour: switching to blue moved the unread badges, one link and a barely
- * visible tint on the active row, and people said the picker did nothing. The
- * wash gives the choice a surface to show on, and the accent is back on the
- * controls that carry state. The neutrals, the ink, the page and the type
- * still belong to the product and do not change: the sheet where the work
- * sits stays the brightest, calmest thing on screen.
- *
- * Every wash is solved, not picked: sidebar text (text-2, and ink) stays AA on
- * it, the accent bar of the active row and the sun identity dot (the tightest
- * camp hue) stay 3:1 on it, and the active row stays a visible step off it.
- * paletteContrast.test.ts measures all of that for every theme, both modes.
+ * The wash this replaced (--brand-wash) tinted the whole frame, which read as
+ * beige and coffee-brown in the house theme and as mud in the others. v3 shows
+ * the theme as light instead: blue reads blue, violet reads violet, and the
+ * greys stay cool. The neutrals, the ink, the sheet and the type still belong
+ * to the product and do not change.
  *
  * EVERY VALUE IS SOLVED, NOT PICKED. Each accent sits as close to the brand's own
  * lightness as WCAG AA allows, checked in both directions: as text on the page,
@@ -55,145 +51,161 @@
 .theme-onecamp {
   --brand: oklch(0.5808 0.1764 40.35);
   --brand-text: oklch(0.5534 0.1739 38.40);
-  --brand-muted: oklch(0.9667 0.0194 55.15);
-  --brand-wash: oklch(0.972 0.007 65);
+  --brand-muted: #FCEFE6;
   --progress-from: #FF8A00;
   --progress-to: #FF3D00;
+  --glow: 255 110 30;
+  --glow2: 255 61 0;
 }
 .dark .theme-onecamp,
 .theme-onecamp.dark {
   --brand: oklch(0.7250 0.1811 45.30);
   --brand-text: oklch(0.7514 0.1610 46.76);
-  --brand-muted: oklch(0.2356 0.0313 52.65);
-  --brand-wash: oklch(0.232 0.014 55);
+  --brand-muted: #2A1A10;
   --progress-from: #FF8A00;
   --progress-to: #FF3D00;
+  --glow: 255 110 30;
+  --glow2: 255 61 0;
 }
 
 .theme-blue {
   --brand: oklch(0.55 0.15 250);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.02 250);
-  --brand-wash: oklch(0.968 0.02 250);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 40 130 230;
+  --glow2: 40 90 200;
 }
 .dark .theme-blue,
 .theme-blue.dark {
   --brand: oklch(0.74 0.132 250);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.038 250);
-  --brand-wash: oklch(0.235 0.034 250);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 40 130 230;
+  --glow2: 40 90 200;
 }
 
 .theme-green {
   --brand: oklch(0.54 0.13 150);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.018 150);
-  --brand-wash: oklch(0.970 0.018 150);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 40 170 90;
+  --glow2: 20 130 110;
 }
 .dark .theme-green,
 .theme-green.dark {
   --brand: oklch(0.74 0.114 150);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.034 150);
-  --brand-wash: oklch(0.235 0.03 150);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 40 170 90;
+  --glow2: 20 130 110;
 }
 
 .theme-amber {
   --brand: oklch(0.55 0.14 75);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.02 75);
-  --brand-wash: oklch(0.972 0.02 80);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 212 138 0;
+  --glow2: 179 95 0;
 }
 .dark .theme-amber,
 .theme-amber.dark {
   --brand: oklch(0.74 0.123 75);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.036 75);
-  --brand-wash: oklch(0.235 0.03 75);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 212 138 0;
+  --glow2: 179 95 0;
 }
 
 .theme-rose {
   --brand: oklch(0.55 0.16 15);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.022 15);
-  --brand-wash: oklch(0.968 0.016 15);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 230 80 110;
+  --glow2: 200 50 90;
 }
 .dark .theme-rose,
 .theme-rose.dark {
   --brand: oklch(0.74 0.141 15);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.04 15);
-  --brand-wash: oklch(0.235 0.032 15);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 230 80 110;
+  --glow2: 200 50 90;
 }
 
 .theme-violet {
   --brand: oklch(0.55 0.17 295);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.024 295);
-  --brand-wash: oklch(0.966 0.02 295);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 130 90 230;
+  --glow2: 90 70 200;
 }
 .dark .theme-violet,
 .theme-violet.dark {
   --brand: oklch(0.74 0.15 295);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.042 295);
-  --brand-wash: oklch(0.235 0.036 295);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 130 90 230;
+  --glow2: 90 70 200;
 }
 
 .theme-teal {
   --brand: oklch(0.534 0.11 190);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.016 190);
-  --brand-wash: oklch(0.970 0.018 190);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 0 180 173;
+  --glow2: 0 140 156;
 }
 .dark .theme-teal,
 .theme-teal.dark {
   --brand: oklch(0.74 0.097 190);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.03 190);
-  --brand-wash: oklch(0.235 0.028 190);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 0 180 173;
+  --glow2: 0 140 156;
 }
 
 .theme-orange {
   --brand: oklch(0.55 0.15 55);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.021 55);
-  --brand-wash: oklch(0.970 0.018 55);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 236 118 0;
+  --glow2: 199 73 0;
 }
 .dark .theme-orange,
 .theme-orange.dark {
   --brand: oklch(0.74 0.132 55);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.038 55);
-  --brand-wash: oklch(0.235 0.032 55);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 236 118 0;
+  --glow2: 199 73 0;
 }
 
 /* The three that were offered and never existed. A near-neutral accent is a
@@ -204,52 +216,58 @@
   --brand: oklch(0.55 0.035 250);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.008 250);
-  --brand-wash: oklch(0.968 0.008 250);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 110 120 140;
+  --glow2: 90 100 120;
 }
 .dark .theme-slate,
 .theme-slate.dark {
   --brand: oklch(0.74 0.031 250);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.014 250);
-  --brand-wash: oklch(0.235 0.014 250);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 110 120 140;
+  --glow2: 90 100 120;
 }
 
 .theme-zinc {
   --brand: oklch(0.55 0.015 285);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.005 285);
-  --brand-wash: oklch(0.968 0.005 285);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 117 117 137;
+  --glow2: 95 98 117;
 }
 .dark .theme-zinc,
 .theme-zinc.dark {
   --brand: oklch(0.74 0.013 285);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.008 285);
-  --brand-wash: oklch(0.235 0.01 285);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 117 117 137;
+  --glow2: 95 98 117;
 }
 
 .theme-stone {
   --brand: oklch(0.55 0.02 60);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.955 0.006 60);
-  --brand-wash: oklch(0.968 0.007 60);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 133 116 102;
+  --glow2: 114 95 84;
 }
 .dark .theme-stone,
 .theme-stone.dark {
   --brand: oklch(0.74 0.018 60);
   --brand-text: var(--brand);
   --brand-muted: oklch(0.28 0.01 60);
-  --brand-wash: oklch(0.235 0.012 60);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
+  --glow: 133 116 102;
+  --glow2: 114 95 84;
 }

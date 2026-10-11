@@ -25,4 +25,12 @@ describe("the agent sign-in page", () => {
     // Not its own centred 40px logo.
     expect(container.querySelector('img[alt="OneCamp"]')).toBeNull()
   })
+
+  // Design v3 (F9): a consent card, 440px wide, with the two-mark handshake.
+  it("is a 440px consent card with the handshake", async () => {
+    const { container } = render(<ConnectAuthorizePage />)
+    await screen.findByRole("heading", { level: 1 })
+    expect(container.querySelector(".auth-form")?.className).toContain("max-w-[440px]")
+    expect(container.querySelector("[data-consent-card] [data-handshake]")).not.toBeNull()
+  })
 })

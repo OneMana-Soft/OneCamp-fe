@@ -14,7 +14,8 @@ describe("the pause menu during focus time", () => {
   })
 
   it("names whichever lasts longer", () => {
-    expect(pauseMenuLabel(at(17), at(15))).toMatch(/^Paused until/)
+    // While a pause of your own runs the row offers to end it (hub.md P5).
+    expect(pauseMenuLabel(at(17), at(15))).toBe("Resume notifications")
     expect(pauseMenuLabel(at(14), at(15))).toMatch(/^Focus time until/)
   })
 

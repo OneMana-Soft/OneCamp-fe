@@ -49,8 +49,6 @@ const FRAME: CSSProperties = {
   ["--primary" as string]: "var(--brand-text)",
   ["--primary-foreground" as string]: "var(--brand-foreground)",
   ["--ring" as string]: "var(--brand)",
-  ["--canvas" as string]: "var(--brand-wash)",
-  ["--sidebar" as string]: "var(--brand-wash)",
 }
 
 /** The camp tokens as the current theme resolves them, re-read when it changes. */
@@ -141,7 +139,7 @@ export function PlayfulShowcase() {
               {CHANNELS.map((c) => (
                 <div key={c} className="flex items-center gap-2 text-sm">
                   <span className={cx(HUE_CLASS[hueFor(c)], "text-hue")}>
-                    <Hash className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                    <Hash className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <span>{c.slice(1)}</span>
                   <span className="ml-auto text-2xs text-muted-foreground">{hueFor(c)}</span>
@@ -303,11 +301,11 @@ export function PlayfulShowcase() {
                 <div className="space-y-1 rounded-lg border border-border bg-canvas p-2">
                   <p className="px-2 pb-1 text-2xs capitalize text-muted-foreground">{t}</p>
                   <div className="nav-active flex h-7 items-center gap-2 rounded-md px-2 text-sm font-medium">
-                    <Hash className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                    <Hash className="h-4 w-4" aria-hidden="true" />
                     engineering
                   </div>
                   <div className="nav-idle flex h-7 items-center gap-2 rounded-md px-2 text-sm">
-                    <Hash className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                    <Hash className="h-4 w-4" aria-hidden="true" />
                     general
                   </div>
                   <div className="flex items-center gap-3 px-2 pt-2">
@@ -322,9 +320,9 @@ export function PlayfulShowcase() {
               </div>
             ))}
           </div>
-          <div className="rounded-lg bg-brand-wash p-4">
-            <p className="text-sm font-medium">bg-brand-wash</p>
-            <p className="text-xs text-muted-foreground">A band in the theme&apos;s wash, for a Home greeting.</p>
+          <div className="app-frame overflow-hidden rounded-lg p-4">
+            <p className="text-sm font-medium">app-frame</p>
+            <p className="text-xs text-muted-foreground">The frame: graphite, with the theme&apos;s glow and the grain.</p>
           </div>
         </SettingsSection>
       </div>

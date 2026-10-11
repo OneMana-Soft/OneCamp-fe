@@ -10,17 +10,28 @@ import { Input, inputSizing } from "@/components/ui/input"
  * every computer (a task list's filter beside 32px chips, for one).
  *
  * jsdom has no stylesheet, so this reads the classes; e2e/designSystem.spec.ts
- * measures the same class lists in Chromium (44px at 390, 32 or 36px at 1280).
+ * measures the same class lists in Chromium (44px at 390, 32px at 1280).
  */
 afterEach(cleanup)
 
 const classesOf = (el: HTMLElement) => el.className.split(/\s+/)
 
+describe("Input's look (design v3)", () => {
+  it("is the raised field at e1 with no border, the field-surface utility", () => {
+    render(<Input aria-label="Look" />)
+    const c = classesOf(screen.getByRole("textbox", { name: "Look" }))
+    expect(c).toContain("field-surface")
+    expect(c).toContain("rounded-md")
+    expect(c).not.toContain("border")
+    expect(c).not.toContain("border-input")
+  })
+})
+
 describe("Input's height", () => {
-  it("is 44px on a phone and 36px from md up when the caller gives none", () => {
+  it("is 44px on a phone and 32px from md up when the caller gives none (design v3's field)", () => {
     render(<Input aria-label="Name" />)
     const c = classesOf(screen.getByRole("textbox", { name: "Name" }))
-    expect(c).toEqual(expect.arrayContaining(["h-11", "md:h-9"]))
+    expect(c).toEqual(expect.arrayContaining(["h-11", "md:h-8"]))
     expect(c).not.toContain("max-md:h-11")
   })
 
@@ -45,7 +56,7 @@ describe("Input's height", () => {
     const c = classesOf(screen.getByRole("textbox", { name: "Email" }))
     expect(c).toEqual(expect.arrayContaining(["h-11", "md:h-10"]))
     expect(c).not.toContain("md:h-9")
-    expect(inputSizing("sm:h-8", false)).toBe("h-11 md:h-9")
+    expect(inputSizing("sm:h-8", false)).toBe("h-11 md:h-8")
   })
 
   it("lets a field in a dense grid or a compound control keep its height at every width", () => {
@@ -53,7 +64,7 @@ describe("Input's height", () => {
     const c = classesOf(screen.getByRole("textbox", { name: "Cell" }))
     expect(c).toContain("h-7")
     for (const gone of ["h-11", "max-md:h-11", "md:h-9"]) expect(c).not.toContain(gone)
-    expect(inputSizing(undefined, true)).toBe("h-9")
+    expect(inputSizing(undefined, true)).toBe("h-8")
   })
 
   it("does not pass dense on to the element", () => {

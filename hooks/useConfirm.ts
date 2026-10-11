@@ -3,6 +3,7 @@
 import { useCallback } from "react"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
+import type { ConfirmIcon } from "@/components/dialog/confirmAlertDialog"
 
 // useConfirm returns an async-friendly confirm() that opens the app's themed
 // confirmation dialog (rendered by UnifiedUIManager via the `confirmAlert` UI
@@ -24,7 +25,24 @@ interface ConfirmOptions {
   cancelText?: string
   /** The action loses something (deletes, removes, revokes): its button is drawn in the danger colour. */
   destructive?: boolean
-  onConfirm: () => void
+  /**
+   * The glyph on the confirm's tile (design v3, admin §8 H3). Left out, it is
+   * picked from the words: power to stop, user-minus to take a person out, a
+   * bin to delete, a question mark for a safe question.
+   */
+  icon?: ConfirmIcon
+  /**
+   * Type-to-confirm (H4), for an action that destroys data or access for many
+   * people: the action stays disabled until this phrase (a workspace's name,
+   * a provider's) is typed exactly.
+   */
+  requireText?: string
+  /**
+   * Runs on confirm. Return the request's promise to keep the dialog open,
+   * with a spinner in the action, until the server answers; a rejection's
+   * reason then shows inside the dialog. Return nothing and it closes at once.
+   */
+  onConfirm: () => unknown
 }
 
 export function useConfirm() {
@@ -40,6 +58,8 @@ export function useConfirm() {
             confirmText: opts.confirmText || "Confirm",
             cancelText: opts.cancelText,
             destructive: opts.destructive === true,
+            icon: opts.icon,
+            requireText: opts.requireText,
             onConfirm: opts.onConfirm,
           },
         }),

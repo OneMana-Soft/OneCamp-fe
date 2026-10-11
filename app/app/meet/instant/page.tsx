@@ -64,7 +64,10 @@ export default function InstantMeetingPage() {
                     onJoin={handlePreJoin}
                     username={displayNameOf(selfProfile.data?.data) || ""}
                     hueId={selfProfile.data?.data.user_uuid}
-                    joinLabel={starting ? "Starting…" : "Start meeting"}
+                    joinLabel="Start meeting"
+                    joining={starting}
+                    // A new meeting: nobody is in it yet.
+                    inCall={[]}
                     onCancel={handleDisconnect}
                 />
                 {starting && (

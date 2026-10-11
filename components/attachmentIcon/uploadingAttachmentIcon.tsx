@@ -35,13 +35,13 @@ const UploadingAttachmentIcon = ({
 
     return (
         <div
-            className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-xl border-border"
+            className="relative m-1 mt-2 flex items-center justify-center gap-1 overflow-hidden rounded-xl bg-raised p-1.5 pr-3 shadow-e1"
 
         >
             <button
                 type="button"
                 aria-label="Cancel upload"
-                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border"
+                className="absolute right-1 top-1 z-[1] rounded-md bg-pop p-0.5 text-ink-3 shadow-e1 hover:text-ink"
                 onClick={(e) => {
                     e.stopPropagation();
                     removeFile();
@@ -52,11 +52,11 @@ const UploadingAttachmentIcon = ({
             <AttachmentIcon attachmentType={attachmentType} attachmentOnCLick={attachmentOnCLick} getUrl={getUrl} fileName={fileName} />
 
             {(isDesktop || (!getUrl) || (attachmentType == 'document') || (attachmentType == 'other')) && <div className="flex-col">
-                <div className="text-ellipsis truncate max-w-40 text-xs">
+                <div className="max-w-40 truncate text-ui-sm font-medium text-ink">
                     {fileName}
                 </div>
-                <div className="truncate max-w-40 text-2xs tabular-nums text-muted-foreground">
-                    Uploading… {progress}%
+                <div className="max-w-40 truncate text-meta tabular-nums text-ink-3">
+                    Uploading · {progress}%
                 </div>
             </div>}
             {/* How far it has got, on every tile, the picture-only ones on a
@@ -67,13 +67,14 @@ const UploadingAttachmentIcon = ({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={progress}
-                className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full bg-highlight"
+                className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-press"
             >
-                {/* Moves by transform, as the shared Progress does: growing its
-                    width laid the tile out again on every step. */}
+                {/* A 2px accent line along the card's foot (design v3 chat,
+                    C24), filling by transform and linearly: growing its width
+                    laid the tile out again on every step. */}
                 <div
-                    className="h-full w-full rounded-full bg-foreground/50 transition-transform duration-200 ease-out motion-reduce:transition-none"
-                    style={{ transform: `translateX(-${100 - Math.max(0, Math.min(100, progress))}%)` }}
+                    className="h-full w-full origin-left bg-brand transition-transform duration-200 ease-linear motion-reduce:transition-none"
+                    style={{ transform: `scaleX(${Math.max(0, Math.min(100, progress)) / 100})` }}
                 />
             </div>
         </div>

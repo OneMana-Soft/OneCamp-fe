@@ -1,12 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { type DialogProps } from "@radix-ui/react-dialog"
 import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -23,41 +21,6 @@ const Command = React.forwardRef<
 ))
 Command.displayName = CommandPrimitive.displayName
 
-/**
- * `commandProps` reach the cmdk root, for a palette that filters on its own
- * (`shouldFilter: false`). The input row keeps clear of the dialog's close
- * button, which used to sit on top of the shortcut chip at its right edge.
- *
- * The dialog hangs from a fixed height rather than sitting in the middle of
- * the window: centred, it moved with every change in the list's length, so
- * the field being typed in jumped 230px between the empty palette and a short
- * answer, and again as each answer came in.
- */
-const CommandDialog = ({
-  children,
-  commandProps,
-  ...props
-}: DialogProps & { commandProps?: React.ComponentPropsWithoutRef<typeof CommandPrimitive> }) => {
-  return (
-    <Dialog {...props}>
-      <DialogContent data-command-dialog="" className="top-[12dvh] translate-y-0 overflow-hidden p-0">
-        <DialogTitle className="sr-only">Command palette</DialogTitle>
-        <DialogDescription className="sr-only">
-          Search and execute commands using the command palette.
-        </DialogDescription>
-        <Command
-          {...commandProps}
-          className={cn(
-            "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]]:pr-12 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:min-h-9 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-1.5 [&_[cmdk-item]_svg]:h-4 [&_[cmdk-item]_svg]:w-4",
-            commandProps?.className,
-          )}
-        >
-          {children}
-        </Command>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 /**
  * `hint` is optional: a key chip or short note shown at the input's right
@@ -172,7 +135,6 @@ CommandShortcut.displayName = "CommandShortcut"
 
 export {
   Command,
-  CommandDialog,
   CommandInput,
   CommandList,
   CommandEmpty,

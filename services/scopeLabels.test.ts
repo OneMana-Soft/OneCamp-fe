@@ -13,6 +13,9 @@ describe("scope labels", () => {
   })
 
   it("give each permission on the agent's consent page a phone-sized row", () => {
-    expect(readFileSync("components/connect/ConnectAuthorize.tsx", "utf8")).toMatch(/<Label key=\{s\} className="flex min-h-11/)
+    // Design v3 (admin F9): 36px scope rows, 44px on a phone, from auth.css.
+    expect(readFileSync("components/connect/ConnectAuthorize.tsx", "utf8")).toMatch(/<label key=\{s\} className="auth-scope"/)
+    const css = readFileSync("app/styles/admin/auth.css", "utf8")
+    expect(css).toMatch(/\.auth-scope \{ min-height: 44px; \}/)
   })
 })

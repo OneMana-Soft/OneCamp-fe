@@ -1,0 +1,384 @@
+/* THE CONTENT AREA (design v3, content.md §1.3): docs, tables, boards, the
+   calendar, booking and files. One set of motion tokens, so every floating
+   thing in the area moves the same way, and app/contentMotion.test.ts can
+   find each by name. Everything here animates transform and opacity; the two
+   colour fades the spec allows (row-in, cell-commit) run on a pseudo-element's
+   opacity instead, so they cost nothing either. The global reduced-motion rule
+   in globals.css stills all of it. */
+
+:root {
+  /* float-in: selection toolbar, slash menu, mention list, column menu, event
+     popover. In 180 ms, out 120 ms (opacity only). */
+  --content-float-in-duration: 180ms;
+  --content-float-in-ease: var(--ease-out);
+  --content-float-out-duration: 120ms;
+  /* float-follow: a floating bar sliding to a new anchor while open. */
+  --content-float-follow-duration: 120ms;
+  --content-float-follow-ease: var(--ease-out);
+  /* menu-cursor: the one highlight pill that slides between rows. */
+  --content-menu-cursor-duration: 90ms;
+  --content-menu-cursor-ease: var(--ease-out);
+  /* period: calendar prev/next/today, direction follows time. */
+  --content-period-duration: 220ms;
+  --content-period-ease: var(--ease-out);
+  /* event-in: event blocks on the first reveal of a period. */
+  --content-event-in-duration: 240ms;
+  --content-event-in-ease: var(--ease-spring);
+  --content-event-in-stagger: 12ms;
+  /* ghost: the drag-create label pulse at each 15-minute snap. */
+  --content-ghost-duration: 90ms;
+  --content-ghost-ease: var(--ease-out);
+  /* caret-flag: a collaborator's name flag, in, held, then out to a dot. */
+  --content-caret-flag-duration: 160ms;
+  --content-caret-flag-ease: var(--ease-out);
+  --content-caret-flag-hold: 3s;
+  --content-caret-flag-out: 400ms;
+  /* row-in: a row or block a collaborator added, tinted then cleared. */
+  --content-row-in-duration: 200ms;
+  --content-row-in-ease: var(--ease-out);
+  --content-row-in-fade: 1.2s;
+  /* cell-commit: a saved cell's moss ring fading out. */
+  --content-cell-commit-duration: 600ms;
+  --content-cell-commit-ease: var(--ease-out);
+  /* width-step: the booking card's columns, the doc measure. */
+  --content-width-step-duration: 240ms;
+  --content-width-step-ease: var(--ease-in-out);
+  /* save-dot: the doc's save dot breathing while it saves. */
+  --content-save-dot-duration: 1.2s;
+  --content-save-dot-ease: var(--ease-in-out);
+
+  /* The doc's reading measure (D07). */
+  --doc-measure: 720px;
+  --doc-measure-full: 1040px;
+  /* The doc's tracking (D06, D07), from the scale's dynamic metrics:
+     body and h3 at 16 px, h1 at 24, h2 at 20, the title at 32. */
+  --doc-tracking-body: -0.011em;
+  --doc-tracking-h1: -0.019em;
+  --doc-tracking-h2: -0.017em;
+  --doc-tracking-title: -0.021em;
+}
+
+/* ---- float-in ------------------------------------------------------------ */
+
+@keyframes content-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--float-from-y, 4px)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes content-float-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Anything that floats in the area. Radix content (data-state) gets the out
+   fade too; a bare element just enters. Placed below its anchor, it comes
+   down from -4 px instead (data-side="bottom" or .float-below). */
+@utility content-float {
+  transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, var(--float-origin, center top)));
+  animation: content-float-in var(--content-float-in-duration) var(--content-float-in-ease) both;
+  &[data-side="bottom"],
+  &.float-below {
+    --float-from-y: -4px;
+  }
+  &[data-state="closed"] {
+    animation: content-float-out var(--content-float-out-duration) var(--content-float-in-ease) both;
+  }
+}
+
+/* A floating bar that moves to a new anchor while open slides there
+   (left/top written as a transform by the component). */
+@utility content-float-follow {
+  transition: transform var(--content-float-follow-duration) var(--content-float-follow-ease);
+}
+
+/* ---- menu-cursor --------------------------------------------------------- */
+
+@utility content-menu-cursor {
+  transition: transform var(--content-menu-cursor-duration) var(--content-menu-cursor-ease),
+    opacity var(--content-menu-cursor-duration) var(--content-menu-cursor-ease);
+}
+
+/* ---- period -------------------------------------------------------------- */
+
+@keyframes content-period-next {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes content-period-prev {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes content-view-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@utility content-period-next {
+  animation: content-period-next var(--content-period-duration) var(--content-period-ease) both;
+}
+@utility content-period-prev {
+  animation: content-period-prev var(--content-period-duration) var(--content-period-ease) both;
+}
+@utility content-view-in {
+  animation: content-view-in var(--content-period-duration) var(--content-period-ease) both;
+}
+
+/* ---- event-in ------------------------------------------------------------ */
+
+@keyframes content-event-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --i is the block's index; the delay caps at 180 ms. */
+@utility content-event-in {
+  transform-origin: center top;
+  animation: content-event-in var(--content-event-in-duration) var(--content-event-in-ease) both;
+  animation-delay: min(calc(var(--i, 0) * var(--content-event-in-stagger)), 180ms);
+}
+
+/* ---- ghost --------------------------------------------------------------- */
+
+@keyframes content-ghost-pulse {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.04); }
+}
+
+@utility content-ghost-pulse {
+  animation: content-ghost-pulse var(--content-ghost-duration) var(--content-ghost-ease);
+}
+
+/* ---- row-in and cell-commit ---------------------------------------------- */
+
+/* A row a collaborator added rises 4 px and wears the author's tint
+   (--hue-tint, set by a hue-* class) for 1.2 s, faded on a pseudo-element. */
+@keyframes content-row-rise {
+  from { transform: translateY(4px); }
+  to { transform: none; }
+}
+@keyframes content-tint-out {
+  from { opacity: 0.6; }
+  to { opacity: 0; }
+}
+
+@utility content-row-in {
+  position: relative;
+  animation: content-row-rise var(--content-row-in-duration) var(--content-row-in-ease) both;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: var(--hue-tint, var(--brand-muted));
+    animation: content-tint-out var(--content-row-in-fade) var(--content-row-in-ease) both;
+  }
+}
+
+/* A saved cell: a 1 px moss ring, .6 -> 0 over 600 ms. */
+@utility content-cell-commit {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px var(--commit-ring, var(--camp-moss));
+    animation: content-tint-out var(--content-cell-commit-duration) var(--content-cell-commit-ease) both;
+  }
+}
+
+/* ---- save-dot ------------------------------------------------------------ */
+
+@keyframes content-save-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes content-save-land {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.15); }
+  100% { transform: none; }
+}
+
+@utility content-save-pulse {
+  animation: content-save-pulse var(--content-save-dot-duration) var(--content-save-dot-ease) infinite;
+}
+@utility content-save-land {
+  animation: content-save-land var(--duration-spring) var(--ease-spring) both;
+}
+
+/* ---- small shared moments ------------------------------------------------ */
+
+/* Today's ring, once, when Today lands it in view. */
+@keyframes content-breath {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.15); }
+}
+@utility content-breath {
+  animation: content-breath 400ms var(--ease-in-out);
+}
+
+/* A label sliding in beside its dot (offline, not saved). */
+@keyframes content-slide-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@utility content-slide-in {
+  animation: content-slide-in var(--duration-pop) var(--ease-out) both;
+}
+
+/* A list or grid's items on first load: y 6 -> 0, staggered by --i, capped. */
+@keyframes content-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@utility content-rise {
+  animation: content-rise 200ms var(--ease-out) both;
+  animation-delay: min(calc(var(--i, 0) * 20ms), 160ms);
+}
+
+/* A spark's twinkle, once (scale 0 -> 1.2 -> 1). */
+@keyframes content-twinkle {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.2); }
+  100% { transform: none; }
+}
+@utility content-twinkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: content-twinkle 420ms var(--ease-spring) 200ms both;
+}
+
+/* A chip or a vote dot popping in. */
+@keyframes content-pop-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@utility content-pop-in {
+  animation: content-pop-in var(--duration-spring) var(--ease-spring) both;
+}
+
+/* Collapsible content by grid rows (toggle, comment resolve, expanding cards):
+   the row track animates, which lays out one small box (the spec's choice
+   over max-height). */
+@utility content-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--ease-in-out);
+  &[data-collapsed="true"] {
+    grid-template-rows: 0fr;
+  }
+  & > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+/* The dot grid a board sits on: 1 px --line-2 dots every 12 px on sunken. */
+@utility dot-ground {
+  background-color: var(--sunken);
+  background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 1.2px);
+  background-size: 12px 12px;
+}
+
+/* Focus time's hatch: 1 px --line-2 at 135 deg, every 6 px, on sunken. */
+@utility focus-hatch {
+  background-color: var(--sunken);
+  background-image: repeating-linear-gradient(135deg, var(--line-2) 0 1px, transparent 1px 6px);
+}
+
+/* ---- the public frame (content.md rule 6) -------------------------------- */
+
+/* The page people outside the workspace see: --frame with the campfire glow
+   at half strength and the grain, fixed behind the content so a long page
+   keeps its light at the top. */
+@layer components {
+  .public-frame {
+    position: relative;
+    isolation: isolate;
+    background: var(--frame);
+  }
+  .public-frame::before,
+  .public-frame::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .public-frame::before {
+    background:
+      radial-gradient(760px 520px at -80px -100px, rgb(var(--glow) / 0.12), transparent 68%),
+      radial-gradient(480px 340px at 100% 100%, rgb(var(--glow2) / 0.045), transparent 70%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.02), transparent 55%);
+  }
+  .dark .public-frame::before {
+    background:
+      radial-gradient(700px 480px at -80px -100px, rgb(var(--glow) / 0.085), transparent 68%),
+      radial-gradient(480px 340px at 100% 100%, rgb(var(--glow2) / 0.04), transparent 70%),
+      linear-gradient(180deg, rgb(var(--glow) / 0.015), transparent 55%);
+  }
+  .public-frame::after {
+    opacity: var(--grain-opacity);
+    mix-blend-mode: var(--grain-blend);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .public-frame::after {
+      display: none;
+    }
+  }
+  /* The header goes from transparent to the sheet at 85 % with the one
+     blur once the page scrolls. */
+  .public-header[data-scrolled="true"] {
+    background: color-mix(in oklab, var(--sheet) 85%, transparent);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 1px 0 var(--line);
+  }
+}
+
+/* The paper card a public page reads on enters once. */
+@keyframes content-paper-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@utility content-paper-in {
+  animation: content-paper-in var(--duration-page) var(--ease-out) both;
+}
+
+/* ---- charts (T18) --------------------------------------------------------- */
+
+/* Bars grow from the baseline on first view (scaleY about the baseline,
+   which the bar sets as its transform-origin in viewBox units); a line draws
+   itself in; a donut sweeps in from 12 o'clock. Reduced motion: drawn. */
+@keyframes chart-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: none; }
+}
+@keyframes chart-line-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes chart-donut-in {
+  from { opacity: 0; transform: rotate(-24deg) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@utility chart-bar-grow {
+  transform-box: view-box;
+  animation: chart-bar-grow 320ms var(--ease-out) both;
+}
+@utility chart-line-draw {
+  stroke-dasharray: 1;
+  animation: chart-line-draw 480ms var(--ease-out) both;
+}
+@utility chart-donut-in {
+  transform-box: view-box;
+  animation: chart-donut-in 480ms var(--ease-out) both;
+}

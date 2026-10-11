@@ -20,9 +20,17 @@ afterEach(cleanup)
 const CSS = readFileSync(join(__dirname, "../../app/globals.css"), "utf8")
 
 describe("controls that carry state take the accent", () => {
-  it("fills a checked box with the accent", () => {
+  // Design v3 (§3.10) moves the checked box to moss with a white check: a
+  // check is "done", which is moss everywhere (the status glyph), and the
+  // accent's share stays under 2% of a view. The switch keeps the accent.
+  it("fills a checked box with moss, and springs it back from a press", () => {
     render(<Checkbox aria-label="Done" defaultChecked />)
-    expect(screen.getByRole("checkbox").className).toContain("data-[state=checked]:bg-primary")
+    const cls = screen.getByRole("checkbox").className
+    expect(cls).toContain("data-[state=checked]:bg-camp-moss")
+    expect(cls).toContain("data-[state=checked]:text-white")
+    expect(cls).toContain("rounded-[5px]")
+    expect(cls).toContain("transition-spring")
+    expect(cls).toContain("active:scale-[0.88]")
   })
 
   it("marks the picked radio in the accent", () => {
@@ -53,7 +61,7 @@ describe("controls that carry state take the accent", () => {
 
   it("tints selected text with the theme's accent under the text's own ink", () => {
     const body = CSS.slice(CSS.indexOf("\nbody {"), CSS.indexOf("\n}", CSS.indexOf("\nbody {")))
-    expect(body).toMatch(/--selection:\s*color-mix\(in oklab, var\(--brand\) 26%, var\(--background\)\);/)
+    expect(body).toMatch(/--selection:\s*color-mix\(in oklab, var\(--brand\) 22%, var\(--background\)\);/)
     expect(body).toMatch(/--selection-foreground:\s*var\(--foreground\);/)
   })
 })
@@ -64,12 +72,17 @@ describe("the current place in the navigation", () => {
     return CSS.slice(at, CSS.indexOf("}", at))
   }
 
-  it("is a step of the accent on the wash, with a 2px accent bar at the start edge", () => {
-    expect(rule(".nav-active")).toMatch(/background:\s*color-mix\(in oklab, var\(--brand\) 12%, var\(--brand-muted\)\);/)
-    const bar = rule(".nav-active::before")
-    expect(bar).toMatch(/inset-inline-start:\s*0;/)
-    expect(bar).toMatch(/width:\s*2px;/)
-    expect(bar).toMatch(/background:\s*var\(--brand\);/)
+  // Design v3 (§2a): the peach fill and its orange bar are retired. The
+  // current place is a raised chip at e-sel, its label ink at 510 and its
+  // icon in the accent.
+  it("is a raised chip at e-sel, with ink at 510 and the icon in the accent, and no bar", () => {
+    const chip = rule(".nav-active")
+    expect(chip).toMatch(/background:\s*var\(--raised\);/)
+    expect(chip).toMatch(/box-shadow:\s*var\(--e-sel\);/)
+    expect(chip).toMatch(/color:\s*var\(--ink\);/)
+    expect(chip).toMatch(/font-weight:\s*510;/)
+    expect(rule(".nav-active svg.lucide")).toMatch(/color:\s*var\(--brand\);/)
+    expect(CSS).not.toMatch(/\.nav-active::before/)
   })
 
   it("is the same for a Button in the sidebar", () => {

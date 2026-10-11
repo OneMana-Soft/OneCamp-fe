@@ -62,7 +62,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
 
     if (type === "pdf") {
         return (
-            <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-lg">
+            <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-e3">
                 <iframe
                     src={`${url}#toolbar=1&navpanes=1&scrollbar=1`}
                     className="w-full h-full border-0"
@@ -94,7 +94,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
 
     if (htmlContent) {
         return (
-            <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-lg flex flex-col">
+            <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-e3 flex flex-col">
                 <div className="flex-1 overflow-auto p-8 max-w-none bg-white text-black">
                     <SafeHtml html={htmlContent} sanitizer={sanitizeImportedDocument} />
                 </div>
@@ -119,7 +119,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
     if (type === "image" && url) {
         return (
             <div className="w-full h-full flex items-center justify-center">
-                <img src={url || "/placeholder.svg"} alt="Document" className="max-w-full max-h-full object-contain rounded-md shadow-md" />
+                <img src={url || "/placeholder.svg"} alt="Document" className="max-w-full max-h-full object-contain rounded-md shadow-e3" />
             </div>
         )
     }

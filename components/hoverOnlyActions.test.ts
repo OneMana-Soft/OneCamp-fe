@@ -21,21 +21,16 @@ const TOUCH = /\[@media\(hover:none\)\]:|\[@media\(hover:hover\)\]:(?:group-hove
 
 /** Hover-only on purpose: decoration beside a control that is always there. */
 const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
-  ["components/home/SetupChecklist.tsx", "h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0", "an arrow echoing the row, which is the link"],
-  ["components/ai/ConnectorSearchResults.tsx", "mt-1 h-4 w-4 shrink-0 text-muted-foreground opacity-0", "an external-link glyph on a row that is the link"],
-  ["components/ai/SearchAnswer.tsx", "h-3 w-3 shrink-0 text-muted-foreground opacity-0", "an external-link glyph on a row that is the link"],
+  ["components/task/taskRowParts.tsx", "inline-block shrink-0 rounded-full border border-dashed border-line-3 opacity-0", "an empty assignee's ring, decoration; the panel assigns"],
   ["components/ai/AiScheduleDialog.tsx", "shrink-0 text-2xs text-muted-foreground opacity-0", "a check glyph on a slot row, which is the button"],
   ["components/ai/RescheduleDialog.tsx", "shrink-0 opacity-0 pointer-events-none transition-opacity", "a check glyph on a slot row, which is the button"],
-  ["components/message/messageReplyCount.tsx", "md:inline opacity-0", "a chevron on the reply count, which is the link"],
-  ["components/message/continuedGutter.tsx", "-mr-1.5 block whitespace-nowrap", "the time of a continued message, also in the row's title"],
-  ["components/navigationBar/desktop/desktopSideNavigationBar.tsx", "rotate-90 opacity-0", "the section's chevron; the label folds it"],
-  ["components/ai/DocAiAssistantPanel.tsx", "bg-[radial-gradient", "a hover glow"],
-  ["components/dialog/editProfileDailog.tsx", "bg-black/40 opacity-0", "a pointer's shortcut to the Upload button beside it"],
+  ["components/message/continuedGutter.tsx", "absolute right-0 top-0 whitespace-nowrap", "the time of a continued message, also in the row's title and a screen reader's text; a phone shows it in the action sheet (C08)"],
   ["components/attachments/videoPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/fileUpload/AudioPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/project/timeline/TimelineBar.tsx", "cursor-crosshair", "the drag handle for a dependency, a pointer gesture"],
+  ["components/project/ProjectsOverview.tsx", "opacity-0 group-hover/h:opacity-100", "a sort chevron on a column header, which is the button"],
+  ["components/task/TaskCheck.tsx", "pointer-events-none absolute inset-0 opacity-0", "a pointer's preview of the check on the status glyph, which is the button"],
   // These two message toolbars appear on the message a touch taps (hooks/useTouchReveal).
-  ["components/rightPanel/messageContent.tsx", "opacity-0 pointer-events-none group-hover:opacity-100", "shown on tap by useTouchReveal"],
 ]
 
 function files(dir: string): string[] {

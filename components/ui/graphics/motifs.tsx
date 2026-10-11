@@ -26,7 +26,8 @@ const CORE_R = 12
 const CORE_W = 4
 
 /** The four-point spark, in a 24 box. */
-export const SPARK_PATH = "M12 2Q13.6 10.4 22 12Q13.6 13.6 12 22Q10.4 13.6 2 12Q10.4 10.4 12 2Z"
+/** The four-point spark of design v3 (§3.12): softer shoulders than the quadratic star it replaced. */
+export const SPARK_PATH = "M12 2.5c.5 4.6 2.9 7 9.5 9.5-6.6 2.5-9 4.9-9.5 9.5-.5-4.6-2.9-7-9.5-9.5 6.6-2.5 9-4.9 9.5-9.5z"
 
 /**
  * Concentric rings fading outward from the logo's ring, like the ripple of a

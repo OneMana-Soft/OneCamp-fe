@@ -3,32 +3,32 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
-import { SpotError } from "@/components/ui/graphics/spots"
+import { SpotShieldLock } from "@/components/auth/authSpots"
 import { app_home_path, app_login_path } from "@/types/paths"
 
 /**
- * /error/not-authorised: where the API's 401 or 403 sends the browser.
+ * /error/not-authorised: where the API's 401 or 403 sends the browser (design
+ * v3, admin.md F10). The centred shell, the shield-with-a-lock spot, one
+ * sentence, "Go to Home" as the way on.
  *
- * Nothing is broken, so it is not drawn as an error (no red shield, no
- * "Error 401"): the session ended or the page is someone else's, and the way
- * on is to sign in again.
+ * Nothing is broken, so it is not drawn as an error (no red, no "Error 401").
+ * The spec's "Ask an admin" is left out: this page can't know who the admins
+ * are (it may be reached signed out), so it offers signing in again, which is
+ * what a 401 needs, as the second action.
  */
 export default function NotAuthorised() {
     return (
         <AuthShell>
-            <AuthHeading title="Sign in again to carry on" art={<SpotError />}>
-                Your session ended, or this page belongs to an account you aren&apos;t signed in with.
+            <AuthHeading title="You don't have access to this" art={<SpotShieldLock />} center>
+                Your session may have ended, or this page belongs to an account you aren&apos;t signed in with.
             </AuthHeading>
-            <div className="space-y-4">
-                <Button asChild className={authControl}>
-                    <Link href={app_login_path}>Sign in</Link>
+            <div className="space-y-2">
+                <Button size="lg" asChild className={authControl}>
+                    <Link href={app_home_path}>Go to Home</Link>
                 </Button>
-                <p className="text-sm text-muted-foreground">
-                    <Link href={app_home_path} className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Go to your workspace
-                    </Link>{" "}
-                    if you&apos;re still signed in.
-                </p>
+                <Button size="lg" variant="secondary" asChild className={authControl}>
+                    <Link href={app_login_path}>Sign in again</Link>
+                </Button>
             </div>
         </AuthShell>
     )

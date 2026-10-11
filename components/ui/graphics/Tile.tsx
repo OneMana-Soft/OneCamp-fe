@@ -14,6 +14,8 @@ const SIZES = {
   sm: "size-6 rounded-md [&>svg]:size-3.5",
   md: "size-8 rounded-lg [&>svg]:size-4",
   lg: "size-10 rounded-lg [&>svg]:size-5",
+  /** A page's header tile (design v3, admin §1.2): 36px, r10, an 18px glyph. */
+  header: "size-9 rounded-[10px] [&>svg]:size-[18px]",
 } as const
 
 export type TileSize = keyof typeof SIZES

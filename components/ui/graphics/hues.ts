@@ -19,13 +19,15 @@ export const HUE_CLASS: Record<CampHue, string> = {
 }
 
 /**
- * A face without a photo: the hue's tint behind its ink initials, inside a
- * hairline of its strong cut. One harmonised set of six rather than a random
- * pastel per person; ink on its tint is 5.9:1 or more in light and 10.4:1 or
- * more in dark (paletteContrast.test.ts).
+ * A face without a photo (design v3, §3.9): a saturated disc in the hue's
+ * avatar cut, a1 to a2 at 140 degrees, with white initials and a soft inner
+ * ring (avatar-person in globals.css). White is 4.5:1 or more at the middle
+ * of every hue's disc (paletteContrast.test.ts). It replaced the pastel tint
+ * with ink initials, which gave every person the visual weight of an empty
+ * state.
  */
 export function avatarHueClass(hue: CampHue): string {
-  return `${HUE_CLASS[hue]} bg-hue-tint text-hue-ink ring-1 ring-inset ring-hue/40`
+  return `${HUE_CLASS[hue]} avatar-person text-white`
 }
 
 /**

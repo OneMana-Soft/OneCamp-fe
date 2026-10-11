@@ -66,35 +66,64 @@ async function probeUtility(
   )
 }
 
-test.describe("elevation rule, as rendered", () => {
-  test("the Input primitive computes no box-shadow", async ({ page }) => {
+/**
+ * Design v3 (11 Oct 2026, DESIGN_V3.md §3.8) reversed wave 1's "no shadows on
+ * cards, inputs or buttons": every surface sits on a step of the elevation
+ * ladder, a ring plus drops. These used to assert box-shadow "none" on Input
+ * and Button; they now assert the ladder as it renders.
+ */
+test.describe("elevation ladder, as rendered", () => {
+  test("the Input primitive rests at e1: a 1px ring and a 1px drop, no border", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
     const input = page.locator('input[type="password"]').first()
     await expect(input).toBeVisible({ timeout: 10_000 })
-    // "none" is what a flat surface computes to. A leftover shadow-sm would
-    // compute to an rgba(...) triple here regardless of what the source says.
-    expect(await computed(page, 'input[type="password"]', "box-shadow")).toBe("none")
+    const shadow = await computed(page, 'input[type="password"]', "box-shadow")
+    expect(shadow).toMatch(/0px 0px 0px 1px/)
+    expect(shadow.split(/,(?![^(]*\))/).length).toBeGreaterThanOrEqual(2)
+    expect(await computed(page, 'input[type="password"]', "border-top-width")).toBe("0px")
   })
 
-  test("the Button primitive computes no box-shadow", async ({ page }) => {
+  test("the primary button carries its inner highlight, and a ghost button nothing", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
-    const button = page.getByRole("button").first()
-    await expect(button).toBeVisible({ timeout: 10_000 })
-    const shadow = await page.evaluate(() => {
+    const submit = page.locator('form button[type="submit"]')
+    await expect(submit).toBeVisible({ timeout: 10_000 })
+    const primary = await submit.evaluate((el) => getComputedStyle(el).boxShadow)
+    expect(primary).toMatch(/rgba\(255, 255, 255, 0\.2\) 0px 1px 0px 0px inset/)
+    const ghost = await page.evaluate(() => {
       const el = document.querySelector("button")
       return el ? getComputedStyle(el).boxShadow : "MISSING"
     })
-    expect(shadow).toBe("none")
+    expect(ghost).toBe("none")
   })
 
-  test("shadow-overlay still produces a real elevation, so the rule is not just 'no shadows'", async ({
-    page,
-  }) => {
+  test("every step of the ladder renders, and the floating step is deeper than the resting one", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
-    const overlay = await probeUtility(page, "shadow-overlay", "box-shadow")
-    // Must be a real shadow AND carry the hairline ring (two comma-separated layers).
-    expect(overlay).not.toBe("none")
-    expect(overlay.split(/,(?![^(]*\))/).length).toBeGreaterThan(1)
+    const layers = async (cls: string) => (await probeUtility(page, cls, "box-shadow")).split(/,(?![^(]*\))/).length
+    for (const cls of ["shadow-e1", "shadow-sel", "shadow-e2", "shadow-e3", "shadow-e4", "shadow-sheet", "shadow-overlay", "shadow-dialog"]) {
+      expect(await probeUtility(page, cls, "box-shadow"), cls).not.toBe("none")
+    }
+    expect(await layers("shadow-e3")).toBeGreaterThanOrEqual(await layers("shadow-e1"))
+    // Dark adds a top highlight to the resting step.
+    expect(await probeUtility(page, "shadow-e1", "box-shadow", { dark: true })).toMatch(/inset/)
+  })
+})
+
+test.describe("type, as rendered (design v3)", () => {
+  test("body is Inter at 14px with Inter's -0.006em tracking, its optical sizes and v3's features", async ({ page }) => {
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await computed(page, "body", "font-size")).toBe("14px")
+    expect(parseFloat(await computed(page, "body", "letter-spacing"))).toBeCloseTo(-0.084, 2)
+    expect(await computed(page, "body", "font-optical-sizing")).toBe("auto")
+    expect(await computed(page, "body", "font-feature-settings")).toMatch(/cv11/)
+    expect(await computed(page, "body", "text-rendering")).not.toBe("optimizelegibility")
+    expect(await computed(page, "body", "font-family")).not.toMatch(/Tight/i)
+  })
+
+  test("a title takes 590, never 700", async ({ page }) => {
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await probeUtility(page, "font-semibold", "font-weight")).toBe("590")
+    expect(await probeUtility(page, "font-bold", "font-weight")).toBe("600")
+    expect(await probeUtility(page, "text-title-1", "font-size")).toBe("24px")
   })
 })
 
@@ -107,8 +136,8 @@ test.describe("radius agrees across primitives", () => {
     // The point of dropping the rounded-xl overrides: a control and its
     // neighbouring control must not differ. Whatever the value, it must match.
     expect(inputRadius).toBe(buttonRadius)
-    // And it must be the small end of the scale, not a 14px+ pill.
-    expect(parseFloat(inputRadius)).toBeLessThanOrEqual(10)
+    // Design v3's control radius is 8px (it was 6).
+    expect(parseFloat(inputRadius)).toBe(8)
   })
 })
 
@@ -374,7 +403,8 @@ test.describe("accent themes reach the components", () => {
 
 /**
  * Input's height, as rendered. components/ui/input.tsx (inputSizing) gives a
- * field `h-11 md:h-9` when its caller sets no height, and `max-md:h-11` beside
+ * field `h-11 md:h-8` when its caller sets no height (design v3's 32px field,
+ * the md button's height; it was h-9, 36px), and `max-md:h-11` beside
  * a caller's own height, which then holds from md up as written; a `dense`
  * field keeps the caller's height at every width. input.test.tsx holds those
  * class lists; this measures them in Chromium. The default used to win over a
@@ -392,18 +422,18 @@ test.describe("Input heights, as rendered", () => {
       return h
     }, classes)
 
-  test("from md up, a caller's h-8 is 32px and a field with no height of its own 36px", async ({ page }) => {
+  test("from md up, a caller's h-7 is 28px and a field with no height of its own 32px", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(PRIMITIVES_PAGE)
-    expect(await heightOf(page, "max-md:h-11 h-8")).toBe(32)
-    expect(await heightOf(page, "h-11 md:h-9")).toBe(36)
+    expect(await heightOf(page, "max-md:h-11 h-7")).toBe(28)
+    expect(await heightOf(page, "h-11 md:h-8")).toBe(32)
   })
 
   test("below md both are 44px, and a dense field keeps its own height", async ({ page }) => {
     await page.setViewportSize(MOBILE)
     await page.goto(PRIMITIVES_PAGE)
     expect(await heightOf(page, "max-md:h-11 h-8")).toBe(44)
-    expect(await heightOf(page, "h-11 md:h-9")).toBe(44)
+    expect(await heightOf(page, "h-11 md:h-8")).toBe(44)
     expect(await heightOf(page, "h-8")).toBe(32)
   })
 })
@@ -419,7 +449,7 @@ test.describe("Input heights, as rendered", () => {
 test.describe("Select heights, as rendered", () => {
   // The trigger's own box classes (padding and border included), then the
   // sizing inputSizing gives it.
-  const TRIGGER = "flex w-full items-center justify-between rounded-md border border-input px-3 py-2 text-sm"
+  const TRIGGER = "field-surface flex w-full items-center justify-between rounded-md px-2.5 py-1 text-sm"
   const heightOf = (page: Page, sizing: string) =>
     page.evaluate((cls) => {
       const el = document.createElement("button")
@@ -431,17 +461,17 @@ test.describe("Select heights, as rendered", () => {
       return h
     }, `${TRIGGER} ${sizing}`)
 
-  test("from md up, a select with no height of its own is 36px and a caller's h-8 32px", async ({ page }) => {
+  test("from md up, a select with no height of its own is 32px and a caller's h-7 28px", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(PRIMITIVES_PAGE)
-    expect(await heightOf(page, "h-11 md:h-9")).toBe(36)
-    expect(await heightOf(page, "max-md:h-11 h-8")).toBe(32)
+    expect(await heightOf(page, "h-11 md:h-8")).toBe(32)
+    expect(await heightOf(page, "max-md:h-11 h-7")).toBe(28)
   })
 
   test("on a phone a select is 44px, and a dense h-8 select keeps its 32px", async ({ page }) => {
     await page.setViewportSize(MOBILE)
     await page.goto(PRIMITIVES_PAGE)
-    expect(await heightOf(page, "h-11 md:h-9")).toBe(44)
+    expect(await heightOf(page, "h-11 md:h-8")).toBe(44)
     expect(await heightOf(page, "max-md:h-11 h-8")).toBe(44)
     expect(await heightOf(page, "h-8")).toBe(32)
   })

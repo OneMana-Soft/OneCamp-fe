@@ -9,14 +9,14 @@ import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
  * on every screen, which is the whole reason the colour is there.
  */
 describe("the avatar fallback", () => {
-  it("draws a person in their own hue: tint, ink initials, a strong hairline", () => {
+  // Design v3 (§3.9): a saturated disc in the hue's avatar cut with white
+  // initials, which replaced the pastel tint with ink initials.
+  it("draws a person in their own hue: the saturated avatar cut, white initials", () => {
     const hue = hueFor("Maya Chen")
     const cls = getAvatarFallbackClass("Maya Chen")
     expect(cls).toContain(`hue-${hue}`)
-    expect(cls).toContain("bg-hue-tint")
-    expect(cls).toContain("text-hue-ink")
-    expect(cls).toMatch(/\bring-1\b/)
-    expect(cls).toMatch(/\bring-hue\/\d+\b/)
+    expect(cls).toMatch(/\bavatar-person\b/)
+    expect(cls).not.toContain("bg-hue-tint")
     // Not the wave-1 grey coin.
     expect(cls).not.toContain("bg-sidebar-accent")
   })

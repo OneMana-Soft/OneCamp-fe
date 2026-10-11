@@ -23,6 +23,8 @@ export interface RowMeta {
     isLast: boolean;
     /** Continues the message above it (lib/messageGrouping). */
     continued: boolean;
+    /** Appeared at the end while the reader followed it (components/message/arrival). */
+    arrived?: boolean;
 }
 
 export interface VirtualizedListProps<T> {

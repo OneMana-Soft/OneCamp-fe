@@ -1,0 +1,69 @@
+import type { ReactNode } from "react"
+
+import { X } from "@/lib/icons"
+import { hueFor, type CampHue } from "@/lib/campHue"
+import { cn } from "@/lib/utils/helpers/cn"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+
+/**
+ * A chip (design v3, §3.10): 22px, r6, 12/510, neutral, on the hover overlay
+ * inside a hairline (the `chip` utility in globals.css).
+ *
+ * Colour is a noun: a chip carries identity only as a 6px dot (`dot`, a
+ * camp hue), and a tint only when it means something (`tone`: "Due today"
+ * in sun, "Overdue" in danger). `onRemove` adds the × of an active filter.
+ */
+export type ChipTone = "sun" | "danger"
+
+const TONE: Record<ChipTone, string> = {
+  sun: "bg-camp-sun-tint text-camp-sun-ink shadow-none",
+  danger: "bg-destructive/10 text-danger-ink shadow-none",
+}
+
+export function Chip({
+  children,
+  dot,
+  tone,
+  onRemove,
+  removeLabel = "Remove",
+  className,
+  title,
+}: {
+  children: ReactNode
+  dot?: CampHue
+  tone?: ChipTone
+  onRemove?: () => void
+  removeLabel?: string
+  className?: string
+  title?: string
+}) {
+  return (
+    <span data-chip="" title={title} className={cn("chip min-w-0", tone && TONE[tone], className)}>
+      {dot ? <span aria-hidden="true" data-chip-dot="" className={cn(HUE_CLASS[dot], "size-1.5 shrink-0 rounded-full bg-hue")} /> : null}
+      <span className="truncate">{children}</span>
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={removeLabel}
+          className="-mr-1 inline-flex size-4 items-center justify-center rounded-xs text-faint-foreground hover:bg-press hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+        >
+          <X className="size-3" />
+        </button>
+      ) : null}
+    </span>
+  )
+}
+
+/**
+ * A label (a task's tag) as design v3 draws it: a neutral chip with a 6px dot
+ * in the label's own hue (hueFor), so the same label is the same colour on
+ * every screen while a row stays calm. It replaced the tinted pill.
+ */
+export function LabelChip({ label, className }: { label: string; className?: string }) {
+  return (
+    <Chip dot={hueFor(label)} className={cn("max-w-[10rem]", className)} title={label}>
+      {label}
+    </Chip>
+  )
+}

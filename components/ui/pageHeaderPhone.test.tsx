@@ -30,10 +30,13 @@ describe("PageHeader on a phone", () => {
     expect(screen.getByText("Saturday").className).not.toMatch(/sr-only/)
   })
 
-  it("is how Home asks for its greeting, on the phone and the desktop", () => {
+  // Design v3: Home draws its own greeting (components/home/Greeting), which
+  // shows its title on the phone as well (hub.md H2, H22).
+  it("is not how Home greets: Home's greeting keeps its title on a phone", () => {
     const root = join(__dirname, "..", "..")
     for (const f of ["components/home/mobile/mobileHome.tsx", "components/home/desktop/desktopDashboard.tsx"]) {
-      expect(readFileSync(join(root, f), "utf8")).toMatch(/<PageHeader [^>]*phoneTitle/)
+      expect(readFileSync(join(root, f), "utf8")).toMatch(/<Greeting\b/)
     }
+    expect(readFileSync(join(root, "components/home/Greeting.tsx"), "utf8")).not.toMatch(/sr-only/)
   })
 })

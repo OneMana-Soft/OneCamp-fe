@@ -20,20 +20,18 @@
 import * as React from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { ShieldCheck } from "@/lib/icons"
-import { AuthHeading, authControl } from "@/components/auth/AuthShell"
+import { Check, Plus, ShieldCheck } from "@/lib/icons"
+import { AuthNotice, authControl } from "@/components/auth/AuthShell"
+import { GradientRing, useHost } from "@/components/auth/CampArt"
 import { SpotError } from "@/components/ui/graphics/spots"
+import { AgentAvatar } from "@/components/ui/graphics"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { scopeLabel } from "@/services/apiTokenService"
+import { changesThings, scopeWords } from "@/lib/auth/consentScopes"
 import {
   approveConsent,
   denyConsent,
   getConsent,
-  isWriteScope,
   type ConsentView,
 } from "@/services/connectService"
 import { isConnectRequestId, rememberPendingConnect } from "@/lib/pendingConnect"
@@ -48,12 +46,15 @@ const ERRORS: Record<string, string> = {
 
 const NEW_AGENT = ""
 
+/** How long "Connected" shows, dots turned moss, before the client takes over. */
+export const CONNECTED_PAUSE_MS = 900
+
 type Phase =
   | { kind: "loading" }
   | { kind: "signin" }
   | { kind: "error"; message: string }
   | { kind: "ready"; view: ConsentView }
-  | { kind: "leaving"; to: string; host: string }
+  | { kind: "leaving"; to: string; host: string; connected: boolean; client: string }
 
 function status(e: unknown): number | undefined {
   return (e as { response?: { status?: number } })?.response?.status
@@ -73,25 +74,72 @@ function hostOf(url: string): string {
 }
 
 /**
- * The page's place while the sign-in loads: a heading, the choice of agent and
- * the button, in outline. Exported for the page's Suspense fallback, so the two
- * waits look the same.
+ * The two-mark handshake (F9): the client's mark (its initial on the sunken
+ * surface), a three-dot connector and the workspace's ring. The dots shimmer
+ * while the page waits on the server and turn moss in sequence on consent,
+ * when the client's mark takes a moss check.
+ */
+function Handshake({ client, state }: { client: string; state: "wait" | "idle" | "done" }) {
+  return (
+    <div className="auth-hand" aria-hidden="true" data-handshake={state}>
+      <span className="auth-hand-mark">
+        {(client.trim()[0] ?? "?").toUpperCase()}
+        {state === "done" && (
+          <span className="auth-badge text-white" style={{ background: "var(--camp-moss)" }}>
+            <Check />
+          </span>
+        )}
+      </span>
+      <span className="auth-dots" data-wait={state === "wait" ? "" : undefined} data-done={state === "done" ? "" : undefined}>
+        <i />
+        <i />
+        <i />
+      </span>
+      <span className="auth-hand-mark">
+        <GradientRing size={24} />
+      </span>
+    </div>
+  )
+}
+
+/** The consent card: 440px, r16, e3, the handshake on top and `foot` on the sunken strip. */
+function ConsentCard({ client, state, children, foot }: { client: string; state: "wait" | "idle" | "done"; children: React.ReactNode; foot?: React.ReactNode }) {
+  return (
+    <div className="auth-consent" data-consent-card="">
+      <Handshake client={client} state={state} />
+      <div className="px-6 pb-5 pt-4">{children}</div>
+      {foot && <div className="auth-consent-foot">{foot}</div>}
+    </div>
+  )
+}
+
+/** The card's centred title (20/27, 590) and its line. */
+function ConsentTitle({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="text-center">
+      <h1 className="text-title-2 text-balance">{title}</h1>
+      {children && <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{children}</p>}
+    </div>
+  )
+}
+
+/**
+ * The page's place while the sign-in loads: the card with its handshake
+ * shimmering, the title, two options and the button in outline. Exported for
+ * the page's Suspense fallback, so the two waits look the same.
  */
 export function ConnectAuthorizeLoading() {
   return (
     <div role="status" aria-label="Loading the sign-in" aria-busy="true">
-      <div aria-hidden="true">
-        <div className="mb-8 space-y-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
+      <ConsentCard client="" state="wait">
+        <div aria-hidden="true" className="space-y-3">
+          <div className="auth-skel mx-auto h-6 w-64" />
+          <div className="auth-skel mx-auto h-4 w-72" />
+          <div className="auth-skel mt-5 h-14 rounded-xl" />
+          <div className="auth-skel h-14 rounded-xl" />
+          <div className="auth-skel mt-4 h-10" />
         </div>
-        <div className="space-y-2">
-          <Skeleton className="h-14 w-full" />
-          <Skeleton className="h-14 w-full" />
-        </div>
-        <Skeleton className={`mt-6 ${authControl}`} />
-      </div>
+      </ConsentCard>
     </div>
   )
 }
@@ -100,6 +148,8 @@ export function ConnectAuthorize() {
   const params = useSearchParams()
   const requestId = params.get("request")
   const error = params.get("error")
+  const host = useHost()
+  const workspace = process.env.NEXT_PUBLIC_ORG_NAME?.trim() || host || "this workspace"
   const [phase, setPhase] = React.useState<Phase>({ kind: "loading" })
   const [agentId, setAgentId] = React.useState(NEW_AGENT)
   const [scopes, setScopes] = React.useState<string[]>([])
@@ -130,18 +180,25 @@ export function ConnectAuthorize() {
     void load()
   }, [load])
 
-  const leave = (to: string) => {
-    setPhase({ kind: "leaving", to, host: hostOf(to) })
-    window.location.assign(to)
-  }
+  // Connected: the dots go moss and the check springs, then the client takes
+  // over. Declined: straight back.
+  React.useEffect(() => {
+    if (phase.kind !== "leaving") return
+    if (!phase.connected) {
+      window.location.assign(phase.to)
+      return
+    }
+    const t = window.setTimeout(() => window.location.assign(phase.to), CONNECTED_PAUSE_MS)
+    return () => window.clearTimeout(t)
+  }, [phase])
 
   const approve = async () => {
-    if (!requestId) return
+    if (!requestId || phase.kind !== "ready") return
     setBusy(true)
     setActionError("")
     try {
       const res = await approveConsent(requestId, { agent_id: agentId, scopes })
-      leave(res.redirect)
+      setPhase({ kind: "leaving", to: res.redirect, host: hostOf(res.redirect), connected: true, client: phase.view.client_name })
     } catch (e) {
       if (status(e) === 410) setPhase({ kind: "error", message: message(e, "This sign-in has expired.") })
       else setActionError(message(e, "It couldn't be connected. Try again."))
@@ -151,10 +208,11 @@ export function ConnectAuthorize() {
   }
 
   const deny = async () => {
-    if (!requestId) return
+    if (!requestId || phase.kind !== "ready") return
     setBusy(true)
     try {
-      leave(await denyConsent(requestId))
+      const to = await denyConsent(requestId)
+      setPhase({ kind: "leaving", to, host: hostOf(to), connected: false, client: phase.view.client_name })
     } catch (e) {
       setPhase({ kind: "error", message: message(e, "This sign-in has expired.") })
     } finally {
@@ -169,37 +227,37 @@ export function ConnectAuthorize() {
   if (phase.kind === "leaving") {
     return (
       <div role="status">
-        <AuthHeading title={`Returning you to ${phase.host}…`} />
+        <ConsentCard client={phase.client} state={phase.connected ? "done" : "idle"}>
+          <ConsentTitle title={phase.connected ? `Connected. Returning to ${phase.host}…` : `Returning you to ${phase.host}…`} />
+        </ConsentCard>
       </div>
     )
   }
 
-  // It was a red icon over a centred sentence with nothing to press. The
-  // message says what to do in the agent; the link is the way on from here.
+  // The message says what to do in the agent; the link is the way on from here.
   if (phase.kind === "error") {
     return (
-      <>
-        <AuthHeading
-          title="This sign-in can't continue"
-          art={<SpotError />}
-        >
-          {phase.message}
-        </AuthHeading>
-        <Button className={authControl} asChild>
+      <ConsentCard client="?" state="idle">
+        <div data-auth-art="" aria-hidden="true" className="mb-4 flex justify-center">
+          <SpotError size={64} />
+        </div>
+        <ConsentTitle title="This sign-in can't continue">{phase.message}</ConsentTitle>
+        <Button size="lg" className={`${authControl} mt-6`} asChild>
           <Link href="/app/home">Go to your workspace</Link>
         </Button>
-      </>
+      </ConsentCard>
     )
   }
 
   if (phase.kind === "signin") {
     return (
-      <>
-        <AuthHeading title="Sign in to connect your agent">
-          An agent is asking to work in this workspace. Sign in, and you&apos;ll come straight back here to decide.
-        </AuthHeading>
+      <ConsentCard client="?" state="idle">
+        <ConsentTitle title="Sign in to continue">
+          An agent is asking to work in {workspace}. Sign in, and you&apos;ll come straight back here to decide.
+        </ConsentTitle>
         <Button
-          className={authControl}
+          size="lg"
+          className={`${authControl} mt-6`}
           onClick={() => {
             if (requestId) rememberPendingConnect(requestId)
             window.location.assign("/")
@@ -207,7 +265,7 @@ export function ConnectAuthorize() {
         >
           Sign in
         </Button>
-      </>
+      </ConsentCard>
     )
   }
 
@@ -215,94 +273,113 @@ export function ConnectAuthorize() {
   const closed = !view.surface_enabled
   const toggle = (scope: string, on: boolean) =>
     setScopes((cur) => (on ? [...cur, scope] : cur.filter((s) => s !== scope)))
+  const options = [
+    ...(!view.suggested_agent_id
+      ? [{ id: NEW_AGENT, name: <>A new agent named {view.client_name}</>, line: "With exactly the tools you allow below", fresh: true }]
+      : []),
+    ...view.agents.map((a) => ({
+      id: a.id,
+      name: <>{a.name}</>,
+      line: `${a.id === view.suggested_agent_id ? "Connected before. " : ""}${a.tools === 0 ? "No tools enabled yet" : `${a.tools} tools enabled`}`,
+      fresh: false,
+    })),
+  ]
 
   return (
-    <div className="space-y-6">
-      <AuthHeading title={`Connect ${view.client_name}`}>
-        {view.client_name} wants to work in this workspace. It will act as an agent you sponsor, with no more reach
-        than you have, and every call it makes is checked and recorded.
-      </AuthHeading>
+    <ConsentCard
+      client={view.client_name}
+      state={busy ? "wait" : "idle"}
+      foot={
+        <div className="space-y-2">
+          {actionError && (
+            <p role="alert" className="auth-field-error pb-1">
+              {actionError}
+            </p>
+          )}
+          <Button size="lg" className={authControl} onClick={approve} disabled={closed || busy || scopes.length === 0}>
+            {busy ? "Connecting…" : `Connect ${view.client_name}`}
+          </Button>
+          <Button className={authControl} variant="ghost" size="lg" onClick={deny} disabled={busy}>
+            Don&apos;t connect
+          </Button>
+          <p className="flex items-start gap-2 pt-2 auth-hint">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              You&apos;ll return to <span className="font-medium text-foreground">{view.redirect_host}</span>. Pause or
+              revoke it any time in Admin › Agent inventory.
+            </span>
+          </p>
+        </div>
+      }
+    >
+      <ConsentTitle title={`${view.client_name} wants to work in ${workspace}`}>
+        It acts as an agent you sponsor. It can never do more than you can, and every call is recorded.
+      </ConsentTitle>
 
       {closed && (
-        <div role="status" className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
-          {view.is_admin ? (
-            <>
-              Outside agents are turned off here. Turn them on in{" "}
-              <Link className="font-medium underline underline-offset-2" href="/app/admin?tab=ai-models#ai-models-mcp">
-                Admin, AI &amp; agents
-              </Link>
-              , then come back to this tab.
-            </>
-          ) : (
-            "An admin has not allowed outside agents in this workspace yet. Ask one to turn them on, then try again."
-          )}
+        <div className="mt-5">
+          <AuthNotice tone="warning" title="Outside agents are off" role="status">
+            {view.is_admin ? (
+              <>
+                Outside agents are turned off here. Turn them on in{" "}
+                <Link className="font-medium text-foreground underline underline-offset-2" href="/app/admin?tab=ai-models#ai-models-mcp">
+                  Admin, AI &amp; agents
+                </Link>
+                , then come back to this tab.
+              </>
+            ) : (
+              "An admin has not allowed outside agents in this workspace yet. Ask one to turn them on, then try again."
+            )}
+          </AuthNotice>
         </div>
       )}
 
-      <fieldset className="space-y-2" disabled={closed || busy}>
-        <legend className="text-sm font-medium text-muted-foreground">It acts as</legend>
-        <RadioGroup value={agentId} onValueChange={setAgentId} className="gap-2">
-          {!view.suggested_agent_id && (
-            <Label className="flex items-center gap-2.5 rounded-md border p-3 font-normal">
-              <RadioGroupItem value={NEW_AGENT} />
-              <span>
-                A new agent named <span className="font-medium">{view.client_name}</span>
-                <span className="block text-xs text-muted-foreground">With exactly the tools you allow below.</span>
-              </span>
-            </Label>
-          )}
-          {view.agents.map((a) => (
-            <Label key={a.id} className="flex items-center gap-2.5 rounded-md border p-3 font-normal">
-              <RadioGroupItem value={a.id} />
-              <span>
-                {a.name}
-                <span className="block text-xs text-muted-foreground">
-                  {a.id === view.suggested_agent_id ? "Connected before. " : ""}
-                  {a.tools === 0 ? "No tools enabled yet" : `${a.tools} tools enabled`}
+      <fieldset className="mt-5 space-y-2" disabled={closed || busy}>
+        <legend className="mb-2 text-2xs font-medium text-faint-foreground">It acts as</legend>
+        {options.map((o) => {
+          const selected = agentId === o.id
+          return (
+            <label key={o.id || "new"} className="auth-option" data-selected={selected ? "" : undefined}>
+              <input
+                type="radio"
+                name="connect-agent"
+                className="sr-only"
+                value={o.id}
+                checked={selected}
+                onChange={() => setAgentId(o.id)}
+              />
+              {o.fresh ? (
+                <span className="auth-agent-new" aria-hidden="true">
+                  <Plus />
                 </span>
+              ) : (
+                <span className="size-8 flex-none" aria-hidden="true">
+                  <AgentAvatar />
+                </span>
+              )}
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{o.name}</span>
+                <span className="auth-hint block">{o.line}</span>
               </span>
-            </Label>
-          ))}
-        </RadioGroup>
+              <span className="auth-radio" aria-hidden="true" />
+            </label>
+          )
+        })}
       </fieldset>
 
-      <fieldset className="space-y-2" disabled={closed || busy}>
-        <legend className="text-sm font-medium text-muted-foreground">It may</legend>
-        <div className="grid gap-2">
-          {view.scopes.map((s) => (
-            <Label key={s} className="flex min-h-11 items-center gap-2.5 font-normal md:min-h-0">
-              <Checkbox checked={scopes.includes(s)} onCheckedChange={(v) => toggle(s, v === true)} />
-              <span>
-                {scopeLabel(s)}
-                {isWriteScope(s) && <span className="ml-1.5 text-xs text-muted-foreground">changes things</span>}
-              </span>
-            </Label>
-          ))}
-        </div>
+      <fieldset className="mt-5" disabled={closed || busy}>
+        <legend className="mb-1 text-2xs font-medium text-faint-foreground">It may</legend>
+        {view.scopes.map((s) => (
+          <label key={s} className="auth-scope" data-scope={s}>
+            <Checkbox checked={scopes.includes(s)} onCheckedChange={(v) => toggle(s, v === true)} />
+            <span>{scopeWords(s)}</span>
+            {changesThings(s) && <span className="auth-tag-sun">Changes things</span>}
+            <span className="auth-scope-raw font-mono" translate="no">
+              {s}
+            </span>
+          </label>
+        ))}
       </fieldset>
-
-      {actionError && (
-        <p role="alert" className="text-sm text-danger-ink">
-          {actionError}
-        </p>
-      )}
-
-      <div className="space-y-2">
-        <Button className={authControl} onClick={approve} disabled={closed || busy || scopes.length === 0}>
-          {busy ? "Connecting…" : `Connect ${view.client_name}`}
-        </Button>
-        <Button className={authControl} variant="ghost" onClick={deny} disabled={busy}>
-          Don&apos;t connect
-        </Button>
-      </div>
-
-      <p className="flex items-start gap-2 text-xs text-muted-foreground">
-        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>
-          You return to <span className="font-medium text-foreground">{view.redirect_host}</span>. Pause the agent or
-          revoke its key any time from Admin, Agent inventory.
-        </span>
-      </p>
-    </div>
+    </ConsentCard>
   )
 }

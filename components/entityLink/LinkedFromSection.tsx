@@ -60,7 +60,7 @@ export function LinkedFromSection({ refType, refUUID, className }: LinkedFromSec
             key={`task-${t.task_uuid}`}
             type="button"
             onClick={() => router.push(`/app/task/${t.task_uuid}`)}
-            className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-500/20 dark:text-blue-400"
+            className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md bg-hover px-2 py-1 text-xs font-medium text-ink ring-1 ring-inset ring-line transition-colors hover:bg-press [&>svg]:text-ink-3"
           >
             <CheckSquare className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t.task_name || "Untitled task"}</span>
@@ -71,7 +71,7 @@ export function LinkedFromSection({ refType, refUUID, className }: LinkedFromSec
             key={`project-${p.project_uuid}`}
             type="button"
             onClick={() => router.push(`/app/project/${p.project_uuid}`)}
-            className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md bg-brand/10 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-brand/20"
+            className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md bg-hover px-2 py-1 text-xs font-medium text-ink ring-1 ring-inset ring-line transition-colors hover:bg-press [&>svg]:text-ink-3"
           >
             <FolderKanban className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{p.project_name || "Untitled project"}</span>

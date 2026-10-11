@@ -18,6 +18,8 @@ import { DescribeProject } from "@/components/projectTemplates/DescribeProject"
 import { useToast } from "@/hooks/use-toast"
 import { addTemplate, deleteTemplate, downloadTemplate, useProjectTemplates } from "@/hooks/useProjectTemplates"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { hueFor } from "@/lib/campHue"
 import { AI_DRAFT, BLANK, previewLine, summaryOf, type ProjectTemplate, readTemplateFile, taskCount, TemplateFileError, type TemplateSummary } from "@/lib/projectTemplates"
 
 interface TemplatePickerProps {
@@ -100,13 +102,13 @@ export function TemplatePicker({ value, onChange, onChosen, draft, onDraft }: Te
         aria-labelledby={labelId}
         value={value}
         onValueChange={onChange}
-        className="grid max-h-[min(19rem,40vh)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain p-0.5 sm:grid-cols-2"
+        className="grid max-h-[min(22rem,46vh)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain p-1 sm:grid-cols-3"
       >
-        {drafted && <Choice value={AI_DRAFT} title={drafted.name} line={drafted.description || "Drafted by the AI from what you wrote"} count={drafted.task_count} selected={value === AI_DRAFT} />}
-        <Choice value={BLANK} title="Blank" line="An empty project, to fill as you go." selected={value === BLANK} />
-        {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-[4.5rem] rounded-lg" />)}
+        {drafted && <Choice value={AI_DRAFT} title={drafted.name} line={drafted.description || "Drafted by the AI from what you wrote"} count={drafted.task_count} selected={value === AI_DRAFT} preview={drafted.preview.length} />}
+        <Choice value={BLANK} title="Blank" line="An empty project, to fill as you go." selected={value === BLANK} preview={0} />
+        {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-[7.5rem] rounded-lg" />)}
         {builtIn.map((t) => (
-          <Choice key={t.id} value={t.id} title={t.name} line={t.description} count={t.task_count} selected={value === t.id} />
+          <Choice key={t.id} value={t.id} title={t.name} line={t.description} count={t.task_count} selected={value === t.id} preview={t.task_count} />
         ))}
         {saved.length > 0 && <p className="col-span-full pt-1 text-xs font-medium text-muted-foreground">Saved in this workspace</p>}
         {saved.map((t) => (
@@ -117,6 +119,7 @@ export function TemplatePicker({ value, onChange, onChosen, draft, onDraft }: Te
             line={t.description || (t.created_by ? `Saved by ${t.created_by}` : "")}
             count={t.task_count}
             selected={value === t.id}
+            preview={t.task_count}
             menu={
               confirming === t.id ? null : (
                 <DropdownMenu modal={false}>
@@ -185,27 +188,55 @@ interface ChoiceProps {
   selected: boolean
   menu?: React.ReactNode
   confirm?: React.ReactNode
+  /** How many tasks the mini board draws (0: an empty, dashed board). */
+  preview?: number
+}
+
+/**
+ * A template's mini board (design v3, work.md W49): three columns of little
+ * cards in the template's own hue, as many as its tasks (up to nine), so the
+ * grid shows each template's shape before its words. Blank is dashed.
+ */
+export function MiniBoard({ id, tasks }: { id: string; tasks: number }) {
+  const hue = hueFor(id)
+  const n = Math.min(9, Math.max(0, tasks))
+  // Spread the cards to-do heavy, as a new project is: 4, 3, 2 of nine.
+  const a = Math.min(4, Math.ceil(n * 0.45))
+  const b = Math.min(4, Math.round(n * 0.33))
+  const cols = [a, b, Math.min(4, Math.max(0, n - a - b))]
+  return (
+    <svg data-mini-board={n} viewBox="0 0 120 44" className={cn(HUE_CLASS[hue], "h-11 w-full")} aria-hidden="true">
+      {[0, 1, 2].map((c) => (
+        <g key={c} transform={`translate(${4 + c * 39} 4)`}>
+          <rect width="34" height="36" rx="4" className={n === 0 ? "fill-none stroke-line-3" : "fill-sunken"} strokeDasharray={n === 0 ? "3 2" : undefined} />
+          {Array.from({ length: cols[c] }, (_, k) => (
+            <rect key={k} x="3" y={3 + k * 8} width="28" height="6" rx="2" className={c === 2 ? "fill-hue" : "fill-hue-tint"} />
+          ))}
+        </g>
+      ))}
+    </svg>
+  )
 }
 
 // One choice: a card that is a radio button. A saved template's menu sits
 // beside the button, not in it, since a button can't hold another.
-function Choice({ value, title, line, count, selected, menu, confirm }: ChoiceProps) {
+function Choice({ value, title, line, count, selected, menu, confirm, preview }: ChoiceProps) {
   return (
-    <div className={cn("relative rounded-lg border transition-colors", selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50")}>
+    <div className={cn("relative rounded-lg bg-raised shadow-e1 transition-shadow", selected ? "ring-[1.5px] ring-brand" : "hover:shadow-e2")}>
       <RadioGroupPrimitive.Item
         value={value}
         className={cn(
           "flex h-full min-h-[4.5rem] w-full flex-col items-start gap-1 rounded-lg p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          menu && "pr-9",
         )}
       >
-        <span className="flex w-full items-baseline justify-between gap-2">
+        {preview !== undefined && <span className="mb-1 block w-full"><MiniBoard id={value} tasks={preview} /></span>}
+        <span className={cn("flex w-full items-baseline justify-between gap-2", menu && "pr-7")}>
           <span className="truncate text-sm font-medium">{title}</span>
-          {count !== undefined && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{taskCount(count)}</span>}
+          {count !== undefined && <span className="shrink-0 text-xs tabular-nums text-ink-3">{taskCount(count)}</span>}
         </span>
-        {line && <span className="line-clamp-2 text-xs text-muted-foreground">{line}</span>}
+        {line && <span className="line-clamp-2 text-xs text-ink-2">{line}</span>}
       </RadioGroupPrimitive.Item>
-      {menu && <div className="absolute right-1.5 top-1.5">{menu}</div>}
+      {menu && <div className="absolute right-1.5 top-[3.75rem]">{menu}</div>}
       {confirm && <div className="px-2 pb-2">{confirm}</div>}
     </div>
   )

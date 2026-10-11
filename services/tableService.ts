@@ -98,12 +98,22 @@ export interface SelectOption {
   color?: string
 }
 
+// A field's config, parsed once per field object and config text: every cell
+// of every row the grid mounts asks for it (options, formats, due dates).
+const parsedConfigs = new WeakMap<TableField, { text: string; value: { options?: SelectOption[]; [k: string]: unknown } }>()
+
 export function parseFieldConfig(f: TableField): { options?: SelectOption[]; [k: string]: unknown } {
+  const text = f.config || "{}"
+  const hit = parsedConfigs.get(f)
+  if (hit && hit.text === text) return hit.value
+  let value: { options?: SelectOption[]; [k: string]: unknown }
   try {
-    return JSON.parse(f.config || "{}") || {}
+    value = JSON.parse(text) || {}
   } catch {
-    return {}
+    value = {}
   }
+  if (f && typeof f === "object") parsedConfigs.set(f, { text, value })
+  return value
 }
 
 // What a formula field gives, as the server works it out on each read.

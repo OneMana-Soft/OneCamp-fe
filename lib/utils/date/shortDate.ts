@@ -30,3 +30,17 @@ export function shortDateTime(d: Date, now: Date = new Date()): string {
 export function fullDateTime(d: Date): string {
   return format(d, "EEEE d MMMM yyyy, h:mm a")
 }
+
+/**
+ * How long ago, as a card's meta line reads it: "just now", "12m ago", "2h
+ * ago", "yesterday", then the short date ("7 Oct"). Pure given now.
+ */
+export function agoOrDate(d: Date, now: Date = new Date()): string {
+  const s = Math.round((now.getTime() - d.getTime()) / 1000)
+  if (s < 0) return shortDate(d, now)
+  if (s < 60) return "just now"
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  if (s < 2 * 86400) return "yesterday"
+  return shortDate(d, now)
+}

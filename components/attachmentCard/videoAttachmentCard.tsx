@@ -25,7 +25,7 @@ export function VideoAttachmentCard({ url, attachment, selfSize, cover = false, 
             draggable={false}
             playsInline
             autoPlay={autoplay}
-            className={cn('relative max-w-full rounded-xl border border-border/50 shadow-sm overflow-hidden', {
+            className={cn('relative max-w-full rounded-xl border border-border/50 shadow-e1 overflow-hidden', {
                 'h-full max-h-[44rem]': selfSize && !maxHeight,
                 'max-h-full': !selfSize && !maxHeight,
                 'h-full w-full object-cover': cover,

@@ -159,7 +159,7 @@ describe("where it applies", () => {
     expect(opened).toBeGreaterThan(0)
 
     for (const shell of ["components/navigationBar/mobile/mobileNavigationBar.tsx", "components/navigationBar/desktop/desktopNavigationBar.tsx"]) {
-      expect(readFileSync(shell, "utf8"), shell).toMatch(/data-app-viewport="" className="flex flex-col h-dvh/)
+      expect(readFileSync(shell, "utf8"), shell).toMatch(/data-app-viewport=""[^>]*className="(?:app-frame )?flex (?:flex-col )?h-dvh/)
     }
     expect(readFileSync("app/app/LayoutContent.tsx", "utf8")).toContain("useEffect(() => followKeyboard(), [])")
   })

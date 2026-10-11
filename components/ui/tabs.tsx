@@ -14,7 +14,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      "inline-flex h-8 items-center justify-center rounded-md bg-hover p-0.5 text-muted-foreground",
       className
     )}
     {...props}
@@ -29,10 +29,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      // The active segment is the raised surface (card) with a hairline, so
-      // it reads as picked in both themes. On bg-background alone it sat on
-      // --muted at 1.03:1 and only the text colour said which tab was open.
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:ring-1 data-[state=active]:ring-border",
+      // A segment (design v3): the active one is the raised surface at e1 on
+      // the hover overlay, concentric (r6 inside the r8 track's 2px), so it
+      // reads as picked in both themes without a border.
+      "inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-xs font-medium transition-[color,background-color,box-shadow] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-raised data-[state=active]:text-foreground data-[state=active]:shadow-e1",
       className
     )}
     {...props}
@@ -56,12 +56,12 @@ const TabsContent = React.forwardRef<
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
 /**
- * A page's view tabs as a plain underline row (List, Board, Timeline...): ink
- * and a 2px rule when active, muted otherwise. A bordered, tinted segmented box
- * was one more container in a page header that already had several. Pass these
- * to TabsList and TabsTrigger.
+ * A page's view tabs (List, Board, Timeline...) as design v3 draws them: a
+ * 40px row on a hairline, 13px ink-2 labels with ink-3 icons, and the open
+ * tab in ink at 510 with its icon in ink over a 2px ink rule, rounded and
+ * inset 8px. Pass these to TabsList and TabsTrigger.
  */
-const underlineTabsList = "w-full justify-start gap-5 h-auto rounded-none border-b bg-transparent p-0 overflow-x-auto no-scrollbar"
-const underlineTab = "-mb-px gap-2 rounded-none border-b-2 border-transparent bg-transparent px-0.5 pb-2.5 pt-1 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:ring-0"
+const underlineTabsList = "w-full justify-start gap-0.5 h-10 rounded-none border-b border-line bg-transparent p-0 overflow-x-auto no-scrollbar"
+const underlineTab = "relative h-full gap-[7px] rounded-none bg-transparent px-2.5 text-xs font-normal text-muted-foreground shadow-none hover:text-foreground [&_svg]:size-3.5 [&_svg]:text-faint-foreground after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:bg-transparent data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:after:bg-foreground data-[state=active]:[&_svg]:text-foreground"
 
 export { Tabs, TabsList, TabsTrigger, TabsContent, underlineTabsList, underlineTab }

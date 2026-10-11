@@ -29,7 +29,7 @@ const refreshAll = () => mutate((key) => typeof key === "string" && key.startsWi
 export function useScheduledMessages(target?: string) {
   const list = useFetch<{ data: ScheduledMessage[] }>(scheduledListUrl)
   const items = React.useMemo(
-    () => (list.data?.data ?? []).filter((m) => !target || m.target === target),
+    () => (Array.isArray(list.data?.data) ? list.data.data : []).filter((m) => !target || m.target === target),
     [list.data, target],
   )
   const post = usePost()

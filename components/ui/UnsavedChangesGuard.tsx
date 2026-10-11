@@ -4,6 +4,10 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useConfirm } from "@/hooks/useConfirm"
 import { unsavedWhat } from "@/lib/unsavedChanges"
+import { SAVE_NUDGE_EVENT } from "@/components/ui/settingsSection"
+
+const NUDGE_WINDOW_MS = 4000
+let lastNudge = 0
 
 /**
  * Asks before a link inside the app leaves changes unsaved.
@@ -32,6 +36,13 @@ export function UnsavedChangesGuard() {
       if (url.pathname === window.location.pathname && url.search === window.location.search) return
       e.preventDefault()
       e.stopPropagation()
+      // A dock holding the changes nudges first (design v3, admin §1.3); a
+      // second try within a few seconds asks.
+      if (document.querySelector("[data-save-dock]") && Date.now() - lastNudge > NUDGE_WINDOW_MS) {
+        lastNudge = Date.now()
+        window.dispatchEvent(new Event(SAVE_NUDGE_EVENT))
+        return
+      }
       confirm({
         title: "Leave without saving?",
         description: `Your unsaved ${what} will be lost.`,

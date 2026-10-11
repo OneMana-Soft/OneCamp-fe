@@ -13,6 +13,8 @@ export interface PostsRes {
     post_attachments ?: AttachmentMediaReq[]
     post_by: UserProfileDataInterface
     post_created_at: string
+    /** When it was last edited; the server sends it once a body changes. */
+    post_updated_at?: string
     post_reactions?: GroupedReaction[]
     post_added_locally?: boolean
     post_comments?: CommentInfoInterface[]

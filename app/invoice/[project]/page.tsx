@@ -10,6 +10,10 @@ import { format } from "date-fns"
 // Saved, an invoice keeps its number and its lines as billed (business/Invoice),
 // and is opened again with ?id=. A draft can still be changed or deleted;
 // once sent it stays as sent, and is marked paid, taken back, or voided.
+//
+// Design v3 (work.md W54): the page sits in the app's frame, the controls on
+// a sheet with a way back to the project, and the invoice is paper (light in
+// any theme, .invoice-paper) on the e2 step, with no outline.
 
 import { use, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -20,7 +24,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, Loader2, Printer, Save, Send, Trash2, Undo2 } from "@/lib/icons"
+import { ArrowLeft, CheckCircle2, Loader2, Printer, Save, Send, Trash2, Undo2 } from "@/lib/icons"
+import Link from "next/link"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { app_project_path } from "@/types/paths"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { CURRENCIES, buildInvoice, money, round2, suggestNumber, type InvoiceTotals, type LineBy } from "@/lib/invoice/invoice"
 import { STATUS_LABEL, linesOf, linesToSave, shownStatus, type InvoiceInput, type SavedInvoice } from "@/lib/invoice/saved"
@@ -220,15 +227,20 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     })
 
   if (error) return <Centered><p className="text-sm text-danger-ink">{error}</p></Centered>
-  if (!invoice || (!saved && !report)) return <Centered><Loader2 className="h-6 w-6 animate-spin text-primary" /></Centered>
+  if (!invoice || (!saved && !report)) return <Centered><Loader2 className="size-6 animate-spin text-ink-3" aria-label="Loading the invoice" /></Centered>
 
   return (
-    <main className="h-dvh overflow-y-auto bg-muted/30 print:h-auto print:overflow-visible print:bg-white">
-      <div className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[22rem_1fr] print:block print:max-w-none print:p-0">
-        <aside className="grid content-start gap-5 print:hidden">
+    <main data-invoice-page="" className="h-dvh overflow-y-auto bg-frame print:h-auto print:overflow-visible print:bg-white">
+      <div className="mx-auto grid max-w-6xl gap-6 p-4 sm:p-6 lg:grid-cols-[22rem_1fr] print:block print:max-w-none print:p-0">
+        <aside className="grid content-start gap-5 self-start rounded-xl bg-sheet p-5 shadow-sheet print:hidden">
+          <Link href={`${app_project_path}/${project}`} className="inline-flex w-fit items-center gap-1.5 rounded-sm text-ui-sm text-ink-2 hover:text-foreground">
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
+            <ProjectTile id={project} size={16} />
+            <span className="truncate">{projectName || "Back to the project"}</span>
+          </Link>
           <div className="grid gap-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold">Invoice for {projectName}</h1>
+              <h1 className="text-title-3 font-semibold text-foreground">Invoice for {projectName}</h1>
               {status && <Badge variant={status === "overdue" ? "destructive" : status === "paid" ? "soft" : "secondary"} size="sm" caps>{STATUS_LABEL[status]}</Badge>}
             </div>
             <p className="text-sm text-muted-foreground">
@@ -367,7 +379,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
           </div>
         </aside>
 
-        <article aria-label="Invoice" className="invoice-paper rounded-lg border bg-card p-8 text-sm text-card-foreground shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+        <article aria-label="Invoice" className="invoice-paper rounded-md bg-card p-8 text-sm text-card-foreground shadow-e2 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none">
           <header className="flex flex-wrap justify-between gap-6">
             <div className="grid gap-0.5">
               <p className="text-lg font-semibold">{seller.name || "Your business"}</p>
@@ -441,8 +453,8 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <fieldset className="grid gap-2 rounded-lg border bg-card p-3">
-      <legend className="px-1 text-sm font-medium text-foreground">{title}</legend>
+    <fieldset className="grid gap-2 rounded-lg bg-sunken p-3">
+      <legend className="float-left mb-1 w-full text-ui-sm font-medium text-foreground">{title}</legend>
       {children}
     </fieldset>
   )
@@ -459,5 +471,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-dvh items-center justify-center bg-background p-4 text-center">{children}</main>
+  return <main className="flex min-h-dvh items-center justify-center bg-frame p-4 text-center">{children}</main>
 }

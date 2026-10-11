@@ -54,11 +54,12 @@ describe("theme coverage", () => {
     expect(GLOBALS_CSS).toContain('@import "./themes.css"')
   })
 
-  it("changes only the accent and the frame's wash, never the neutrals", () => {
+  it("changes only the accent and its light on the frame, never the neutrals", () => {
     // A theme that repaints the page stops being a theme and starts being a
-    // different product. The neutrals and the sheet are the identity; the
-    // accent and the wash on the frame round the sheet are the choice.
-    const forbidden = ["--background:", "--foreground:", "--card:", "--border:", "--muted:", "--primary:", "--font-sans:"]
+    // different product. The neutrals, the frame and the sheet are the
+    // identity; the accent and the glow on the frame are the choice (design
+    // v3 retired the wash that tinted the frame itself).
+    const forbidden = ["--background:", "--foreground:", "--card:", "--border:", "--muted:", "--primary:", "--font-sans:", "--frame:", "--sheet:", "--canvas:", "--sidebar:", "--brand-wash:"]
     const found = forbidden.filter((token) => THEMES_CSS.includes(token))
     expect(found, `themes may only set the theme tokens, found: ${found.join(", ")}`).toEqual([])
   })
@@ -68,19 +69,19 @@ describe("theme coverage", () => {
    *
    * A token one theme forgets is not "unset": it inherits whatever the theme
    * before it, or :root, left behind, so a blue theme quietly shows the house
-   * orange's progress gradient or a dark wash on a light page. The house
-   * theme's light block is the list.
+   * orange's progress gradient or the house glow behind a blue theme. The
+   * house theme's light block is the list.
    */
   function block(theme: string, mode: "light" | "dark"): string {
     const head = mode === "light" ? `.theme-${theme} {` : `.dark .theme-${theme},`
     const at = THEMES_CSS.indexOf(head)
     return at < 0 ? "" : THEMES_CSS.slice(at, THEMES_CSS.indexOf("}", at))
   }
-  const names = (css: string) => [...css.matchAll(/(--[a-z-]+):/g)].map((m) => m[1])
+  const names = (css: string) => [...css.matchAll(/(--[a-z0-9-]+):/g)].map((m) => m[1])
   const TOKENS = names(block("onecamp", "light"))
 
   it("lists the theme tokens from the house theme", () => {
-    expect(TOKENS).toEqual(["--brand", "--brand-text", "--brand-muted", "--brand-wash", "--progress-from", "--progress-to"])
+    expect(TOKENS).toEqual(["--brand", "--brand-text", "--brand-muted", "--progress-from", "--progress-to", "--glow", "--glow2"])
   })
 
   it.each(VALID_COLOR_THEMES)("%s sets every theme token in light and dark", (theme) => {

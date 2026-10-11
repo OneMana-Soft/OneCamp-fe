@@ -85,7 +85,7 @@ export const NotificationBell = ({
                 className={cn(
                     "p-2 rounded-md text-foreground",
                     "transition-colors duration-100",
-                    "active:bg-accent",
+                    "active:bg-press",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     "disabled:opacity-50 disabled:pointer-events-none",
                 )}

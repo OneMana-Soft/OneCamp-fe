@@ -109,3 +109,16 @@ describe("the template picker", () => {
     expect(screen.queryByRole("button", { name: "describe" })).toBeNull()
   })
 })
+
+describe("the template grid's mini boards (work.md W49)", () => {
+  it("draws each template's shape: as many cards as tasks (up to nine), Blank dashed", async () => {
+    const { MiniBoard } = await import("@/components/projectTemplates/TemplatePicker")
+    const { container: blank } = render(<MiniBoard id="blank" tasks={0} />)
+    expect(blank.querySelector("[data-mini-board='0'] rect[stroke-dasharray]")).not.toBeNull()
+    const { container: full } = render(<MiniBoard id="launch" tasks={40} />)
+    const svg = full.querySelector("[data-mini-board='9']")!
+    // Three columns, each with its card rectangles inside.
+    expect(svg.querySelectorAll("g")).toHaveLength(3)
+    expect(svg.querySelectorAll("g rect").length).toBe(3 + 9)
+  })
+})

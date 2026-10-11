@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils/helpers/cn"
-import { splitTags, tagTone } from "@/lib/tags"
+import { splitTags } from "@/lib/tags"
+import { LabelChip } from "@/components/ui/chip"
 
 /**
- * A task's tags as small tinted pills. `max` shows that many and "+n" for the
- * rest, so a card stays one line.
+ * A task's tags as label chips (design v3: neutral, with a dot in the tag's
+ * hue). `max` shows that many and "+n" for the rest, so a card stays one line.
  */
 export function TagPills({ label, max, className }: { label: string | null | undefined; max?: number; className?: string }) {
   const tags = splitTags(label)
@@ -11,14 +12,12 @@ export function TagPills({ label, max, className }: { label: string | null | und
   const shown = max !== undefined ? tags.slice(0, max) : tags
   const rest = tags.length - shown.length
   return (
-    <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-1", className)}>
+    <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-1.5", className)}>
       {shown.map((t) => (
-        <span key={t} className={cn("inline-flex h-5 max-w-[10rem] items-center truncate rounded-sm px-1.5 text-2xs font-medium", tagTone(t))} title={t}>
-          {t}
-        </span>
+        <LabelChip key={t} label={t} />
       ))}
       {rest > 0 && (
-        <span className="text-2xs font-medium text-muted-foreground" title={tags.slice(shown.length).join(", ")}>
+        <span className="text-2xs font-medium text-faint-foreground" title={tags.slice(shown.length).join(", ")}>
           +{rest}
         </span>
       )}

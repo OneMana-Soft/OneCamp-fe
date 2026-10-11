@@ -27,7 +27,7 @@ export function useLaterList(state: "open" | "done" = "open") {
 export function useSavedEntry(itemType: string, itemId: string | undefined): LaterItem | undefined {
   const { data } = useLaterList("open")
   if (!itemId) return undefined
-  return data?.data.items.find((i) => i.item_type === itemType && i.item_id === itemId)
+  return data?.data?.items?.find((i) => i.item_type === itemType && i.item_id === itemId)
 }
 
 /**

@@ -39,7 +39,7 @@ export const MobileReactionPickerCategory = React.memo(function MobileReactionPi
                         data-vaul-no-drag
                         key={reaction.id}
                         onClick={() => onReactionSelect(reaction)}
-                        className='flex aspect-square h-10 w-10 shrink-0 items-center justify-center rounded-lg font-[emoji] text-3xl leading-none transition-colors active:bg-accent'
+                        className='flex aspect-square h-10 w-10 shrink-0 items-center justify-center rounded-lg font-[emoji] text-3xl leading-none transition-colors active:bg-press'
                     >
                         {isStandardReaction(reaction) ? (
                             <span>{reaction.native}</span>

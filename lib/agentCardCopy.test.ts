@@ -35,5 +35,7 @@ describe("toolLabel", () => {
     const { toolLabel } = await import("@/services/agentService")
     expect(toolLabel("search_messages")).toBe("Search messages")
     expect(toolLabel("")).toBe("")
-  })
+    // The first import of the service pulls its whole graph: under a full,
+    // parallel run on a busy machine that took just over the 5s default.
+  }, 20_000)
 })

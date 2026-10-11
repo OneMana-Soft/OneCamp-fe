@@ -103,6 +103,9 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
                 ref={ref}
                 data-selected={selected || undefined}
                 data-pressed={pressed || undefined}
+                // The row press (design v3, mobile F2): --press at once, held
+                // 150ms past a quick tap (useTouchFlash), out in 180ms.
+                data-press="row"
                 onTouchStart={compose(onTouchStart, bind.onTouchStart)}
                 onTouchEnd={compose(onTouchEnd, bind.onTouchEnd)}
                 onTouchCancel={compose(onTouchCancel, bind.onTouchCancel)}
@@ -110,10 +113,11 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
                     "group relative flex items-center rounded-md cursor-pointer select-none",
                     "transition-colors duration-150 ease-out",
                     "hover:bg-accent/60",
-                    // Touch press-flash: lasting feedback via data-pressed.
-                    "data-[pressed=true]:bg-accent",
+                    // Touch press-flash: lasting feedback via data-pressed,
+                    // in --press (ink at 7%), never a grey slab.
+                    "data-[pressed=true]:bg-press",
                     // Pointer active fallback (mouse / desktop).
-                    "active:bg-accent",
+                    "active:bg-press",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     selected && "bg-accent text-accent-foreground",
                     d.row,

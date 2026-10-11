@@ -54,11 +54,14 @@ describe("a list's time column (channels, DMs, activity)", () => {
 })
 
 describe("the rest of a conversation's dates", () => {
-  it("heads a day's messages with its weekday and day", () => {
+  // Design v3 chat, C15: Today, Yesterday, the weekday within the week, then
+  // "Thu 2 Oct" this year and "2 Oct 2025" before it.
+  it("heads a day's messages by how near the day is", () => {
     expect(getGroupDateHeading(new Date(2026, 9, 10).toISOString())).toBe("Today")
     expect(getGroupDateHeading(new Date(2026, 9, 9).toISOString())).toBe("Yesterday")
-    expect(getGroupDateHeading(new Date(2026, 9, 7).toISOString())).toBe("Wednesday 7 Oct")
-    expect(getGroupDateHeading(new Date(2025, 11, 30).toISOString())).toBe("Tuesday 30 Dec 2025")
+    expect(getGroupDateHeading(new Date(2026, 9, 7).toISOString())).toBe("Wednesday")
+    expect(getGroupDateHeading(new Date(2026, 9, 2).toISOString())).toBe("Fri 2 Oct")
+    expect(getGroupDateHeading(new Date(2025, 11, 30).toISOString())).toBe("30 Dec 2025")
   })
 
   it("dates an attachment and a thread's last reply the same way", () => {

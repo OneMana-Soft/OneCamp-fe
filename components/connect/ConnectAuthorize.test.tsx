@@ -51,23 +51,27 @@ describe("approving an outside agent", () => {
       created: true,
     })
     render(<ConnectAuthorize />)
-    expect(await screen.findByRole("heading", { name: "Connect Claude" })).toBeTruthy()
+    // Design v3 (F9): the consent card's title says who wants in, and where.
+    expect(await screen.findByRole("heading", { name: `Claude wants to work in ${window.location.host}` })).toBeTruthy()
     expect(screen.getByText(/A new agent named/)).toBeTruthy()
-    expect(screen.getByText("changes things")).toBeTruthy()
+    expect(screen.getByText("Changes things")).toBeTruthy()
     expect(screen.getByText("claude.ai")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "Connect Claude" }))
     await waitFor(() =>
       expect(approveConsent).toHaveBeenCalledWith(REQ, { agent_id: "", scopes: ["tasks:read", "tasks:write"] }),
     )
-    expect(assign).toHaveBeenCalledWith("https://claude.ai/api/mcp/auth_callback?code=c&state=s")
+    // Connected first (the dots go moss, the check springs), then back to the client.
+    expect(await screen.findByText("Connected. Returning to claude.ai…")).toBeTruthy()
+    expect(document.querySelector('[data-handshake="done"]')).not.toBeNull()
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://claude.ai/api/mcp/auth_callback?code=c&state=s"), { timeout: 2000 })
   })
 
   it("grants only what is left ticked, and nothing at all is not an option", async () => {
     vi.mocked(getConsent).mockResolvedValue(view())
     vi.mocked(approveConsent).mockResolvedValue({ redirect: "https://claude.ai/cb", agent_id: "a1", agent_name: "Claude", created: true })
     render(<ConnectAuthorize />)
-    await screen.findByRole("heading", { name: "Connect Claude" })
+    await screen.findByRole("button", { name: "Connect Claude" })
     const [read, write] = screen.getAllByRole("checkbox")
     const button = screen.getByRole("button", { name: "Connect Claude" }) as HTMLButtonElement
     fireEvent.click(read)
@@ -163,3 +167,28 @@ describe("a sign-in that can't continue", () => {
   })
 })
 
+
+// Every scope reads as words with its raw name beside it, and a scope that
+// changes things says so (F9).
+describe("what the agent may do", () => {
+  beforeEach(() => {
+    search = `request=${REQ}`
+  })
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+  it("names each scope in words, shows the raw scope, and tags the writes", async () => {
+    vi.mocked(getConsent).mockResolvedValue(view({ scopes: ["tasks:read", "tasks:write", "channels:read", "docs:read"] }))
+    render(<ConnectAuthorize />)
+    await screen.findByRole("button", { name: "Connect Claude" })
+    for (const row of document.querySelectorAll("[data-scope]")) {
+      const raw = row.getAttribute("data-scope")!
+      expect(row.querySelector(".auth-scope-raw")?.textContent).toBe(raw)
+      // The words come before the raw name, and are not it.
+      expect(row.textContent?.startsWith(raw)).toBe(false)
+      expect(Boolean(row.querySelector(".auth-tag-sun"))).toBe(raw.endsWith(":write"))
+    }
+    expect(screen.getByText("Read channels")).toBeTruthy()
+  })
+})

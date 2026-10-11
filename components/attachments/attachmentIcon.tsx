@@ -1,6 +1,6 @@
 import Image from "next/image";
-import { File, FileImage, FileText, FileVideo, Play } from "@/lib/icons";
-import { FileAudio2 } from "@/lib/icons";
+import { Play } from "@/lib/icons";
+import { FileGlyph } from "@/components/fileIcon/fileTypeIcon";
 import {useEffect, useState} from "react";
 import {useMediaFetch} from "@/hooks/useFetch";
 import {GetMediaURLRes} from "@/types/file";
@@ -55,11 +55,6 @@ export const AttachmentIcon = ({
                             height={40}
                         />
                     );
-                case 'document':
-                    return <FileText className='w-10 h-10 m-1 rounded-lg' />;
-                case 'audio':
-                    return <FileAudio2 className='w-10 h-10 m-1 rounded-lg' />;
-
                 case 'video':
                     return thumbnailUrl ? (
                         <div className='relative '>
@@ -74,25 +69,15 @@ export const AttachmentIcon = ({
                         </div>
 
                     ) : (
-                        <FileVideo className='w-10 h-10 m-1 rounded-lg' />
+                        <FileGlyph name={fileName} className='m-1' />
                     );
                 default:
-                    return <File className='w-10 h-10 m-1 rounded-lg' />;
+                    return <FileGlyph name={fileName} className='m-1' />;
             }
         }
 
-        switch (attachmentType) {
-            case 'image':
-                return <FileImage className='w-10 h-10 m-1 rounded-lg' />;
-            case 'document':
-                return <FileText className='w-10 h-10 m-1 rounded-lg' />;
-            case 'audio':
-                return <FileAudio2 className='w-10 h-10 m-1 rounded-lg' />;
-            case 'video':
-                return <FileVideo className='w-10 h-10 m-1 rounded-lg' />;
-            default:
-                return <File className='w-10 h-10 m-1 rounded-lg' />;
-        }
+        // Until there is a URL, every kind is its glyph on its camp tint (FileGlyph).
+        return <FileGlyph name={fileName} className='m-1' />;
     };
 
 

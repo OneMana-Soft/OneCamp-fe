@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { installAnchorTracking } from "@/lib/hub/lastAnchor";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store/store";
 import dynamic from "next/dynamic";
@@ -19,8 +20,7 @@ const UpdateStatusDialog = dynamic(() => import("@/components/dialog/updateUserS
 const ConfirmAlertDialog = dynamic(() => import("@/components/dialog/confirmAlertDialog").then(mod => mod.ConfirmAlertDialog), { ssr: false });
 const DocShareDialog = dynamic(() => import("@/components/dialog/docShareDialog").then(mod => mod.DocShareDialog), { ssr: false });
 const CreateChatMessageDialog = dynamic(() => import("@/components/dialog/createChatMessageDialog"), { ssr: false });
-const EditChannelDialog = dynamic(() => import("@/components/dialog/editChannelDialog"), { ssr: false });
-const EditChannelMemberDialog = dynamic(() => import("@/components/dialog/editChannelMembers"), { ssr: false });
+const ChannelDetailsSheet = dynamic(() => import("@/components/channel/details/channelDetailsSheet"), { ssr: false });
 const ChannelCheckInsDialog = dynamic(() => import("@/components/dialog/channelCheckInsDialog"), { ssr: false });
 const EditTeamMemberDialog = dynamic(() => import("@/components/dialog/editTeamMembers"), { ssr: false });
 const EditDmMemberDialog = dynamic(() => import("@/components/dialog/editDmMembers"), { ssr: false });
@@ -90,6 +90,8 @@ const ProjectLongPressDrawer = dynamic(() => import("@/components/drawers/projec
 export function UnifiedUIManager() {
   const dispatch = useDispatch();
   const ui = useSelector((state: RootState) => state.ui);
+  // The profile card anchors to whatever was pressed to open it (lib/hub/lastAnchor).
+  useEffect(() => installAnchorTracking(), []);
   const [ghDisconnectSubmitting, setGhDisconnectSubmitting] = useState(false);
   const [ghUnlinkSubmitting, setGhUnlinkSubmitting] = useState(false);
 
@@ -149,6 +151,7 @@ export function UnifiedUIManager() {
 
       {ui.otherUserProfile.isOpen && (
         <OtherProfileDialog
+          key={ui.otherUserProfile.data.userUUID}
           dialogOpenState={ui.otherUserProfile.isOpen}
           setOpenState={() => dispatch(closeUI('otherUserProfile'))}
           userUUID={ui.otherUserProfile.data.userUUID}
@@ -172,6 +175,8 @@ export function UnifiedUIManager() {
           // useConfirm({ destructive: true }) puts this on the data; it was
           // dropped here, so every "Delete…" confirm drew an orange button.
           destructive={ui.confirmAlert.data.destructive === true}
+          icon={ui.confirmAlert.data.icon}
+          requireText={ui.confirmAlert.data.requireText}
           onConfirm={ui.confirmAlert.data.onConfirm}
           open={ui.confirmAlert.isOpen}
           onOpenChange={() => dispatch(closeUI('confirmAlert'))}
@@ -193,19 +198,12 @@ export function UnifiedUIManager() {
         />
       )}
 
-      {ui.editChannel.isOpen && (
-        <EditChannelDialog
-          channelId={ui.editChannel.data.channelUUID}
-          dialogOpenState={ui.editChannel.isOpen}
-          setOpenState={() => dispatch(closeUI('editChannel'))}
-        />
-      )}
 
-      {ui.editChannelMember.isOpen && (
-        <EditChannelMemberDialog
-          channelId={ui.editChannelMember.data.channelUUID}
-          dialogOpenState={ui.editChannelMember.isOpen}
-          setOpenState={() => dispatch(closeUI('editChannelMember'))}
+      {ui.channelDetails.isOpen && (
+        <ChannelDetailsSheet
+          channelId={ui.channelDetails.data.channelUUID}
+          open={ui.channelDetails.isOpen}
+          onOpenChange={(open) => { if (!open) dispatch(closeUI('channelDetails')) }}
         />
       )}
 
@@ -671,6 +669,7 @@ export function UnifiedUIManager() {
       {ui.channelMessageLongPress.isOpen && (
         <ChannelMessageLongPressDrawer
           drawerOpenState={ui.channelMessageLongPress.isOpen}
+          preview={ui.channelMessageLongPress.data.preview}
           setOpenState={() => dispatch(closeUI('channelMessageLongPress'))}
           makeTask={ui.channelMessageLongPress.data.makeTask}
           onAddEmoji={ui.channelMessageLongPress.data.onAddReaction}
@@ -690,6 +689,7 @@ export function UnifiedUIManager() {
       {ui.chatMessageLongPress.isOpen && (
         <ChatMessageLongPressDrawer
           drawerOpenState={ui.chatMessageLongPress.isOpen}
+          preview={ui.chatMessageLongPress.data.preview}
           setOpenState={() => dispatch(closeUI('chatMessageLongPress'))}
           makeTask={ui.chatMessageLongPress.data.makeTask}
           onAddEmoji={ui.chatMessageLongPress.data.onAddReaction}
@@ -709,6 +709,7 @@ export function UnifiedUIManager() {
       {ui.groupChatMessageLongPress.isOpen && (
         <GroupChatMessageLongPressDrawer
           drawerOpenState={ui.groupChatMessageLongPress.isOpen}
+          preview={ui.groupChatMessageLongPress.data.preview}
           setOpenState={() => dispatch(closeUI('groupChatMessageLongPress'))}
           makeTask={ui.groupChatMessageLongPress.data.makeTask}
           onAddEmoji={ui.groupChatMessageLongPress.data.onAddReaction}

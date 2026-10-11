@@ -16,9 +16,13 @@ describe("destructive confirms", () => {
     expect(block).toMatch(/destructive=\{ui\.confirmAlert\.data\.destructive/)
   })
 
-  it("draws the confirm button in the danger colour when destructive", () => {
+  // Design v3 (admin §8 H3) retired the raised button with danger ink here:
+  // a confirm that destroys is the one place a solid danger button appears.
+  it("draws the confirm button danger-solid when destructive", () => {
     render(<ConfirmAlertDialog open onOpenChange={() => {}} title="Delete channel?" description="Its messages go too." confirmText="Delete channel" destructive />)
-    expect(screen.getByRole("button", { name: "Delete channel" }).className).toContain("bg-destructive")
+    const button = screen.getByRole("button", { name: "Delete channel" })
+    expect(button.className).toContain("btn-danger-solid")
+    expect(button.className).toContain("bg-destructive")
   })
 
   // "Cancel" beside "Cancel import" left the person to guess which button
@@ -45,7 +49,7 @@ describe("destructive confirms", () => {
   it("keeps the brand fill when not destructive", () => {
     render(<ConfirmAlertDialog open onOpenChange={() => {}} title="Publish?" description="Everyone sees it." confirmText="Publish" />)
     const button = screen.getByRole("button", { name: "Publish" })
-    expect(button.className).toContain("bg-primary")
-    expect(button.className).not.toContain("bg-destructive")
+    expect(button.className).toContain("bg-brand")
+    expect(button.className).not.toContain("btn-danger-solid")
   })
 })

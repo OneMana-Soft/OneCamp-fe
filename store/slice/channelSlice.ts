@@ -493,6 +493,9 @@ const channelSlice = createSlice({
             if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
                 if(postId == post.post_uuid) {
+                    // A changed body is an edit: "(edited)" shows at once
+                    // (design v3 chat, C27), before the server's time arrives.
+                    if (post.post_text !== htmlText) post.post_updated_at = new Date().toISOString()
                     post.post_text = htmlText
                 }
 

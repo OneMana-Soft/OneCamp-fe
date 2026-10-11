@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { bottomNavTab } from "@/lib/utils/mobileBottomNav"
 
-const TABS = ["app/home", "app/channel", "app/chat", "app/activity"]
+const TABS = ["app/home", "app/channel", "app/chat", "app/inbox"]
 
 describe("bottomNavTab", () => {
   it("selects the tab whose section the page is in", () => {
     expect(bottomNavTab("/app/home", TABS)).toBe("app/home")
     expect(bottomNavTab("/app/chat/group/g1", TABS)).toBe("app/chat")
-    expect(bottomNavTab("/app/activity?tab=ai", TABS)).toBe("app/activity")
+    expect(bottomNavTab("/app/inbox?tab=ai", TABS)).toBe("app/inbox")
   })
   it("selects More for pages reached through it", () => {
     expect(bottomNavTab("/app/myTask", TABS)).toBe("more")

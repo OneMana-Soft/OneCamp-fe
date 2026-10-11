@@ -16,9 +16,11 @@ export const app_channel_call = "/app/meet/ch"
 export const app_chat_call = "/app/meet/chat"
 export const app_doc_path = "/app/doc"
 export const app_board_path = "/app/board"
-export const app_doc_activity = "/app/activity"
 export const app_later_path = "/app/later"
+/** Inbox: notifications and nudges, the triage page (design v3, shell N1). */
 export const app_inbox_path = "/app/inbox"
+/** Mail: the person's own Gmail. It was "Inbox" until v3 gave that name to notifications. */
+export const app_mail_path = "/app/mail"
 export const app_recording_activity = "/app/recordings"
 export const app_admin = "/app/admin"
 export const app_user = "/app/user"

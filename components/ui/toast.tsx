@@ -3,17 +3,26 @@
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "@/lib/icons"
+import { AlertTriangle, Check, Info, Loader2, X } from "@/lib/icons"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 
 import { cn } from "@/lib/utils/helpers/cn"
 
 const ToastProvider = ToastPrimitives.Provider
 
 /**
- * Bottom right from sm up; at the top on a phone. A phone's toast used to sit
- * 5rem up, clear of the bottom navigation but over a channel's message box,
- * which has no navigation under it, so a toast covered what the person was
- * typing. At the top, under the status bar, it covers nothing they are using.
+ * Where toasts are drawn (design v3, shell T1). Bottom right from sm up, 24px
+ * from the window, which is 16px inside the sheet's edge (the sheet sits 8px
+ * in), and above anything the right-hand corner stack holds (the demo prompt,
+ * slash-command cards: --corner-right-h, set by CornerStack). On a phone
+ * (design v3, mobile C9), a 44px pill 12px above whatever owns the bottom of
+ * the screen: the tab bar, or on a channel its composer (--phone-floor, set by
+ * MobileNavigationBar from --mobile-drawer-h), so it never sits over the box
+ * the person is typing in; centred, min(100% - 32px, 360px) wide; swiped down
+ * to go. While the keyboard is up it comes in under the top bar instead
+ * (app/phone.css).
+ *
+ * The toasts inside stack: see globals.css, "V3 SHELL: TOASTS AND NOTICES".
  */
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
@@ -21,12 +30,15 @@ const ToastViewport = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Viewport
     ref={ref}
+    // ⌥T reaches the toasts from the keyboard (Radix matches event.code).
+    hotkey={["altKey", "KeyT"]}
+    label="Notifications (Alt+T)"
     className={cn(
-      "fixed z-[var(--z-toast)] flex flex-col gap-2 p-4 max-h-dvh w-full",
-      // Phone: at the top, full width less the padding, under the status bar.
-      "top-0 left-1/2 -translate-x-1/2 pt-[calc(env(safe-area-inset-top)+0.75rem)]",
-      // sm and up: bottom right, at a bounded width.
-      "sm:top-auto sm:bottom-0 sm:right-0 sm:left-auto sm:translate-x-0 sm:pt-4 sm:max-w-[380px]",
+      "toast-viewport fixed z-[var(--z-toast)] m-0 list-none p-0 outline-none",
+      // Phone: above the tab bar or the composer, centred.
+      "bottom-[calc(var(--phone-floor)+12px)] left-1/2 w-[min(100%-32px,360px)] -translate-x-1/2",
+      // sm and up: bottom right, 356px wide.
+      "sm:left-auto sm:right-6 sm:translate-x-0 sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))] sm:w-[356px]",
       className,
     )}
     {...props}
@@ -34,44 +46,24 @@ const ToastViewport = React.forwardRef<
 ))
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 
-const toastVariants = cva(
-  cn(
-    "group pointer-events-auto relative flex w-full items-start justify-between gap-3",
-    "overflow-hidden rounded-lg border p-3 pr-10 shadow-overlay",
-    "data-[swipe=cancel]:translate-x-0",
-    "data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]",
-    "data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none",
-    "data-[state=open]:animate-in data-[state=closed]:animate-out",
-    "data-[swipe=end]:animate-out data-[state=closed]:fade-out-80",
-    // In from below by a few pixels and out as a fade, on the house curve: a
-    // toast confirms something happened, it does not need to fly across the
-    // screen to do it. Swipe-to-dismiss still slides, because there the
-    // finger is moving it.
-    "duration-200 ease-standard data-[state=open]:fade-in-0",
-    // From the edge it sits at: down from the top on a phone, up from below on a desktop.
-    "data-[state=open]:slide-in-from-top-2 sm:data-[state=open]:slide-in-from-bottom-2",
-    "data-[swipe=end]:slide-out-to-right-full",
-    "transition-[transform,opacity]",
-  ),
-  {
-    variants: {
-      variant: {
-        default: "border-border/60 bg-background text-foreground",
-        // A failure is said in words and one red title, on the same calm
-        // surface as every other toast. A solid red slab in the corner was the
-        // loudest thing in the app for something a retry usually fixes, and
-        // its white-on-red body text was the hardest to read.
-        destructive:
-          "destructive border-destructive/40 bg-background text-foreground",
-        notification:
-          "border-border/60 bg-background text-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
+/**
+ * The toast's root is a transparent shell that the stack moves (transform
+ * only); what you see is its card. Variants keep their names, so every one of
+ * the five hundred callers still works: destructive is the error tone,
+ * notification an info toast.
+ */
+const toastVariants = cva("toast-root group pointer-events-auto", {
+  variants: {
+    variant: {
+      default: "",
+      destructive: "destructive",
+      notification: "",
     },
   },
-)
+  defaultVariants: {
+    variant: "default",
+  },
+})
 
 const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
@@ -88,6 +80,36 @@ const Toast = React.forwardRef<
 })
 Toast.displayName = ToastPrimitives.Root.displayName
 
+/** The visible toast: 356px, at least 52px, r12 on the pop surface at e3. */
+const ToastCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("toast-card", className)} {...props} />,
+)
+ToastCard.displayName = "ToastCard"
+
+type Tone = "success" | "error" | "info" | "agent" | "person" | "loading"
+
+/**
+ * The 24px tile that leads a toast and says what kind of news it is: a moss
+ * check, a danger alert, a sky "i", the agent's square (so you see an agent
+ * acted, which is the governance story again), a person's avatar, or a
+ * spinner while something long runs.
+ */
+function ToastTile({ tone, icon }: { tone: Tone; icon?: React.ReactNode }) {
+  if (tone === "agent" || tone === "person") {
+    return (
+      <span className={cn("toast-tile", `toast-tile-${tone}`)} aria-hidden="true" data-tone={tone}>
+        {icon ?? (tone === "agent" ? <AgentAvatar /> : null)}
+      </span>
+    )
+  }
+  const Glyph = tone === "error" ? AlertTriangle : tone === "info" ? Info : tone === "loading" ? Loader2 : Check
+  return (
+    <span className={cn("toast-tile", `toast-tile-${tone}`)} aria-hidden="true" data-tone={tone}>
+      {icon ?? <Glyph className={cn("size-3.5", tone === "loading" && "animate-spin")} />}
+    </span>
+  )
+}
+
 const ToastAction = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Action>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>
@@ -95,13 +117,12 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input",
-      "bg-transparent px-3 text-xs font-medium",
-      "transition-colors hover:bg-accent",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+      // One 26px action, raised at e1: Undo, Retry, View. It may hold a kbd.
+      "toast-action inline-flex h-[26px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px]",
+      "bg-raised px-2 font-medium text-ink shadow-e1",
+      "transition-shadow hover:shadow-e2",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-pop",
       "disabled:pointer-events-none disabled:opacity-50",
-      "group-[.destructive]:border-destructive/40 group-[.destructive]:text-danger-ink",
-      "group-[.destructive]:hover:bg-destructive/10",
       className,
     )}
     {...props}
@@ -116,17 +137,17 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md",
-      "text-foreground/60 hover:text-foreground hover:bg-accent",
-      "transition-colors",
-      "focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+      // No × at rest: it shows on hover or focus, 20px at the top right
+      // corner, so it never sits on the action.
+      "toast-close inline-flex size-5 items-center justify-center rounded-full bg-pop text-ink-3 shadow-e1",
+      "hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
       className,
     )}
     toast-close=""
     aria-label="Close notification"
     {...props}
   >
-    <X className="h-3.5 w-3.5" />
+    <X className="size-3" />
   </ToastPrimitives.Close>
 ))
 ToastClose.displayName = ToastPrimitives.Close.displayName
@@ -137,7 +158,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
-    className={cn("text-sm font-semibold leading-tight group-[.destructive]:text-danger-ink", className)}
+    className={cn("toast-title text-xs font-medium text-ink", className)}
     {...props}
   />
 ))
@@ -149,7 +170,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-xs leading-snug text-muted-foreground mt-0.5", className)}
+    className={cn("toast-desc text-ink-2", className)}
     {...props}
   />
 ))
@@ -164,6 +185,8 @@ export {
   ToastProvider,
   ToastViewport,
   Toast,
+  ToastCard,
+  ToastTile,
   ToastTitle,
   ToastDescription,
   ToastClose,

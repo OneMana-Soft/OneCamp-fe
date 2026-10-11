@@ -92,3 +92,23 @@ export function messageLink(opts: { channelUUID?: string; postUUID?: string; cha
   if (chatUUID && chatMessageID) return `/app/chat/${chatUUID}/${chatMessageID}`
   return null
 }
+
+export type ReminderTone = "later" | "today" | "overdue"
+
+/**
+ * The reminder pill (hub.md L3): neutral for a later day ("Tomorrow 09:00"),
+ * sun for today ("Today 17:00"), danger once it has come ("Overdue ·
+ * Yesterday"). Times are 24-hour.
+ */
+export function reminderPill(at: Date, now: Date): { text: string; tone: ReminderTone } {
+  const hm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  if (at.getTime() <= now.getTime()) {
+    const when = sameDay(at, now) ? hm(at) : sameDay(at, addDays(now, -1)) ? "Yesterday" : format(at, "d MMM")
+    return { text: `Overdue · ${when}`, tone: "overdue" }
+  }
+  if (sameDay(at, now)) return { text: `Today ${hm(at)}`, tone: "today" }
+  if (sameDay(at, addDays(now, 1))) return { text: `Tomorrow ${hm(at)}`, tone: "later" }
+  const days = (atHour(at, 0).getTime() - atHour(now, 0).getTime()) / 86_400_000
+  if (days < 7) return { text: `${weekday(at)} ${hm(at)}`, tone: "later" }
+  return { text: format(at, "d MMM"), tone: "later" }
+}

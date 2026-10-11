@@ -41,7 +41,7 @@ const DEFAULT_SIZE: Record<IdentityMarkVariant, number> = { dot: 8, square: 10, 
  *   dot     a 6 to 8 px disc: a channel or calendar in a list
  *   square  a small rounded square: a project, beside its name
  *   tile    a tint tile holding an icon, or the name's first letter
- *   avatar  a person without a photo: tint, ink initials, a strong hairline
+ *   avatar  a person without a photo: the hue's saturated disc, white initials
  *
  *   <IdentityMark id={project.project_uuid} variant="square" />
  *   <IdentityMark id={user.user_uuid} label={name} src={photo} variant="avatar" />
@@ -71,10 +71,11 @@ export function IdentityMark({
       <Avatar {...a11y} style={style} className={cn("shrink-0", className)} data-hue={h}>
         {src ? <AvatarImage src={src} alt="" /> : null}
         <AvatarFallback
-          className={cn(avatarHueClass(h), "font-medium leading-none")}
-          style={{ fontSize: Math.max(9, Math.round(px * 0.38)) }}
+          className={cn(avatarHueClass(h), "leading-none")}
+          style={{ fontSize: Math.max(9, Math.round(px * 0.375)) }}
         >
-          {getNameInitials(label)}
+          {/* Two initials from 28px, one below 24 (design v3). */}
+          {px < 24 ? getNameInitials(label).slice(0, 1) : getNameInitials(label)}
         </AvatarFallback>
       </Avatar>
     )

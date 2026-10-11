@@ -348,7 +348,9 @@ const userSlice = createSlice({
     removeUserChannelName: (state, action: {payload: RemoveUserChannelInterface}) => {
       const {channelUUID} = action.payload;
 
-      state.userSidebar.userChannels = state.userSidebar.userChannels.filter((item) => item.ch_uuid === channelUUID);
+      // Drops that channel. It kept ONLY that channel (===), and its one caller
+      // passed the name, so archiving emptied the sidebar until a reload.
+      state.userSidebar.userChannels = state.userSidebar.userChannels.filter((item) => item.ch_uuid !== channelUUID);
 
     },
 

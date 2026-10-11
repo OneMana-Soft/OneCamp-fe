@@ -27,7 +27,7 @@ describe("PrincipalTag", () => {
 
   it("shows the short form to the eye and hides it from readers", () => {
     const { container } = render(<PrincipalTag kind="ai" />)
-    const short = container.querySelector('[aria-hidden="true"]')
+    const short = container.querySelector('[data-tag-label]')
     expect(short?.textContent).toBe("Agent")
   })
 
@@ -48,7 +48,7 @@ describe("PrincipalTag", () => {
   it("uses the named type token, so it cannot drift off the scale", () => {
     const { container } = render(<PrincipalTag kind="ai" />)
     const cls = container.firstElementChild?.className || ""
-    expect(cls).toContain("text-2xs")
+    expect(cls).toContain("text-3xs") // design v3: a tag is 11/510 (micro)
     // An arbitrary pixel size here would reintroduce exactly the bypass the
     // type-scale ratchet is draining.
     expect(cls).not.toMatch(/text-\[\d+px\]/)
@@ -63,14 +63,14 @@ describe("PrincipalTag", () => {
 
   it("says a plain bot is automated, and claims no AI for it", () => {
     const { container } = render(<PrincipalTag kind="bot" />)
-    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe("Bot")
+    expect(container.querySelector('[data-tag-label]')?.textContent).toBe("Bot")
     expect(container.querySelector(".sr-only")?.textContent).toBe("Automated account")
     expect(container.innerHTML).not.toMatch(/\bAI\b|agent/i)
   })
 
   it("says a Slack person is in Slack, and claims no AI for them", () => {
     const { container } = render(<PrincipalTag kind="bridge" />)
-    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe("Slack")
+    expect(container.querySelector('[data-tag-label]')?.textContent).toBe("Slack")
     expect(container.querySelector(".sr-only")?.textContent).toBe("Person in Slack")
     expect(container.innerHTML).not.toMatch(/\bAI\b|agent/i)
   })

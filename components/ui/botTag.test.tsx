@@ -53,7 +53,9 @@ describe("bots are described by their kind", () => {
 
   it("tags AI outright only where only AI is listed", () => {
     const offenders = files
-      .filter((f) => !f.endsWith("components/member/channelAITeammates.tsx") && /<PrincipalTag\s+kind="ai"/.test(readFileSync(f, "utf8")))
+      // The agents page (AgentsCard) lists only AI agents, as the channel's
+      // AI teammates list does, so its cards say Agent outright (admin §S5).
+      .filter((f) => !f.endsWith("components/member/channelAITeammates.tsx") && !f.endsWith("components/admin/AgentsCard.tsx") && /<PrincipalTag\s+kind="ai"/.test(readFileSync(f, "utf8")))
       .map((f) => relative(REPO_ROOT, f))
     expect(offenders, "use <BotTag userUUID={…} /> for a bot's name").toEqual([])
   })

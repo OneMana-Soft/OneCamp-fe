@@ -24,7 +24,9 @@ describe("statusOptions", () => {
   it("gives a custom status its colour and its category's icon", () => {
     const qa = statusOptions(project).find((o) => o.value === "qa")!
     expect(qa).toMatchObject({ label: "QA", category: "inReview", custom: true, swatch: "violet" })
-    expect(qa.color).toContain("violet")
+    // Violet folds onto dusk, the camp hue (work.md §1.4).
+    expect(qa.color).toContain("hue-dusk")
+    expect(qa).toMatchObject({ kind: "review", hue: "dusk" })
     expect(qa.icon).toBe(statusOptions().find((o) => o.value === "inReview")!.icon)
   })
 })

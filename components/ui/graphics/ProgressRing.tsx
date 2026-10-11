@@ -14,6 +14,8 @@ export interface ProgressRingProps {
   /** Shown in the middle, such as the percentage. */
   children?: ReactNode
   className?: string
+  /** How long a change of value takes to draw, in ms: 320 inline (work.md W08), 480 for a hero ring (W43). */
+  duration?: number
 }
 
 /**
@@ -22,13 +24,13 @@ export interface ProgressRingProps {
  * in any other (--progress-from and --progress-to, app/themes.css). Where no
  * theme sets them (the storefront), the logo's gradient is the fallback.
  *
- * The track is the surrounding text colour at low opacity, so the ring sits in
- * any surface. The value is also stated to assistive tech, and should be
+ * The track is --press (design v3's empty progress track), an alpha, so the
+ * ring sits on any surface. The value is also stated to assistive tech, and should be
  * stated in words nearby or in the middle: a ring alone never carries it.
  *
  *   <ProgressRing value={58} label="Q4 launch, 7 of 12 done">58%</ProgressRing>
  */
-export function ProgressRing({ value, size = 32, weight = 3, label, children, className }: ProgressRingProps) {
+export function ProgressRing({ value, size = 32, weight = 3, label, children, className, duration = 320 }: ProgressRingProps) {
   const id = `progress-${useId().replace(/[^\w-]/g, "")}`
   const v = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
   const r = (size - weight) / 2
@@ -49,7 +51,7 @@ export function ProgressRing({ value, size = 32, weight = 3, label, children, cl
             <stop offset="1" style={{ stopColor: "var(--progress-to, #FF3D00)" }} />
           </linearGradient>
         </defs>
-        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={weight} className="stroke-current" opacity="0.15" />
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={weight} style={{ stroke: "var(--press, rgba(20, 22, 30, 0.07))" }} />
         {v > 0 && (
           <circle
             cx={size / 2}
@@ -61,7 +63,7 @@ export function ProgressRing({ value, size = 32, weight = 3, label, children, cl
             pathLength={100}
             strokeDasharray={`${v} 100`}
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            style={{ transition: "stroke-dasharray 200ms cubic-bezier(0.2, 0.8, 0.2, 1)" }}
+            style={{ transition: `stroke-dasharray ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)` }}
           />
         )}
       </svg>

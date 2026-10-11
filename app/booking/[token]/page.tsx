@@ -1,21 +1,24 @@
 "use client"
 
-// A guest's own booking, from the link they were given: see it, cancel it.
+// A guest's own booking, from the link they were given (content.md K06,
+// manage): the ticket in the public frame, and a way to cancel it.
 
 import { use, useEffect, useState } from "react"
-import { AlertCircle, CalendarCheck, CalendarX, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import { formatRange } from "@/lib/calendar/availability"
-import { browserTZ } from "@/lib/utils/timeZone"
-import { cancelBooking, getBooking, type BookingView } from "@/services/bookingService"
-import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { Skeleton } from "@/components/ui/skeleton"
+import { browserTZ } from "@/lib/utils/timeZone"
+import { cn } from "@/lib/utils/helpers/cn"
+import { cancelBooking, getBooking, type BookingView } from "@/services/bookingService"
+import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame"
+import { PublicGone } from "@/components/guest/publicStates"
+import { BookingSpot, longDay, slotTime, zoneLabel } from "@/components/booking/BookingFlow"
 
 export default function ManageBooking({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const [booking, setBooking] = useState<BookingView | null>(null)
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading")
+  const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [tz, setTz] = useState("UTC")
@@ -30,79 +33,88 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
     })
   }, [token])
 
-  // The page's own shape while it loads, not a spinner in the accent.
-  if (state === "loading") {
-    return (
-      <Centered>
-        <div role="status" aria-label="Loading your booking" className="flex flex-col items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-lg" />
-          <Skeleton className="h-7 w-64" />
-          <Skeleton className="h-4 w-80 max-w-full" />
-        </div>
-      </Centered>
-    )
-  }
-  if (state === "missing" || !booking) {
-    return (
-      <Centered>
-        <AlertCircle className="h-8 w-8 text-muted-foreground" />
-        <p className="text-base font-semibold">We couldn&apos;t find that booking</p>
-        <p className="max-w-sm text-sm text-muted-foreground">Check the link in your confirmation.</p>
-      </Centered>
-    )
+  if (state === "missing") {
+    return <PublicGone surface="booked" title="We couldn't find that booking" detail="Check the link in your confirmation." />
   }
 
-  const past = new Date(booking.end) < new Date()
+  const cancel = async () => {
+    setBusy(true)
+    setError("")
+    const res = await cancelBooking(token)
+    setBusy(false)
+    if (res.ok) {
+      setBooking(res.data)
+      setAsking(false)
+    } else setError(res.msg || "Couldn't cancel. Try again.")
+  }
+
+  const past = !!booking && new Date(booking.end) < new Date()
+  const first = (booking?.owner_name || "").split(/\s+/)[0]
   return (
-    <Centered>
-      {/* On a hue tile, as the app's icons sit: the accent is for the one
-          action, and here that is Cancel. */}
-      {booking.cancelled ? (
-        <Tile hue="sky" size="lg" className="opacity-70"><CalendarX aria-hidden="true" /></Tile>
-      ) : (
-        <Tile hue="moss" size="lg"><CalendarCheck aria-hidden="true" /></Tile>
-      )}
-      <h1 className="text-2xl font-semibold tracking-tight">{booking.cancelled ? "Cancelled" : booking.title}</h1>
-      {/* Who it is with, on a line of its own: the title often names them
-          already, and "Intro call with Sam with Sam Rivera" read twice. */}
-      <p className="text-sm text-muted-foreground">With {booking.owner_name}</p>
-      <p className="text-sm">
-        <span className={booking.cancelled ? "line-through" : "font-medium"}>{formatRange(booking.start, booking.end, tz)}</span>
-      </p>
-      {booking.cancelled ? (
-        <>
-          <p className="max-w-sm text-sm text-muted-foreground">{booking.owner_name} has been told. Their calendar is clear again.</p>
-          <Button asChild variant="outline">
-            <a href={`/book/${booking.slug}`}>Book another time</a>
-          </Button>
-        </>
-      ) : past ? (
-        <p className="text-sm text-muted-foreground">This meeting has already happened.</p>
-      ) : (
-        <>
-          {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
-          <Button
-            variant="destructive"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true)
-              setError("")
-              const res = await cancelBooking(token)
-              setBusy(false)
-              if (res.ok) setBooking(res.data)
-              else setError(res.msg)
-            }}
-          >
-            {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            Cancel this booking
-          </Button>
-        </>
-      )}
-      <MadeWithOneCamp surface="booked" label="Scheduling by OneCamp" className="mt-6" />
-    </Centered>
-  )
-}
+    <PublicFrame surface="booked" header={false} mainClassName="px-4 pt-6 sm:pt-[72px]">
+      <PaperCard className="max-w-[560px] rounded-[16px] px-5 pb-8 pt-8 shadow-e1 sm:px-9" data-manage-booking="">
+        {state === "loading" || !booking ? (
+          <div role="status" aria-label="Loading your booking" className="flex flex-col items-center gap-3">
+            <Skeleton className="size-20 rounded-[24px]" />
+            <Skeleton className="h-6 w-56" />
+            <Skeleton className="h-28 w-full rounded-xl" />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center text-center">
+            {!booking.cancelled && !past ? <BookingSpot /> : null}
+            <h1 className="mt-4 text-title-2 text-ink">{booking.title}</h1>
+            {/* Who it is with, on a line of its own: the title often names them
+                already, and "Intro call with Sam with Sam Rivera" read twice. */}
+            <p className="mt-0.5 text-ui text-ink-2">With {booking.owner_name}</p>
+            <div className={cn("mt-5 w-full rounded-xl bg-sunken p-4 text-left", booking.cancelled && "opacity-55")} data-ticket="">
+              <div className="flex items-center gap-2">
+                <p className={cn("text-heading font-semibold text-ink", booking.cancelled && "line-through")}>{longDay(booking.start, tz)}</p>
+                {booking.cancelled ? <span className="rounded-[5px] bg-press px-1.5 text-micro font-medium leading-[18px] text-ink-2">Cancelled</span> : null}
+              </div>
+              <p className={cn("mt-0.5 text-ui text-ink-2 tabular-nums", booking.cancelled && "line-through")}>
+                {slotTime(booking.start, tz, false)} – {slotTime(booking.end, tz, false)} · {zoneLabel(tz)}
+              </p>
+            </div>
 
-function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
+            {booking.cancelled ? (
+              <>
+                <p className="mt-4 max-w-sm text-ui-sm text-ink-2">{first || "They"} has been told. Their calendar is clear again.</p>
+                <Button asChild size="sm" className="mt-4">
+                  <a href={`/book/${booking.slug}`}>Book another time</a>
+                </Button>
+              </>
+            ) : past ? (
+              <>
+                <p className="mt-4 text-ui-sm text-ink-2">This meeting has happened.</p>
+                <Button asChild size="sm" variant="secondary" className="mt-4">
+                  <a href={`/book/${booking.slug}`}>Book again</a>
+                </Button>
+              </>
+            ) : asking ? (
+              <div className="content-rise mt-5 w-full rounded-xl bg-raised p-4 text-left shadow-e1">
+                <p className="text-ui font-medium text-ink">Cancel this meeting?</p>
+                <p className="mt-0.5 text-ui-sm text-ink-2">{first || "They"} is told at once, and the time is free again.</p>
+                {error ? <p role="alert" className="mt-2 text-meta text-danger-ink">{error}</p> : null}
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setAsking(false)} disabled={busy}>
+                    Keep it
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => void cancel()} disabled={busy} className="relative">
+                    <span className={cn(busy && "invisible")}>Cancel booking</span>
+                    {busy ? <Loader2 className="absolute size-3.5 animate-spin" aria-label="Cancelling" /> : null}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <Button variant="ghost" size="sm" className="text-danger-ink hover:text-danger-ink" onClick={() => setAsking(true)}>
+                  Cancel booking
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </PaperCard>
+    </PublicFrame>
+  )
 }

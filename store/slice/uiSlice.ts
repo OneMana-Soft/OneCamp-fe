@@ -33,8 +33,9 @@ interface RootUIState {
   // project (projectId, preselected).
   createTask: SingleUIState<{ draft?: TaskDraft; source?: TaskSource; assignToMe?: boolean; projectId?: string } | null>;
   createDoc: SingleUIState;
-  editChannel: SingleUIState;
-  editChannelMember: SingleUIState;
+  // One right sheet for a channel (design v3 chat, C49): About, members, agents,
+  // guests, notifications, settings and the danger zone.
+  channelDetails: SingleUIState<{ channelUUID: string }>;
   channelCheckIns: SingleUIState;
   editTeamMember: SingleUIState;
   editDmMember: SingleUIState;
@@ -64,7 +65,7 @@ interface RootUIState {
   // Admin card dialogs
   webhookCreate: SingleUIState;
   webhookEdit: SingleUIState<{ id: string; name: string; description?: string; type: "incoming" | "outgoing"; target_url?: string; bot_name: string; events?: string; is_active: boolean }>;
-  webhookDelete: SingleUIState<{ id: string; name: string; type: "incoming" | "outgoing" }>;
+  webhookDelete: SingleUIState<{ id: string; name: string; type: "incoming" | "outgoing"; last_triggered_at?: string }>;
   githubDisconnect: SingleUIState;
   githubUnlink: SingleUIState<{ id: string; repo_owner: string; repo_name: string }>;
   archiveEditPolicy: SingleUIState<{ id: string; entity_type: string; retention_days: number; auto_archive: boolean; archive_completed_tasks: boolean; archive_inactive_channels_days: number; compress_attachments: boolean }>;
@@ -126,8 +127,7 @@ const initialState: RootUIState = {
   createTeam: { isOpen: false, data: null },
   createTask: { isOpen: false, data: null },
   createDoc: { isOpen: false, data: null },
-  editChannel: { isOpen: false, data: { channelUUID: "" } },
-  editChannelMember: { isOpen: false, data: { channelUUID: "" } },
+  channelDetails: { isOpen: false, data: { channelUUID: "" } },
   channelCheckIns: { isOpen: false, data: { channelUUID: "" } },
   editTeamMember: { isOpen: false, data: { teamUUID: "" } },
   editDmMember: { isOpen: false, data: { grpId: "" } },
