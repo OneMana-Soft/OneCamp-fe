@@ -1,48 +1,43 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
-import { Provider } from "react-redux"
-import { hueFor } from "@/lib/campHue"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+vi.mock("@/components/message/chatFace", () => ({ ChatFace: ({ size }: { size: number }) => <span style={{ width: size }} /> }))
+const { ConversationEmpty } = await import("./conversationEmpty")
 
-// An empty channel, DM or group shows the welcome spot (the playful layer's
-// illustration) in the conversation's own hue: the channel's, the other
-// person's (their avatar's, seeded by their name), or the group's. It was two
-// lines of grey text.
-
-vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), usePathname: () => "/app/channel/c1", useRouter: () => ({ push: () => {} }) }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => undefined), isSubmitting: false }) }))
-vi.mock("@/hooks/useFetch", () => {
-  const me = { data: { data: { user_uuid: "me", user_name: "Sam Rivera" } } }
-  const maya = { data: { data: { user_uuid: "maya", user_name: "Maya Chen", user_full_name: "Maya Chen" } } }
-  return { useFetch: () => ({ data: undefined }), useFetchOnlyOnce: (url: string) => (url === "/user/profile" ? me : maya) }
-})
-
-const { default: store } = await import("@/store/store")
-const { ChannelMessages } = await import("@/components/channel/channelMessages")
-const { ChatMessages } = await import("@/components/chat/chatMessages")
-const { GroupChatMessages } = await import("@/components/groupChat/groupChatMessages")
-
-const list = { getOldMessages: () => {}, hasMoreOldMsg: false, getNewMessages: () => {}, hasMoreNewMsg: false, isNewMsgLoading: false, isOLdMsgLoading: false, clickedScrollToBottom: () => {} }
-const spot = (container: HTMLElement) => container.querySelector("[data-conversation-empty] svg")
-
+// Design v3 chat, C58: an empty channel orbits its real members around its
+// #; a DM shows the other person's face; starter chips make the first move
+// one click; and nothing takes a hue from the conversation's id.
 afterEach(cleanup)
 
+const faces = [
+  { uuid: "s", name: "Sam Rivera" },
+  { uuid: "m", name: "Maya Chen" },
+  { uuid: "rc", name: "Release Captain", isBot: true },
+]
+
 describe("an empty conversation", () => {
-  it("in a channel shows the welcome spot in the channel's hue", () => {
-    const { container } = render(<Provider store={store}><ChannelMessages posts={[]} channelId="c-empty" {...list} /></Provider>)
-    expect(spot(container)?.getAttribute("class")).toContain(HUE_CLASS[hueFor("c-empty")])
-    expect(screen.getByText("What you write below starts the conversation.")).toBeTruthy()
+  it("in a channel orbits the channel's members around its #", () => {
+    const { container } = render(<ConversationEmpty kind="channel" faces={faces} title="This is the start of #launch" />)
+    expect(container.querySelector("[data-orbit]")).toBeTruthy()
+    expect(container.querySelectorAll("[data-orbit] .motion-safe\\:animate-orbit-in")).toHaveLength(3)
+    expect(screen.getByText("This is the start of #launch")).toBeTruthy()
   })
 
-  it("in a DM shows it in the other person's hue, and says who it is with", () => {
-    const { container } = render(<Provider store={store}><ChatMessages chats={[]} chatId="maya" {...list} /></Provider>)
-    expect(spot(container)?.getAttribute("class")).toContain(HUE_CLASS[hueFor("Maya Chen")])
-    expect(screen.getByText("This is the start of your conversation with Maya Chen")).toBeTruthy()
+  it("in a DM shows the other person's face, at 64px", () => {
+    const { container } = render(<ConversationEmpty kind="dm" faces={[faces[1]]} title="This is the start of your conversation with Maya Chen" />)
+    expect(container.querySelector("[data-orbit]")).toBeNull()
+    expect(container.querySelector('[style*="width: 64px"]')).toBeTruthy()
   })
 
-  it("in a group shows it in the group's hue", () => {
-    const { container } = render(<Provider store={store}><GroupChatMessages chats={[]} grpId="g-empty" {...list} /></Provider>)
-    expect(spot(container)?.getAttribute("class")).toContain(HUE_CLASS[hueFor("g-empty")])
+  it("offers starter chips that act", () => {
+    let said = false
+    render(<ConversationEmpty title="x" chips={[{ label: "Say hello", onClick: () => { said = true } }]} />)
+    fireEvent.click(screen.getByRole("button", { name: "Say hello" }))
+    expect(said).toBe(true)
+  })
+
+  it("takes no hue from the conversation's id", () => {
+    const src = readFileSync("components/message/emptyConversations.tsx", "utf8") + readFileSync("components/message/conversationEmpty.tsx", "utf8")
+    expect(src).not.toMatch(/hueFor\(/)
   })
 })

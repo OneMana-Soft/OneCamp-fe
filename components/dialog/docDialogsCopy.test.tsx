@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(), isSubmitting: false }) }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+const { makeRequest, push } = vi.hoisted(() => ({ makeRequest: vi.fn(), push: vi.fn() }))
+vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => undefined }))
 
 import CreateDocDialog from "./createDocDialog"
@@ -13,14 +14,14 @@ afterEach(cleanup)
 // A doc's dialogs speak in sentence case, name their fields, and say what they
 // do: renaming a doc said "Create Document" over "Update Title".
 describe("a doc's dialogs", () => {
-  it("make a new doc in sentence case, with the privacy switch named and explained", () => {
-    render(<CreateDocDialog dialogOpenState setOpenState={() => {}} />)
-    expect(screen.getByRole("heading", { name: "New doc" })).toBeTruthy()
-    expect(screen.getByLabelText("Title")).toBeTruthy()
-    expect(screen.getByRole("switch", { name: "Private" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Create doc" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
-    expect(document.body.textContent).not.toMatch(/Create Document|Document Title|Private Document/)
+  it("make a new doc with no dialog: an Untitled private doc, opened with its title ready", async () => {
+    makeRequest.mockResolvedValueOnce({ doc_uuid: "d1" })
+    const close = vi.fn()
+    render(<CreateDocDialog dialogOpenState setOpenState={close} />)
+    expect(screen.queryByRole("dialog")).toBeNull()
+    await waitFor(() => expect(close).toHaveBeenCalledWith(false))
+    expect(makeRequest.mock.calls[0][0].payload).toEqual({ doc_title: "Untitled", doc_private: true })
+    expect(push).toHaveBeenCalledWith("/app/doc/d1?new=1")
   })
 
   it("rename a doc as a rename", () => {

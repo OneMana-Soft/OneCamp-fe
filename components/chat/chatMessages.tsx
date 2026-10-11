@@ -9,7 +9,6 @@ import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
 import {FlatItem, RowMeta} from "@/types/virtual";
 import {useMedia} from "@/context/MediaQueryContext";
-import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {usePost} from "@/hooks/usePost";
 import {CreateOrUpdateChatReaction} from "@/types/reaction";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -18,6 +17,7 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import { openUI } from "@/store/slice/uiSlice";
 import {MessageListVirtua} from "@/components/message/MessaageListVirtua";
+import { mentionsUser } from "@/components/message/tintMentions";
 import {VListHandle} from "virtua";
 import {RootState} from "@/store/store";
 import {
@@ -31,9 +31,10 @@ import {ChatMessageMobile} from "@/components/chat/chatMessageMobile";
 import {ChatMessage} from "@/components/chat/chatMessage";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import { useStableCallback } from "@/hooks/useStableCallback";
+import { useStableCallback } from "@/hooks/useStableCallback"
+import { useToast } from "@/hooks/use-toast";
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen";
-import { ConversationEmpty } from "@/components/message/conversationEmpty";
+import { DmEmpty } from "@/components/message/emptyConversations";
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
 import { hueFor } from "@/lib/campHue";
 import { userDisplayName } from "@/lib/utils/userDisplayName";
@@ -65,6 +66,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
 
     const post = usePost()
 
+    const { toast } = useToast()
     const dispatch = useDispatch();
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -142,7 +144,11 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 reaction_emoji_id: emojiId,
                 reaction_dgraph_id: reactionId
             }})
-            .then((res)=>{
+            .then((res) => {
+                // An answer without the new reaction's id is a failure too: the
+                // pill goes back and a toast says so (design v3 chat, C21). It
+                // used to stay forever, or take the conversation down.
+                if (!reactionId && !res?.reaction_dgraph_id) throw new Error("no reaction id")
                 if(reactionId) {
                    // Success
                 } else if (res?.reaction_dgraph_id && selfProfile.data?.data){
@@ -163,6 +169,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 }
             })
             .catch(() => {
+                toast({ title: "Couldn't add the reaction. Try again" })
                 // Revert
                 if (reactionId) {
                     if (oldEmojiId) {
@@ -305,6 +312,12 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     })
 
 
+    // On a computer, deleting is confirmed in place, inside the message's
+    // More menu (MessageDesktopDropdown, C20); the phone keeps its dialog.
+    const deleteNow = useStableCallback((id: string) => {
+        if (id) executeDeleteChat(id)
+    })
+
     const handleDeleteChat = useStableCallback((messageId: string) => {
 
         if(!messageId) return
@@ -353,13 +366,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "dm", otherUUID: chatId }), [chatId]);
 
-    const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued }: RowMeta) => (
+    const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued, arrived }: RowMeta) => (
         <div>
             {isMobile ?
-                <TouchableDiv
-                    rippleBrightness={0.8}
-                    rippleDuration={800}
-                >
+                <>
                     <ChatMessageMobile
                         chatInfo={chat}
                         removeChat={()=>{handleDeleteChat(chat.chat_uuid)}}
@@ -368,22 +378,30 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                         updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                         priority={priority}
                         continued={continued}
+                        arrived={arrived}
                     />
-                </TouchableDiv>
+                </>
                 :
                 <ChatMessage
                     chatInfo={chat}
                     addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                     removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
-                    removePost={()=>{handleDeleteChat(chat.chat_uuid)}}
+                    removePost={() => { deleteNow(chat.chat_uuid) }}
                     updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                     priority={priority}
                     continued={continued}
+                    arrived={arrived}
                 />
             }
             {isLast && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    ), [isMobile, hasMoreNewMsg, receiptTarget, handleDeleteChat, createOrUpdateReaction, removeReaction, handleUpdateChat]);
+    ), [isMobile, hasMoreNewMsg, receiptTarget, handleDeleteChat, deleteNow, createOrUpdateReaction, removeReaction, handleUpdateChat]);
+
+    // The row that can't be drawn offers its words; the jump pill counts
+    // what arrived for the reader.
+    const rawText = useCallback((m: ChatInfo) => m.chat_body_text, [])
+    const selfIdForPill = selfProfile.data?.data?.user_uuid
+    const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill), [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null);
 
@@ -435,6 +453,8 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     <MessageListVirtua
         items={flatItems}
         renderItem={renderItem}
+        rawText={rawText}
+        isForMe={isForMe}
         getDateHeading={getGroupDateHeading}
         fetchOlderMessage={getOldMessages}
         fetchNewMessage={handleGetNewMessage}
@@ -448,11 +468,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         initialScrollOffsetFromTop={scrollPosition?.offset}
         onScroll={debouncedHandleScroll}
         empty={
-            <ConversationEmpty
-                hue={hueFor(otherName)}
-                title={otherName ? `This is the start of your conversation with ${otherName}` : "No messages yet"}
-                description="Messages you send here are between the two of you."
-            />
+            <DmEmpty chatId={chatId} />
         }
         />
     );

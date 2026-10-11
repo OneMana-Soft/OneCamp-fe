@@ -81,16 +81,16 @@ export function MessageAttachmentCard({ mediaGetURL, attachment, autoplay, class
 
     if (mediaReq.isError) {
         return (
-            <div className={cn('bg-secondary/50 text-muted-foreground flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl border border-border/50 p-4', className)}>
-                <EyeOff size={24} />
-                <span className="text-xs font-medium">Failed to load</span>
+            <div className={cn('flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl bg-sunken p-4 text-ink-3', className)}>
+                <EyeOff size={20} />
+                <span className="text-meta font-medium">Couldn't load this</span>
             </div>
         )
     }
 
     if (mediaReq.isLoading || !mediaReq.data?.url) {
         return (
-            <Skeleton className={cn('h-full w-full rounded-xl', className)} />
+            <Skeleton className={cn('h-full min-h-24 w-full rounded-xl', className)} />
         )
     }
 
@@ -107,10 +107,11 @@ export function MessageAttachmentCard({ mediaGetURL, attachment, autoplay, class
             >
 
                 <VideoAttachmentCard selfSize attachment={attachment} cover={cover} autoplay={autoplay} url={mediaReq.data?.url} controls={false}/>
-                <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
-                    <div className="bg-black/30 backdrop-blur-sm p-3 rounded-full border border-white/20 shadow-lg">
-                        <Play className="h-6 w-6 text-white fill-white" />
-                    </div>
+                {/* The poster's 44px play disc (C25): solid, no blur, the glyph nudged right to sit centred. */}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span data-play-disc="" className="flex size-11 items-center justify-center rounded-full bg-black/55 text-white">
+                        <Play className="ml-0.5 size-5 fill-white" />
+                    </span>
                 </div>
             </div>
         )

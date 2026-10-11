@@ -18,9 +18,14 @@ import {
 } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap";
 
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
-import { tintMentions } from "@/components/message/tintMentions";
+import { tintMentions, type MentionContext } from "@/components/message/tintMentions";
+import { withEditedMark } from "@/lib/chat/editedMark";
+import { ChatComposerShell } from "@/components/textInput/chatComposerShell";
+import { PhoneComposerShell } from "@/components/textInput/phoneComposerShell";
+import type { ComposerAgent } from "@/components/textInput/composerTools";
 import { canRenderStatically, mentionUserUUID } from "@/lib/utils/staticRichText";
 import { useDispatch } from "react-redux";
+import { useProfileHoverWithin } from "@/hooks/useProfileHover";
 import { openUI } from "@/store/slice/uiSlice";
 import "@/components/minimal-tiptap/styles/index.css";
 import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button";
@@ -94,6 +99,34 @@ interface MinimalTiptapProps
    * text typed: it reads as ready, as it does with text.
    */
   hasAttachments?: boolean
+  /**
+   * A read-only message body: who is reading and which ids are agents, so a
+   * mention of the reader is the accent chip and an agent's the agent's
+   * (components/message/tintMentions).
+   */
+  mentionContext?: MentionContext
+  /**
+   * A read-only message body that was edited: "(edited)" after its last
+   * word, with this as its tooltip ("Edited 10:42 · originally 10:31").
+   */
+  editedTitle?: string
+  /**
+   * "chat": the conversation's composer (design v3 chat, C38 to C46): the
+   * floating card, five tools, the split Send. Channels, DMs, groups and
+   * threads; every other editor keeps its own look.
+   */
+  variant?: "default" | "chat" | "phone"
+  /** The phone composer's sheet is the whole screen (C48). */
+  expanded?: boolean
+  onExpandedChange?: (expanded: boolean) => void
+  /** The thread panel's smaller chat composer. */
+  compact?: boolean
+  /** The agents the "+" menu can ask here. */
+  agents?: ComposerAgent[]
+  /** Opens the AI draft (the aiSlot's popover), from "+" or ⌘J. */
+  onDraftWithAI?: () => void
+  /** Takes back a message just scheduled (the scheduled chip's Undo). */
+  onUndoSchedule?: (at: Date) => void
 }
 
 // The composer's buttons on a touch screen: 40px, from the 32px they are under a
@@ -138,7 +171,7 @@ const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setTogg
                   isActive={toggledTextEditor}
                   onClick={()=>{setToggledTextEditor(!toggledTextEditor)}}
               >
-                <Type className="size-4" strokeWidth={1.75}/>
+                <Type className="size-4"/>
               </ToolbarButton>
           )}
           {expanded && (
@@ -227,7 +260,7 @@ const ComposerActions = React.memo(function ComposerActions({
         {attachmentOnclick && (
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4" strokeWidth={1.75}/></Button>
+                    <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/></Button>
                 </TooltipTrigger>
                 <TooltipContent>{attachmentLabel}</TooltipContent>
             </Tooltip>
@@ -253,7 +286,10 @@ const ComposerActions = React.memo(function ComposerActions({
                   <Button
                       aria-label={buttonLabel}
                       size={"icon"}
-                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-muted text-muted-foreground hover:bg-muted")}
+                      // Empty, Send is the press overlay (the subtle variant,
+                      // which carries no primary ring); with words, the primary.
+                      variant={nothingToSend ? "subtle" : "default"}
+                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-press text-faint-foreground hover:bg-press")}
                       onClick={onSend}
                   >
                       <ButtonIcon className="h-4 w-4" />
@@ -297,6 +333,16 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             output,
             autoFocus,
             hasAttachments = false,
+            // Read-only bodies only (StaticRichText); never the editor's.
+            mentionContext: _mentionContext,
+            editedTitle: _editedTitle,
+            variant = "default",
+            compact = false,
+            agents,
+            onDraftWithAI,
+            onUndoSchedule,
+            expanded,
+            onExpandedChange,
           ...props
         },
         ref
@@ -551,6 +597,53 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         return null;
       }
 
+      if (variant === "phone" && canEdit && !isOutputText) {
+        return (
+          <PhoneComposerShell
+              ref={ref}
+              editor={editor}
+              nothingToSend={nothingToSend}
+              buttonLabel={buttonLabel}
+              onSend={sendNow}
+              onUpload={attachmentOnclick ? attachNow : undefined}
+              onFiles={onActionFiles ? filesNow : undefined}
+              agents={agents}
+              onDraftWithAI={onDraftWithAI}
+              aiSlot={aiSlot}
+              expanded={expanded}
+              onExpandedChange={onExpandedChange}
+              linkMenu={<MemoLinkBubbleMenu editor={editor} />}
+          >
+            {children}
+          </PhoneComposerShell>
+        );
+      }
+
+      if (variant === "chat" && canEdit && !isOutputText) {
+        return (
+          <ChatComposerShell
+              ref={ref}
+              editor={editor}
+              compact={compact}
+              className={className}
+              editorContentClassName={editorContentClassName}
+              nothingToSend={nothingToSend}
+              buttonLabel={buttonLabel}
+              onSend={sendNow}
+              onSchedule={wrappedOnSchedule}
+              onUndoSchedule={onUndoSchedule}
+              onUpload={attachmentOnclick ? attachNow : undefined}
+              onFiles={onActionFiles ? filesNow : undefined}
+              agents={agents}
+              onDraftWithAI={onDraftWithAI}
+              aiSlot={aiSlot}
+              linkMenu={<MemoLinkBubbleMenu editor={editor} />}
+          >
+            {children}
+          </ChatComposerShell>
+        );
+      }
+
       return (
           <div
               ref={ref}
@@ -617,11 +710,14 @@ LiveTextInput.displayName = "LiveTextInput";
 // A read-only body that needs no live node view is shown as its sanitised HTML:
 // no editor is built, and the text is there on the first paint. Editing, or
 // content that needs the editor, gets the live component.
-const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; className?: string; contentClassName?: string }>(
-    ({ html, className, contentClassName }, ref) => {
+const mentionHoverUUID = (el: HTMLElement) => mentionUserUUID(el.dataset.id);
+
+const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; className?: string; contentClassName?: string; mentionContext?: MentionContext; editedTitle?: string }>(
+    ({ html, className, contentClassName, mentionContext, editedTitle }, ref) => {
         const dispatch = useDispatch();
-        // Each person mention in that person's hue, as their avatar is.
-        const safe = React.useMemo(() => tintMentions(sanitizeRichHtml(html)), [html]);
+        // Each mention drawn by who it names: the reader's in the accent, an
+        // agent's in its tint, anyone else's neutral with their hue as a dot.
+        const safe = React.useMemo(() => withEditedMark(tintMentions(sanitizeRichHtml(html), mentionContext), editedTitle), [html, mentionContext, editedTitle]);
         const onClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
             const mention = (e.target as HTMLElement).closest<HTMLElement>('span[data-type="mention"]');
             if (!mention) return;
@@ -630,10 +726,11 @@ const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; classNam
             const userUUID = mentionUserUUID(mention.dataset.id);
             if (userUUID) dispatch(openUI({ key: "otherUserProfile", data: { userUUID } }));
         }, [dispatch]);
+        const mentionHover = useProfileHoverWithin('span[data-type="mention"]', mentionHoverUUID);
         return (
             <div ref={ref} className={cn("flex w-full flex-col overflow-hidden", className)}>
                 <div className={cn("minimal-tiptap-editor overflow-y-auto outline-none", contentClassName)}>
-                    <div className="ProseMirror static-rich focus:outline-none" onClick={onClick} dangerouslySetInnerHTML={{ __html: safe }} />
+                    <div className="ProseMirror static-rich focus:outline-none" onClick={onClick} {...mentionHover} dangerouslySetInnerHTML={{ __html: safe }} />
                 </div>
             </div>
         );
@@ -643,7 +740,7 @@ StaticRichText.displayName = "StaticRichText";
 
 const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>((props, ref) => {
     if (props.isOutputText && !props.editable && canRenderStatically(props.content)) {
-        return <StaticRichText ref={ref} html={props.content} className={props.className} contentClassName={props.editorContentClassName} />;
+        return <StaticRichText ref={ref} html={props.content} className={props.className} contentClassName={props.editorContentClassName} mentionContext={props.mentionContext} editedTitle={props.editedTitle} />;
     }
     return <LiveTextInput ref={ref} {...props} />;
 });

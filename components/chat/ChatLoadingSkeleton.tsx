@@ -1,28 +1,51 @@
-import { Skeleton } from "@/components/ui/skeleton"
+"use client"
+
+import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 
+// The body bars of each row: one to three lines at 72, 56 and 40% of the
+// measure, so the page reads as conversation rather than as a table.
+const BODIES: string[][] = [["w-[72%]"], ["w-[56%]", "w-[40%]"], ["w-[40%]"], ["w-[72%]", "w-[56%]"], ["w-[56%]"], ["w-[72%]", "w-[40%]"], ["w-[40%]"], ["w-[56%]"]]
+
+/** How long a load may take before it is shown as loading at all. */
+const SHOW_AFTER_MS = 150
+
 /**
- * A conversation loading, in the message row's own measures (baseMessageCard):
- * 16px in, a 36px avatar 12px from the words, a 20px name line and a 22px
- * line of text, 6px above and below, so a row is the loaded row's 54px,
- * under the room the date line takes (32px). It
- * was 48px circles on a 92px pitch, so every message jumped as they landed.
+ * A conversation loading (design v3 chat, C34), on the message row's own grid
+ * (baseMessageCard): a 36px avatar column 12px from the words, 20px in and
+ * 24px from the right, a 20px name line and 23px body lines, so nothing
+ * moves when the messages land. Eight rows: a 36px disc on the press ground,
+ * a 96 by 10 name bar, and the body bars. They breathe, each row 120 ms
+ * after the one above, so the wave reads downward; still with reduced
+ * motion. A load faster than 150 ms never shows it at all.
  */
 export const ChatLoadingSkeleton = () => {
+    const [shown, setShown] = useState(false)
+    useEffect(() => {
+        const t = window.setTimeout(() => setShown(true), SHOW_AFTER_MS)
+        return () => window.clearTimeout(t)
+    }, [])
     return (
-        <div data-message-skeleton="" role="status" aria-label="Loading messages" className="flex flex-col w-full h-full overflow-hidden pt-8">
-            {Array.from({ length: 15 }).map((_, i) => (
-                <div key={i} aria-hidden="true" className="flex w-full gap-3 px-4 py-1.5">
-                    <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded-full" />
-                    <div className="min-w-0 flex-1">
-                        <div className="flex h-5 items-center gap-2">
-                            <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-24" : "w-20")} />
-                            <Skeleton className="h-3 w-12" />
-                        </div>
-                        <div className="flex h-[22px] items-center">
-                            <Skeleton className={cn("h-3.5", i % 3 === 0 ? "w-[70%]" : i % 2 === 0 ? "w-[55%]" : "w-[40%]")} />
-                        </div>
-                    </div>
+        <div data-message-skeleton="" data-shown={shown || undefined} role="status" aria-label="Loading messages" className={cn("flex h-full w-full flex-col overflow-hidden pt-8", !shown && "invisible")}>
+            {BODIES.map((lines, i) => (
+                <div
+                    key={i}
+                    aria-hidden="true"
+                    data-skeleton-row=""
+                    className="grid grid-cols-[36px_minmax(0,1fr)] gap-x-3 py-1.5 pl-5 pr-6 motion-safe:animate-shimmer"
+                    style={{ animationDelay: `${i * 120}ms` }}
+                >
+                    <span className="size-9 rounded-full bg-press" />
+                    <span className="min-w-0">
+                        <span className="flex h-5 items-center">
+                            <span className="h-2.5 w-24 rounded-[5px] bg-press" />
+                        </span>
+                        {lines.map((w, j) => (
+                            <span key={j} className="flex h-[23px] items-center">
+                                <span className={cn("h-2.5 rounded-[5px] bg-press", w)} />
+                            </span>
+                        ))}
+                    </span>
                 </div>
             ))}
         </div>

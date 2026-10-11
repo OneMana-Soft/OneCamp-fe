@@ -1,17 +1,19 @@
 "use client"
 
+import { useProfileHover } from "@/hooks/useProfileHover"
 import { displayNameOf } from "@/lib/personName"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
-import { formatFullTimestamp, formatTimeForPostOrComment, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
+import { formatFullTimestamp, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
-import { Check, X, Languages, Loader2 } from "@/lib/icons";
+import { Languages, Loader2 } from "@/lib/icons";
+import { Button } from "@/components/ui/button";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
-import React, { useCallback, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTouchReveal } from "@/hooks/useTouchReveal"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
@@ -21,22 +23,27 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { BottomMenu } from "@/components/message/bottomMenu"
 import { MessageAttachments } from "@/components/message/MessageAttachments"
 import { ContinuedGutter } from "@/components/message/continuedGutter"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
-import { replyParticipants } from "@/components/message/threadParticipants"
-import { useBotKindMap } from "@/hooks/useBotKinds"
+import { replyParticipants, ThreadParticipants } from "@/components/message/threadParticipants"
+import { useBotKind, useBotKindMap } from "@/hooks/useBotKinds"
 import { AgentResultCards } from "@/components/message/AgentResultCards"
 import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
-import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
-import { SendStatus, SendingNote } from "@/components/message/sendStatus"
+import { FailedMark, SendStatus, SendingNote } from "@/components/message/sendStatus"
 import { usePrimeActions } from "@/components/message/primeActions"
-import { quoteBarClass } from "@/components/message/quoteBar"
 import type { SendState } from "@/lib/chat/pendingSend"
+import { chatClock } from "@/lib/chat/clock"
+import { isAIBot } from "@/lib/botCopy"
+import { agentIdsOf, mentionsUser, type MentionContext } from "@/components/message/tintMentions"
+import { AgentProvenance, type AgentAsker } from "@/components/message/agentProvenance"
+import { ReplyLine } from "@/components/message/replyLine"
+import { isEmojiOnly } from "@/lib/chat/emojiOnly"
+import type { RootState } from "@/store/store"
 
 interface RightPanelConfig {
   chatUUID?: string
@@ -74,7 +81,7 @@ interface NormalizedForwardMessage {
   createdAt: string
 }
 
-interface BaseMessage {
+export interface BaseMessage {
   uuid: string
   /** Sent from here and not yet confirmed (lib/chat/pendingSend). */
   sendState?: SendState
@@ -83,6 +90,8 @@ interface BaseMessage {
   bodyText: string
   from: UserProfileDataInterface
   createdAt: string
+  /** When it was last edited, if the server or this tab knows. */
+  updatedAt?: string
   reactions?: GroupedReaction[]
   attachments?: AttachmentMediaReq[]
   comments?: CommentInfoInterface[]
@@ -102,6 +111,7 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
     bodyText: chatInfo.chat_body_text,
     from: chatInfo.chat_from,
     createdAt: chatInfo.chat_created_at,
+    updatedAt: chatInfo.chat_updated_at,
     reactions: chatInfo.chat_reactions,
     attachments: chatInfo.chat_attachments,
     comments: chatInfo.chat_comments,
@@ -143,6 +153,7 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
     bodyText: postInfo.post_text,
     from: postInfo.post_by,
     createdAt: postInfo.post_created_at,
+    updatedAt: postInfo.post_updated_at,
     reactions: postInfo.post_reactions,
     attachments: postInfo.post_attachments,
     comments: postInfo.post_comments,
@@ -200,18 +211,37 @@ interface BaseMessageCardProps {
   removePost: () => void
   updatePost: (body: string) => void
   priority?: boolean
+  /** @deprecated every row has its own boundary now (RowBoundary, in the list). */
   showErrorBoundary?: boolean
   onAvatarClick?: () => void
   // Discord-style inline reply: when provided, a "Reply" action appears in the
-  // hover menu and arms the composer to reply to this message. Omitted on
-  // surfaces without a composer (e.g. thread/right-panel previews).
+  // menu and arms the composer to reply to this message. Omitted on surfaces
+  // without a composer (e.g. thread/right-panel previews).
   onReply?: () => void
   /**
    * Continues the message above it (lib/messageGrouping): no avatar or name,
    * and the time shows in the gutter on hover.
    */
   continued?: boolean
+  /**
+   * It arrived while the reader was at the end of the conversation
+   * (components/message/arrival): it rises into place, once. History never
+   * moves, so this is never set for a row drawn from a load.
+   */
+  arrived?: boolean
 }
+
+/** "Edited 10:42 · originally 10:31", for the "(edited)" tooltip (C27). */
+function editedTitle(createdAt: string, updatedAt?: string): string | undefined {
+  if (!updatedAt) return undefined
+  const made = new Date(createdAt).getTime()
+  const changed = new Date(updatedAt).getTime()
+  if (!Number.isFinite(made) || !Number.isFinite(changed) || changed - made <= 1000) return undefined
+  return `Edited ${chatClock(updatedAt)} · originally ${chatClock(createdAt)}`
+}
+
+/** The delay before a hovered row offers its actions: intent, not a pass-through. */
+const HOVER_INTENT_MS = 60
 
 export const BaseMessageCard = React.memo(({
   message,
@@ -225,27 +255,30 @@ export const BaseMessageCard = React.memo(({
   removePost,
   updatePost,
   priority,
-  showErrorBoundary = false,
   onAvatarClick,
   onReply,
   continued = false,
+  arrived = false,
 }: BaseMessageCardProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   // On a tablet, which cannot hover, a tap on the message shows its toolbar.
   const touchReveal = useTouchReveal()
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
-  // The pointer is over this message, or focus is inside it.
+  // The pointer has rested on this message, or focus is inside it.
   const [actionsWanted, setActionsWanted] = useState(false)
+  const intent = useRef(0)
+  useEffect(() => () => window.clearTimeout(intent.current), [])
   const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
-  const [updatedText, setUpdatedText] = useState<string>(message.bodyText || "")
-  // Mirror updatedText into a ref so the synchronous flush triggered when
+  // Mirror the edited text into a ref so the synchronous flush triggered when
   // the user clicks Save / presses Enter (which updates state via the
   // editor's onChange) is observable inside the same tick by the
-  // handleEditComplete callback below. Without this, fast Save clicks
-  // could persist the previous keystroke instead of the latest one.
+  // handleEditComplete callback below.
   const updatedTextRef = useRef<string>(message.bodyText || "")
+  // The reaction the reader just made as their first on this message.
+  const [burstEmojiId, setBurstEmojiId] = useState<string | undefined>(undefined)
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  const selfId = selfProfile.data?.data.user_uuid
   const dispatch = useDispatch()
 
   // Route internal /app deep links (e.g. AI citation footers) through client
@@ -256,20 +289,40 @@ export const BaseMessageCard = React.memo(({
   // A channel guest's or Slack person's message is drawn as theirs: their name,
   // a Guest or Slack tag, and only what they wrote (see lib/relayedAuthor).
   const relayed = useRelayedAuthor(message.from, message.bodyText)
-  // Bots' kinds, so a reply avatar is the guest or Slack person, not their bot.
+  // Bots' kinds: a reply avatar is the guest or Slack person, not their bot;
+  // an agent's mention chip is the agent's.
   const botKinds = useBotKindMap()
+  const authorKind = useBotKind(message.from.user_uuid, !!message.from.is_bot)
+  const isAgent = !relayed && !!message.from.is_bot && isAIBot(authorKind)
   const authorName = relayed ? relayed.name : messageAuthorName(message.from, userInfoState?.userName)
   const bodyText = relayed ? relayed.body : message.bodyText
 
+  // A mention of the reader: the accent ground, a bar on the edge and the
+  // time in the accent's ink (C14). Anyone else's mention stays neutral.
+  const forMe = useMemo(() => mentionsUser(message.bodyText, selfId), [message.bodyText, selfId])
+  const mentionContext = useMemo<MentionContext>(() => ({ me: selfId, agentIds: agentIdsOf(botKinds) }), [selfId, botKinds])
+  const emojiOnly = useMemo(() => isEmojiOnly(bodyText), [bodyText])
+  const edited = editedTitle(message.createdAt, message.updatedAt)
+  const checkin = !relayed && !!message.from.is_bot && authorKind === "checkin" && !isMessageEditEnabled
+  const replyFaces = useMemo(
+    () => (checkin && message.comments ? replyParticipants(message.comments.slice().reverse(), botKinds) : []),
+    [checkin, message.comments, botKinds],
+  )
+
+  // This message's thread is the one open in the panel (C35, its open state).
+  const threadOpen = useSelector((s: RootState) => {
+    const d = s.rightPanel.rightPanelState
+    if (!d.isOpen || !message.uuid) return false
+    return d.data.postUUID === message.uuid || d.data.chatMessageUUID === message.uuid
+  })
+
   // Inline AI translation (Notion/Slack-style). One click translates the
   // message into the viewer's browser language and shows it beneath the
-  // original, with a toggle back to the source text. State is per-card; the
-  // translate call is governed server-side (member's model, limits, residency).
+  // original, with a toggle back to the source text.
   const { translateText, isSubmitting: translating } = useTranslateText()
   const [translation, setTranslation] = useState<string | null>(null)
   const [showTranslation, setShowTranslation] = useState(false)
   const handleTranslate = useCallback(async () => {
-    // Toggle if we already have a translation for this message.
     if (translation) {
       setShowTranslation((v) => !v)
       return
@@ -288,23 +341,21 @@ export const BaseMessageCard = React.memo(({
     const r: { [key: string]: string[] } = {}
     if (message.reactions) {
       message.reactions.forEach((reaction) => {
+        // A reaction the server answered oddly (no emoji) is skipped, never drawn.
+        if (!reaction?.reaction_emoji_id) return
         if (!r[reaction.reaction_emoji_id]) {
           r[reaction.reaction_emoji_id] = []
         }
-        if (displayNameOf(reaction.reaction_added_by)) {
-          r[reaction.reaction_emoji_id].push(displayNameOf(reaction.reaction_added_by))
-        }
+        const name = displayNameOf(reaction.reaction_added_by)
+        if (name) r[reaction.reaction_emoji_id].push(name)
       })
     }
     return r
   }, [message.reactions])
 
   const userSelectedOption = useMemo(() => {
-    if (!selfProfile.data?.data || !message.reactions) return {} as UserSelectedOptionInterface
-
-    const reaction = message.reactions.find(
-      (r) => r.reaction_added_by?.user_uuid === selfProfile.data?.data.user_uuid,
-    )
+    if (!selfId || !message.reactions) return {} as UserSelectedOptionInterface
+    const reaction = message.reactions.find((r) => r?.reaction_added_by?.user_uuid === selfId)
     if (reaction) {
       return {
         reactionId: reaction.uid,
@@ -312,7 +363,7 @@ export const BaseMessageCard = React.memo(({
       }
     }
     return {} as UserSelectedOptionInterface
-  }, [message.reactions, selfProfile.data?.data])
+  }, [message.reactions, selfId])
 
   const handleEmojiClick = useCallback(
     (emojiId: string) => {
@@ -320,11 +371,16 @@ export const BaseMessageCard = React.memo(({
         removeReaction(userSelectedOption.reactionId)
         return
       }
+      // The reader's first reaction on this message: three small sparks leave
+      // its pill (ReactionPill, throttled), and only then.
+      if (!userSelectedOption.emojiId) setBurstEmojiId(emojiId)
       addReaction(emojiId, userSelectedOption.reactionId)
     },
     [userSelectedOption, addReaction, removeReaction],
   )
 
+  // The profile card on a rest over the face or the name (hub.md P1).
+  const authorHover = useProfileHover(relayed ? undefined : message.from.user_uuid)
   const handleUserClick = useCallback(() => {
     dispatch(openUI({ key: "otherUserProfile", data: { userUUID: message.from.user_uuid } }))
   }, [dispatch, message.from.user_uuid])
@@ -348,9 +404,6 @@ export const BaseMessageCard = React.memo(({
   }, [dispatch, rightPanelConfig])
 
   const handleEditComplete = useCallback(() => {
-    // Read from the ref so we capture any synchronous flush that happened
-    // when the user clicked Save (the editor's flushPendingChange runs
-    // setUpdatedText, which is queued; the ref is set inline).
     updatePost(updatedTextRef.current)
     setIsMessageEditEnabled(false)
     setIsDropdownOpen(false)
@@ -363,46 +416,57 @@ export const BaseMessageCard = React.memo(({
 
   const editor = (
     <MinimalTiptapTextInput
-      throttleDelay={300}
+      // Editing hands every keystroke over at once, so Save never misses the last one.
+      throttleDelay={isMessageEditEnabled ? 0 : 300}
       isOutputText={!isMessageEditEnabled}
-      className={cn("max-w-full h-auto", isMessageEditEnabled && "mt-1 mb-2")}
+      className={cn("max-w-full h-auto", isMessageEditEnabled && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
       editorContentClassName="overflow-auto"
       output="html"
       content={bodyText}
       placeholder="Edit message…"
       editable={isMessageEditEnabled}
-      PrimaryButtonIcon={Check}
+      // Enter saves (the editor's submit); Save and Cancel are the words
+      // under it (C29), not two icons.
       buttonOnclick={handleEditComplete}
-      SecondaryButtonIcon={X}
-      secondaryButtonOnclick={handleEditCancel}
       // Editing folds its formatting behind one button, as the message box
       // does: thirteen icons opened under the line being corrected.
       toggleToolbar={isMessageEditEnabled}
+      noBorder={isMessageEditEnabled}
       editorClassName="focus:outline-none "
+      mentionContext={mentionContext}
+      editedTitle={edited}
       onChange={(content) => {
-        const s = content as string
-        updatedTextRef.current = s
-        setUpdatedText(s)
+        updatedTextRef.current = content as string
       }}
     />
   )
 
   // The actions exist only for the message under the pointer or holding focus
   // (or whose menu is open). Every row used to mount its own toolbar, hidden:
-  // a dozen tooltips, a reaction picker, a reminder dialog and a menu each,
-  // about 600 components a message, and two dozen invisible tab stops.
-  // A message the server has not confirmed has no id to react to, reply to or
-  // forward yet: its row offers only what its status line says.
+  // about 600 components a message, and two dozen invisible tab stops. A
+  // message the server has not confirmed has no id to react to yet.
   const showActions = !isMessageEditEnabled && !message.sendState && (actionsWanted || isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed)
   // The first row on the page builds the toolbar once, hidden, when the
   // browser is idle, so the first hover is not its first run (primeActions).
   const primingActions = usePrimeActions()
+  const failed = message.sendState === "failed"
+  const sending = message.sendState === "sending"
+  const busy = isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed
 
   return (
     <div
       id={messageDomId(message.uuid)}
-      onPointerEnter={() => setActionsWanted(true)}
-      onPointerLeave={() => setActionsWanted(false)}
+      data-message-row=""
+      data-for-me={forMe || undefined}
+      data-failed={failed || undefined}
+      onPointerEnter={() => {
+        window.clearTimeout(intent.current)
+        intent.current = window.setTimeout(() => setActionsWanted(true), HOVER_INTENT_MS)
+      }}
+      onPointerLeave={() => {
+        window.clearTimeout(intent.current)
+        setActionsWanted(false)
+      }}
       onFocus={() => setActionsWanted(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActionsWanted(false)
@@ -411,93 +475,103 @@ export const BaseMessageCard = React.memo(({
       // actions (hooks/useTouchReveal), as the pointer does.
       onPointerUp={touchReveal.onPointerUp}
       className={cn(
-        // py-1.5, not 2.5: a message is a line of a conversation, and the
-        // extra 8px on every row (plus a margin under every body) made a
-        // channel read as a stack of cards.
-        "group relative flex gap-3 px-4",
-        // A continued message sits close under the one above; the first of a
-        // group keeps the room that separates one turn from the next.
-        continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5",
-        "transition-colors duration-100",
-        "hover:bg-accent/40",
-        (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) && "bg-accent/40",
+        // The row grid (design v3 chat, §2.1): a 36px avatar column and the
+        // text, 12px apart, 20px in from the left and 24px from the right.
+        // The first row of a turn breathes 6px; a continued one sits 1px
+        // from its neighbours.
+        "group/row group relative isolate grid grid-cols-[36px_minmax(0,1fr)] gap-x-3 pl-5 pr-6",
+        continued && !isMessageEditEnabled ? "py-px" : "py-1.5",
+        "transition-colors duration-[140ms] ease-out",
+        // Hover is the ink overlay, colour only: a row never moves under the
+        // pointer. Keyboard focus inside adds the 2px accent bar.
+        !forMe && !isMessageEditEnabled && "hover:bg-hover has-[:focus-visible]:bg-hover",
+        !forMe && (busy || touchReveal.revealed) && "bg-hover",
+        // For you: the accent's soft ground at 70% and a 2px bar on the edge.
+        forMe && "bg-brand-muted/70 dark:bg-[color-mix(in_oklab,var(--brand)_10%,transparent)]",
+        isMessageEditEnabled && "bg-brand-muted/40",
+        (forMe || failed) && "before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-0.5 before:rounded-full",
+        forMe && !failed && "before:bg-brand",
+        failed && "before:bg-destructive",
+        // Arrived while the reader watched: it rises into place, once. Your
+        // own from the composer's side, bottom-left (C18).
+        arrived && (sending ? "origin-bottom-left animate-msg-in-own" : "animate-msg-in"),
       )}
     >
+        {/* A live mention of you lands warm, then settles to the 70% ground. */}
+        {arrived && forMe && <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-brand-muted animate-glow-settle" />}
         {continued && !isMessageEditEnabled ? (
-          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} sending={message.sendState === "sending"} />
+          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} sending={sending} failed={failed} />
         ) : (
-          <>
-        {/* A second, mouse-only way to the profile the name already opens: the
-            name is the control, so the picture stays out of the tab order. */}
-        <div
-          className={cn("h-9 w-9 shrink-0 mt-0.5", !relayed && onAvatarClick && "cursor-pointer")}
-          onClick={relayed ? undefined : onAvatarClick}
-        >
-          {relayed ? (
-            <RelayedAvatar name={relayed.name} />
-          ) : (
-            <ChannelMessageAvatar
-              userName={authorName}
-              userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
-              isBot={!!message.from.is_bot}
-              userUUID={message.from.user_uuid}
-            />
-          )}
-        </div>
-          </>
+          // A second, mouse-only way to the profile the name already opens:
+          // the name is the control, so the picture stays out of the tab order.
+          <div
+            data-row-avatar=""
+            className={cn("size-9 shrink-0 self-start", !relayed && onAvatarClick && "cursor-pointer")}
+            onClick={relayed ? undefined : onAvatarClick}
+            {...authorHover}
+          >
+            {relayed ? (
+              <RelayedAvatar name={relayed.name} />
+            ) : (
+              <ChannelMessageAvatar
+                userName={authorName}
+                userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
+                isBot={!!message.from.is_bot}
+                userUUID={message.from.user_uuid}
+              />
+            )}
+          </div>
         )}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           {!isMessageEditEnabled && !continued && (
-            <div data-name-line="" className="flex h-5 items-center gap-2">
+            <div data-name-line="" className="flex h-5 min-w-0 items-center gap-2">
               {relayed ? (
                 // A guest or Slack person has no profile to open: the name is only a name.
-                <span className="text-sm font-semibold text-foreground truncate">{authorName}</span>
+                <span className="truncate text-ui font-semibold text-ink">{authorName}</span>
               ) : (
                 <button
                   type="button"
                   onClick={handleUserClick}
-                  className="text-sm font-semibold text-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 rounded"
+                  {...authorHover}
+                  className="truncate rounded-[4px] text-ui font-semibold text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   {authorName}
                 </button>
               )}
               {relayed ? (
-                <PrincipalTag kind={relayed.kind} />
+                <>
+                  <PrincipalTag kind={relayed.kind} />
+                  {relayed.kind === "bridge" && <span className="shrink-0 text-meta text-ink-3">via Slack</span>}
+                </>
               ) : message.from.is_bot && (
                 <BotTag userUUID={message.from.user_uuid} />
               )}
-              <time
-                dateTime={isoTimestamp(message.createdAt)}
-                title={formatFullTimestamp(message.createdAt)}
-                className="text-2xs tabular-nums text-muted-foreground"
-              >
-                {formatTimeForPostOrComment(message.createdAt, true)}
-              </time>
-              {message.sendState === "sending" && <SendingNote />}
+              {failed ? (
+                <FailedMark />
+              ) : (
+                <time
+                  dateTime={isoTimestamp(message.createdAt)}
+                  title={formatFullTimestamp(message.createdAt)}
+                  className={cn("shrink-0 text-meta tabular-nums", forMe ? "text-brand-text" : "text-ink-3")}
+                >
+                  {chatClock(message.createdAt)}
+                </time>
+              )}
+              {sending && <SendingNote />}
             </div>
           )}
           {message.replyTo && !isMessageEditEnabled && (
-            <button
-              type="button"
-              onClick={() => scrollToMessage(message.replyTo?.uuid)}
-              className={cn(quoteBarClass(message.replyTo.from), "mb-1 block w-full rounded-sm pl-2 text-left transition-colors hover:border-hue")}
-              aria-label="Jump to replied message"
-            >
-              <MessagePreview
-                msgBy={message.replyTo.from}
-                msgText={message.replyTo.text}
-                msgUUID={message.replyTo.uuid}
-                msgCreatedAt={message.replyTo.createdAt}
-                vewFooter={false}
-              />
-            </button>
+            <ReplyLine by={message.replyTo.from} text={message.replyTo.text} onJump={() => scrollToMessage(message.replyTo?.uuid)} />
           )}
           <div
+            data-emoji-only={emojiOnly && !isMessageEditEnabled ? "" : undefined}
+            data-checkin-card={checkin || undefined}
             className={cn(
-              "break-words w-full transition-opacity",
-              // Still sending after a moment: drawn lighter until the server has
-              // it. The delay keeps a quick send from flickering.
-              message.sendState === "sending" && "opacity-60 delay-300",
+              "chat-body w-full max-w-[760px] break-words",
+              isMessageEditEnabled && "mt-0.5",
+              // A Check-in's question is a prompt card (C13): the sunken
+              // surface, its question first at 590, who answered under it.
+              checkin && "mt-1 max-w-[560px] rounded-xl bg-sunken px-3.5 py-3 [&_.ProseMirror_p:first-child]:font-semibold",
             )}
             onClickCapture={handleInternalLinkClick}
             // Escape leaves an edit unchanged, as in every chat app; a popover
@@ -510,44 +584,48 @@ export const BaseMessageCard = React.memo(({
               }
             }}
           >
-            {showErrorBoundary ? (
-              <LocalizedErrorBoundary
-                fallbackTitle="This message could not be shown"
-                fallbackDescription="Something in it could not be drawn. Reload the page to try again."
-              >
-                {editor}
-              </LocalizedErrorBoundary>
-            ) : (
-              editor
+            {editor}
+            {checkin && (
+              <div className="mt-3 flex items-center gap-2.5 border-t border-line pt-2.5">
+                {replyFaces.length > 0 && <ThreadParticipants participants={replyFaces} />}
+                <span className="text-meta tabular-nums text-ink-3">
+                  {(message.commentCount ?? 0) > 0 ? `${message.commentCount} answered` : "Nobody has answered yet"}
+                </span>
+                <Button type="button" size="sm" className="ml-auto" onClick={handleOpenThread}>Answer</Button>
+              </div>
             )}
             {isMessageEditEnabled && (
-              <p className="-mt-1 mb-1 text-2xs text-muted-foreground">
-                <kbd className="font-sans font-medium text-foreground">Escape</kbd> to cancel · <kbd className="font-sans font-medium text-foreground">Enter</kbd> to save
-              </p>
+              // Under the box (C29): how it ends, in kbd chips, then Cancel and Save.
+              <div className="mb-1 mt-1.5 flex h-6 items-center gap-1.5 text-meta text-ink-3">
+                <kbd className="kbd">esc</kbd> cancel · <kbd className="kbd">⏎</kbd> save
+                <span className="ml-auto flex items-center gap-1.5">
+                  <Button type="button" size="xs" variant="ghost" onClick={handleEditCancel}>Cancel</Button>
+                  <Button type="button" size="xs" onClick={handleEditComplete}>Save</Button>
+                </span>
+              </div>
             )}
           </div>
 
-          {/* Inline AI translation: shown beneath the original, with a toggle
-              back to the source text. Plain text (the model returns prose). */}
+          {/* Inline AI translation (C33): a sunken card beneath the original,
+              with the way back to it. Plain text (the model returns prose). */}
           {!isMessageEditEnabled && (translating || (translation && showTranslation)) && (
-            <div className="mt-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
-              <div className="mb-0.5 flex items-center gap-1.5 text-2xs font-medium text-muted-foreground">
-                <Languages className="h-3 w-3" aria-hidden="true" />
+            <div className="mt-2 max-w-[760px] rounded-[10px] bg-sunken px-3 py-2 animate-fade-in">
+              <div className="mb-0.5 flex items-center gap-1.5 text-meta font-medium text-ink-3">
+                <Languages className="size-3" aria-hidden="true" />
                 {translating ? "Translating…" : "Translated"}
                 {translation && !translating && (
-                  <button
-                    type="button"
-                    onClick={() => setShowTranslation(false)}
-                    className="ml-1 text-muted-foreground underline-offset-2 hover:underline"
-                  >
-                    Show original
-                  </button>
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <button type="button" onClick={() => setShowTranslation(false)} className="text-ink-3 underline-offset-2 hover:text-ink hover:underline">
+                      Show original
+                    </button>
+                  </>
                 )}
               </div>
               {translating && !translation ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 animate-spin text-ink-3" />
               ) : (
-                <p className="whitespace-pre-line text-sm text-foreground">{translation}</p>
+                <p className="whitespace-pre-line text-body text-ink">{translation}</p>
               )}
             </div>
           )}
@@ -555,20 +633,15 @@ export const BaseMessageCard = React.memo(({
             <button
               type="button"
               onClick={() => setShowTranslation(true)}
-              className="mt-1 text-2xs font-medium text-primary underline-offset-2 hover:underline"
+              className="mt-1 text-meta font-medium text-brand-text underline-offset-2 hover:underline"
             >
               Show translation
             </button>
           )}
 
-          {/* Additive PR/branch result cards for AI-teammate messages — turns a
-              raw GitHub link (a code-PR result) into a clean, clickable card
-              without touching the rich-text render. No-op for humans and for
-              messages with no GitHub result link. */}
-          {message.from.is_bot && !isMessageEditEnabled && (
-            <AgentResultCards text={message.bodyText} />
-          )}
-          {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
+          {/* Under the body, in order (C07): link cards, attachments, the
+              agent's provenance, the thread, reactions, then send status. */}
+          {message.from.is_bot && !isMessageEditEnabled && <AgentResultCards text={message.bodyText} />}
           {!isMessageEditEnabled && <WorkLinkCards text={message.bodyText} />}
 
           {(message.fwdMsgPost || message.fwdMsgChat) && !isMessageEditEnabled && (
@@ -592,17 +665,24 @@ export const BaseMessageCard = React.memo(({
             />
           )}
 
+          {/* On whose behalf an agent acted (C11): the asker is the person it
+              replied to; a message that doesn't say, says so in general. */}
+          {isAgent && !isMessageEditEnabled && (
+            <AgentProvenance
+              asker={message.replyTo && !message.replyTo.from?.is_bot ? { name: displayNameOf(message.replyTo.from), userUUID: message.replyTo.from?.user_uuid } as AgentAsker : null}
+            />
+          )}
+
           {/* Both conditions must be booleans: `comments && commentCount` rendered a
               literal "0" under a message whose first reply had not arrived yet. */}
-          {(message.comments?.length ?? 0) > 0 && (message.commentCount ?? 0) > 0 && (
-            <div className="mt-1.5">
-              <MessageReplyCount
-                openDesktopThread={handleOpenThread}
-                replyCount={message.commentCount}
-                lastCommentCreatedAt={message.comments![message.comments!.length - 1].comment_created_at}
-                participants={replyParticipants(message.comments!.slice().reverse(), botKinds)}
-              />
-            </div>
+          {!checkin && (message.comments?.length ?? 0) > 0 && (message.commentCount ?? 0) > 0 && (
+            <MessageReplyCount
+              openDesktopThread={handleOpenThread}
+              replyCount={message.commentCount}
+              lastCommentCreatedAt={message.comments![message.comments!.length - 1].comment_created_at}
+              participants={replyParticipants(message.comments!.slice().reverse(), botKinds)}
+              open={threadOpen}
+            />
           )}
 
           {!isMessageEditEnabled && !message.sendState && (
@@ -610,18 +690,21 @@ export const BaseMessageCard = React.memo(({
               handleEmojiClick={handleEmojiClick}
               reactions={reactions}
               selectedEmojiId={userSelectedOption.emojiId}
+              selfName={displayNameOf(selfProfile.data?.data)}
+              burstEmojiId={burstEmojiId}
             />
           )}
           <SendStatus state={message.sendState} localId={message.localId} />
         </div>
         {/* After the message in the DOM, so Tab from the author's name reaches
-            the message's own links first, then its actions. */}
+            the message's own links first, then its actions. It overlaps the
+            row's top edge, 24px in from the right (C19). */}
         {(showActions || primingActions) && (
-          <div className="absolute right-3 top-1.5 z-10" hidden={!showActions} aria-hidden={!showActions || undefined}>
+          <div className="absolute -top-3.5 right-6 z-10" hidden={!showActions} aria-hidden={!showActions || undefined}>
             <MessageDesktopHoverOptionsForMainChatAndChannel
               editMessage={() => setIsMessageEditEnabled(true)}
               deleteMessage={removePost}
-              isOwner={message.from.user_uuid === selfProfile.data?.data.user_uuid}
+              isOwner={message.from.user_uuid === selfId}
               isAdmin={isAdmin}
               setEmojiPopupState={setIsEmojiPickerOpen}
               onReactionSelect={handleEmojiClick}

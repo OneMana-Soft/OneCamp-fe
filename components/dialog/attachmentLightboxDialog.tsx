@@ -4,7 +4,7 @@ import { useState, useEffect, memo, useCallback } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { X, ChevronLeft, ChevronRight, Download, Maximize2, Minimize2, RotateCcw, Loader2 } from "@/lib/icons"
+import { X, ChevronLeft, ChevronRight, Download, Info, Link, RotateCcw, Loader2 } from "@/lib/icons"
 import { File as FileIcon, ZoomIn, ZoomOut, Sparkles } from "@/lib/icons"
 import { AttachmentMediaReq, AttachmentType } from "@/types/attachment"
 import { useMediaFetch } from "@/hooks/useFetch"
@@ -17,7 +17,7 @@ import DocumentViewer from "@/components/attachments/documentViewer"
 import { useMedia } from "@/context/MediaQueryContext"
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
 import { cn } from "@/lib/utils/helpers/cn"
-import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon"
+import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
 import { isImageByExtension } from "@/lib/utils/file/getAttachmentType"
@@ -158,100 +158,82 @@ const SidebarItem = memo(
         onClick: (item: AttachmentMediaReq) => void
     }) => {
         return (
-            <div
+            <button
+                type="button"
                 onClick={() => onClick(item)}
+                aria-current={isSelected || undefined}
                 className={cn(
-                    "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
-                    isSelected ? "bg-accent" : "hover:bg-accent/50",
+                    "flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                    isSelected ? "bg-white/10" : "hover:bg-white/[0.06]",
                 )}
             >
-                <div className="shrink-0 w-10 h-10 rounded bg-muted flex items-center justify-center border">
-                    <FileTypeIcon
-                        name={item.attachment_file_name}
-                        fileType={item.attachment_raw_type}
-                        size={20}
-                    />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div
-                        className={cn(
-                            "text-sm truncate",
-                            isSelected
-                                ? "text-foreground font-medium"
-                                : "text-foreground/80",
-                        )}
-                    >
+                <FileGlyph name={item.attachment_file_name} fileType={item.attachment_raw_type} size={32} />
+                <span className="min-w-0 flex-1">
+                    <span className={cn("block truncate text-ui-sm", isSelected ? "font-medium text-white" : "text-white/80")}>
                         {truncateFileName(item.attachment_file_name)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
+                    </span>
+                    <span className="block text-meta text-white/50 tabular-nums">
                         {formatFileSizeForAttachment(item.attachment_size || 0)}
-                    </div>
-                </div>
-            </div>
+                    </span>
+                </span>
+            </button>
         )
     },
 )
 
 SidebarItem.displayName = "SidebarItem"
 
+/**
+ * The info rail (content.md F05): 320 px on the dark panel step, the file's
+ * details, the AI's answer when there is one, and the other files in the set.
+ */
 const Sidebar = memo(
     ({
         allMedia,
-        currentMediaUuid,
+        current,
         onSelect,
-        isFullscreen,
-        toggleFullscreen,
-        closeModal,
+        aiResult,
     }: {
         allMedia: AttachmentMediaReq[]
-        currentMediaUuid: string
+        current: AttachmentMediaReq
         onSelect: (item: AttachmentMediaReq) => void
-        isFullscreen: boolean
-        toggleFullscreen: () => void
-        closeModal: () => void
+        aiResult: string | null
     }) => {
         return (
-            <div className="w-80 border-l bg-card flex flex-col shrink-0">
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h3 className="font-semibold text-sm text-foreground">
-                        Attachments ({allMedia.length})
-                    </h3>
-                    <div className="flex items-center gap-1">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={toggleFullscreen}
-                            className="h-8 w-8"
-                            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                        >
-                            {isFullscreen ? (
-                                <Minimize2 className="h-4 w-4" />
-                            ) : (
-                                <Maximize2 className="h-4 w-4" />
-                            )}
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={closeModal}
-                            className="h-8 w-8"
-                            aria-label="Close"
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
+            <aside className="flex w-80 shrink-0 flex-col bg-[#16171A] pt-14 text-white" data-lightbox-rail="">
+                <div className="border-b border-white/10 px-4 pb-4">
+                    <h3 className="text-meta font-medium text-white/60">Details</h3>
+                    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ui-sm">
+                        <dt className="text-white/50">Size</dt>
+                        <dd className="tabular-nums">{formatFileSizeForAttachment(current.attachment_size || 0)}</dd>
+                        <dt className="text-white/50">Added</dt>
+                        <dd>{formatDateForAttachment(current.attachment_created_at || "")}</dd>
+                        {current.attachment_width && current.attachment_height ? (
+                            <>
+                                <dt className="text-white/50">Size in px</dt>
+                                <dd className="tabular-nums">{current.attachment_width} × {current.attachment_height}</dd>
+                            </>
+                        ) : null}
+                    </dl>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {aiResult ? (
+                    <div className="border-b border-white/10 px-4 py-3">
+                        <h3 className="text-meta font-medium text-white/60">AI summary</h3>
+                        <p className="mt-1 whitespace-pre-line text-ui-sm text-white/90">{aiResult}</p>
+                    </div>
+                ) : null}
+                <h3 className="px-4 pb-1 pt-3 text-meta font-medium text-white/60">In this set · {allMedia.length}</h3>
+                <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
                     {allMedia.map((item) => (
                         <SidebarItem
                             key={item.attachment_uuid}
                             item={item}
-                            isSelected={item.attachment_uuid === currentMediaUuid}
+                            isSelected={item.attachment_uuid === current.attachment_uuid}
                             onClick={onSelect}
                         />
                     ))}
                 </div>
-            </div>
+            </aside>
         )
     },
 )
@@ -279,17 +261,12 @@ export function MediaLightboxDialog({
     const currentIndex =
         allMedia?.findIndex((m) => m.attachment_uuid === currentMedia?.attachment_uuid) || 0
     const { isMobile, isDesktop } = useMedia()
-    const [isFullscreen, setIsFullscreen] = useState(false)
+    const [infoOpen, setInfoOpen] = useState(false)
+    const [copied, setCopied] = useState(false)
 
     useEffect(() => {
         setCurrentMedia(media)
     }, [media?.attachment_uuid])
-
-    useEffect(() => {
-        if (isMobile) {
-            setIsFullscreen(true)
-        }
-    }, [isMobile])
 
     useEffect(() => {
         if (isDesktop) {
@@ -328,9 +305,13 @@ export function MediaLightboxDialog({
         setCurrentMedia(item)
     }, [])
 
-    const toggleFullscreen = useCallback(() => {
-        setIsFullscreen((prev) => !prev)
-    }, [])
+    const copyLink = useCallback(() => {
+        const url = mediaReq.data?.url || currentMedia?.initial_url
+        if (!url) return
+        void navigator.clipboard?.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+    }, [mediaReq.data?.url, currentMedia])
 
     const closeModal = useCallback(() => {
         setOpenState(false)
@@ -382,7 +363,10 @@ export function MediaLightboxDialog({
      * against arbitrary photo content underneath.
      */
     const canvasButtonClass =
-        "h-9 w-9 rounded-full bg-black/45 text-white hover:bg-black/65 hover:text-white backdrop-blur-sm border border-white/10 focus-visible:ring-2 focus-visible:ring-white/60"
+        "size-10 rounded-[20px] bg-white/[0.08] text-white ring-1 ring-white/[0.12] hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+    /** The top bar's 32 px icon buttons: white at 70 %, full on a faint disc under the pointer. */
+    const barButtonClass =
+        "size-8 rounded-[16px] text-white/70 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
 
     const renderAsPerAttachmentType = (
         attachmentString: AttachmentType,
@@ -406,9 +390,9 @@ export function MediaLightboxDialog({
                                 <>
                                     <div
                                         className={cn(
-                                            "absolute z-[var(--z-sticky)] flex gap-1 p-1 rounded-full",
-                                            "bg-black/55 backdrop-blur-sm ring-1 ring-white/15",
-                                            "bottom-[calc(theme(spacing.20)+env(safe-area-inset-bottom))]",
+                                            "absolute z-[var(--z-sticky)] flex h-9 items-center gap-0.5 rounded-[18px] px-1",
+                                            "bg-[rgb(30_31_35/.9)] ring-1 ring-white/10",
+                                            "bottom-[calc(theme(spacing.6)+env(safe-area-inset-bottom))]",
                                             "left-1/2 -translate-x-1/2",
                                         )}
                                         role="toolbar"
@@ -418,7 +402,7 @@ export function MediaLightboxDialog({
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => zoomIn()}
-                                            className="h-8 w-8 text-white hover:bg-white/15 rounded-full focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Zoom in"
                                         >
                                             <ZoomIn className="h-4 w-4" />
@@ -427,7 +411,7 @@ export function MediaLightboxDialog({
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => zoomOut()}
-                                            className="h-8 w-8 text-white hover:bg-white/15 rounded-full focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Zoom out"
                                         >
                                             <ZoomOut className="h-4 w-4" />
@@ -436,7 +420,7 @@ export function MediaLightboxDialog({
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => resetTransform()}
-                                            className="h-8 w-8 text-white hover:bg-white/15 rounded-full focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Reset zoom"
                                         >
                                             <RotateCcw className="h-4 w-4" />
@@ -449,7 +433,7 @@ export function MediaLightboxDialog({
                                             variant="ghost"
                                             size="icon"
                                             onClick={handleDownload}
-                                            className="h-8 w-8 text-white hover:bg-white/15 rounded-full focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Download"
                                         >
                                             <Download className="h-4 w-4" />
@@ -472,7 +456,7 @@ export function MediaLightboxDialog({
                                             {(mediaReq.isLoading || mediaReq.isValidating) &&
                                                 !mediaReq.data?.url &&
                                                 !currentMedia.initial_url && (
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10 backdrop-blur-sm">
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
                                                         <Loader2 className="h-10 w-10 text-white animate-spin" />
                                                     </div>
                                                 )}
@@ -557,191 +541,109 @@ export function MediaLightboxDialog({
         }
     }
 
+    const effectiveType = resolveEffectiveType(currentMedia)
+    const canAskAi =
+        !!analyzeContext && (effectiveType === "image" || isAiReadableDoc(currentMedia?.attachment_file_name || ""))
+    const askAi = effectiveType === "image" ? runAnalyze : runAnalyzeDoc
+    const asking = effectiveType === "image" ? analyzing : analyzingDoc
+
+    // The media's own stage (content.md F05): full screen on near-black in
+    // both themes, the name and its details in a top bar that fades into the
+    // stage, the actions on the right, round prev and next at the sides, and
+    // the info rail on demand.
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
             <DialogContent
-                className={cn(
-                    "max-w-[95vw] md:max-w-[85vw] lg:max-w-[80vw] transition duration-300 p-0 overflow-hidden bg-background border [&>button]:hidden",
-                    isFullscreen && "!max-w-none !w-screen !h-dvh !rounded-none",
-                )}
+                className="!fixed !inset-0 !left-0 !top-0 !h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden !rounded-none border-0 bg-[rgb(8_9_10/.92)] p-0 !shadow-none [&>button]:hidden"
+                data-lightbox=""
             >
-                <DialogHeader className="hidden">
-                    <DialogTitle></DialogTitle>
-                    <DialogDescription></DialogDescription>
+                <DialogHeader className="sr-only">
+                    <DialogTitle>{currentMedia?.attachment_file_name}</DialogTitle>
+                    <DialogDescription>
+                        {formatFileSizeForAttachment(currentMedia?.attachment_size || 0)}
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className={cn("flex h-[90dvh] w-full", isFullscreen && "h-dvh")}>
-                    {/*
-                      Main content column.
-                      The image canvas (flex-1 inner area) keeps a neutral
-                      dark backdrop so screenshots / photos with bright
-                      backgrounds don't blast white-on-white when opened.
-                      Surrounding chrome (top + bottom bars) follows the
-                      theme.
-                    */}
-                    <div className="relative flex flex-col flex-1 h-full min-w-0 bg-background">
-                        {/* Title strip */}
-                        <div className="flex items-center justify-between gap-2 px-4 h-12 border-b bg-background/95 backdrop-blur shrink-0">
-                            <div className="text-sm font-medium text-foreground truncate min-w-0">
-                                {currentMedia?.attachment_file_name}
+                <div className="flex h-dvh w-full">
+                    <div className="relative flex h-full min-w-0 flex-1 flex-col">
+                        {/* The top bar, over the stage. */}
+                        <div className="absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-3 bg-gradient-to-b from-black/40 to-transparent px-4">
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-ui font-medium text-white">{currentMedia?.attachment_file_name}</p>
+                                <p className="truncate text-meta text-white/60 tabular-nums">
+                                    {formatFileSizeForAttachment(currentMedia?.attachment_size || 0)} ·{" "}
+                                    {formatDateForAttachment(currentMedia?.attachment_created_at || "")}
+                                </p>
                             </div>
-
-                            {/*
-                              On mobile + tablet we don't render the right
-                              sidebar, so the close + download + fullscreen
-                              cluster has to live up here. Desktop has them
-                              in the sidebar header.
-                            */}
-                            {!isDesktop && (
-                                <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex shrink-0 items-center gap-0.5">
+                                <Button variant="ghost" size="icon" onClick={handleDownload} className={barButtonClass} aria-label="Download">
+                                    <Download className="size-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={copyLink} className={barButtonClass} aria-label={copied ? "Link copied" : "Copy link"}>
+                                    <Link className="size-4" />
+                                </Button>
+                                {canAskAi ? (
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={handleDownload}
-                                        className="h-8 w-8"
-                                        aria-label="Download"
+                                        onClick={() => {
+                                            setInfoOpen(true)
+                                            void askAi()
+                                        }}
+                                        disabled={asking}
+                                        className={barButtonClass}
+                                        aria-label={effectiveType === "image" ? "Ask AI about this image" : "Summarize with AI"}
                                     >
-                                        <Download className="h-4 w-4" />
+                                        {asking ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                                     </Button>
-                                    {!isMobile && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={toggleFullscreen}
-                                            className="h-8 w-8"
-                                            aria-label={
-                                                isFullscreen ? "Exit fullscreen" : "Enter fullscreen"
-                                            }
-                                        >
-                                            {isFullscreen ? (
-                                                <Minimize2 className="h-4 w-4" />
-                                            ) : (
-                                                <Maximize2 className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    )}
+                                ) : null}
+                                {!isMobile ? (
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={closeModal}
-                                        className="h-8 w-8"
-                                        aria-label="Close"
+                                        onClick={() => setInfoOpen((v) => !v)}
+                                        className={cn(barButtonClass, infoOpen && "bg-white/10 text-white")}
+                                        aria-label="Info"
+                                        aria-pressed={infoOpen}
                                     >
-                                        <X className="h-4 w-4" />
+                                        <Info className="size-4" />
                                     </Button>
-                                </div>
-                            )}
+                                ) : null}
+                                <Button variant="ghost" size="icon" onClick={closeModal} className={barButtonClass} aria-label="Close">
+                                    <X className="size-4" />
+                                </Button>
+                            </div>
                         </div>
 
-                        {/* Image canvas — neutral dark in both themes. */}
-                        <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-zinc-950">
-                            {renderAsPerAttachmentType(
-                                resolveEffectiveType(currentMedia),
-                                currentMedia?.attachment_file_name || "unknown",
-                            )}
+                        <div className="relative flex flex-1 items-center justify-center overflow-hidden pt-14">
+                            <div key={currentMedia.attachment_uuid} className="content-view-in flex size-full items-center justify-center">
+                                {renderAsPerAttachmentType(effectiveType, currentMedia?.attachment_file_name || "unknown")}
+                            </div>
 
                             {allMedia.length > 1 && (
                                 <>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={handlePrevious}
-                                        className={cn(
-                                            "absolute left-4 top-1/2 -translate-y-1/2 z-10",
-                                            canvasButtonClass,
-                                        )}
-                                        aria-label="Previous"
-                                    >
-                                        <ChevronLeft className="h-5 w-5" />
+                                    <Button variant="ghost" size="icon" onClick={handlePrevious} className={cn("absolute left-4 top-1/2 z-10 -translate-y-1/2", canvasButtonClass)} aria-label="Previous">
+                                        <ChevronLeft className="size-5" />
                                     </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={handleNext}
-                                        className={cn(
-                                            "absolute right-4 top-1/2 -translate-y-1/2 z-10",
-                                            canvasButtonClass,
-                                        )}
-                                        aria-label="Next"
-                                    >
-                                        <ChevronRight className="h-5 w-5" />
+                                    <Button variant="ghost" size="icon" onClick={handleNext} className={cn("absolute right-4 top-1/2 z-10 -translate-y-1/2", canvasButtonClass)} aria-label="Next">
+                                        <ChevronRight className="size-5" />
                                     </Button>
                                 </>
                             )}
                         </div>
 
-                        {/* AI analysis result panel (image only). */}
-                        {aiResult && (
-                            <div className="border-t bg-background px-4 py-3 max-h-40 overflow-y-auto shrink-0">
-                                <p className="mb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-                                    AI analysis
-                                </p>
-                                <p className="text-sm text-foreground whitespace-pre-line">{aiResult}</p>
+                        {/* On a phone (no rail) the AI's answer sits under the stage. */}
+                        {aiResult && (isMobile || !infoOpen) ? (
+                            <div className="max-h-40 shrink-0 overflow-y-auto border-t border-white/10 bg-[#16171A] px-4 py-3">
+                                <p className="mb-1 text-meta font-medium text-white/60">AI summary</p>
+                                <p className="whitespace-pre-line text-ui-sm text-white/90">{aiResult}</p>
                             </div>
-                        )}
-
-                        {/* Bottom info / download bar — themed. */}
-                        <div className="flex justify-between items-center gap-2 px-4 py-3 border-t bg-background shrink-0">
-                            <div className="flex items-center gap-3 min-w-0">
-                                <div className="text-xs text-muted-foreground truncate">
-                                    {formatFileSizeForAttachment(currentMedia?.attachment_size || 1)} ·{" "}
-                                    {formatDateForAttachment(currentMedia?.attachment_created_at || "")}
-                                </div>
-                                {analyzeContext && resolveEffectiveType(currentMedia) === "image" && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={runAnalyze}
-                                        disabled={analyzing}
-                                        className="gap-1.5 shrink-0"
-                                    >
-                                        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                                        {analyzing ? "Analyzing…" : aiResult ? "Re-analyze" : "Analyze with AI"}
-                                    </Button>
-                                )}
-                                {analyzeContext &&
-                                    resolveEffectiveType(currentMedia) !== "image" &&
-                                    isAiReadableDoc(currentMedia?.attachment_file_name || "") && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={runAnalyzeDoc}
-                                            disabled={analyzingDoc}
-                                            className="gap-1.5 shrink-0"
-                                        >
-                                            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                                            {analyzingDoc ? "Reading…" : aiResult ? "Re-summarize" : "Summarize with AI"}
-                                        </Button>
-                                    )}
-                            </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    downloadFile(
-                                        mediaReq.data?.url || "",
-                                        currentMedia?.attachment_file_name,
-                                    )
-                                }
-                                className="gap-2 shrink-0"
-                            >
-                                <Download className="h-4 w-4" />
-                                Download
-                            </Button>
-                        </div>
+                        ) : null}
                     </div>
 
-                    {/* Desktop sidebar — themed. */}
-                    {isDesktop && (
-                        <Sidebar
-                            allMedia={allMedia}
-                            currentMediaUuid={currentMedia.attachment_uuid}
-                            onSelect={handleSelectMedia}
-                            isFullscreen={isFullscreen}
-                            toggleFullscreen={toggleFullscreen}
-                            closeModal={closeModal}
-                        />
-                    )}
+                    {infoOpen && !isMobile ? (
+                        <Sidebar allMedia={allMedia} current={currentMedia} onSelect={handleSelectMedia} aiResult={aiResult} />
+                    ) : null}
                 </div>
             </DialogContent>
             {dialogOpenState && (

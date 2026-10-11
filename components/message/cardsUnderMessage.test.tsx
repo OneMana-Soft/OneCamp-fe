@@ -38,9 +38,12 @@ afterEach(cleanup)
 const LONG = "OneCamp brand guidelines, October 2026, final version for the agency.pdf"
 
 describe("cards under a message", () => {
-  it("share one width, the full width on a phone", () => {
-    expect(linkCardClass).toContain("w-full")
-    expect(linkCardClass).toContain("max-w-md")
+  // Design v3 chat, C26: one material for every card: raised at e1, r12,
+  // 12/14 of padding, a 12px gap, at most 520px, lifting onto e2 on the
+  // compositor (hover-lift), never by animating a shadow or a border.
+  it("share one material and one width, the full width on a phone", () => {
+    for (const c of ["w-full", "max-w-[520px]", "bg-raised", "shadow-e1", "rounded-xl", "px-3.5", "py-3", "gap-3", "hover-lift"]) expect(linkCardClass).toContain(c)
+    expect(linkCardClass).not.toMatch(/\bborder\b|transition-colors|max-w-md/)
   })
 
   it("draw a file as a named button with its whole name, cut by width", () => {
@@ -53,10 +56,14 @@ describe("cards under a message", () => {
     )
     const button = screen.getByRole("button", { name: `Download ${LONG}` })
     expect(button.getAttribute("data-file-card")).toBe("")
+    expect(button.querySelector("[data-file-name] .truncate")).toBeTruthy()
+    expect(button.querySelector("[data-file-name] .shrink-0")!.textContent).toBe("ency.pdf")
+    // C24: the tile is in the kind's hue (a PDF is berry), and the name is cut in its middle.
+    expect(button.getAttribute("data-file-kind")).toBe("pdf")
+    expect(button.querySelector("[data-card-tile]")!.className).toContain("hue-berry")
     expect(button.textContent).toContain(LONG)
-    expect(button.querySelector(".truncate")).toBeTruthy()
     const box = container.querySelector("[data-message-attachments]")!
-    expect(box.className).toContain("max-w-md")
+    expect(box.className).toContain("max-w-[520px]")
     expect(box.className).not.toContain("md:w-1/3")
     expect(box.className).not.toMatch(/\bmb-4\b/)
   })
@@ -64,7 +71,7 @@ describe("cards under a message", () => {
   it("tint a doc card's tile in the doc's own hue", () => {
     const id = "f75cbe7f-9ee2-4513-b2dc-46aba48a34aa"
     const { container } = render(<WorkLinkCards text={`see /app/doc/${id}`} />)
-    const tile = container.querySelector("a > span:first-child")!
+    const tile = container.querySelector("[data-card-tile]")!
     expect(tile.className).toMatch(/\bhue-(sky|moss|sun|dusk|berry|lake)\b/)
     expect(tile.className).toContain("bg-hue-tint")
     expect(tile.className).not.toContain("bg-muted")
@@ -80,7 +87,7 @@ describe("the reactions under a message", () => {
         </TooltipProvider>
       </Provider>,
     )
-    expect(container.querySelector("[data-reactions]")!.className).toContain("mt-1.5")
+    expect(container.querySelector("[data-reactions]")!.className).toContain("mt-2")
   })
 })
 
@@ -101,8 +108,8 @@ describe("the faces of a thread's repliers", () => {
     expect(faces.map((f) => f.textContent)).toEqual(["M", "J"])
     for (const f of faces) {
       expect(f.className).toContain("rounded-full")
-      expect(f.className).toContain("ring-background")
-      expect(f.querySelector("[class*='bg-hue-tint']")).toBeTruthy()
+      expect(f.className).toContain("ring-sheet")
+      expect(f.querySelector("[class*='avatar-person']")).toBeTruthy()
     }
   })
 })

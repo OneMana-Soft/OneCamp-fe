@@ -39,7 +39,7 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(
 
         // The channel's colour: a tint tile with its # in the strong cut, the
         // same mark the channel's header carries.
-        const leading = <IdentityMark id={channelId} variant="tile" size={32} icon={<Hash strokeWidth={2} />} />;
+        const leading = <IdentityMark id={channelId} variant="tile" size={32} icon={<Hash />} />;
 
         const titleNode = (
             <span className="inline-flex items-center gap-1.5">

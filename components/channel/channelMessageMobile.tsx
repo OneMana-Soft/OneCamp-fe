@@ -1,46 +1,26 @@
 "use client"
 
 import { displayNameOf } from "@/lib/personName"
-import { BotTag } from "@/components/ui/botTag"
-import { PrincipalTag } from "@/components/ui/principalTag"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
-import { RelayedAvatar } from "@/components/message/relayedAvatar"
-import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
-import { ContinuedGutter } from "@/components/message/continuedGutter"
-import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import type { PostsRes } from "@/types/post"
-import { cn } from "@/lib/utils/helpers/cn"
-import { Check, X } from "@/lib/icons";
-import MinimalTiptapTextInput from "@/components/textInput/textInput"
-import { AgentResultCards } from "@/components/message/AgentResultCards"
-import { WorkLinkCards } from "@/components/message/WorkLinkCards"
+import { MobileMessageRow, sheetPreview } from "@/components/message/mobileMessageRow"
+import { mapPostsResToBaseMessage } from "@/components/message/baseMessageCard"
 import { useLongPress } from "@/hooks/useLongPress"
 import { useDispatch } from "react-redux"
 import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
-import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
-import { SendStatus, SendingNote } from "@/components/message/sendStatus"
-import { quoteBarClass } from "@/components/message/quoteBar"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
-import { MessagePreview } from "@/components/message/MessagePreview"
-import {app_channel_path, app_user} from "@/types/paths"
+import { app_channel_path, app_user } from "@/types/paths"
 import { useRouter } from "next/navigation"
-import { MessageAttachments } from "@/components/message/MessageAttachments"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { BottomMenu } from "@/components/message/bottomMenu"
-import { useCallback, useEffect, useRef, useState, memo } from "react"
+import { useCallback, useMemo, useState, memo } from "react"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
-import type { UserProfileInterface, UserSelectedOptionInterface } from "@/types/user"
+import type { UserProfileInterface } from "@/types/user"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { openUI, closeUI } from "@/store/slice/uiSlice"
-import { ConditionalWrap } from "../conditionalWrap/conditionalWrap"
-import { MessageReplyCount } from "@/components/message/messageReplyCount"
-import { replyParticipants } from "@/components/message/threadParticipants"
-import { useBotKindMap } from "@/hooks/useBotKinds"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
-import {useUserInfoState} from "@/hooks/useUserInfoState";
-import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
+import { useUserInfoState } from "@/hooks/useUserInfoState";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 interface ChannelMessageProps {
@@ -54,6 +34,8 @@ interface ChannelMessageProps {
     priority?: boolean
     /** Continues the message above it (lib/messageGrouping). */
     continued?: boolean
+    /** Arrived while the reader followed the end (C18). */
+    arrived?: boolean
 }
 
 const ChannelMessageMobileComponent = ({
@@ -66,6 +48,7 @@ const ChannelMessageMobileComponent = ({
                                            updatePost,
                                            priority,
                                            continued = false,
+                                           arrived = false,
                                        }: ChannelMessageProps) => {
     const dispatch = useDispatch()
 
@@ -78,22 +61,9 @@ const ChannelMessageMobileComponent = ({
     const userInfoState = useUserInfoState(postInfo.post_by.user_uuid)
     // A channel guest's or Slack person's message is drawn as theirs (see lib/relayedAuthor).
     const relayed = useRelayedAuthor(postInfo.post_by, postInfo.post_text)
-    // Bots' kinds, so a reply avatar is the guest or Slack person, not their bot.
-    const botKinds = useBotKindMap()
     const authorName = relayed ? relayed.name : (userInfoState.userName || displayNameOf(postInfo.post_by))
     const postText = relayed ? relayed.body : postInfo.post_text
 
-    // Route internal /app deep links through client navigation; off while editing.
-    const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
-
-
-    const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>(
-        {} as UserSelectedOptionInterface,
-    )
-    const [reactions, setReactions] = useState<{ [key: string]: string[] }>({})
-
-    const [updatedText, setUpdatedText] = useState<string>(postInfo.post_text || "")
-    const updatedTextRef = useRef<string>(postInfo.post_text || "")
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
@@ -106,38 +76,17 @@ const ChannelMessageMobileComponent = ({
 
     },[postInfo.post_by.user_uuid, relayed])
 
-    useEffect(() => {
-        setUserSelectedOption({} as UserSelectedOptionInterface)
-        setReactions({})
-        if (selfProfile.data?.data && postInfo.post_reactions) {
-            postInfo.post_reactions.forEach((reaction) => {
-                if (reaction.reaction_added_by.user_uuid == selfProfile.data?.data.user_uuid) {
-                    setUserSelectedOption({
-                        reactionId: reaction.uid,
-                        emojiId: reaction.reaction_emoji_id,
-                    })
-                }
-                setReactions((prevReactions) => ({
-                    ...prevReactions,
-                    [reaction.reaction_emoji_id]: [
-                        ...(prevReactions[reaction.reaction_emoji_id] || []),
-                        displayNameOf(reaction.reaction_added_by),
-                    ],
-                }))
-            })
-        }
-    }, [postInfo, selfProfile.data?.data])
-    
+    // The reader's reaction, for the sheet's emoji row (one per person).
+    const mine = postInfo.post_reactions?.find((r) => r?.reaction_added_by?.user_uuid === selfProfile.data?.data?.user_uuid)
     const handleEmojiClick = useCallback(
         (emojiId: string) => {
-            if (userSelectedOption.emojiId == emojiId) {
-                removeReaction(userSelectedOption.reactionId)
+            if (mine?.reaction_emoji_id == emojiId) {
+                removeReaction(mine.uid)
                 return
             }
-
-            addReaction(emojiId, userSelectedOption.reactionId)
+            addReaction(emojiId, mine?.uid ?? "")
         },
-        [userSelectedOption, removeReaction, addReaction],
+        [mine, removeReaction, addReaction],
     )
 
     const addEmojiReaction = useCallback(() => {
@@ -171,6 +120,8 @@ const ChannelMessageMobileComponent = ({
         )
     }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by, postText, relayed])
 
+    const message = useMemo(() => mapPostsResToBaseMessage(postInfo), [postInfo])
+
     const onLongPress = useCallback(() => {
         // The instruction implies removing the old drawer slice calls and replacing with openUI.
         // The instruction's snippet had a nested `dispatch(dispatch(openUI(...)))` and orphaned lines.
@@ -197,13 +148,14 @@ const ChannelMessageMobileComponent = ({
                     copyPostText()
                 },
                 messageText: removeHtmlTags(postText || ""),
+                preview: sheetPreview(message, authorName),
                 makeTask: () => {
                     const action = makeTaskAction({ html: postText, authorName: relayed ? relayed.name : displayNameOf(postInfo.post_by), channelUUID: channelId, postUUID: postInfo.post_uuid }, window.location.origin)
                     if (action) dispatch(action)
                 },
             }
         }))
-    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by])
+    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by, message, authorName])
 
     const longPressEvent = useLongPress(onLongPress, {
         threshold: 500,
@@ -241,129 +193,25 @@ const ChannelMessageMobileComponent = ({
     }, [router, postHref, pending]);
 
     return (
-        <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
-            <div id={messageDomId(postInfo.post_uuid)} className={`relative flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)}>
-                {continued && !isMessageEditEnabled ? (
-                    <ContinuedGutter createdAt={postInfo.post_created_at} authorName={authorName} sending={postInfo.post_send_state === "sending"} />
-                ) : (
-                    <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
-                    {relayed ? (
-                        <RelayedAvatar name={relayed.name} />
-                    ) : (
-                        <ChannelMessageAvatar
-                            userName={authorName}
-                            userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
-                            isBot={!!postInfo.post_by.is_bot}
-                            userUUID={postInfo.post_by.user_uuid}
-                        />
-                    )}
-                </div>
-                )}
-                <div className="flex-1 min-w-0">
-                    {!(continued && !isMessageEditEnabled) && (
-                    <div data-name-line="" className="flex h-5 items-center gap-2">
-                        <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{authorName}</div>
-                        {relayed ? <PrincipalTag kind={relayed.kind} /> : postInfo.post_by.is_bot && <BotTag userUUID={postInfo.post_by.user_uuid} />}
-                        <div className="text-2xs tabular-nums text-muted-foreground shrink-0">
-                            {formatTimeForPostOrComment(postInfo.post_created_at, true)}
-                        </div>
-                        {postInfo.post_send_state === "sending" && <SendingNote />}
-                    </div>
-                )}
-                    {postInfo.post_reply_to && !isMessageEditEnabled && (
-                        <div
-                            className={`interactive mb-1 pl-2 ${quoteBarClass(postInfo.post_reply_to.post_by)}`}
-                            onClick={(e) => { e.stopPropagation(); scrollToMessage(postInfo.post_reply_to?.post_uuid) }}
-                        >
-                            <MessagePreview
-                                msgBy={postInfo.post_reply_to.post_by}
-                                msgText={postInfo.post_reply_to.post_text}
-                                msgUUID={postInfo.post_reply_to.post_uuid}
-                                msgCreatedAt={postInfo.post_reply_to.post_created_at}
-                                vewFooter={false}
-                            />
-                        </div>
-                    )}
-                    <div className={cn("break-words transition-opacity", postInfo.post_send_state === "sending" && "opacity-60 delay-300")} onClickCapture={handleInternalLinkClick}>
-                        <MinimalTiptapTextInput
-                            throttleDelay={300}
-                            isOutputText={!isMessageEditEnabled}
-                            className={cn("max-w-full h-auto", isMessageEditEnabled && "p-2 ml-[-4]")}
-                            editorContentClassName={cn("overflow-auto")}
-                            output="html"
-                            content={postText}
-                            placeholder={"Edit message…"}
-                            editable={isMessageEditEnabled}
-                            PrimaryButtonIcon={Check}
-                            buttonOnclick={() => {
-                                updatePost(updatedTextRef.current)
-                                setIsMessageEditEnabled(false)
-                            }}
-                            SecondaryButtonIcon={X}
-                            secondaryButtonOnclick={() => {
-                                setIsMessageEditEnabled(false)
-                            }}
-                            editorClassName="focus:outline-none "
-                            onChange={(content) => {
-                                const s = content as string
-                                updatedTextRef.current = s
-                                setUpdatedText(s)
-                            }}
-                        />
-
-                        {postInfo.post_by.is_bot && !isMessageEditEnabled && (
-                            <AgentResultCards text={postInfo.post_text} />
-                        )}
-
-                        {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
-
-                        {!isMessageEditEnabled && <WorkLinkCards text={postInfo.post_text} />}
-
-                        {(postInfo.post_fwd_msg_chat || postInfo.post_fwd_msg_post) && (
-                            <MessagePreview
-                                msgBy={postInfo.post_fwd_msg_post?.post_by || postInfo.post_fwd_msg_chat?.chat_from}
-                                msgText={postInfo.post_fwd_msg_post?.post_text || postInfo.post_fwd_msg_chat?.chat_body_text || ""}
-                                msgChannelName={postInfo.post_fwd_msg_post?.post_channel?.ch_name}
-                                msgChannelUUID={postInfo.post_fwd_msg_post?.post_channel?.ch_uuid}
-                                msgUUID={postInfo.post_uuid || postInfo.post_fwd_msg_post?.post_uuid || postInfo.post_fwd_msg_chat?.chat_uuid}
-                                msgCreatedAt={
-                                    postInfo.post_fwd_msg_post?.post_created_at || postInfo.post_fwd_msg_chat?.chat_created_at
-                                }
-                                vewFooter={true}
-                            />
-                        )}
-                    </div>
-
-                    {!isMessageEditEnabled && postInfo.post_attachments && postInfo.post_attachments?.length > 0 && (
-                        <MessageAttachments
-                            attachmentSelected={handleSelectAttachment}
-                            attachments={postInfo.post_attachments}
-                            mediaGetUrl={GetEndpointUrl.GetChannelMedia + "/" + channelId}
-                        />
-                    )}
-
-                    {postInfo.post_comments && (postInfo.post_comment_count || 0) > 0 && (
-                        <div className="mb-3">
-                            <MessageReplyCount
-                                replyCount={postInfo.post_comment_count}
-                                lastCommentCreatedAt={postInfo.post_comments[postInfo.post_comments.length - 1].comment_created_at}
-                                participants={replyParticipants(postInfo.post_comments.slice().reverse(), botKinds)}
-                            />
-                        </div>
-                    )}
-
-                    <SendStatus state={postInfo.post_send_state} localId={postInfo.post_local_id} />
-
-                    {!isMessageEditEnabled && !pending && (
-                        <BottomMenu
-                            handleEmojiClick={handleEmojiClick}
-                            reactions={reactions}
-                            selectedEmojiId={userSelectedOption.emojiId}
-                        />
-                    )}
-                </div>
-            </div>
-        </ConditionalWrap>
+        <MobileMessageRow
+            message={message}
+            continued={continued}
+            arrived={arrived}
+            priority={priority}
+            editing={isMessageEditEnabled}
+            onEditSave={(body) => {
+                updatePost(body)
+                setIsMessageEditEnabled(false)
+            }}
+            onEditCancel={() => setIsMessageEditEnabled(false)}
+            onOpen={handleOnClick}
+            onUserClick={handleUserClick}
+            longPress={pending ? {} : longPressEvent}
+            addReaction={addReaction}
+            removeReaction={removeReaction}
+            onSelectAttachment={handleSelectAttachment}
+            mediaGetUrl={GetEndpointUrl.GetChannelMedia + "/" + channelId}
+        />
     )
 }
 

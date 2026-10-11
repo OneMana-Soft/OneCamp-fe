@@ -4,11 +4,14 @@ import { debounceUtil } from "@/lib/utils/helpers/debounce"
 import type { RowMeta, VirtualizedListProps } from "@/types/virtual"
 import { Virtualizer } from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
-import {Button} from "@/components/ui/button";
 import { ArrowDown, Loader2 } from "@/lib/icons";
+import { arrivedKeys } from "@/components/message/arrival";
+import { RowBoundary } from "@/components/message/rowBoundary";
+import { RollingCount } from "@/components/message/rollingCount";
 import { changedAtStart } from "@/components/message/listShift";
 import { rowMeta } from "@/components/message/rowMeta";
 import { followAfterScroll, READER_INPUT_MS } from "@/components/message/followEnd";
+import { prefersReducedMotion } from "@/lib/celebrate";
 
 interface MessageRowProps<T> extends RowMeta {
     data: T
@@ -21,8 +24,10 @@ interface MessageRowProps<T> extends RowMeta {
 // messages loading above, or one arriving below, re-rendered every message in
 // the conversation: 120,000 component renders on one scroll through history,
 // and 350 ms of main thread on every send.
-function MessageRowImpl<T>({ data, priority, isLast, continued, renderItem }: MessageRowProps<T>) {
-    return <>{renderItem(data, { priority, isLast, continued })}</>
+function MessageRowImpl<T>({ data, priority, isLast, continued, arrived, renderItem, raw }: MessageRowProps<T> & { raw?: string }) {
+    // Each row has its own boundary (design v3 chat, C34): one message that
+    // can't be drawn becomes a quiet row, and the conversation stays.
+    return <RowBoundary raw={raw}>{renderItem(data, { priority, isLast, continued, arrived })}</RowBoundary>
 }
 const MemoizedMessageItem = React.memo(MessageRowImpl) as typeof MessageRowImpl
 
@@ -44,12 +49,18 @@ export const MessageListVirtua = <T,>({
                                           initialScrollOffsetFromTop,
                                           onScroll,
                                           empty,
+                                          rawText,
+                                          isForMe,
                                       }: Omit<VirtualizedListProps<T>, 'onScroll'> & {
                                           initialTopMostItemIndex?: number,
                                           initialScrollOffsetFromTop?: number,
                                           onScroll?: (key: string, offset: number) => void,
-                                          /** What an empty conversation shows (ConversationEmpty), in its own hue. */
+                                          /** What an empty conversation shows (ConversationEmpty). */
                                           empty?: React.ReactNode,
+                                          /** A message as stored, for the row that can't be drawn ("Show raw"). */
+                                          rawText?: (item: T) => string | undefined,
+                                          /** Whether a message is for the reader (mentions them): the jump pill says so. */
+                                          isForMe?: (item: T) => boolean,
                                       }) => {
     const scrollerRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -79,10 +90,35 @@ export const MessageListVirtua = <T,>({
     // virtua sees it in the same render as the new rows.
     const [prevItems, setPrevItems] = useState(items)
     const [shift, setShift] = useState(false)
+    // The rows that arrived while the reader followed the end (C18), from the
+    // same comparison: they rise into place once; anything loaded stands still.
+    const [arrived, setArrived] = useState<ReadonlySet<string>>(() => new Set())
     if (items !== prevItems) {
         setPrevItems(items)
         setShift(changedAtStart(prevItems, items))
+        setArrived(arrivedKeys(prevItems, items, atBottomRef.current))
     }
+    // An empty conversation getting its first message keeps its empty block a
+    // moment longer, to leave rather than vanish.
+    const [emptyLeaving, setEmptyLeaving] = useState(false)
+    const [wasEmpty, setWasEmpty] = useState(items.length === 0)
+    if (wasEmpty && items.length > 0) {
+        setWasEmpty(false)
+        setEmptyLeaving(true)
+    } else if (!wasEmpty && items.length === 0) {
+        setWasEmpty(true)
+    }
+    useEffect(() => {
+        if (!emptyLeaving) return
+        const t = window.setTimeout(() => setEmptyLeaving(false), 220)
+        return () => window.clearTimeout(t)
+    }, [emptyLeaving])
+    // Unseen messages that mention the reader, for the jump pill.
+    const [unseenForMe, setUnseenForMe] = useState(0)
+    // While the reader scrolls (and 1.2 s after), the floating day shows.
+    const [scrolling, setScrolling] = useState(false)
+    const scrollIdle = useRef(0)
+    useEffect(() => () => window.clearTimeout(scrollIdle.current), [])
 
     const { dateKeys, separatorItems } = useMemo(() => {
         const dKeys: string[] = []
@@ -96,6 +132,10 @@ export const MessageListVirtua = <T,>({
         return { dateKeys: dKeys, separatorItems: sItems }
     }, [items])
 
+    // The floating day shows while the reader scrolls back through history,
+    // and settles away 1.2 s after they stop at the end.
+    const showDay = visibleDateIndex > -1 && items.length > 2 && (scrolling || !isScrolledToBottom)
+
     const toBottom = useCallback(() => {
         if (!ref.current || items.length === 0) return
         ref.current.scrollToIndex(items.length - 1, { align: "end" })
@@ -103,14 +143,20 @@ export const MessageListVirtua = <T,>({
 
     const jumpToLatest = useCallback(() => {
         if (!ref.current || items.length === 0) return
+        const v = ref.current
+        // Within three screens of the end, a smooth 280ms glide; further, an
+        // instant jump (C17): a long smooth scroll is a ride nobody asked for.
+        const distance = v.scrollSize - v.viewportSize - v.scrollOffset
+        const near = distance < v.viewportSize * 3
         atBottomRef.current = true
         // The press on this button was the reader's; the scroll it starts
         // is the list's, and lands at the end even if rows measure late.
         readerInputAt.current = 0
         setUnseen(0)
+        setUnseenForMe(0)
         clickedScrollToBottom()
-        toBottom()
-    }, [ref, items.length, clickedScrollToBottom, toBottom])
+        v.scrollToIndex(items.length - 1, { align: "end", smooth: near && !prefersReducedMotion() })
+    }, [ref, items.length, clickedScrollToBottom])
 
     const calculateVisibleDateIndex = useCallback(() => {
         if (!ref.current || dateKeys.length === 0) return -1
@@ -168,9 +214,35 @@ export const MessageListVirtua = <T,>({
         }
         // Scrolled up: how many arrived below, for the button.
         const from = before ? items.findIndex((i) => i.key === before) : -1
-        const arrived = items.slice(from + 1).filter((i) => i.type === "item").length
-        if (arrived > 0 && from >= 0) setUnseen((n) => n + arrived)
-    }, [lastKey, items, toBottom])
+        const fresh = items.slice(from + 1).filter((i) => i.type === "item")
+        if (fresh.length > 0 && from >= 0) {
+            setUnseen((n) => n + fresh.length)
+            if (isForMe) {
+                const mine = fresh.filter((i) => i.data !== undefined && isForMe(i.data)).length
+                if (mine) setUnseenForMe((n) => n + mine)
+            }
+        }
+    }, [lastKey, items, toBottom, isForMe])
+
+    // Escape while the pill shows takes the reader to the end (Discord).
+    useEffect(() => {
+        if (isScrolledToBottom) return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape" || e.defaultPrevented) return
+            const t = e.target as HTMLElement | null
+            if (t?.closest("[role=dialog],[role=menu],[contenteditable=true],input,textarea")) return
+            if (!scrollerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return
+            jumpToLatest()
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [isScrolledToBottom, jumpToLatest])
+
+    // How many unread rows the reader opened onto, for "NEW · 14".
+    const unreadCount = useMemo(() => {
+        const at = items.findIndex((i) => i.type === "unread")
+        return at < 0 ? 0 : items.slice(at + 1).filter((i) => i.type === "item").length
+    }, [items])
 
     // Anything that grows the conversation while the reader is at the bottom
     // (an image loading, a code block laying out, a reaction) keeps them there.
@@ -209,41 +281,46 @@ export const MessageListVirtua = <T,>({
                 overflowY: "auto", overflowX: "hidden", overflowAnchor: "none", WebkitOverflowScrolling: "touch", touchAction: "pan-y"
             }}
         >
-            {/* The floating date takes no room in the list: a sticky row of zero
-                height whose pill hangs below it. In the flow it pushed every
-                message down 32 px when it appeared and back when it went, the
-                jump scrolling showed (and the layout shift the audit measured),
-                and virtua's offsets were out by its height. */}
-            <div className="pointer-events-none sticky top-0 z-[var(--z-sticky)] h-0 overflow-visible" aria-hidden={visibleDateIndex < 0 || items.length <= 2}>
-                <SeparatorPill
+            {/* The floating day (C15) takes no room in the list: a sticky row
+                of zero height. Behind its pill a 44px scrim of the sheet fades
+                the row below under it, so the pill never sits on a name. While
+                older messages load, the pill itself spins. */}
+            <div className="pointer-events-none sticky top-0 z-[var(--z-sticky)] h-0 overflow-visible" aria-hidden={!showDay}>
+                <div
                     className={cn(
-                        "py-1.5 bg-gradient-to-b from-background via-background/95 to-transparent transition-opacity duration-150",
-                        visibleDateIndex > -1 && items.length > 2 ? "opacity-100" : "opacity-0",
+                        "absolute inset-x-0 top-0 h-11 bg-gradient-to-b from-sheet via-sheet/80 to-transparent transition-opacity duration-[140ms] md:h-11",
+                        showDay ? "opacity-100" : "opacity-0",
                     )}
-                    lineClassName="bg-transparent"
-                    pillClassName="rounded-md border border-border bg-background px-2 py-0.5 shadow-overlay"
-                >
-                    {visibleDateIndex > -1 ? getDateHeading(dateKeys[visibleDateIndex]) : " "}
-                </SeparatorPill>
+                />
+                <div className={cn("absolute inset-x-0 top-2.5 flex justify-center transition-opacity duration-[140ms]", showDay ? "opacity-100" : "opacity-0")}>
+                    <DayPill
+                        floating
+                        label={visibleDateIndex > -1 ? getDateHeading(dateKeys[visibleDateIndex]) : ""}
+                        loading={olderMessageLoading}
+                        days={dateKeys.map((d, i) => ({ label: getDateHeading(d), index: separatorItems[i].index }))}
+                        onJump={(index) => ref.current?.scrollToIndex(index, { align: "start" })}
+                    />
+                </div>
             </div>
-            {/* Older messages loading: floats over the list rather than being
-                inserted into it. Inside the list it pushed every row down 40 px
-                and back when it went, a layout shift on every channel open, and
-                the virtualiser counted it as an item. */}
-            {olderMessageLoading && (
-                <div className="pointer-events-none sticky top-2 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible" role="status" aria-label="Loading older messages">
-                    <span className="rounded-full bg-background/90 p-1.5 shadow-overlay">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            {olderMessageLoading && !showDay && (
+                <div className="pointer-events-none sticky top-2.5 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible" role="status" aria-label="Loading older messages">
+                    <span className="flex h-6 items-center rounded-xl bg-sheet px-2.5 shadow-e1">
+                        <Loader2 className="size-3 animate-spin text-ink-3" />
                     </span>
                 </div>
             )}
             {/* An empty conversation said nothing at all: a blank panel above the
                 composer, which reads as still loading. */}
+            {/* The first message landing: the empty block fades and drops
+                (200 ms) as the row arrives, rather than vanishing (C58). */}
+            {emptyLeaving && items.length > 0 && (
+                <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 animate-empty-out">{empty}</div>
+            )}
             {items.length === 0 && !olderMessageLoading && !newMessageLoading && (
                 empty ?? (
-                    <div className="flex h-full flex-col justify-end px-4 pb-4 md:pb-6">
-                        <p className="text-sm font-medium text-foreground">No messages yet</p>
-                        <p className="text-sm text-muted-foreground">What you write below starts the conversation.</p>
+                    <div className="flex h-full flex-col justify-end px-5 pb-6">
+                        <p className="text-heading text-ink">No messages yet</p>
+                        <p className="text-ui text-ink-2">What you write below starts the conversation.</p>
                     </div>
                 )
             )}
@@ -288,10 +365,16 @@ export const MessageListVirtua = <T,>({
                     // last few pixels, and never while the list is following.
                     const nearBottom = decision.following || fromBottom <= 300
                     setIsScrolledToBottom(nearBottom)
-                    if (atBottomRef.current) setUnseen(0)
+                    if (atBottomRef.current) {
+                        setUnseen(0)
+                        setUnseenForMe(0)
+                    }
 
                     if (offset < 20) setVisibleDateIndex(-1)
                     else debouncedUpdateVisibleDateIndex()
+                    setScrolling(true)
+                    window.clearTimeout(scrollIdle.current)
+                    scrollIdle.current = window.setTimeout(() => setScrolling(false), 1200)
 
                     if (offset < 200 && !olderMessageLoading && hasOldMessage) fetchOlderMessage()
                     if (fromBottom <= 200 && hasNewMessage && !newMessageLoading) fetchNewMessage()
@@ -308,11 +391,11 @@ export const MessageListVirtua = <T,>({
                     if (item.type === "unread") {
                         return (
                             <div key={item.key}>
-                                <UnreadDivider />
+                                <UnreadDivider count={unreadCount} seen={isScrolledToBottom && !scrolling} />
                             </div>
                         )
                     }
-                    const meta = rowMeta(index, items.length, item.continued)
+                    const meta = rowMeta(index, items.length, item.continued, arrived.has(item.key))
                     return (
                         <div key={item.key}>
                             <MemoizedMessageItem
@@ -320,7 +403,9 @@ export const MessageListVirtua = <T,>({
                                 priority={meta.priority}
                                 isLast={meta.isLast}
                                 continued={meta.continued}
+                                arrived={meta.arrived}
                                 renderItem={renderItem}
+                                raw={rawText?.(item.data!)}
                             />
                         </div>
                     )
@@ -329,31 +414,104 @@ export const MessageListVirtua = <T,>({
             </div>
 
             {!isScrolledToBottom && (
-                // Back to the newest message, saying how many arrived meanwhile.
-                // A labelled button on the page's own surface: it was an orange
-                // disc with only an arrow, as loud as Send.
-                <Button
-                    variant="outline"
-                    onClick={jumpToLatest}
-                    className="sticky bottom-3 md:bottom-6 float-right mr-4 md:mr-6 z-[var(--z-sticky)] h-8 gap-1.5 rounded-md bg-background px-3 text-xs font-medium shadow-overlay motion-safe:animate-msg-fade-in"
-                >
-                    <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-                    {unseen > 0 ? `${unseen} new ${unseen === 1 ? "message" : "messages"}` : "Jump to latest"}
-                </Button>
+                // Back to the newest message (C17): a centred pill 16px above
+                // the composer, on the pop surface at e3. With messages waiting
+                // its arrow turns the accent, which is "for you"; one that
+                // mentions you says so. It takes no room: a zero-height sticky
+                // row it hangs above.
+                <div className="pointer-events-none sticky bottom-4 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible pointer-coarse:bottom-3">
+                    <button
+                        type="button"
+                        onClick={jumpToLatest}
+                        data-jump-pill=""
+                        className={cn(
+                            "pointer-events-auto absolute bottom-0 left-1/2 flex h-[30px] -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-[15px] pl-1.5 pr-3 text-ui-sm font-medium text-ink",
+                            "pop-surface animate-pill-in transition-[translate,scale] duration-[140ms] ease-out hover:-translate-y-px active:scale-[0.97]",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                        )}
+                    >
+                        <span className={cn("flex size-5 items-center justify-center rounded-[10px]", unseen > 0 ? "bg-brand text-brand-foreground" : "bg-press text-ink-2")}>
+                            <ArrowDown className="size-3.5" aria-hidden="true" />
+                        </span>
+                        {unseen > 0 ? (
+                            <span className="flex items-center gap-1.5">
+                                <span><RollingCount value={unseen} /> new{unseenForMe > 0 ? "" : unseen === 1 ? " message" : " messages"}</span>
+                                {unseenForMe > 0 && (
+                                    <>
+                                        <span aria-hidden="true" className="text-ink-3">·</span>
+                                        <span aria-hidden="true" className="size-1.5 rounded-full bg-brand" />
+                                        <span>{unseenForMe} mentions you</span>
+                                    </>
+                                )}
+                            </span>
+                        ) : (
+                            "Jump to latest"
+                        )}
+                    </button>
+                </div>
             )}
         </div>
     )
 }
 
 /**
- * Where the unread messages start, as the conversation was opened: a hairline
- * and "New" in the accent, the one place a conversation spends it on its own.
+ * Where the unread messages start, as the conversation was opened (C16): a
+ * hairline in the accent at 45% running from the left to "NEW" on the right,
+ * with the count when the reader opened onto more than a screenful. It draws
+ * itself once from the right, 200ms after the list settles, and once the
+ * reader has reached the end it quiets to 60%, never vanishing under them.
  */
-function UnreadDivider() {
+function UnreadDivider({ count, seen }: { count: number; seen: boolean }) {
+    const [quiet, setQuiet] = useState(false)
+    useEffect(() => {
+        if (!seen) return
+        const t = window.setTimeout(() => setQuiet(true), 3000)
+        return () => window.clearTimeout(t)
+    }, [seen])
     return (
-        <div className="flex items-center gap-2 px-4 py-1.5" role="separator" aria-label="New messages">
-            <div className="h-px flex-1 bg-brand/50" />
-            <span className="text-2xs font-semibold text-brand-text">New</span>
+        <div data-unread-line="" className="flex items-center gap-2.5 pb-1 pl-5 pr-6 pt-2" role="separator" aria-label={count > 10 ? `${count} new messages` : "New messages"}>
+            <div className="h-px flex-1 origin-right bg-brand/45 animate-line-draw" />
+            <span className={cn("text-micro font-semibold leading-none tracking-[0.02em] text-brand-text transition-opacity duration-[600ms]", quiet && "opacity-60")}>
+                NEW{count > 10 ? <span className="tabular-nums"> · {count}</span> : null}
+            </span>
+        </div>
+    )
+}
+
+/**
+ * The day pill (C15): 24px, the sheet at e1, r12, 12/510 in ink-2. Floating,
+ * it is a button: a menu of the days loaded here, to jump to one. Its label
+ * rolls when the day under it changes.
+ */
+function DayPill({ label, floating = false, loading = false, days = [], onJump }: { label: string; floating?: boolean; loading?: boolean; days?: { label: string; index: number }[]; onJump?: (index: number) => void }) {
+    const [open, setOpen] = useState(false)
+    const pill = cn(
+        "pointer-events-auto relative flex h-6 items-center gap-1.5 rounded-xl bg-sheet px-2.5 text-meta font-medium text-ink-2 shadow-e1",
+        floating && "transition-shadow duration-[140ms] hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+    )
+    if (!floating) return <span className={pill}>{label}</span>
+    return (
+        <div className="relative">
+            <button type="button" className={pill} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) setOpen(false) }}>
+                {loading ? <Loader2 className="size-3 animate-spin text-ink-3" aria-label="Loading older messages" /> : <span key={label} className="animate-count-in">{label}</span>}
+            </button>
+            {open && days.length > 0 && (
+                <div role="menu" className="pop-surface pointer-events-auto absolute left-1/2 top-8 z-[var(--z-dropdown)] w-48 -translate-x-1/2 p-1 animate-pop-in">
+                    <p className="px-2 pb-1 pt-1.5 text-meta font-medium text-ink-3">Jump to</p>
+                    {days.slice().reverse().map((d) => (
+                        <button
+                            key={d.index}
+                            type="button"
+                            role="menuitem"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { onJump?.(d.index); setOpen(false) }}
+                            className="flex h-[30px] w-full items-center rounded-md px-2 text-left text-ui-sm text-ink hover:bg-press focus-visible:bg-press focus-visible:outline-none"
+                        >
+                            {d.label}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

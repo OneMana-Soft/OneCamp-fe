@@ -23,9 +23,11 @@ interface ChatMessageProps {
   priority?: boolean
   /** Continues the message above it (lib/messageGrouping). */
   continued?: boolean
+  /** Arrived while the reader followed the end: it rises in once (C18). */
+  arrived?: boolean
 }
 
-export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, removeReaction, isAdmin, removePost, priority, continued }: ChatMessageProps) => {
+export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, removeReaction, isAdmin, removePost, priority, continued, arrived }: ChatMessageProps) => {
   const otherUserUUID = usePathname().split("/")[3]
   const dispatch = useDispatch()
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -60,7 +62,7 @@ export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, remo
       updatePost={updatePost}
       priority={priority}
       continued={continued}
-      showErrorBoundary={true}
+      arrived={arrived}
       onReply={handleReply}
     />
   )

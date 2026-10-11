@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { springPop } from "@/lib/celebrate"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,7 +14,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Bookmark, BookmarkCheck, CalendarClock, Check, Clock, Trash2 } from "@/lib/icons"
+import { Bookmark, CalendarClock, Check, Clock, Trash2 } from "@/lib/icons"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
 import { type LaterItemType, reminderChoices, reminderLabel, toLocalInput } from "@/lib/utils/later"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -74,7 +75,15 @@ export function SaveForLaterButton({
           }),
     )
 
-  const Icon = saved ? BookmarkCheck : Bookmark
+  // Saved is the bookmark filled in the accent, and it springs the moment it
+  // fills (hub.md L4). No sparks: saving is routine. A bookmark already filled
+  // when the page loads stands still.
+  const trigger = useRef<HTMLButtonElement>(null)
+  const wasSaved = useRef<boolean | null>(null)
+  useEffect(() => {
+    if (wasSaved.current === false && saved) springPop(trigger.current?.querySelector("svg"))
+    wasSaved.current = Boolean(saved)
+  }, [saved])
 
   return (
     <>
@@ -83,24 +92,27 @@ export function SaveForLaterButton({
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <Button
+                ref={trigger}
                 type="button"
                 variant="ghost"
                 size="icon"
                 aria-label={label}
+                aria-pressed={Boolean(saved)}
                 disabled={busy}
+                data-saved={saved ? "" : undefined}
                 className={cn(
-                  "h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent",
-                  saved && "text-primary hover:text-primary",
+                  "h-8 w-8 rounded-md text-ink-3 hover:bg-hover hover:text-foreground",
+                  saved && "text-brand hover:text-brand [&_svg]:fill-current [&_svg]:!text-brand",
                   className,
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Bookmark className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent>{label}</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuContent align="end" className="w-[248px]">
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
             {saved
               ? saved.remind_at

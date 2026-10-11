@@ -25,8 +25,8 @@ vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatA
   MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
 vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () => undefined }))
-vi.mock("@/components/MessageDesktopHover/MessageDesktopHoverOptionsForRightPanelChatAndChannel", () => ({
-  MessageDesktopHoverOptionsForRightPanelChatAndChannel: () => null,
+vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel", () => ({
+  MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
 vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1" }))
@@ -67,7 +67,7 @@ describe("a message that continues the one above it", () => {
     expect(container.querySelector("[data-slot=avatar], .h-9.w-9")).toBeNull()
     expect(screen.getByTestId("body").textContent).toBe("<p>And the second half.</p>")
     expect(container.querySelector(".sr-only")?.textContent).toMatch(/^Maya Chen, /)
-    expect(container.querySelector("time")?.className).toContain("group-hover:opacity-100")
+    expect(container.querySelector("time")?.className).toContain("group-hover/row:opacity-100")
   })
 
   it("is drawn in full when it starts a turn", () => {

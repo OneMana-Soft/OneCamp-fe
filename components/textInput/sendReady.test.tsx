@@ -38,13 +38,17 @@ const composer = (content: string, hasAttachments?: boolean) =>
     </TooltipProvider>,
   )
 
-const MUTED = "bg-muted"
+// Design v3: an empty Send is the press overlay with no ring; with words it is the primary.
+const MUTED = "bg-press"
 const send = () => screen.getByRole("button", { name: "Send" })
 
 describe("the Send button", () => {
   it("reads as nothing to send with no words and no files", async () => {
     composer("")
     await waitFor(() => expect(send().className).toContain(MUTED))
+    // No primary ring over the grey: shadow-none cannot beat shadow-primary
+    // in the stylesheet, so an empty Send must not be the primary at all.
+    expect(send().className).not.toContain("shadow-primary")
   })
 
   it("reads as ready with a file attached and no words", async () => {
@@ -57,7 +61,7 @@ describe("the Send button", () => {
     composer("<p>Ship it</p>")
     await waitFor(() => expect(send().className).not.toContain(MUTED))
     // Ready is the accent (the chosen theme): the one action on the composer.
-    expect(send().className).toContain("bg-primary")
+    expect(send().className).toContain("bg-brand")
   })
 })
 

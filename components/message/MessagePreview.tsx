@@ -10,7 +10,8 @@ import {PrincipalTag} from "@/components/ui/principalTag";
 import {useRelayedAuthor} from "@/hooks/useRelayedAuthor";
 import {RelayedAvatar} from "@/components/message/relayedAvatar";
 import {getLastMessagePreview} from "@/lib/utils/lastMessagePreview";
-import {quoteBarClass} from "@/components/message/quoteBar";
+import { HUE_CLASS } from "@/components/ui/graphics/hues";
+import { hueFor } from "@/lib/campHue";
 import {app_channel_path} from "@/types/paths";
 
 interface MsgPreviewProps {
@@ -59,31 +60,34 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
         )
     }
 
+    // A forwarded message (design v3 chat, C23): a sunken card with a 2px
+    // bar in its author's hue (never the accent), their face and name, where
+    // and when it was said, the words clamped to four lines with a fade, and
+    // the way back to the original.
     return (
-        <div data-forwarded="" className={cn("mt-1 min-w-0 pl-3", quoteBarClass(msgInfo.msgBy))}>
-            <div className="flex min-w-0 items-center gap-1.5 text-sm leading-6">
+        <div data-forwarded="" className="relative mt-2 min-w-0 max-w-[520px] overflow-hidden rounded-xl bg-sunken py-2.5 pl-4 pr-3">
+            <span aria-hidden="true" className={cn("absolute bottom-2 left-1.5 top-2 w-0.5 rounded-full bg-hue", HUE_CLASS[hueFor(name)])} />
+            <div className="flex min-w-0 items-center gap-2">
                 {relayed ? (
-                    <span className="h-6 w-6 shrink-0">
+                    <span className="size-5 shrink-0">
                         <RelayedAvatar name={relayed.name}/>
                     </span>
                 ) : (
-                    <MessagePreviewAvatar userInfo={msgInfo.msgBy} className="h-6 w-6"/>
+                    <MessagePreviewAvatar userInfo={msgInfo.msgBy} className="size-5 [&_span]:text-3xs"/>
                 )}
-                <span className="truncate font-semibold text-foreground">{name}</span>
+                <span className="truncate text-ui-sm font-medium text-ink">{name}</span>
                 {relayed && <PrincipalTag kind={relayed.kind}/>}
-                {msgInfo.msgCreatedAt && (
-                    <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
-                        {formatTimeForPostOrComment(msgInfo.msgCreatedAt)}
-                    </span>
-                )}
+                <span className="min-w-0 shrink truncate text-meta tabular-nums text-ink-3">
+                    {[msgInfo.msgChannelName ? `in #${msgInfo.msgChannelName}` : null, msgInfo.msgCreatedAt ? formatTimeForPostOrComment(msgInfo.msgCreatedAt) : null].filter(Boolean).join(" · ")}
+                </span>
             </div>
 
-            <div className='max-h-40 overflow-hidden'>
+            <div className="chat-body relative mt-1 max-h-[92px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70px,transparent)]">
                 <MinimalTiptapTextInput
                     throttleDelay={300}
                     isOutputText={true}
                     className={cn("max-w-full h-auto border-none")}
-                    editorContentClassName="overflow-auto "
+                    editorContentClassName="overflow-hidden"
                     output="html"
                     content={body}
                     placeholder={""}
@@ -96,24 +100,16 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
             </div>
 
             {msgInfo.vewFooter && (
-                <p className='mt-0.5 text-xs text-muted-foreground'>
-                    {msgInfo.msgChannelUUID ? (
-                        <>
-                            Posted in #{msgInfo.msgChannelName}
-                            {msgInfo.msgUUID && (
-                                <>
-                                    {" · "}
-                                    <Link
-                                        href={`${app_channel_path}/${msgInfo.msgChannelUUID}/${msgInfo.msgUUID}`}
-                                        className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                                    >
-                                        View message
-                                    </Link>
-                                </>
-                            )}
-                        </>
+                <p className='mt-1.5 text-meta'>
+                    {msgInfo.msgChannelUUID && msgInfo.msgUUID ? (
+                        <Link
+                            href={`${app_channel_path}/${msgInfo.msgChannelUUID}/${msgInfo.msgUUID}`}
+                            className="rounded-sm font-medium text-brand-text underline-offset-[3px] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        >
+                            View original
+                        </Link>
                     ) : (
-                        "From a direct message"
+                        <span className="text-ink-3">From a direct message</span>
                     )}
                 </p>
             )}

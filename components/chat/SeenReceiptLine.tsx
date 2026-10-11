@@ -16,6 +16,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { groupingIdOf, type ChatTarget } from "@/lib/chat/conversation"
 import { seenLine } from "@/lib/chat/readReceipts"
 import { Eye } from "@/lib/icons"
+import { ChatFace } from "@/components/message/chatFace"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ChatInfo } from "@/types/chat"
 import type { RootState } from "@/store/store"
@@ -59,14 +60,18 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
     })
   }, [receipts.data, people.data, latest, mine, me, target.kind])
 
+  const other = useFetchOnlyOnce<UserProfileInterface>(target.kind === "dm" ? `${GetEndpointUrl.SelfProfile}/${target.otherUUID}` : "").data?.data
   if (!line || typing) return null
-  // Under the message's own words, where its time and "Not sent." are: the
-  // row's 16px margin, the 36px avatar and its 12px gap (pl-16), on a phone
-  // as on a desktop. It sat at the row's right edge, a screen's width from a
-  // short message.
+  // Under your last message on the right (design v3 chat, C32): in a DM the
+  // other person's 14px face and "Seen 10:42" at 12px ink-3; a group keeps
+  // the eye and its names. It fades in where it now belongs, never travels.
   return (
-    <p data-seen-receipt="" className="flex items-center gap-1 pb-1 pl-16 pr-4 text-2xs text-muted-foreground" title={line.title} aria-live="polite">
-      <Eye className="h-3 w-3" aria-hidden />
+    <p data-seen-receipt="" className="flex animate-fade-in items-center justify-end gap-1.5 pb-1 pl-16 pr-6 text-meta text-ink-3" title={line.title} aria-live="polite">
+      {target.kind === "dm" && other ? (
+        <ChatFace name={displayNameOf(other)} profileKey={other.user_profile_object_key} userUUID={other.user_uuid} size={14} />
+      ) : (
+        <Eye className="size-3" aria-hidden />
+      )}
       {line.text}
     </p>
   )

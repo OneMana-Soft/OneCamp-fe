@@ -1,87 +1,104 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
-// The lines under a member's name in their profile. The demo's shared visitor
-// gets every other member with a blank address; the line that printed it
-// showed as an empty grey gap (a non-breaking space held it open).
+// The profile card, design v3 (hub.md P1): a non-modal popover anchored to
+// what opened it, with a banner in the person's hue, the presence dot, their
+// lines, and per kind: Message for a person, governance for an agent, no
+// Message for a bot, Edit profile and Set a status for yourself.
 
-const { profile } = vi.hoisted(() => ({ profile: { data: { data: {} as Record<string, unknown> | undefined } as { data: Record<string, unknown> | undefined } | undefined } }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => profile }))
+const { profile, self } = vi.hoisted(() => ({
+  profile: { data: undefined as { data: Record<string, unknown> } | undefined },
+  self: { data: { data: { user_uuid: "u-sam" } } },
+}))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => profile, useFetchOnlyOnce: () => self }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: "" }) }))
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => undefined }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock("@/components/ai/AgentCardDetails", () => ({ AgentCardDetails: () => null }))
+vi.mock("@/components/ai/AgentCardDetails", () => ({ AgentCardDetails: () => <p data-testid="governance">Acts for Sam</p> }))
+vi.mock("@/components/ui/botTag", () => ({ BotTag: () => null }))
 vi.mock("@/components/admin/InvitePlaceholder", () => ({ InvitePlaceholder: () => null }))
-vi.mock("@/components/dialog/attachmentLightboxDialog", () => ({}))
 
+const { setLastAnchor } = await import("@/lib/hub/lastAnchor")
 const { default: OtherProfileDialog } = await import("@/components/dialog/otherUserProfileDialog")
+const { hueFor } = await import("@/lib/campHue")
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  setLastAnchor(null)
+  profile.data = undefined
+})
 
-const maya = { user_uuid: "u-maya", user_name: "maya", user_full_name: "Maya Chen", user_handle: "maya", user_status: "online" }
+const maya = { user_uuid: "u-maya", user_name: "maya", user_full_name: "Maya Chen", user_handle: "maya", user_status: "online", user_device_connected: 1 }
+const open = (uuid = "u-maya") => render(<OtherProfileDialog userUUID={uuid} dialogOpenState setOpenState={() => {}} />)
 
-/** The lines under the name, in order. */
-function linesUnderName(name: string): string[] {
-  const block = screen.getByRole("heading", { name }).closest("[data-profile-name]")!
-  return Array.from(block.querySelectorAll(":scope > p")).map((p) => p.textContent ?? "")
-}
-
-describe("a member's profile", () => {
-  it("shows the address under the names", () => {
-    profile.data = { data: { ...maya, user_email_id: "maya@example.com" } }
-    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
-    expect(linesUnderName("maya")).toEqual(["Maya Chen · @maya", "maya@example.com"])
+describe("the profile card (P1)", () => {
+  it("is a popover anchored to what was pressed, not a modal dialog", () => {
+    const avatar = document.createElement("button")
+    document.body.appendChild(avatar)
+    avatar.getBoundingClientRect = () => new DOMRect(40, 120, 24, 24)
+    setLastAnchor(avatar)
+    profile.data = { data: maya }
+    open()
+    expect(document.querySelector("[data-profile-popover]")).toBeTruthy()
+    expect(screen.queryByRole("dialog", { name: /Member profile/ })).toBeNull()
+    const box = document.querySelector<HTMLElement>("[data-profile-anchor-box]")!
+    expect([box.style.left, box.style.top, box.style.width]).toEqual(["40px", "120px", "24px"])
+    avatar.remove()
   })
 
-  it("shows no empty line when the address is blank, and the handle once", () => {
-    profile.data = { data: { ...maya, user_email_id: "" } }
-    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
-    expect(linesUnderName("maya")).toEqual(["Maya Chen · @maya"])
+  it("puts the person's hue on the banner, their presence on the avatar, and Message", () => {
+    profile.data = { data: { ...maya, user_job_title: "Designer" } }
+    open()
+    expect(document.querySelector("[data-profile-banner]")!.getAttribute("data-hue")).toBe(hueFor("u-maya"))
+    expect(document.querySelector("[data-presence]")!.getAttribute("data-presence")).toBe("online")
+    expect(screen.getByRole("heading", { name: "maya" })).toBeTruthy()
+    expect(screen.getByText("@maya")).toBeTruthy()
+    expect(screen.getByText("Designer")).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Message/ })).toBeTruthy()
   })
 
-  it("shows nothing under the name with no address, handle or other name", () => {
-    profile.data = { data: { user_uuid: "u-sam", user_name: "Sam", user_email_id: "" } }
-    render(<OtherProfileDialog userUUID="u-sam" dialogOpenState setOpenState={() => {}} />)
-    expect(linesUnderName("Sam")).toEqual([])
+  it("shows its status with the emoji and words", () => {
+    profile.data = { data: { ...maya, user_emoji_statuses: [{ status_user_emoji_id: "brain", status_user_emoji_desc: "Deep work" }] } }
+    open()
+    expect(document.querySelector("[data-profile-status]")!.textContent).toContain("Deep work")
   })
 
-  // It opened on a column of "—" (every field, the name too) until the
-  // profile arrived, and then listed the name twice more under the header.
+  it("draws an agent square in the agent gradient, with its governance and Active", () => {
+    profile.data = { data: { user_uuid: "u-rc", user_name: "release-captain", user_full_name: "Release Captain", is_bot: true, user_bot_kind: "agent", user_status: "online" } }
+    open("u-rc")
+    expect(document.querySelector("[data-profile-card]")!.getAttribute("data-profile-card")).toBe("agent")
+    expect(document.querySelector("[data-profile-banner]")!.className).toContain("avatar-agent")
+    expect(screen.getByTestId("governance")).toBeTruthy()
+    expect(document.querySelector("[data-agent-state=active]")).toBeTruthy()
+    expect(document.querySelector("[data-presence]")).toBeNull()
+  })
+
+  it("gives a bot no Message and a neutral banner", () => {
+    profile.data = { data: { user_uuid: "u-ci", user_name: "Check-in", is_bot: true, user_bot_kind: "checkin" } }
+    open("u-ci")
+    expect(document.querySelector("[data-profile-banner]")!.className).toContain("bg-sunken")
+    expect(screen.queryByRole("button", { name: /Message/ })).toBeNull()
+  })
+
+  it("offers Edit profile and Set a status on your own card", () => {
+    profile.data = { data: { ...maya, user_uuid: "u-sam", user_name: "sam" } }
+    open("u-sam")
+    expect(screen.getByRole("button", { name: /Edit profile/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Set a status/ })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /^Message/ })).toBeNull()
+  })
+
   it("holds its shape while it loads, without a dash for every field", () => {
-    profile.data = undefined
-    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
+    open()
     expect(screen.getByRole("status", { name: "Loading their profile" })).toBeTruthy()
     expect(document.body.textContent).not.toContain("—")
   })
 
-  it("lists what they have set, with their status, and not their name again", () => {
-    profile.data = { data: { ...maya, user_job_title: "Designer", user_hobbies: "", user_emoji_statuses: [{ status_user_emoji_id: "brain", status_user_emoji_desc: "Deep work" }] } }
-    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
-    const terms = Array.from(document.querySelectorAll("dt")).map((d) => d.textContent)
-    expect(terms).toEqual(["Status", "Job title"])
-    expect(screen.getByText("Deep work")).toBeTruthy()
-    expect(screen.queryByText("Full name")).toBeNull()
-  })
-
-  it("opens a photo from a button, and has nothing to open without one", () => {
-    profile.data = { data: { ...maya } }
-    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
+  it("has no photo to open without one", () => {
+    profile.data = { data: maya }
+    open()
     expect((screen.getByRole("button", { name: "See maya's photo" }) as HTMLButtonElement).disabled).toBe(true)
-  })
-})
-
-describe("the profile card's shape", () => {
-  // One 448px column: the photo at 64px beside the name, its few details
-  // below. Two 672px columns left one line beside a 128px photo.
-  it("is one narrow column with the photo beside the name", async () => {
-    const { readFileSync } = await import("node:fs")
-    const { resolve } = await import("node:path")
-    const src = readFileSync(resolve(__dirname, "otherUserProfileDialog.tsx"), "utf8")
-    expect(src).toContain('<DialogContent className="sm:max-w-md">')
-    expect(src).toMatch(/data-profile-head="" className="flex items-center gap-4"/)
-    expect(src).toContain('<Avatar className="h-16 w-16')
-    expect(src).not.toMatch(/md:flex-row|h-32 w-32|sm:max-w-2xl/)
   })
 })

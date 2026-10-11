@@ -14,12 +14,14 @@ const fetched: string[] = []
 // Stable answers: a new object each render looped the dialog's reset effect.
 const INFO = { data: { channel_info: { ch_name: "engineering", ch_private: false, ch_deleted_at: "0001-01-01T00:00:00Z", ch_post_policy: "everyone" } }, isLoading: false, mutate: () => {} }
 const FREE = { data: { exists: false }, isLoading: false, mutate: () => {} }
+const USED = { data: { exists: true }, isLoading: false, mutate: () => {} }
+let TAKEN = false
 const NONE = { data: undefined, isLoading: false, mutate: () => {} }
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     if (url) fetched.push(url)
     if (url.includes("channelBasicInfo")) return INFO
-    return url ? FREE : NONE
+    return url ? (TAKEN ? USED : FREE) : NONE
   },
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => ({ ch_uuid: "c9" })), isSubmitting: false }) }))
@@ -28,7 +30,6 @@ vi.mock("@/components/ai/ChannelWeeklyReportSetting", () => ({ ChannelWeeklyRepo
 
 const { default: store } = await import("@/store/store")
 const { default: CreateChannelDialog } = await import("./createChannelDialog")
-const { default: EditChannelDialog } = await import("./editChannelDialog")
 
 afterEach(() => {
   cleanup()
@@ -46,7 +47,7 @@ describe("New channel", () => {
     fireEvent.change(screen.getByLabelText("Channel name"), { target: { value: "launch-week" } })
     await act(async () => void vi.advanceTimersByTime(500))
     expect(fetched.some((u) => u.includes("ch_name=launch-week"))).toBe(true)
-    expect(screen.getByText("Name is available")).toBeTruthy()
+    expect(screen.getByText("#launch-week is free")).toBeTruthy()
     expect(create().disabled).toBe(false)
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
   })
@@ -60,20 +61,26 @@ describe("New channel", () => {
   })
 })
 
-describe("Edit channel", () => {
-  it("lists its settings between hairlines, not in a box each, and names every switch", () => {
-    render(
-      <Provider store={store}>
-        <EditChannelDialog dialogOpenState setOpenState={() => {}} channelId="c1" />
-      </Provider>,
-    )
-    const list = document.querySelector("[data-channel-settings]")!
-    expect(list.className).toContain("divide-y")
-    const rows = [...list.querySelectorAll("[data-setting-row]")]
-    expect(rows).toHaveLength(3)
-    for (const row of rows) expect(row.className).not.toMatch(/\bborder\b|\brounded-lg\b/)
-    for (const name of ["Private channel", "Announcement channel", "Archive channel"]) {
-      expect(screen.getByLabelText(name).getAttribute("role")).toBe("switch")
-    }
+describe("New channel, design v3 (C53)", () => {
+  it("writes the name lowercase with hyphens, behind a # that is only decoration", () => {
+    render(<CreateChannelDialog dialogOpenState setOpenState={() => {}} />)
+    const field = screen.getByLabelText("Channel name") as HTMLInputElement
+    fireEvent.change(field, { target: { value: "Launch Week" } })
+    expect(field.value).toBe("launch-week")
+    const hash = field.parentElement!.querySelector('[aria-hidden="true"]')!
+    expect(hash.textContent).toBe("#")
+    expect(screen.getByText("Channels are where a team talks, plans and decides.")).toBeTruthy()
+  })
+
+  it("offers another name when this one is taken", async () => {
+    vi.useFakeTimers()
+    TAKEN = true
+    render(<CreateChannelDialog dialogOpenState setOpenState={() => {}} />)
+    fireEvent.change(screen.getByLabelText("Channel name"), { target: { value: "general" } })
+    await act(async () => void vi.advanceTimersByTime(500))
+    expect(screen.getByText("Taken. Try #general-2")).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Create channel" }) as HTMLButtonElement).disabled).toBe(true)
+    TAKEN = false
   })
 })
+

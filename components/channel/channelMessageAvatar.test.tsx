@@ -14,21 +14,25 @@ const { ChannelMessageAvatar } = await import("@/components/channel/channelMessa
 describe("ChannelMessageAvatar", () => {
   afterEach(cleanup)
 
-  it("draws an agent as a rounded square in the agent colour, with its sparkle", () => {
+  // Design v3 (§3.9): a 32% square in the agent gradient with the white
+  // spark, and never initials, so an agent never reads as a person.
+  it("draws an agent as a 32% square in the agent gradient, with the spark and no initials", () => {
     const { container } = render(<ChannelMessageAvatar userName="Release Captain" isBot userUUID="captain" />)
     expect(container.querySelector("[data-agent-avatar]")).toBeTruthy()
-    const fallback = container.querySelector("[data-agent-avatar] .bg-agent-muted")
-    expect(fallback, "the agent's initials sit on the agent tint").toBeTruthy()
-    // A rounded square, not a person's circle (twMerge drops the base rounded-full).
-    expect(fallback?.className).toContain("rounded-[28%]")
+    const fallback = container.querySelector("[data-agent-avatar] .avatar-agent")
+    expect(fallback, "the agent's face is the agent gradient").toBeTruthy()
+    expect(fallback?.className).toContain("rounded-[32%]")
     expect(fallback?.className).not.toContain("rounded-full")
+    expect(fallback?.querySelector("svg")).toBeTruthy()
+    expect(fallback?.textContent).toBe("")
   })
 
   it("draws a plain bot as a neutral rounded square, with no AI sparkle", () => {
     const { container } = render(<ChannelMessageAvatar userName="Check-in" isBot userUUID="checkin" />)
     expect(container.querySelector("[data-agent-avatar]")).toBeNull()
     expect(container.innerHTML).not.toContain("bg-agent")
-    expect(container.querySelector("[data-bot-avatar]")?.className).toContain("rounded-[28%]")
+    expect(container.querySelector("[data-bot-avatar]")?.className).toContain("rounded-[32%]")
+    expect(container.querySelector("[data-bot-avatar] .avatar-bot")).toBeTruthy()
   })
 
   it("claims no AI for a bot whose kind isn't known yet", () => {

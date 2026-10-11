@@ -1,10 +1,12 @@
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { useMedia } from "@/context/MediaQueryContext";
 import {useFetch} from "@/hooks/useFetch";
+import { ChannelWelcome, useWelcomeSend } from "@/components/onboarding/ChannelWelcome";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import ChannelAgents, { useChannelAgents } from "@/components/ai/ChannelAgents";
+import { useChannelAgents } from "@/components/ai/ChannelAgents";
+import { openChannelDetails } from "@/components/channel/details/openChannelDetails";
 import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
 import {
     ChannelInfoInterfaceResp,
@@ -13,22 +15,21 @@ import {
     NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
 import CommandSurface from "@/components/command/CommandSurface";
-import {cn} from "@/lib/utils/helpers/cn";
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
-import { statusColors } from "@/lib/colors";
-import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
+import { Hash, Info, Lock, Search, SendHorizontal, Star, Clapperboard, Megaphone, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
+import { HEADER_ICON, HuddleBanner, HuddleButton, MemberStack, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
+import { Spark } from "@/components/ui/graphics/motifs";
+import { displayNameOf } from "@/lib/personName";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {memo, useEffect, useRef, useState} from "react";
-import { celebrate } from "@/lib/celebrate";
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react";
+import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
-import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
@@ -56,7 +57,10 @@ import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 
-export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean}) => {
+export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean}) => {
+    // A new member's first landing (admin E5): the welcome card heads the
+    // feed until their first message goes.
+    const [handleSend, welcomeSent] = useWelcomeSend(send)
     const dispatch = useDispatch()
     const postFav  = usePost()
     const postNotification  = usePost()
@@ -130,11 +134,23 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
     }
 
 
-    const UpdateNotification = async () => {
-        const nextNotification = getNextNotification(channelNotification)
-        await postNotification.makeRequest<ChannelNotificationInterface, GenericResponse >({payload:{channel_id: channelId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateChannelNotification})
-        setChannelNotificationType(nextNotification)
+    // One click chooses a level (C04); nothing cycles any more.
+    const updateNotification = async (next: string) => {
+        const before = channelNotification
+        setChannelNotificationType(next)
+        const res = await postNotification.makeRequest<ChannelNotificationInterface, GenericResponse >({payload:{channel_id: channelId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateChannelNotification}).catch(() => undefined)
+        if (res === undefined) setChannelNotificationType(before)
     }
+
+    // One Details sheet (C49): the name, the stack and More › Details open it.
+    const openDetails = () => dispatch(openChannelDetails(channelId))
+    const openMembers = openDetails
+    const archived = !isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')
+    const topic = (channelInfo.data?.channel_info.ch_about || '').trim()
+    const stackPeople = [
+        ...(channelInfo.data?.channel_info.ch_members || []).filter((m) => !m.is_bot).slice(0, 3).map((m) => ({ uuid: m.user_uuid, name: displayNameOf(m), profileKey: m.user_profile_object_key })),
+        ...channelAgents.slice(0, 1).map((a) => ({ uuid: a.bot_user_id, name: a.name, isBot: true })),
+    ]
 
 
     const channelCallHref = `${app_channel_call}/${channelId}`;
@@ -182,6 +198,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                 handleSend={handleSend}
                 placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name))}
                 focusComposer={focusComposer}
+                agents={channelAgents}
             />
         )
     }
@@ -189,114 +206,107 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
 
     return (
         <div className='flex flex-col h-full w-full min-w-0'>
-            {/* The same shell as the DM and group headers: same height, same
-                padding, opaque and sticky. It was a plain div at text-lg that
-                scrolled away with the conversation and let the thread show
-                through it, which is the collision people saw when a thread or
-                the AI panel was open beside it. chatHeaderConsistency.test.ts
-                holds all three to it now. */}
-            <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
-                <div className='flex items-center gap-2.5 min-w-0'>
-                    {/* The channel's own colour (lib/campHue, by its uuid): the same
-                        mark it has in the channel list, so it is recognised before
-                        its name is read. */}
-                    <IdentityMark id={channelId} variant="tile" size={32} icon={<Hash />} />
-                    <div className='flex flex-col min-w-0'>
-                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
-                        {/* The second line keeps this header the same height as a
-                            DM's, and a member count is the thing people actually
-                            want to know about a channel they just opened. */}
-                        <span className='flex min-w-0 items-center text-2xs text-muted-foreground leading-tight'>
-                            <span className='shrink-0'>
-                                {memberCount > 0
-                                    ? `${memberCount} ${memberCount === 1 ? "member" : "members"}`
-                                    : channelInfo.data?.channel_info.ch_private ? "Private channel" : "Channel"}
-                            </span>
-                            <ChannelAgents channelId={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
-                        </span>
-                    </div>
-                    <ChannelMemoryIndicator channelUUID={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
-                </div>
-                <div className='flex items-center gap-0.5 shrink-0'>
-                    <WithTooltip label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                        <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                            <Star className={isFavorite ? 'text-warning-ink fill-warning' : 'text-muted-foreground'}/>
-                        </Button>
-                    </WithTooltip>
-
-                    <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                    <WithTooltip label="Manage channel members">
-                        <Button aria-label="Manage channel members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
-                    </WithTooltip>
+            {/* The header is part of the sheet (design v3 chat, C01): 52px on
+                the sheet with a hairline below. A channel has no hue: a
+                monochrome # (a lock when private), the name at 15/590 and the
+                topic after a hairline. On the right, who is here (agents as
+                their squares), the one labelled action (Huddle), search and
+                More. The name and topic are one button: the channel's details.
+                chatHeaderConsistency.test.ts holds all three headers to it. */}
+            <header className='sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
+                <button
+                    type='button'
+                    aria-label='Channel details'
+                    onClick={openDetails}
+                    className='-ml-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+                >
+                    {channelInfo.data?.channel_info.ch_private
+                        ? <Lock className='size-4 shrink-0 text-ink-3' aria-hidden='true' />
+                        : <Hash className='size-[18px] shrink-0 text-ink-3' aria-hidden='true' />}
+                    <span key={channelId} data-header-title='' className='truncate text-heading text-ink animate-fade-in'>{channelDisplayName}</span>
+                    {isFavorite && <Star className='size-3.5 shrink-0 fill-camp-sun text-camp-sun' aria-label='Favourite' />}
+                    {archived && (
+                        <span className='chip h-5 shrink-0 gap-1 bg-sunken'><FileArchive className='size-3' aria-hidden='true' /> Archived</span>
+                    )}
+                    {topic ? (
+                        <span key={topic} className='ml-0.5 hidden min-w-0 truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3 animate-fade-in lg:block' title={topic}>{topic}</span>
+                    ) : channelInfo.data?.channel_info.ch_is_admin ? (
+                        <span className='ml-0.5 hidden shrink-0 border-l border-line-2 pl-2.5 text-ui-sm text-ink-4 transition-colors hover:text-ink-3 lg:block'>Add a topic</span>
+                    ) : null}
+                </button>
+                <ChannelMemoryIndicator channelUUID={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
+                <div className='min-w-0 flex-1' />
+                <div className='flex shrink-0 items-center gap-1'>
+                    <MemberStack people={stackPeople} count={memberCount} onClick={openMembers} />
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
                     <FeatureGate feature={FEATURE_CALLS}>
-                    <WithTooltip label={channelCallActive ? "Join the call in progress" : "Start a call"}>
-                    <Button size='icon' variant={channelCallActive ? 'secondary' : 'ghost'} className={cn(
-                            "relative transition duration-300",
-                            channelCallActive && "bg-success/10 text-success-ink hover:bg-success/20"
-                        )} asChild><Link href={channelCallHref} onClick={(e) => openBeside({ kind: "call-channel", id: channelId }, e)} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
-                        <Video size={18} />
-                        {channelCallActive && (
-                            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
-                            </span>
-                        )}
-                    </Link></Button>
-                    </WithTooltip>
+                        <span className='ml-1'>
+                            <HuddleButton href={channelCallHref} live={channelCallActive} onOpen={(e) => openBeside({ kind: "call-channel", id: channelId }, e)} />
+                        </span>
                     </FeatureGate>
-                    {/* Everything a reader does not need every minute, in one menu:
-                        the header had eight buttons of equal weight. What stays out
-                        is what people use or need to see (favourite, the bell's
-                        state, members, the call). */}
+                    <WithTooltip label="Search">
+                        <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
+                            <Link href='/app/search' aria-label='Search'><Search aria-hidden='true' /></Link>
+                        </Button>
+                    </WithTooltip>
+                    {/* More (C05): AI, then how you follow it, then the channel
+                        itself, on the floating material. Leave is danger ink,
+                        never a red fill. */}
                     <DropdownMenu modal={false}>
                         <WithTooltip label="More channel actions">
                             <DropdownMenuTrigger asChild>
-                                <Button size='icon' variant='ghost' aria-label="More channel actions"><MoreHorizontal /></Button>
+                                <Button size='icon' variant='ghost' aria-label="More channel actions" className={HEADER_ICON}><MoreHorizontal aria-hidden='true' /></Button>
                             </DropdownMenuTrigger>
                         </WithTooltip>
-                        <DropdownMenuContent align="end" className="w-72">
+                        <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
                             <FeatureGate feature={FEATURE_AI}>
                                 <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}>
-                                    <CheckSquare className="text-muted-foreground" /> Create tasks from this conversation
+                                    <Spark size={14} className="text-agent" /> Create tasks from this conversation
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
                                     <Link href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}>
-                                        <Lightbulb className="text-muted-foreground" /> Decisions and open questions
+                                        <Spark size={14} className="text-agent" /> Decisions and open questions
                                     </Link>
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                             </FeatureGate>
+                            <NotificationSubmenu value={channelNotification} onChange={updateNotification} busy={postNotification.isSubmitting} />
+                            <DropdownMenuItem onClick={toggleFavourite}>
+                                <Star className={isFavorite ? "fill-camp-sun text-camp-sun" : "text-ink-3"} aria-hidden="true" /> {isFavorite ? "Remove from favourites" : "Favourite"}
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'channelCheckIns', data: { channelUUID: channelId } }))}>
-                                <MessageSquare className="text-muted-foreground" /> Check-ins
+                                <MessageSquare className="text-ink-3" aria-hidden="true" /> Check-ins
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                                 <Link href={channelRecordingHref}>
-                                    <Clapperboard className="text-muted-foreground" /> Call recordings
+                                    <Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings
                                 </Link>
                             </DropdownMenuItem>
-                            {channelInfo.data?.channel_info.ch_is_admin && (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}>
-                                        <Pencil className="text-muted-foreground" /> Edit channel
-                                    </DropdownMenuItem>
-                                </>
-                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={openDetails}>
+                                <Info className="text-ink-3" aria-hidden="true" /> Details
+                            </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
             </header>
+            {channelCallActive && (
+                <FeatureGate feature={FEATURE_CALLS}>
+                    <HuddleBanner href={channelCallHref} onOpen={(e) => openBeside({ kind: "call-channel", id: channelId }, e)} />
+                </FeatureGate>
+            )}
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
                 <CatchMeUpBanner
                     channelUUID={channelId}
                     unreadCount={unreadCount || 0}
                     channelName={channelDisplayName}
                 />
+                <ChannelWelcome channelId={channelId} channelName={channelDisplayName} info={channelInfo.data?.channel_info} show={focusComposer} sent={welcomeSent} className="mx-5 mt-4 max-w-[760px]" />
                 <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin} unreadOnOpen={unreadCount}/>
             </div>
-            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
-                <div className="max-w-6xl mx-auto w-full">
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] bg-sheet px-5 pb-[18px]">
+                <div className="w-full max-w-[800px]">
                     {renderChatInput()}
                 </div>
             </div>
@@ -310,12 +320,15 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
  * the channel that changes as someone types: the draft is read here, so the
  * header and the conversation above it no longer re-render as it changes.
  */
-const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, placeholder, focusComposer }: {
+const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, placeholder, focusComposer, agents: channelAgents }: {
     channelId: string
     handleSend: (latestContent?: string) => boolean | void
     placeholder: string
     focusComposer?: boolean
+    /** The channel's agents, for "+" › Ask (C42). */
+    agents?: { bot_user_id: string; name: string }[]
 }) {
+    const agents = useMemo(() => (channelAgents ?? []).map((a) => ({ id: a.bot_user_id, name: a.name })), [channelAgents])
     const dispatch = useDispatch()
     const scheduleSend = useScheduleSend()
     const uploadFile = useUploadFile()
@@ -323,10 +336,14 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
     const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
     // The same function for the life of the composer, so the editor's action
     // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    // A first message here bursts sparks from Send (lib/celebrate).
+    // A first message here bursts from the new row's avatar (C60).
     const rootRef = useRef<HTMLDivElement>(null)
+    // Draft with AI opens from "+" and ⌘J (C45); Undo takes back a schedule (C44).
+    const [aiOpen, setAiOpen] = useState(false)
+    const openAi = useCallback(() => setAiOpen(true), [])
+    const undoSchedule = useUndoSchedule(scheduleSend?.target)
     const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrate(rootRef.current?.querySelector('button[aria-label="Send"]'))
+        if (handleSend(latestContent)) celebrateFirstMessage()
     })
     const onChange = useStableCallback((content: Content) => {
         publishTyping(content as string)
@@ -364,8 +381,8 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
             autoFocus={focusComposer}
             attachmentOnclick={openUpload}
             onActionFiles={onActionFiles}
-            className={cn("max-w-full h-auto")}
-            editorContentClassName="overflow-auto mb-2"
+            variant="chat"
+            agents={agents}
             output="html"
             content={channelState.inputTextHTML}
             contentRevision={channelState.restoredUnsent}
@@ -375,10 +392,14 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
             hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
             buttonOnclick={send}
             onSchedule={scheduleSend?.schedule}
-            editorClassName="focus:outline-none px-2 py-2"
+            editorClassName="focus:outline-none"
             onChange={onChange}
+            onDraftWithAI={openAi}
+            onUndoSchedule={undoSchedule}
             aiSlot={
                 <ComposerAIButton
+                    open={aiOpen}
+                    onOpenChange={setAiOpen}
                     getText={() => channelState.inputTextHTML || ""}
                     onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
                 />

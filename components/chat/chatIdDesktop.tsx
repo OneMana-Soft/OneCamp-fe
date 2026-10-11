@@ -8,20 +8,23 @@ import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar
 import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
+import { ChatFace } from "@/components/message/chatFace";
+import { Spark } from "@/components/ui/graphics/motifs";
+import { WithTooltip } from "@/components/common/withTooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Search, ShieldCheck } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import {cn} from "@/lib/utils/helpers/cn";
-import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Video, Clapperboard, Sparkles, CheckSquare } from "@/lib/icons";
+import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
+import { SendHorizontal, Clapperboard, Sparkles, } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {memo, useEffect, useRef, useState} from "react";
-import { celebrate } from "@/lib/celebrate";
+import {memo, useCallback, useEffect, useRef, useState} from "react";
+import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
-import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 import {openUI} from "@/store/slice/uiSlice";
 
@@ -29,7 +32,6 @@ import {openUI} from "@/store/slice/uiSlice";
 import {ChatMessageList} from "@/components/chat/chatMessageList";
 import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileInterface} from "@/types/user";
 import {ChatNotificationInterface} from "@/types/chat";
-import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
@@ -91,10 +93,12 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     if(!otherUserInfo.data?.data && !otherUserInfo.isLoading) return
 
 
-    const UpdateNotification = async () => {
-        const nextNotification = getNextNotification(chatNotification)
-        await postNotification.makeRequest<ChatNotificationInterface>({payload:{to_user_id: chatId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateChatNotification})
-        setChatNotificationType(nextNotification)
+    // One click chooses a level (C04); nothing cycles any more.
+    const updateNotification = async (next: string) => {
+        const before = chatNotification
+        setChatNotificationType(next)
+        const res = await postNotification.makeRequest<ChatNotificationInterface>({payload:{to_user_id: chatId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateChatNotification}).catch(() => undefined)
+        if (res === undefined) setChatNotificationType(before)
     }
 
     const isReduxLoaded = userStatusState && userStatusState.deviceConnected !== -1;
@@ -106,62 +110,76 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
     return (
         <div className='flex flex-col h-full relative'>
-            <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
-                <div className='flex items-center gap-2.5 min-w-0'>
-                    <div className='relative shrink-0'>
-                        <ChatUserAvatar userName={userDisplayName(otherUserInfo.data?.data) || undefined}
-                                        userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key ?? undefined}/>
-                        {isOnline && <span aria-hidden className={`h-2.5 w-2.5 ring-2 ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}/>}
-
-                    </div>
-                    <div className='flex flex-col min-w-0'>
-                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>{userDisplayName(otherUserInfo.data?.data)}</span>
-                        {/* Always a second line, dot and word, as a channel's member
-                            count is: the header was one line unless the person was
-                            online, so it changed shape with their presence. */}
-                        <span data-header-meta='' className='flex items-center gap-1.5 text-2xs text-muted-foreground leading-tight'>
-                            {!isBotPeer && <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', isOnline ? statusColors.online.solid : 'bg-muted-foreground/50')} />}
-                            {isBotPeer ? 'Agent' : isOnline ? 'Active now' : currentStatus === 'away' ? 'Away' : 'Offline'}
-                        </span>
-                    </div>
+            {/* A DM's header (design v3 chat, C02): 52px on the sheet, the
+                28px face with presence, the name at 15/590 and the status after
+                a hairline. An agent shows its provenance where a person's
+                status would be: "Acts for you · can do only what you can".
+                Huddle (not for an agent), search and More; every icon has a
+                tooltip. */}
+            <header className='sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
+                <div className='relative shrink-0'>
+                    <ChatFace name={userDisplayName(otherUserInfo.data?.data) || ""} profileKey={otherUserInfo.data?.data.user_profile_object_key} userUUID={chatId} isBot={isBotPeer} size={28} />
+                    {!isBotPeer && (isOnline
+                        ? <span aria-hidden className='presence-dot' />
+                        : <span aria-hidden className='absolute -bottom-px -right-px size-2 rounded-full border-[1.5px] border-ink-4 bg-sheet ring-2 ring-sheet' />)}
                 </div>
-                <div className='flex items-center gap-0.5 shrink-0'>
-                    <ChatUserEmojiStatus userUUID={chatId}/>
-                    <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                <span data-header-title='' className='truncate text-heading text-ink'>{userDisplayName(otherUserInfo.data?.data)}</span>
+                {isBotPeer ? (
+                    <span data-header-meta='' className='inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-sm bg-agent-muted px-2 text-meta text-agent-ink'>
+                        <ShieldCheck className='size-3' aria-hidden='true' /> Acts for you · can do only what you can
+                    </span>
+                ) : (
+                    <span data-header-meta='' className='flex min-w-0 items-center gap-1.5 truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3'>
+                        {isOnline ? 'Active' : currentStatus === 'away' ? 'Away' : 'Offline'}
+                        <ChatUserEmojiStatus userUUID={chatId}/>
+                    </span>
+                )}
+                <div className='min-w-0 flex-1' />
+                <div className='flex shrink-0 items-center gap-1'>
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
-                    <FeatureGate feature={FEATURE_CALLS}>
-                    <Button size='icon' variant={chatCallStatusActive ? 'secondary' : 'ghost'} className={cn(
-                            "relative transition duration-300",
-                            chatCallStatusActive && "bg-success/10 text-success-ink hover:bg-success/20"
-                        )} asChild><Link href={chatCallHref} onClick={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
-                        <Video size={18} />
-                        {chatCallStatusActive && (
-                            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
-                            </span>
-                        )}
-                    </Link></Button>
-                    </FeatureGate>
-                    <Button size='icon' variant='ghost' asChild><Link href={chatRecordingHref} aria-label="View recordings"> <Clapperboard /></Link></Button>
-                    <FeatureGate feature={FEATURE_AI}>
-                    <Button
-                        size='icon'
-                        variant='ghost'
-                        aria-label="Create tasks from this conversation"
-                        title="Create tasks from this conversation"
-                        onClick={() => {
-                            const selfUUID = selfProfile.data?.data?.user_uuid
-                            if (!selfUUID) return
-                            dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'dm', sourceId: getGroupingId(selfUUID, chatId) } }))
-                        }}
-                    >
-                        <CheckSquare className="text-muted-foreground" />
-                    </Button>
-                    </FeatureGate>
+                    {!isBotPeer && (
+                        <FeatureGate feature={FEATURE_CALLS}>
+                            <HuddleButton href={chatCallHref} live={chatCallStatusActive} onOpen={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} />
+                        </FeatureGate>
+                    )}
+                    <WithTooltip label="Search">
+                        <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
+                            <Link href='/app/search' aria-label='Search'><Search aria-hidden='true' /></Link>
+                        </Button>
+                    </WithTooltip>
+                    <DropdownMenu modal={false}>
+                        <WithTooltip label="More conversation actions">
+                            <DropdownMenuTrigger asChild>
+                                <Button size='icon' variant='ghost' aria-label="More conversation actions" className={HEADER_ICON}><MoreHorizontal aria-hidden='true' /></Button>
+                            </DropdownMenuTrigger>
+                        </WithTooltip>
+                        <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
+                            <FeatureGate feature={FEATURE_AI}>
+                                <DropdownMenuItem
+                                    onClick={() => {
+                                        const selfUUID = selfProfile.data?.data?.user_uuid
+                                        if (!selfUUID) return
+                                        dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'dm', sourceId: getGroupingId(selfUUID, chatId) } }))
+                                    }}
+                                >
+                                    <Spark size={14} className="text-agent" /> Create tasks from this conversation
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                            </FeatureGate>
+                            <NotificationSubmenu value={chatNotification} onChange={updateNotification} busy={postNotification.isSubmitting} />
+                            <DropdownMenuItem asChild>
+                                <Link href={chatRecordingHref}><Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings</Link>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </header>
+            {chatCallStatusActive && !isBotPeer && (
+                <FeatureGate feature={FEATURE_CALLS}>
+                    <HuddleBanner href={chatCallHref} onOpen={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} />
+                </FeatureGate>
+            )}
             <div className="flex-1 overflow-y-auto">
                 <CatchMeUpBanner
                     channelUUID={chatId}
@@ -173,8 +191,8 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 <ChatMessageList chatId={chatId} unreadOnOpen={unreadCount} />
             </div>
 
-            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
-                <div className="max-w-6xl mx-auto w-full">
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] bg-sheet px-5 pb-[18px]">
+                <div className="w-full max-w-[800px]">
                     <ChatComposer
                         chatId={chatId}
                         handleSend={handleSend}
@@ -226,10 +244,14 @@ const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, 
 
     // The same function for the life of the composer, so the editor's action
     // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    // A first message here bursts sparks from Send (lib/celebrate).
+    // A first message here bursts from the new row's avatar (C60).
     const rootRef = useRef<HTMLDivElement>(null)
+    // Draft with AI opens from "+" and ⌘J (C45); Undo takes back a schedule (C44).
+    const [aiOpen, setAiOpen] = useState(false)
+    const openAi = useCallback(() => setAiOpen(true), [])
+    const undoSchedule = useUndoSchedule(scheduleSend?.target)
     const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrate(rootRef.current?.querySelector('button[aria-label="Send"]'))
+        if (handleSend(latestContent)) celebrateFirstMessage()
     })
     const onChange = useStableCallback((content: Content) => {
         publishTyping(content as string)
@@ -286,8 +308,7 @@ const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, 
                         throttleDelay={300}
                         attachmentOnclick={openUpload}
                         onActionFiles={onActionFiles}
-                        className={cn("max-w-full h-auto")}
-                        editorContentClassName="overflow-auto mb-2"
+                        variant="chat"
                         output="html"
                         content={chatState.chatBody}
                         contentRevision={chatState.restoredUnsent}
@@ -297,10 +318,14 @@ const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, 
                         hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
                         buttonOnclick={send}
                         onSchedule={scheduleSend?.schedule}
-                        editorClassName="focus:outline-none px-2 py-2"
+                        editorClassName="focus:outline-none"
                         onChange={onChange}
+                        onDraftWithAI={openAi}
+                        onUndoSchedule={undoSchedule}
                         aiSlot={
                             <ComposerAIButton
+                                open={aiOpen}
+                                onOpenChange={setAiOpen}
                                 getText={() => chatState.chatBody || ""}
                                 onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
                             />
