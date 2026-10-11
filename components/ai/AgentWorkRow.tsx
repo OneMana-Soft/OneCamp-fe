@@ -19,7 +19,7 @@
  */
 
 import React, { useState } from "react"
-import { Loader2, Clock, AlertTriangle, CircleStop } from "@/lib/icons"
+import { Clock, AlertTriangle, CircleStop } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
 import { stopAgentWork, type ActiveWorkItem, type ActiveWorkState } from "@/services/agentService"
@@ -48,11 +48,26 @@ export function sortAgentWork(items: ActiveWorkItem[]): ActiveWorkItem[] {
   })
 }
 
-const AgentWorkStateIcon: React.FC<{ state: ActiveWorkState }> = ({ state }) => {
-  if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-warning-ink" />
-  if (state === "stopping") return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-  if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-warning-ink" />
-  return <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
+/**
+ * A run that says "working" but has not moved in this long is probably stuck
+ * (hub.md AI13): the row says so instead of claiming progress it can't show.
+ */
+export const STALE_AFTER_MS = 10 * 60_000
+
+/** Whether a live job has gone quiet for too long. Pure: `now` is passed in. */
+export function isStaleWork(item: Pick<ActiveWorkItem, "state" | "updated_at">, now: number): boolean {
+  if (item.state !== "working" && item.state !== "queued") return false
+  const at = Date.parse(item.updated_at)
+  return Number.isFinite(at) && now - at > STALE_AFTER_MS
+}
+
+// v3 (hub.md AI13): no spinners. Working is the agent's live dot breathing;
+// stopping is the same dot still and grey; blocked asks with a sun triangle.
+const AgentWorkStateIcon: React.FC<{ state: ActiveWorkState; stale?: boolean }> = ({ state, stale }) => {
+  if (state === "working" && !stale) return <span data-work-glyph="working" className="block size-2 rounded-full bg-agent hub-breathe" />
+  if (state === "stopping") return <span data-work-glyph="stopping" className="block size-2 rounded-full bg-ink-3" />
+  if (state === "blocked") return <AlertTriangle data-work-glyph="blocked" className="h-3.5 w-3.5 text-warning-ink" />
+  return <Clock data-work-glyph={stale ? "stale" : state} className="h-3.5 w-3.5 text-ink-3" />
 }
 
 const AgentWorkRowUngated: React.FC<{
@@ -74,6 +89,7 @@ const AgentWorkRowUngated: React.FC<{
   // before the poll comes back with the server's state.
   const state: ActiveWorkState = stopping && item.state !== "stopping" ? "stopping" : item.state
   const meta = stateMeta(state)
+  const stale = isStaleWork({ state, updated_at: item.updated_at }, Date.now())
   const canStop = item.can_stop !== false && state !== "stopping" && state !== "stopped"
 
   const stop = async () => {
@@ -95,25 +111,25 @@ const AgentWorkRowUngated: React.FC<{
         className,
       )}
     >
-      <span className="mt-0.5 shrink-0">
-        <AgentWorkStateIcon state={state} />
+      <span className="mt-0.5 grid size-3.5 shrink-0 place-items-center">
+        <AgentWorkStateIcon state={state} stale={stale} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-1.5">
           <span className="truncate text-sm font-medium">{item.agent_name}</span>
           <span className={cn("text-2xs", meta.attention ? "font-medium text-warning-ink" : "text-muted-foreground")}>
-            · {meta.label}
+            · {stale ? "No progress for a while" : meta.label}
           </span>
-          {!hideWhere && <span className="text-2xs text-muted-foreground/70">· {item.where}</span>}
+          {!hideWhere && <span className="text-2xs text-ink-3">· {item.where}</span>}
           {/* Who asked. Placed before the timestamp because attribution answers
               "is this mine?" — the question a person scanning a list of live work
               actually has — while the time only matters once they've found their
               row. Omitted entirely when nobody asked (a scheduled routine), since
               "for nobody" is worse than silence. */}
           {item.requested_by && (
-            <span className="text-2xs text-muted-foreground/70">· for {item.requested_by}</span>
+            <span className="text-2xs text-ink-3">· for {item.requested_by}</span>
           )}
-          <span className="text-2xs text-muted-foreground/70">· {formatTimeForReplyCount(item.updated_at)}</span>
+          <span className="text-2xs text-ink-3">· {formatTimeForReplyCount(item.updated_at)}</span>
         </span>
         {state === "blocked" && item.note && (
           <span className="block text-xs leading-snug text-foreground/80">{item.note}</span>
@@ -140,7 +156,7 @@ const AgentWorkRowUngated: React.FC<{
                 {o}
               </span>
             ))}
-            <span className="self-center text-2xs text-muted-foreground/70">· reply with one of these</span>
+            <span className="self-center text-2xs text-ink-3">· reply with one of these</span>
           </span>
         )}
       </span>

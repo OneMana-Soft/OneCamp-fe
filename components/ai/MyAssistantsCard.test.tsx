@@ -26,16 +26,26 @@ describe("MyAssistantsCard", () => {
     state.open = false
     render(<MyAssistantsCard withTitle={false} />)
     expect(screen.getByText(/has not let outside assistants into this workspace/)).toBeTruthy()
-    expect(screen.queryByRole("tablist")).toBeNull()
+    expect(screen.queryByRole("button", { name: /Connect an assistant/ })).toBeNull()
   })
 
-  it("leads with named assistants and shows steps for the one picked", () => {
+  // Design v3 (admin §S6): Connect opens a dialog of three option cards; the
+  // chosen one is ringed in the accent and lifts; then the MCP address with a
+  // big copy and the chosen assistant's steps, numbered.
+  it("connects through three option cards, the address and three numbered steps", () => {
     render(<MyAssistantsCard withTitle={false} />)
-    const tabs = screen.getAllByRole("tab")
-    expect(tabs.slice(0, 3).map((t) => t.textContent)).toEqual(["ChatGPT", "Claude & Cowork", "Grok Bot"])
-    expect(tabs[tabs.length - 1].textContent).toBe("Any MCP client")
-    fireEvent.click(screen.getByRole("tab", { name: "ChatGPT" }))
-    expect(screen.getByRole("tabpanel").textContent).toMatch(/Developer mode/)
+    fireEvent.click(screen.getByRole("button", { name: /Connect an assistant/ }))
+    const options = screen.getAllByRole("radio")
+    expect(options.map((o) => o.textContent?.slice(1))).toEqual(["ChatGPT", "Claude & Cowork", "Grok Bot"])
+    expect(options[0].getAttribute("aria-checked")).toBe("true")
+    expect(options[0].className).toContain("assistant-option")
+    fireEvent.click(screen.getByRole("radio", { name: /Claude & Cowork/ }))
+    expect(screen.getByRole("radio", { name: /Claude & Cowork/ }).getAttribute("aria-checked")).toBe("true")
+    expect(screen.getByRole("button", { name: /MCP address/i })).toBeTruthy()
+    const steps = document.querySelectorAll("[data-connect-steps] li")
+    expect(steps.length).toBe(3)
+    expect(steps[0].querySelector(".assistant-step-num")?.textContent).toBe("1")
+    expect(steps[0].textContent).toMatch(/Connectors/)
   })
 
   it("lists a connection and ends it only after it is confirmed", async () => {
@@ -46,7 +56,9 @@ describe("MyAssistantsCard", () => {
     expect(screen.getByText(/acting as Priya's ChatGPT/)).toBeTruthy()
     expect(screen.getByText(/not used yet/)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }))
+    // Disconnect waits in the card's ⋯ menu.
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for ChatGPT" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Disconnect/ }))
     expect(makeRequest).not.toHaveBeenCalled()
     expect(screen.getByText("It stops working at once.")).toBeTruthy()
 
@@ -62,7 +74,6 @@ describe("MyAssistantsCard", () => {
     const { container } = render(<MyAssistantsCard withTitle={false} />)
     expect(screen.queryByRole("heading", { name: "Your AI assistants" })).toBeNull()
     expect(container.querySelector(".rounded-xl.border")).toBeNull()
-    expect(screen.getByRole("heading", { level: 2, name: "Connect an assistant" })).toBeTruthy()
     expect(screen.getByRole("heading", { level: 2, name: "Connected" })).toBeTruthy()
   })
 
@@ -79,18 +90,32 @@ describe("MyAssistantsCard", () => {
     expect(mutate).toHaveBeenCalled()
   })
 
-  // The promises' icons were orange, the colour of the one action.
-  it("draws the promises on the section's tiles, nothing in orange, no box around each", () => {
+  // The promises' icons were orange, then on tinted tiles; hue is for
+  // identity (admin §1.5), so they are one note with ink-3 shields.
+  it("says the promises on one sunken note, nothing in orange or tinted", () => {
     const { container } = render(<MyAssistantsCard withTitle={false} />)
     expect(container.querySelector("svg.text-primary")).toBeNull()
-    const promise = screen.getByText("It acts as you").closest("li") as HTMLElement
-    expect(promise.className).not.toMatch(/\bborder\b/)
-    expect(promise.querySelector(".hue-sky")).toBeTruthy()
+    const note = container.querySelector("[data-assistant-promises]") as HTMLElement
+    expect(note.className).toContain("ai-sunken-note")
+    expect(note.querySelector("[class*='hue-']")).toBeNull()
   })
 
-  it("says nothing is connected as the empty state on the section's tile, inside the list's box", () => {
-    render(<MyAssistantsCard withTitle={false} />)
+  it("stands empty on the plug spot, with Connect, inside a card", () => {
+    const { container } = render(<MyAssistantsCard withTitle={false} />)
     const none = screen.getByText("Nothing connected yet")
-    expect(none.closest(".rounded-lg.border")).toBeTruthy()
+    expect(none.closest("[data-settings-card]")).toBeTruthy()
+    expect(container.querySelector("[data-empty-illustration] [data-spot]")).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Connect an assistant/ })).toBeTruthy()
+  })
+
+  it("draws each connection as a card: its mark, its name, when it connected and what it last did", () => {
+    state.connections = [
+      { id: "g1", client_name: "Claude", agent_id: "a1", agent_name: "Priya Raman", scopes: [], created_at: "2026-10-01T10:00:00Z" },
+    ]
+    const { container } = render(<MyAssistantsCard withTitle={false} />)
+    const card = container.querySelector("[data-assistant-card]") as HTMLElement
+    expect(card.className).toContain("set-card")
+    expect(card.querySelector("[data-assistant-mark]")?.textContent).toBe("C")
+    expect(card.textContent).toMatch(/Connected 1 Oct/)
   })
 })

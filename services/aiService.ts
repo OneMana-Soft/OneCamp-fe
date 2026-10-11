@@ -82,6 +82,16 @@ export interface AskStreamResult {
      * meaningful — a message that appears on every answer is one nobody reads.
      */
     notice: string;
+    /** The plan's steps, when the server streamed any (it may not). */
+    steps?: StreamStep[];
+}
+
+/** One step of the work behind an answer, as the server streams it. */
+export interface StreamStep {
+    id: string;
+    text: string;
+    state: "running" | "done" | "refused" | "failed" | "thought";
+    ms?: number;
 }
 
 /**
@@ -102,6 +112,10 @@ export const useAskAIStream = () => {
     // wrong, and hiding it would leave the answer quietly incomplete.
     const [streamNotice, setStreamNotice] = useState("");
     const [error, setError] = useState<string | null>(null);
+    // The steps the answer is working through, when the server streams them
+    // as `step` events ({ id, text, state, ms }); see components/ai/PlanSteps.
+    // An older server sends none and the panel shows no plan.
+    const [streamSteps, setStreamSteps] = useState<StreamStep[]>([]);
     const abortRef = useRef<AbortController | null>(null);
     // The session the current answer belongs to, so a Stop can name it. Set
     // from the first event of the stream, which is where the id arrives.
@@ -113,6 +127,7 @@ export const useAskAIStream = () => {
             setStreamText("");
             setStreamActions([]);
             setStreamNotice("");
+            setStreamSteps([]);
             setError(null);
 
             abortRef.current = new AbortController();
@@ -125,6 +140,7 @@ export const useAskAIStream = () => {
             let streamedSessionId: string | undefined;
             let parsedSources: SourceRef[] = [];
             let parsedNotice = "";
+            let parsedSteps: StreamStep[] = [];
 
             // Three exits reach the caller: an explicit done event, a stream
             // that stopped without one, and a failure part way through. The
@@ -137,6 +153,7 @@ export const useAskAIStream = () => {
                 actions: parsedActions,
                 sources: parsedSources,
                 notice: parsedNotice,
+                steps: parsedSteps,
             });
 
             try {
@@ -217,6 +234,13 @@ export const useAskAIStream = () => {
                                     parsedNotice = data.notice;
                                     setStreamNotice(data.notice);
                                 }
+                                // A step of the plan, new or updated in place by id.
+                                if (data.step && typeof data.step.id === "string") {
+                                    const step = data.step as StreamStep;
+                                    const at = parsedSteps.findIndex((x) => x.id === step.id);
+                                    parsedSteps = at >= 0 ? parsedSteps.map((x, i) => (i === at ? { ...x, ...step } : x)) : [...parsedSteps, step];
+                                    setStreamSteps(parsedSteps);
+                                }
                                 if (data.done) {
                                     setIsStreaming(false);
                                     return result();
@@ -269,7 +293,7 @@ export const useAskAIStream = () => {
         abortRef.current?.abort();
     }, []);
 
-    return { askStream, cancelStream, isStreaming, streamText, streamActions, streamNotice, error };
+    return { askStream, cancelStream, isStreaming, streamText, streamActions, streamNotice, streamSteps, error };
 };
 
 /**

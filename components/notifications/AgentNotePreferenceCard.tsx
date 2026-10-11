@@ -1,21 +1,21 @@
 "use client"
 
 /**
- * The member's switch for the daily note OneCamp AI leaves in their DM.
- * Hidden where there is no AI, since there is then no note to turn off.
+ * The member's switch for the daily note OneCamp AI leaves in their DM, with
+ * a preview chip of what one says. Hidden where there is no AI, since there
+ * is then no note to turn off. Instant (design v3, admin S2): the saved tick,
+ * or the reason under the label and the switch put back.
  */
 
 import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { toast } from "@/hooks/use-toast"
+import { SettingsCardError, SettingsList, SettingsRowsSkeleton, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
+import { useSaveStatus } from "@/components/ui/saveStatus"
+import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { useAIAvailable } from "@/hooks/useClientConfig"
-import { apiErrorMessage } from "@/lib/utils/apiError"
 import { getAgentNoteEnabled, setAgentNoteEnabled } from "@/services/agentNoteService"
 
 const TITLE = "Daily note from OneCamp AI"
-const LINE = "Saved as soon as you switch it."
+const LINE = "The first time you open OneCamp each day."
 
 export function AgentNotePreferenceCard() {
   const ai = useAIAvailable()
@@ -23,6 +23,7 @@ export function AgentNotePreferenceCard() {
   // can't be read used to make the whole section vanish, so the person never
   // learned it was there.
   const [enabled, setEnabled] = React.useState<boolean | null | "failed">(null)
+  const { status, run } = useSaveStatus()
 
   const load = React.useCallback(() => {
     setEnabled(null)
@@ -39,16 +40,10 @@ export function AgentNotePreferenceCard() {
 
   if (enabled === null) {
     return (
-      <SettingsSection title={TITLE} description={LINE}>
+      <SettingsSection id="notifications-daily-note" title={TITLE} description={LINE}>
         <div role="status" aria-label="Loading the daily note setting">
           <SettingsList>
-            <div className="flex items-start justify-between gap-4 px-4 py-3" aria-hidden="true">
-              <div className="min-w-0 flex-1 space-y-2 pt-0.5">
-                <Skeleton className="h-3.5 w-40" />
-                <Skeleton className="h-3 w-4/5" />
-              </div>
-              <Skeleton className="mt-0.5 h-5 w-9 shrink-0" />
-            </div>
+            <SettingsRowsSkeleton rows={1} />
           </SettingsList>
         </div>
       </SettingsSection>
@@ -57,19 +52,9 @@ export function AgentNotePreferenceCard() {
 
   if (enabled === "failed") {
     return (
-      <SettingsSection title={TITLE} description={LINE}>
+      <SettingsSection id="notifications-daily-note" title={TITLE} description={LINE}>
         <SettingsList>
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium">Couldn&apos;t load the daily note setting</p>
-              <p className="text-xs text-muted-foreground text-pretty">
-                Nothing has changed. This is usually a connection problem: try again in a moment.
-              </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={load}>
-              Try again
-            </Button>
-          </div>
+          <SettingsCardError what="the daily note setting" reason="Nothing has changed. This is usually a connection problem." onRetry={load} />
         </SettingsList>
       </SettingsSection>
     )
@@ -77,28 +62,30 @@ export function AgentNotePreferenceCard() {
 
   const change = async (next: boolean) => {
     setEnabled(next)
-    try {
-      await setAgentNoteEnabled(next)
-      toast({ title: next ? "Daily note on" : "Daily note off" })
-    } catch (e) {
-      setEnabled(!next)
-      toast({
-        title: next ? "Couldn't turn the daily note on" : "Couldn't turn the daily note off",
-        description: apiErrorMessage(e, "Check your connection and try again."),
-        variant: "destructive",
-      })
-    }
+    const held = await run(() => setAgentNoteEnabled(next))
+    if (!held) setEnabled(!next)
   }
 
   return (
-    <SettingsSection title={TITLE} description={LINE}>
+    <SettingsSection id="notifications-daily-note" title={TITLE} description={LINE}>
       <SettingsList>
         <SwitchRow
+          id="daily-note"
           label="Send me the daily note"
-          description="The first time you open OneCamp each day, OneCamp AI sends you a DM listing what needs you: approvals, overdue tasks, commitments and today's meetings. Reply to it for help. Nothing is sent on a day with nothing to say."
+          description="A DM listing what needs you: approvals, overdue tasks, commitments and today's meetings. Nothing is sent on a day with nothing to say."
           checked={enabled}
+          status={status}
           onChange={(v) => void change(v)}
         />
+        <div className="set-row !min-h-0 pt-0">
+          {/* What a note looks like: an example, in the agent's own square. */}
+          <span data-note-preview="" className="you-note-chip">
+            <span className="size-4 shrink-0">
+              <AgentAvatar />
+            </span>
+            <span className="truncate">For example: “Your day: 2 approvals, 1 overdue task…”</span>
+          </span>
+        </div>
       </SettingsList>
     </SettingsSection>
   )

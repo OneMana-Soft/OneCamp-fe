@@ -61,15 +61,15 @@ const AiModelPicker: React.FC = () => {
     <Select value={selected} onValueChange={handleChange} disabled={saving}>
       <SelectTrigger dense
         // A visible ring on keyboard focus (it had none: focus:ring-0).
-        className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus:ring-0 focus-visible:ring-2 focus-visible:ring-ring/70"
+        // A ghost chip in the panel's header (hub.md AI1): 12/510 ink-2.
+        className="h-6 w-auto max-w-[160px] gap-1 rounded-sm border-none bg-transparent px-2 text-meta font-medium text-ink-2 shadow-none hover:bg-hover hover:text-foreground focus:ring-0 focus-visible:ring-2 focus-visible:ring-ring/70 [&>span]:truncate"
         aria-label="AI model"
       >
         <SelectValue />
       </SelectTrigger>
-      {/* It sits at the box's left edge now, so its list opens from there. */}
       <SelectContent align="start">
         <SelectItem value={DEFAULT_VALUE} className="text-xs">
-          Workspace default
+          Workspace model
         </SelectItem>
         {models.map((m) => (
           <SelectItem key={m.id} value={m.id} className="text-xs">

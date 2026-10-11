@@ -21,14 +21,14 @@
 
 import React, { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 import { useDocAI, DocAIAction } from "@/services/aiService"
-import { useVoiceDictation, dictationLabel } from "@/hooks/useVoiceDictation"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
-import { Sparkles, Loader2, Maximize, Minimize, Lightbulb, CheckCircle2, Mic, X } from "@/lib/icons"
+import { Sparkles, Loader2 } from "@/lib/icons"
+import { Spark } from "@/components/ui/graphics/motifs"
 import { withAI } from "@/components/common/withFeature"
 
 interface ComposerAIButtonProps {
@@ -38,13 +38,19 @@ interface ComposerAIButtonProps {
   onResult: (html: string) => void
   className?: string
   disabled?: boolean
+  /**
+   * Opened from outside (the chat composer's "+" menu and ⌘J, design v3 chat
+   * C45): no trigger of its own, anchored at the composer's top right.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-const IMPROVE_ACTIONS: { action: DocAIAction; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { action: "rewrite", label: "Improve writing", Icon: Lightbulb },
-  { action: "fix_grammar", label: "Fix grammar", Icon: CheckCircle2 },
-  { action: "shorten", label: "Make shorter", Icon: Minimize },
-  { action: "expand", label: "Make longer", Icon: Maximize },
+const IMPROVE_ACTIONS: { action: DocAIAction; label: string }[] = [
+  { action: "rewrite", label: "Improve" },
+  { action: "fix_grammar", label: "Fix grammar" },
+  { action: "shorten", label: "Shorter" },
+  { action: "expand", label: "Longer" },
 ]
 
 // toComposerHTML wraps plain AI output into the simple paragraph HTML the
@@ -61,31 +67,33 @@ function toComposerHTML(text: string): string {
     .join("")
 }
 
+/**
+ * Draft with AI (design v3 chat, C45): on the floating material, w-80,
+ * end-aligned with 12px of collision padding, so it never leaves the sheet
+ * (at 1440 it ran off the right edge from a start-aligned trigger). The spark
+ * in the agent's colour, a 64px "Tell it what to write", four chips for a
+ * draft that exists, and "⌘⏎ Write". Dictation moved to the composer's
+ * Record control.
+ */
 const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
   getText,
   onResult,
   className,
   disabled,
+  open: openProp,
+  onOpenChange,
 }) => {
   const { toast } = useToast()
   const { complete } = useDocAI()
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const controlled = openProp !== undefined
+  const open = controlled ? openProp : openState
+  const setOpen = useCallback((o: boolean) => {
+    if (!controlled) setOpenState(o)
+    onOpenChange?.(o)
+  }, [controlled, onOpenChange])
   const [prompt, setPrompt] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
-
-  // Dictation into the composer: on this computer in the desktop app, else the
-  // workspace's speech engine when it has one (useVoiceDictation picks). Adds to
-  // the draft rather than replacing it.
-  const dictation = useVoiceDictation({
-    onText: (text) => {
-      const existing = removeHtmlTags(getText() || "").trim()
-      onResult(toComposerHTML(existing ? existing + "\n" + text : text))
-      setOpen(false)
-    },
-    onError: (m) => toast({ title: m, variant: "destructive" }),
-  })
-  const { available: micAvailable, recording, transcribing } = dictation
-  const micDownloading = dictation.setup.progress !== null
 
   const run = useCallback(
     async (action: DocAIAction, text: string, customPrompt?: string) => {
@@ -106,7 +114,7 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
         setBusy(null)
       }
     },
-    [complete, onResult, toast],
+    [complete, onResult, toast, setOpen],
   )
 
   const onWrite = useCallback(() => {
@@ -117,83 +125,36 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
 
   const draft = removeHtmlTags(getText() || "").trim()
   const hasDraft = draft.length > 0
-  const anyBusy = busy !== null || transcribing
+  const anyBusy = busy !== null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={disabled}
-              aria-label="Write with AI"
-              className={"h-8 w-8 text-muted-foreground hover:text-primary " + (className || "")}
-            >
-              <Sparkles className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Write with AI</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="start" side="top" className="w-72 p-2">
-        {micAvailable && (
-          <>
-            <button
-              type="button"
-              disabled={(anyBusy && !recording) || micDownloading}
-              onClick={dictation.toggle}
-              className={
-                "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-60 " +
-                (recording ? "bg-destructive/10 text-danger-ink hover:bg-destructive/15" : "hover:bg-accent")
-              }
-            >
-              {transcribing || micDownloading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              ) : recording ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4 text-primary/70" />
-              )}
-              {dictationLabel(dictation)}
-              {recording && (
-                <span className="ml-auto inline-block h-2 w-2 animate-pulse rounded-full bg-destructive" />
-              )}
-            </button>
-            <div className="my-1.5 h-px bg-border" />
-          </>
-        )}
-        {hasDraft ? (
-          <>
-            <p className="px-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
-              Improve your draft
-            </p>
-            <div className="flex flex-col">
-              {IMPROVE_ACTIONS.map(({ action, label, Icon }) => (
-                <button
-                  key={action}
-                  type="button"
-                  disabled={anyBusy}
-                  onClick={() => run(action, draft)}
-                  className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent transition-colors disabled:opacity-60"
-                >
-                  {busy === action ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  ) : (
-                    <Icon className="h-4 w-4 text-primary/70" />
-                  )}
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="my-1.5 h-px bg-border" />
-          </>
-        ) : null}
-
-        <p className="px-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
-          {hasDraft ? "Or draft something new" : "Draft with AI"}
+      {controlled ? (
+        <PopoverAnchor asChild>
+          <span aria-hidden="true" className="pointer-events-none absolute right-3 top-0 h-px w-px" />
+        </PopoverAnchor>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={disabled}
+                aria-label="Write with AI"
+                className={"h-8 w-8 text-muted-foreground hover:text-foreground " + (className || "")}
+              >
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Write with AI</TooltipContent>
+        </Tooltip>
+      )}
+      <PopoverContent align="end" side="top" sideOffset={8} collisionPadding={12} className="pop-surface w-80 p-3">
+        <p className="mb-2 flex items-center gap-1.5 text-ui-sm font-medium text-ink">
+          <Spark size={14} className="text-agent" /> Draft with AI
         </p>
         <Textarea
           value={prompt}
@@ -204,20 +165,34 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
               onWrite()
             }
           }}
-          placeholder="e.g. draft a friendly status update…"
+          placeholder="Tell it what to write"
+          aria-label="Tell it what to write"
           rows={2}
-          className="text-sm resize-none mb-2"
+          className="h-16 min-h-16 resize-none text-ui-sm"
         />
-        <Button
-          type="button"
-          size="sm"
-          className="w-full"
-          disabled={anyBusy || !prompt.trim()}
-          onClick={onWrite}
-        >
-          {busy === "write" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
-          Generate
-        </Button>
+        {hasDraft && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {IMPROVE_ACTIONS.map(({ action, label }) => (
+              <button
+                key={action}
+                type="button"
+                disabled={anyBusy}
+                onClick={() => run(action, draft)}
+                className="chip h-[22px] cursor-pointer gap-1 hover:bg-press hover:text-ink disabled:opacity-60"
+              >
+                {busy === action && <Loader2 className="size-3 animate-spin" aria-hidden="true" />}
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 flex items-center justify-between">
+          <span className="flex items-center gap-1 text-meta text-ink-3"><kbd className="kbd">⌘</kbd><kbd className="kbd">⏎</kbd></span>
+          <Button type="button" size="sm" disabled={anyBusy || !prompt.trim()} onClick={onWrite}>
+            {busy === "write" && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+            Write
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   )

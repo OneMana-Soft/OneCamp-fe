@@ -41,10 +41,49 @@ import {
 import { withAI } from "@/components/common/withFeature"
 import { ActivityFeedFrame } from "@/components/activity/activityFeedFrame"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
-import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SpotWelcome } from "@/components/ui/graphics"
-import { AIActivityFeedRow } from "@/components/ai/aiActivityFeedRow"
+import { AIActivityFeedRow, type ChainState } from "@/components/ai/aiActivityFeedRow"
+import { verifyChain, type ChainCheck } from "@/components/ai/proveIt"
+import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
+import { celebrateOnce } from "@/lib/celebrate"
+import { AlertTriangle } from "@/lib/icons"
+
+/** A record row's identity in the list. */
+const keyOf = (it: AIActivityItem, i: number) =>
+  it.entry_hash ? `audit-${it.entry_hash}` : it.run_id ? `run-${it.run_id}` : `${it.kind}-${it.at}-${i}`
+
+/**
+ * What Prove it found (AI15): a moss banner when every visible link held, a
+ * danger one naming the first entry that does not match the one before it.
+ * Never a claim beyond the chain: no "compliant", no "certified".
+ */
+function ProveBanner({ check, at, onShow }: { check: ChainCheck; at: Date | null; onShow: () => void }) {
+  const when = at ? at.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }) : ""
+  if (!check.ok) {
+    return (
+      <div data-prove-banner="broken" role="status" className="hub-pop-down flex h-10 items-center gap-2.5 rounded-[10px] bg-[color-mix(in_oklab,var(--destructive)_10%,transparent)] px-3 text-xs font-medium text-danger-ink">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">Entry #{check.brokenSeq} doesn&apos;t match the one before it.</span>
+        <button type="button" onClick={onShow} className="h-6 rounded-sm px-2 text-2xs font-medium hover:bg-hover">
+          Show entry
+        </button>
+      </div>
+    )
+  }
+  const what =
+    check.links > 0
+      ? `${check.links} ${check.links === 1 ? "link" : "links"} between ${check.entries} entries verified`
+      : `${check.entries} ${check.entries === 1 ? "entry" : "entries"} on screen, none next to each other to check`
+  return (
+    <div data-prove-banner="ok" role="status" className="hub-pop-down flex h-10 items-center gap-2.5 rounded-[10px] bg-camp-moss-tint px-3 text-xs font-medium text-camp-moss-ink">
+      <ShieldCheck className="size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate tabular-nums">
+        Chain intact · {what}
+        {when ? ` · ${when}` : ""}
+      </span>
+    </div>
+  )
+}
 
 /** The feed asks for this many entries at a time, up to the server's cap. */
 const FEED_STEP = 25
@@ -72,7 +111,7 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
     // The rows already shown stay while the longer list loads.
     feed ? { keepPreviousData: true } : undefined,
   )
-  const items = data?.data ?? []
+  const items = React.useMemo(() => data?.data ?? [], [data])
 
 
   /* The drill, offered to the person rather than only to an admin. Status is
@@ -175,6 +214,47 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
   }, [status?.seeded, running, run])
 
 
+  /* PROVE IT (hub.md AI15). The drill runs where its fixture exists (it writes
+     a refusal to the record), then every entry on screen is checked against
+     the one before it, and a link glyph in each row's gutter ticks moss, top
+     down, 30ms apart, so the rows read as a chain being checked. The banner
+     says what was checked; "verified" means the hash chain and nothing else. */
+  const [proving, setProving] = React.useState(false)
+  const [chain, setChain] = React.useState<ChainState>("idle")
+  const [banner, setBanner] = React.useState<ChainCheck | null>(null)
+  const [bannerAt, setBannerAt] = React.useState<Date | null>(null)
+  const [openKey, setOpenKey] = React.useState<string | null>(null)
+  const proveRef = React.useRef<HTMLButtonElement>(null)
+  const latest = React.useRef(items)
+  React.useEffect(() => {
+    latest.current = items
+  }, [items])
+
+  const prove = React.useCallback(async () => {
+    setBanner(null)
+    if (status?.seeded) {
+      await run()
+    }
+    setProving(true)
+    setChain("checking")
+    // One frame for the glyphs to appear at .6 before they tick.
+    await new Promise((r) => window.setTimeout(r, 40))
+    const check = verifyChain(latest.current)
+    setChain(check.ok ? "ok" : "broken")
+    const sweep = Math.min(latest.current.length, 20) * 30 + 220
+    window.setTimeout(() => {
+      setProving(false)
+      setBanner(check)
+      setBannerAt(new Date())
+      if (check.ok) celebrateOnce("prove-it", proveRef.current, { daily: false, hue: "moss", count: 6 })
+    }, sweep)
+  }, [status?.seeded, run])
+
+  const showBroken = React.useCallback(() => {
+    const i = latest.current.findIndex((it) => it.seq === banner?.brokenSeq)
+    if (i >= 0) setOpenKey(keyOf(latest.current[i], i))
+  }, [banner])
+
   /* What this record says after the reader acted: the drill they asked for,
      a failure, the drill's proof. The same words in both variants; the feed
      drops the card's boxes. */
@@ -237,48 +317,62 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
 
   if (feed) {
     const more = items.length >= limit && limit < FEED_MAX
+    const checkingLabel = `Checking ${items.filter((i) => i.entry_hash).length || items.length} entries…`
     return (
       <ActivityFeedFrame
         // Whose record this is, where there is room to say it. An admin
         // reading it would otherwise take it for the workspace's.
         filter={
-          <p className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block">
+          <p className="hidden min-w-0 truncate text-xs text-ink-2 sm:block">
             Your own record: what agents did as you, and what they were refused.
           </p>
         }
         actions={
           <>
             {items.length > 0 ? (
-              <Button size="xs" variant="outline" className="extend-touch-target" onClick={saveRecord} disabled={saving}>
-                {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+              <Button size="sm" variant="secondary" className="extend-touch-target" onClick={saveRecord} disabled={saving}>
+                {saving ? <Loader2 className="animate-spin" /> : <Download />}
                 Download the record
               </Button>
             ) : null}
-            {status?.seeded ? (
-              <Button size="xs" variant="outline" className="extend-touch-target" onClick={run} disabled={running}>
-                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
-                {running ? "Running" : "Prove it"}
+            {status?.seeded || items.some((i) => i.entry_hash) ? (
+              <Button ref={proveRef} size="sm" variant="secondary" className="extend-touch-target" onClick={prove} disabled={running || proving}>
+                {running || proving ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+                {running ? "Running the drill…" : proving ? checkingLabel : "Prove it"}
               </Button>
             ) : null}
           </>
         }
-        notice={asked || error || result ? <div className="space-y-2">{notice}</div> : undefined}
+        notice={
+          banner || asked || error || (result && !result.passed) ? (
+            <div className="space-y-2">
+              {banner ? <ProveBanner check={banner} at={bannerAt} onShow={showBroken} /> : null}
+              {asked && !banner ? notice : error ? <p className="text-sm text-danger-ink" role="alert">{error}</p> : null}
+              {result && !result.passed ? (
+                <ol className="space-y-1.5">
+                  {result.steps.map((step, i) => (
+                    <StepRow key={step.name} step={step} index={i} />
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+          ) : undefined
+        }
         loading={isLoading && items.length === 0}
-        loadingLabel="Loading your AI activity"
+        loadingLabel="Loading your agents record"
         // Failure before emptiness: on a governance record, "nothing has acted
         // as you" is the one claim a failed request must not make.
         state={
           isError && items.length === 0 ? (
-            <ErrorState subject="your AI activity" onRetry={() => void mutate()} />
+            <HubError text="The record isn't loading. It's still being written." onRetry={() => void mutate()} />
           ) : items.length === 0 ? (
-            <EmptyState
-              icon={ShieldCheck}
-              illustration={<SpotWelcome hue="dusk" />}
-              title="Nothing has acted as you yet"
+            <HubEmpty
+              spot="shield"
+              title="No agent has acted as you"
               description={
                 status?.seeded
-                  ? "Press Prove it and an agent acting as you will try to post in a channel you are not in."
-                  : "When an agent acts as you, or is stopped from acting, it appears here with the reason."
+                  ? "Press Prove it and an agent acting as you will try to post in a channel you are not in. It's written here and can't be edited."
+                  : "When an agent does something for you, or is stopped, it's written here and can't be edited."
               }
             />
           ) : null
@@ -286,15 +380,23 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
       >
         <VirtualInfiniteScroll
           items={items}
-          renderItem={(it: AIActivityItem) => <AIActivityFeedRow item={it} />}
+          renderItem={(it: AIActivityItem, i: number) => (
+            <AIActivityFeedRow
+              item={it}
+              separated={i > 0}
+              chain={chain}
+              sweepIndex={i}
+              broken={banner?.brokenSeq !== undefined && it.seq === banner.brokenSeq}
+              open={openKey === keyOf(it, i) || undefined}
+              onOpenChange={(o) => setOpenKey(o ? keyOf(it, i) : null)}
+            />
+          )}
           onLoadMore={() => {
             if (more && !isLoading) setLimit((l) => Math.min(l + FEED_STEP, FEED_MAX))
           }}
           hasMore={more}
           isLoading={isLoading && items.length > 0}
-          keyExtractor={(it: AIActivityItem, i: number) =>
-            it.entry_hash ? `audit-${it.entry_hash}` : it.run_id ? `run-${it.run_id}` : `${it.kind}-${it.at}-${i}`
-          }
+          keyExtractor={keyOf}
         />
       </ActivityFeedFrame>
     )

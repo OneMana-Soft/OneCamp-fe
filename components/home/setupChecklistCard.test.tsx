@@ -149,9 +149,10 @@ describe("the steps it lists", () => {
     svc.getOnboardingStatus.mockResolvedValue(status(steps))
     await show()
     const links = () => within(card()!).getAllByRole("link").map((a) => a.getAttribute("href"))
-    expect(links()).toEqual(["/app/a", "/app/b", "/app/c"])
+    // Design v3: up to six steps, in a 3 x 2 grid of step cards.
+    expect(links()).toEqual(["/app/a", "/app/b", "/app/c", "/app/d", "/app/e", "/app/f"])
     expect(within(card()!).getByText("1 of 9 done.", { exact: false })).toBeInTheDocument()
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show 5 more" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show 2 more" })))
     expect(links()).toEqual(["/app/a", "/app/b", "/app/c", "/app/d", "/app/e", "/app/f", "/app/g", "/app/h"])
   })
 
@@ -182,23 +183,20 @@ describe("the steps it lists", () => {
 })
 
 describe("the checklist's heading", () => {
-  // The playful layer's progress ring took the moss tile's place: the same
-  // spot beside the heading Home's other cards give their tile.
-  it("sits beside its progress ring, where Home's other cards keep their tile", async () => {
+  // Design v3 (hub.md H6): the demo guide's segmented progress beside the
+  // heading, where the ring sat.
+  it("sits beside its segmented progress, as the demo guide's does", async () => {
     svc.getOnboardingStatus.mockResolvedValue(status([step("invite")]))
     await show()
     const heading = screen.getByRole("heading", { name: "Finish setting up your workspace" })
-    const row = heading.parentElement!.parentElement!
-    const ring = row.querySelector('[role="progressbar"]')
-    expect(ring).not.toBeNull()
-    expect(ring!.querySelector("svg")).not.toBeNull()
+    const bar = heading.parentElement!.querySelector('[role="progressbar"][data-segmented-progress]')
+    expect(bar).not.toBeNull()
   })
 
-  it("holds the tile's place while it loads", async () => {
+  it("holds the step cards' place while it loads", async () => {
     svc.getOnboardingStatus.mockReturnValue(new Promise(() => {}))
     await show()
     const placeholder = screen.getByRole("status", { name: "Loading the setup checklist" })
-    // The ring's place at the ring's size: 24px, a tile's, on Home's lines.
-    expect(placeholder.querySelector(".size-6")).not.toBeNull()
+    expect(placeholder.querySelectorAll(".min-h-\\[132px\\]").length).toBe(3)
   })
 })

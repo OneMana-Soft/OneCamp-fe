@@ -56,7 +56,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({
                     // text, from md up 36px and 14px. Set to 14px everywhere, every
                     // list's search box made iOS zoom the page in on focus (and stay
                     // zoomed), and at 36px it was under the 44px touch guidance.
-                    "h-11 md:h-9 w-full pl-8 pr-11 md:pr-8 rounded-md",
+                    "h-11 md:h-8 w-full pl-8 pr-11 md:pr-8 rounded-md",
                     "bg-muted/40 border-transparent shadow-none",
                     "placeholder:text-muted-foreground/80 text-base md:text-sm",
                     "focus-visible:ring-1 focus-visible:ring-ring/70 focus-visible:bg-background focus-visible:border-border",

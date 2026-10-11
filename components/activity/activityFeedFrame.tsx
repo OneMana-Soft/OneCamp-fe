@@ -1,10 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { PageContainer } from "@/components/ui/pageContainer"
-import { ListRow } from "@/components/ui/listRow"
-import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils/helpers/cn"
+import { HubRowSkeleton } from "@/components/ui/hubRow"
 
 /**
  * The one frame every Activity tab draws in.
@@ -26,28 +23,20 @@ import { cn } from "@/lib/utils/helpers/cn"
  * its actions, its rows and its words.
  */
 
-/** One skeleton for every tab, at one length: a typical first screen. */
-export const FEED_SKELETON_ROWS = 8
+/** One skeleton for every tab, at one length (hub.md A1: six feed rows). */
+export const FEED_SKELETON_ROWS = 6
 
 /**
- * The loading state, in the rows' own shape: the same ListRow, density and
- * avatar as a loaded row, so nothing moves when the data lands.
+ * The loading state, in the rows' own shape: the feed HubRow's skeleton, so
+ * nothing moves when the data lands.
  */
 export function ActivityFeedSkeleton({ label = "Loading activity" }: { label?: string }) {
     return (
         <div data-feed-skeleton="" role="status" aria-label={label}>
             {Array.from({ length: FEED_SKELETON_ROWS }).map((_, i) => (
-                <ListRow
-                    key={i}
-                    data-feed-skeleton-row=""
-                    aria-hidden="true"
-                    density="comfortable"
-                    disablePressFlash
-                    className="pointer-events-none"
-                    leading={<Skeleton variant="circle" className="size-9" />}
-                    title={<Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/5" : "w-2/5")} />}
-                    subtitle={<Skeleton className={cn("h-3", i % 3 === 0 ? "w-4/5" : "w-2/3")} />}
-                />
+                <div key={i} data-feed-skeleton-row="" aria-hidden="true" className="pointer-events-none">
+                    <HubRowSkeleton density="feed" />
+                </div>
             ))}
         </div>
     )
@@ -58,7 +47,7 @@ interface ActivityFeedFrameProps {
     filter?: React.ReactNode
     /** The toolbar row's right side: a tab's own actions. */
     actions?: React.ReactNode
-    /** What a tab has to say above its rows after the reader acted (a drill's result, a failed download). */
+    /** What a tab has to say above its rows after the reader acted (a drill's result, a banner). */
     notice?: React.ReactNode
     /** The first page is on its way. */
     loading: boolean
@@ -70,35 +59,36 @@ interface ActivityFeedFrameProps {
     children?: React.ReactNode
 }
 
+/**
+ * The column (hub.md A1): 760px at most, start-aligned 24px from the sheet's
+ * edge, so the time sits inside the column instead of floating at the far
+ * right of a wide screen. The toolbar is 44px whether or not a tab has a
+ * filter. A state (empty, caught up, failed) sits where the rows start, 48px
+ * under the toolbar, start-aligned like the rows (A9).
+ */
 export function ActivityFeedFrame({ filter, actions, notice, loading, state, loadingLabel, children }: ActivityFeedFrameProps) {
     return (
-        <PageContainer data-feed-frame="" className="flex min-h-0 flex-1 flex-col py-2">
-            {/* Always there, always 36px: 28px of controls and 8px under them, so a
-                tab without a filter does not start its rows higher. */}
-            <div data-feed-toolbar="" className="flex h-9 shrink-0 items-center justify-between gap-2 px-1 pb-2">
+        <div data-feed-frame="" className="flex h-full min-h-0 w-full max-w-[760px] flex-1 flex-col">
+            <div data-feed-toolbar="" className="flex h-11 shrink-0 items-center justify-between gap-2 px-4 md:px-6">
                 <div className="flex min-w-0 flex-1 items-center">{filter}</div>
                 {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
             </div>
             {notice ? (
-                <div data-feed-notice="" className="max-h-[45%] shrink-0 overflow-y-auto px-1 pb-2">
+                <div data-feed-notice="" className="max-h-[45%] shrink-0 overflow-y-auto px-4 pb-2 md:px-6">
                     {notice}
                 </div>
             ) : null}
-            <div data-feed-body="" className="relative min-h-0 flex-1">
+            <div data-feed-body="" className="hub-fade-in relative min-h-0 flex-1 px-1 md:px-3">
                 {loading ? (
                     <ActivityFeedSkeleton label={loadingLabel} />
                 ) : state ? (
-                    // Anchored to the top of the rows' space rather than centred in
-                    // it: centred, a state with a button sat higher than one
-                    // without, so the same spot landed at a different height on
-                    // every tab.
-                    <div data-feed-state="" className="flex justify-center pt-4 md:pt-10">
+                    <div data-feed-state="" className="flex justify-start px-3 pt-6 md:pt-12">
                         {state}
                     </div>
                 ) : (
                     children
                 )}
             </div>
-        </PageContainer>
+        </div>
     )
 }

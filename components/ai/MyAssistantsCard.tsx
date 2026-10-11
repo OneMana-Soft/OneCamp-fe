@@ -21,22 +21,23 @@
  */
 
 import * as React from "react"
-import { formatDistanceToNow } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { CopyableCode } from "@/components/ui/copyable-code"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SettingsSection } from "@/components/ui/settingsSection"
+import { SettingsList, SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { CodeRow } from "@/components/ui/settingsControls"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bot, Loader2, Lock, ShieldCheck } from "@/lib/icons"
+import { SpotPlug } from "@/components/ui/graphics/spots"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Bot, Loader2, Lock, MoreHorizontal, Plus, ShieldCheck } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { scopeLabel } from "@/services/apiTokenService"
-import { mcpConnectRecipes } from "@/lib/utils/mcpEndpoint"
+import { mcpConnectRecipes, mcpEndpointUrl } from "@/lib/utils/mcpEndpoint"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { withAI } from "@/components/common/withFeature"
 
@@ -54,10 +55,8 @@ interface MyAssistantsResponse {
   data?: { open: boolean; connections: AssistantConnection[] }
 }
 
-const ASSISTANT_ORDER = ["chatgpt", "claude", "grok", "cursor", "claude-code"]
-
-/** The section's own hue (lib/settingsSections): its tiles here and in the list of sections. */
-const HUE = "sky" as const
+/** The three the connect dialog offers as cards, in this order; the rest are in "Another client". */
+const FEATURED = ["chatgpt", "claude", "grok"]
 
 const PROMISES = [
   { title: "It acts as you", body: "It can see and do only what you can, in the areas your admin allows. Never more." },
@@ -65,22 +64,94 @@ const PROMISES = [
   { title: "Everything is on the record", body: "Each action is in the audit log, and you can disconnect it below at any time." },
 ]
 
+/** An assistant's mark: its first letter on the sunken surface, 32px. */
+function AssistantMark({ name }: { name: string }) {
+  return (
+    <span aria-hidden="true" data-assistant-mark="" className="ai-sunken-note grid size-8 shrink-0 place-items-center rounded-[9px] text-sm font-medium text-ink-2">
+      {(name.trim()[0] || "?").toUpperCase()}
+    </span>
+  )
+}
+
+/**
+ * Connect an assistant (design v3, admin §S6): three option cards (the
+ * chosen one gets the accent ring and lifts), then OneCamp's MCP address with
+ * a big copy, and the chosen assistant's steps, numbered.
+ */
+function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const recipes = React.useMemo(() => mcpConnectRecipes(), [])
+  const url = React.useMemo(() => mcpEndpointUrl(), [])
+  const featured = FEATURED.map((id) => recipes.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r)
+  const others = recipes.filter((r) => !FEATURED.includes(r.id))
+  const [picked, setPicked] = React.useState(featured[0]?.id ?? recipes[0]?.id ?? "")
+  const recipe = recipes.find((r) => r.id === picked) ?? recipes[0]
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Connect an assistant</DialogTitle>
+          <DialogDescription>Pick the one you use. It signs in as an agent you sponsor, and acts only as you could.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5">
+          <div role="radiogroup" aria-label="Assistant" className="grid gap-2 sm:grid-cols-3" data-assistant-options="">
+            {featured.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                role="radio"
+                aria-checked={picked === r.id}
+                onClick={() => setPicked(r.id)}
+                data-assistant-option=""
+                className="assistant-option"
+              >
+                <AssistantMark name={r.name} />
+                <span className="truncate text-sm font-medium text-foreground">{r.name}</span>
+              </button>
+            ))}
+          </div>
+          {others.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Another client</span>
+              <Select value={FEATURED.includes(picked) ? "" : picked} onValueChange={setPicked}>
+                <SelectTrigger className="h-8 w-auto min-w-[180px] text-xs" aria-label="Another client">
+                  <SelectValue placeholder="Choose…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {others.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-foreground">OneCamp&apos;s address for assistants</p>
+            <CodeRow value={url} label="MCP address" className="py-1.5 [&_button]:size-8" />
+          </div>
+          {recipe && (
+            <ol className="space-y-3" data-connect-steps="" aria-label={`Connect ${recipe.name}`}>
+              {recipe.steps.slice(0, 3).map((step, i) => (
+                <li key={step} className="flex items-start gap-3">
+                  <span aria-hidden="true" className="assistant-step-num">{i + 1}</span>
+                  <span className="min-w-0 pt-px text-sm text-foreground text-pretty">{step}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {recipe?.snippet && recipe.snippet !== url && <CodeRow value={recipe.snippet} label={`${recipe.name} setup`} ellipsis="wrap" />}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /** `withTitle={false}` under a page header that already names it, as the settings page is. */
 function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean }) {
   const res = useFetch<MyAssistantsResponse>(GetEndpointUrl.MyAssistants)
   const post = usePost()
-  const recipes = React.useMemo(() => mcpConnectRecipes(), [])
-  // Lead with the assistants most people use; a recipe not named here keeps
-  // its place after them, and "any client" is always last.
-  const ordered = React.useMemo(() => {
-    const rank = (id: string) => {
-      const i = ASSISTANT_ORDER.indexOf(id)
-      return id === "any" ? Number.MAX_SAFE_INTEGER : i === -1 ? ASSISTANT_ORDER.length : i
-    }
-    return [...recipes].sort((a, b) => rank(a.id) - rank(b.id))
-  }, [recipes])
-  const [picked, setPicked] = React.useState(ordered[0]?.id ?? "")
-  const recipe = ordered.find((r) => r.id === picked) ?? ordered[0]
+  const [connecting, setConnecting] = React.useState(false)
   const [confirming, setConfirming] = React.useState<string | null>(null)
   const [ending, setEnding] = React.useState<string | null>(null)
 
@@ -98,7 +169,7 @@ function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean }) {
       })
       await res.mutate()
     } catch {
-      // The toast has said what went wrong; the row stays so it can be retried.
+      // The toast has said what went wrong; the card stays so it can be retried.
     } finally {
       setEnding(null)
       setConfirming(null)
@@ -118,137 +189,115 @@ function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean }) {
     )
   }
 
-  // Flat sections under the page's h1, which already says "Your AI
-  // assistants": this was a bordered Card that said it again, at 18px.
+  const connectButton = (variant: "default" | "outline") => (
+    <Button size="sm" variant={variant} className={sectionActionClass} onClick={() => setConnecting(true)}>
+      <Plus /> Connect an assistant
+    </Button>
+  )
+
   return (
-    <div className="space-y-10">
-      {withTitle && <h2 className="text-base font-semibold">Your AI assistants</h2>}
-      {/* What connecting means, said once, each promise on the section's tile:
-          they were three bordered boxes with orange icons. */}
-      <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
+    <div className="space-y-8">
+      {withTitle && <h2 className="text-heading text-foreground">Your AI assistants</h2>}
+      {/* What connecting means, said once: a note on the sunken surface. The
+          promises sat on three tinted tiles (hue is for identity). */}
+      <ul data-assistant-promises="" className="ai-sunken-note grid gap-x-6 gap-y-3 rounded-lg p-4 sm:grid-cols-3">
         {PROMISES.map((p) => (
-          <li key={p.title} className="flex items-start gap-3">
-            <Tile hue={HUE} size="sm" className="mt-0.5">
-              <ShieldCheck aria-hidden="true" />
-            </Tile>
+          <li key={p.title} className="flex items-start gap-2.5">
+            <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-ink-3" />
             <div className="min-w-0 space-y-0.5">
               <p className="text-sm font-medium">{p.title}</p>
-              <p className="text-sm text-muted-foreground text-pretty">{p.body}</p>
+              <p className="text-xs text-muted-foreground text-pretty">{p.body}</p>
             </div>
           </li>
         ))}
       </ul>
 
       <SettingsSection
-        title="Connect an assistant"
-        description="Connect the assistant you already use, like ChatGPT, Claude or Grok Bot, so it can work in OneCamp for you."
+        title="Connected"
+        description="Outside assistants that act as you. Each stops at once when you disconnect it."
+        action={!res.isLoading && open && connections.length > 0 ? connectButton("default") : undefined}
       >
         {res.isLoading ? (
-          <div role="status" aria-label="Checking whether assistants can connect" className="space-y-3">
-            <Skeleton className="h-9 w-full max-w-md rounded-md" />
-            <Skeleton className="h-4 w-3/4 rounded" />
-            <Skeleton className="h-4 w-2/3 rounded" />
+          <div role="status" aria-label="Loading your connected assistants">
+            <SettingsList>
+              <div className="px-4 py-3">
+                <Skeleton className="h-3.5 w-1/3 rounded" />
+                <Skeleton className="mt-2 h-3 w-1/2 rounded" />
+              </div>
+            </SettingsList>
           </div>
         ) : !open ? (
-          <div className="rounded-lg border border-border">
+          <SettingsList>
             <EmptyState
               icon={Lock}
-              hue={HUE}
               title="Outside assistants aren't allowed here yet"
               description="Your admin has not let outside assistants into this workspace yet. They can turn it on in Admin, AI & agents."
-              className="py-6"
+              className="py-8"
             />
-          </div>
-        ) : (
-          // The house tabs, as the admin's connection recipes use: a row of
-          // bordered buttons with a box around the steps under them.
-          <Tabs value={recipe?.id} onValueChange={setPicked} className="space-y-3">
-            <TabsList aria-label="Assistant" className="h-auto flex-wrap justify-start">
-              {ordered.map((r) => (
-                <TabsTrigger key={r.id} value={r.id}>
-                  {r.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {ordered.map((r) => (
-              <TabsContent key={r.id} value={r.id} className="mt-0 space-y-3">
-                <ol className="list-decimal space-y-1.5 pl-5 text-sm marker:text-muted-foreground">
-                  {r.steps.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-                {r.snippet && <CopyableCode value={r.snippet} label="Copy" />}
-              </TabsContent>
-            ))}
-          </Tabs>
-        )}
-      </SettingsSection>
-
-      <SettingsSection title="Connected" description="Each one acts as you, and stops at once when you disconnect it.">
-        {res.isLoading ? (
-          <div role="status" aria-label="Loading your connected assistants" className="rounded-lg border border-border px-4 py-3">
-            <Skeleton className="h-3.5 w-1/3 rounded" />
-            <Skeleton className="mt-2 h-3 w-1/2 rounded" />
-          </div>
+          </SettingsList>
         ) : connections.length === 0 ? (
-          <div className="rounded-lg border border-border">
+          <SettingsList>
             <EmptyState
-              icon={Bot}
-              hue={HUE}
+              illustration={<SpotPlug />}
               title="Nothing connected yet"
-              description="Once you approve an assistant, it shows here."
-              className="py-6"
+              description="Connect ChatGPT, Claude or Grok Bot, and approve it here; it shows on this page."
+              action={connectButton("outline")}
+              className="min-h-[200px] py-8"
             />
-          </div>
+          </SettingsList>
         ) : (
-          <ul className="divide-y divide-border rounded-lg border border-border">
+          <ul className="space-y-2" data-assistant-cards="">
             {connections.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-medium">
-                    {c.client_name}
-                    {c.agent_name && (
-                      <span className="font-normal text-muted-foreground"> · acting as {c.agent_name}</span>
-                    )}
-                  </p>
+              <li key={c.id} data-settings-card="" data-assistant-card="" className="set-card flex items-start gap-3 px-4 py-3">
+                <AssistantMark name={c.client_name} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-medium text-foreground">{c.client_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Connected {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+                    Connected {format(new Date(c.created_at), "d MMM")}
                     {" · "}
-                    {c.last_used_at
-                      ? `last active ${formatDistanceToNow(new Date(c.last_used_at), { addSuffix: true })}`
-                      : "not used yet"}
+                    {c.last_used_at ? `last active ${formatDistanceToNow(new Date(c.last_used_at), { addSuffix: true })}` : "not used yet"}
+                    {c.agent_name ? ` · acting as ${c.agent_name}` : ""}
                   </p>
                   {c.scopes.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {c.scopes.map((sc) => (
-                        <Badge key={sc} variant="outline" className="text-2xs font-normal">
+                        <span key={sc} className="ai-chip">
                           {scopeLabel(sc)}
-                        </Badge>
+                        </span>
                       ))}
                     </div>
                   )}
+                  {confirming === c.id && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <span className="text-sm text-muted-foreground">It stops working at once.</span>
+                      <Button size="sm" variant="ghost" onClick={() => setConfirming(null)} disabled={ending === c.id}>
+                        Keep
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => disconnect(c.id)} disabled={ending === c.id}>
+                        {ending === c.id && <Loader2 className="animate-spin" />}
+                        Disconnect
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {confirming === c.id ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm text-muted-foreground">It stops working at once.</span>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirming(null)} disabled={ending === c.id}>
-                      Keep
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="-mr-2 size-8 shrink-0 text-muted-foreground" aria-label={`More for ${c.client_name}`}>
+                      <MoreHorizontal className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => disconnect(c.id)} disabled={ending === c.id}>
-                      {ending === c.id && <Loader2 className="animate-spin" />}
-                      Disconnect
-                    </Button>
-                  </div>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={() => setConfirming(c.id)}>
-                    Disconnect
-                  </Button>
-                )}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" onSelect={() => setConfirming(c.id)}>
+                      <Bot className="h-4 w-4" /> Disconnect
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </li>
             ))}
           </ul>
         )}
       </SettingsSection>
+      <ConnectDialog open={connecting} onOpenChange={setConnecting} />
     </div>
   )
 }

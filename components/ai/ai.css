@@ -1,0 +1,42 @@
+/* The AI's own materials (design v3, design/v3-areas/hub.md §9). Composite
+   shadows that are a ladder step plus a ring live here as named classes,
+   rather than as hand-drawn shadow-[...] utilities in the markup. */
+
+/* AI10: the composer is one step rounder than a channel's (16px, the page's
+   main object), raised at e2, with v3's input halo only while it has focus:
+   1px accent at 50% and a 3px halo at 12%. Never at rest. */
+.ai-composer {
+  border-radius: 16px;
+  box-shadow: var(--e2);
+  transition: box-shadow 140ms var(--ease-out);
+}
+.ai-composer:focus-within {
+  box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+}
+
+/* AI4: your words in a neutral bubble, r16 with a 6px corner at the bottom
+   right: 5% ink on the sheet in light, #1F2024 (the pop surface) in dark. */
+.ai-user-bubble {
+  border-radius: 16px 16px 6px 16px;
+  background: color-mix(in oklab, var(--ink) 5%, var(--sheet));
+}
+.dark .ai-user-bubble {
+  background: var(--pop);
+}
+
+/* AI10: a ready Send carries the primary's inner highlight. */
+.ai-send-ready {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
+}
+
+/* S11 and AI8: a source chip whose marker is hovered, or itself hovered,
+   rises to e2 with a 1px agent ring at 40%. */
+.ai-source-chip:hover,
+.ai-source-chip[data-lit] {
+  box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--agent) 40%, transparent);
+}
+
+/* A sunken block with an inset hairline: code, an error note. */
+.ai-inset {
+  box-shadow: inset 0 0 0 1px var(--line);
+}

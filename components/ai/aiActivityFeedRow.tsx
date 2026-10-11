@@ -1,124 +1,147 @@
 "use client"
 
+/**
+ * One entry of your agents record (hub.md AI14), as a feed HubRow:
+ *
+ *   lead    the named agent's 32px square with a kind badge: a spark for an
+ *           action, a shield for a refusal; a connected tool or an app key is
+ *           a neutral square;
+ *   line 1  "Release Captain acted as you · created 6 tasks", or "The
+ *           governance drill tried to post in #drill-finance", and the outcome
+ *           as a tag. A refusal is the agent's tint with a shield: the
+ *           permission system answering, never the accent and never danger red.
+ *           A practice run carries a neutral Drill tag, so it never reads as a
+ *           real refusal;
+ *   line 2  why: the reason it was refused, or what it acted on;
+ *   meta    when.
+ *
+ * Pressing it opens the evidence (AI15) under the row: its place in the chain,
+ * the exact action, who started it, and the hash pair, which is what makes the
+ * row checkable rather than something this workspace says.
+ */
 import * as React from "react"
-import { ListRow } from "@/components/ui/listRow"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import { avatarHueClass } from "@/components/ui/graphics/hues"
-import { ChainPair } from "@/components/admin/ChainPair"
-import { Bot, Shield, Sparkles } from "@/lib/icons"
-import { hueFor } from "@/lib/campHue"
+
+import { HubRow } from "@/components/ui/hubRow"
+import { KindBadge } from "@/components/ui/kindBadge"
+import { AgentAvatar, BotAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { shortHash } from "@/components/admin/ChainPair"
+import { ChevronDown, Copy, Link2, Plug, Shield } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
+import { recordActor } from "@/components/ai/agentRecord"
+import { recordLines, type RecordOutcome } from "@/components/ai/proveIt"
 
-/**
- * One entry of your AI record, as a row of the Activity feed.
- *
- * The Activity tab used to show the settings page's rows: an icon in a grey
- * chip, the summary as the headline, the action id, the actor's email, the
- * time and the chain position on four lines, 103px a row beside the other
- * tabs' 64. Here the entry takes the other tabs' anatomy (ActivityCard):
- * who acted as a mark with a badge for the kind of entry, what it did and
- * its outcome on the first line, what it acted on under it, and when on the
- * right. The evidence (the chain position, the exact action, who started it)
- * is one press away, so the row stays the feed's height and the proof stays
- * on the page.
- */
-
-/** Who acted, for an audit entry, by the family of its action. */
-const ACTORS: [prefix: string, label: string][] = [
-    ["agent.", "An agent"],
-    ["mcp.", "A connected tool"],
-    ["api.", "An app with your key"],
-    ["ai.", "The AI assistant"],
-]
-
-function whoActed(it: AIActivityItem): { label: string; key: string } {
-    if (it.kind === "agent_run") return { label: it.title || "An agent", key: it.agent_id || it.title || "agent" }
-    const hit = ACTORS.find(([prefix]) => it.title?.startsWith(prefix))
-    return { label: hit?.[1] ?? "The AI", key: hit?.[0] ?? "ai." }
+/** The outcome tag (AI14): tint and words per outcome. */
+const OUTCOME: Record<Exclude<RecordOutcome, null>, { label: string; tone: string }> = {
+    done: { label: "Done", tone: "bg-camp-moss-tint text-camp-moss-ink" },
+    refused: { label: "Refused by permissions", tone: "bg-agent-muted text-agent-ink" },
+    failed: { label: "Failed", tone: "bg-[color-mix(in_oklab,var(--destructive)_10%,transparent)] text-danger-ink" },
+    waiting: { label: "Waiting for you", tone: "bg-camp-sun-tint text-camp-sun-ink" },
+    running: { label: "Running", tone: "bg-hover text-ink-2 ring-1 ring-inset ring-line" },
+    attempt: { label: "Attempt recorded", tone: "bg-hover text-ink-2 ring-1 ring-inset ring-line" },
 }
 
-/**
- * A refusal is not a failure: the permission system answering, drawn in the
- * same tone the admin feed gives it (AIActivityCard), never the danger red.
- */
-function statusTone(status?: string): string {
-    switch (status) {
-        case "succeeded":
-        case "allowed":
-            return "text-success-ink"
-        case "refused":
-            return "text-primary"
-        case "failed":
-            return "text-danger-ink"
-        case "running":
-            return "text-warning-ink"
-        default:
-            return "text-muted-foreground"
-    }
+export function OutcomeTag({ outcome }: { outcome: RecordOutcome }) {
+    if (!outcome) return null
+    const o = OUTCOME[outcome]
+    return (
+        <span data-outcome={outcome} className={cn("ml-1.5 inline-flex h-[18px] shrink-0 items-center gap-1 rounded-[5px] px-1.5 align-[1px] text-3xs font-medium leading-none tracking-[0.005em]", o.tone)}>
+            {outcome === "refused" ? <Shield className="size-3" aria-hidden /> : null}
+            {o.label}
+        </span>
+    )
 }
 
-const statusWord = (status?: string) => (status === "refused" ? "refused by permissions" : status || "")
+export type ChainState = "idle" | "checking" | "ok" | "broken"
 
-export function AIActivityFeedRow({ item: it }: { item: AIActivityItem }) {
-    const [open, setOpen] = React.useState(false)
+export interface AIActivityFeedRowProps {
+    item: AIActivityItem
+    /** Prove it's sweep: hidden, ticking, ticked moss. */
+    chain?: ChainState
+    /** This row's place in the sweep, for its 30ms stagger. */
+    sweepIndex?: number
+    /** This entry does not match the one before it. */
+    broken?: boolean
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    separated?: boolean
+}
+
+export function AIActivityFeedRow({ item: it, chain = "idle", sweepIndex = 0, broken, open: openProp, onOpenChange, separated }: AIActivityFeedRowProps) {
+    const [openState, setOpenState] = React.useState(false)
+    const open = openProp ?? openState
+    const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
     const run = it.kind === "agent_run"
-    const who = whoActed(it)
-    const did = run ? (it.status === "running" ? "is running" : "ran") : "acted as you"
-    // What it acted on. An audit entry's summary is the sentence; a run's is its result.
-    const what = it.summary || (run ? it.source : it.title) || ""
+    const who = recordActor(it)
+    const lines = recordLines(it)
     const started = initiatorLabel(it.initiator)
     const evidence = Boolean(it.entry_hash || (!run && it.title) || it.source || started)
+    const machine = who.kind === "tool" || who.kind === "app"
 
-    const leading = (
-        <div className="relative shrink-0">
-            {/* A named agent is drawn like a person, in its own colour. An
-                entry that names no agent shows the kind of actor instead. */}
-            {run && it.title ? (
-                <IdentityMark variant="avatar" size={36} id={who.key} label={who.label} />
-            ) : (
-                <span
-                    aria-hidden
-                    data-hue={hueFor(who.key)}
-                    className={cn(avatarHueClass(hueFor(who.key)), "flex size-9 items-center justify-center rounded-full [&>svg]:size-4")}
-                >
-                    <Bot strokeWidth={1.75} />
-                </span>
-            )}
-            <div
+    const lead = (
+        <>
+            <span className="block size-8">
+                {machine ? (
+                    <BotAvatar>
+                        <Plug />
+                    </BotAvatar>
+                ) : (
+                    <AgentAvatar />
+                )}
+            </span>
+            <KindBadge kind={lines.outcome === "refused" ? "refused" : "agent"} />
+            {/* The chain link in the gutter, which Prove it ticks to moss. */}
+            <span
                 aria-hidden
-                className="absolute -bottom-1 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-background text-muted-foreground ring-2 ring-background"
+                data-chain={chain === "idle" ? undefined : broken ? "broken" : chain === "checking" ? "checking" : "ok"}
+                className={cn(
+                    "absolute -left-[22px] top-[9px] grid size-3.5 place-items-center text-ink-4 opacity-0 transition-[opacity,transform,color] duration-200 [&_svg]:size-3.5",
+                    chain !== "idle" && "opacity-100",
+                    chain === "checking" && "scale-[.6]",
+                    (chain === "ok" || chain === "broken") && !broken && "scale-100 text-camp-moss",
+                    broken && (chain === "ok" || chain === "broken") && "scale-100 text-danger-ink",
+                )}
+                style={{ transitionDelay: chain === "idle" ? undefined : `${sweepIndex * 30}ms`, transitionTimingFunction: "var(--ease-spring)" }}
             >
-                {run ? <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} /> : <Shield className="h-2.5 w-2.5" strokeWidth={2.5} />}
-            </div>
-        </div>
+                <Link2 />
+            </span>
+        </>
     )
 
     const title = (
-        <span className="flex w-full min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate">
-                <span className="font-semibold text-foreground">{who.label}</span>{" "}
-                <span className="font-normal text-muted-foreground">{did}</span>
-            </span>
-            {it.status ? (
-                <span className={cn("inline-flex shrink-0 items-center whitespace-nowrap rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium", statusTone(it.status))}>
-                    {statusWord(it.status)}
+        <>
+            <b className="font-medium text-foreground">{who.name}</b> {lines.verb}
+            {lines.object ? (
+                <>
+                    {" "}
+                    <b className="font-medium text-foreground">{lines.object}</b>
+                </>
+            ) : null}
+            {who.drill ? (
+                <span data-drill="" className="ml-1.5 inline-flex h-[18px] items-center rounded-[5px] bg-hover px-1.5 align-[1px] text-3xs font-medium leading-none text-ink-2 ring-1 ring-inset ring-line">
+                    Drill
                 </span>
             ) : null}
-        </span>
+            <OutcomeTag outcome={lines.outcome} />
+        </>
     )
 
-    const toggle = () => setOpen((o) => !o)
+    const toggle = () => setOpen(!open)
     return (
-        <ListRow
+        <HubRow
             data-feed-row=""
-            density="comfortable"
-            leading={leading}
+            data-record-row=""
+            density="feed"
+            lead={lead}
             title={title}
+            second={lines.why || null}
             meta={it.at ? formatListTimestamp(it.at) : undefined}
-            subtitle={what || null}
-            className={evidence ? undefined : "cursor-default"}
+            className={cn(
+                evidence ? "cursor-pointer hover:bg-hover" : "cursor-default",
+                broken && "after:pointer-events-none after:absolute after:inset-y-2 after:left-0 after:w-0.5 after:rounded-full after:bg-destructive",
+                separated && "before:pointer-events-none before:absolute before:left-14 before:right-4 before:top-0 before:h-px before:bg-line hover:before:opacity-0",
+            )}
             {...(evidence
                 ? {
                       role: "button",
@@ -134,22 +157,63 @@ export function AIActivityFeedRow({ item: it }: { item: AIActivityItem }) {
                   }
                 : {})}
         >
-            {open ? (
-                <div data-feed-evidence="" className="mt-1.5 space-y-0.5 text-2xs text-muted-foreground">
-                    {/* The exact action, for anybody matching this against the log. */}
-                    {!run && it.title ? <p className="font-mono">{it.title}</p> : null}
-                    {it.source || started ? (
-                        <p>
-                            {it.source ? <span>{it.source}</span> : null}
-                            {it.source && started ? <span> · </span> : null}
-                            {started ? (
-                                <span className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning-ink" : undefined}>{started}</span>
-                            ) : null}
-                        </p>
-                    ) : null}
-                    <ChainPair seq={it.seq} prevHash={it.prev_hash} entryHash={it.entry_hash} />
-                </div>
+            {open ? <RecordEvidence item={it} started={started} /> : null}
+            {evidence && !open ? (
+                <ChevronDown aria-hidden className="absolute bottom-1.5 right-4 size-3.5 text-ink-4 opacity-0 transition-opacity group-hover/hubrow:opacity-100 [@media(hover:none)]:opacity-100" />
             ) : null}
-        </ListRow>
+        </HubRow>
+    )
+}
+
+/** The evidence for one entry (AI15): a two-column grid on a sunken block. */
+function RecordEvidence({ item: it, started }: { item: AIActivityItem; started: string }) {
+    const [copied, setCopied] = React.useState(false)
+    const copy = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        const proof = { seq: it.seq, action: it.title, at: it.at, prev_hash: it.prev_hash, entry_hash: it.entry_hash, initiator: it.initiator }
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(proof, null, 2))
+            setCopied(true)
+        } catch {
+            setCopied(false)
+        }
+    }
+    const rows: [string, React.ReactNode, boolean?][] = []
+    if (it.seq) rows.push(["Entry", `#${it.seq}`])
+    if (it.kind !== "agent_run" && it.title) rows.push(["Action", it.title, true])
+    if (it.source) rows.push(["Source", it.source])
+    if (started)
+        rows.push([
+            "Started by",
+            <span key="s" className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning-ink" : undefined}>
+                {started}
+            </span>,
+        ])
+    rows.push(["Acted as", "you"])
+    if (it.entry_hash) {
+        rows.push(["Previous hash", shortHash(it.prev_hash) || "—", true])
+        rows.push(["This hash", shortHash(it.entry_hash), true])
+    }
+    return (
+        <div
+            data-feed-evidence=""
+            onClick={(e) => e.stopPropagation()}
+            className="hub-pop relative z-[2] mb-1 mt-2.5 rounded-[10px] bg-sunken px-3 py-2.5 ring-1 ring-inset ring-line dark:bg-white/[0.025]"
+        >
+            <dl className="grid grid-cols-[120px_minmax(0,1fr)] gap-y-1.5 text-meta">
+                {rows.map(([k, v, mono]) => (
+                    <React.Fragment key={k}>
+                        <dt className="text-meta text-ink-3">{k}</dt>
+                        <dd className={cn("min-w-0 truncate", mono ? "font-mono text-3xs tracking-normal text-ink-2" : "text-foreground")}>{v}</dd>
+                    </React.Fragment>
+                ))}
+            </dl>
+            {it.entry_hash ? (
+                <button type="button" onClick={copy} className="mt-2 inline-flex h-6 items-center gap-1.5 rounded-sm px-2 text-2xs font-medium text-ink-2 hover:bg-hover hover:text-foreground [&_svg]:size-3.5">
+                    <Copy aria-hidden />
+                    {copied ? "Copied" : "Copy proof"}
+                </button>
+            ) : null}
+        </div>
     )
 }

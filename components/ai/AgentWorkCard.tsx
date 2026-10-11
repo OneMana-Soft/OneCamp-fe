@@ -1,14 +1,10 @@
 "use client"
 
-import { Bot } from "@/lib/icons"
-
 import { withAI } from "@/components/common/withFeature"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { Spark } from "@/components/ui/graphics/motifs"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { type AgentOutcome, sumOutcomes } from "@/services/agentService"
 import { cn } from "@/lib/utils/helpers/cn"
-import { homeInset } from "@/components/home/homeLines"
 
 /**
  * What this person's agents have been doing, and how much of it they kept.
@@ -37,55 +33,52 @@ interface ActivityItem {
     started_at: string
 }
 
-function AgentWorkCardInner() {
-    const { data: activity, isLoading } = useFetch<{ data: ActivityItem[] }>(
-        `${GetEndpointUrl.GetAgentActivity}?limit=5`,
-    )
-    const { data: outcomes } = useFetch<{ data: Record<string, AgentOutcome> }>(
-        `${GetEndpointUrl.GetAgents}/outcomes`,
-    )
+/** States that mean a job is still going or waiting on you (hub.md H19). */
+const LIVE = new Set(["running", "queued", "pending", "waiting", "awaiting_input", "awaiting"])
 
-    const items = activity?.data ?? []
-    const kept = sumOutcomes(outcomes?.data)
+/** The jobs worth a strip on Home: running or waiting, three at most. Pure. */
+export function liveJobs(items: ActivityItem[]): ActivityItem[] {
+    return items.filter((i) => LIVE.has((i.status || "").toLowerCase())).slice(0, 3)
+}
 
-    // Nothing while loading. Most people have no agents, so a placeholder
-    // here usually collapsed to nothing a moment later, and Home jumped up by
-    // its height. Home renders this card after its own lists, so arriving
-    // late moves nothing above it.
-    if (isLoading) return null
-
-    // Nothing has run and nothing was decided: there is no story to tell yet.
-    if (items.length === 0 && kept.decided === 0) return null
-
+/**
+ * H19: while an agent is working for you, one compact row per job on a sunken
+ * well above Projects. Nothing at all otherwise: finished work lives in
+ * Activity > Agents and the agent's record, so Home no longer lists history.
+ */
+function AgentWorkCardInner({ className }: { className?: string }) {
+    const { data: activity } = useFetch<{ data: ActivityItem[] }>(`${GetEndpointUrl.GetAgentActivity}?limit=5`, undefined, {
+        refreshInterval: 20_000,
+    })
+    const jobs = liveJobs(activity?.data ?? [])
+    if (jobs.length === 0) return null
     return (
-        <section className="ai-panel hover-lift" aria-labelledby="agent-work-heading">
-            <div className="ai-panel-head">
-                <Tile hue="dusk" size="sm"><Bot strokeWidth={1.75} /></Tile>
-                <h2 id="agent-work-heading" className="text-sm font-medium text-foreground">
-                    Your agents
-                </h2>
-                {kept.decided > 0 && (
-                    <span className="ml-auto text-2xs text-muted-foreground">
-                        you kept {kept.approved} of {kept.decided} they proposed
-                    </span>
-                )}
-            </div>
-
-            <ul className="divide-y divide-border/40">
-                {items.map((item) => (
-                    // On Home's first line, and in the type every other Home row
-                    // uses: a 14px name over a 12px line (it was 12px over 11px).
-                    <li key={item.run_id} className={cn("py-2.5", homeInset)}>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-medium text-foreground truncate">{item.agent_name}</span>
-                            {item.status === "failed" && (
-                                <span className="text-2xs text-danger-ink shrink-0">failed</span>
-                            )}
-                        </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{item.summary}</p>
-                    </li>
-                ))}
-            </ul>
+        <section aria-label="Agents at work" className={cn("hub-pop rounded-lg bg-sunken p-1.5", className)} data-agent-strip="">
+            {jobs.map((job) => {
+                const waiting = job.status.toLowerCase().startsWith("await") || job.status === "waiting"
+                return (
+                    <div key={job.run_id} className="hub-row" data-density="compact" data-lead="24">
+                        <span />
+                        <span className="hub-row-lead">
+                            <span className="avatar-agent grid size-6 place-items-center rounded-[32%] text-white" aria-hidden>
+                                <Spark className="size-3.5" />
+                            </span>
+                        </span>
+                        <span className="min-w-0 truncate text-ui">
+                            <span className="font-medium">{job.agent_name}</span>
+                            {job.summary ? <span className="text-ink-2"> · {job.summary}</span> : null}
+                        </span>
+                        {waiting ? (
+                            <span className="rounded-[5px] bg-camp-sun-tint px-1.5 text-micro text-camp-sun-ink">Needs you</span>
+                        ) : (
+                            <span className="flex items-center gap-1.5 text-micro text-ink-3">
+                                <span className="size-3 animate-spin rounded-full border-[1.5px] border-agent/25 border-r-agent border-t-agent" aria-hidden />
+                                Working
+                            </span>
+                        )}
+                    </div>
+                )
+            })}
         </section>
     )
 }

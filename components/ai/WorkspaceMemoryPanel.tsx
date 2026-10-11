@@ -545,7 +545,7 @@ function WorkspaceMemoryPanel({
         <div className="flex items-center gap-2.5">
           {/* The AI pages' dusk tile; it was the accent, which is for the one action. */}
           {/* On a phone the top bar names the page; the tile and title show from sm. */}
-          <Tile hue="dusk" className="hidden sm:inline-flex"><Sparkles strokeWidth={1.75} /></Tile>
+          <Tile hue="dusk" className="hidden sm:inline-flex"><Sparkles /></Tile>
           <h1 className="hidden sm:block text-lg sm:text-xl font-semibold truncate min-w-0">
             {channelName ? `Memory in #${channelName}` : "Workspace memory"}
           </h1>
@@ -600,7 +600,7 @@ function WorkspaceMemoryPanel({
                 onClick={() => setStatusView(s.value)}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                   active
-                    ? "bg-background text-foreground shadow-sm"
+                    ? "bg-background text-foreground shadow-e1"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -991,7 +991,7 @@ function EmptyState({
     const word = statusView === "resolved" ? "resolved" : "dismissed"
     return (
       <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-        <Tile hue="dusk" className="mb-4"><CheckCircle2 strokeWidth={1.75} /></Tile>
+        <Tile hue="dusk" className="mb-4"><CheckCircle2 /></Tile>
         <p className="text-sm font-medium">Nothing {word} yet</p>
         <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
           Items you {word === "resolved" ? "resolve" : "dismiss"} will show up here, so you can review or reopen them.
@@ -1002,7 +1002,7 @@ function EmptyState({
 
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-      <Tile hue="dusk" className="mb-4"><Sparkles strokeWidth={1.75} /></Tile>
+      <Tile hue="dusk" className="mb-4"><Sparkles /></Tile>
       {filtered ? (
         <>
           <p className="text-sm font-medium">All clear here</p>

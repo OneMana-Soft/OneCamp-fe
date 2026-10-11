@@ -47,10 +47,7 @@ import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tile } from "@/components/ui/graphics/Tile"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
-import { cn } from "@/lib/utils/helpers/cn"
-import { homeInset } from "@/components/home/homeLines"
 import { useCatchUp } from "@/services/aiService"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -171,79 +168,66 @@ function WhileYouWereAwayCard({
   if (ai === "unknown" || statusLoading) return <AwaySkeleton />
   if (!aiStatus?.data?.enabled) return null
 
+  // H11: a compact row, the last of "What needs me now". The recap opens
+  // under it as a sunken block, and costs its one LLM call only on the click.
+  const open = Boolean(summary) || isLoading || Boolean(error)
   return (
-    <section
-      className="ai-panel hover-lift"
-      aria-labelledby="away-recap-heading"
-    >
-      <div className="ai-panel-head">
-        <Tile hue="sky" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
-        <h2 id="away-recap-heading" className="text-sm font-medium text-foreground">
-          While you were away
-        </h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Dismiss the recap"
-          onClick={handleDismiss}
-          className="ml-auto h-7 w-7 text-muted-foreground hover:text-foreground"
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      <div className={cn("py-3.5", homeInset)}>
-        {summary ? (
-          <>
-            <MarkdownMessage content={summary} className="text-sm" />
-            <ReadBoundary
-              scope="workspace"
-              scopesAllowed={scopesAllowed}
-              className="mt-3 border-t border-border/50 pt-2.5"
-            />
-          </>
-        ) : isLoading ? (
-          // Shaped like the recap that replaces it, so the card does not resize
-          // when the text lands.
-          <div role="status" aria-label="Building your recap" className="space-y-2">
-            <Skeleton className="h-3 w-1/3 rounded" />
-            <Skeleton className="h-2.5 w-11/12 rounded" />
-            <Skeleton className="h-2.5 w-4/5 rounded" />
-            <Skeleton className="h-2.5 w-2/3 rounded" />
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="flex-1 min-w-0 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {unreadTotal} unread {unreadTotal === 1 ? "message" : "messages"}
-              </span>{" "}
-              across {conversationCount}{" "}
-              {conversationCount === 1 ? "conversation" : "conversations"}.
-            </p>
-            <Button size="sm" onClick={handleCatchUp} className="shrink-0 gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
+    <section aria-labelledby="away-recap-heading" data-away-row="">
+      <div className="hub-row" data-density="compact">
+        <span />
+        <span className="hub-row-lead">
+          <AwayMark />
+        </span>
+        <span id="away-recap-heading" className="min-w-0 truncate text-ui font-book">
+          {unreadTotal} unread {unreadTotal === 1 ? "message" : "messages"} across {conversationCount}{" "}
+          {conversationCount === 1 ? "conversation" : "conversations"}
+        </span>
+        <span className="flex items-center gap-1">
+          {!summary ? (
+            <Button variant="secondary" size="xs" onClick={handleCatchUp} disabled={isLoading}>
+              <Sparkles className="size-3" />
               Catch me up
             </Button>
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <p className="flex-1 min-w-0 text-xs text-danger-ink">{error}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCatchUp}
-              disabled={isLoading}
-              className="shrink-0 gap-1.5"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Try again
-            </Button>
-          </div>
-        )}
+          ) : null}
+          <Button variant="ghost" size="icon-xs" aria-label="Dismiss the recap" onClick={handleDismiss}>
+            <X className="size-3.5" />
+          </Button>
+        </span>
       </div>
+      {open ? (
+        <div className="hub-pop ml-[48px] mt-1 rounded-lg bg-sunken px-3.5 py-3" data-away-recap="">
+          <p className="mb-1.5 text-meta font-semibold text-agent-ink">While you were away</p>
+          {summary ? (
+            <div className="hub-stream-chunk">
+              <MarkdownMessage content={summary} className="text-ui" />
+              <ReadBoundary scope="workspace" scopesAllowed={scopesAllowed} className="mt-3 border-t border-line pt-2.5" />
+            </div>
+          ) : isLoading ? (
+            <p role="status" className="hub-shimmer text-ui">
+              Reading {conversationCount} {conversationCount === 1 ? "conversation" : "conversations"}…
+            </p>
+          ) : null}
+          {error ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="min-w-0 flex-1 text-meta text-danger-ink"><span>Couldn&apos;t summarise · </span><span>{error}</span></p>
+              <Button variant="ghost" size="xs" onClick={handleCatchUp} disabled={isLoading}>
+                <RefreshCw className="size-3" />
+                Try again
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </section>
+  )
+}
+
+/** The agent square with a spark, 24px. */
+function AwayMark() {
+  return (
+    <span aria-hidden className="avatar-agent grid size-6 place-items-center rounded-[32%] text-white">
+      <Sparkles className="size-3.5" />
+    </span>
   )
 }
 
@@ -252,18 +236,16 @@ function WhileYouWereAwayCard({
 // AI-free v1 edition doesn't carry this file; on v2 with AI off it renders nothing.
 export default WhileYouWereAwayCard
 
-/** The card's own shape, header and one line, while AI is confirmed. */
+/** The row's own shape while AI is confirmed. */
 function AwaySkeleton() {
   return (
-    <section className="ai-panel" role="status" aria-label="Loading your recap">
-      <div className="ai-panel-head">
-        <Tile hue="sky" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
-        <h2 className="text-sm font-medium text-foreground">While you were away</h2>
-      </div>
-      <div className={cn("flex items-center gap-3 py-3.5", homeInset)}>
-        <Skeleton className="h-4 flex-1 rounded" />
-        <Skeleton className="h-8 w-28 shrink-0 rounded-md" />
-      </div>
-    </section>
+    <div className="hub-row" data-density="compact" role="status" aria-label="Loading your recap">
+      <span />
+      <span className="hub-row-lead">
+        <Skeleton className="size-6 rounded-[32%]" />
+      </span>
+      <Skeleton className="h-3 w-3/5 rounded" />
+      <Skeleton className="h-6 w-24 rounded-sm" />
+    </div>
   )
 }

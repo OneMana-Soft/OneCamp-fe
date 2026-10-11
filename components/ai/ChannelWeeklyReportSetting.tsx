@@ -23,7 +23,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { Switch } from "@/components/ui/switch"
 import { CalendarClock } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
-import { SettingRow } from "@/components/dialog/editChannelDialog"
+import { DetailsRow } from "@/components/channel/details/detailsParts"
 import {
     channelWeeklyReportUrl,
     setChannelWeeklyReport,
@@ -67,7 +67,7 @@ const ChannelWeeklyReportSettingUngated: React.FC<{ channelUUID: string }> = ({ 
     }
 
     return (
-        <SettingRow
+        <DetailsRow
             icon={<CalendarClock className="h-4 w-4" />}
             label="Weekly channel report"
             description="Every Monday, post this channel's open decisions, commitments and questions."
@@ -78,7 +78,7 @@ const ChannelWeeklyReportSettingUngated: React.FC<{ channelUUID: string }> = ({ 
                 onCheckedChange={onToggle}
                 aria-label="Weekly channel report"
             />
-        </SettingRow>
+        </DetailsRow>
     )
 }
 

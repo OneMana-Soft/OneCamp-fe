@@ -39,8 +39,9 @@ vi.mock("@/components/message/bottomMenu", () => ({
     ),
 }))
 let toolbars = 0
-vi.mock("@/components/MessageDesktopHover/MessageDesktopHoverOptionsForRightPanelChatAndChannel", () => ({
-    MessageDesktopHoverOptionsForRightPanelChatAndChannel: () => {
+// A reply's toolbar is the conversation's own (design v3 chat, C19).
+vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel", () => ({
+    MessageDesktopHoverOptionsForMainChatAndChannel: () => {
         toolbars++
         return <div role="toolbar" aria-label="Reply actions"><button>React</button></div>
     },

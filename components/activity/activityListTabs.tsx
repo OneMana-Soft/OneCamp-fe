@@ -2,31 +2,40 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Bell, Settings } from "@/lib/icons"
+import { Inbox as InboxIcon, SlidersHorizontal } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useDispatch } from "react-redux"
 import { ActivityFeedList } from "@/components/activity/activityFeedList"
+import { HubFrame, HubTabs, type HubTab } from "@/components/activity/hubFrame"
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { clearActivityUnread } from "@/services/unreadCache"
-import { SectionTabs } from "@/components/ui/sectionTabs"
 import MyAIActivityCard from "@/components/ai/MyAIActivityCard"
+import InboxNudges from "@/components/ai/InboxNudges"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
+import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import { useReadState, isUnread } from "@/lib/activity/readState"
+import { activityKey, collapseEchoes, hasSubject } from "@/lib/activity/feedPages"
 
-// "ai" is the governance filter the UI critique asked for, and it is a TAB rather
-// than a tenth item in the sidebar on purpose. That critique's own finding is that
-// the nav is a hotel lobby of equal doors and the wedge is quiet; answering it by
-// adding another door would make the first problem worse to fix the second. This
-// puts what the AI did in your name inside chrome people already open.
+// "ai" is the governance record, and it is a TAB rather than a tenth item in the
+// sidebar on purpose: what the AI did in your name sits inside chrome people
+// already open. Its label is "Agents" (design v3, hub.md A2), which is what it
+// records; the URL keeps ?tab=ai so old links still land on it.
 //
 // Comments and Reactions were tabs of their own. Everything in them is in All,
-// in order, and six tabs to read one inbox is the kind of choice a calm tool
-// should not ask for. Old links to them open All.
+// in order. Old links to them open All.
 const VALID_TABS = ["priority", "all", "mentions", "ai"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
+/**
+ * Activity (hub.md A1, A2): one 52px header with the tabs inline, an
+ * "Unread only" switch, "Mark all read" while anything is unread, and the
+ * notification settings as an icon button. Every tab draws in the one frame
+ * underneath (activityFeedFrame).
+ */
 export function ActivityListTabs() {
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -35,53 +44,49 @@ export function ActivityListTabs() {
 
     const [selectedTab, setSelectedTab] = useState<TabValue>(() => {
         const tabFromUrl = searchParams.get("tab")
-        return VALID_TABS.includes(tabFromUrl as TabValue)
-            ? (tabFromUrl as TabValue)
-            : "all"
+        return VALID_TABS.includes(tabFromUrl as TabValue) ? (tabFromUrl as TabValue) : "all"
     })
+    const [unreadOnly, setUnreadOnly] = useState(false)
+    const { read, mark } = useReadState()
+    const [unreadKeys, setUnreadKeys] = useState<string[]>([])
 
-    // Reuse the SAME SWR key the All/Priority list fetches for its FIRST
-    // page, so the count badge shares the cache — no extra request — and
-    // tracks the server's read-state demotion in real time.
-    const { data: firstPage } = useFetch<UnifiedActivityPaginationRes>(
-        `${GetEndpointUrl.GetUnifiedActivity}?limit=20`,
-    )
-    const priorityCount = useMemo(() => {
-        const items: UnifiedActivityItem[] = firstPage?.data?.activities ?? []
-        return items.filter((a) => a.priority === "high").length
-    }, [firstPage])
+    // The SAME SWR key the list fetches for its first page, so the counts share
+    // the cache (no extra request) and follow the server's read-state demotion.
+    const { data: firstPage } = useFetch<UnifiedActivityPaginationRes>(`${GetEndpointUrl.GetUnifiedActivity}?limit=20`)
+    const counts = useMemo(() => {
+        const items: UnifiedActivityItem[] = collapseEchoes((firstPage?.data?.activities ?? []).filter(hasSubject))
+        const unread = items.filter((a) => isUnread(a, activityKey(a), read))
+        return {
+            priority: unread.filter((a) => a.priority === "high").length,
+            all: unread.length,
+            mentions: unread.filter((a) => a.activity_type === "MENTION").length,
+        }
+    }, [firstPage, read])
 
     const aiAvailable = useAIAvailable()
 
-    const tabs = useMemo(
+    const tabs = useMemo<HubTab[]>(
         () => [
-            // Cap the visible count at 9+ so the pill stays compact.
-            { value: "priority", label: "Priority", count: priorityCount > 9 ? "9+" : priorityCount || undefined },
-            { value: "all", label: "All" },
-            { value: "mentions", label: "Mentions" },
-            // Last, and only when there is AI to account for. On the AI-free
-            // edition, and on v2 with AI switched off, an "AI" tab leading to an
-            // empty list would advertise a subsystem this server does not have.
-            ...(aiAvailable ? [{ value: "ai", label: "AI" }] : []),
+            { value: "priority", label: "Priority", count: counts.priority },
+            { value: "all", label: "All", count: counts.all },
+            // A mention is you: its count is the brand badge.
+            { value: "mentions", label: "Mentions", count: counts.mentions, badge: true },
+            // Only when there is AI to account for. On the AI-free edition, and
+            // on v2 with AI switched off, the tab would advertise a subsystem
+            // this server does not have.
+            ...(aiAvailable ? [{ value: "ai", label: "Agents" }] : []),
         ],
-        [priorityCount, aiAvailable],
+        [counts, aiAvailable],
     )
 
-    // A link can ask for a tab this edition does not have: ?tab=ai reaches an
-    // AI-free server from a bookmark, a shared URL or a client that still has
-    // the old menu. Without this the page renders with no tab selected and a
-    // body that gates itself away, which reads as a broken Activity page.
-    // Derived rather than corrected in an effect, because the config request
-    // fails closed while it is in flight and a correction would bounce a
-    // legitimate ?tab=ai to All on every load.
+    // A link can ask for a tab this edition does not have (?tab=ai on an AI-free
+    // server): derived, not corrected in an effect, because the config request
+    // fails closed while in flight.
     const effectiveTab: TabValue = selectedTab === "ai" && !aiAvailable ? "all" : selectedTab
 
     const handleChangeTab = useCallback((value: string) => {
-        if (VALID_TABS.includes(value as TabValue)) {
-            setSelectedTab(value as TabValue)
-        }
+        if (VALID_TABS.includes(value as TabValue)) setSelectedTab(value as TabValue)
     }, [])
-
     const viewAll = useCallback(() => setSelectedTab("all"), [])
 
     useEffect(() => {
@@ -94,40 +99,80 @@ export function ActivityListTabs() {
 
     useEffect(() => {
         dispatch(setTotalUnreadActivityCount({ count: 0 }))
-        // The sidenav cache carries this number too, and re-seeds Redux from it
-        // on remount. See services/unreadCache.ts.
+        // The sidenav cache carries this number too (services/unreadCache.ts).
         clearActivityUnread()
     }, [dispatch])
 
+    // Keys: 1-4 switch tabs, Shift+U marks all read (A1). Never while typing.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            const t = e.target as HTMLElement | null
+            if (e.metaKey || e.ctrlKey || e.altKey || t?.closest?.("input, textarea, [contenteditable=true], [role=dialog]")) return
+            const n = Number(e.key)
+            if (n >= 1 && n <= tabs.length) {
+                setSelectedTab(tabs[n - 1].value as TabValue)
+            } else if (e.key === "U" && e.shiftKey && unreadKeys.length) {
+                mark(unreadKeys, true)
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [tabs, unreadKeys, mark])
+
+    const feed = effectiveTab !== "ai"
+
     return (
-        <SectionTabs
-            tabs={tabs}
-            value={effectiveTab}
-            onValueChange={handleChangeTab}
-            icon={Bell}
-            title="Activity"
-            // What reaches you, and how, is decided in settings; it was
-            // reachable only through the profile menu or the palette.
-            actions={
-                <Link
-                    href="/app/settings/notifications"
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-highlight hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                    aria-label="Notification settings"
-                >
-                    <Settings className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden md:inline">Notification settings</span>
-                </Link>
+        <HubFrame
+            icon={InboxIcon}
+            title="Inbox"
+            tabs={<HubTabs label="Inbox" tabs={tabs} value={effectiveTab} onChange={handleChangeTab} />}
+            controls={
+                <>
+                    {feed ? (
+                        <label className="hidden items-center gap-2 text-xs text-ink-2 sm:flex">
+                            Unread only
+                            <Switch checked={unreadOnly} onCheckedChange={setUnreadOnly} aria-label="Unread only" />
+                        </label>
+                    ) : null}
+                    {feed && unreadKeys.length > 0 ? (
+                        <Button variant="ghost" size="sm" onClick={() => mark(unreadKeys, true)} className="hidden md:inline-flex">
+                            Mark all read
+                        </Button>
+                    ) : null}
+                    {/* What reaches you, and how, is decided in settings. */}
+                    <Link
+                        href="/app/settings/notifications"
+                        aria-label="Notification settings"
+                        title="Notification settings"
+                        className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-4"
+                    >
+                        <SlidersHorizontal aria-hidden="true" />
+                    </Link>
+                </>
             }
         >
-            {/* Every tab draws in the same frame (activityFeedFrame): the AI
-                tab is the record's feed variant, not the settings page's card. */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                {effectiveTab === "ai" ? (
-                    <MyAIActivityCard variant="feed" />
+            {/* Every tab draws in the same frame (activityFeedFrame); a tab
+                switch cross-fades the column, nothing else moves. */}
+            <div key={effectiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                {feed ? (
+                    <>
+                        {/* OneCamp AI's nudges, pinned atop Priority (the bell's
+                            successor, design v3 N1). Gated on AI by the component. */}
+                        {effectiveTab === "priority" && <InboxNudges />}
+                        <ActivityFeedList
+                            view={effectiveTab}
+                            onViewAll={viewAll}
+                            unreadOnly={unreadOnly}
+                            read={read}
+                            onToggleRead={mark}
+                            onUnreadKeys={setUnreadKeys}
+                            onShowAll={() => setUnreadOnly(false)}
+                        />
+                    </>
                 ) : (
-                    <ActivityFeedList view={effectiveTab} onViewAll={viewAll} />
+                    <MyAIActivityCard variant="feed" />
                 )}
             </div>
-        </SectionTabs>
+        </HubFrame>
     )
 }

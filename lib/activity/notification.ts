@@ -1,0 +1,260 @@
+/**
+ * A notification item in words and parts (hub.md A4–A8). Pure, so each kind of
+ * item is tested without rendering.
+ *
+ *   kindOf      which kind badge the item carries (A5)
+ *   sentenceOf  who did what, and where: "Jonas Weber mentioned you in
+ *               #engineering", never "in a post", which hid the place (A4)
+ *   aggregate   reactions to one message within a day, and repeated mentions in
+ *               one thread, as one row (A6)
+ *   dayGroupOf  Today, Yesterday, Earlier this week, Older (A7)
+ *   priorityGroupOf  Needs a reply, Due soon, From agents (A8)
+ */
+import type { UnifiedActivityItem } from "@/types/activity"
+import type { UserProfileDataInterface } from "@/types/user"
+import type { KindBadgeKind } from "@/components/ui/kindBadge"
+
+export type ActivityType = UnifiedActivityItem["activity_type"]
+
+/**
+ * The badge for each type the feed carries. A Record over the union, so a new
+ * type the server starts sending fails to compile until it has a badge, and
+ * badgeForType() refuses one it was never told about.
+ */
+export const BADGE_FOR_TYPE: Record<ActivityType, KindBadgeKind> = {
+  MENTION: "mention",
+  COMMENT: "comment",
+  REACTION: "reaction",
+}
+
+export function badgeForType(type: string): KindBadgeKind {
+  const kind = (BADGE_FOR_TYPE as Record<string, KindBadgeKind | undefined>)[type]
+  if (!kind) throw new Error(`No kind badge for activity type ${type}`)
+  return kind
+}
+
+/** The badge one item carries: a reply to your thread is a reply, an agent's mention is the agent's. */
+export function kindOf(item: UnifiedActivityItem): KindBadgeKind {
+  const base = badgeForType(item.activity_type)
+  if (item.actor_kind === "agent" && base !== "reaction") return "agent"
+  if (item.actor_kind === "app" && base !== "reaction") return "app"
+  if (item.activity_type === "COMMENT" && (item.comment?.comment_post || item.comment?.comment_chat)) return "reply"
+  return base
+}
+
+export interface Sentence {
+  actor: UserProfileDataInterface | undefined
+  verb: string
+  /** The place or object, in bold after the verb ("#engineering", "Customer onboarding"). */
+  place: string
+  /** The words under the sentence, as HTML (mention chips are kept for the preview). */
+  preview: string
+  /** When it happened, to the nanosecond where the record keeps it. */
+  at: string
+}
+
+const channelName = (name?: string) => (name ? `#${name}` : "")
+
+/** Who did what, and where. */
+export function sentenceOf(item: UnifiedActivityItem): Sentence {
+  const m = item.mention
+  const c = item.comment
+  const r = item.reaction
+  if (item.activity_type === "MENTION" && m) {
+    if (m.mention_post) {
+      return { actor: m.mention_post.post_by, verb: "mentioned you in", place: channelName(m.mention_post.post_channel?.ch_name) || "a channel", preview: m.mention_post.post_text ?? "", at: m.mention_created_at || item.time }
+    }
+    if (m.mention_chat) {
+      return { actor: m.mention_chat.chat_from, verb: "mentioned you in", place: "a direct message", preview: m.mention_chat.chat_body_text ?? "", at: m.mention_created_at || item.time }
+    }
+    if (m.mention_comment) {
+      return { actor: m.mention_comment.comment_by, verb: "mentioned you in a comment on", place: commentPlace(m.mention_comment), preview: m.mention_comment.comment_text ?? "", at: m.mention_created_at || item.time }
+    }
+    if (m.mention_task) {
+      return { actor: m.mention_task.task_created_by, verb: "mentioned you in", place: m.mention_task.task_name || "a task", preview: "", at: m.mention_created_at || item.time }
+    }
+    if (m.mention_doc) {
+      return { actor: m.mention_doc.doc_created_by, verb: "mentioned you in", place: m.mention_doc.doc_title || "a doc", preview: "", at: m.mention_created_at || item.time }
+    }
+  }
+  if (item.activity_type === "COMMENT" && c) {
+    const onMessage = c.comment_post || c.comment_chat
+    return {
+      actor: c.comment_by,
+      verb: onMessage ? "replied to your thread in" : "commented on",
+      place: commentPlace(c),
+      preview: c.comment_text ?? "",
+      at: c.comment_created_at || item.time,
+    }
+  }
+  if (item.activity_type === "REACTION" && r) {
+    const place = channelName(r.post?.post_channel?.ch_name) || (r.chat ? "a direct message" : "") || r.reaction_task?.task_name || r.reaction_doc?.doc_title || ""
+    return {
+      actor: r.reaction_added_by,
+      verb: place ? "reacted to your message in" : "reacted to your message",
+      place,
+      preview: r.post?.post_text || r.chat?.chat_body_text || r.comment?.comment_text || "",
+      at: r.reaction_added_at || item.time,
+    }
+  }
+  return { actor: undefined, verb: "", place: "", preview: "", at: item.time }
+}
+
+function commentPlace(c: NonNullable<UnifiedActivityItem["comment"]>): string {
+  return (
+    channelName(c.comment_post?.post_channel?.ch_name) ||
+    (c.comment_chat ? "a direct message" : "") ||
+    c.comment_task?.task_name ||
+    c.comment_doc?.doc_title ||
+    c.comment_board?.board_title ||
+    "your post"
+  )
+}
+
+/** A row of the feed: one item, or several collapsed into one (A6). */
+export interface FeedEntry {
+  key: string
+  item: UnifiedActivityItem
+  /** Everyone else in a collapsed row, newest first. */
+  others: UnifiedActivityItem[]
+  /** "reactions" for reactions to one message, "mentions" for repeated mentions in one thread. */
+  collapsed?: "reactions" | "mentions"
+}
+
+const DAY_MS = 86_400_000
+
+function reactionTarget(item: UnifiedActivityItem): string {
+  const r = item.reaction
+  return r?.post?.post_uuid || r?.chat?.chat_uuid || r?.comment?.comment_uuid || r?.reaction_task?.task_uuid || r?.reaction_doc?.doc_uuid || ""
+}
+
+function mentionThread(item: UnifiedActivityItem): string {
+  const m = item.mention
+  const by = m?.mention_post?.post_by?.user_uuid || m?.mention_comment?.comment_by?.user_uuid || m?.mention_chat?.chat_from?.user_uuid || ""
+  const comment = m?.mention_comment
+  const thread = comment?.comment_post?.post_uuid || comment?.comment_chat?.chat_uuid || ""
+  return thread && by ? `${thread}|${by}` : ""
+}
+
+/**
+ * Collapses, newest first:
+ *   - reactions to one message within 24 hours of the newest: "Maya Chen and 2
+ *     others reacted to your message in #design";
+ *   - one person's mentions of you in one thread: "Jonas Weber mentioned you 3
+ *     times in #engineering".
+ * Everything else is its own row. `keyOf` names an item (activityKey).
+ */
+export function aggregate(items: UnifiedActivityItem[], keyOf: (item: UnifiedActivityItem) => string): FeedEntry[] {
+  const out: FeedEntry[] = []
+  const reactionRow = new Map<string, FeedEntry>()
+  const mentionRow = new Map<string, FeedEntry>()
+  for (const item of items) {
+    if (item.activity_type === "REACTION") {
+      const target = reactionTarget(item)
+      const row = target ? reactionRow.get(target) : undefined
+      if (row && Math.abs(Date.parse(row.item.time) - Date.parse(item.time)) <= DAY_MS) {
+        row.others.push(item)
+        row.collapsed = "reactions"
+        continue
+      }
+      const entry: FeedEntry = { key: keyOf(item), item, others: [] }
+      if (target) reactionRow.set(target, entry)
+      out.push(entry)
+      continue
+    }
+    if (item.activity_type === "MENTION") {
+      const thread = mentionThread(item)
+      const row = thread ? mentionRow.get(thread) : undefined
+      if (row) {
+        row.others.push(item)
+        row.collapsed = "mentions"
+        continue
+      }
+      const entry: FeedEntry = { key: keyOf(item), item, others: [] }
+      if (thread) mentionRow.set(thread, entry)
+      out.push(entry)
+      continue
+    }
+    out.push({ key: keyOf(item), item, others: [] })
+  }
+  return out
+}
+
+/** The verb of a collapsed row. */
+export function collapsedVerb(entry: FeedEntry): string | null {
+  if (entry.collapsed === "mentions") return `mentioned you ${entry.others.length + 1} times in`
+  return null
+}
+
+/** Distinct other people in a collapsed reactions row. */
+export function othersCount(entry: FeedEntry): number {
+  const first = entry.item.reaction?.reaction_added_by?.user_uuid
+  const ids = new Set(entry.others.map((o) => o.reaction?.reaction_added_by?.user_uuid).filter((id) => id && id !== first))
+  return ids.size
+}
+
+export type DayGroup = "Today" | "Yesterday" | "Earlier this week" | "Older"
+
+/** The day header an item sits under, by the device's own day. */
+export function dayGroupOf(at: string, now = new Date()): DayGroup {
+  const t = new Date(at)
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  const d = start.getTime() - new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
+  if (d <= 0) return "Today"
+  if (d <= DAY_MS) return "Yesterday"
+  if (d < 7 * DAY_MS) return "Earlier this week"
+  return "Older"
+}
+
+export type PriorityGroup = "Needs a reply" | "Due soon" | "From agents"
+
+/** Priority's groups, in place of day headers. */
+export function priorityGroupOf(item: UnifiedActivityItem): PriorityGroup {
+  if (item.actor_kind === "agent") return "From agents"
+  if (item.mention?.mention_task || item.comment?.comment_task) return "Due soon"
+  return "Needs a reply"
+}
+
+export const PRIORITY_GROUP_ORDER: PriorityGroup[] = ["Needs a reply", "Due soon", "From agents"]
+
+export interface PreviewPart {
+  text: string
+  /** A mention chip: "me" for the reader, "other" for anybody else. */
+  mention?: "me" | "other"
+}
+
+/**
+ * The preview line's parts: text, and mention chips. The reader's own mention
+ * becomes "@You" (the brand-muted chip); anybody else's stays their name in a
+ * neutral chip. The raw HTML is never rendered.
+ */
+export function previewParts(html: string, meId: string | undefined): PreviewPart[] {
+  const parts: PreviewPart[] = []
+  const re = /<span[^>]*data-type="mention"[^>]*>([\s\S]*?)<\/span>/g
+  let last = 0
+  const pushText = (raw: string) => {
+    const text = decode(raw.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ")
+    if (text.trim()) parts.push({ text })
+  }
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    pushText(html.slice(last, m.index))
+    const id = /data-id="([^"@]+)/.exec(m[0])?.[1]
+    const label = decode(m[1].replace(/<[^>]*>/g, "")).trim()
+    parts.push(meId && id === meId ? { text: "@You", mention: "me" } : { text: label.startsWith("@") ? label : `@${label}`, mention: "other" })
+    last = re.lastIndex
+  }
+  pushText(html.slice(last))
+  if (parts[0] && !parts[0].mention) parts[0] = { text: parts[0].text.trimStart() }
+  return parts
+}
+
+function decode(s: string): string {
+  return s
+    .replace(/&nbsp;|&#160;/g, " ")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+}

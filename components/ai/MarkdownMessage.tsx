@@ -8,6 +8,8 @@ import SvgChart from "@/components/charts/SvgChart";
 import AgentHtmlArtifact from "@/components/ai/AgentHtmlArtifact";
 import { normalizeQueryPlan } from "@/lib/utils/queryPlanSpec";
 import AgentQueryPlan from "@/components/ai/AgentQueryPlan";
+import { CiteToken } from "@/components/ai/Citations";
+import { CodeBlock } from "@/components/ai/CodeBlock";
 
 /**
  * MarkdownMessage — a tiny, dependency-free, safe markdown renderer tuned for
@@ -29,8 +31,10 @@ function sanitizeHref(href: string): string | null {
 
 // Inline token matcher. Order matters: code first (so formatting inside code is
 // ignored), then links, then bold (**/__) before italic (*/_), then bare URLs.
+// A citation marker, [n], comes first so it wins at its position; the
+// lookahead leaves a link's [text](href) to the link rule.
 const INLINE_RE =
-    /(`[^`]+`)|(\[[^\]]+\]\([^)\s]+\))|(\*\*[\s\S]+?\*\*)|(__[\s\S]+?__)|(\*[^*\n]+?\*)|(_[^_\n]+?_)|(https?:\/\/[^\s)]+)/;
+    /(\[\d{1,2}\](?!\())|(`[^`]+`)|(\[[^\]]+\]\([^)\s]+\))|(\*\*[\s\S]+?\*\*)|(__[\s\S]+?__)|(\*[^*\n]+?\*)|(_[^_\n]+?_)|(https?:\/\/[^\s)]+)/;
 
 function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
     const out: React.ReactNode[] = [];
@@ -49,11 +53,15 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
         const token = m[0];
         const key = `${keyPrefix}-${n++}`;
 
-        if (token.startsWith("`")) {
+        if (/^\[\d{1,2}\]$/.test(token)) {
+            // Inside an answer with sources, a numbered marker (hub.md AI8);
+            // anywhere else, the brackets as they were written.
+            out.push(<CiteToken key={key} n={Number(token.slice(1, -1))} raw={token} />);
+        } else if (token.startsWith("`")) {
             out.push(
                 <code
                     key={key}
-                    className="px-1 py-0.5 rounded bg-foreground/10 font-mono text-[0.85em] [overflow-wrap:anywhere]"
+                    className="rounded-xs bg-press px-1 py-px font-mono text-meta [overflow-wrap:anywhere]"
                 >
                     {token.slice(1, -1)}
                 </code>
@@ -70,7 +78,7 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
                             key={key}
                             href={href}
                             prefetch={false}
-                            className="text-primary underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]"
+                            className="text-brand-text underline-offset-2 hover:underline [overflow-wrap:anywhere]"
                         >
                             {link[1]}
                         </Link>
@@ -82,7 +90,7 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
                             key={key}
                             href={href}
                             {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                            className="text-primary underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]"
+                            className="text-brand-text underline-offset-2 hover:underline [overflow-wrap:anywhere]"
                         >
                             {link[1]}
                         </a>
@@ -111,7 +119,7 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
                     href={token}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]"
+                    className="text-brand-text underline-offset-2 hover:underline [overflow-wrap:anywhere]"
                 >
                     {token}
                 </a>
@@ -124,10 +132,11 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
     return out;
 }
 
+// h1 to h3 at 16/24, 15/22 and 14.5/22, all 590 (hub.md AI5).
 const HEADING_SIZES = [
-    "text-base font-semibold",
-    "text-sm font-semibold",
-    "text-sm font-semibold",
+    "text-base leading-6 font-semibold",
+    "text-body leading-[22px] font-semibold",
+    "text-ui leading-[22px] font-semibold",
     "text-sm font-semibold",
     "text-sm font-semibold",
     "text-sm font-semibold",
@@ -273,14 +282,7 @@ function parseBlocks(src: string): React.ReactNode[] {
                 continue;
             }
 
-            blocks.push(
-                <pre
-                    key={key++}
-                    className="my-0.5 p-2.5 rounded-lg bg-foreground/[0.06] border border-border/60 overflow-x-auto text-xs font-mono leading-relaxed"
-                >
-                    <code>{code.join("\n")}</code>
-                </pre>
-            );
+            blocks.push(<CodeBlock key={key++} language={fence[1]} code={code.join("\n")} />);
             continue;
         }
 
@@ -391,7 +393,7 @@ function parseBlocks(src: string): React.ReactNode[] {
             blocks.push(
                 <ul
                     key={key++}
-                    className="list-disc pl-5 flex flex-col gap-0.5 marker:text-muted-foreground"
+                    className="list-disc pl-5 flex flex-col gap-1.5 marker:text-ink-3"
                 >
                     {items}
                 </ul>
@@ -414,7 +416,7 @@ function parseBlocks(src: string): React.ReactNode[] {
             blocks.push(
                 <ol
                     key={key++}
-                    className="list-decimal pl-5 flex flex-col gap-0.5 marker:text-muted-foreground"
+                    className="list-decimal pl-5 flex flex-col gap-1.5 marker:text-ink-3"
                 >
                     {items}
                 </ol>
@@ -462,7 +464,7 @@ interface MarkdownMessageProps {
 const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, className }) => {
     const blocks = React.useMemo(() => parseBlocks(content), [content]);
     return (
-        <div className={cn("flex flex-col gap-2 min-w-0 [overflow-wrap:anywhere]", className)}>
+        <div className={cn("flex flex-col gap-2.5 min-w-0 [overflow-wrap:anywhere]", className)}>
             {blocks}
         </div>
     );

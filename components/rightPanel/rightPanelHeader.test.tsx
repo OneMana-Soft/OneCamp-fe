@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-// Every view in the right panel opens under the one 48px header. A view with
+// Every view in the right panel opens under the one 52px header (design v3, V1). A view with
 // controls of its own (an event's Edit or Delete) hands them to the header,
 // which draws them just left of the close button, on the title row's centre
 // line, rather than in a second row of its own that moved the panel's top.
@@ -26,7 +26,9 @@ describe("the right panel's header", () => {
     const close = screen.getByRole("button", { name: "Close panel" })
     // One group on the right, centred on the row like the title.
     expect(row.className).toMatch(/\bitems-center\b/)
-    expect(row.className).toMatch(/\bh-12\b/)
+    expect(row.className).toMatch(/\bh-\[52px\]/)
+    expect(row.className).toMatch(/\bpl-5\b/)
+    expect(row.className).toMatch(/\bborder-line\b/)
     const group = close.closest("[data-panel-actions]") as HTMLElement
     expect(group).not.toBeNull()
     expect(group.contains(edit)).toBe(true)

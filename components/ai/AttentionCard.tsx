@@ -1,85 +1,85 @@
 "use client"
 
 /**
- * AttentionCard — "What needs me now" on the home screen.
+ * The AI's part of "What needs me now" on Home (hub.md H8, H9).
  *
- * The cross-surface arm of the workspace AI: one prioritized list of
- * everything that requires the member's action, drawn from every OneCamp
- * surface at once (pending approvals, overdue tasks, overdue commitments,
- * open questions, and upcoming calendar items). The single thing no
- * single-surface tool can do, surfaced as one calm queue so the member stops
- * checking five places.
+ * The cross-surface arm of the workspace AI: agent requests waiting for your
+ * yes, and what it found overdue or open across OneCamp (tasks, commitments,
+ * questions). It adds those to the rows Home builds without AI (mentions, DMs,
+ * tasks due: components/home/useHomeNeeds) and draws them all in the shared
+ * section (components/home/NeedsMeSection), so the queue is one list with one
+ * row anatomy whether AI is on or not.
  *
- * Read-only: each row deep-links to its source. Self-hides when AI is off or
- * there is nothing that needs the member, so it never adds dashboard noise.
+ * Agent requests are approved or dismissed in place, as you, through the
+ * durable approval service; the outcome is said on the row (an approval that
+ * fails keeps its row and names the reason), never only in a toast.
  */
 
-import React, { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import React, { useEffect, useState, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
-import { getAttention, ATTENTION_KEY, AttentionResult, AttentionItem } from "@/services/memoryService"
+import { getAttention, ATTENTION_KEY, type AttentionResult, type AttentionItem } from "@/services/memoryService"
 import { forgetShared, peekShared } from "@/lib/utils/sharedRequest"
 import { approvePendingAction, rejectPendingAction } from "@/services/pendingActionService"
 import { removePendingAction } from "@/store/slice/pendingActionSlice"
-import { useToast } from "@/hooks/use-toast"
-import {
-  Sparkles,
-  Inbox,
-  CircleCheck,
-  CheckCircle2,
-  HelpCircle,
-  Calendar,
-  Clock,
-  ArrowUpRight,
-  Check,
-  X,
-  Loader2,
-} from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
-import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
-import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils/helpers/cn"
-import { Tile } from "@/components/ui/graphics/Tile"
-import type { CampHue } from "@/lib/campHue"
 import { dueLabel } from "@/lib/utils/dueLabel"
-import { homeGap, homeInset, homeTextInset } from "@/components/home/homeLines"
+import { NeedsMeSection } from "@/components/home/NeedsMeSection"
+import { SHARED_ACTIONS } from "@/components/home/needsActions"
+import { mergeNeeds, type NeedsItem } from "@/components/home/needsMe"
 
-// Per-source icon so each row's origin is recognisable at a glance, on a tile
-// of the source's camp hue. The hue names the kind of thing, never its state:
-// lateness is said in words, in red, on the row itself (every task used to
-// carry a red icon whether or not it was late, which read as an error).
-const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-  approval: Inbox,
-  task: CircleCheck,
-  commitment: CheckCircle2,
-  question: HelpCircle,
-  calendar: Calendar,
-}
-const SOURCE_HUE: Record<string, CampHue> = {
-  approval: "sun",
-  task: "moss",
-  commitment: "dusk",
-  question: "berry",
-  calendar: "sky",
+/** The AI's attention items as Home's rows. Calendar items are the agenda's. Pure. */
+export function attentionToNeeds(items: AttentionItem[], now: Date): NeedsItem[] {
+  const out: NeedsItem[] = []
+  items.forEach((it, i) => {
+    const id = `ai:${it.source}:${it.ref_id || it.url || i}`
+    if (it.source === "approval" && it.ref_id) {
+      out.push({ id, kind: "agent", title: it.title, context: it.subtitle || undefined, refId: it.ref_id })
+      return
+    }
+    if (it.source === "task" || it.source === "commitment") {
+      const overdue = it.kind.toLowerCase().startsWith("overdue") || (it.due_time ? Date.parse(it.due_time) < now.getTime() : false)
+      out.push({
+        id,
+        kind: "due",
+        title: it.title,
+        status: "todo",
+        due: dueLabel(it.due_time, now) || it.kind,
+        overdue,
+        project: it.context ? { id: it.context, name: it.context } : undefined,
+        href: it.url,
+        taskUuid: it.source === "task" ? it.ref_id : undefined,
+      })
+      return
+    }
+    if (it.source === "question") {
+      out.push({ id, kind: "reply", title: it.title, quote: it.subtitle, href: it.url })
+    }
+  })
+  return out
 }
 
-function AttentionCard() {
-  const router = useRouter()
+interface AttentionCardProps {
+  /** The rows Home has without AI, which this adds to. */
+  base?: NeedsItem[]
+  baseLoading?: boolean
+  footer?: ReactNode
+  noChannels?: ReactNode
+  className?: string
+}
+
+function AttentionCard({ base = [], baseLoading = false, footer, noChannels, className }: AttentionCardProps) {
   const dispatch = useDispatch()
-  const { toast } = useToast()
   // Start from the answer kept from a moment ago, if any, so coming back to
   // Home shows the list at once instead of a placeholder.
   const [data, setData] = useState<AttentionResult | null>(() => peekShared<AttentionResult>(ATTENTION_KEY) ?? null)
   const [loading, setLoading] = useState(() => peekShared(ATTENTION_KEY) === undefined)
-  // Per-approval in-flight state, keyed by pending-action id (ref_id).
-  const [busy, setBusy] = useState<Record<string, boolean>>({})
+  const [now] = useState(() => new Date())
 
   useEffect(() => {
     let alive = true
-    // One retry: this fires on mount right after the dashboard loads, so a
-    // transient blip (a request racing the auth token on a fresh session, a
-    // cold backend) shouldn't hide the card for the rest of the session with
-    // no way to recover. Only give up (treat as "AI off") after a retry.
+    // One retry: this fires right after the dashboard loads, so a transient
+    // blip (a request racing the auth token, a cold backend) shouldn't hide
+    // the AI's rows for the rest of the session.
     const load = (attempt: number) => {
       getAttention()
         .then((res) => {
@@ -104,253 +104,42 @@ function AttentionCard() {
     }
   }, [])
 
-  // Drop a resolved item from the list and keep the per-source counts honest.
-  const removeItem = (it: AttentionItem) => {
-    forgetShared(ATTENTION_KEY)
-    setData((prev) => {
-      if (!prev) return prev
-      const items = prev.items.filter((x) => x !== it)
-      const counts = { ...prev.counts }
-      if (counts[it.source]) counts[it.source] -= 1
-      return { ...prev, items, counts }
-    })
+  const forget = () => forgetShared(ATTENTION_KEY)
+
+  const onApprove = async (item: NeedsItem) => {
+    if (!item.refId) throw new Error("the request is gone")
+    const resolved = await approvePendingAction(item.refId)
+    dispatch(removePendingAction(item.refId))
+    forget()
+    if (resolved?.status === "failed") throw new Error(resolved.error || "it could not be completed")
+  }
+  const onDismiss = async (item: NeedsItem) => {
+    if (!item.refId) return
+    await rejectPendingAction(item.refId)
+    dispatch(removePendingAction(item.refId))
+    forget()
   }
 
-  const handleApprove = async (it: AttentionItem) => {
-    if (!it.ref_id || busy[it.ref_id]) return
-    setBusy((b) => ({ ...b, [it.ref_id as string]: true }))
-    try {
-      const resolved = await approvePendingAction(it.ref_id)
-      dispatch(removePendingAction(it.ref_id))
-      if (resolved?.status === "failed") {
-        toast({ title: "Action failed", description: resolved.error || "Could not complete.", variant: "destructive" })
-      } else {
-        toast({ title: "Done", description: resolved?.result || it.title })
-      }
-      removeItem(it)
-    } catch {
-      toast({ title: "Error", description: "Could not process the approval. Please try again.", variant: "destructive" })
-    } finally {
-      setBusy((b) => ({ ...b, [it.ref_id as string]: false }))
-    }
-  }
-
-  const handleDismiss = async (it: AttentionItem) => {
-    if (!it.ref_id || busy[it.ref_id]) return
-    setBusy((b) => ({ ...b, [it.ref_id as string]: true }))
-    try {
-      await rejectPendingAction(it.ref_id)
-      dispatch(removePendingAction(it.ref_id))
-      toast({ title: "Dismissed", description: "I won't run that." })
-      removeItem(it)
-    } catch {
-      toast({ title: "Error", description: "Could not dismiss. Please try again.", variant: "destructive" })
-    } finally {
-      setBusy((b) => ({ ...b, [it.ref_id as string]: false }))
-    }
-  }
-
-  // While loading, hold the card's place with its own chrome and one row.
-  // Returning nothing here and then appearing pushed the whole Home page down
-  // under the reader's eyes (layout shift 0.18 on the demo). This card only
-  // mounts where AI is available, so an AI-free install never sees the frame.
-  if (loading) return <AttentionCardSkeleton />
-  if (!data || !data.enabled) return null
-  // Guard the collection defensively: the service normalizes it to an array,
-  // but never assume — a null/omitted items slice must hide the card, not
-  // throw during render.
-  const items = Array.isArray(data.items) ? data.items : []
-  // EMPTY IS AN ANSWER, not an absence. The card used to vanish, so a day with
-  // nothing to do looked exactly like a card that failed to load, and clearing
-  // the last approval made the whole thing disappear under the reader's
-  // cursor. Saying "nothing needs you" is the moment the page is finished.
-  if (items.length === 0) {
-    return (
-      <div className="ai-panel hover-lift" role="status">
-        <div className="ai-panel-head">
-          <Tile hue="moss" size="sm"><CircleCheck strokeWidth={1.75} /></Tile>
-          <h2 className="text-sm font-medium text-foreground">Nothing needs you right now</h2>
-        </div>
-        <p className={cn("pb-3 text-xs text-muted-foreground", homeTextInset)}>
-          Approvals, overdue work and questions waiting on you land here.
-        </p>
-      </div>
-    )
-  }
-
-  // An approval has no navigable destination (it's acted on inline where it
-  // was raised); every other source deep-links to its surface.
-  const go = (it: AttentionItem) => {
-    if (!it.url) return
-    if (it.source === "calendar") {
-      window.open(it.url, "_blank", "noopener,noreferrer")
-      return
-    }
-    router.push(it.url)
-  }
+  // Guard the collection: a null items slice must not throw during render.
+  const aiItems = data?.enabled && Array.isArray(data.items) ? attentionToNeeds(data.items, now) : []
+  // The AI's rows first where both name one task (its due phrase is exact).
+  const items = mergeNeeds(aiItems, base)
 
   return (
-    <div className="ai-panel hover-lift">
-      <div className="ai-panel-head">
-        <Tile hue="sun" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
-        <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
-        <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
-      </div>
-
-      <ul className="divide-y divide-border/40">
-        {items.map((it, i) => {
-          const Icon = SOURCE_ICON[it.source] || Sparkles
-          const hue = SOURCE_HUE[it.source] ?? "lake"
-          const clickable = !!it.url
-          const overdue = it.kind.toLowerCase().startsWith("overdue")
-          // Said once and in the reader's zone when the exact moment is known;
-          // older backends send only kind and subtitle, which still render.
-          const due = dueLabel(it.due_time, new Date())
-          const isApproval = it.source === "approval" && !!it.ref_id
-          const rowBusy = it.ref_id ? !!busy[it.ref_id] : false
-          const Row = (
-            <AttentionRowFrame
-              className="hover:bg-accent/40 transition-colors"
-              tile={<Tile hue={hue} size="sm" className="-mt-0.5"><Icon /></Tile>}
-              title={it.title}
-              meta={
-                <>
-                  <span
-                    className={`inline-flex items-center gap-1 text-2xs ${
-                      overdue ? "text-danger-ink font-medium" : "text-muted-foreground"
-                    }`}
-                  >
-                    {overdue && <Clock className="h-3 w-3" />}
-                    {due || it.kind}
-                  </span>
-                  {(due ? it.context : it.subtitle) && (
-                    <span className="text-2xs text-muted-foreground/80 truncate max-w-[220px]">
-                      {due ? it.context : it.subtitle}
-                    </span>
-                  )}
-                </>
-              }
-              trailing={clickable && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 mt-0.5" />}
-            />
-          )
-          // Approval rows are acted on inline (Approve/Dismiss) — runs as the
-          // user with their permissions, reusing the durable approval service.
-          if (isApproval) {
-            return (
-              <li key={`${it.source}-${it.ref_id || i}`}>
-                <div className={cn("flex items-start py-2.5", homeInset, homeGap)}>
-                  <Tile hue="sun" size="sm" className="-mt-0.5"><Inbox /></Tile>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm leading-snug">{it.title}</span>
-                    <span className="text-2xs text-muted-foreground">{it.subtitle || it.kind}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      disabled={rowBusy}
-                      onClick={() => handleDismiss(it)}
-                      title="Dismiss"
-                      className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={rowBusy}
-                      onClick={() => handleApprove(it)}
-                      title="Approve"
-                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-2xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {rowBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                      Approve
-                    </button>
-                  </span>
-                </div>
-              </li>
-            )
-          }
-          return (
-            <li key={`${it.source}-${it.ref_id || it.url || i}`}>
-              {clickable ? (
-                <button type="button" onClick={() => go(it)} className="block w-full">
-                  {Row}
-                </button>
-              ) : (
-                <div className="block w-full cursor-default">{Row}</div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+    <NeedsMeSection
+      items={items}
+      loading={(loading && base.length === 0) || baseLoading}
+      footer={footer}
+      noChannels={noChannels}
+      className={className}
+      onApprove={onApprove}
+      onDismiss={onDismiss}
+      {...SHARED_ACTIONS}
+    />
   )
 }
 
-// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
-// whenever an admin has switched AI off. Wrapping the export covers every place this
-// is rendered, desktop and mobile, instead of asking each of them to remember.
-//
-// While the server's config is still on its way, whether AI is on is unknown,
-// and the gate rendered nothing: the card then arrived and pushed everything
-// under it down (most of Home's layout shift on the demo). It holds its place
-// in that moment instead; only a server that turns out to have AI off sees the
-// placeholder go.
-const GatedAttentionCard = withAI(AttentionCard)
-
-function AttentionCardSlot() {
-  const ai = useFeatureState(FEATURE_AI)
-  if (ai === "unknown") return <AttentionCardSkeleton />
-  return <GatedAttentionCard />
-}
-
-export default AttentionCardSlot
-
-function AttentionCardSkeleton() {
-  return (
-    <div className="ai-panel" role="status" aria-label="Loading what needs you">
-      <div className="ai-panel-head">
-        <Tile hue="sun" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
-        <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
-      </div>
-      {/* One row in the real row's frame and line boxes, so the card that
-          replaces it is exactly as tall: the grid under it used to move 3 px. */}
-      <AttentionRowFrame
-        tile={<Skeleton className="-mt-0.5 size-6 shrink-0 rounded-md" />}
-        title={<Skeleton className="inline-block h-3 w-2/3 align-middle" />}
-        meta={
-          <span className="inline-flex items-center text-2xs">
-            <Skeleton className="h-2.5 w-24" />
-            {"\u200b"}
-          </span>
-        }
-      />
-    </div>
-  )
-}
-
-/**
- * One row of the card: its tile, a title line and a line of details. The
- * skeleton draws its row in this same frame, so loading never changes the
- * card's height.
- */
-function AttentionRowFrame({ tile, title, meta, trailing, className }: {
-  tile: React.ReactNode
-  title: React.ReactNode
-  meta: React.ReactNode
-  trailing?: React.ReactNode
-  className?: string
-}) {
-  return (
-    // On Home's two lines (homeLines): every row's tile under the card's,
-    // every title on the card title's line. Rows sat 2px right of the title
-    // and approvals 2px left of it.
-    <span data-attention-row className={cn("w-full text-left flex items-start py-2.5", homeInset, homeGap, className)}>
-      {tile}
-      <span className="min-w-0 flex-1">
-        <span data-attention-title className="block text-sm leading-snug truncate">{title}</span>
-        <span data-attention-meta className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">{meta}</span>
-      </span>
-      {trailing}
-    </span>
-  )
-}
+// Gated on the AI subsystem: hidden on the AI-free edition and wherever an
+// admin has switched AI off. Home renders it only when AI is on, and draws the
+// same section from its own rows otherwise (components/home/NeedsMe).
+export default withAI(AttentionCard)

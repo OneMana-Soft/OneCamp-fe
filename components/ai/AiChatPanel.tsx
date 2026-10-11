@@ -1,7 +1,24 @@
 "use client";
 
+import "./ai.css"
+/**
+ * OneCamp AI, as the right panel beside a page and as /app/ai (hub.md AI1 to
+ * AI12, design v3).
+ *
+ *   - The header is 52 px: the agent-square mark (AI is agent identity), the
+ *     name, the model chip, then New chat, History, More and Close.
+ *   - Your words sit in a neutral bubble, right; the answer is flat text
+ *     beside the mark, the way Claude and ChatGPT set a conversation, with its
+ *     plan, its sources and an action row under it.
+ *   - Before the first word the mark breathes beside a shimmering label (the
+ *     plan's current step, or "Thinking…"). There is no spinner in the AI.
+ *     Text appears as it arrives (components/ai/StreamingText).
+ *   - The page keeps a 720 px column; empty, the composition and a wider
+ *     composer sit together at 38% of the height, and the composer glides to
+ *     the bottom (by transform) when the first question is asked.
+ */
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { useAskAIStream } from "@/services/aiService";
+import { useAskAIStream, type StreamStep } from "@/services/aiService";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import ActionConfirmation from "@/components/ai/ActionConfirmation";
 import AiModelPicker from "@/components/ai/AiModelPicker";
@@ -14,23 +31,39 @@ import { ChatHistoryMenu, type ResumedConversation } from "@/components/ai/ChatH
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
 import { ProposedAction, getChatSessionState } from "@/services/aiService";
-import { ANSWER_POLL_MS, STILL_WRITING, nextRecoveryStep } from "@/services/answerRecovery";
+import { ANSWER_POLL_MS, nextRecoveryStep } from "@/services/answerRecovery";
 import { forgetConversation, readLastConversation, rememberConversation } from "@/lib/ai/lastConversation";
 import { sendTarget } from "@/lib/ai/sendTarget";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { X, Send, Sparkles, Scissors, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone, CalendarClock, MoreHorizontal, SlidersHorizontal, Mic } from "@/lib/icons";
+import {
+    AlertCircle,
+    ArrowDown,
+    CalendarClock,
+    Check,
+    Copy,
+    FileText,
+    Hash,
+    Lightbulb,
+    Megaphone,
+    MessageSquare,
+    MoreHorizontal,
+    RotateCcw,
+    Scissors,
+    SlidersHorizontal,
+    SquarePen,
+    X,
+} from "@/lib/icons";
 import { useVoiceDictation, dictationLabel } from "@/hooks/useVoiceDictation";
 import { useToast } from "@/hooks/use-toast";
-import { StopCircle } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMedia } from "@/context/MediaQueryContext";
@@ -38,22 +71,17 @@ import { useRouter } from "next/navigation";
 import { getOtherUserId } from "@/lib/utils/getOtherUserId";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
-import { withAI } from "@/components/common/withFeature"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
-
-/**
- * OneCamp AI's mark: a dusk tile, the AI pages' hue (lib/destinationHue). It was
- * the accent at 10%, and orange is for the one action a view asks for.
- */
-function AiMark({ className }: { className?: string }) {
-    return (
-        <Tile hue="dusk" size="sm" className={className}>
-            <Sparkles strokeWidth={1.75} />
-        </Tile>
-    );
-}
+import { withAI } from "@/components/common/withFeature";
+import { AiMark } from "@/components/ai/AiMark";
+import { AiEmpty } from "@/components/ai/AiEmpty";
+import { AiComposer } from "@/components/ai/AiComposer";
+import { StreamingAnswer } from "@/components/ai/StreamingText";
+import { PlanSteps } from "@/components/ai/PlanSteps";
+import { CitationContext, SourceChips, type SourceChipItem } from "@/components/ai/Citations";
+import { numberCitations, orderSources } from "@/components/ai/citations";
+import { suggestionsFrom, type Suggestion, type SuggestionContext } from "@/components/ai/suggestions";
+import { getAttention } from "@/services/memoryService";
+import { prefersReducedMotion } from "@/lib/celebrate";
 
 // --- Client-side AI text sanitization ---
 // Defense-in-depth: strip tool_call XML, UUIDs, and command syntax before display.
@@ -97,6 +125,8 @@ interface ChatMessage {
      * newest reply would be describing the wrong one.
      */
     notice?: string;
+    /** The plan's steps, when the server streamed them (components/ai/PlanSteps). */
+    steps?: StreamStep[];
     timestamp: Date;
 }
 
@@ -215,12 +245,6 @@ const CONTEXT_SUGGESTIONS: Record<string, string[]> = {
     ],
 };
 
-const DEFAULT_SUGGESTIONS = [
-    "What are the recent updates in my channels?",
-    "Summarize my pending tasks",
-    "What did the team discuss today?",
-];
-
 // cleanSnippet strips HTML markup and collapses whitespace so source previews
 // read as plain text. Backend snippets sometimes carry raw doc markup (e.g.
 // "<p xmlns=...>") — without this they leak tags into the citation strip.
@@ -235,80 +259,175 @@ function cleanSnippet(raw: string): string {
         .trim();
 }
 
-// SourceList renders the grounding citations under an assistant answer in a
-// calm, collapsible "Sources" strip — the trust signal that the answer is
-// drawn from real workspace content, each one clickable.
-const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; onOpen: (href: string) => void }> = ({ sources, currentUserId, onOpen }) => {
-    // De-dupe by content uuid; cap to keep the strip compact.
-    const unique = useMemo(() => {
-        const seen = new Set<string>();
-        const out: SourceDisplay[] = [];
-        for (const s of sources) {
-            const key = `${s.content_type}:${s.content_uuid}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            out.push(s);
-        }
-        return out.slice(0, 6);
-    }, [sources]);
+const SOURCE_GLYPH: Record<string, React.ReactNode> = {
+    post: <Hash />,
+    chat: <MessageSquare />,
+    doc: <FileText />,
+    task: <Check />,
+    comment: <MessageSquare />,
+    memory: <Lightbulb />,
+};
 
-    if (unique.length === 0) return null;
+/** A source's chip title: where it is and what it says, in a few words. */
+function sourceTitle(src: SourceDisplay): string {
+    const preview = src.snippet ? cleanSnippet(src.snippet) : "";
+    const label = SOURCE_LABEL[src.content_type] || src.content_type;
+    if (src.channel_name) return preview ? `#${src.channel_name} · ${preview}` : `#${src.channel_name}`;
+    return preview || label;
+}
+
+/** De-dupe by content: the same message cited twice is one source. */
+function uniqueSources(sources: SourceDisplay[]): SourceDisplay[] {
+    const seen = new Set<string>();
+    return sources.filter((s) => {
+        const key = `${s.content_type}:${s.content_uuid}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+/** What kind of trouble an error is: over a limit (a sun note) or a failure (a quiet card). */
+export function aiErrorKind(message: string): "limit" | "error" {
+    return /limit|quota|429|too many|allowance/i.test(message) ? "limit" : "error";
+}
+
+/** The label beside the breathing mark before the first word: the step being worked on. */
+function thinkingLabel(steps: StreamStep[]): string {
+    const running = [...steps].reverse().find((s) => s.state === "running");
+    return running ? `${running.text.replace(/[.…]+$/, "")}…` : "Thinking…";
+}
+
+const ICON_BTN = "grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand [&_svg]:size-4";
+
+/** One finished answer: the flat text with its markers, its plan, its sources, its card and its action row. */
+function AssistantMessage({
+    msg,
+    showMark,
+    last,
+    page,
+    currentUserId,
+    onOpen,
+    onRetry,
+}: {
+    msg: ChatMessage;
+    showMark: boolean;
+    last: boolean;
+    page: boolean;
+    currentUserId?: string;
+    onOpen: (href: string) => void;
+    onRetry?: () => void;
+}) {
+    const sources = useMemo(() => uniqueSources(msg.sources ?? []), [msg.sources]);
+    const numbers = useMemo(() => numberCitations(msg.content, sources.length), [msg.content, sources.length]);
+    const ordered = useMemo(() => orderSources(sources, numbers), [sources, numbers]);
+    const [hovered, setHovered] = useState<number | null>(null);
+    const [copied, setCopied] = useState(false);
+    const chips: SourceChipItem[] = ordered.map(({ source, n, index }) => ({
+        key: `${source.content_type}:${source.content_uuid}:${index}`,
+        n,
+        title: sourceTitle(source),
+        hint: source.snippet ? cleanSnippet(source.snippet) : undefined,
+        glyph: SOURCE_GLYPH[source.content_type],
+        onOpen: () => onOpen(sourceHref(source, currentUserId)),
+    }));
+    const ctx = useMemo(
+        () => ({
+            shown: numbers.shown,
+            hovered,
+            setHovered,
+            open: (shown: number) => {
+                const src = sources[numbers.order[shown - 1]];
+                if (src) onOpen(sourceHref(src, currentUserId));
+            },
+        }),
+        [numbers, hovered, sources, onOpen, currentUserId],
+    );
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(msg.content);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1400);
+        } catch {
+            /* the clipboard refused: nothing to say */
+        }
+    };
 
     return (
-        <div className="mt-2.5 pt-2.5 border-t border-border/70 min-w-0">
-            {/* A label in sentence case at full muted ink; it was an
-                uppercase eyebrow at 70%, and its icons were the accent. */}
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                Sources
-            </p>
-            <div className="flex flex-col gap-1 min-w-0">
-                {unique.map((src, i) => {
-                    const preview = src.snippet ? cleanSnippet(src.snippet) : "";
-                    return (
-                        <button
-                            key={`${src.content_uuid}-${i}`}
-                            type="button"
-                            onClick={() => onOpen(sourceHref(src, currentUserId))}
-                            title={preview || undefined}
-                            className="group/src flex items-center gap-2 text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-background/60 transition-colors min-w-0"
-                        >
-                            <span className="inline-flex items-center justify-center h-4 w-4 shrink-0 text-muted-foreground">
-                                <FileText size={12} />
-                            </span>
-                            <span className="text-2xs font-medium text-foreground/80 shrink-0">
-                                {SOURCE_LABEL[src.content_type] || src.content_type}
-                            </span>
-                            {src.channel_name && (
-                                <span className="text-2xs text-muted-foreground shrink-0 truncate max-w-[120px]">
-                                    #{src.channel_name}
-                                </span>
-                            )}
-                            {preview && (
-                                <span className="text-2xs text-muted-foreground truncate min-w-0">
-                                    {preview}
-                                </span>
-                            )}
-                            <ArrowUpRight
-                                size={11}
-                                className="ml-auto shrink-0 text-transparent group-hover/src:text-muted-foreground transition-colors"
-                            />
+        <div data-message="assistant" className="group/msg grid min-w-0 grid-cols-[24px_minmax(0,1fr)] gap-3">
+            <span className="pt-px">{showMark ? <AiMark /> : null}</span>
+            <div className="min-w-0">
+                {msg.steps && msg.steps.length > 0 ? (
+                    <div className="mb-2.5">
+                        <PlanSteps steps={msg.steps} running={false} answering />
+                    </div>
+                ) : null}
+                <CitationContext.Provider value={ctx}>
+                    <div className={cn("text-pretty tracking-[-0.008em] text-foreground", page ? "text-body leading-6" : "text-ui leading-[23px]")}>
+                        <MarkdownMessage content={msg.content} />
+                    </div>
+                    {chips.length > 0 ? <SourceChips items={chips} /> : null}
+                </CitationContext.Provider>
+                {msg.actions && msg.actions.length > 0 ? <ActionConfirmation actions={msg.actions} /> : null}
+                {/* Always on the last answer, on hover for older ones. */}
+                <div
+                    data-action-row=""
+                    className={cn(
+                        "mt-2 flex gap-0.5 transition-opacity duration-[160ms]",
+                        last ? "opacity-100" : "opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 [@media(hover:none)]:opacity-100",
+                    )}
+                >
+                    <button type="button" className={cn(ICON_BTN, "size-6 [&_svg]:size-3.5")} onClick={copy} aria-label={copied ? "Copied" : "Copy answer"} title="Copy">
+                        {copied ? <Check /> : <Copy />}
+                    </button>
+                    {onRetry ? (
+                        <button type="button" className={cn(ICON_BTN, "size-6 [&_svg]:size-3.5")} onClick={onRetry} aria-label="Ask again" title="Ask again">
+                            <RotateCcw />
                         </button>
-                    );
-                })}
+                    ) : null}
+                </div>
+                {/* A footnote, not a warning: the answer used less of the thread than you may assume. */}
+                {msg.notice ? (
+                    <div className="mt-1.5 flex items-start gap-1.5 text-meta text-ink-3" role="note">
+                        <Scissors size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <span>{msg.notice}</span>
+                    </div>
+                ) : null}
             </div>
         </div>
     );
-};
+}
+
+/** An error, said quietly in the answer's column: a sunken card, never a red box. */
+function AiErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
+    if (aiErrorKind(message) === "limit") {
+        return (
+            <div data-ai-error="limit" className="ml-9 rounded-[10px] bg-camp-sun-tint px-3 py-2.5 text-ui text-camp-sun-ink" role="status">
+                You&apos;ve used today&apos;s AI allowance. It resets at 00:00. An admin can raise it in AI settings.
+            </div>
+        );
+    }
+    return (
+        <div data-ai-error="error" className="ai-inset ml-9 flex items-start gap-2 rounded-[10px] bg-sunken px-3 py-2.5" role="alert">
+            <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-danger-ink" aria-hidden />
+            <span className="min-w-0 flex-1 text-ui text-foreground">{message}</span>
+            {onRetry ? (
+                <Button size="xs" variant="ghost" onClick={onRetry}>
+                    Try again
+                </Button>
+            ) : null}
+        </div>
+    );
+}
 
 // --- Component ---
 
 /**
  * `panel`: the right panel beside a page. `page`: /app/ai, where the panel is the
- * whole page: there is nothing to close on a computer, the conversation and the
- * box keep a reading width instead of running 1,100px wide, and on a phone the
- * top bar already names it, so the panel's header carries only its tools.
+ * whole page: there is nothing to close on a computer, and the conversation keeps
+ * a 720 px reading column.
  */
-const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "panel" }) => {
+const AiChatPanel: React.FC<{ variant?: "panel" | "page"; initialAsk?: string }> = ({ variant = "panel", initialAsk }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const { toast } = useToast();
@@ -327,7 +446,9 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
     const [instructionsOpen, setInstructionsOpen] = useState(false);
     const [agentWorkOpen, setAgentWorkOpen] = useState(false);
     const [socialTopic, setSocialTopic] = useState("");
-    const { askStream, cancelStream, isStreaming, streamText, streamActions, error } = useAskAIStream();
+    const { askStream, cancelStream, isStreaming, streamText, streamSteps, error } = useAskAIStream();
+    const [offline, setOffline] = useState(false);
+    const lastQuestion = useRef("");
 
     // Reopening a past conversation replaces what is on screen AND adopts its
     // id, so the next question continues that thread rather than silently
@@ -399,8 +520,23 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
     useEffect(() => {
         if (sessionId) rememberConversation(sessionId);
     }, [sessionId]);
+
+    // Offline: the composer says so rather than failing on Send.
+    useEffect(() => {
+        const update = () => setOffline(typeof navigator !== "undefined" && navigator.onLine === false);
+        update();
+        window.addEventListener("online", update);
+        window.addEventListener("offline", update);
+        return () => {
+            window.removeEventListener("online", update);
+            window.removeEventListener("offline", update);
+        };
+    }, []);
+
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const composerRef = useRef<HTMLDivElement>(null);
+    const glideFrom = useRef<number | null>(null);
     const dispatch = useDispatch();
     const { isMobile } = useMedia();
     // Voice dictation into the assistant input (reuses the model-agnostic STT).
@@ -411,43 +547,88 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
         },
         onError: (m) => toast({ title: m, variant: "destructive" }),
     });
-    const { available: micAvailable, recording: micRecording, transcribing: micTranscribing, toggle: toggleDictation } = dictation;
-    const micBusy = micTranscribing || dictation.setup.progress !== null;
-    const micLabel = dictationLabel(dictation);
+    const micBusy = dictation.transcribing || dictation.setup.progress !== null;
     const router = useRouter();
 
-    // Current user id — needed to resolve DM source links to the OTHER
+    // Current user id: needed to resolve DM source links to the OTHER
     // participant (a DM grouping id contains both user uuids).
     const { data: selfProfile } = useFetchOnlyOnce<{ data?: { user_uuid?: string } }>(GetEndpointUrl.SelfProfile);
     const currentUserId = selfProfile?.data?.user_uuid;
 
-    // Surface hint set by the quick-invoke shortcut (Ctrl/Cmd+J). Picks the
-    // context-aware starter prompts; empty/unknown falls back to the generic
-    // workspace prompts.
-    const aiContextType = useSelector(
-        (s: RootState) => s.rightPanel.rightPanelState.data.aiContextType,
-    );
-    const suggestions = useMemo(
-        () => (aiContextType && CONTEXT_SUGGESTIONS[aiContextType]) || DEFAULT_SUGGESTIONS,
-        [aiContextType],
-    );
+    // Surface hint set by the quick-invoke shortcut (Ctrl/Cmd+J): the
+    // starter questions are about that surface. Otherwise they come from the
+    // person's day: the channel they were last in, what is due, the next event.
+    const aiContextType = useSelector((s: RootState) => s.rightPanel.rightPanelState.data.aiContextType);
+    const recentChannel = useSelector((s: RootState) => s.recentItems?.items?.find((r) => r.type === "channel")?.title);
+    const [dayContext, setDayContext] = useState<SuggestionContext>({});
+    const empty = messages.length === 0 && !isStreaming && !awaitingAnswer;
+    useEffect(() => {
+        if (!empty || aiContextType) return;
+        let live = true;
+        // One shared request with Home's "what needs me" (memoryService), so
+        // opening the panel asks the server nothing new.
+        getAttention()
+            .then((a) => {
+                if (!live) return;
+                const tasks = a.items.filter((i) => i.source === "task");
+                const event = a.items.find((i) => i.source === "calendar");
+                setDayContext({
+                    tasksDue: tasks.length,
+                    nextEvent: event ? { title: event.title, at: event.due_time ? new Date(event.due_time) : undefined } : undefined,
+                    draft: tasks.find((t) => /^(write|draft)\b/i.test(t.title))?.title.replace(/^(write|draft)\s+/i, ""),
+                });
+            })
+            .catch(() => undefined);
+        return () => {
+            live = false;
+        };
+    }, [empty, aiContextType]);
+    const suggestions: Suggestion[] = useMemo(() => {
+        if (aiContextType && CONTEXT_SUGGESTIONS[aiContextType]) {
+            return CONTEXT_SUGGESTIONS[aiContextType].map((text) => ({ text, hue: "agent" as const, icon: "spark" as const }));
+        }
+        return suggestionsFrom({ ...dayContext, recentChannel });
+    }, [aiContextType, dayContext, recentChannel]);
 
     // Sanitize streaming text in real-time so <tool_call> blocks never render
     const sanitizedStreamText = useMemo(() => sanitizeAIText(streamText), [streamText]);
 
-    // Auto-scroll to bottom. We scroll the container directly (rather than
-    // scrollIntoView, which can nudge the whole page) so growth during
-    // streaming keeps the latest text in view without layout jumps.
-    useEffect(() => {
+    // Keep the newest line in view while the reader is at the bottom; once
+    // they scroll up, leave them there and offer "Jump to latest".
+    const [atBottom, setAtBottom] = useState(true);
+    const onScroll = useCallback(() => {
         const el = scrollContainerRef.current;
-        if (el) {
-            el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-        }
-    }, [messages, sanitizedStreamText]);
+        if (!el) return;
+        setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 48);
+    }, []);
+    const toBottom = useCallback((smooth: boolean) => {
+        const el = scrollContainerRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto" });
+    }, []);
+    useEffect(() => {
+        if (atBottom) toBottom(false);
+    }, [messages, sanitizedStreamText, atBottom, toBottom]);
+
+    // The page's glide: the composer was in the middle with the composition;
+    // after the first question it is at the bottom. It moves there by
+    // transform from where it was (FLIP), 320 ms, so nothing reflows per frame.
+    useLayoutEffect(() => {
+        const from = glideFrom.current;
+        const el = composerRef.current;
+        glideFrom.current = null;
+        if (from !== null) inputRef.current?.focus();
+        if (from === null || !el || prefersReducedMotion() || typeof el.animate !== "function") return;
+        const dy = from - el.getBoundingClientRect().top;
+        if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+    }, [messages.length]);
 
     // Focus input on mount
+    // Not on a phone: there it would raise the keyboard over the suggestions,
+    // and the composer would wear its focus halo before anyone touched it.
     useEffect(() => {
-        setTimeout(() => inputRef.current?.focus(), 200);
+        if (typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches) return;
+        const t = setTimeout(() => inputRef.current?.focus(), 200);
+        return () => clearTimeout(t);
     }, []);
 
     /** Send what is in the box, or a specific question. See lib/ai/sendTarget. */
@@ -458,6 +639,8 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
         // must not paste an older record over this exchange when it lands.
         recoverySuperseded.current = true;
         setAwaitingAnswer(false);
+        lastQuestion.current = q;
+        if (messages.length === 0 && composerRef.current) glideFrom.current = composerRef.current.getBoundingClientRect().top;
 
         const userMsg: ChatMessage = {
             id: `user-${Date.now()}`,
@@ -467,37 +650,26 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
         };
 
         setMessages((prev) => [...prev, userMsg]);
-
-        if (clearDraft) {
-            setInput("");
-            // Reset textarea height to match the min-h-[36px] of the input.
-            if (inputRef.current) {
-                inputRef.current.style.height = "36px";
-            }
-        }
+        setAtBottom(true);
+        if (clearDraft) setInput("");
 
         // askStream returns the final text + actions synchronously as its
-        // resolved value — no more race condition with React state updates.
+        // resolved value: no race with React state updates.
         const result = await askStream(q, sessionId || undefined);
 
         // Adopt the conversation the server minted, so the NEXT question
-        // continues this one and the exchange is filed under something the
-        // history list can find. Done before the text check on purpose: an
+        // continues this one. Done before the text check on purpose: an
         // answer that arrived empty is still a conversation that happened.
         if (result?.sessionId && result.sessionId !== sessionId) {
             setSessionId(result.sessionId);
         }
 
-        if (result && result.text) {
+        if (result && (result.text || result.actions.length > 0)) {
             let finalText = sanitizeAIText(result.text);
             const finalActions = result.actions;
-            
-            // If the AI only sent tool calls (which sanitize stripped away),
-            // provide a descriptive fallback so the bubble isn't blank.
+            // An answer that is only a proposed action reads as one sentence; the card says the rest.
             if (!finalText && finalActions && finalActions.length > 0) {
-                finalText = finalActions.length === 1 
-                    ? `I'll ${finalActions[0].description.toLowerCase()}...`
-                    : "I have a few actions prepared for you…";
+                finalText = finalActions.length === 1 ? `I'll ${finalActions[0].description.toLowerCase()}.` : "Here is what I can do for you.";
             }
 
             const assistantMsg: ChatMessage = {
@@ -506,12 +678,26 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
                 content: finalText,
                 actions: finalActions && finalActions.length > 0 ? finalActions : undefined,
                 sources: result.sources && result.sources.length > 0 ? result.sources : undefined,
+                steps: result.steps && result.steps.length > 0 ? result.steps : undefined,
                 notice: result.notice || undefined,
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, assistantMsg]);
         }
-    }, [input, isStreaming, askStream, sessionId]);
+    }, [input, isStreaming, askStream, sessionId, messages.length]);
+
+    // A question the page arrived with (?ask=, from search): sent once, as a
+    // fresh question, the first time it is known.
+    const askedInitial = useRef<string | null>(null);
+    useEffect(() => {
+        if (!initialAsk || askedInitial.current === initialAsk || isStreaming) return;
+        askedInitial.current = initialAsk;
+        void handleSend(initialAsk);
+    }, [initialAsk, isStreaming, handleSend]);
+
+    const retry = useCallback(() => {
+        if (lastQuestion.current) void handleSend(lastQuestion.current);
+    }, [handleSend]);
 
     const handleNewChat = useCallback(() => {
         setMessages([]);
@@ -530,90 +716,65 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
         }
     }, [dispatch, isMobile, router]);
 
-    const handleKeyDown = useCallback(
-        (e: React.KeyboardEvent) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-            }
-        },
-        [handleSend]
-    );
-
-    const handleTextareaInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setInput(e.target.value);
-    }, []);
-
-    // Auto-resize the composer between its min and max height on every value
-    // change - typing, deleting, or a programmatic set (e.g. clicking a
-    // suggestion). Resetting to the min first then measuring scrollHeight lets
-    // it BOTH grow and shrink. Runs in a layout effect (not just onChange) so
-    // it also fires for programmatic changes and AFTER the new value is in the
-    // DOM. The composer disables the height transition so this measurement is
-    // synchronous - an animated height makes scrollHeight read a stale value
-    // and the box never shrinks.
-    useLayoutEffect(() => {
-        const el = inputRef.current;
-        if (!el) return;
-        el.style.height = "36px";
-        el.style.height = Math.min(el.scrollHeight, 120) + "px";
-    }, [input]);
+    const openSource = useCallback((href: string) => router.push(href), [router]);
 
     const isPage = variant === "page";
-    // The page's reading column: a conversation 1,100px wide is hard to read,
-    // and its box ran the full width under a 320px column of suggestions.
-    const column = isPage && !isMobile ? "mx-auto w-full max-w-3xl" : "";
-    // Your words in your own colour, as everywhere you appear; the answer on
-    // the neutral card. They were the accent, which marks the one action.
-    const youHue = HUE_CLASS[hueFor(currentUserId)];
+    const column = isPage && !isMobile ? "mx-auto w-full max-w-[720px]" : "";
+    const centred = isPage && !isMobile && empty;
+
+    const composer = (
+        <AiComposer
+            boxRef={composerRef}
+            inputRef={inputRef}
+            value={input}
+            onChange={setInput}
+            onSend={() => void handleSend()}
+            onStop={cancelStream}
+            streaming={isStreaming}
+            size={isPage ? "page" : "panel"}
+            disabled={offline}
+            disabledNote={offline ? "You're offline" : undefined}
+            mic={{
+                available: dictation.available,
+                recording: dictation.recording,
+                busy: micBusy,
+                label: dictationLabel(dictation),
+                toggle: dictation.toggle,
+            }}
+        />
+    );
 
     return (
-        <div className={cn("flex flex-col h-full bg-background", !isPage && "border-l border-border")}>
-            {/* One 48px row: the mark and the name, then the tools on the
-                title's centre line. The model and today's usage moved to the
-                box's footer: here they wrapped the name onto two lines and
-                pushed the last tool out of a 380px panel and a phone. */}
-            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 bg-card/40 px-3">
+        <div data-ai-panel={variant} className={cn("flex h-full flex-col bg-sheet dark:bg-panel", !isPage && "border-l border-line")}>
+            {/* One 52px row: the mark, the name and the model, then the tools. */}
+            <div className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line pl-4 pr-2.5" data-ai-header="">
                 {isPage && isMobile ? (
                     // The phone's top bar names the page; the tools sit right.
                     <span className="flex-1" />
                 ) : (
                     <>
                         <AiMark />
-                        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">OneCamp AI</h2>
+                        <h2 className="min-w-0 truncate text-heading font-semibold text-foreground">OneCamp AI</h2>
+                        <span className="ml-1 min-w-0 shrink" data-ai-model="">
+                            <AiModelPicker />
+                        </span>
+                        <span className="flex-1" />
                     </>
                 )}
                 <div className="flex shrink-0 items-center gap-0.5">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={handleNewChat}
-                        title="New conversation"
-                        aria-label="New conversation"
-                    >
-                        <MessageSquarePlus className="h-4 w-4" />
-                    </Button>
-                    {/* Past conversations. Sits beside the tools menu rather than
-                        inside it, because reopening yesterday's thread is a
-                        top-level thing somebody does, not a tool. */}
-                    <ChatHistoryMenu onResume={handleResume} />
+                    <button type="button" className={ICON_BTN} onClick={handleNewChat} title="New chat" aria-label="New conversation">
+                        <SquarePen />
+                    </button>
+                    {/* Past conversations, beside the tools menu: reopening yesterday's thread is a top-level thing to do. */}
+                    <ChatHistoryMenu onResume={handleResume} currentId={sessionId} />
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                title="More tools"
-                                aria-label="More AI tools"
-                            >
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
+                            <button type="button" className={ICON_BTN} title="More tools" aria-label="More AI tools">
+                                <MoreHorizontal />
+                            </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
-                            {/* Carries a count when teammates are actually working,
-                                so live work is discoverable without adding a badge
-                                or chip to the top bar. */}
+                        <DropdownMenuContent align="end" className="w-56">
+                            <AiUsageIndicator variant="menu" refreshSignal={messages.length} />
                             <AgentTeammatesMenuItem onSelect={() => setAgentWorkOpen(true)} />
                             <DropdownMenuItem onClick={() => setInstructionsOpen(true)}>
                                 <SlidersHorizontal className="h-4 w-4" />
@@ -623,6 +784,7 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
                                 <Lightbulb className="h-4 w-4" />
                                 Workspace memory
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
                                 <CalendarClock className="h-4 w-4" />
                                 Find a meeting time
@@ -637,297 +799,110 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "pane
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    {/* Closing means something in the side panel, and on a phone
-                        (back). On the computer's page it closed nothing: the
-                        panel state it cleared was not what drew the page. */}
+                    {/* Closing means something in the side panel, and on a phone (back). */}
                     {!(isPage && !isMobile) && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            onClick={handleClose}
-                            title="Close"
-                            aria-label="Close panel"
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
+                        <button type="button" className={ICON_BTN} onClick={handleClose} title="Close (Esc)" aria-label="Close panel">
+                            <X />
+                        </button>
                     )}
                 </div>
             </div>
 
-            {/* Messages */}
-            <div
-                ref={scrollContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar"
-            >
-                <div className={cn("flex flex-col gap-4 min-w-0", column)}>
-                {messages.length === 0 && !isStreaming && (
-                    <div className="flex flex-col items-center justify-center flex-1 text-center p-6 gap-3">
-                        <Tile hue="dusk" size="lg"><Sparkles strokeWidth={1.75} /></Tile>
-                        {/* Not the name again: the header right above says it. */}
-                        <h3 className="text-base font-medium text-foreground m-0">Ask about your workspace</h3>
-                        <p className="text-sm text-muted-foreground max-w-[280px] leading-normal m-0">
-                            It answers from the channels, docs and tasks you can open.
-                        </p>
-                        {/* Full muted ink: at 60% it was under 3:1 at 11px. A
-                            keyboard tip, so not on a touch screen. */}
-                        <p className="text-2xs text-muted-foreground m-0 inline-flex items-center gap-1 [@media(pointer:coarse)]:hidden">
-                            Tip: press
-                            <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-2xs">
-                                Ctrl J
-                            </kbd>
-                            anywhere to open this
-                        </p>
-                        <div className="flex flex-col gap-2 mt-2 w-full max-w-[320px]">
-                            {suggestions.map((suggestion) => (
-                                <Button
-                                    key={suggestion}
-                                    variant="outline"
-                                    className="h-auto px-3.5 py-2.5 bg-card text-foreground text-sm font-normal text-left transition-colors duration-150 leading-snug hover:bg-highlight whitespace-normal justify-start"
-                                    /* Ask it. Filling the box and stopping there
-                                       made every suggestion a two-step
-                                       instruction nobody asked for. */
-                                    onClick={() => {
-                                        void handleSend(suggestion);
-                                        inputRef.current?.focus();
-                                    }}
-                                >
-                                    {suggestion}
-                                </Button>
-                            ))}
-                        </div>
+            {centred ? (
+                // The empty page: the composition and a wider composer together, at 38% of the height.
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
+                    <div className="mx-auto flex w-full max-w-[720px] flex-col pt-[max(24px,calc(38vh-200px))]">
+                        <AiEmpty suggestions={suggestions} onAsk={(q) => void handleSend(q)} layout="grid" className="pt-0">
+                            <div className="mt-6 w-full text-left">{composer}</div>
+                        </AiEmpty>
                     </div>
-                )}
+                </div>
+            ) : (
+                <>
+                    <div className="relative min-h-0 flex-1">
+                        <div ref={scrollContainerRef} onScroll={onScroll} className="custom-scrollbar h-full overflow-y-auto overflow-x-hidden px-4 py-5">
+                            <div className={cn("flex min-w-0 flex-col gap-5", column)}>
+                                {empty ? <AiEmpty suggestions={suggestions} onAsk={(q) => void handleSend(q)} /> : null}
 
-                {messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={cn("flex gap-2 min-w-0 animate-msg-fade-in", msg.role === "user" && "justify-end")}
-                    >
-                        {msg.role === "assistant" && (
-                            <AiMark className="mt-0.5" />
-                        )}
-                        <div className={cn(
-                            "min-w-0 px-3.5 py-2.5 rounded-xl text-sm leading-relaxed relative",
-                            msg.role === "user"
-                                ? cn("max-w-[85%] rounded-br-sm bg-hue-tint text-hue-ink", youHue)
-                                : "max-w-[92%] bg-muted text-foreground border border-border rounded-bl-sm"
-                        )}>
-                            {msg.role === "assistant" ? (
-                                <MarkdownMessage content={msg.content} />
-                            ) : (
-                                <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-                                    {msg.content}
-                                </div>
-                            )}
-                            {/* A footnote, not a warning. The answer succeeded; it just
-                                used less of the thread than the person may assume, and
-                                the quiet failure mode here is saying nothing at all —
-                                someone who cannot see that context was dropped concludes
-                                the assistant is unreliable rather than that the window
-                                was full. Muted and inline so it informs without
-                                competing with the answer. */}
-                            {msg.notice && (
-                                <div
-                                    className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"
-                                    role="note"
-                                >
-                                    <Scissors size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
-                                    <span>{msg.notice}</span>
-                                </div>
-                            )}
-                            {msg.sources && msg.sources.length > 0 && (
-                                <SourceList
-                                    sources={msg.sources}
-                                    currentUserId={currentUserId}
-                                    onOpen={(href) => router.push(href)}
-                                />
-                            )}
-                            {msg.actions && msg.actions.length > 0 && (
-                                <ActionConfirmation
-                                    actions={msg.actions}
-                                    onClose={() => {
-                                        setMessages((prev) =>
-                                            prev.map((m) =>
-                                                m.id === msg.id 
-                                                    ? { 
-                                                        ...m, 
-                                                        actions: undefined,
-                                                        // If we were showing fallback text and they dismissed, 
-                                                        // mark it as dismissed for better UX.
-                                                        content: m.content.startsWith("I'll ") || m.content.startsWith("I have ") 
-                                                            ? "Action dismissed" 
-                                                            : m.content 
-                                                      } 
-                                                    : m
-                                            )
-                                        );
-                                    }}
-                                    onActionComplete={(toolName, success, message) => {
-                                        setMessages((prev) =>
-                                            prev.map((m) =>
-                                                m.id === msg.id 
-                                                    ? { ...m, content: success ? `${message}` : `${message}` } 
-                                                    : m
-                                            )
-                                        );
-                                    }}
-                                />
-                            )}
-                        </div>
-                    </div>
-                ))}
+                                {messages.map((msg, i) =>
+                                    msg.role === "user" ? (
+                                        <div key={msg.id} data-message="user" className="flex min-w-0 justify-end hub-fade-in">
+                                            <div className="ai-user-bubble max-w-[80%] px-3.5 py-2.5 text-ui leading-[22px] tracking-[-0.008em] text-foreground md:max-w-[min(80%,560px)]">
+                                                <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{msg.content}</div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <AssistantMessage
+                                            key={msg.id}
+                                            msg={msg}
+                                            page={isPage}
+                                            showMark={i === 0 || messages[i - 1].role === "user"}
+                                            last={i === messages.length - 1 && !isStreaming}
+                                            currentUserId={currentUserId}
+                                            onOpen={openSource}
+                                            onRetry={i === messages.length - 1 ? retry : undefined}
+                                        />
+                                    ),
+                                )}
 
-                {/* An answer being written on the server for a question asked before this screen was opened */}
-                {awaitingAnswer && !isStreaming && (
-                    <div className="flex gap-2 min-w-0 animate-msg-fade-in" role="status" aria-live="polite">
-                        <AiMark className="mt-0.5" />
-                        <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed bg-muted text-muted-foreground border border-border rounded-bl-sm">
-                            <div className="flex items-center gap-2 py-1">
-                                <Loader2 size={14} className="animate-spin" />
-                                <span>{STILL_WRITING}</span>
+                                {/* An answer being written on the server for a question asked before this screen was opened. */}
+                                {awaitingAnswer && !isStreaming && (
+                                    <div className="grid grid-cols-[24px_minmax(0,1fr)] items-center gap-3" role="status" aria-live="polite">
+                                        <AiMark breathing />
+                                        <span className="hub-shimmer text-ui">Still writing your answer…</span>
+                                    </div>
+                                )}
+
+                                {/* The answer being written now. */}
+                                {isStreaming && (
+                                    <div data-message="streaming" className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)] gap-3">
+                                        <span className="pt-px">
+                                            <AiMark breathing={sanitizedStreamText.length === 0} />
+                                        </span>
+                                        <div className="min-w-0">
+                                            {streamSteps.length > 0 ? (
+                                                <div className="mb-2.5">
+                                                    <PlanSteps steps={streamSteps} running answering={sanitizedStreamText.length > 0} />
+                                                </div>
+                                            ) : null}
+                                            {sanitizedStreamText.length === 0 ? (
+                                                <span className="hub-shimmer flex h-6 items-center text-ui" role="status" aria-live="polite">
+                                                    {thinkingLabel(streamSteps)}
+                                                </span>
+                                            ) : (
+                                                <StreamingAnswer
+                                                    text={sanitizedStreamText}
+                                                    isStreaming
+                                                    className={cn("text-pretty tracking-[-0.008em]", isPage ? "text-body leading-6" : "text-ui leading-[23px]")}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {error && <AiErrorNote message={error} onRetry={lastQuestion.current ? retry : undefined} />}
                             </div>
                         </div>
+                        {isStreaming && !atBottom ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setAtBottom(true);
+                                    toBottom(true);
+                                }}
+                                className="hub-pop absolute bottom-3 left-1/2 inline-flex h-7 -translate-x-1/2 items-center gap-1.5 rounded-full bg-pop px-3 text-meta font-medium shadow-e3"
+                            >
+                                <ArrowDown className="size-3.5" aria-hidden />
+                                Jump to latest
+                            </button>
+                        ) : null}
                     </div>
-                )}
 
-                {/* Streaming in progress */}
-                {isStreaming && (
-                    <div className="flex gap-2 min-w-0 animate-msg-fade-in">
-                        <AiMark className="mt-0.5" />
-                        <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
-                            {sanitizedStreamText.length === 0 ? (
-                                <div className="flex items-center gap-2 py-1 text-muted-foreground text-sm">
-                                    <Loader2 size={14} className="animate-spin" />
-                                    <span>Thinking…</span>
-                                </div>
-                            ) : (
-                                <div className="min-w-0">
-                                    <MarkdownMessage content={sanitizedStreamText} />
-                                    <span className="inline-block animate-blink text-muted-foreground text-xs ml-[1px] align-text-bottom">
-                                        ▊
-                                    </span>
-                                </div>
-                            )}
-                        </div>
+                    <div className="shrink-0 px-3 pb-3 pt-1">
+                        <div className={column}>{composer}</div>
                     </div>
-                )}
-
-                {error && (
-                    <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-danger-ink text-xs">
-                        {error}
-                    </div>
-                )}
-                </div>
-            </div>
-
-            {/* Input composer */}
-            <div className="px-3 py-3 border-t border-border/60 bg-background shrink-0">
-              <div className={cn("@container", column)}>
-                <div
-                    className={cn(
-                        "flex items-end gap-1.5 rounded-xl border bg-card",
-                        "pl-3 pr-1 py-1",
-                        "transition-shadow duration-150",
-                        "border-border/60 focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]",
-                        isStreaming && "opacity-90",
-                    )}
-                >
-                    <Textarea
-                        ref={inputRef}
-                        value={input}
-                        onChange={handleTextareaInput}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Ask your workspace anything…"
-                        className={cn(
-                            "flex-1 min-w-0 border-0 bg-transparent shadow-none",
-                            "text-sm leading-relaxed text-foreground",
-                            "placeholder:text-muted-foreground/70",
-                            "resize-none outline-none ring-0 focus-visible:ring-0",
-                            // transition-none: the height is set imperatively for
-                            // auto-resize; an animated height makes scrollHeight
-                            // read a stale value so the box never shrinks.
-                            "transition-none min-h-[36px] max-h-[120px] py-2 px-0",
-                        )}
-                        // Keep the input visible & editable while streaming so the user
-                        // can compose a follow-up while the assistant finishes its
-                        // current reply. handleSend already guards against double-submit.
-                        rows={1}
-                        aria-label="Message AI assistant"
-                    />
-                    {micAvailable && !isStreaming && (
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className={cn(
-                                "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
-                                micRecording
-                                    ? "text-danger-ink hover:text-danger-ink hover:bg-destructive/10"
-                                    : "text-muted-foreground hover:text-primary",
-                            )}
-                            onClick={toggleDictation}
-                            disabled={micBusy}
-                            title={micLabel}
-                            aria-label={micLabel}
-                        >
-                            {micBusy ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Mic className={cn("h-4 w-4", micRecording && "animate-pulse")} />
-                            )}
-                        </Button>
-                    )}
-                    {isStreaming ? (
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className={cn(
-                                "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
-                                "text-danger-ink hover:text-danger-ink hover:bg-destructive/10",
-                            )}
-                            onClick={cancelStream}
-                            title="Stop generating"
-                            aria-label="Stop generating"
-                        >
-                            <StopCircle className="h-4 w-4" />
-                        </Button>
-                    ) : (
-                        <Button
-                            size="icon"
-                            className={cn(
-                                "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
-                                "bg-primary text-primary-foreground hover:bg-primary/90",
-                                "transition-colors duration-150",
-                                "disabled:opacity-30 disabled:cursor-not-allowed",
-                            )}
-                            onClick={() => void handleSend()}
-                            disabled={!input.trim()}
-                            title="Send (Enter)"
-                            aria-label="Send message"
-                        >
-                            <Send className="h-4 w-4" />
-                        </Button>
-                    )}
-                </div>
-                {/* Under the box: the model the answer runs on and today's usage,
-                    which crowded the header off its row, held in a row of their
-                    own so neither moves the box when it loads. The keyboard hint
-                    is for someone who hasn't typed yet, where there is room for
-                    it (the page, not the 380px panel), and never on a touch
-                    screen, which has no Shift+Enter. */}
-                <div className="mt-1.5 flex min-h-7 items-center gap-2 px-1">
-                    <AiModelPicker />
-                    {!input.trim() && (
-                        <p className="hidden min-w-0 truncate text-2xs leading-tight text-muted-foreground @lg:block [@media(pointer:coarse)]:hidden">
-                            Enter to send, Shift+Enter for a new line.
-                        </p>
-                    )}
-                    <span className="ml-auto shrink-0">
-                        <AiUsageIndicator refreshSignal={messages.length} />
-                    </span>
-                </div>
-              </div>
-            </div>
+                </>
+            )}
 
             <ReleaseNotesDialog
                 open={releaseNotesOpen}

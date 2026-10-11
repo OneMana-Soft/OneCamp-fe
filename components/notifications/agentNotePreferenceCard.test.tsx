@@ -20,10 +20,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("the daily note setting", () => {
+  it("shows what a note looks like, in the agent's square", async () => {
+    getEnabled.mockResolvedValue(true)
+    render(<AgentNotePreferenceCard />)
+    const chip = await screen.findByText(/Your day:/)
+    expect(chip.closest("[data-note-preview]")?.querySelector("[data-agent-avatar]")).not.toBeNull()
+    expect(document.getElementById("notifications-daily-note")).not.toBeNull()
+  })
+
   it("says it couldn't be read and offers to try again", async () => {
     getEnabled.mockRejectedValueOnce(new Error("Network Error")).mockResolvedValueOnce(true)
     render(<AgentNotePreferenceCard />)
-    expect(await screen.findByText("Couldn't load the daily note setting")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't load the daily note setting.")).toBeInTheDocument()
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: /try again/i })))
     await waitFor(() => expect(screen.getByRole("switch", { name: "Send me the daily note" })).toHaveAttribute("aria-checked", "true"))
   })
@@ -40,9 +48,9 @@ describe("the daily note setting", () => {
     render(<AgentNotePreferenceCard />)
     const sw = await screen.findByRole("switch", { name: "Send me the daily note" })
     await act(async () => void fireEvent.click(sw))
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Couldn't turn the daily note off", description: "Couldn't reach the AI service.", variant: "destructive" }),
-    )
+    // On the row, in the server's words (design v3: no toast for a routine save).
+    expect(await screen.findByText("Couldn't reach the AI service.")).toBeInTheDocument()
+    expect(toast).not.toHaveBeenCalled()
     expect(screen.getByRole("switch", { name: "Send me the daily note" })).toHaveAttribute("aria-checked", "true")
   })
 })

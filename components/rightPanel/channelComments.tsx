@@ -421,11 +421,18 @@ export const ChannelComments = () => {
     }
 
 
+    const threadKey = rightPanelState.data.postUUID || rightPanelState.data.chatMessageUUID
+    const channelName = postInfo.data?.data?.post_channel?.ch_name
     return (
-        <div className="h-full flex flex-col p-4 pb-0">
-            <RightPanelHeader titleKey={'thread'}/>
+        // The thread panel (design v3 chat, C36): a layer of the sheet (the
+        // task panel's darker step in dark). Its contents move, never the
+        // column: x 16px to rest and a fade, 240 ms; another thread fades in.
+        <div key={threadKey} data-right-panel-thread="" className="flex h-full flex-col bg-panel animate-panel-in">
+            <RightPanelHeader titleKey={'thread'} subtitle={channelName ? `in #${channelName}` : undefined} subtitleHref={channelName ? `/app/channel/${rightPanelState.data.channelUUID}` : undefined}/>
 
+                <div className="pt-3" />
                 <MessageContent
+                    root
                     userInfo={mainMessageData.userInfo}
                     createdAt={mainMessageData.createdAt}
                     content={mainMessageData.content}
@@ -470,7 +477,7 @@ export const ChannelComments = () => {
                     </div>
                 )}
 
-            <div className="flex-1 overflow-y-auto pb-4 pt-2 space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-3 pt-1">
 
 
                 <CommentsList
@@ -494,6 +501,10 @@ export const ChannelComments = () => {
                     revalidateKey={postCommentState.length}
                 />
 
+
+            </div>
+            {/* The reply box at the panel's foot, the composer at its compact size. */}
+            <div className="shrink-0 px-3 pb-3 pt-1">
                 <MinimalTiptapTextInput
                     throttleDelay={300}
                     attachmentOnclick = {()=> {
@@ -507,12 +518,11 @@ export const ChannelComments = () => {
                     ButtonIcon={SendHorizontal}
                     hasAttachments={(channelCommentState.filesUploaded?.length ?? 0) > 0}
                     buttonOnclick={handleSend}
-                    className={cn("max-w-full rounded-xl h-auto border bg-muted/30 p-2")}
-                    editorContentClassName="overflow-auto"
+                    variant="chat"
+                    compact
                     output="html"
                     placeholder={THREAD_COMPOSER_PLACEHOLDER}
                     editable={true}
-                    toggleToolbar={ true}
                     editorClassName="focus:outline-none"
                     onChange={(content ) => {
                         dispatch(createOrUpdateChannelCommentMsg({channelId:rightPanelState.data.channelUUID, body: content as string}))
@@ -523,12 +533,12 @@ export const ChannelComments = () => {
 
                 </MinimalTiptapTextInput>
 
-                <label className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground cursor-pointer select-none">
+                <label className="mt-2 flex h-5 cursor-pointer select-none items-center gap-2 px-1 text-ui-sm text-ink-2">
                     <Checkbox
                         checked={alsoSendToChannel}
                         onCheckedChange={(v) => setAlsoSendToChannel(v === true)}
                     />
-                    Also send to channel
+                    {channelName ? `Also send to #${channelName}` : "Also send to channel"}
                 </label>
             </div>
         </div>

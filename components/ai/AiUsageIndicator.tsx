@@ -24,7 +24,12 @@ function fmtTokens(n: number): string {
   return String(n)
 }
 
-const AiUsageIndicator: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) => {
+/**
+ * "inline" is the old footer count; "menu" is the row at the top of the AI
+ * panel's More menu (hub.md AI12): "32k of 50k today" over a 64 × 4 bar in the
+ * accent (the logo gradient in the house theme).
+ */
+const AiUsageIndicator: React.FC<{ refreshSignal?: number; variant?: "inline" | "menu" }> = ({ refreshSignal, variant = "inline" }) => {
   const [usage, setUsage] = useState<AIUsage | null>(null)
 
   useEffect(() => {
@@ -56,6 +61,25 @@ const AiUsageIndicator: React.FC<{ refreshSignal?: number }> = ({ refreshSignal 
   const title = hasCap
     ? `Your AI usage today: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}%). Resets at 00:00 UTC.`
     : `Your AI usage today: ${used.toLocaleString()} tokens. Resets at 00:00 UTC.`
+
+  if (variant === "menu") {
+    return (
+      <div className="px-2 pb-2 pt-1.5" title={title} data-ai-usage="">
+        <p className={`text-meta tabular-nums ${near ? "text-warning-ink" : "text-ink-2"}`}>
+          {fmtTokens(used)}
+          {hasCap ? ` of ${fmtTokens(limit)}` : ""} today
+        </p>
+        {hasCap ? (
+          <span className="mt-1.5 block h-1 w-16 overflow-hidden rounded-full bg-press" aria-hidden>
+            <span
+              className="block h-full origin-left rounded-full bg-[linear-gradient(90deg,var(--progress-from),var(--progress-to))]"
+              style={{ transform: `scaleX(${pct / 100})` }}
+            />
+          </span>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <span

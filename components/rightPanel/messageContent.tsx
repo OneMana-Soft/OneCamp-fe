@@ -1,22 +1,26 @@
 "use client"
 
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
-import { quoteBarClass } from "@/components/message/quoteBar"
-import { formatFullTimestamp, formatTimeForPostOrComment, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
+import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
+import { useBotKind, useBotKindMap } from "@/hooks/useBotKinds"
+import { isAIBot } from "@/lib/botCopy"
+import { agentIdsOf, mentionsUser } from "@/components/message/tintMentions"
+import { AgentProvenance, type AgentAsker } from "@/components/message/agentProvenance"
+import { ReplyLine } from "@/components/message/replyLine"
+import { scrollToMessage } from "@/lib/utils/scrollToMessage"
+import { chatClock } from "@/lib/chat/clock"
+import { Button } from "@/components/ui/button"
+import { formatFullTimestamp, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { ContinuedGutter } from "@/components/message/continuedGutter"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { BotTag } from "@/components/ui/botTag"
-import { Check, X } from "@/lib/icons";
 import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
 import {ForwardedMessageData} from "@/types/rightPanel";
 
 import {useCallback, useMemo, useState} from "react";
-import {
-    MessageDesktopHoverOptionsForRightPanelChatAndChannel
-} from "@/components/MessageDesktopHover/MessageDesktopHoverOptionsForRightPanelChatAndChannel";
 import {GroupedReaction} from "@/types/reaction";
 import {BottomMenu} from "@/components/message/bottomMenu";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -29,7 +33,6 @@ import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import { useTouchReveal } from "@/hooks/useTouchReveal";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import {SaveToMemoryButton} from "@/components/ai/SaveToMemoryButton";
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
 import { RelayedAvatar } from "@/components/message/relayedAvatar";
 
@@ -53,6 +56,10 @@ interface MessageContentProps {
     getMediaUrl: string
     /** Continues the reply above it (lib/messageGrouping): no avatar or name. */
     continued?: boolean
+    /** The thread's subject: drawn on the sunken surface above the replies (C36). */
+    root?: boolean
+    /** For an agent's reply: whose ask it answered (C11). */
+    asker?: AgentAsker | null
 }
 
 export const MessageContent = ({
@@ -74,6 +81,8 @@ export const MessageContent = ({
     postUUID,
     chatUUID,
     continued = false,
+    root = false,
+    asker,
                                }: MessageContentProps) => {
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -162,15 +171,34 @@ export const MessageContent = ({
     },[userInfo?.user_uuid])
 
 
+    const botKinds = useBotKindMap()
+    const authorKind = useBotKind(userInfo?.user_uuid, !!userInfo?.is_bot)
+    const isAgent = !asGuest && !!userInfo?.is_bot && isAIBot(authorKind)
+    const forMe = useMemo(() => mentionsUser(content, selfUserUuid), [content, selfUserUuid])
+    const mentionContext = useMemo(() => ({ me: selfUserUuid, agentIds: agentIdsOf(botKinds) }), [selfUserUuid, botKinds])
+    const busy = isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed
+    const authorName = (asGuest ? guestDisplayName : userStatusState?.userName || userInfo?.user_name) || ''
+
     return (
-        // The same row as the channel's: a 36px avatar, the name and a small
-        // time, and a neutral hover. The thread drew a 48px avatar, a lighter
-        // name and an orange hover, so a reply looked like a different kind of
-        // thing from the message it answered.
+        // The thread's rows are the conversation's (design v3 chat, C07, C36):
+        // the same grid at the panel's 16px insets, the same name line, body,
+        // cards and reactions, and the same toolbar. The root sits on the
+        // sunken surface as the thread's subject.
         <div
-            className={cn("group relative flex gap-3 px-2 transition-colors duration-100 hover:bg-accent/40", continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5", (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) && "bg-accent/40")}
-            onPointerEnter={() => setActionsWanted(true)}
+            data-message-row=""
+            data-thread-root={root || undefined}
+            data-for-me={forMe || undefined}
+            // A tap shows the actions on a touch screen (hooks/useTouchReveal).
             onPointerUp={touchReveal.onPointerUp}
+            className={cn(
+                "group/row group relative isolate grid grid-cols-[36px_minmax(0,1fr)] gap-x-3 px-4 transition-colors duration-[140ms] ease-out",
+                continued && !isMessageEditEnabled ? "py-px" : "py-1.5",
+                root ? "mx-3 rounded-xl bg-sunken px-3 py-3" : !forMe && "hover:bg-hover has-[:focus-visible]:bg-hover",
+                !root && !forMe && (busy || touchReveal.revealed) && "bg-hover",
+                forMe && !root && "bg-brand-muted/70 before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-0.5 before:rounded-full before:bg-brand dark:bg-[color-mix(in_oklab,var(--brand)_10%,transparent)]",
+                isMessageEditEnabled && "bg-brand-muted/40",
+            )}
+            onPointerEnter={() => setActionsWanted(true)}
             onPointerLeave={() => setActionsWanted(false)}
             onFocus={() => setActionsWanted(true)}
             onBlur={(e) => {
@@ -179,9 +207,9 @@ export const MessageContent = ({
         >
 
             {continued && !isMessageEditEnabled ? (
-                <ContinuedGutter createdAt={createdAt || ""} authorName={(asGuest ? guestDisplayName : userInfo?.user_name) || ""} />
+                <ContinuedGutter createdAt={createdAt || ""} authorName={authorName} />
             ) : (
-            <div className={cn("h-9 w-9 shrink-0 mt-0.5", !asGuest && "cursor-pointer")} onClick={asGuest ? undefined : handleUserClick}>
+            <div data-row-avatar="" className={cn("size-9 shrink-0 self-start", !asGuest && "cursor-pointer")} onClick={asGuest ? undefined : handleUserClick}>
                 {asGuest ? (
                     <RelayedAvatar name={guestDisplayName} />
                 ) : (
@@ -194,18 +222,18 @@ export const MessageContent = ({
                 )}
             </div>
             )}
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0">
                 {!(continued && !isMessageEditEnabled) && (
                 <div data-name-line="" className="flex h-5 items-center gap-2">
                     {asGuest ? (
-                        <span className="text-sm font-semibold text-foreground truncate">{guestDisplayName}</span>
+                        <span className="truncate text-ui font-semibold text-ink">{guestDisplayName}</span>
                     ) : (
                         <button
                             type="button"
                             onClick={handleUserClick}
-                            className="text-sm font-semibold text-foreground hover:underline truncate rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                            className="truncate rounded-[4px] text-ui font-semibold text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
-                            {userInfo?.user_name}
+                            {authorName}
                         </button>
                     )}
                     {asGuest && (
@@ -217,59 +245,49 @@ export const MessageContent = ({
                     <time
                         dateTime={isoTimestamp(createdAt || '')}
                         title={formatFullTimestamp(createdAt || '')}
-                        className="text-2xs tabular-nums text-muted-foreground"
+                        className={cn("shrink-0 text-meta tabular-nums", forMe && !root ? "text-brand-text" : "text-ink-3")}
                     >
-                        {formatTimeForPostOrComment(createdAt || '')}
+                        {chatClock(createdAt || '')}
                     </time>
                 </div>
                 )}
 
                 {replyMessage && !isMessageEditEnabled && (
-                    <div className={`mb-1 pl-2 ${quoteBarClass(replyMessage.msgBy)}`}>
-                        <MessagePreview
-                            msgBy={replyMessage.msgBy}
-                            msgText={replyMessage.msgText}
-                            msgUUID={replyMessage.msgUUID}
-                            msgCreatedAt={replyMessage.msgCreatedAt}
-                            vewFooter={false}
-                        />
-                    </div>
+                    <ReplyLine by={replyMessage.msgBy} text={replyMessage.msgText} onJump={() => scrollToMessage(replyMessage.msgUUID)} />
                 )}
 
-                <div className="break-words">
+                <div className={cn("chat-body max-w-[760px] break-words", root && "[&_.ProseMirror]:font-normal")}>
                     <MinimalTiptapTextInput
-                        throttleDelay={300}
-                        isOutputText={true}
-                        className={cn("max-w-full rounded-xl h-auto",
-                            isMessageEditEnabled ? "p-2" : "border-none"
-                        )}
+                        throttleDelay={isMessageEditEnabled ? 0 : 300}
+                        isOutputText={!isMessageEditEnabled}
+                        className={cn("max-w-full h-auto", isMessageEditEnabled && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
                         editorContentClassName="overflow-auto"
                         output="html"
                         content={body}
                         placeholder="Edit message…"
                         editable={isMessageEditEnabled}
-
+                        noBorder={isMessageEditEnabled}
+                        mentionContext={mentionContext}
                         editorClassName="focus:outline-none"
                         onChange={(content) => {
-
-                            const s = content as string
-
-                            setUpdatedText(s)
+                            setUpdatedText(content as string)
                         }}
-                        PrimaryButtonIcon={Check}
                         buttonOnclick={()=>{
                             updateMessage(chatUUID || postUUID || commentUUID || '', updatedText)
-                            setIsMessageEditEnabled(false)
-                            setIsDropdownOpen(false)
-
-                        }}
-                        SecondaryButtonIcon={X}
-                        secondaryButtonOnclick={()=>{
                             setIsMessageEditEnabled(false)
                             setIsDropdownOpen(false)
                         }}
                         toggleToolbar={true}
                     />
+                    {isMessageEditEnabled && (
+                        <div className="mb-1 mt-1.5 flex h-6 items-center gap-1.5 text-meta text-ink-3">
+                            <kbd className="kbd">esc</kbd> cancel · <kbd className="kbd">⏎</kbd> save
+                            <span className="ml-auto flex items-center gap-1.5">
+                                <Button type="button" size="xs" variant="ghost" onClick={() => { setIsMessageEditEnabled(false); setIsDropdownOpen(false) }}>Cancel</Button>
+                                <Button type="button" size="xs" onClick={() => { updateMessage(chatUUID || postUUID || commentUUID || '', updatedText); setIsMessageEditEnabled(false); setIsDropdownOpen(false) }}>Save</Button>
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Additive GitHub result cards for AI-teammate messages (a PR,
@@ -298,40 +316,34 @@ export const MessageContent = ({
                     <MessageAttachments attachmentSelected={handleSelectAttachment} attachments={attachments} mediaGetUrl={getMediaUrl}/>
                 }
 
+                {isAgent && !isMessageEditEnabled && <AgentProvenance asker={asker} />}
 
-                {!isMessageEditEnabled && !isGuest && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
+                {!isMessageEditEnabled && !isGuest && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId} selfName={selfProfile.data?.data?.user_name}/>}
 
             </div>
             {/* After the reply in the DOM, so Tab reaches the actions after
-                what the reply says. */}
-            {showActions && <div
-                className={cn(
-                    "absolute -top-0.5 right-2 transition-opacity duration-150 z-[var(--z-dropdown)]",
-                    (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) || "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
-                )}
-            >
-                <MessageDesktopHoverOptionsForRightPanelChatAndChannel
-                    setIsDropdownOpen={setIsDropdownOpen}
-                    channelUUID={channelUUID}
-                    postUUID={postUUID}
-                    setEmojiPopupState={setIsEmojiPickerOpen}
-                    onReactionSelect={handleEmojiClick}
-                    editMessage={()=>{setIsMessageEditEnabled(true)}}
-                    isOwner={selfProfile.data?.data.user_uuid == userInfo?.user_uuid}
-                    isAdmin={isAdmin}
-                    deleteMessage={()=>{deleteMessage(chatUUID || postUUID || commentUUID || '')}}
-                    captureSlot={
-                        commentUUID && channelUUID ? (
-                            <SaveToMemoryButton
-                                messageText={content}
-                                channelUUID={channelUUID}
-                                sourceType="comment"
-                                sourceUUID={commentUUID}
-                            />
-                        ) : undefined
-                    }
-                />
-            </div>}
+                what the reply says. The conversation's own toolbar (C19), 12px
+                in from the panel's edge. */}
+            {showActions && (
+                <div className="absolute -top-3.5 right-3 z-[var(--z-dropdown)]" data-touch-revealed={touchReveal.revealed || undefined}>
+                    <MessageDesktopHoverOptionsForMainChatAndChannel
+                        setIsDropdownOpen={setIsDropdownOpen}
+                        channelUUID={channelUUID}
+                        postUUID={root ? postUUID : undefined}
+                        chatUUID={root ? chatUUID : undefined}
+                        commentUUID={commentUUID}
+                        messageText={content}
+                        authorName={authorName}
+                        setEmojiPopupState={setIsEmojiPickerOpen}
+                        onReactionSelect={handleEmojiClick}
+                        editMessage={()=>{setIsMessageEditEnabled(true)}}
+                        isOwner={selfProfile.data?.data.user_uuid == userInfo?.user_uuid}
+                        isAdmin={isAdmin}
+                        deleteMessage={()=>{deleteMessage(chatUUID || postUUID || commentUUID || '')}}
+                        inThread
+                    />
+                </div>
+            )}
         </div>
     )
 }

@@ -88,6 +88,7 @@ function answerFor(url: string) {
   return answers.get(key)
 }
 
+vi.mock("@/components/later/SaveForLater", () => ({ SaveForLaterButton: () => null }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => answerFor(url),
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
@@ -108,6 +109,7 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
+vi.mock("@/components/ai/InboxNudges", () => ({ default: () => null }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 // jsdom lays nothing out, so the virtual list would draw no rows: every row here.
@@ -154,10 +156,11 @@ describe("every Activity tab", () => {
     const { container } = renderTab(tab)
     const { frame, toolbar, body } = frameOf(container)
     // The list's column: bounded, starting at the panel's edge, never centred.
-    expect(frame.className).toContain("max-w-[880px]")
+    // The hub's column (A1): 760px at most, start-aligned, never centred.
+    expect(frame.className).toContain("max-w-[760px]")
     expect(frame.className).not.toContain("mx-auto")
     expect(toolbar, "a toolbar row on every tab").toBeTruthy()
-    expect(toolbar!.className).toContain("h-9")
+    expect(toolbar!.className).toContain("h-11")
     expect(body).toBeTruthy()
     // No card in a tab: the AI tab was the settings page's card, with a title of its own.
     expect(screen.queryByText("What the AI did for you")).toBeNull()
@@ -179,12 +182,9 @@ describe("every Activity tab", () => {
     const { container } = renderTab(tab)
     const row = container.querySelector("[data-feed-body] [data-feed-row]") as HTMLElement
     expect(row, "a row").toBeTruthy()
-    // ListRow at the feed's density, led by a 36px mark.
-    expect(row.className).toContain("md:min-h-16")
-    expect(row.className).toContain("min-h-[72px]")
-    const mark = row.querySelector("[data-hue]") as HTMLElement
-    expect(mark).toBeTruthy()
-    expect(mark.getAttribute("style") ?? mark.className).toMatch(/36px|size-9/)
+    // The feed HubRow, led by a 32px mark with its kind badge.
+    expect(row.getAttribute("data-density")).toBe("feed")
+    expect(row.querySelector(".hub-row-lead [data-kind-badge]")).toBeTruthy()
   })
 })
 
@@ -195,7 +195,7 @@ describe("a mention", () => {
   it("is the same row in All and in Mentions", () => {
     const rowIn = (tab: "all" | "mentions") => {
       const { unmount } = renderTab(tab)
-      const html = screen.getByText("Can you check the rollback steps?").closest("a")?.outerHTML
+      const html = screen.getByText("Can you check the rollback steps?").closest("[data-feed-row]")?.outerHTML
       unmount()
       return html
     }
@@ -203,7 +203,8 @@ describe("a mention", () => {
     const inMentions = rowIn("mentions")
     expect(inAll).toBeTruthy()
     expect(inMentions).toBe(inAll)
-    expect(inMentions).toContain("Needs reply")
+    // The sentence names the place.
+    expect(inMentions).toContain("#engineering")
   })
 
   it("is the only kind Mentions shows", () => {
@@ -221,7 +222,7 @@ describe("the skeleton, empty and error states", () => {
     expect(skeleton).toBeTruthy()
     expect(skeleton!.querySelectorAll("[data-feed-skeleton-row]")).toHaveLength(FEED_SKELETON_ROWS)
     // Shaped like a loaded row, so nothing moves when the data lands.
-    expect((skeleton!.querySelector("[data-feed-skeleton-row]") as HTMLElement).className).toContain("md:min-h-16")
+    expect(skeleton!.querySelector("[data-feed-skeleton-row] [data-hub-skeleton][data-density=feed]")).toBeTruthy()
   })
 
   it.each(TABS)("%s says it is empty in the frame's place, with its spot", (tab) => {
@@ -230,7 +231,7 @@ describe("the skeleton, empty and error states", () => {
     const { body } = frameOf(container)
     const state = body!.querySelector(":scope > [data-feed-state]")
     expect(state).toBeTruthy()
-    expect(state!.querySelector("[data-empty-illustration]")).toBeTruthy()
+    expect(state!.querySelector("[data-hub-spot]")).toBeTruthy()
   })
 
   it.each(TABS)("%s says a failure in the frame's place, never that it is empty", (tab) => {
@@ -238,8 +239,8 @@ describe("the skeleton, empty and error states", () => {
     const { container } = renderTab(tab)
     const { body } = frameOf(container)
     const state = body!.querySelector(":scope > [data-feed-state]")
-    expect(state?.textContent).toMatch(/Couldn.t load/)
-    expect(state!.querySelector("[data-empty-illustration]")).toBeNull()
+    expect(state?.textContent).toMatch(/isn.t loading|Couldn.t load/)
+    expect(state!.querySelector("[data-hub-spot]")).toBeNull()
     expect(container.textContent).not.toMatch(/Nothing yet|caught up|No mentions yet|No activity yet/)
   })
 

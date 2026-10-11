@@ -26,7 +26,6 @@ import {
   HelpCircle,
   Zap,
   Clock,
-  ArrowUpRight,
   FileText,
   Hash,
   MessageSquare,
@@ -36,7 +35,8 @@ import {
   Mail,
 } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { Button } from "@/components/ui/button"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { localDay } from "@/lib/utils/timeZone"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -47,7 +47,7 @@ import { homeGap, homeGlyph, homeInset } from "@/components/home/homeLines"
  * the card title's line (homeLines). The 14px icon 8px before the text put
  * every item 10px left of the title above it.
  */
-const itemRow = cn("w-full text-left flex items-start rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors", homeGap)
+const itemRow = cn("w-full text-left flex items-start rounded-md px-2 py-1.5 -mx-2 hover:bg-hover transition-colors", homeGap)
 
 /** A memory item's due day ("2026-10-12") as the app writes a day: "12 Oct". */
 function dueDay(day: string): string {
@@ -96,6 +96,7 @@ function BriefingCard() {
   // Start from the answer kept from a moment ago, if any (see AttentionCard).
   const [data, setData] = useState<BriefingResult | null>(() => peekShared<BriefingResult>(BRIEFING_KEY) ?? null)
   const [loading, setLoading] = useState(() => peekShared(BRIEFING_KEY) === undefined)
+  const [allHighlights, setAllHighlights] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -201,17 +202,18 @@ function BriefingCard() {
   }
 
   return (
-    <div className="ai-panel hover-lift">
-      <div className="ai-panel-head">
-        <Tile hue="lake" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
-        <h2 className="text-sm font-medium text-foreground">Your briefing</h2>
-        <button
-          type="button"
-          onClick={() => router.push("/app/ai/memory")}
-          className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-        >
-          Open memory <ArrowUpRight className="h-3 w-3" />
-        </button>
+    // H20: a sheet card at e1, an agent square, and the highlights led by who
+    // said them. It is last on Home and fades in where it lands, so arriving
+    // late never pushes anything.
+    <section className="hub-fade-in overflow-hidden rounded-lg bg-sheet shadow-e1 dark:bg-[#18191C]" aria-labelledby="briefing-title" data-briefing="">
+      <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
+        <span aria-hidden className="avatar-agent grid size-6 place-items-center rounded-[32%] text-white">
+          <Sparkles className="size-3.5" />
+        </span>
+        <h2 id="briefing-title" className="text-heading font-semibold">Your briefing</h2>
+        <Button variant="ghost" size="xs" className="ml-auto" onClick={() => router.push("/app/ai/memory")}>
+          Open memory
+        </Button>
       </div>
 
       {/* Your day — cross-connector agenda (calendar / PRs / email). Renders
@@ -309,7 +311,7 @@ function BriefingCard() {
               Recent highlights
             </p>
             <ul className="space-y-1">
-              {highlights.map((h, i) => {
+              {highlights.slice(0, allHighlights ? undefined : 5).map((h, i) => {
                 const HighlightIcon = HIGHLIGHT_ICON[h.content_type] || FileText
                 return (
                   <li key={`${h.content_uuid}-${i}`}>
@@ -318,7 +320,13 @@ function BriefingCard() {
                       onClick={() => router.push(highlightHref(h))}
                       className={itemRow}
                     >
-                      <span className={homeGlyph}><HighlightIcon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" /></span>
+                      <span className={homeGlyph}>
+                        {h.author_name ? (
+                          <IdentityMark variant="avatar" size={24} id={h.chat_by_user_id || h.author_name} label={h.author_name} />
+                        ) : (
+                          <HighlightIcon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
+                        )}
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm leading-snug truncate">{h.snippet}</span>
                         <span className="text-2xs text-muted-foreground">
@@ -333,11 +341,16 @@ function BriefingCard() {
                 )
               })}
             </ul>
+            {highlights.length > 5 && !allHighlights ? (
+              <Button variant="ghost" size="xs" className="mt-1" onClick={() => setAllHighlights(true)}>
+                Show {highlights.length - 5} more
+              </Button>
+            ) : null}
           </div>
         )}
       </div>
       )}
-    </div>
+    </section>
   )
 }
 

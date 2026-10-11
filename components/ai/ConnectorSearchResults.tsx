@@ -15,11 +15,10 @@
  * never adds noise to a fresh or AI-disabled workspace.
  */
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
 import * as React from "react"
-import { Badge } from "@/components/ui/badge"
-import { Loader2, Mail, Github, ExternalLink, Sparkles, Plug, Brain } from "@/lib/icons"
+import { Mail, GitBranch, ArrowUpRight, Plug, Brain } from "@/lib/icons"
+import { HubRow, HubSectionHeader } from "@/components/ui/hubRow"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import {
   unifiedSearch,
   isAbortedRequest,
@@ -28,10 +27,18 @@ import {
 } from "@/services/aiSearchService"
 import { withAI } from "@/components/common/withFeature"
 
+// A glyph per source in ink-3, never the vendor's logo: marks we do not own
+// are not decoration (hub.md S12).
 const SOURCE_ICON: Partial<Record<UnifiedSource, React.ComponentType<{ className?: string }>>> = {
   memory: Brain,
   gmail: Mail,
-  github: Github,
+  github: GitBranch,
+}
+
+const GROUP_LABEL: Partial<Record<UnifiedSource, string>> = {
+  memory: "From memory",
+  gmail: "From Gmail",
+  github: "From GitHub",
 }
 
 // Sources rendered here; the page already renders raw "workspace" results.
@@ -104,83 +111,63 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
   if (!loading && visible.length === 0) return null
 
   return (
-    <div className="mt-6">
-      <div className={cn(eyebrowClass, "mb-2 flex items-center gap-1.5 px-1")}>
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
-        AI results
-        {loading && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-      </div>
-
-      <div className="space-y-4">
-        {visible.map((g) => {
-          const Icon = SOURCE_ICON[g.source] || Plug
-          const isMemory = g.source === "memory"
-          return (
-            <div key={g.source}>
-              <div className="mb-1.5 flex items-center gap-1.5 px-1 text-2xs font-medium text-foreground/70">
-                <Icon className="h-3.5 w-3.5" />
-                {g.label}
-              </div>
-
-              {!isMemory && !g.connected ? (
-                <div className="flex items-center gap-2 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                  <Plug className="h-3.5 w-3.5 shrink-0" />
-                  {g.note || `Connect ${g.label} to search it here.`}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {g.hits.map((h, i) =>
-                    isMemory ? (
-                      // Memory facts are informational, not navigable.
-                      <div
-                        key={i}
-                        className="flex items-start gap-3 rounded-xl border border-border/60 bg-card p-3"
-                      >
-                        <div className="mt-0.5 shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
-                          <Brain className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-0.5 flex items-center gap-2">
-                            <Badge variant="secondary" size="sm" caps className="rounded">
-                              {memoryKindLabel(h.kind)}
-                            </Badge>
-                            {h.meta && <span className="truncate text-2xs text-muted-foreground">{h.meta}</span>}
-                          </div>
-                          <p className="text-sm leading-relaxed text-foreground">{h.title}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <a
-                        key={i}
-                        href={h.url || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-start gap-3 rounded-xl border border-transparent bg-card p-3 transition duration-200 hover:border-border hover:bg-accent/40"
-                      >
-                        <div className="mt-0.5 shrink-0 rounded-lg bg-muted p-2 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="line-clamp-1 text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
-                            {h.title}
-                          </h3>
-                          {h.meta && <p className="mt-0.5 truncate text-2xs text-muted-foreground">{h.meta}</p>}
-                          {h.snippet && (
-                            <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                              {h.snippet}
-                            </p>
-                          )}
-                        </div>
-                        <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
-                      </a>
-                    ),
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+    <div className="mt-6 space-y-5" data-connector-results="" aria-busy={loading || undefined}>
+      {visible.map((g) => {
+        const Icon = SOURCE_ICON[g.source] || Plug
+        const isMemory = g.source === "memory"
+        return (
+          <section key={g.source} data-connector-group={g.source}>
+            <HubSectionHeader
+              title={
+                <span className="flex items-center gap-1.5">
+                  <Icon className="size-3.5 text-ink-3" />
+                  {GROUP_LABEL[g.source] || g.label}
+                </span>
+              }
+              count={g.hits.length || undefined}
+            />
+            {!isMemory && !g.connected ? (
+              <p className="flex items-center gap-2 rounded-lg bg-sunken px-3 py-2.5 text-ui-sm text-ink-2">
+                <Plug className="size-3.5 shrink-0 text-ink-3" />
+                {g.note || `Connect ${g.label} to search it here.`}
+              </p>
+            ) : (
+              <ul>
+                {g.hits.map((h, i) =>
+                  isMemory ? (
+                    <HubRow
+                      key={i}
+                      as="li"
+                      density="two-line"
+                      lead={<Brain className="size-4 text-ink-3" />}
+                      title={<span className="font-book">{h.title}</span>}
+                      second={[memoryKindLabel(h.kind), h.meta].filter(Boolean).join(" · ")}
+                    />
+                  ) : (
+                    <HubRow
+                      key={i}
+                      as="li"
+                      density="two-line"
+                      lead={<IdentityMark variant="avatar" size={24} id={h.meta || h.title} label={h.meta || h.title} />}
+                      title={
+                        <a href={h.url || "#"} target="_blank" rel="noopener noreferrer" className="after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand">
+                          {h.title}
+                        </a>
+                      }
+                      second={
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          <span className="truncate">{[h.meta, h.snippet].filter(Boolean).join(" · ")}</span>
+                          <ArrowUpRight className="size-3 shrink-0" aria-label="opens in a new tab" />
+                        </span>
+                      }
+                    />
+                  ),
+                )}
+              </ul>
+            )}
+          </section>
+        )
+      })}
     </div>
   )
 }

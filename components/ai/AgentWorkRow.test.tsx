@@ -79,3 +79,27 @@ describe("a blocked agent's question", () => {
     expect(queryByText(/reply with one of these/i)).toBeNull()
   })
 })
+
+import { isStaleWork, STALE_AFTER_MS } from "@/components/ai/AgentWorkRow"
+
+describe("a row's state (hub.md AI13)", () => {
+  it("is stale only when live work has not moved in ten minutes", () => {
+    const now = Date.parse("2026-10-11T12:00:00Z")
+    const at = (ms: number) => new Date(now - ms).toISOString()
+    expect(isStaleWork({ state: "working", updated_at: at(STALE_AFTER_MS + 1) }, now)).toBe(true)
+    expect(isStaleWork({ state: "working", updated_at: at(60_000) }, now)).toBe(false)
+    expect(isStaleWork({ state: "blocked", updated_at: at(STALE_AFTER_MS * 3) }, now)).toBe(false)
+    expect(isStaleWork({ state: "working", updated_at: "not a date" }, now)).toBe(false)
+  })
+
+  it("breathes the agent dot while working, with no spinner", () => {
+    const { container } = renderRow({ state: "working" })
+    expect(container.querySelector('[data-work-glyph="working"]')?.className).toContain("hub-breathe")
+    expect(container.querySelector(".animate-spin")).toBeNull()
+  })
+
+  it("says it has gone quiet instead of claiming progress", () => {
+    const { getByText } = renderRow({ state: "working", updated_at: new Date(Date.now() - STALE_AFTER_MS - 5000).toISOString() })
+    getByText(/No progress for a while/)
+  })
+})

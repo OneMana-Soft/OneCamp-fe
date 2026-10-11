@@ -81,19 +81,21 @@ export function InCallAIPanel({
     };
 
     return (
-        <div className="flex flex-col h-full w-full @3xl:w-[360px] bg-zinc-900/95 border-l border-white/10 text-white shadow-2xl">
+        // A right column in the stage (hub.md C10): #131416, r14, e3 in dark,
+        // 12px in from the stage's edges, sliding in on the panel recipe.
+        <div className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-white @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-brand text-brand-foreground">
-                        <Sparkles className="h-4 w-4" />
-                    </div>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+                <div className="flex items-center gap-2.5">
+                    {/* The AI is agent identity: the agent square, not the accent. */}
+                    <span className="grid size-6 place-items-center rounded-[32%] avatar-agent text-white">
+                        <Sparkles className="size-3.5" />
+                    </span>
                     <div>
-                        <p className="text-sm font-semibold leading-tight">Call Assistant</p>
-                        <p className="text-2xs text-white/50 leading-tight">
-                            {aiEnabled && modelLabel
-                                ? `Powered by ${modelLabel} · shared with the call`
-                                : "Shared with everyone in the call"}
+                        <p className="text-heading leading-tight">Ask about this call</p>
+                        <p className="flex items-center gap-1.5 text-meta text-ink-3 leading-tight" title={aiEnabled && modelLabel ? `Powered by ${modelLabel} · shared with the call` : undefined}>
+                            <span aria-hidden className="size-1.5 rounded-[3px] bg-camp-moss" />
+                            Listening · shared with everyone in the call
                         </p>
                     </div>
                 </div>

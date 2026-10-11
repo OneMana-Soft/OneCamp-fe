@@ -62,13 +62,22 @@ describe("the AI record in Activity (the feed variant)", () => {
     const rows = container.querySelectorAll("[data-feed-row]")
     expect(rows).toHaveLength(2)
     const first = rows[0] as HTMLElement
-    // The feed's one row: ListRow at its density, led by a 36px mark with a badge.
-    expect(first.className).toContain("md:min-h-16")
-    expect(first.querySelector("[data-hue]")?.className).toContain("size-9")
-    expect(first.textContent).toContain("An agent")
-    expect(first.textContent).toContain("acted as you")
-    expect(first.textContent).toContain("refused by permissions")
-    expect(first.textContent).toContain("Drill: post in #drill-finance refused")
+    // The feed HubRow, led by the agent's square with a kind badge (AI14).
+    expect(first.getAttribute("data-density")).toBe("feed")
+    expect(first.querySelector("[data-agent-avatar]")).toBeTruthy()
+    expect(first.querySelector("[data-kind-badge=refused]")).toBeTruthy()
+    // The record names who acted: the drill is the drill, never "An agent".
+    expect(first.textContent).toContain("The governance drill")
+    expect(first.textContent).not.toContain("An agent")
+    // What it tried, why it was refused, the outcome in the agent's tint, and a Drill tag.
+    expect(first.textContent).toContain("tried to post in #drill-finance")
+    expect(first.textContent).toContain("you are not a member of this channel")
+    const tag = first.querySelector("[data-outcome=refused]") as HTMLElement
+    expect(tag.textContent).toBe("Refused by permissions")
+    expect(tag.className).toContain("bg-agent-muted")
+    expect(tag.className).toContain("text-agent-ink")
+    expect(tag.className).not.toMatch(/brand|primary|danger|destructive/)
+    expect(first.querySelector("[data-drill]")).toBeTruthy()
     // A named agent is drawn like a person, by its name.
     const second = rows[1] as HTMLElement
     expect(second.textContent).toContain("Release Captain")
@@ -99,16 +108,16 @@ describe("the AI record in Activity (the feed variant)", () => {
   it("says a failed load failed, never that nothing has acted as you", () => {
     answer = { data: undefined, isLoading: false, isError: new Error("500"), mutate: () => {} }
     const { container } = render(<MyAIActivityCard variant="feed" />)
-    expect(container.querySelector("[data-feed-state]")?.textContent).toMatch(/Couldn.t load your AI activity/)
-    expect(container.textContent).not.toMatch(/Nothing has acted as you yet/)
+    expect(container.querySelector("[data-feed-state]")?.textContent).toMatch(/The record isn.t loading/)
+    expect(container.textContent).not.toMatch(/No agent has acted as you/)
   })
 
   it("explains an empty record with the frame's empty state and its spot", () => {
     answer = { data: { data: [] }, isLoading: false, mutate: () => {} }
     const { container } = render(<MyAIActivityCard variant="feed" />)
     const state = container.querySelector("[data-feed-state]")
-    expect(state?.textContent).toMatch(/Nothing has acted as you yet/)
-    expect(state?.querySelector("[data-empty-illustration]")).toBeTruthy()
+    expect(state?.textContent).toMatch(/No agent has acted as you/)
+    expect(state?.querySelector("[data-hub-spot=shield]")).toBeTruthy()
   })
 })
 

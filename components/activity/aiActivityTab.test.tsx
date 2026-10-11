@@ -39,7 +39,8 @@ describe("the AI filter in Activity", () => {
   // answers the first without worsening the second.
   it("is a tab in Activity rather than another item in the sidebar", () => {
     render(<ActivityListTabs />)
-    expect(screen.getByText("AI")).toBeTruthy()
+    // Labelled for what it records (design v3, hub.md A2); the URL keeps ?tab=ai.
+    expect(screen.getByRole("tab", { name: "Agents" })).toBeTruthy()
     // The filters people open Activity for are untouched.
     for (const t of ["Priority", "All", "Mentions"]) {
       expect(screen.getByText(t), `${t} tab disappeared`).toBeTruthy()
@@ -56,8 +57,8 @@ describe("the AI filter in Activity", () => {
   it("opens All for an old link to a tab that was folded in", () => {
     search = "tab=comments"
     render(<ActivityListTabs />)
-    const all = screen.getByText("All").closest("[role='tab']")
-    expect(all?.getAttribute("data-state")).toBe("active")
+    const all = screen.getByRole("tab", { name: "All" })
+    expect(all.getAttribute("aria-selected")).toBe("true")
   })
 
   // On the AI-free edition an "AI" tab leading nowhere would advertise a
@@ -65,7 +66,7 @@ describe("the AI filter in Activity", () => {
   it("is absent when the server has no AI", () => {
     aiOn = false
     render(<ActivityListTabs />)
-    expect(screen.queryByText("AI")).toBeNull()
+    expect(screen.queryByRole("tab", { name: "Agents" })).toBeNull()
     expect(screen.getByText("Priority")).toBeTruthy()
   })
 
@@ -73,8 +74,8 @@ describe("the AI filter in Activity", () => {
     const { container } = render(<ActivityListTabs />)
     const labels = Array.from(container.querySelectorAll("button, [role='tab']"))
       .map((n) => (n.textContent || "").trim())
-      .filter((t) => ["Priority", "All", "Mentions", "AI"].includes(t))
-    expect(labels[labels.length - 1]).toBe("AI")
+      .filter((t) => ["Priority", "All", "Mentions", "Agents"].includes(t))
+    expect(labels[labels.length - 1]).toBe("Agents")
   })
 })
 
@@ -88,7 +89,7 @@ describe("a link to the AI filter on a server without AI", () => {
     search = "tab=ai"
     render(<ActivityListTabs />)
     expect(screen.getByText("other activity")).toBeTruthy()
-    expect(screen.queryByText("AI")).toBeNull()
+    expect(screen.queryByRole("tab", { name: "Agents" })).toBeNull()
   })
 
   it("still opens the AI filter where there is AI", () => {
@@ -101,5 +102,21 @@ describe("a link to the AI filter on a server without AI", () => {
   it("links to the notification settings", () => {
     render(<ActivityListTabs />)
     expect(screen.getByRole("link", { name: "Notification settings" }).getAttribute("href")).toBe("/app/settings/notifications")
+  })
+})
+
+describe("the Activity header (hub.md A1, A2)", () => {
+  it("slides one ink indicator between the tabs, never the accent", () => {
+    const { container } = render(<ActivityListTabs />)
+    const bars = container.querySelectorAll("[data-tab-indicator]")
+    expect(bars).toHaveLength(1)
+    expect(bars[0].className).toContain("bg-ink")
+    expect(bars[0].className).not.toMatch(/bg-(brand|primary)/)
+    expect(container.querySelector("[data-hub-header]")?.className).toContain("h-[52px]")
+  })
+
+  it("offers Unread only beside the tabs", () => {
+    render(<ActivityListTabs />)
+    expect(screen.getByRole("switch", { name: "Unread only" })).toBeTruthy()
   })
 })

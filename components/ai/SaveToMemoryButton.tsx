@@ -22,6 +22,8 @@ import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { Lightbulb, Zap, CheckCircle2, HelpCircle, Loader2, Check } from "@/lib/icons"
 import axios from "axios"
 import { withAI } from "@/components/common/withFeature"
+import { DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu"
+import { Spark } from "@/components/ui/graphics/motifs"
 
 const errMessage = (e: unknown): string => {
   if (axios.isAxiosError(e)) return e.response?.data?.msg || e.response?.data?.message || e.message
@@ -59,6 +61,12 @@ interface SaveToMemoryButtonProps {
    * MessageDesktopDropdown → setIsDropdownOpen).
    */
   onOpenChange?: (open: boolean) => void
+  /**
+   * Drawn as an item of a message's More menu (design v3 chat, C20): "Save
+   * to memory ›" with the three kinds beside it, the spark in the agent's
+   * colour (AI's only use of that hue besides an agent's identity).
+   */
+  asMenuItem?: boolean
 }
 
 const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
@@ -69,6 +77,7 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
   sourceUUID,
   className,
   onOpenChange,
+  asMenuItem = false,
 }) => {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
@@ -134,6 +143,28 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
   }
 
   if (!eligible) return null
+
+  if (asMenuItem) {
+    if (!eligible) return null
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <Spark size={14} className="text-agent" /> Save to memory
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="pop-surface w-60 p-1">
+          {KIND_OPTIONS.map(({ kind, label, hint, Icon }) => (
+            <DropdownMenuItem key={kind} disabled={!!saving} onSelect={() => void onPick(kind)} className="h-auto items-start py-1.5">
+              <Icon className="mt-0.5 text-ink-3" />
+              <span className="min-w-0">
+                <span className="block text-ui-sm">{label}</span>
+                <span className="block text-meta text-ink-3">{hint}</span>
+              </span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); onOpenChange?.(o); if (!o) resetTransient() }}>

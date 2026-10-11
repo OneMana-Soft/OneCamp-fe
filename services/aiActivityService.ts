@@ -52,6 +52,14 @@ export interface AIActivityItem {
    * whether anybody was there. Absent when the row never said.
    */
   initiator?: string
+  /**
+   * The agent that acted, by name, on a run or an audit row (the server sends
+   * it since 11 Oct, from the run or from the audit row's metadata). Older
+   * rows have none; components/ai/agentRecord.ts falls back.
+   */
+  agent_name?: string
+  /** Who acted, from the audit row: "human", "agent" or "system". Empty on a run and on older rows. */
+  actor_kind?: "human" | "agent" | "system" | string
 }
 
 /** The kinds the server counts as nobody watching. Mirrors Initiator.Unattended on the server. */

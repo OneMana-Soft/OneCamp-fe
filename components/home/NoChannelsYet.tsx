@@ -15,15 +15,12 @@ import { useSelector } from "react-redux"
 import Link from "next/link"
 import { RootState } from "@/store/store"
 import { Button } from "@/components/ui/button"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { Hash } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { ChannelJoinInterface } from "@/types/channel"
-import { cn } from "@/lib/utils/helpers/cn"
-import { homeGap, homeInset } from "@/components/home/homeLines"
 
 interface SuggestedChannel {
   ch_uuid: string
@@ -65,18 +62,18 @@ export function NoChannelsYet() {
 
   return (
     // On Home's two lines (homeLines), as every other Home card.
-    <section aria-labelledby="no-channels-title" className={cn("hover-lift flex items-start rounded-lg border border-border/60 py-4", homeInset, homeGap)}>
-      <Tile hue="sky" size="sm" className="-mt-0.5"><Hash strokeWidth={1.75} /></Tile>
+    <section aria-labelledby="no-channels-title" className="flex items-start gap-3 rounded-lg bg-sheet px-4 py-3.5 shadow-e1 dark:bg-[#18191C]" data-no-channels="">
+      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-hover text-ink-3"><Hash className="size-4" /></span>
       <div className="min-w-0">
-      <h2 id="no-channels-title" className="text-sm font-semibold">You&apos;re not in any channels yet</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Channels are where your team talks. Join one to see what&apos;s going on.</p>
+      <h2 id="no-channels-title" className="text-ui font-medium">You&apos;re not in any channels yet</h2>
+      <p className="mt-0.5 text-meta text-ink-3">Channels are where your team talks. Join one to see what&apos;s going on.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {channel && (
           <Button size="sm" onClick={() => void joinSuggested()} disabled={join.isSubmitting}>
             {join.isSubmitting ? "Joining…" : `Join #${channel.ch_name}`}
           </Button>
         )}
-        <Button size="sm" variant="outline" asChild>
+        <Button size="sm" variant="secondary" asChild>
           <Link href="/app/channel?tab=join">Browse channels</Link>
         </Button>
       </div>
