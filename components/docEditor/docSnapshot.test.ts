@@ -43,7 +43,8 @@ describe("a doc's saved copy", () => {
 
   it("uses the classes the editor is configured with, so the two cannot drift apart", () => {
     const hook = readFileSync("components/minimal-tiptap/hooks/use-minimal-tiptap.ts", "utf8")
-    const doc = readFileSync("components/docEditor/docInput.tsx", "utf8")
+    // The doc's own extensions (task lists among them) live in docExtensions.ts.
+    const doc = readFileSync("components/docEditor/docExtensions.ts", "utf8")
     const configured = (node: string, src: string) =>
       new RegExp(`${node}[:.(\\s{]+(?:configure\\(\\{\\s*)?HTMLAttributes:\\s*\\{\\s*class:\\s*'([\\w-]+)'`).exec(src)?.[1]
     const want = Object.fromEntries(SNAPSHOT_CLASSES.map(([sel, cls]) => [sel, cls]))

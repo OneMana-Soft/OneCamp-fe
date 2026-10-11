@@ -135,7 +135,9 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   shouldRerenderOnTransaction?: boolean
 }
 
-const createExtensions = (
+// Exported for the schema manifest test (schemaManifest.test.ts), which
+// builds the doc editor's schema from this same list.
+export const createExtensions = (
     // A getter, so a placeholder that changes after the editor is created (a
     // channel's agents load a moment later) is read at render time, not frozen.
     placeholderOf: () => string, 
