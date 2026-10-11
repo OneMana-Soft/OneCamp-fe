@@ -4,6 +4,7 @@ import { stopAnswer } from "@/services/answerRecovery";
 import { usePost } from "@/hooks/usePost";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
+import { readSSE } from "@/lib/ai/sseReader";
 import { getCatchUp, CatchUpRequest, CatchUpResult } from "@/services/catchUpService";
 
 export interface SourceRef {
@@ -181,74 +182,56 @@ export const useAskAIStream = () => {
                 const reader = response.body?.getReader();
                 if (!reader) throw new Error("No response body");
 
-                const decoder = new TextDecoder();
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split("\n");
-
-                    for (const line of lines) {
-                        if (line.startsWith("data: ")) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.error) {
-                                    setError(data.error);
-                                    setIsStreaming(false);
-                                    return null;
-                                }
-                                if (data.content) {
-                                    const unescaped = data.content
-                                        .replace(/\\n/g, "\n")
-                                        .replace(/\\"/g, '"');
-                                    accumulated += unescaped;
-                                    setStreamText(accumulated);
-                                }
-                                // Server sends sanitized replacement after stream ends
-                                // (uses json.Marshal on backend, so JSON.parse handles all escaping)
-                                if (data.replace) {
-                                    accumulated = data.replace;
-                                    setStreamText(data.replace);
-                                }
-                                // Sent before any content, so the caller can adopt
-                                // it even if the answer is cut short.
-                                if (data.session_id) {
-                                    streamedSessionId = data.session_id;
-                                    liveSessionRef.current = data.session_id;
-                                }
-                                // Server sends parsed tool call actions
-                                if (data.actions) {
-                                    parsedActions = data.actions;
-                                    setStreamActions(parsedActions);
-                                }
-                                // Server sends grounding sources (citations)
-                                if (data.sources) {
-                                    parsedSources = data.sources;
-                                }
-                                // Server reports that the prompt was shortened to fit
-                                // the model's window (trimmed pre-emptively, or shrunk
-                                // after the provider refused it).
-                                if (data.notice) {
-                                    parsedNotice = data.notice;
-                                    setStreamNotice(data.notice);
-                                }
-                                // A step of the plan, new or updated in place by id.
-                                if (data.step && typeof data.step.id === "string") {
-                                    const step = data.step as StreamStep;
-                                    const at = parsedSteps.findIndex((x) => x.id === step.id);
-                                    parsedSteps = at >= 0 ? parsedSteps.map((x, i) => (i === at ? { ...x, ...step } : x)) : [...parsedSteps, step];
-                                    setStreamSteps(parsedSteps);
-                                }
-                                if (data.done) {
-                                    setIsStreaming(false);
-                                    return result();
-                                }
-                            } catch {
-                                // Skip malformed JSON chunks
-                            }
-                        }
+                // Each event's data, parsed once (JSON.parse undoes every
+                // escape), whatever way the network cut the bytes.
+                for await (const data of readSSE(reader)) {
+                    if (data.error) {
+                        setError(data.error);
+                        setIsStreaming(false);
+                        return null;
+                    }
+                    if (typeof data.content === "string" && data.content) {
+                        accumulated += data.content;
+                        setStreamText(accumulated);
+                    }
+                    // Server sends sanitized replacement after stream ends
+                    // (uses json.Marshal on backend, so JSON.parse handles all escaping)
+                    if (data.replace) {
+                        accumulated = data.replace;
+                        setStreamText(data.replace);
+                    }
+                    // Sent before any content, so the caller can adopt
+                    // it even if the answer is cut short.
+                    if (data.session_id) {
+                        streamedSessionId = data.session_id;
+                        liveSessionRef.current = data.session_id;
+                    }
+                    // Server sends parsed tool call actions
+                    if (data.actions) {
+                        parsedActions = data.actions;
+                        setStreamActions(parsedActions);
+                    }
+                    // Server sends grounding sources (citations)
+                    if (data.sources) {
+                        parsedSources = data.sources;
+                    }
+                    // Server reports that the prompt was shortened to fit
+                    // the model's window (trimmed pre-emptively, or shrunk
+                    // after the provider refused it).
+                    if (data.notice) {
+                        parsedNotice = data.notice;
+                        setStreamNotice(data.notice);
+                    }
+                    // A step of the plan, new or updated in place by id.
+                    if (data.step && typeof data.step.id === "string") {
+                        const step = data.step as StreamStep;
+                        const at = parsedSteps.findIndex((x) => x.id === step.id);
+                        parsedSteps = at >= 0 ? parsedSteps.map((x, i) => (i === at ? { ...x, ...step } : x)) : [...parsedSteps, step];
+                        setStreamSteps(parsedSteps);
+                    }
+                    if (data.done) {
+                        setIsStreaming(false);
+                        return result();
                     }
                 }
 
@@ -379,45 +362,26 @@ export const useDocAI = () => {
                 const reader = response.body?.getReader();
                 if (!reader) throw new Error("No response body");
 
-                const decoder = new TextDecoder();
                 let accumulated = "";
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split("\n");
-
-                    for (const line of lines) {
-                        if (line.startsWith("data: ")) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.error) {
-                                    setError(data.error);
-                                    setIsStreaming(false);
-                                    return;
-                                }
-                                if (data.content) {
-                                    const unescaped = data.content
-                                        .replace(/\\n/g, "\n")
-                                        .replace(/\\"/g, '"');
-                                    accumulated += unescaped;
-                                    setStreamText(accumulated);
-                                }
-                                // Sent just before "done" when the input was shortened
-                                // to fit the model's window.
-                                if (data.notice) {
-                                    setStreamNotice(data.notice);
-                                }
-                                if (data.done) {
-                                    setIsStreaming(false);
-                                    return;
-                                }
-                            } catch {
-                                // Skip malformed JSON chunks
-                            }
-                        }
+                for await (const data of readSSE(reader)) {
+                    if (data.error) {
+                        setError(data.error);
+                        setIsStreaming(false);
+                        return;
+                    }
+                    if (typeof data.content === "string" && data.content) {
+                        accumulated += data.content;
+                        setStreamText(accumulated);
+                    }
+                    // Sent just before "done" when the input was shortened
+                    // to fit the model's window.
+                    if (data.notice) {
+                        setStreamNotice(data.notice);
+                    }
+                    if (data.done) {
+                        setIsStreaming(false);
+                        return;
                     }
                 }
             } catch (err: any) {
