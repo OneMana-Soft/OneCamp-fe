@@ -27,11 +27,24 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { setWorkerUserUUID } from "@/lib/workerCommunication"
 import { isDndActive } from "@/components/command/CommandActionBridge"
 import { notificationRoute, NOTIFICATION_FALLBACK_ROUTE } from "@/lib/utils/notificationRoute"
+import { onScreenFrom, pushIsOnScreen } from "@/lib/utils/notificationOnScreen"
+import { useStore } from "react-redux"
+import type { RootState } from "@/store/store"
+
+/**
+ * How long a registered push token is trusted before the app, coming back into
+ * view, registers it again. The server once dropped tokens on any push error,
+ * and a tab or the desktop app open all day then went without push until it was
+ * reloaded (TN-BUG-14); registering is an upsert, so doing it again is harmless.
+ */
+export const FCM_RESYNC_MS = 15 * 60_000
 
 export function FCMHandler() {
   const { makeRequest } = usePost()
   const router = useRouter()
-  const hasSyncedRef = useRef(false)
+  const store = useStore<RootState>()
+  // When this tab last registered its token with the server (ms; 0: not yet).
+  const syncedAtRef = useRef(0)
   const retryTimeoutRef = useRef<number | null>(null)
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -59,11 +72,13 @@ export function FCMHandler() {
     }
 
     let isCancelled = false
+    let inFlight = false
     const MAX_RETRIES = 3
     const BASE_DELAY = 3000 // 3s, 6s, 12s
 
     const setupFCM = async (attempt: number = 1): Promise<void> => {
-      if (isCancelled || hasSyncedRef.current) return
+      if (isCancelled || inFlight) return
+      inFlight = true
 
       try {
         const token = await getFCMToken()
@@ -81,7 +96,7 @@ export function FCMHandler() {
           showErrorToast: false
         })
 
-        hasSyncedRef.current = true
+        syncedAtRef.current = Date.now()
       } catch (e) {
         console.error(`[FCM] Setup attempt ${attempt} failed:`, e)
 
@@ -89,15 +104,19 @@ export function FCMHandler() {
           const delay = BASE_DELAY * Math.pow(2, attempt - 1) // 3s, 6s, 12s
           retryTimeoutRef.current = window.setTimeout(() => setupFCM(attempt + 1), delay)
         }
+      } finally {
+        inFlight = false
       }
     }
 
-    // Initial setup after hydration delay
+    // Initial setup after hydration delay: on every start of the app.
     const initialTimeout = window.setTimeout(() => setupFCM(1), BASE_DELAY)
 
-    // Recovery: retry when app returns to foreground if setup hasn't completed
+    // And again when the app comes back into view, once the last registration is
+    // older than FCM_RESYNC_MS (or never happened): a token the server dropped
+    // comes back without a reload (TN-BUG-14).
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && !hasSyncedRef.current && !isCancelled) {
+      if (document.visibilityState === 'visible' && !isCancelled && Date.now() - syncedAtRef.current > FCM_RESYNC_MS) {
         setupFCM(1)
       }
     }
@@ -134,7 +153,17 @@ export function FCMHandler() {
       const redirectUrl = route === NOTIFICATION_FALLBACK_ROUTE ? "" : route
 
       // Already looking at it: the message is on screen, so a preview would
-      // only cover something.
+      // only cover something. By conversation and thread, never by path: a
+      // channel push routes to its post, and the channel being read was
+      // previewed message by message (TN-BUG-9). A page of its own (a task, a
+      // doc) still matches by its path.
+      const state = store.getState()
+      const panel = state.rightPanel.rightPanelState
+      const screen = onScreenFrom(window.location.pathname, {
+        panes: state.split.panes,
+        openThread: panel.isOpen ? panel.data.postUUID || panel.data.chatMessageUUID || null : null,
+      })
+      if (pushIsOnScreen(payload.data, screen, selfUUIDRef.current)) return
       if (redirectUrl && window.location.pathname === redirectUrl.split("?")[0]) return
 
       // The live preview (design v3, shell N2): the person's avatar, who and
@@ -164,7 +193,7 @@ export function FCMHandler() {
     return () => {
       unsubscribe()
     }
-  }, [router])
+  }, [router, store])
 
   return null // Headless component
 }
