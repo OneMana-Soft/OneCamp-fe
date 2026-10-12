@@ -109,6 +109,7 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
+vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
 vi.mock("@/components/ai/InboxNudges", () => ({ default: () => null }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))

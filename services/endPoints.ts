@@ -447,6 +447,8 @@ export enum PostEndpointUrl {
     RecordDocView = "/doc/recordView",
     JoinChannel = "/ch/joinChannel",
     MarkChannelSeen = "/ch/markSeen", // append /{channel_uuid}
+    // The Inbox marks the feed seen by asking; reading the feed marks nothing.
+    MarkActivitySeen = "/activity/seen",
     UpdateChannel = "/ch/updateInfo",
     SetChannelPostPolicy = "/ch/postPolicy",
     RemoveProjectModerator = "/project/removeAdminRole",
