@@ -34,6 +34,7 @@ import type {
     CommandResponse,
 } from "@/types/command"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { executeRequest } from "@/lib/command/executeRequest"
 
 export interface CommandSurfaceContext {
     surfaceKey: string          // channel uuid or dm grouping id
@@ -195,18 +196,11 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
             // Remember the mention→uuid map for this invocation so client
             // actions (open_dm) can resolve the exact user the picker chose.
             mentionsRef.current = mentions || {}
-            // Strip the leading "/command " to get the args text.
-            const argsText = typed.replace(/^\/?\S+\s*/, "")
             try {
-                const resp = await executeCommand({
-                    command,
-                    text: argsText,
-                    channel_id: ctx.channelId,
-                    dm_group_id: ctx.dmGroupId,
-                    thread_ts: ctx.threadTs,
-                    timezone: browserTZ(),
-                    trigger_id: triggerId,
-                })
+                // The people picked go too: the text shows only their names.
+                const resp = await executeCommand(
+                    executeRequest(command, typed, ctx, browserTZ(), triggerId, mentions),
+                )
                 routeResponse(resp, triggerId, command)
             } catch {
                 toast({
