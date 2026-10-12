@@ -32,6 +32,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { useDebounce } from "@/hooks/useDebounce"
 import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
+import { resultPath } from "@/lib/search/resultPath"
 import { getContext, getHighlightedTitle, getIcon, getTitle, hitHueId, searchResultKeys } from "@/lib/utils/helpers/search"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { Tile } from "@/components/ui/graphics/Tile"
@@ -101,8 +102,11 @@ interface PaletteCommand {
 const NO_RECENT: RecentItem[] = []
 
 // Titles are the decoded, plain text a hit shows (stored bodies are escaped
-// HTML, so a message's first 40 characters could end in "&#39").
-function makeSearchRecentItem(result: SearchResult): Omit<RecentItem, "timestamp"> | null {
+// HTML, so a message's first 40 characters could end in "&#39"). A message
+// opens where the search page opens it (resultPath): in its DM or group, at
+// its thread. It used to open /app/chat/<its author>, a DM with yourself for
+// your own message and a one-to-one with the author for a group's.
+function makeSearchRecentItem(result: SearchResult, selfUUID: string): Omit<RecentItem, "timestamp"> | null {
   const title = getTitle(result).slice(0, 60)
   switch (result.type) {
     case "task":
@@ -115,8 +119,10 @@ function makeSearchRecentItem(result: SearchResult): Omit<RecentItem, "timestamp
       return { id: result.project.project_id, type: "project", title: title || "Project", path: `/app/project/${result.project.project_id}` }
     case "team":
       return { id: result.team.team_id, type: "team", title: title || "Team", path: `/app/team/${result.team.team_id}` }
-    case "chat":
-      return { id: result.chat.chat_id, type: "chat", title: title || "Message", path: `/app/chat/${result.chat.chat_by_user_id}` }
+    case "chat": {
+      const path = resultPath(result, selfUUID)
+      return path ? { id: result.chat.chat_id, type: "chat", title: title || "Message", path } : null
+    }
     default:
       return null
   }
@@ -317,10 +323,10 @@ export function CommandPalette() {
   }, [setInputValue])
 
   const handleSearchSelect = React.useCallback((result: SearchResult) => {
-    const item = makeSearchRecentItem(result)
+    const item = makeSearchRecentItem(result, selfId ?? "")
     if (item) dispatch(addRecentItem(item))
     runCommand(() => handleResultClick(result))
-  }, [runCommand, handleResultClick, dispatch])
+  }, [runCommand, handleResultClick, dispatch, selfId])
 
   const handleRecentSelect = React.useCallback((item: RecentItem) => {
     runCommand(() => router.push(item.path))
@@ -912,7 +918,8 @@ export function CommandPalette() {
             </div>
           )}
           {hits.slice(0, 8).map((result, idx) => {
-            const item = makeSearchRecentItem(result)
+            // Where the row opens, the address it links to (resultPath).
+            const href = resultPath(result, selfId ?? "") ?? undefined
             return (
               <PaletteRow
                 key={`hit-${hitKeys[idx]}`}
@@ -921,7 +928,7 @@ export function CommandPalette() {
                 icon={getIcon(result)}
                 label={getHighlightedTitle(result)}
                 meta={getContext(result)}
-                href={item?.path}
+                href={href}
                 peek={{ title: getTitle(result), kind: hitKindLabel(result.type), meta: String(getContext(result) ?? "") }}
               />
             )
