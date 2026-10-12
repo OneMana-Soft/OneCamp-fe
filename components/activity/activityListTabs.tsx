@@ -9,6 +9,7 @@ import { ActivityFeedList } from "@/components/activity/activityFeedList"
 import { HubFrame, HubTabs, type HubTab } from "@/components/activity/hubFrame"
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { clearActivityUnread } from "@/services/unreadCache"
+import { markActivitySeen } from "@/services/activityService"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
@@ -87,6 +88,13 @@ export function ActivityListTabs() {
         // The sidenav cache carries this number too (services/unreadCache.ts).
         clearActivityUnread()
     }, [dispatch])
+
+    // What the Inbox shows is seen. Reading the feed marks nothing on the
+    // server (Home reads it too), so the Inbox says so: once its first page
+    // is on screen, and again when a newer one arrives while it's open.
+    useEffect(() => {
+        if (firstPage) void markActivitySeen()
+    }, [firstPage])
 
     // Keys: 1-4 switch tabs, Shift+U marks all read (A1). Never while typing.
     useEffect(() => {

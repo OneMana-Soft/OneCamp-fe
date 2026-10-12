@@ -105,6 +105,7 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
+vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 // jsdom lays nothing out, so the virtual list would draw no rows: every row here.
