@@ -27,6 +27,8 @@ interface MsgPreviewProps {
      * Left out: the message whole, without the footer (the forward dialog).
      */
     vewFooter?:boolean
+    /** The forwarded original was deleted: say so, and show nothing of it. */
+    deleted?: boolean
 }
 
 /**
@@ -57,6 +59,17 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                 <span className="shrink-0 font-medium text-foreground">{name}</span>
                 <span className="min-w-0 truncate text-muted-foreground">{getLastMessagePreview(body)}</span>
             </span>
+        )
+    }
+
+    // A forward of a message deleted since: the same card, saying only that.
+    // The server sends nothing else of it (models/dgraph HideDeletedForwards).
+    if (msgInfo.deleted) {
+        return (
+            <div data-forwarded="" data-forward-deleted="" className="relative mt-2 min-w-0 max-w-[520px] overflow-hidden rounded-xl bg-sunken py-2.5 pl-4 pr-3">
+                <span aria-hidden="true" className="absolute bottom-2 left-1.5 top-2 w-0.5 rounded-full bg-line" />
+                <p className="text-ui-sm italic text-ink-3">This message was deleted.</p>
+            </div>
         )
     }
 

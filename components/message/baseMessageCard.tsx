@@ -71,6 +71,7 @@ import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 
 interface NormalizedForwardMessage {
   from: UserProfileDataInterface
@@ -79,7 +80,12 @@ interface NormalizedForwardMessage {
   channelUUID?: string
   uuid: string
   createdAt: string
+  /** The original was deleted: the server sends only that, and so do we. */
+  deleted?: boolean
 }
+
+/** Whether a forwarded original's deletion time says it was deleted. */
+const deletedAt = (at?: string) => !!at && !isZeroEpoch(at)
 
 export interface BaseMessage {
   uuid: string
@@ -124,6 +130,7 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
           channelUUID: chatInfo.chat_fwd_msg_post.post_channel?.ch_uuid,
           uuid: chatInfo.chat_fwd_msg_post.post_uuid,
           createdAt: chatInfo.chat_fwd_msg_post.post_created_at,
+          deleted: deletedAt(chatInfo.chat_fwd_msg_post.post_deleted_at),
         }
       : undefined,
     fwdMsgChat: chatInfo.chat_fwd_msg_chat
@@ -132,6 +139,7 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
           text: chatInfo.chat_fwd_msg_chat.chat_body_text,
           uuid: chatInfo.chat_fwd_msg_chat.chat_uuid,
           createdAt: chatInfo.chat_fwd_msg_chat.chat_created_at,
+          deleted: deletedAt(chatInfo.chat_fwd_msg_chat.chat_deleted_at),
         }
       : undefined,
     replyTo: chatInfo.chat_reply_to
@@ -166,6 +174,7 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
           channelUUID: postInfo.post_fwd_msg_post.post_channel?.ch_uuid,
           uuid: postInfo.post_fwd_msg_post.post_uuid,
           createdAt: postInfo.post_fwd_msg_post.post_created_at,
+          deleted: deletedAt(postInfo.post_fwd_msg_post.post_deleted_at),
         }
       : undefined,
     fwdMsgChat: postInfo.post_fwd_msg_chat
@@ -174,6 +183,7 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
           text: postInfo.post_fwd_msg_chat.chat_body_text,
           uuid: postInfo.post_fwd_msg_chat.chat_uuid,
           createdAt: postInfo.post_fwd_msg_chat.chat_created_at,
+          deleted: deletedAt(postInfo.post_fwd_msg_chat.chat_deleted_at),
         }
       : undefined,
     replyTo: postInfo.post_reply_to
@@ -652,6 +662,7 @@ export const BaseMessageCard = React.memo(({
               msgChannelUUID={message.fwdMsgPost?.channelUUID}
               msgUUID={message.fwdMsgPost?.uuid || message.fwdMsgChat?.uuid}
               msgCreatedAt={message.fwdMsgPost?.createdAt || message.fwdMsgChat?.createdAt}
+              deleted={(message.fwdMsgPost ?? message.fwdMsgChat)?.deleted}
               vewFooter={true}
             />
           )}
