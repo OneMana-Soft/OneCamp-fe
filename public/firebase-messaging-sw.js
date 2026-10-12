@@ -110,6 +110,25 @@ function oneCampNotificationRoute(data, selfUUID) {
 }
 // --- END notification route ---
 
+// --- BEGIN notification tag (mirror of lib/utils/notificationTag.ts) ---
+// One notification per place and sender. Tagged by its kind alone ("chat"),
+// one sender's notification replaced another's. lib/utils/notificationTag.test.ts
+// evaluates the code between these markers and holds it to the TypeScript.
+function oneCampNotificationTag(data, selfUUID) {
+    function t(v) { return (v || '').trim(); }
+    var own = t(data && data.tag);
+    var kind = t(data && data.type) || 'general';
+    var tag = own || [
+        kind,
+        t(data && data.type_id),
+        // A new message's thread_id is the message itself, not a thread.
+        kind === 'chat' || kind === 'channel' ? '' : t(data && data.thread_id),
+        t(data && data.username) || t(data && data.body) || t(data && data.title)
+    ].filter(Boolean).join(':');
+    return selfUUID ? selfUUID + '_' + tag : tag;
+}
+// --- END notification tag ---
+
 // Helper: Natively read userUUID stored from front-end to customize background behavior natively
 function getWorkerUserUUID() {
     return new Promise((resolve) => {
@@ -165,12 +184,10 @@ if (messaging) {
         try {
             const activeUserUUID = await getWorkerUserUUID();
 
-            let dynamicTag = payload.notification?.tag || payload.data?.tag || payload.data?.type || 'general';
-
-            // If userUUID exists explicitly scope notification so different users don't swallow tags if logged out/swapped!
-            if (activeUserUUID) {
-                dynamicTag = activeUserUUID + "_" + dynamicTag;
-            }
+            // One per place and sender, scoped to who is signed in, so neither
+            // another sender nor another account replaces it.
+            const tagData = Object.assign({}, payload.data, payload.notification?.tag ? { tag: payload.notification.tag } : null);
+            const dynamicTag = oneCampNotificationTag(tagData, activeUserUUID);
 
             const notificationOptions = {
                 body: body,
