@@ -7,7 +7,9 @@ import { CalendarAgenda } from "./calendarAgenda"
 
 afterEach(cleanup)
 
-const monday = addDays(startOfWeek(new Date(2026, 9, 12)), 1)
+// A week long past, so no day in it is ever today (the day view says
+// "Nothing on today" for today, and this file ran on that very Monday).
+const monday = addDays(startOfWeek(new Date(2020, 0, 8)), 1)
 const at = (day: number, h: number) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + day, h).toISOString()
 const standup: CalendarEventInterface = { event_uuid: "e1", event_title: "Standup", event_start_time: at(1, 9), event_end_time: at(1, 10) }
 
