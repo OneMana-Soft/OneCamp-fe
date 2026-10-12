@@ -14,15 +14,9 @@ import { SelectionBar } from '@/components/docEditor/SelectionBar'
 import { DocAccessoryBar } from '@/components/docEditor/DocAccessoryBar'
 import { celebrate } from '@/lib/celebrate'
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
-import { Callout } from '@/components/minimal-tiptap/extensions/callout/callout'
-import { Collapsible } from '@/components/minimal-tiptap/extensions/collapsible/collapsible'
-import { TableEmbed } from '@/components/minimal-tiptap/extensions/table-embed/table-embed'
 import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
 import { createTable } from '@/services/tableService'
-import { BlockHandle } from '@/components/minimal-tiptap/extensions/block-handle'
-import { ClickToCreateBlock } from '@/components/minimal-tiptap/extensions/click-to-create-block'
-import { TaskList } from '@tiptap/extension-task-list'
-import { TaskItem } from '@tiptap/extension-task-item'
+import { DOC_EXTRA_EXTENSIONS } from '@/components/docEditor/docExtensions'
 import { DOC_SLASH_COMMANDS } from '@/components/minimal-tiptap/extensions/slash-command/slashCommand'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
 import { useMedia } from "@/context/MediaQueryContext"
@@ -187,24 +181,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             }
         }, [title])
 
-        const extraExtensions = React.useMemo(() => [
-            Callout, 
-            Collapsible, 
-            TableEmbed,
-            BlockHandle,
-            ClickToCreateBlock,
-            TaskList.configure({
-                HTMLAttributes: {
-                    class: 'task-list',
-                },
-            }),
-            TaskItem.configure({
-                HTMLAttributes: {
-                    class: 'task-item',
-                },
-                nested: true,
-            }),
-        ], [])
+        const extraExtensions = DOC_EXTRA_EXTENSIONS
         // This edition has no AI, so the doc palette leaves out its AI section.
         const slashCommands = React.useMemo(() => DOC_SLASH_COMMANDS.filter((c) => c.section !== "AI"), [])
 

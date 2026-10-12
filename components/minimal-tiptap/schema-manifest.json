@@ -1,0 +1,253 @@
+{
+  "nodes": {
+    "blockquote": {
+      "attrs": [],
+      "group": "block",
+      "content": "block+",
+      "inline": false,
+      "atom": false
+    },
+    "bulletList": {
+      "attrs": [],
+      "group": "block list",
+      "content": "listItem+",
+      "inline": false,
+      "atom": false
+    },
+    "callout": {
+      "attrs": [
+        "color",
+        "emoji"
+      ],
+      "group": "block",
+      "content": "block+",
+      "inline": false,
+      "atom": false
+    },
+    "channelMention": {
+      "attrs": [
+        "id",
+        "label",
+        "mentionSuggestionChar"
+      ],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
+    "chartEmbed": {
+      "attrs": [
+        "spec"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "codeBlock": {
+      "attrs": [
+        "language"
+      ],
+      "group": "block",
+      "content": "text*",
+      "inline": false,
+      "atom": false
+    },
+    "collapsible": {
+      "attrs": [
+        "open",
+        "title"
+      ],
+      "group": "block",
+      "content": "block+",
+      "inline": false,
+      "atom": false
+    },
+    "diffEmbed": {
+      "attrs": [
+        "diff"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "doc": {
+      "attrs": [],
+      "group": null,
+      "content": "block+",
+      "inline": false,
+      "atom": false
+    },
+    "entityMention": {
+      "attrs": [
+        "id",
+        "label",
+        "mentionSuggestionChar"
+      ],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
+    "hardBreak": {
+      "attrs": [],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
+    "heading": {
+      "attrs": [
+        "level"
+      ],
+      "group": "block",
+      "content": "inline*",
+      "inline": false,
+      "atom": false
+    },
+    "horizontalRule": {
+      "attrs": [],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "image": {
+      "attrs": [
+        "alt",
+        "caption",
+        "fileName",
+        "height",
+        "id",
+        "src",
+        "title",
+        "width"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "listItem": {
+      "attrs": [],
+      "group": null,
+      "content": "paragraph block*",
+      "inline": false,
+      "atom": false
+    },
+    "mention": {
+      "attrs": [
+        "id",
+        "label",
+        "mentionSuggestionChar"
+      ],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
+    "orderedList": {
+      "attrs": [
+        "start",
+        "type"
+      ],
+      "group": "block list",
+      "content": "listItem+",
+      "inline": false,
+      "atom": false
+    },
+    "paragraph": {
+      "attrs": [],
+      "group": "block",
+      "content": "inline*",
+      "inline": false,
+      "atom": false
+    },
+    "poll": {
+      "attrs": [
+        "id"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "recordingEmbed": {
+      "attrs": [
+        "egress",
+        "kind",
+        "sid",
+        "u1",
+        "u2"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "tableEmbed": {
+      "attrs": [
+        "tableId",
+        "viewId"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "taskItem": {
+      "attrs": [
+        "checked"
+      ],
+      "group": null,
+      "content": "paragraph block*",
+      "inline": false,
+      "atom": false
+    },
+    "taskList": {
+      "attrs": [],
+      "group": "block list",
+      "content": "taskItem+",
+      "inline": false,
+      "atom": false
+    },
+    "text": {
+      "attrs": [],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    }
+  },
+  "marks": {
+    "bold": {
+      "attrs": []
+    },
+    "code": {
+      "attrs": []
+    },
+    "italic": {
+      "attrs": []
+    },
+    "link": {
+      "attrs": [
+        "class",
+        "href",
+        "rel",
+        "target"
+      ]
+    },
+    "strike": {
+      "attrs": []
+    },
+    "textStyle": {
+      "attrs": [
+        "color"
+      ]
+    },
+    "underline": {
+      "attrs": []
+    }
+  }
+}

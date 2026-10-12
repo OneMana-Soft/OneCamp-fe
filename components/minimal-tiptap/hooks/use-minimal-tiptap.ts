@@ -45,6 +45,7 @@ import ReferenceMentionNodeView from '../extensions/reference-mention/ReferenceM
 import { makeReferenceSuggestion } from '../extensions/reference-mention/referenceMentionList'
 import { RecordingEmbed } from '../extensions/recording-embed/recording-embed'
 import { ChartEmbed } from '../extensions/chart-embed/chart-embed'
+import { DiffEmbed } from '../extensions/diff-embed/diff-embed'
 import { hueFor } from '@/lib/campHue'
 import { HUE_CLASS } from '@/components/ui/graphics/hues'
 
@@ -134,7 +135,9 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   shouldRerenderOnTransaction?: boolean
 }
 
-const createExtensions = (
+// Exported for the schema manifest test (schemaManifest.test.ts), which
+// builds the doc editor's schema from this same list.
+export const createExtensions = (
     // A getter, so a placeholder that changes after the editor is created (a
     // channel's agents load a moment later) is read at render time, not frozen.
     placeholderOf: () => string, 
@@ -376,6 +379,7 @@ const createExtensions = (
     // Read-only block emitted by an AI agent's reply (```chart → chart div);
     // renders a data chart inline in a channel/DM message or doc.
     ChartEmbed,
+    DiffEmbed,
     Placeholder.configure({
       placeholder: ({ editor, node }) => {
         const placeholder = placeholderOf()

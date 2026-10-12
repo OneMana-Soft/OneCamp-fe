@@ -14,7 +14,7 @@ describe("doc embeds", () => {
     expect(card).toMatch(/flex h-10 items-center/)
   })
 
-  it.each(["extensions/table-embed/components/table-embed-view.tsx", "extensions/poll/poll-view.tsx"])(
+  it.each(["extensions/table-embed/components/table-embed-view.tsx", "extensions/poll/poll-view.tsx", "extensions/diff-embed/diff-embed-view.tsx"])(
     "%s uses it",
     (file) => {
       expect(read(file)).toMatch(/<EmbedCard\b/)
