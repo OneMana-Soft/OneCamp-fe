@@ -36,7 +36,7 @@ import { LucideIcon } from "lucide-react";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEditorState } from "@tiptap/react";
-import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
+import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor, commandSurfaceOf } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
 import { useStableCallback } from "@/hooks/useStableCallback";
 
 interface MinimalTiptapProps
@@ -403,7 +403,8 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         const extracted = extractSlashCommandFromEditor(ed as unknown as Parameters<typeof extractSlashCommandFromEditor>[0]);
         if (!extracted) return false;
         if (!extracted.text.startsWith("/")) return false;
-        if (!maybeDispatchSlashCommand(extracted.text, extracted.mentions)) return false;
+        // Only this composer's conversation runs it (FE-BUG-11).
+        if (!maybeDispatchSlashCommand(extracted.text, extracted.mentions, commandSurfaceOf(ed))) return false;
         // Known command dispatched — clear the composer so the slash text
         // isn't also sent, and drop any pending throttle write.
         ed.chain().clearContent().run();

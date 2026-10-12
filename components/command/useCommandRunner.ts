@@ -65,8 +65,9 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
         catalogRef.current = catalog?.commands || []
     }, [catalog])
 
-    // Register the provider that feeds the "/" menu. We register on mount and
-    // clear on unmount so docs (which never mount this) keep formatting-only.
+    // Register the provider that feeds the "/" menu of this conversation's
+    // composers, on mount, for this surface only, and take it back on unmount
+    // so docs (which never mount this) keep formatting-only.
     useEffect(() => {
         const provider = (query: string): BackendCommandEntry[] => {
             const all = catalogRef.current
@@ -80,9 +81,8 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                 )
                 .slice(0, 10)
         }
-        setBackendCommandProvider(provider)
-        return () => setBackendCommandProvider(null)
-    }, [])
+        return setBackendCommandProvider(provider, ctx.surfaceKey)
+    }, [ctx.surfaceKey])
 
     // Mentions captured from the composer at command time, keyed by lowercased
     // label → user UUID. Lets /dm @Akash use the EXACT user the picker chose
@@ -226,13 +226,20 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                 command: string
                 typed: string
                 mentions?: Record<string, string>
+                surface?: string | null
             }
             if (!detail?.command) return
+            // Only the conversation whose composer sent it, once: every
+            // runner on screen ran each command, so with two conversations
+            // side by side /poll posted in both (FE-BUG-11). The same
+            // conversation open twice runs it in the first.
+            if (detail.surface !== ctx.surfaceKey) return
+            e.stopImmediatePropagation()
             void runCommand(detail.command, detail.typed || "", detail.mentions)
         }
         window.addEventListener("chat-slash-command", handler)
         return () => window.removeEventListener("chat-slash-command", handler)
-    }, [runCommand])
+    }, [runCommand, ctx.surfaceKey])
 
     // Handle a Block Kit button/select click on a card.
     const handleInteract = useCallback(
