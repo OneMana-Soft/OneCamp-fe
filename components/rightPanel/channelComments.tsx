@@ -7,7 +7,9 @@ import {CreateOrUpdatePostsReq, CreatePostsRes, PostsResRaw} from "@/types/post"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
-import {ErrorState} from "@/components/error/errorState";
+import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
+import {OWN_ERRORS} from "@/lib/axiosInstance";
+import {closeRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {CommentsList} from "@/components/rightPanel/commentsList";
@@ -75,15 +77,12 @@ export const ChannelComments = () => {
 
     const postInfo = useFetch<PostsResRaw>(
         rightPanelState.data.channelUUID && rightPanelState.data.postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${rightPanelState.data.postUUID}` : "",
+        undefined, undefined, OWN_ERRORS,
     )
 
     const dispatch = useDispatch()
 
     const post = usePost()
-    const handleRetry = () => {
-        // Trigger refetch - this would depend on your useFetch implementation
-        window.location.reload()
-    }
 
     const postState = channelState?.find(p => p.post_uuid === rightPanelState.data.postUUID);
 
@@ -100,12 +99,18 @@ export const ChannelComments = () => {
     )
 
 
-    if (postInfo.isLoading || !postInfo.data?.data || !postState) {
-        return <LoadingStateCircle />
+    // The error first: a failed read has no data, which read as loading (TN-BUG-4).
+    if (postInfo.isError && !postInfo.data?.data) {
+        return (
+            <div className="flex h-full flex-col bg-panel">
+                <RightPanelHeader titleKey={'thread'}/>
+                <ThreadLoadFailed error={postInfo.isError} onRetry={() => void postInfo.mutate()} retrying={postInfo.isLoading} onClose={() => dispatch(closeRightPanel())}/>
+            </div>
+        )
     }
 
-    if (postInfo.isError  ) {
-        return <ErrorState onRetry={handleRetry}  errorMessage={'failed to fetch the thread'} errorTitle={'Thread not found'}/>
+    if (postInfo.isLoading || !postInfo.data?.data || !postState) {
+        return <LoadingStateCircle />
     }
 
 

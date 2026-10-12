@@ -6,7 +6,9 @@ import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
-import {ErrorState} from "@/components/error/errorState";
+import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
+import {OWN_ERRORS} from "@/lib/axiosInstance";
+import {closeRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {CommentsList} from "@/components/rightPanel/commentsList";
@@ -71,15 +73,12 @@ export const ChatComments = () => {
 
     const chatInfo = useFetch<ChatInfoRes>(
         rightPanelState.data.chatUUID && rightPanelState.data.chatMessageUUID ? `${GetEndpointUrl.GetChatWithAllComments}/${rightPanelState.data.chatMessageUUID}` : "",
+        undefined, undefined, OWN_ERRORS,
     )
 
     const dispatch = useDispatch()
 
     const post = usePost()
-    const handleRetry = () => {
-        // Trigger refetch - this would depend on your useFetch implementation
-        window.location.reload()
-    }
 
     const chatInfoState = chatState.find(p => p.chat_uuid === rightPanelState.data.chatMessageUUID)
 
@@ -90,12 +89,18 @@ export const ChatComments = () => {
     )
 
 
-    if (chatInfo.isLoading || !chatInfo.data?.data || !chatInfoState) {
-        return <LoadingStateCircle />
+    // The error first: a failed read has no data, which read as loading (TN-BUG-4).
+    if (chatInfo.isError && !chatInfo.data?.data) {
+        return (
+            <div className="flex h-full flex-col bg-panel">
+                <RightPanelHeader titleKey={'thread'}/>
+                <ThreadLoadFailed error={chatInfo.isError} onRetry={() => void chatInfo.mutate()} retrying={chatInfo.isLoading} onClose={() => dispatch(closeRightPanel())}/>
+            </div>
+        )
     }
 
-    if (chatInfo.isError  ) {
-        return <ErrorState onRetry={handleRetry}  errorMessage={'failed to fetch the thread'} errorTitle={'Thread not found'}/>
+    if (chatInfo.isLoading || !chatInfo.data?.data || !chatInfoState) {
+        return <LoadingStateCircle />
     }
 
 

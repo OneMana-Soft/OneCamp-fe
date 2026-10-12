@@ -11,7 +11,8 @@ import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
-import {ErrorState} from "@/components/error/errorState";
+import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
+import {OWN_ERRORS} from "@/lib/axiosInstance";
 import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
 import type {RootState} from "@/store/store";
 import {
@@ -45,6 +46,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
     const chatInfo = useFetch<ChatInfoRes>(
         grpId && chatMessageUUID ? `${GetEndpointUrl.GetChatWithAllComments}/${chatMessageUUID}` : "",
+        undefined, undefined, OWN_ERRORS,
     )
 
     const router = useRouter();
@@ -59,22 +61,19 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const dispatch = useDispatch()
-    const handleRetry = () => {
-        // Trigger refetch - this would depend on your useFetch implementation
-        window.location.reload()
-    }
 
     // The server's replies, reconciled once per answer (useThreadReplies).
     useThreadReplies(chatInfo.data?.data?.chat_comments, chatInfo.lastRequestStartedAt, chatCommentState, (comments) =>
         dispatch(addChatComments({ chatId: chatMessageUUID, comments })),
     )
 
-    if (chatInfo.isLoading|| !chatState ) {
-        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
+    // The error first: a failed read has no data, which read as loading (TN-BUG-4).
+    if (chatInfo.isError && !chatInfo.data?.data) {
+        return <ThreadLoadFailed error={chatInfo.isError} onRetry={() => void chatInfo.mutate()} retrying={chatInfo.isLoading}/>
     }
 
-    if (chatInfo.isError  || !chatInfo.data?.data) {
-        return <ErrorState onRetry={handleRetry}  errorMessage={'failed to fetch the thread'} errorTitle={'Thread not found'}/>
+    if (chatInfo.isLoading|| !chatState || !chatInfo.data?.data) {
+        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
     }
 
 
