@@ -68,7 +68,8 @@ export const ChatComments = () => {
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
 
-    const chatCommentInputState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[rightPanelState.data.chatUUID] || NO_DRAFT);
+    // The reply being written: this thread's own draft, not the conversation's (MC-BUG-1).
+    const chatCommentInputState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[rightPanelState.data.chatMessageUUID] || NO_DRAFT);
 
     const chatInfo = useFetch<ChatInfoRes>(
         rightPanelState.data.chatUUID && rightPanelState.data.chatMessageUUID ? `${GetEndpointUrl.GetChatWithAllComments}/${rightPanelState.data.chatMessageUUID}` : "",
@@ -251,30 +252,33 @@ export const ChatComments = () => {
     }
 
     const handleSend = (latestContent?: string) => {
+        // The thread this reply was written in, whichever is open when it lands.
+        const threadId = rightPanelState.data.chatMessageUUID
+        const files = chatCommentInputState.filesUploaded ?? []
 
         const rawBody = latestContent ?? chatCommentInputState.commentBody
         const body = removeEmptyPTags(rawBody)
-        const hasAttachments = (chatCommentInputState.filesUploaded?.length || 0) > 0
+        const hasAttachments = files.length > 0
         if (!body && !hasAttachments) return
 
         post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
             apiEndpoint: PostEndpointUrl.CreateChatComment,
             payload: {
-                chat_id: rightPanelState.data.chatMessageUUID,
-                comment_attachments: chatCommentInputState.filesUploaded,
+                chat_id: threadId,
+                comment_attachments: files,
                 comment_text_html: body,
             }
         })
             .then((res)=>{
 
                 if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, chatId: rightPanelState.data.chatMessageUUID, commentBy: selfProfile.data?.data, attachments:chatCommentInputState.filesUploaded}))
-                     dispatch(updateChatMessageReplyIncrement({messageId: rightPanelState.data.chatMessageUUID, chatId: rightPanelState.data.chatUUID, comment: {comment_uuid: res?.comment_id || '', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
+                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, chatId: threadId, commentBy: selfProfile.data?.data, attachments: files}))
+                     dispatch(updateChatMessageReplyIncrement({messageId: threadId, chatId: rightPanelState.data.chatUUID, comment: {comment_uuid: res?.comment_id || '', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
 
                 }
 
                 // chatInfo.mutate()
-                dispatch(clearChatCommentInputState({chatUUID: rightPanelState.data.chatUUID}))
+                dispatch(clearChatCommentInputState({threadId, sent: files.map((f) => f.attachment_obj_key)}))
 
 
             })
@@ -511,7 +515,7 @@ export const ChatComments = () => {
                     editable={true}
                     editorClassName="focus:outline-none"
                     onChange={(content ) => {
-                        dispatch(createOrUpdateChatCommentBody({chatUUID:rightPanelState.data.chatUUID, body: content as string}))
+                        dispatch(createOrUpdateChatCommentBody({threadId: rightPanelState.data.chatMessageUUID, body: content as string}))
                     }}
                     content={chatCommentInputState?.commentBody || null}
                 >

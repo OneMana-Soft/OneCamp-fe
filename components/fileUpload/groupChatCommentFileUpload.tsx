@@ -13,14 +13,20 @@ import {AttachmentMediaReq} from "@/types/attachment";
 import {deleteChatCommentPreviewFiles, removeChatCommentUploadedFiles} from "@/store/slice/chatCommentSlice";
 
 interface ChatFileUploadProps {
+    /** Whose draft the files join: the thread's root message. */
     chatMessageUUID: string;
+    /** Where the files are stored: the group's media. */
     grpId: string
 }
 
-export const GroupChatCommentFileUpload = ({ grpId}:ChatFileUploadProps) => {
+// Module-level, so a thread with no draft yet reads the same value every time.
+const EMPTY_INPUT_STATE = {};
+
+export const GroupChatCommentFileUpload = ({ grpId, chatMessageUUID }:ChatFileUploadProps) => {
     const chatFileUploadOpen = useSelector((state: RootState) => state.ui.groupChatCommentFileUpload);
 
-    const chatFiles = useSelector((state: RootState) => state.chatComments.chatCommentInputState[grpId] || {});
+    // The thread's own files, not the group's: every thread in a group shared them (MC-BUG-1).
+    const chatFiles = useSelector((state: RootState) => state.chatComments.chatCommentInputState[chatMessageUUID] || EMPTY_INPUT_STATE);
 
     const dispatch = useDispatch();
     const uploadFile = useUploadFile()
@@ -33,14 +39,14 @@ export const GroupChatCommentFileUpload = ({ grpId}:ChatFileUploadProps) => {
             const files = e.target.files
             if (!files?.length) return
 
-            await uploadFile.makeRequestToUploadToGroupChatComment(files, grpId)
+            await uploadFile.makeRequestToUploadToGroupChatComment(files, grpId, chatMessageUUID)
 
             if (fileInputRef.current) {
                 fileInputRef.current.value = ""; // Clear the input
             }
 
         },
-        [grpId, uploadFile]
+        [grpId, chatMessageUUID, uploadFile]
     )
 
     useEffect(() => {
@@ -56,13 +62,13 @@ export const GroupChatCommentFileUpload = ({ grpId}:ChatFileUploadProps) => {
         dispatch(
             deleteChatCommentPreviewFiles({
                 key,
-                chatUUID: grpId
+                threadId: chatMessageUUID
             })
         );
         dispatch(
             removeChatCommentUploadedFiles({
                 key,
-                chatUUID: grpId
+                threadId: chatMessageUUID
             })
         );
     }

@@ -28,6 +28,7 @@ import {
     createOrUpdateChannelCommentMsg,
     removeChannelComment,
     removeChannelCommentReaction,
+    setChannelCommentAlsoSend,
     updateChannelComment,
     updateChannelCommentReaction,
     updateChannelCommentReactionId
@@ -40,7 +41,7 @@ import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
 } from "@/types/comment";
-import {useRef, useState} from "react";
+import {useRef} from "react";
 import {CreateOrUpdateCommentReaction, CreateOrUpdatePostReaction} from "@/types/reaction";
 import {
     createPostReactionPostId,
@@ -65,7 +66,8 @@ export const ChannelComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
 
 
-    const channelCommentState = useSelector((state: RootState) => state.channelComment.commentInputState[rightPanelState.data.channelUUID] || NO_DRAFT)
+    // The reply being written: this thread's own draft (MC-BUG-1).
+    const channelCommentState = useSelector((state: RootState) => state.channelComment.commentInputState[rightPanelState.data.postUUID] || NO_DRAFT)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const uploadFile = useUploadFile()
 
@@ -90,9 +92,9 @@ export const ChannelComments = () => {
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
 
-    // "Also send to channel" toggle (Slack parity) — when checked, the reply
-    // is also posted as a top-level message in the channel.
-    const [alsoSendToChannel, setAlsoSendToChannel] = useState(false)
+    // "Also send to channel" (Slack parity): the reply is also posted as a
+    // top-level message in the channel. Part of the thread's draft, like its text.
+    const alsoSendToChannel = !!channelCommentState.alsoSendToChannel
 
 
     // The server's replies, reconciled once per answer (useThreadReplies).
@@ -246,17 +248,21 @@ export const ChannelComments = () => {
     }
 
     const handleSend = (latestContent?: string) => {
+        // The thread this reply was written in: its draft is the one emptied
+        // once the server answers, whichever thread is open by then.
+        const threadId = rightPanelState.data.postUUID
+        const files = channelCommentState.filesUploaded ?? []
 
         const rawBody = latestContent ?? channelCommentState.commentMsgBody
         const body = removeEmptyPTags(rawBody)
-        const hasAttachments = (channelCommentState.filesUploaded?.length || 0) > 0
+        const hasAttachments = files.length > 0
         if (!body && !hasAttachments) return
 
         post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
             apiEndpoint: PostEndpointUrl.CreatePostComment,
             payload: {
-                post_id: rightPanelState.data.postUUID,
-                comment_attachments: channelCommentState.filesUploaded,
+                post_id: threadId,
+                comment_attachments: files,
                 comment_text_html: body,
                 also_send_to_channel: alsoSendToChannel,
             }
@@ -264,13 +270,12 @@ export const ChannelComments = () => {
             .then((res)=>{
 
                 if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, postId: rightPanelState.data.postUUID, commentBy: selfProfile.data?.data, attachments:channelCommentState.filesUploaded}))
+                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, postId: threadId, commentBy: selfProfile.data?.data, attachments: files}))
 
                 }
 
                 // postInfo.mutate()
-                dispatch(clearChannelCommentMsgInputState({channelId: rightPanelState.data.channelUUID}))
-                setAlsoSendToChannel(false)
+                dispatch(clearChannelCommentMsgInputState({threadId, sent: files.map((f) => f.attachment_obj_key)}))
 
                 dispatch(updateChannelMessageReplyIncrement({channelId: rightPanelState.data.channelUUID, messageId: rightPanelState.data.postUUID, comment:{comment_uuid: res?.comment_id||'', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
 
@@ -513,7 +518,7 @@ export const ChannelComments = () => {
                     }
                     onActionFiles={async (files) => {
                         if (!files?.length) return;
-                        await uploadFile.makeRequestToUploadToChannelComment(files as unknown as FileList, rightPanelState.data.channelUUID);
+                        await uploadFile.makeRequestToUploadToChannelComment(files as unknown as FileList, rightPanelState.data.channelUUID, rightPanelState.data.postUUID);
                     }}
                     ButtonIcon={SendHorizontal}
                     hasAttachments={(channelCommentState.filesUploaded?.length ?? 0) > 0}
@@ -525,18 +530,18 @@ export const ChannelComments = () => {
                     editable={true}
                     editorClassName="focus:outline-none"
                     onChange={(content ) => {
-                        dispatch(createOrUpdateChannelCommentMsg({channelId:rightPanelState.data.channelUUID, body: content as string}))
+                        dispatch(createOrUpdateChannelCommentMsg({threadId: rightPanelState.data.postUUID, body: content as string}))
                     }}
                     content={channelCommentState?.commentMsgBody || null}
                 >
-                    <ChannelCommentFileUpload channelId={rightPanelState.data.channelUUID}/>
+                    <ChannelCommentFileUpload channelId={rightPanelState.data.channelUUID} threadId={rightPanelState.data.postUUID}/>
 
                 </MinimalTiptapTextInput>
 
                 <label className="mt-2 flex h-5 cursor-pointer select-none items-center gap-2 px-1 text-ui-sm text-ink-2">
                     <Checkbox
                         checked={alsoSendToChannel}
-                        onCheckedChange={(v) => setAlsoSendToChannel(v === true)}
+                        onCheckedChange={(v) => dispatch(setChannelCommentAlsoSend({threadId: rightPanelState.data.postUUID, on: v === true}))}
                     />
                     {channelName ? `Also send to #${channelName}` : "Also send to channel"}
                 </label>

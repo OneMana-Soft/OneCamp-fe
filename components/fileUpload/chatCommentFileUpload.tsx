@@ -14,14 +14,16 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 
 interface ChatFileUploadProps {
+    /** Whose draft the files join: the thread's root message. */
     chatMessageUUID: string;
     chatUUID: string
 }
 
+// Module-level, so a thread with no draft yet reads the same value every time.
+const EMPTY_INPUT_STATE = {};
+
 export const ChatCommentFileUpload = ({chatMessageUUID, chatUUID}:ChatFileUploadProps) => {
     const chatFileUploadOpen = useSelector((state: RootState) => state.ui.chatCommentFileUpload);
-
-    const EMPTY_INPUT_STATE = {};
 
     const chatFiles = useSelector((state: RootState) => state.chatComments.chatCommentInputState[chatMessageUUID] || EMPTY_INPUT_STATE);
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -45,7 +47,7 @@ export const ChatCommentFileUpload = ({chatMessageUUID, chatUUID}:ChatFileUpload
             }
 
         },
-        [chatUUID, uploadFile]
+        [chatMessageUUID, grpId, uploadFile]
     )
 
     useEffect(() => {
@@ -61,13 +63,13 @@ export const ChatCommentFileUpload = ({chatMessageUUID, chatUUID}:ChatFileUpload
         dispatch(
             deleteChatCommentPreviewFiles({
                 key,
-                chatUUID: chatMessageUUID
+                threadId: chatMessageUUID
             })
         );
         dispatch(
             removeChatCommentUploadedFiles({
                 key,
-                chatUUID: chatMessageUUID
+                threadId: chatMessageUUID
             })
         );
     }
