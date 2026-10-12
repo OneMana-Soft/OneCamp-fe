@@ -7,38 +7,40 @@ import {UserProfileDataInterface} from "@/types/user";
 
 interface createOrUpdateCommentBody {
     body: string
-    channelId: string
+    threadId: string
 }
 
 interface AddPreviewFiles {
     filesUploaded: FilePreview
-    channelId: string
+    threadId: string
 }
 
 interface RemoveUploadedFile {
     key: string,
-    channelId: string
+    threadId: string
 }
 
 interface ClearInputState {
-    channelId: string,
+    threadId: string,
+    /** The keys of the files the reply took; a file still uploading stays. */
+    sent?: (string | undefined)[],
 }
 
 interface AddUploadedFiles {
     filesUploaded: AttachmentMediaReq
-    channelId: string
+    threadId: string
 }
 
 interface UpdatePreviewFiles {
     key: string,
     progress: number,
-    channelId: string
+    threadId: string
 }
 
 interface UpdatePreviewFilesUUID {
     key: string,
     uuid: string,
-    channelId: string
+    threadId: string
 }
 
 interface UpdatePostComment {
@@ -132,14 +134,26 @@ interface commentInputState {
     commentMsgBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[],
+    /** "Also send to #channel", ticked for this reply. */
+    alsoSendToChannel?: boolean,
 }
 export interface  ExtendedComments {
     [key: string]:  CommentInfoInterface[];
 }
 
+// A thread reply's unsent draft (its text, the mentions in it, its files),
+// keyed by the thread: the uuid of the post the thread hangs from. It was
+// keyed by the channel, so every thread in a channel shared one draft: a reply
+// typed in thread A showed in thread B, and Enter posted it under B (MC-BUG-1).
+// store/slice/threadDrafts.test.ts holds it.
 interface ExtendedChannelCommentInputState {
-    [key: string]: commentInputState;
+    [threadId: string]: commentInputState;
 }
+
+const emptyDraft = (): commentInputState => ({ commentMsgBody: '', filesUploaded: [], filesPreview: [] })
+
+const draftOf = (state: { commentInputState: ExtendedChannelCommentInputState }, threadId: string): commentInputState =>
+    (state.commentInputState[threadId] ??= emptyDraft())
 
 const initialState: {commentInputState:ExtendedChannelCommentInputState, postComments:ExtendedComments} = {
     commentInputState: {} as ExtendedChannelCommentInputState,
@@ -152,33 +166,19 @@ const channelCommentSlice = createSlice({
     reducers: {
 
         createOrUpdateChannelCommentMsg: (state, action: {payload: createOrUpdateCommentBody}) => {
-            const { body, channelId } = action.payload;
-
-            if (!state.commentInputState[channelId]) {
-                state.commentInputState[channelId] = { commentMsgBody: '', filesUploaded: [] , filesPreview: []};
-            }
-
-
-            state.commentInputState[channelId].commentMsgBody = body;
+            const { body, threadId } = action.payload;
+            draftOf(state, threadId).commentMsgBody = body;
         },
 
-
         addChannelCommentMsgPreviewFiles: (state, action: {payload: AddPreviewFiles}) => {
-            const { filesUploaded, channelId } = action.payload;
-            if (!state.commentInputState[channelId]) {
-                state.commentInputState[channelId] = { commentMsgBody: '', filesUploaded: [] , filesPreview: []};
-            }
-            state.commentInputState[channelId].filesPreview.push(filesUploaded);
+            const { filesUploaded, threadId } = action.payload;
+            draftOf(state, threadId).filesPreview.push(filesUploaded);
         },
 
         deleteChannelCommentMsgPreviewFiles: (state, action: {payload: RemoveUploadedFile}) => {
-            const { key, channelId } = action.payload;
-
-            if (!state.commentInputState[channelId]) {
-                state.commentInputState[channelId] = { commentMsgBody: '', filesUploaded: [] , filesPreview: []};
-            }
-
-            state.commentInputState[channelId].filesPreview = state.commentInputState[channelId].filesPreview.filter((media) => {
+            const { key, threadId } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesPreview = draft.filesPreview.filter((media) => {
                 if (media.key === key) {
                     if(media.progress != 100 && typeof media.cancelSource.cancel === 'function') {
                         media.cancelSource.cancel(`Stopping file upload: ${media.fileName}`);
@@ -188,46 +188,55 @@ const channelCommentSlice = createSlice({
                     return true;
                 }
             });
-
         },
 
         updateChannelCommentMsgPreviewFiles: (state, action: {payload: UpdatePreviewFiles}) => {
-            const { key, progress, channelId } = action.payload;
-
-            state.commentInputState[channelId].filesPreview = state.commentInputState[channelId].filesPreview.map((item) => {
+            const { key, progress, threadId } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesPreview = draft.filesPreview.map((item) => {
                 return item.key === key ? { ...item, progress } : item;
             });
-
         },
 
         updateChannelCommentMsgPreviewFilesUUID: (state, action: {payload: UpdatePreviewFilesUUID}) => {
-            const {  key, uuid, channelId } = action.payload;
-
-            state.commentInputState[channelId].filesPreview = state.commentInputState[channelId].filesPreview.map((item) => {
+            const {  key, uuid, threadId } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesPreview = draft.filesPreview.map((item) => {
                 return item.key === key ? { ...item, uuid } : item;
             });
-
         },
 
-
+        // An upload joins the thread it was picked in, and only while its
+        // preview is still there: one removed, or sent, meanwhile is dropped,
+        // never attached unseen to the next reply.
         addChannelCommentMsgUploadedFiles: (state, action: {payload: AddUploadedFiles}) => {
-            const { filesUploaded, channelId } = action.payload;
-
-            state.commentInputState[channelId].filesUploaded.push(filesUploaded);
+            const { filesUploaded, threadId } = action.payload;
+            const draft = state.commentInputState[threadId]
+            if (draft?.filesPreview.some((p) => p.key === filesUploaded.attachment_obj_key)) draft.filesUploaded.push(filesUploaded);
         },
 
         removeChannelCommentMsgUploadedFiles: (state, action: {payload: RemoveUploadedFile}) => {
-            const { key, channelId} = action.payload;
-
-            state.commentInputState[channelId].filesUploaded = state.commentInputState[channelId].filesUploaded.filter((media) => media.attachment_obj_key !== key);
+            const { key, threadId} = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesUploaded = draft.filesUploaded.filter((media) => media.attachment_obj_key !== key);
         },
 
+        setChannelCommentAlsoSend: (state, action: {payload: {threadId: string, on: boolean}}) => {
+            draftOf(state, action.payload.threadId).alsoSendToChannel = action.payload.on;
+        },
+
+        // Sending a reply empties its own thread's draft of what it sent, and
+        // no other draft; a file still uploading stays for the next reply.
         clearChannelCommentMsgInputState: (state, action: {payload: ClearInputState}) => {
-
-            const { channelId} = action.payload;
-
-            state.commentInputState[channelId] = { commentMsgBody: '', filesUploaded: [] , filesPreview: []};
-
+            const { threadId, sent } = action.payload;
+            const draft = state.commentInputState[threadId]
+            if (!draft) return
+            const gone = new Set(sent ?? draft.filesUploaded.map((f) => f.attachment_obj_key))
+            state.commentInputState[threadId] = {
+                ...emptyDraft(),
+                filesUploaded: draft.filesUploaded.filter((f) => !gone.has(f.attachment_obj_key)),
+                filesPreview: draft.filesPreview.filter((p) => !gone.has(p.key)),
+            };
         },
 
         addChannelComments: (state, action: {payload: UpdatePostComment}) => {
@@ -426,6 +435,7 @@ export const {
     addChannelCommentMsgUploadedFiles,
     removeChannelCommentMsgUploadedFiles,
     clearChannelCommentMsgInputState,
+    setChannelCommentAlsoSend,
     updateChannelCommentMsgPreviewFiles,
     addChannelComments,
     updateChannelComment,

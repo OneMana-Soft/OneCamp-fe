@@ -14,15 +14,19 @@ import {
 } from "@/store/slice/channelCommentSlice";
 
 interface ChannelFileUploadProps {
+    /** Where the files are stored: the channel's media. */
     channelId: string;
+    /** Whose draft they join: the thread's root post. */
+    threadId: string;
 }
 
-export const ChannelCommentFileUpload = ({channelId}:ChannelFileUploadProps) => {
+// Module-level, so a thread with no draft yet reads the same value every time.
+const EMPTY_INPUT_STATE = {};
+
+export const ChannelCommentFileUpload = ({channelId, threadId}:ChannelFileUploadProps) => {
     const channelFileUploadOpen = useSelector((state: RootState) => state.ui.channelCommentFileUpload);
 
-    const EMPTY_INPUT_STATE = {};
-
-    const channelFiles = useSelector((state: RootState) => state.channelComment.commentInputState[channelId] || EMPTY_INPUT_STATE);
+    const channelFiles = useSelector((state: RootState) => state.channelComment.commentInputState[threadId] || EMPTY_INPUT_STATE);
 
     const dispatch = useDispatch();
     const uploadFile = useUploadFile()
@@ -34,14 +38,14 @@ export const ChannelCommentFileUpload = ({channelId}:ChannelFileUploadProps) => 
             const files = e.target.files
             if (!files?.length) return
 
-            await uploadFile.makeRequestToUploadToChannelComment(files, channelId)
+            await uploadFile.makeRequestToUploadToChannelComment(files, channelId, threadId)
 
             if (fileInputRef.current) {
                 fileInputRef.current.value = ""; // Clear the input
             }
 
         },
-        [channelId, uploadFile]
+        [channelId, threadId, uploadFile]
     )
 
     useEffect(() => {
@@ -57,13 +61,13 @@ export const ChannelCommentFileUpload = ({channelId}:ChannelFileUploadProps) => 
         dispatch(
             deleteChannelCommentMsgPreviewFiles({
                 key,
-                channelId
+                threadId
             })
         );
         dispatch(
             removeChannelCommentMsgUploadedFiles({
                 key,
-                channelId
+                threadId
             })
         );
     }

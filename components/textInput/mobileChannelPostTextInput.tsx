@@ -38,7 +38,8 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
     //     channelId && postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${postUUID}` : "",
     // )
 
-    const channelPostState = useSelector((state: RootState) => state.channelComment.commentInputState[channelId] || NO_DRAFT);
+    // The reply being written: this thread's own draft, not the channel's (MC-BUG-1).
+    const channelPostState = useSelector((state: RootState) => state.channelComment.commentInputState[postUUID] || NO_DRAFT);
 
 
     useEffect(() => {
@@ -60,6 +61,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
 
     const handleSend = (latestContent?: string) => {
 
+        const files = channelPostState.filesUploaded ?? []
         const rawBody = latestContent ?? channelPostState.commentMsgBody
         const body = removeEmptyPTags(rawBody)
 
@@ -70,7 +72,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
             apiEndpoint: PostEndpointUrl.CreatePostComment,
             payload: {
                 post_id: postUUID,
-                comment_attachments: channelPostState.filesUploaded,
+                comment_attachments: files,
                 comment_text_html: body,
             }
         })
@@ -79,12 +81,12 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
                 // postInfo.mutate()
 
                 if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, postId: postUUID, commentBy: selfProfile.data?.data, attachments:channelPostState.filesUploaded}))
+                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, postId: postUUID, commentBy: selfProfile.data?.data, attachments: files}))
 
                 }
 
                 // postInfo.mutate()
-                dispatch(clearChannelCommentMsgInputState({channelId: channelId}))
+                dispatch(clearChannelCommentMsgInputState({threadId: postUUID, sent: files.map((f) => f.attachment_obj_key)}))
 
                 dispatch(updateChannelMessageReplyIncrement({channelId: channelId, messageId: postUUID, comment:{comment_uuid: res?.comment_id||'', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
 
@@ -98,6 +100,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
                     <MinimalTiptapTextInput
+                        key={postUUID}
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelCommentFileUpload' })) }}
                         throttleDelay={300}
                         variant="phone"
@@ -113,7 +116,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
                         editorClassName="focus:outline-none"
                         onChange={(content ) => {
 
-                            dispatch(createOrUpdateChannelCommentMsg({channelId, body: content as string}))
+                            dispatch(createOrUpdateChannelCommentMsg({threadId: postUUID, body: content as string}))
                         }}
                     >
 
@@ -121,7 +124,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
 
                     </MinimalTiptapTextInput>
                     <div className='px-3'>
-                        <ChannelCommentFileUpload channelId={channelId} />
+                        <ChannelCommentFileUpload channelId={channelId} threadId={postUUID} />
 
                     </div>
                 </div>

@@ -98,45 +98,57 @@ interface UpdateChatCommentReactionId {
     newReactionId: string
 }
 
+// A DM or group thread reply's unsent draft, keyed by the thread: the uuid of
+// the message the thread hangs from, never the conversation's. The desktop
+// panels keyed it by the conversation, so every thread in a DM or group shared
+// one draft and Enter posted it under whichever was open (MC-BUG-1).
+// store/slice/threadDrafts.test.ts holds it.
 interface ExtendedChatCommentInputState {
-    [key: string]:  ChatCommentInputState;
+    [threadId: string]:  ChatCommentInputState;
 }
 
 interface AddPreviewFiles {
     fileUploaded: FilePreview
-    chatUUID: string
+    threadId: string
 }
 
 interface RemoveUploadedFile {
     key: string,
-    chatUUID: string
+    threadId: string
 }
 
 interface AddUploadedFiles {
     filesUploaded: AttachmentMediaReq
-    chatUUID: string
+    threadId: string
 }
 
 interface UpdatePreviewFiles {
     key: string,
     progress: number,
-    chatUUID: string
+    threadId: string
 }
 
 interface UpdatePreviewFilesUUID {
-    chatUUID: string,
+    threadId: string,
     key: string,
     uuid: string
 }
 
 interface ClearChatComment {
-    chatUUID: string
+    threadId: string
+    /** The keys of the files the reply took; a file still uploading stays. */
+    sent?: (string | undefined)[]
 }
 
 interface createOrUpdateCommentBody {
-   chatUUID: string
+   threadId: string
     body: string
 }
+
+const emptyDraft = (): ChatCommentInputState => ({ commentBody: '', filesUploaded: [], filesPreview: [] })
+
+const draftOf = (state: { chatCommentInputState: ExtendedChatCommentInputState }, threadId: string): ChatCommentInputState =>
+    (state.chatCommentInputState[threadId] ??= emptyDraft())
 
 const initialState = {
     chatCommentInputState: {} as ExtendedChatCommentInputState,
@@ -149,34 +161,19 @@ export const chatCommentSlice = createSlice({
     reducers: {
 
         createOrUpdateChatCommentBody: (state, action: {payload: createOrUpdateCommentBody}) => {
-            const { chatUUID, body } = action.payload;
-
-            if (!state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-            }
-
-            state.chatCommentInputState[chatUUID].commentBody = body;
+            const { threadId, body } = action.payload;
+            draftOf(state, threadId).commentBody = body;
         },
 
-
         addChatCommentPreviewFiles: (state, action: {payload: AddPreviewFiles}) => {
-            const { fileUploaded, chatUUID} = action.payload;
-
-            if(!state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-            }
-
-            state.chatCommentInputState[chatUUID].filesPreview.push(fileUploaded);
+            const { fileUploaded, threadId} = action.payload;
+            draftOf(state, threadId).filesPreview.push(fileUploaded);
         },
 
         deleteChatCommentPreviewFiles: (state, action: {payload: RemoveUploadedFile}) => {
-            const { key, chatUUID } = action.payload;
-
-            if(!state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-            }
-
-            state.chatCommentInputState[chatUUID].filesPreview = state.chatCommentInputState[chatUUID].filesPreview.filter((media) => {
+            const { key, threadId } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesPreview = draft.filesPreview.filter((media) => {
                 if (media.key === key) {
                     if(media.progress != 100 && typeof media.cancelSource.cancel === 'function') {
                         media.cancelSource.cancel(`Stopping file upload: ${media.fileName}`);
@@ -186,51 +183,49 @@ export const chatCommentSlice = createSlice({
                     return true;
                 }
             });
-
         },
 
         updateChatCommentPreviewFiles: (state, action: {payload: UpdatePreviewFiles}) => {
-            const { key, progress, chatUUID } = action.payload;
-            if(!state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-            }
-            state.chatCommentInputState[chatUUID].filesPreview = state.chatCommentInputState[chatUUID].filesPreview.map((item) => {
+            const { key, progress, threadId } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesPreview = draft.filesPreview.map((item) => {
                 return item.key === key ? { ...item, progress } : item;
             });
-
         },
 
         updateChatCommentPreviewFilesUUID: (state, action: {payload: UpdatePreviewFilesUUID}) => {
-            const { chatUUID, key, uuid } = action.payload;
-            if (state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID].filesPreview = state.chatCommentInputState[chatUUID].filesPreview.map((item) => {
-                    return item.key === key ? { ...item, uuid } : item;
-                });
-            }
+            const { threadId, key, uuid } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesPreview = draft.filesPreview.map((item) => {
+                return item.key === key ? { ...item, uuid } : item;
+            });
         },
 
+        // As in a channel's thread (channelCommentSlice): an upload joins the
+        // thread it was picked in, only while its preview is still there.
         addChatCommentUploadedFiles: (state, action: {payload: AddUploadedFiles}) => {
-            const { filesUploaded, chatUUID } = action.payload;
-            if(!state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-            }
-            state.chatCommentInputState[chatUUID].filesUploaded.push(filesUploaded);
+            const { filesUploaded, threadId } = action.payload;
+            const draft = state.chatCommentInputState[threadId]
+            if (draft?.filesPreview.some((p) => p.key === filesUploaded.attachment_obj_key)) draft.filesUploaded.push(filesUploaded);
         },
 
         removeChatCommentUploadedFiles: (state, action: {payload: RemoveUploadedFile}) => {
-            const { key, chatUUID } = action.payload;
-            if(!state.chatCommentInputState[chatUUID]) {
-                state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-            }
-            state.chatCommentInputState[chatUUID].filesUploaded = state.chatCommentInputState[chatUUID].filesUploaded.filter((media) => media.attachment_obj_key  !== key);
+            const { key, threadId } = action.payload;
+            const draft = draftOf(state, threadId)
+            draft.filesUploaded = draft.filesUploaded.filter((media) => media.attachment_obj_key  !== key);
         },
 
+        // Sending a reply empties its own thread's draft of what it sent.
         clearChatCommentInputState: (state, action :{payload: ClearChatComment}) => {
-            const {chatUUID } = action.payload;
-
-            state.chatCommentInputState[chatUUID] = { commentBody: '', filesUploaded: [] , filesPreview: [] };
-
-
+            const { threadId, sent } = action.payload;
+            const draft = state.chatCommentInputState[threadId]
+            if (!draft) return
+            const gone = new Set(sent ?? draft.filesUploaded.map((f) => f.attachment_obj_key))
+            state.chatCommentInputState[threadId] = {
+                ...emptyDraft(),
+                filesUploaded: draft.filesUploaded.filter((f) => !gone.has(f.attachment_obj_key)),
+                filesPreview: draft.filesPreview.filter((p) => !gone.has(p.key)),
+            };
         },
         addChatComments: (state, action: {payload: UpdateChatComment}) => {
             const { chatId, comments } = action.payload;

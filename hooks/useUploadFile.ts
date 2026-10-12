@@ -781,7 +781,9 @@ export const useUploadFile = () => {
 
         return
     }
-    const makeRequestToUploadToChannelComment = async (files: FileList, channelId: string) => {
+    const makeRequestToUploadToChannelComment = async (files: FileList, channelId: string, threadId: string) => {
+        // The files join the draft of the thread they were picked in (threadId),
+        // even if another thread is open by the time they finish.
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
 
@@ -805,7 +807,7 @@ export const useUploadFile = () => {
                         cancelSource: cancelToken,
                         attachmentType: attachmentType
                     },
-                    channelId: channelId
+                    threadId
                 })
             );
 
@@ -822,7 +824,7 @@ export const useUploadFile = () => {
                         updateChannelCommentMsgPreviewFiles({
                             progress: progress,
                             key: uniqueNum,
-                            channelId: channelId
+                            threadId
                         })
                     );
                 },
@@ -837,7 +839,7 @@ export const useUploadFile = () => {
                     const uploadMediaRes: UploadFileInterfaceRes = res.data;
 
                     dispatch(updateChannelCommentMsgPreviewFilesUUID({
-                        channelId,
+                        threadId,
                         key: uniqueNum,
                         uuid: uploadMediaRes.object_uuid,
                     }))
@@ -856,7 +858,7 @@ export const useUploadFile = () => {
                                 attachment_width: mediaInfo.width,
                                 attachment_raw_type: file.type
                             },
-                            channelId: channelId,
+                            threadId,
                         })
                     );
                     return res;
@@ -865,7 +867,7 @@ export const useUploadFile = () => {
                     dispatch(
                         deleteChannelCommentMsgPreviewFiles({
                             key: uniqueNum,
-                            channelId,
+                            threadId,
                         })
                     );
 
@@ -892,7 +894,9 @@ export const useUploadFile = () => {
         return
     }
 
-    const makeRequestToUploadToGroupChatComment = async (files: FileList,  grpId: string) => {
+    const makeRequestToUploadToGroupChatComment = async (files: FileList, grpId: string, threadId: string) => {
+        // The files join the draft of the thread they were picked in (threadId),
+        // even if another thread is open by the time they finish.
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
 
@@ -916,7 +920,7 @@ export const useUploadFile = () => {
                         cancelSource: cancelToken,
                         attachmentType: attachmentType
                     },
-                    chatUUID: grpId
+                    threadId
                 })
             );
 
@@ -933,7 +937,7 @@ export const useUploadFile = () => {
                         updateChatCommentPreviewFiles({
                             progress: progress,
                             key: uniqueNum,
-                            chatUUID: grpId
+                            threadId
                         })
                     );
                 },
@@ -948,7 +952,7 @@ export const useUploadFile = () => {
                     const uploadMediaRes: UploadFileInterfaceRes = res.data;
 
                     dispatch(updateChatCommentPreviewFilesUUID({
-                        chatUUID: grpId,
+                        threadId,
                         key: uniqueNum,
                         uuid: uploadMediaRes.object_uuid,
                     }))
@@ -967,7 +971,7 @@ export const useUploadFile = () => {
                                 attachment_width: mediaInfo.width,
                                 attachment_raw_type: file.type
                             },
-                            chatUUID: grpId,
+                            threadId,
                         })
                     );
                     return res;
@@ -976,7 +980,7 @@ export const useUploadFile = () => {
                     dispatch(
                         deleteChatCommentPreviewFiles({
                             key: uniqueNum,
-                            chatUUID: grpId,
+                            threadId,
                         })
                     );
 
@@ -1027,7 +1031,7 @@ export const useUploadFile = () => {
                         cancelSource: cancelToken,
                         attachmentType: attachmentType
                     },
-                    chatUUID: chatMessageUUID
+                    threadId: chatMessageUUID
                 })
             );
 
@@ -1044,7 +1048,7 @@ export const useUploadFile = () => {
                         updateChatCommentPreviewFiles({
                             progress: progress,
                             key: uniqueNum,
-                            chatUUID: chatMessageUUID
+                            threadId: chatMessageUUID
                         })
                     );
                 },
@@ -1059,7 +1063,7 @@ export const useUploadFile = () => {
                     const uploadMediaRes: UploadFileInterfaceRes = res.data;
 
                     dispatch(updateChatCommentPreviewFilesUUID({
-                        chatUUID: chatMessageUUID,
+                        threadId: chatMessageUUID,
                         key: uniqueNum,
                         uuid: uploadMediaRes.object_uuid,
                     }))
@@ -1078,7 +1082,7 @@ export const useUploadFile = () => {
                                 attachment_width: mediaInfo.width,
                                 attachment_raw_type: file.type
                             },
-                            chatUUID: chatMessageUUID,
+                            threadId: chatMessageUUID,
                         })
                     );
                     return res;
@@ -1087,7 +1091,7 @@ export const useUploadFile = () => {
                     dispatch(
                         deleteChatCommentPreviewFiles({
                             key: uniqueNum,
-                            chatUUID: chatMessageUUID,
+                            threadId: chatMessageUUID,
                         })
                     );
 

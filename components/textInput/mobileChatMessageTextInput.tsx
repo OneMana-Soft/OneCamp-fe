@@ -55,6 +55,7 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
 
 
     const handleSend = (latestContent?: string) => {
+        const files = chatCommentState.filesUploaded ?? []
         const rawBody = latestContent ?? chatCommentState.commentBody
         const body = removeEmptyPTags(rawBody)
 
@@ -65,21 +66,21 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
             apiEndpoint: PostEndpointUrl.CreateChatComment,
             payload: {
                 chat_id: chatMessageUUID,
-                comment_attachments: chatCommentState.filesUploaded,
+                comment_attachments: files,
                 comment_text_html: body,
             }
         })
             .then((res)=>{
 
                 if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, chatId: chatMessageUUID, commentBy: selfProfile.data?.data, attachments:chatCommentState.filesUploaded}))
+                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, chatId: chatMessageUUID, commentBy: selfProfile.data?.data, attachments: files}))
 
                     dispatch(updateChatMessageReplyIncrement({messageId: chatMessageUUID, chatId: chatId, comment: {comment_text: "", comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_uuid: res?.comment_id || '', comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
 
                 }
 
                 // chatInfo.mutate()
-                dispatch(clearChatCommentInputState({chatUUID:chatMessageUUID}))
+                dispatch(clearChatCommentInputState({threadId: chatMessageUUID, sent: files.map((f) => f.attachment_obj_key)}))
 
 
             })
@@ -90,6 +91,7 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
                     <MinimalTiptapTextInput
+                        key={chatMessageUUID}
                         attachmentOnclick={() => { dispatch(openUI({ key: 'chatCommentFileUpload' }))
  }}
                         throttleDelay={300}
@@ -106,7 +108,7 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
                         editorClassName="focus:outline-none"
                         onChange={(content ) => {
 
-                            dispatch(createOrUpdateChatCommentBody({chatUUID: chatMessageUUID, body: content as string}))
+                            dispatch(createOrUpdateChatCommentBody({threadId: chatMessageUUID, body: content as string}))
                         }}
                     >
 
