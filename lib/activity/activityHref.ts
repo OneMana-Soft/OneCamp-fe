@@ -2,7 +2,7 @@ import type { UnifiedActivityItem } from "@/types/activity"
 import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
-import { getOtherUserId } from "@/lib/utils/getOtherUserId"
+import { chatPath } from "@/lib/chat/chatPath"
 
 /**
  * Where an Activity row opens: the message, thread, task, doc or board it is
@@ -56,14 +56,10 @@ function postHref(post: Partial<PostsRes> | undefined | null): string | null {
   return channel && post?.post_uuid ? `/app/channel/${channel}/${post.post_uuid}` : null
 }
 
-/** A message in a DM (to the other person) or a group, with it in view. */
+/** A message in a DM (to the other person) or a group, with it in view (chatPath). */
 function chatHref(chat: Partial<ChatInfo> | undefined | null, currentUserId: string | undefined): string | null {
-  const group = chat?.chat_dm?.dm_grouping_id
-  if (!group || !chat?.chat_uuid) return null
-  // A DM's grouping id is the two people's ids with a space between them.
-  if (!group.includes(" ")) return `/app/chat/group/${group}/${chat.chat_uuid}`
-  if (!currentUserId) return null
-  return `/app/chat/${getOtherUserId(group, currentUserId)}/${chat.chat_uuid}`
+  if (!chat?.chat_uuid) return null
+  return chatPath(chat.chat_dm?.dm_grouping_id, currentUserId, chat.chat_uuid)
 }
 
 /** A reply opens what it replies to: the thread, the task, the doc or the board. */

@@ -9,7 +9,7 @@ import { GlobalSearchGet, SearchResult } from "@/services/searchService"
 import { openUI } from "@/store/slice/uiSlice"
 import type {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {getOtherUserId} from "@/lib/utils/getOtherUserId";
+import { resultPath } from "@/lib/search/resultPath";
 import { getAttachmentLightboxData } from "@/lib/utils/helpers/search";
 
 const NO_RESULTS: SearchResult[] = []
@@ -71,79 +71,19 @@ export const useSearch = ({
         }
     }, [inputValue, router])
 
+    // One mapping for where a hit opens (resultPath), as the page's links and
+    // the palette's rows use: this switch spelled it out a second time, and
+    // sent a DM message to /app/chat/<message id>. A person opens their card.
     const handleResultClick = useCallback((result: SearchResult) => {
         setOpen(false)
         setInputValue("")
-        
-        switch (result.type) {
-            case "chat":
-                router.push(`/app/chat/${result.chat?.chat_id}`)
-                break
-            case "post":
-                if (result.post?.post_ch_id) {
-                    router.push(`/app/channel/${result.post.post_ch_id}/${result.post.post_id}`)
-                } else if (result.post?.post_channel_id) {
-                    router.push(`/app/channel/${result.post.post_channel_id}/${result.post.post_id}`)
-                } else {
-                    router.push(`/app/posts`)
-                }
-                break
-            case "doc":
-                router.push(`/app/doc/${result.doc?.doc_uuid}`)
-                break
-            case "board":
-                router.push(`/app/board/${result.board?.board_uuid}`)
-                break
-            case "task":
-                router.push(`/app/task/${result.task?.task_id}`)
-                break
-            case "comment":
-                if (result.comment?.comment_doc_id) {
-                    router.push(`/app/doc/${result.comment.comment_doc_id}/comment`)
-                } else if (result.comment?.comment_chat_grp_id) {
-                    if(result.comment?.comment_chat_grp_id.includes(" ")) {
-                        const otherUUID = getOtherUserId(result.comment?.comment_chat_grp_id, selfProfile.data?.data.user_uuid || '')
-                        router.push(`/app/chat/${otherUUID}/${result.comment.comment_chat_id}`)
-                    }
-                    if(!result.comment?.comment_chat_grp_id.includes(" ")) {
-                        router.push(`/app/chat/group/${result.comment.comment_chat_grp_id}/${result.comment.comment_chat_id}`)
-                    }
-                } else if (result.comment?.comment_task_id) {
-                    router.push(`/app/task/${result.comment.comment_task_id}`)
-                } else if (result.comment?.comment_post_id) {
-                    router.push(`/app/channel/${result.comment.comment_channel_id}/${result.comment.comment_post_id}`)
-                }
-                break
-            case "attachment":
-                if (result.attachment?.attachment_doc_id) {
-                    router.push(`/app/doc/${result.attachment.attachment_doc_id}/comment`)
-                } else if (result.attachment?.attachment_chat_grp_id) {
-                    if(result.attachment?.attachment_chat_grp_id.includes(" ")) {
-                        const otherUUID = getOtherUserId(result.attachment?.attachment_chat_grp_id, selfProfile.data?.data.user_uuid || '')
-                        router.push(`/app/chat/${otherUUID}/${result.attachment.attachment_chat_id}`)
-                    }
-                    if(!result.attachment?.attachment_chat_grp_id.includes(" ")) {
-                        router.push(`/app/chat/group/${result.attachment.attachment_chat_grp_id}/${result.attachment.attachment_chat_id}`)
-                    }
-                } else if (result.attachment?.attachment_task_id) {
-                    router.push(`/app/task/${result.attachment.attachment_task_id}`)
-                } else if (result.attachment?.attachment_post_id) {
-                    router.push(`/app/channel/${result.attachment.attachment_channel_id}/${result.attachment.attachment_post_id}`)
-                }
-                break
-            case "user":
-                dispatch(openUI({ key: 'otherUserProfile', data: { userUUID: result.user?.user_id } }))
-                break
-            case "project":
-                router.push(`/app/project/${result.project?.project_id}`)
-                break
-            case "team":
-                router.push(`/app/team/${result.team?.team_id}`)
-                break
-            case "channel":
-                router.push(`/app/channel/${result.channel?.ch_id}`)
-                break
+
+        if (result.type === "user") {
+            dispatch(openUI({ key: 'otherUserProfile', data: { userUUID: result.user?.user_id } }))
+            return
         }
+        const path = resultPath(result, selfProfile.data?.data.user_uuid || "")
+        if (path) router.push(path)
     }, [router, dispatch, selfProfile.data?.data.user_uuid])
 
     const handlePreview = useCallback((result: SearchResult) => {
