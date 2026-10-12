@@ -296,6 +296,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                             msgChannelUUID={message.fwdMsgPost?.channelUUID}
                             msgUUID={message.fwdMsgPost?.uuid || message.fwdMsgChat?.uuid}
                             msgCreatedAt={message.fwdMsgPost?.createdAt || message.fwdMsgChat?.createdAt}
+                            deleted={(message.fwdMsgPost ?? message.fwdMsgChat)?.deleted}
                             vewFooter={true}
                         />
                     )}

@@ -25,6 +25,8 @@ export interface PostsRes {
     // Discord-style inline reply: the post this post replies to (same channel).
     // One level deep — the parent's own reply reference is not expanded.
     post_reply_to?: PostsRes
+    /** When it was deleted; on a forwarded original, the forward shows it gone. */
+    post_deleted_at?: string
     /** The id it was sent with, before the server gave it one (lib/chat/pendingSend). */
     post_local_id?: string
     /** Sent from here and not yet confirmed: still sending, or not sent. */
