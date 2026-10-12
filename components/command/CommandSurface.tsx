@@ -40,9 +40,15 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
         [handleInteract],
     )
 
-    if (cards.length === 0) return null
+    // Marks the conversation beside its composer, so a command typed there
+    // runs here and nowhere else (commandSurfaceOf, FE-BUG-11).
+    const marker = <span hidden data-command-surface={ctx.surfaceKey} />
+
+    if (cards.length === 0) return marker
 
     return (
+        <>
+        {marker}
         <div className="flex flex-col gap-2 px-1 pb-2">
             {cards.map((card) => {
                 const resp = card.response
@@ -91,6 +97,7 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
                 )
             })}
         </div>
+        </>
     )
 }
 

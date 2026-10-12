@@ -31,8 +31,8 @@ export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>(
         command: ({ editor, range, props }: { editor: any; range: any; props: any }) => {
           props.command({ editor, range })
         },
-        items: ({ query }: { query: string }): SlashCommandItem[] => {
-          return slashCommandSuggestion.items({ query, commands })
+        items: ({ query, editor }: { query: string; editor: Parameters<typeof slashCommandSuggestion.items>[0]["editor"] }): SlashCommandItem[] => {
+          return slashCommandSuggestion.items({ query, commands, editor })
         },
         render,
       }),

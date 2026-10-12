@@ -499,8 +499,9 @@ export const GroupChatComments = () => {
 
 
             </div>
-            {/* The reply box at the panel's foot, the composer at its compact size. */}
-            <div className="shrink-0 px-3 pb-3 pt-1">
+            {/* The reply box at the panel's foot, the composer at its compact size.
+                A command typed here runs in the thread's conversation (FE-BUG-11). */}
+            <div className="shrink-0 px-3 pb-3 pt-1" data-command-surface={rightPanelState.data.groupUUID}>
                 <MinimalTiptapTextInput
                     throttleDelay={300}
                     attachmentOnclick = {() => {

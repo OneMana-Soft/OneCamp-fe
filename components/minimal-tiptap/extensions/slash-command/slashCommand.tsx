@@ -322,7 +322,38 @@ export interface BackendCommandEntry {
 
 type BackendCommandProvider = (query: string) => BackendCommandEntry[]
 
-let backendCommandProvider: BackendCommandProvider | null = null
+// The command providers of the conversations on screen, by surface key: the
+// page's, and each split pane's. A composer's "/" and the commands it runs are
+// its own conversation's (FE-BUG-11). There was one provider for the app and
+// one window-wide event, so with two conversations side by side /poll posted
+// in both and /remind set two reminders, and closing a pane took the other's
+// commands with it. "" is a provider registered for no surface (a test's).
+const backendCommandProviders = new Map<string, BackendCommandProvider>()
+
+const providerFor = (surface: string | null | undefined): BackendCommandProvider | null =>
+  backendCommandProviders.get(surface || "") ?? null
+
+/**
+ * The command surface a composer belongs to: the key a conversation view's
+ * CommandSurface marks beside it (data-command-surface on an element that is,
+ * or is a child of, one of the editor's ancestors), or a thread panel's own.
+ * Null for an editor outside every surface.
+ */
+export function commandSurfaceOf(editor: { view?: { dom?: Element | null } } | null | undefined): string | null {
+  let el: Element | null | undefined
+  try {
+    el = editor?.view?.dom
+  } catch {
+    return null
+  }
+  for (; el; el = el.parentElement) {
+    const own = el.getAttribute("data-command-surface")
+    if (own) return own
+    const beside = el.querySelector(":scope > [data-command-surface]")
+    if (beside) return beside.getAttribute("data-command-surface")
+  }
+  return null
+}
 
 // slashMenuOpen tracks whether the "/" suggestion popup is currently showing.
 // The composer's Enter-to-send handler reads this (via isSlashMenuOpen) and
@@ -336,9 +367,20 @@ export function isSlashMenuOpen(): boolean {
   return slashMenuOpen
 }
 
-/** Register/replace the backend command provider (called by the chat composer). */
-export function setBackendCommandProvider(provider: BackendCommandProvider | null) {
-  backendCommandProvider = provider
+/**
+ * Registers a conversation's command provider (its command runner does, for
+ * its surface key), or removes it (null). Returns the removal, which leaves a
+ * provider registered since for the same surface in place.
+ */
+export function setBackendCommandProvider(provider: BackendCommandProvider | null, surface = ""): () => void {
+  if (!provider) {
+    backendCommandProviders.delete(surface)
+    return () => {}
+  }
+  backendCommandProviders.set(surface, provider)
+  return () => {
+    if (backendCommandProviders.get(surface) === provider) backendCommandProviders.delete(surface)
+  }
 }
 
 /** Map a backend catalog entry to a SlashCommandItem that dispatches an event. */
@@ -369,7 +411,7 @@ function toBackendItem(entry: BackendCommandEntry): SlashCommandItem {
       editor.chain().focus().deleteRange(range).run()
       window.dispatchEvent(
         new CustomEvent("chat-slash-command", {
-          detail: { command: entry.command, typed: entry.command },
+          detail: { command: entry.command, typed: entry.command, surface: commandSurfaceOf(editor) },
         }),
       )
     },
@@ -393,12 +435,13 @@ function commandNeedsArgs(usageHint?: string): boolean {
  * null otherwise. Used by the composer's send-time interception to decide
  * whether a leading-slash message is a command to run vs plain text to post.
  */
-function resolveBackendCommandName(query: string): string | null {
-  if (!backendCommandProvider) return null
+function resolveBackendCommandName(query: string, surface: string | null): string | null {
+  const provider = providerFor(surface)
+  if (!provider) return null
   const name = (query || "").trim().toLowerCase()
   if (!name) return null
   try {
-    const entries = backendCommandProvider(name)
+    const entries = provider(name)
     const exact = entries.find((e) => e.command.toLowerCase() === name)
     return exact ? exact.command : null
   } catch {
@@ -417,22 +460,26 @@ function resolveBackendCommandName(query: string): string | null {
  * extracted from the composer's mention nodes — so a command like
  * "/dm @Akash hi" can resolve @Akash to the exact UUID the user picked instead
  * of fuzzy-matching the display name. The runner forwards it in the event.
+ *
+ * `surface` is the sending composer's (commandSurfaceOf): only that
+ * conversation's commands count, and only its runner runs one.
  */
 export function maybeDispatchSlashCommand(
   plainText: string,
   mentions?: Record<string, string>,
+  surface: string | null = null,
 ): boolean {
   const text = (plainText || "").trim()
   if (!text.startsWith("/")) return false
   const afterSlash = text.slice(1)
   const name = afterSlash.split(/\s+/)[0] || ""
-  const resolved = resolveBackendCommandName(name)
+  const resolved = resolveBackendCommandName(name, surface)
   if (!resolved) return false
   // `typed` carries the command name + args (no leading slash); the runner
   // strips the command token to get the argument text.
   window.dispatchEvent(
     new CustomEvent("chat-slash-command", {
-      detail: { command: resolved, typed: afterSlash, mentions: mentions || {} },
+      detail: { command: resolved, typed: afterSlash, mentions: mentions || {}, surface },
     }),
   )
   return true
@@ -475,15 +522,16 @@ interface NodeLike {
 }
 
 export const slashCommandSuggestion = {
-  items: ({ query, commands }: { query: string; commands: SlashCommandItem[] }): SlashCommandItem[] => {
+  items: ({ query, commands, editor }: { query: string; commands: SlashCommandItem[]; editor?: Parameters<typeof commandSurfaceOf>[0] }): SlashCommandItem[] => {
     const q = query.toLowerCase().slice(1) // Remove leading /
 
-    // Merge backend (app/core) commands when a provider is registered (chat
-    // composer). Docs register no provider, so their menu is unchanged.
+    // Merge backend (app/core) commands when the composer's conversation has a
+    // provider (its command runner). Docs register none, so their menu is unchanged.
     let backendItems: SlashCommandItem[] = []
-    if (backendCommandProvider) {
+    const provider = providerFor(commandSurfaceOf(editor))
+    if (provider) {
       try {
-        backendItems = backendCommandProvider(q).map(toBackendItem)
+        backendItems = provider(q).map(toBackendItem)
       } catch {
         backendItems = []
       }
