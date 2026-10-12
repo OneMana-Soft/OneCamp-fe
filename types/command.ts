@@ -75,6 +75,8 @@ export interface ExecuteCommandRequest {
     thread_ts?: string
     timezone?: string
     trigger_id?: string
+    /** The people picked from the @ list: their shown name, lower-cased, to their user id. */
+    mentions?: Record<string, string>
 }
 
 export interface InteractRequest {
