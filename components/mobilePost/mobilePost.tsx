@@ -16,7 +16,8 @@ import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
-import {ErrorState} from "@/components/error/errorState";
+import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
+import {OWN_ERRORS} from "@/lib/axiosInstance";
 import { UserProfileInterface} from "@/types/user";
 import {
     addChannelComments,
@@ -46,6 +47,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
     const postInfo = useFetch<PostsResRaw>(
         channelId && postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${postUUID}` : "",
+        undefined, undefined, OWN_ERRORS,
     )
 
     const channelState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || NO_ITEMS);
@@ -61,10 +63,6 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
 
     const dispatch = useDispatch()
-    const handleRetry = () => {
-        // Trigger refetch - this would depend on your useFetch implementation
-        window.location.reload()
-    }
 
     // The server's replies, reconciled once per answer (useThreadReplies).
     useThreadReplies(postInfo.data?.data?.post_comments, postInfo.lastRequestStartedAt, postCommentState, (comments) =>
@@ -72,12 +70,13 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
     )
 
 
-    if (postInfo.isLoading || !postState) {
-        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
+    // The error first: a failed read has no data, which read as loading (TN-BUG-4).
+    if (postInfo.isError && !postInfo.data?.data) {
+        return <ThreadLoadFailed error={postInfo.isError} onRetry={() => void postInfo.mutate()} retrying={postInfo.isLoading}/>
     }
 
-    if (postInfo.isError  || !postInfo.data?.data) {
-        return <ErrorState onRetry={handleRetry}  errorMessage={'failed to fetch the thread'} errorTitle={'Thread not found'}/>
+    if (postInfo.isLoading || !postState || !postInfo.data?.data) {
+        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
     }
 
 
