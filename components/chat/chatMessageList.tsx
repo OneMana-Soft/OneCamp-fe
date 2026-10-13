@@ -16,6 +16,7 @@ import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
+import { pageEdgeQuery } from "@/lib/chat/pageEdge";
 
 // Stable empty array reference to prevent unnecessary re-renders
 const EMPTY_CHAT_MESSAGES: ChatInfo[] = [];
@@ -66,11 +67,14 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
 
     const [hasMoreChat, setHasMoreChat] = useState(true)
     const [oldChatTime, setOldChatTime] = useState(0)
-    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 ? '' : GetEndpointUrl.GetOldChatBefore + '/' + chatId + '/' + oldChatTime)
+    // The message the older page starts next to (lib/chat/pageEdge).
+    const [oldEdge, setOldEdge] = useState('')
+    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 ? '' : GetEndpointUrl.GetOldChatBefore + '/' + chatId + '/' + oldChatTime + oldEdge)
 
     const [hasMoreNewChat, setHasMoreNewChat] = useState(!!messageId)
     const [newChat, setNewChat] = useState(0)
-    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 ? '' : GetEndpointUrl.GetNewChatAfter + '/' + chatId + '/' + newChat)
+    const [newEdge, setNewEdge] = useState('')
+    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 ? '' : GetEndpointUrl.GetNewChatAfter + '/' + chatId + '/' + newChat + newEdge)
 
 
 
@@ -171,6 +175,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         if(safeChatMessageState.length === 0) return;
         const lastTimeString = safeChatMessageState[0].chat_created_at
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
+        setOldEdge(pageEdgeQuery(lastTimeString, safeChatMessageState[0].chat_uuid))
         setOldChatTime(epochTime)
         setHasMoreChat(false)
     }, [safeChatMessageState])
@@ -179,6 +184,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         if(safeChatMessageState.length === 0) return;
         const lastTimeString = safeChatMessageState[safeChatMessageState.length -1].chat_created_at
         const epochTime = Math.ceil(Date.parse(lastTimeString) / 1000);
+        setNewEdge(pageEdgeQuery(lastTimeString, safeChatMessageState[safeChatMessageState.length -1].chat_uuid))
         setNewChat(epochTime)
         setHasMoreNewChat(false)
     }, [safeChatMessageState])

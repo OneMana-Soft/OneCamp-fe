@@ -23,6 +23,7 @@ import {GroupChatMessages} from "@/components/groupChat/groupChatMessages";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
+import { pageEdgeQuery } from "@/lib/chat/pageEdge";
 
 interface ChatMessageListProps {
     grpId: string;
@@ -63,11 +64,14 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
     const [hasMoreChat, setHasMoreChat] = useState(true)
     const [oldChatTime, setOldChatTime] = useState(0)
-    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetOldGroupChatBefore + '/' + grpId + '/' + oldChatTime)
+    // The message the older page starts next to (lib/chat/pageEdge).
+    const [oldEdge, setOldEdge] = useState('')
+    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetOldGroupChatBefore + '/' + grpId + '/' + oldChatTime + oldEdge)
 
     const [hasMoreNewChat, setHasMoreNewChat] = useState(!!messageId)
     const [newChat, setNewChat] = useState(0)
-    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetNewGroupChatAfter + '/' + grpId + '/' + newChat)
+    const [newEdge, setNewEdge] = useState('')
+    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetNewGroupChatAfter + '/' + grpId + '/' + newChat + newEdge)
 
     const dispatch = useDispatch();
 
@@ -160,6 +164,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
         if (chatMessageState.length === 0) return
         const lastTimeString = chatMessageState[0].chat_created_at
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
+        setOldEdge(pageEdgeQuery(lastTimeString, chatMessageState[0].chat_uuid))
         setOldChatTime(epochTime)
         setHasMoreChat(false)
     }
@@ -168,6 +173,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
         if (chatMessageState.length === 0) return
         const lastTimeString = chatMessageState[chatMessageState.length -1].chat_created_at
         const epochTime = Math.ceil(Date.parse(lastTimeString) / 1000);
+        setNewEdge(pageEdgeQuery(lastTimeString, chatMessageState[chatMessageState.length -1].chat_uuid))
         setNewChat(epochTime)
         setHasMoreNewChat(false)
     }
