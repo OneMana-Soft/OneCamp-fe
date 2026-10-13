@@ -8,6 +8,9 @@ import { Provider } from "react-redux"
 // and Leave existed only on a phone. Destructive actions ask in place (C54).
 
 let admin = false
+// Whether the person looking is a workspace admin, not only the channel's.
+let workspaceAdmin = false
+const { makeRequest } = vi.hoisted(() => ({ makeRequest: vi.fn(async (_req: unknown) => ({})) }))
 const INFO = () => ({
   data: { channel_info: { ch_uuid: "c1", ch_name: "engineering", ch_about: "Ship the Q4 launch", ch_private: true, ch_post_policy: "everyone", ch_deleted_at: "0001-01-01T00:00:00Z", ch_is_admin: admin, ch_is_member: true, notification_type: "all", ch_created_at: "2026-09-01T10:00:00Z", ch_created_by: { user_uuid: "maya", user_name: "Maya Chen" } } },
   isLoading: false,
@@ -24,9 +27,9 @@ const MEMBERS = () => ({
 })
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => (url.includes("channelInfoWithMemberAdminFlag") ? MEMBERS() : url.includes("channelBasicInfo") ? INFO() : { data: undefined, isLoading: false, mutate: () => {} }),
-  useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera" } } }),
+  useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera", user_is_admin: workspaceAdmin } } }),
 }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => ({})), isSubmitting: false }) }))
+vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: () => undefined, useBotKindMap: () => ({}) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/app/channel/c1" }))
@@ -54,6 +57,8 @@ const section = (name: string) => screen.getByRole("region", { name })
 afterEach(() => {
   cleanup()
   admin = false
+  workspaceAdmin = false
+  makeRequest.mockClear()
 })
 
 describe("the channel's Details sheet", () => {
@@ -97,6 +102,7 @@ describe("the channel's Details sheet", () => {
     expect(screen.queryByRole("button", { name: "Edit description" })).toBeNull()
     cleanup()
     admin = true
+    workspaceAdmin = true
     sheet()
     const settings = section("Settings")
     for (const name of ["Private channel", "Announcement channel"]) expect(within(settings).getByLabelText(name).getAttribute("role")).toBe("switch")
@@ -104,6 +110,32 @@ describe("the channel's Details sheet", () => {
     expect(screen.queryByRole("button", { name: "More for Maya Chen" }), "the creator keeps their role").toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Archive channel" }))
     expect(screen.getByRole("group", { name: "Archive #engineering?" })).toBeTruthy()
+  })
+
+  // One switch by any moderator made a private channel public, its whole
+  // history and files with it, asking nobody (SN-BUG-5).
+  it("lets only a workspace admin make a private channel public, and asks first", async () => {
+    admin = true
+    sheet()
+    const settings = section("Settings")
+    expect(within(settings).queryByRole("switch", { name: "Private channel" }), "a moderator who isn't a workspace admin").toBeNull()
+    expect(within(settings).getByText(/Only a workspace admin can make it public/)).toBeTruthy()
+    cleanup()
+
+    workspaceAdmin = true
+    sheet()
+    fireEvent.click(within(section("Settings")).getByRole("switch", { name: "Private channel" }))
+    const ask = screen.getByRole("group", { name: "Make #engineering public?" })
+    expect(within(ask).getByText(/read its whole history, files included/)).toBeTruthy()
+    expect(makeRequest, "nothing is saved before the answer").not.toHaveBeenCalled()
+    fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }))
+    expect(makeRequest).not.toHaveBeenCalled()
+    expect(within(section("Settings")).getByRole("switch", { name: "Private channel" }).getAttribute("aria-checked")).toBe("true")
+
+    fireEvent.click(within(section("Settings")).getByRole("switch", { name: "Private channel" }))
+    fireEvent.click(within(screen.getByRole("group", { name: "Make #engineering public?" })).getByRole("button", { name: "Make public" }))
+    await vi.waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1))
+    expect((makeRequest.mock.calls[0][0] as { payload: { channel_private: boolean } }).payload.channel_private).toBe(false)
   })
 
   it("opens through one UI key the header can dispatch", () => {

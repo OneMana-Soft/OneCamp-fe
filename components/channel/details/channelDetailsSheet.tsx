@@ -81,6 +81,45 @@ function InlineConfirm({ label, question, warning, confirmLabel, onConfirm, busy
     )
 }
 
+/**
+ * A channel's privacy. Making a private channel public opens its whole
+ * history and files to everyone in the workspace, so only a workspace admin
+ * may, after saying so in place; any of its moderators may make a public
+ * channel private. A moderator who isn't a workspace admin sees a private
+ * channel's privacy without a switch.
+ */
+function PrivacyRow({ name, isPrivate, workspaceAdmin, disabled, busy, onChange }: {
+    name: string
+    isPrivate: boolean
+    workspaceAdmin: boolean
+    disabled?: boolean
+    busy?: boolean
+    onChange: (makePrivate: boolean) => Promise<unknown> | void
+}) {
+    const [asking, setAsking] = useState(false)
+    if (isPrivate && !workspaceAdmin) {
+        return <Row icon={<Lock />} label="Private channel" description="Only invited members can find and join it. Only a workspace admin can make it public." />
+    }
+    if (asking) {
+        const question = `Make #${name} public?`
+        return (
+            <div role="group" aria-label={question} className="space-y-2 px-3 py-3 animate-fade-in">
+                <p className="text-ui font-medium text-ink">{question}</p>
+                <p className="text-meta text-warning-ink">Everyone in the workspace will be able to find it and read its whole history, files included. A line in the channel will say you did.</p>
+                <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setAsking(false)} autoFocus>Cancel</Button>
+                    <Button variant="destructive" size="sm" aria-busy={busy || undefined} onClick={async () => { await onChange(false); setAsking(false) }}>Make public</Button>
+                </div>
+            </div>
+        )
+    }
+    return (
+        <Row icon={<Lock />} label="Private channel" description="Only invited members can find and join it." controlId="details-private">
+            <Switch id="details-private" checked={isPrivate} disabled={disabled} onCheckedChange={(v) => (v ? onChange(true) : setAsking(true))} />
+        </Row>
+    )
+}
+
 const NOTIFY: { value: string; label: string; description: string }[] = [
     { value: NotificationType.NotificationAll, label: "Everything", description: "Every new message in this channel." },
     { value: NotificationType.NotificationMention, label: "Mentions and threads you're in", description: "Only when someone needs you." },
@@ -328,9 +367,14 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
 
                         {isAdmin && !archived && (
                             <Section title="Settings">
-                                <Row icon={<Lock />} label="Private channel" description="Only invited members can find and join it." controlId="details-private">
-                                    <Switch id="details-private" checked={!!info?.ch_private} disabled={!info} onCheckedChange={(v) => save({ channel_private: v })} />
-                                </Row>
+                                <PrivacyRow
+                                    name={name}
+                                    isPrivate={!!info?.ch_private}
+                                    workspaceAdmin={!!selfProfile.data?.data?.user_is_admin}
+                                    disabled={!info}
+                                    busy={update.isSubmitting}
+                                    onChange={(makePrivate) => save({ channel_private: makePrivate })}
+                                />
                                 <Row icon={<Megaphone />} label="Announcement channel" description="Only admins post. Everyone can read, react and reply in threads." controlId="details-announcement">
                                     <Switch id="details-announcement" checked={announcement} disabled={!info} onCheckedChange={(v) => save({ post_policy: v ? "admins_only" : "everyone" })} />
                                 </Row>
