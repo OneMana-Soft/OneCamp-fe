@@ -284,9 +284,9 @@ export function CalendarApp() {
             router.push(`/app/calendar/event/${uuid}`);
             return;
         }
-        // The panel reads the same range the calendar asked for, so it opens from what is here.
-        dispatch(openRightPanel({ eventUUID: uuid, viewStartDate: gridStart.toISOString(), viewEndDate: gridEnd.toISOString() }));
-    }, [isMobile, router, dispatch, gridStart, gridEnd]);
+        // The panel loads the event by its id, showing the calendar's copy meanwhile.
+        dispatch(openRightPanel({ eventUUID: uuid }));
+    }, [isMobile, router, dispatch]);
     const openTask = useCallback((uuid: string) => {
         if (isMobile) router.push(`/app/task/${uuid}`);
         else dispatch(openRightPanel({ taskUUID: uuid }));

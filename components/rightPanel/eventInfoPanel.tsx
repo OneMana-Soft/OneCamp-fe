@@ -1,12 +1,14 @@
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { addDays, format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { addDays, format, parseISO, isSameDay } from "date-fns";
 import { shortDateTime, shortTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
-import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
+import type { CalendarEventInterface, GetEventsResponse, CreateEventPayload } from "@/types/calendar";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
+import { ErrorState } from "@/components/ui/error-state";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
 import { X, Plus, Trash2, CalendarClock, Sparkles, LogOut } from "@/lib/icons";
 import { Edit2 } from "@/lib/icons";
@@ -35,9 +37,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { useSWRConfig } from "swr";
+import { useSWRConfig, type Cache } from "swr";
 import {closeRightPanel} from "@/store/slice/desktopRightPanelSlice";
-import {useSelector, useDispatch} from "react-redux";
+import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
 import { SafeHtml } from "@/components/safeHtml/SafeHtml";
@@ -63,24 +65,24 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     const [away, setAway] = useState(false);
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
     const [prepOpen, setPrepOpen] = useState(false);
-    const rightPanelData = useSelector((state: any) => state.rightPanel.rightPanelState?.data);
-    const viewStartDate = rightPanelData?.viewStartDate;
-    const viewEndDate = rightPanelData?.viewEndDate;
-
-    // Compute fallback date range when accessed outside the right panel (e.g., mobile route)
-    const fallbackStart = React.useMemo(() => startOfWeek(startOfMonth(new Date())).toISOString(), []);
-    const fallbackEnd = React.useMemo(() => endOfWeek(endOfMonth(new Date())).toISOString(), []);
-
-    const effectiveStartDate = viewStartDate || fallbackStart;
-    const effectiveEndDate = viewEndDate || fallbackEnd;
-
-    const fetchUrl = `${GetEndpointUrl.GoogleCalendarEvents}?startDate=${effectiveStartDate}&endDate=${effectiveEndDate}`;
-
-    const { data: eventsRes, isLoading, mutate } = useFetch<GetEventsResponse>(fetchUrl);
-    const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
-    const listed = eventsRes?.data?.find(e => e.event_uuid === eventUUID);
+    // The event by its id (CAL-BUG-7). The panel used to look for it in the
+    // list of the month on screen, or of today's month when it had none (a
+    // phone, a link), so an event in any other month couldn't be opened,
+    // edited, deleted or left there. A copy from a list already loaded stands
+    // in while it comes.
+    const { data: eventRes, isError, mutate } = useFetch<{ data: CalendarEventInterface }>(
+        eventUUID ? `${GetEndpointUrl.GetEvent}/${encodeURIComponent(eventUUID)}` : "",
+        undefined,
+        { shouldRetryOnError: (err) => !isUnavailable(err) },
+        OWN_ERRORS,
+    );
+    const { cache, mutate: globalMutate } = useSWRConfig();
+    const listed = React.useMemo(() => listedCopy(cache, eventUUID), [cache, eventUUID]);
+    const gone = isUnavailable(isError);
+    const found = eventRes?.data ?? (gone ? undefined : listed);
     // A Google all-day event by its dates, never its instants (CAL-BUG-2).
-    const event = React.useMemo(() => (listed ? placedByDates(listed) : undefined), [listed]);
+    const event = React.useMemo(() => (found ? placedByDates(found) : undefined), [found]);
+    const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const dispatch = useDispatch();
 
     const currentUserUUID = selfProfile?.data?.user_uuid;
@@ -92,7 +94,6 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     const [searchResults, setSearchResults] = useState<UserProfileDataInterface[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const searchUserRef = useRef(usePost());
-    const { mutate: globalMutate } = useSWRConfig();
 
     React.useEffect(() => {
         if (searchQuery.length < 2) {
@@ -131,10 +132,12 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         }
     });
 
-    // Update form when event data changes (use event_uuid as stable identifier)
+    // Update the form when another event opens, and once when the server's
+    // answer replaces the list's copy (never while it is being edited).
     const eventId = event?.event_uuid;
+    const source = eventRes?.data ? "server" : "list";
     React.useEffect(() => {
-        if (event) {
+        if (event && !isEditing) {
             form.reset({
                 title: event.event_title,
                 description: event.event_description || "",
@@ -146,34 +149,34 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             setAway(!!event.event_is_away);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [eventId]);
+    }, [eventId, source]);
 
     // In the right panel the shared header carries the view's actions and the
     // close button; on the phone's own page the app bar has the way back.
     const inPanel = !onClose;
     const close = () => (onClose ? onClose() : dispatch(closeRightPanel()));
 
-    if (isLoading) {
-        return (
-            <EventPanelFrame inPanel={inPanel}>
-                <EventPanelSkeleton />
-            </EventPanelFrame>
-        );
-    }
     if (!event) {
+        if (gone) {
+            return (
+                <EventPanelFrame inPanel={inPanel}>
+                    <EmptyState
+                        illustration={<SpotError />}
+                        title="This event isn't available"
+                        description="It may have been deleted, or you're no longer one of its guests."
+                        action={
+                            <Button variant="outline" size="sm" onClick={close}>
+                                Close
+                            </Button>
+                        }
+                        className="pt-10"
+                    />
+                </EventPanelFrame>
+            );
+        }
         return (
             <EventPanelFrame inPanel={inPanel}>
-                <EmptyState
-                    illustration={<SpotError />}
-                    title="This event isn't available"
-                    description="It may have been deleted, or moved out of the month on screen."
-                    action={
-                        <Button variant="outline" size="sm" onClick={close}>
-                            Close
-                        </Button>
-                    }
-                    className="pt-10"
-                />
+                {isError ? <ErrorState subject="this event" onRetry={() => void mutate()} className="pt-10" /> : <EventPanelSkeleton />}
             </EventPanelFrame>
         );
     }
@@ -198,47 +201,55 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     participants: participants.map(p => p.user_uuid) || [],
                     isFocus: focus && !away,
                     isAway: away,
-                }
+                },
+                // The server's reason when it refuses ("Only the person who made
+                // this event can change it."), never a bare failure (CAL-BUG-16).
+                showErrorToast: true,
+                failureTitle: "Couldn't save the event",
             });
             await mutate();
-            globalMutate(
-                (key) => typeof key === 'string' && key.startsWith(GetEndpointUrl.GoogleCalendarEvents),
-                undefined,
-                { revalidate: true }
-            );
+            refreshLists();
             setIsEditing(false);
         } catch (e) {
-            console.error("Failed to update event", e);
+            // Deleted meanwhile, or no longer yours to see: the panel says so.
+            if ((e as { response?: { status?: number } })?.response?.status === 404) void mutate();
         }
     };
     const handleClose = close;
 
-    // refreshEvents re-pulls the calendar after a mutation (reschedule, etc.),
-    // mirroring handleSave's revalidation of every cached events query.
-    const refreshEvents = async () => {
-        await mutate();
-        globalMutate(
+    // Every list of events on screen asks again: the calendar's ranges and Home's today.
+    function refreshLists() {
+        void globalMutate(
             (key) => typeof key === 'string' && key.startsWith(GetEndpointUrl.GoogleCalendarEvents),
             undefined,
             { revalidate: true }
         );
+    }
+
+    // refreshEvents re-pulls the event and the calendar after a mutation (reschedule, etc.).
+    const refreshEvents = async () => {
+        await mutate();
+        refreshLists();
+    };
+
+    // An event left or deleted is closed, and its copy dropped rather than asked for again.
+    const closeGone = () => {
+        refreshLists();
+        handleClose();
+        void mutate(undefined, { revalidate: false });
     };
 
     const executeLeave = async () => {
         try {
             await post.makeRequest({
                 apiEndpoint: (PostEndpointUrl.LeaveEvent + `/${event?.event_uuid}`) as PostEndpointUrl,
-                payload: {}
+                payload: {},
+                showErrorToast: true,
+                failureTitle: "Couldn't leave the event",
             });
-            await mutate();
-            globalMutate(
-                (key) => typeof key === 'string' && key.startsWith(GetEndpointUrl.GoogleCalendarEvents),
-                undefined,
-                { revalidate: true }
-            );
-            handleClose();
-        } catch (e) {
-            console.error("Failed to leave event", e);
+            closeGone();
+        } catch {
+            // The toast said why.
         }
     };
 
@@ -259,17 +270,13 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         try {
             await post.makeRequest({
                 method: "DELETE",
-                apiEndpoint: (`/event/deleteEvent/${event?.event_uuid}`) as any
+                apiEndpoint: (`/event/deleteEvent/${event?.event_uuid}`) as any,
+                showErrorToast: true,
+                failureTitle: "Couldn't delete the event",
             });
-            await mutate();
-            globalMutate(
-                (key) => typeof key === 'string' && key.startsWith(GetEndpointUrl.GoogleCalendarEvents),
-                undefined,
-                { revalidate: true }
-            );
-            handleClose();
-        } catch (e) {
-            console.error("Failed to delete event", e);
+            closeGone();
+        } catch {
+            // The toast said why.
         }
     };
 
@@ -636,4 +643,27 @@ function EventPanelSkeleton() {
             </div>
         </div>
     );
+}
+
+/**
+ * Whether the server answered that this event isn't there for this person:
+ * deleted, never theirs, or an id it can't read. A 404 without a message is
+ * a server without the route (an older one), not an answer about the event.
+ */
+function isUnavailable(err: unknown): boolean {
+    const res = (err as { response?: { status?: number; data?: { msg?: unknown } } } | undefined)?.response;
+    if (!res) return false;
+    if (res.status === 400 || res.status === 403) return true;
+    return res.status === 404 && typeof res.data?.msg === "string";
+}
+
+/** The event as a list already loaded holds it (the calendar's range, Home's today), to show while the event itself comes. */
+function listedCopy(cache: Cache | undefined, uuid: string): CalendarEventInterface | undefined {
+    if (!uuid || !cache) return undefined;
+    for (const key of cache.keys()) {
+        if (typeof key !== "string" || !key.startsWith(GetEndpointUrl.GoogleCalendarEvents)) continue;
+        const hit = (cache.get(key)?.data as GetEventsResponse | undefined)?.data?.find((e) => e.event_uuid === uuid);
+        if (hit) return hit;
+    }
+    return undefined;
 }
