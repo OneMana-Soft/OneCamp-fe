@@ -15,6 +15,7 @@ import {ChatTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
+import { dataToSeed } from "@/lib/swrMutate";
 
 // Stable empty array reference to prevent unnecessary re-renders
 const EMPTY_CHAT_MESSAGES: ChatInfo[] = [];
@@ -35,7 +36,8 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
     const searchParams = useLinkSearchParams(useSearchParams());
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
-    const latestMsg = useFetch<CreateChatPaginationResRaw>(messageId ? '' : GetEndpointUrl.GetChatLatestMessage + '/' + chatId)
+    const latestKey = messageId ? '' : GetEndpointUrl.GetChatLatestMessage + '/' + chatId
+    const latestMsg = useFetch<CreateChatPaginationResRaw>(latestKey)
     const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? GetEndpointUrl.GetNewChatIncludingCurrentChat + '/' + chatId + '/' + messageId: '')
 
     // Revalidate the "latest" window whenever we open/switch into this
@@ -87,13 +89,15 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         }
 
         if(!messageId && latestMsg.data?.data.chats?.length && safeChatMessageState.length == 0 ) {
+            // An empty list has nothing to lose: seeded, and the answer noted.
+            dataToSeed(latestKey, latestMsg.data)
             // Copy before reversing: latestMsg.data is the live SWR cache
             // object. Mutating it in place corrupts the cached value and
             // races concurrent revalidations.
             const newChats = [...latestMsg.data.data.chats].reverse();
             dispatch(updateChats({chatId, chats: newChats}))
             setHasMoreNewChat(false)
-        } else if (!messageId && latestMsg.data?.data.chats && safeChatMessageState.length > 0) {
+        } else if (!messageId && safeChatMessageState.length > 0) {
             // Conversation already in Redux (revisited via navigation or a
             // notification deep-link). The empty-guard above would skip the
             // freshly-fetched latest window, so the message that triggered the
@@ -102,15 +106,22 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
             // mergeChats reconciles the latest window WITHOUT clobbering
             // optimistic/unconfirmed sends or paginated history, and is
             // reference-stable (no-op) when nothing changed.
-            const latest = [...latestMsg.data.data.chats].reverse();
-            dispatch(mergeChats({
-                chatId,
-                chats: latest,
-                authoritativeThrough: latestMsg.lastRequestStartedAt,
-            }))
+            //
+            // Each answer once (lib/swrMutate dataToSeed): this runs on every
+            // change to the list, and merging the same cached answer each time
+            // put back a live edit, reaction or reply count.
+            const answer = dataToSeed(latestKey, latestMsg.data)
+            if (answer?.data.chats) {
+                const latest = [...answer.data.chats].reverse();
+                dispatch(mergeChats({
+                    chatId,
+                    chats: latest,
+                    authoritativeThrough: latestMsg.lastRequestStartedAt,
+                }))
+            }
         }
 
-    }, [getNewChatsWithCurrentChat, latestMsg, safeChatMessageState, messageId, chatId, dispatch]);
+    }, [getNewChatsWithCurrentChat, latestMsg, latestKey, safeChatMessageState, messageId, chatId, dispatch]);
 
     useEffect(() => {
 

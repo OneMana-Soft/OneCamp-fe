@@ -10,6 +10,7 @@ import {CommentInfoInterface} from "@/types/comment";
 import {ChatInfo} from "@/types/chat";
 import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 import { hasServerIdElsewhere, indexOfEchoed, indexOfLocal, type PendingAccess } from "@/lib/chat/pendingSend";
+import { newerThanAnswer } from "@/lib/chat/liveChange";
 
 // How a post is read for the pending-send helpers (lib/chat/pendingSend).
 const POST_ACCESS: PendingAccess<PostsRes> = {
@@ -383,8 +384,15 @@ const channelSlice = createSlice({
                 contentDiffers: postContentDiffers,
                 isOptimistic: (post) => !!post.post_added_locally,
                 shouldAcceptIncoming: (post) => !post.post_uuid || !isTombstoned(state.deletedPosts, channelId, post.post_uuid),
-                // A server copy with the same UUID confirms the local send.
-                mergeMatched: (current, server) => ({ ...current, ...server, post_added_locally: false }),
+                // A server copy with the same UUID confirms the local send. A
+                // post changed live since this answer was asked for (an edit,
+                // a reaction, a reply) keeps what it has (lib/chat/liveChange);
+                // otherwise the server's copy wins, a list it left out (no
+                // reactions any more) counting as empty.
+                mergeMatched: (current, server) =>
+                    newerThanAnswer(current.post_live_at, authoritativeThrough)
+                        ? { ...server, ...current, post_added_locally: false }
+                        : { ...current, ...server, post_reactions: server.post_reactions ?? [], post_comment_count: server.post_comment_count ?? 0, post_added_locally: false },
                 sort: (a, b) => new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime(),
             });
 
@@ -408,6 +416,7 @@ const channelSlice = createSlice({
                         }
                         return reaction
                     })
+                    post.post_live_at = Date.now()
                 }
 
                 return post
@@ -466,6 +475,7 @@ const channelSlice = createSlice({
                             reaction_on_content_added_by: addedBy
                         })
                     }
+                    post.post_live_at = Date.now()
                 }
 
                 return post
@@ -483,6 +493,7 @@ const channelSlice = createSlice({
                     post.post_reactions = post.post_reactions?.filter((reaction) => {
                         return reaction.uid !== reactionId
                     })
+                    post.post_live_at = Date.now()
                 }
                 return post
             })
@@ -497,6 +508,7 @@ const channelSlice = createSlice({
                     // (design v3 chat, C27), before the server's time arrives.
                     if (post.post_text !== htmlText) post.post_updated_at = new Date().toISOString()
                     post.post_text = htmlText
+                    post.post_live_at = Date.now()
                 }
 
                 return post
@@ -652,6 +664,7 @@ const channelSlice = createSlice({
                     if (!alreadyTracked) {
                         post.post_comments.push(comment);
                         post.post_comment_count = (post.post_comment_count || 0) + 1
+                        post.post_live_at = Date.now()
                     }
                 }
 
@@ -679,6 +692,7 @@ const channelSlice = createSlice({
                     if (wasTracked) {
                         post.post_comments = post.post_comments.filter((c) => c.comment_uuid != comment.comment_uuid)
                         post.post_comment_count = Math.max(0, (post.post_comment_count || 0) - 1)
+                        post.post_live_at = Date.now()
                     }
                 }
 
