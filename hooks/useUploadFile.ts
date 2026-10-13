@@ -782,8 +782,6 @@ export const useUploadFile = () => {
         return
     }
     const makeRequestToUploadToChannelComment = async (files: FileList, channelId: string, threadId: string) => {
-        // The files join the draft of the thread they were picked in (threadId),
-        // even if another thread is open by the time they finish.
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
 
@@ -895,8 +893,6 @@ export const useUploadFile = () => {
     }
 
     const makeRequestToUploadToGroupChatComment = async (files: FileList, grpId: string, threadId: string) => {
-        // The files join the draft of the thread they were picked in (threadId),
-        // even if another thread is open by the time they finish.
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
 

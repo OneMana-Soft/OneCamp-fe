@@ -21,7 +21,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef } from "react"
 import { useDispatch } from "react-redux"
-import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation"
+import { useSearchParams, type ReadonlyURLSearchParams } from "next/navigation"
 import { updateChannelPosts, updateChannelScrollToBottom } from "@/store/slice/channelSlice"
 import { updateChats, updateChatScrollToBottom } from "@/store/slice/chatSlice"
 import { updateGroupChats, updateGroupChatScrollToBottom } from "@/store/slice/groupChatSlice"
@@ -36,19 +36,20 @@ export function useLinkSearchParams(params: ReadonlyURLSearchParams | null): Rea
   return useInSplitPane() ? null : params
 }
 
-/** Drops the link from the address, keeping the rest of it; says whether there was one. */
+/**
+ * Drops the link from the address, keeping the rest of it; says whether there
+ * was one. Through history.replaceState, which Next's router follows (the
+ * search params read here change with it).
+ */
 export function useLeaveLink(param: "postId" | "messageId"): () => boolean {
-  const router = useRouter()
-  const pathname = usePathname()
   const params = useLinkSearchParams(useSearchParams())
   return useCallback(() => {
     if (!params?.get(param)) return false
-    const rest = new URLSearchParams(params.toString())
-    rest.delete(param)
-    const query = rest.toString()
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+    const url = new URL(window.location.href)
+    url.searchParams.delete(param)
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash)
     return true
-  }, [params, param, pathname, router])
+  }, [params, param])
 }
 
 type Kind = "channel" | "chat" | "group"

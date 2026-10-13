@@ -16,13 +16,10 @@ const goTo = (query: string) => {
   address = new URLSearchParams(query)
   readers.forEach((r) => r())
 }
-const replace = vi.fn()
 vi.mock("next/navigation", async () => {
   const { useSyncExternalStore } = await import("react")
   return {
     useSearchParams: () => useSyncExternalStore((r) => (readers.add(r), () => void readers.delete(r)), () => address),
-    useRouter: () => ({ replace, push: () => {} }),
-    usePathname: () => `/app/channel/${CH}`,
   }
 })
 
@@ -64,7 +61,7 @@ const shown = () => screen.getAllByRole("listitem").map((li) => li.textContent)
 beforeEach(() => {
   store.dispatch({ type: RESET_STORE_ACTION })
   address = new URLSearchParams()
-  replace.mockClear()
+  window.history.replaceState(null, "", `/app/channel/${CH}`)
   asked.length = 0
   // The latest page comes newest first; the linked page from the linked post on.
   answers[latestOf(CH)] = { data: { posts: [post("today-2", "2026-10-13T10:00:00Z"), post("today-1", "2026-10-13T09:00:00Z")], has_more: true } }
@@ -85,10 +82,11 @@ describe("a channel opened at an older post from a link", () => {
 
   it("goes back to the latest page on Jump to latest, leaving the link", () => {
     address = new URLSearchParams(`postId=${OLD}`)
+    window.history.replaceState(null, "", `/app/channel/${CH}?postId=${OLD}`)
     const view = render(list(CH))
     expect(shown()).toEqual([OLD, "old-2"])
     fireEvent.click(screen.getByRole("button", { name: "Jump to latest" }))
-    expect(replace).toHaveBeenCalledWith(`/app/channel/${CH}`, { scroll: false })
+    expect(window.location.pathname + window.location.search).toBe(`/app/channel/${CH}`)
     // The address without the link, as the router leaves it.
     act(() => goTo(""))
     expect(shown()).toEqual(["today-1", "today-2"])
