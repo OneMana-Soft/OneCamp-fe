@@ -20,6 +20,7 @@ import { toast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
+import { DESKTOP_OPEN_ROUTE_EVENT, isDesktopApp } from "@/lib/desktopApp"
 
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileInterface } from "@/types/user"
@@ -67,7 +68,9 @@ export function FCMHandler() {
 
   // Effect 2: FCM setup — register SW, get token, sync with backend (with retry)
   useEffect(() => {
-    if (!isFirebaseConfigured) {
+    // Not in the desktop app: it is told by desktop notices (Effect 4), and a
+    // webview that one day offered push would notify twice.
+    if (!isFirebaseConfigured || isDesktopApp()) {
       return
     }
 
@@ -132,7 +135,7 @@ export function FCMHandler() {
 
   // Effect 3: Foreground message listener (runs once when messaging is available)
   useEffect(() => {
-    if (!messaging) return
+    if (!messaging || isDesktopApp()) return
 
     const unsubscribe = onMessage(messaging, (payload: any) => {
       // Do Not Disturb: suppress the in-app notification toast entirely while
@@ -194,6 +197,25 @@ export function FCMHandler() {
       unsubscribe()
     }
   }, [router, store])
+
+  // Effect 4: the desktop app. Its webview has no web push (Effects 2 and 3
+  // stand down there): it raises native notifications from desktop notices
+  // (lib/desktopNotices), and this opens the one the person came back to the
+  // window for. Asking once lets the notification plugin answer for the system.
+  useEffect(() => {
+    if (!isDesktopApp()) return
+    if (typeof Notification !== "undefined") {
+      void Promise.resolve()
+        .then(() => Notification.requestPermission())
+        .catch(() => {})
+    }
+    const open = (e: Event) => {
+      const route = (e as CustomEvent<unknown>).detail
+      if (typeof route === "string" && route.startsWith("/app")) router.push(route)
+    }
+    window.addEventListener(DESKTOP_OPEN_ROUTE_EVENT, open)
+    return () => window.removeEventListener(DESKTOP_OPEN_ROUTE_EVENT, open)
+  }, [router])
 
   return null // Headless component
 }

@@ -12,6 +12,8 @@
  * fall back to the server engine without special cases.
  */
 
+import { isDesktopApp } from "@/lib/desktopApp"
+
 type Invoke = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
 
 export type DesktopDictationStatus =
@@ -23,7 +25,7 @@ export type DesktopDictationStatus =
   | { state: "recording" }
 
 function invoker(): Invoke | null {
-  if (typeof window === "undefined") return null
+  if (!isDesktopApp()) return null
   const tauri = (window as unknown as { __TAURI__?: { core?: { invoke?: unknown } } }).__TAURI__
   const invoke = tauri?.core?.invoke
   return typeof invoke === "function" ? (invoke as Invoke) : null
