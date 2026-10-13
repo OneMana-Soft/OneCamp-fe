@@ -99,6 +99,8 @@ const CASES: { name: string; data: PushNotificationData; expected: string }[] = 
   { name: "later refuses a link out of the app", data: { type: "later", type_id: "https://evil.example/app/x" }, expected: "/app/later" },
   { name: "later refuses a protocol-relative link", data: { type: "later", type_id: "//evil.example/app/x" }, expected: "/app/later" },
   { name: "later with no link opens Later", data: { type: "later" }, expected: "/app/later" },
+  // CAL-BUG-5: a booking made or cancelled on your page; it fell back to /app.
+  { name: "a booking opens the calendar", data: { type: "calendar", type_id: "e-1" }, expected: "/app/calendar" },
   { name: "approval opens Home, where approvals lead", data: { type: "approval" }, expected: "/app/home" },
 ]
 
