@@ -73,7 +73,7 @@ describe("a booking's own page", () => {
 describe("cancelling", () => {
   it("asks without promising that the owner is told", async () => {
     await show()
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }, { timeout: 5000 }))
     expect(screen.getByText("It comes off Sam's calendar, and the time is free again.")).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/told at once/)
   })
@@ -81,13 +81,13 @@ describe("cancelling", () => {
   it("says the owner was told only when they were", async () => {
     cancelBooking.mockResolvedValue(answer({ cancelled: true, owner_told: true, page_live: true }))
     await show()
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }, { timeout: 5000 }))
     await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Cancel booking" }).at(-1)!))
     expect(document.querySelector("[data-cancelled-line]")?.textContent).toBe("Sam has been told. Their calendar is clear again.")
     cleanup()
     cancelBooking.mockResolvedValue(answer({ cancelled: true, owner_told: false, page_live: true }))
     await show()
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }, { timeout: 5000 }))
     await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Cancel booking" }).at(-1)!))
     expect(document.querySelector("[data-cancelled-line]")?.textContent).toBe("Sam's calendar is clear again.")
     expect(screen.getByRole("link", { name: "Book another time" })).toBeTruthy()

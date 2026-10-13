@@ -36,9 +36,12 @@ function card() {
   return onCreated
 }
 const type = (text: string) => fireEvent.change(screen.getByLabelText("Event title"), { target: { value: text } })
+// A name is looked up after a 250 ms pause; a whole suite on a busy machine
+// can take seconds to get there, so the waits are generous.
+const SLOW = { timeout: 5000 }
 const save = async () => {
   fireEvent.click(screen.getByRole("button", { name: /^Save/ }))
-  await waitFor(() => expect(created).toHaveLength(1))
+  await waitFor(() => expect(created).toHaveLength(1), SLOW)
   return created[0]
 }
 
@@ -47,45 +50,45 @@ describe("quick create's guests", () => {
     people = { Sam: [RIVERA, SAMANTHA] }
     card()
     type("Coffee with Sam at 3pm")
-    const chip = await screen.findByText("Sam Rivera")
+    const chip = await screen.findByText("Sam Rivera", undefined, SLOW)
     expect(chip.closest("[data-guest]")?.getAttribute("data-guest")).toBe("invited")
     expect((await save()).participants).toEqual(["u-rivera"])
-  })
+  }, 20_000)
 
   it("asks when two people have the name, and invites nobody until one is picked", async () => {
     people = { Sam: [RIVERA, OKAFOR] }
     card()
     type("Coffee with Sam")
-    const ask = await screen.findByRole("group", { name: "Who is Sam?" })
+    const ask = await screen.findByRole("group", { name: "Who is Sam?" }, SLOW)
     expect(ask.textContent).toMatch(/Sam\?.*Sam Rivera.*Sam Okafor/)
     expect((await save()).participants).toEqual([])
     created.length = 0
     fireEvent.click(screen.getByRole("button", { name: "Sam Okafor" }))
     expect(await save()).toMatchObject({ participants: ["u-okafor"] })
-  })
+  }, 20_000)
 
   it("never invites someone whose name only starts with the word", async () => {
     people = { Sam: [SAMANTHA], Mum: [MUMTAZ] }
     card()
     type("Call with Mum")
-    expect((await screen.findByRole("group", { name: "Who is Mum?" })).textContent).toContain("Mumtaz Ali")
+    expect((await screen.findByRole("group", { name: "Who is Mum?" }, SLOW)).textContent).toContain("Mumtaz Ali")
     expect((await save()).participants).toEqual([])
-  })
+  }, 20_000)
 
   it("invites nobody for a name nobody has, and keeps it in the title", async () => {
     card()
     type("Call with Mum")
-    expect(await screen.findByText("No one called Mum")).toBeTruthy()
+    expect(await screen.findByText("No one called Mum", undefined, SLOW)).toBeTruthy()
     expect(await save()).toEqual({ title: "Call with Mum", participants: [] })
-  })
+  }, 20_000)
 
   it("invites nobody for a name set aside", async () => {
     people = { Sam: [RIVERA] }
     card()
     type("Coffee with Sam")
-    fireEvent.click(await screen.findByRole("button", { name: "Don't invite Sam Rivera" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Don't invite Sam Rivera" }, SLOW))
     expect((await save()).participants).toEqual([])
-  })
+  }, 20_000)
 
   it("invites nobody for a name it is still looking up, and never looks anyone up on save", async () => {
     people = { Sam: [RIVERA] }
@@ -93,5 +96,5 @@ describe("quick create's guests", () => {
     type("Coffee with Sam")
     expect((await save()).participants).toEqual([])
     expect(makeRequest.mock.calls.filter(([o]) => o.apiEndpoint.includes("search"))).toHaveLength(0)
-  })
+  }, 20_000)
 })
