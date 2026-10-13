@@ -81,7 +81,7 @@ const CONTROL = "w-full @xl:w-72"
  * tells everyone when they do.
  */
 export const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
-    frontend: "Each person's browser turns their own speech into text while captions are on in a call. Chrome sends the audio to Google, and Edge to Microsoft; Firefox and Safari can't take part. Free and needs no key. Everyone in the call is told before anything is sent.",
+    frontend: "Each person's browser turns their own speech into text while captions are on in a call. Chrome sends the audio to Google, and Edge to Microsoft. It works in Chrome and Edge only: someone on Firefox or Safari is missing from the transcript. Free and needs no key. Everyone in the call is told before anything is sent.",
     backend: "An agent on the server transcribes every speaker with the speech-to-text model below while captions are on in a call. Better quality, and nobody is left out. The bundled server keeps the audio on this machine; a cloud provider bills per minute.",
     off: "No live captions, and no transcript is kept for any call.",
 }

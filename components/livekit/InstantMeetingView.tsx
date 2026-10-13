@@ -234,7 +234,7 @@ function InviteControl({
     confirm({
       title: "Turn off the old link?",
       description: "It stops working, and anyone still in the meeting from it is removed. You get a new link to share.",
-      confirmText: "Turn off and make a new link",
+      confirmText: "Turn off the old link",
       destructive: true,
       onConfirm: () => onNewLink(true),
     })
