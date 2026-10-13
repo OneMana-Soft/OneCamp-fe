@@ -86,19 +86,22 @@ export function CalendarAgenda({
   desktop = false,
   now = new Date(),
   onNewEvent,
+  emptyTitle = "Nothing coming up this month",
 }: {
   days: { day: Date; items: AgendaItem[] }[];
   onOpen: (item: AgendaItem, el: HTMLElement) => void;
   desktop?: boolean;
   now?: Date;
   onNewEvent?: () => void;
+  /** What an empty list says: the desktop agenda names its window. */
+  emptyTitle?: string;
 }) {
   // The same quiet treatment a free week, day or month gets on the grids.
   if (days.length === 0) {
     return (
       <EmptyState
         illustration={<SpotCalendar />}
-        title="Nothing coming up this month"
+        title={emptyTitle}
         description="Events you create and tasks with dates show up here."
         action={onNewEvent && desktop ? <Button variant="secondary" size="sm" onClick={onNewEvent}>New event</Button> : undefined}
         className="pt-16"

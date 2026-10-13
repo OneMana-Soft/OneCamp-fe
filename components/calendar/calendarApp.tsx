@@ -33,7 +33,7 @@ import { useMinute } from "@/components/calendar/NowLine";
 import { HueBlock } from "@/components/calendar/HueBlock";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
-import { agendaDays } from "@/lib/utils/calendarAgenda";
+import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgendaWindow, previousAgendaWindow, type AgendaWindow } from "@/lib/utils/calendarAgenda";
 import { allDayItem, dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
 import { placeAllByDates } from "@/lib/calendar/allDay";
 
@@ -98,6 +98,11 @@ export function CalendarApp() {
     const shownView: CalendarView = !viewChosen && isMobile ? "agenda" : isMobile && view === "week" ? "day" : view;
     // Which way the period moved, for its slide.
     const [dir, setDir] = useState<1 | -1>(1);
+    // The desktop agenda's window once it has been paged; until then it runs
+    // from the chosen day to the month's end (CAL-BUG-19).
+    const [agendaPage, setAgendaPage] = useState<AgendaWindow | null>(null);
+    const deskAgenda = shownView === "agenda" && !isMobile;
+    const agendaWindow = useMemo(() => agendaPage ?? agendaWindowFrom(anchor), [agendaPage, anchor]);
 
     const [showEvents, setShowEvents] = useState(true);
     const [showGoogle, setShowGoogle] = useState(true);
@@ -222,14 +227,27 @@ export function CalendarApp() {
     const goTo = useCallback((d: Date) => {
         setDir(d >= anchor ? 1 : -1);
         setAnchor(d);
+        setAgendaPage(null);
         setSelected(null);
     }, [anchor]);
     const step = useCallback((s: 1 | -1) => {
+        if (deskAgenda) {
+            // The agenda pages by what it listed: Next starts the day after its
+            // last day, Previous ends the day before its first. A month from the
+            // chosen day skipped the days between (CAL-BUG-19).
+            const w = s > 0 ? nextAgendaWindow(agendaWindow) : previousAgendaWindow(agendaWindow);
+            setDir(s);
+            setAnchor(w.from);
+            setAgendaPage(w);
+            setSelected(null);
+            return;
+        }
         goTo(shownView === "day" ? addDays(anchor, s) : shownView === "week" ? addDays(anchor, 7 * s) : addMonths(anchor, s));
-    }, [shownView, anchor, goTo]);
+    }, [deskAgenda, agendaWindow, shownView, anchor, goTo]);
     const pickView = useCallback((v: CalendarView) => {
         setView(v);
         setViewChosen(true);
+        setAgendaPage(null);
         setSelected(null);
     }, []);
     const newEvent = useCallback(() => {
@@ -361,10 +379,10 @@ export function CalendarApp() {
 
     // ---- what the toolbar says ----------------------------------------------
 
-    const title = periodTitle(shownView, anchor);
+    const title = deskAgenda ? agendaTitles(agendaWindow)[0] : periodTitle(shownView, anchor);
     const unit = shownView === "day" ? "day" : shownView === "week" ? "week" : "month";
     const viewIndex = VIEWS.findIndex((v) => v.id === shownView);
-    const periodKey = `${shownView}:${shownView === "day" ? dayKey(anchor) : shownView === "week" ? dayKey(weekStart) : monthKey}`;
+    const periodKey = `${shownView}:${shownView === "day" ? dayKey(anchor) : shownView === "week" ? dayKey(weekStart) : deskAgenda ? dayKey(agendaWindow.from) : monthKey}`;
 
     const only = (ev: boolean, g: boolean, t: boolean) => () => {
         setShowEvents(ev);
@@ -591,9 +609,10 @@ export function CalendarApp() {
                                 <CalendarAgenda
                                     desktop={!isMobile}
                                     now={now}
-                                    days={agendaDays(isMobile ? gridStart : startOfDay(anchor), gridEnd, agendaItems)}
+                                    days={isMobile ? agendaDays(gridStart, gridEnd, agendaItems) : agendaDays(agendaWindow.from, agendaWindow.to, agendaItems, now, false)}
                                     onOpen={(item, el) => clickItem(item, el)}
                                     onNewEvent={newEvent}
+                                    emptyTitle={isMobile ? undefined : agendaEmptyTitle(agendaWindow, now)}
                                 />
                             )
                         ) : shownView === "week" || shownView === "day" ? (

@@ -8,6 +8,8 @@ let loading = false
 let failing = false
 let free = false
 let mobile = false
+// Set by a test that wants its own events back for every range.
+let events: unknown[] | null = null
 const now = new Date()
 const iso = (d: number, h: number) => new Date(now.getFullYear(), now.getMonth(), d, h).toISOString()
 const standup = () => ({ event_uuid: "e1", event_title: "Standup", event_start_time: iso(now.getDate(), 9), event_end_time: iso(now.getDate(), 10), event_created_by: { user_uuid: "me", user_name: "Sam" } })
@@ -16,7 +18,7 @@ vi.mock("@/hooks/useFetch", () => ({
     asked.push(url)
     if (loading && (url.includes("/event/getEvents") || url.includes("assignedTaskList"))) return { data: undefined, isLoading: true, mutate: vi.fn() }
     if (failing && url.includes("/event/getEvents")) return { data: undefined, isLoading: false, isError: new Error("502"), mutate: vi.fn() }
-    if (url.includes("/event/getEvents")) return { data: { data: free ? [] : [standup()] }, isLoading: false, mutate: vi.fn() }
+    if (url.includes("/event/getEvents")) return { data: { data: events ?? (free ? [] : [standup()]) }, isLoading: false, mutate: vi.fn() }
     if (url.includes("assignedTaskList")) return { data: { data: { user_tasks: [] } }, isLoading: false, mutate: vi.fn() }
     if (url.includes("bookingPages")) return { data: { data: [{}, {}] }, isLoading: false, mutate: vi.fn() }
     return { data: { data: { isConnected: connected } }, isLoading: false, mutate: vi.fn() }
@@ -43,6 +45,8 @@ afterEach(() => {
   failing = false
   free = false
   mobile = false
+  events = null
+  vi.useRealTimers()
 })
 
 const ranges = () => new Set(asked.filter((u) => u.includes("/event/getEvents")))
@@ -163,5 +167,42 @@ describe("the calendar", () => {
     expect(periodTitle("month", d)).toBe("October 2026")
     expect(periodTitle("week", d)).toBe("12 – 18 Oct 2026")
     expect(periodTitle("day", d)).toBe("Thu 15 Oct")
+  })
+})
+
+// CAL-BUG-19: the agenda paged a month from the chosen day, so on 13 October
+// it listed to 1 November and Next began on 13 November: 2 to 12 November
+// never showed. It pages by what it listed now.
+describe("the desktop agenda", () => {
+  it("pages by what it listed, so no day is ever skipped", () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(2026, 9, 13, 9))
+    const on = (month: number, day: number) => ({
+      event_uuid: `e-${month}-${day}`,
+      event_title: `Meeting ${day}/${month + 1}`,
+      event_start_time: new Date(2026, month, day, 10).toISOString(),
+      event_end_time: new Date(2026, month, day, 11).toISOString(),
+    })
+    events = [on(9, 5), on(9, 20), on(9, 30), on(10, 2), on(10, 5)]
+    render(<CalendarApp />)
+    fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
+    // The title's text holds each of its wordings, longest first.
+    const title = () => document.querySelector("[data-calendar-header] [data-period-title]")?.textContent ?? ""
+    const listed = () => Array.from(document.querySelectorAll("[data-agenda] section")).map((s) => s.getAttribute("aria-label"))
+    expect(listed()).toEqual(["Tuesday 20 Oct", "Friday 30 Oct"])
+    act(() => void fireEvent.keyDown(window, { key: "j" }))
+    expect(listed()).toEqual(["Monday 2 Nov", "Thursday 5 Nov"])
+    expect(title()).toContain("November 2026")
+    // Back from November: the whole of October.
+    act(() => void fireEvent.keyDown(window, { key: "k" }))
+    expect(listed()).toEqual(["Monday 5 Oct", "Tuesday 20 Oct", "Friday 30 Oct"])
+    expect(title()).toContain("October 2026")
+    // From today, back: 1 to 12 October, the days the first window began after.
+    act(() => void fireEvent.keyDown(window, { key: "t" }))
+    act(() => void fireEvent.keyDown(window, { key: "k" }))
+    expect(listed()).toEqual(["Monday 5 Oct"])
+    expect(title()).toContain("1 – 12 Oct 2026")
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }))
+    expect(listed()).toEqual(["Tuesday 20 Oct", "Friday 30 Oct"])
   })
 })
