@@ -10,11 +10,12 @@ import { displayNameOf } from "@/lib/personName"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { PreJoin } from "@/components/livekit/PreJoin"
-import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference"
-import { CallLeft, CallRemoved } from "@/components/livekit/CallStage"
+import { VideoConference } from "@/components/livekit/VideoConference"
+import { CallRemoved } from "@/components/livekit/CallStage"
+import { CallEndScreen } from "@/components/livekit/CallEndScreen"
+import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
 import { useTranscriptionConfig } from "@/components/livekit/CallView"
-import { CONNECT_FAILURE_TEXT, type ConnectFailure } from "@/components/livekit/callErrors"
-import { joinLanguage, peopleInCall, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState"
+import { peopleInCall, type CallStateRead } from "@/components/livekit/callState"
 import { dropMeetingHandoff, peekMeetingHandoff, rememberGuestLink, rememberedGuestLink } from "@/components/livekit/instantMeeting"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
@@ -30,7 +31,6 @@ import { guestMeetingLink } from "@/services/guestService"
 import { instantMeetingPath, joinInstantMeeting, newInstantMeetingLink } from "@/services/callService"
 import type { UserProfileInterface } from "@/types/user"
 
-type Phase = "prejoin" | "joining" | "in-call" | "left" | "removed" | "failed"
 
 /** Why the page can't open this meeting, from the server's answer: not the creator's, or over. Pure. */
 export function meetingUnavailable(status: number, code: string): { title: string; detail: string } | null {
@@ -52,20 +52,27 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   useEffect(() => {
     dropMeetingHandoff(meetingId)
   }, [meetingId])
-  const [phase, setPhase] = useState<Phase>(handoff ? "in-call" : "prejoin")
-  const [token, setToken] = useState(handoff?.hostToken ?? "")
-  const [choice, setChoice] = useState({ audio: handoff?.audio ?? true, video: handoff?.video ?? true })
-  const [joinError, setJoinError] = useState<string | undefined>()
-  const [removal, setRemoval] = useState<CallRemoval | null>(null)
-  const [failure, setFailure] = useState<ConnectFailure>("network")
-  // When the call connected: one that never did has no duration (CALL-BUG-23).
-  const [joinedAt, setJoinedAt] = useState<number | null>(null)
   const transcriptionConfig = useTranscriptionConfig()
   const [link, setLink] = useState(() => rememberedGuestLink(meetingId))
+  const life = useCallLifecycle(
+    useCallback(
+      async ({ language }) => {
+        try {
+          return (await joinInstantMeeting(meetingId, language)).host_token
+        } catch (e) {
+          const gone = meetingUnavailable(apiErrorStatus(e), apiErrorCode(e))
+          throw gone ? new Error(gone.detail) : e
+        }
+      },
+      [meetingId],
+    ),
+    handoff ? { token: handoff.hostToken, choice: { audio: handoff.audio, video: handoff.video } } : undefined,
+  )
 
   // The meeting as it is (creator only): whether it is recorded or captioned,
   // who is in it, and whether it is still there. Fresh while deciding to join.
-  const { data, isError } = useFetch<{ data?: CallStateRead }>(instantMeetingPath(meetingId), undefined, { refreshInterval: phase === "prejoin" ? 10_000 : 0 }, OWN_ERRORS)
+  const waiting = life.phase === "prejoin" || life.phase === "joining"
+  const { data, isError } = useFetch<{ data?: CallStateRead }>(instantMeetingPath(meetingId), undefined, { refreshInterval: waiting ? 10_000 : 0 }, OWN_ERRORS)
   const state = data?.data
   const unavailable = !state && isError ? meetingUnavailable(apiErrorStatus(isError), apiErrorCode(isError)) : null
 
@@ -73,45 +80,6 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
     if (window.history.length > 1) router.back()
     else router.push("/app/home")
   }, [router])
-
-  const join = useCallback(
-    (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
-      setPhase("joining")
-      setJoinError(undefined)
-      setChoice({ audio: values.audioEnabled, video: values.videoEnabled })
-      joinInstantMeeting(meetingId, joinLanguage())
-        .then((res) => {
-          setToken(res.host_token)
-          setJoinedAt(null)
-          setPhase("in-call")
-        })
-        .catch((e: unknown) => {
-          const gone = meetingUnavailable(apiErrorStatus(e), apiErrorCode(e))
-          setJoinError(gone ? gone.detail : apiErrorMessage(e, "Try again in a moment."))
-          setPhase("prejoin")
-        })
-    },
-    [meetingId],
-  )
-
-  const leave = useCallback(
-    (end?: CallEnd) => {
-      setToken("")
-      if (end?.removed) {
-        setRemoval(end.removed)
-        setPhase("removed")
-        return
-      }
-      if (end?.failed) {
-        setFailure(end.failed)
-        setPhase("failed")
-        return
-      }
-      // Left before it connected: back to the green room, no "You left".
-      setPhase(joinedAt ? "left" : "prejoin")
-    },
-    [joinedAt],
-  )
 
   const newLink = useCallback(
     async (revokePrevious: boolean) => {
@@ -128,49 +96,29 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
     [meetingId],
   )
 
-  if (phase === "removed") {
-    const { title, detail } = removedText(removal)
-    return <CallRemoved title={title} detail={detail} onBack={back} />
+  if (life.phase === "removed" || life.phase === "failed") {
+    return <CallEndScreen call={life} noun="meeting" onBack={back} />
   }
-  if (phase === "failed") {
-    return (
-      <CallRemoved
-        kind="failed"
-        title="Couldn't connect to the meeting"
-        detail={CONNECT_FAILURE_TEXT[failure]}
-        primary={{ label: "Try again", onClick: () => join({ audioEnabled: choice.audio, videoEnabled: choice.video }) }}
-        onBack={back}
-      />
-    )
+  if (unavailable && life.phase !== "in-call") {
+    return <CallRemoved kind="unavailable" title={unavailable.title} detail={unavailable.detail} primary={{ label: "Start a new meeting", onClick: () => router.push("/app/meet/instant") }} onBack={back} />
   }
-  if (unavailable && phase !== "in-call") {
-    return <CallRemoved title={unavailable.title} detail={unavailable.detail} primary={{ label: "Start a new meeting", onClick: () => router.push("/app/meet/instant") }} onBack={back} />
-  }
-  if (phase === "left") {
-    return (
-      <CallLeft
-        minutes={joinedAt ? Math.max(1, Math.round((Date.now() - joinedAt) / 60000)) : undefined}
-        onRejoin={() => setPhase("prejoin")}
-        onBack={back}
-      />
-    )
-  }
-  if (phase === "in-call" && token) {
+  if (life.phase === "left") return <CallEndScreen call={life} noun="meeting" onBack={back} />
+  if (life.phase === "in-call" && life.token) {
     return (
       <div className="relative h-full w-full">
         <VideoConference
-          token={token}
+          token={life.token}
           serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || ""}
-          onDisconnect={leave}
+          onDisconnect={life.onDisconnect}
+          onConnected={life.onConnected}
           // Recording an instant meeting has no home yet (PROGRAM.md A2), so
           // there is no Record, rather than one that spins and does nothing.
           isAdmin
-          place="in Instant meeting"
-          audio={choice.audio}
-          video={choice.video}
+          place={PLACE}
+          audio={life.choice.audio}
+          video={life.choice.video}
           canRemove={state?.can_remove ?? true}
           extraStatus={<InviteControl link={link} onNewLink={newLink} confirm={confirm} />}
-          onConnected={() => setJoinedAt(Date.now())}
           transcriptionConfig={transcriptionConfig}
         />
       </div>
@@ -178,13 +126,13 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   }
   return (
     <PreJoin
-      onJoin={join}
+      onJoin={life.join}
       username={displayNameOf(self.data?.data) || ""}
       hueId={self.data?.data.user_uuid}
       joinLabel="Join meeting"
-      place="in Instant meeting"
-      joining={phase === "joining"}
-      joinError={joinError}
+      place={PLACE}
+      joining={life.phase === "joining"}
+      joinError={life.joinError}
       live={!!state?.active}
       inCall={peopleInCall(state?.participants)}
       recording={!!state?.recording?.on}
@@ -194,6 +142,9 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
     />
   )
 }
+
+/** Where the call is, after "Call": a meeting has no name yet (D-CL-20). */
+const PLACE = "in an instant meeting"
 
 /**
  * Invite (CALL-BUG-17): the guest link again, a new one, or the old one turned

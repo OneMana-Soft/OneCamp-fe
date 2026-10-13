@@ -236,8 +236,9 @@ describe("the screens that stand in for the stage", () => {
 describe("the guest meeting page", () => {
   // Leaving by mistake was a dead end: "You can close this tab".
   it("offers a way back in after leaving", () => {
-    const src = readFileSync(resolve(__dirname, "../../app/guest/m/[token]/page.tsx"), "utf8")
-    expect(src).toMatch(/onClick=\{\(\) => setPhase\("prejoin"\)\}>\s*Join again/)
+    // The end screens are one component now (CallEndScreen), the guest's included.
+    const src = readFileSync(resolve(__dirname, "CallEndScreen.tsx"), "utf8")
+    expect(src).toMatch(/onClick=\{call\.reset\}>Join again/)
   })
 })
 

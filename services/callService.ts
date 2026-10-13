@@ -17,11 +17,6 @@ export function callStatePath(kind: CallKind, id: string): string {
     return `${base}/${encodeURIComponent(id)}`
 }
 
-/** The answer's data: callState answers { data: {...} }. */
-export function callStateOf(reply: { data?: CallStateRead } | undefined): CallStateRead | undefined {
-    return reply?.data
-}
-
 /**
  * Turns captions on or off for everyone in the call (CALL-BUG-2). The
  * server writes the switch into the room, which is how every screen learns

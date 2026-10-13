@@ -6,16 +6,15 @@
 // conversation, a doc or a board while it runs.
 
 import { displayNameOf } from "@/lib/personName"
-import { useCallback, useState } from "react"
+import { useCallback } from "react"
 import { PreJoin } from "@/components/livekit/PreJoin"
-import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference"
-import { CONNECT_FAILURE_TEXT, type ConnectFailure } from "@/components/livekit/callErrors"
-import { CallLeft, CallRemoved } from "@/components/livekit/CallStage"
-import { joinLanguage, peopleInCall, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState"
+import { VideoConference } from "@/components/livekit/VideoConference"
+import { CallEndScreen } from "@/components/livekit/CallEndScreen"
+import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
+import { peopleInCall, type CallStateRead } from "@/components/livekit/callState"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { callStatePath } from "@/services/callService"
 import type { CallTokenResponseInterface, RawUserDMInterface, UserProfileInterface } from "@/types/user"
@@ -78,49 +77,21 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   const call = CALLS[kind]
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const { place, isAdmin, live } = usePlace(kind, id, self.data?.data.user_uuid)
-  const [joined, setJoined] = useState(false)
-  const [token, setToken] = useState("")
-  // The green room's choice, carried into the call (CALL-BUG-1).
-  const [choice, setChoice] = useState({ audio: true, video: true })
-  const [joinError, setJoinError] = useState<string | undefined>()
-  const state = useCallState(kind, id, !joined)
-  // After leaving: how long it lasted, and the way back in (hub.md C11).
-  const [left, setLeft] = useState<{ minutes: number } | null>(null)
-  // Removed by a host (CALL-BUG-11): why, and no way back into this call.
-  const [removed, setRemoved] = useState<CallRemoval | null>(null)
-  // Never connected (CALL-BUG-23): which kind of failure, and Try again.
-  const [failed, setFailed] = useState<ConnectFailure | null>(null)
-  // When the call connected: a call that never did has no duration.
-  const [joinedAt, setJoinedAt] = useState<number | null>(null)
   const transcriptionConfig = useTranscriptionConfig()
-
-  const join = useCallback(
-    (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
-      setJoined(true)
-      setJoinError(undefined)
-      setChoice({ audio: values.audioEnabled, video: values.videoEnabled })
-      const language = joinLanguage()
-      axiosInstance
-        .post<{ data?: CallTokenResponseInterface }>(
+  const life = useCallLifecycle(
+    useCallback(
+      async ({ audio, video, language }) => {
+        const resp = await axiosInstance.post<{ data?: CallTokenResponseInterface }>(
           call.token,
-          { [call.idField]: id, audio_enabled: values.audioEnabled, video_enabled: values.videoEnabled, ...(language ? { language } : {}) },
+          { [call.idField]: id, audio_enabled: audio, video_enabled: video, ...(language ? { language } : {}) },
           OWN_ERRORS,
         )
-        .then((resp) => {
-          const t = resp.data?.data?.token
-          if (!t) throw new Error("The call didn't answer with a way in.")
-          setToken(t)
-          setJoinedAt(null)
-        })
-        .catch((e: unknown) => {
-          // Said under Join: a removal ("You were removed from this call.")
-          // or anything else that kept them out.
-          setJoined(false)
-          setJoinError(apiErrorMessage(e, "Try again in a moment."))
-        })
-    },
-    [call, id],
+        return resp.data?.data?.token ?? ""
+      },
+      [call, id],
+    ),
   )
+  const state = useCallState(kind, id, life.phase === "prejoin" || life.phase === "joining")
 
   // The request itself, so a refusal can be said in the call (CALL-BUG-9's
   // silent spinner): the dock reads the rejection.
@@ -129,65 +100,15 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
     [call, id],
   )
 
-  const leaveCall = useCallback(
-    (end?: CallEnd) => {
-      setJoined(false)
-      setToken("")
-      if (end?.removed) {
-        setRemoved(end.removed)
-        return
-      }
-      if (end?.failed) {
-        setFailed(end.failed)
-        return
-      }
-      // Left before the call connected: back to the green room, no "You left".
-      if (!joinedAt) return
-      setLeft({ minutes: Math.max(1, Math.round((Date.now() - joinedAt) / 60000)) })
-    },
-    [joinedAt],
-  )
-
   const backLabel = kind === "channel" && place ? `Back to ${place.replace(/^in /, "")}` : "Back"
-  if (failed) {
-    return (
-      <CallRemoved
-        kind="failed"
-        title="Couldn't connect to the call"
-        detail={CONNECT_FAILURE_TEXT[failed]}
-        primary={{
-          label: "Try again",
-          onClick: () => {
-            setFailed(null)
-            join({ audioEnabled: choice.audio, videoEnabled: choice.video })
-          },
-        }}
-        onBack={onLeave}
-        backLabel={backLabel}
-        embedded={embedded}
-      />
-    )
+  if (life.phase === "left" || life.phase === "removed" || life.phase === "failed") {
+    return <CallEndScreen call={life} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
   }
-  if (removed) {
-    const { title, detail } = removedText(removed)
-    return <CallRemoved title={title} detail={detail} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
-  }
-  if (left) {
-    return (
-      <CallLeft
-        minutes={left.minutes}
-        onRejoin={() => setLeft(null)}
-        onBack={onLeave}
-        backLabel={backLabel}
-        embedded={embedded}
-      />
-    )
-  }
-  if (!joined) {
+  if (life.phase === "prejoin" || life.phase === "joining") {
     const active = state?.active ?? live
     return (
       <PreJoin
-        onJoin={join}
+        onJoin={life.join}
         username={displayNameOf(self.data?.data) || ""}
         hueId={self.data?.data.user_uuid}
         place={place}
@@ -196,7 +117,8 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
         recording={!!state?.recording?.on}
         recordingBy={state?.recording?.on ? state.recording.by || null : null}
         transcription={state?.transcription}
-        joinError={joinError}
+        joining={life.phase === "joining"}
+        joinError={life.joinError}
         openUrl={typeof window === "undefined" ? undefined : new URL(`/app/meet/${kind === "channel" ? "ch" : kind === "chat" ? "chat" : "grp"}/${id}`, window.location.origin).href}
         onCancel={onLeave}
         embedded={embedded}
@@ -205,17 +127,17 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   }
   return (
     <VideoConference
-      token={token}
+      token={life.token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || ""}
-      onDisconnect={leaveCall}
+      onDisconnect={life.onDisconnect}
+      onConnected={life.onConnected}
       toggleRecording={toggleRecording}
       isAdmin={isAdmin}
       place={place}
       embedded={embedded}
-      audio={choice.audio}
-      video={choice.video}
+      audio={life.choice.audio}
+      video={life.choice.video}
       canRemove={!!state?.can_remove}
-      onConnected={() => setJoinedAt(Date.now())}
       transcriptionConfig={transcriptionConfig}
     />
   )

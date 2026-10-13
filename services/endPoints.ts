@@ -455,7 +455,6 @@ export enum PostEndpointUrl {
     CreateChannelVideoCallToken = "/ch/getCallToken",
     CreateChatVideoCallToken = "/dm/getCallToken",
     CreateGroupChatVideoCallToken = "/groupChat/getCallToken",
-    CreateInstantMeeting = "/meet/instant",
     CreateGuestLink = "/guest/links",
     SetGuestAccess = "/admin/guest-access",
     SetReadReceiptsPolicy = "/admin/read-receipts",
