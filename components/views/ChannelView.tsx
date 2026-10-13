@@ -37,6 +37,7 @@ import { appMutate } from "@/lib/swrMutate";
 import axiosInstance from "@/lib/axiosInstance";
 import { PendingSendContext } from "@/components/message/sendStatus";
 import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
+import { useInSplitPane } from "@/hooks/useLinkTarget";
 import { useSWRConfig } from "swr";
 import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
 
@@ -49,6 +50,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
     const { toast } = useToast()
     const dispatch = useDispatch();
     const store = useStore<RootState>()
+    // Beside the page, the address's link is the main view's, never this one's (FE-BUG-12).
+    const inPane = useInSplitPane()
     const { cache } = useSWRConfig()
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : '')
@@ -185,7 +188,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
         // Parked on an older post from a link, the latest messages are not
         // loaded, so there is nowhere to show it yet: it is sent as it was, and
         // goes back in the message box if it does not go.
-        if (viewingLinkedMessage("postId")) {
+        if (!inPane && viewingLinkedMessage("postId")) {
             const unsent: Draft = { html: body, files, previews: channelState.filePreview, replyToUuid, replyToAuthorName: channelState.replyToAuthorName, replyToText: channelState.replyToText }
             axiosInstance.post(PostEndpointUrl.CreateChannelPost, {
                 post_attachments: files,

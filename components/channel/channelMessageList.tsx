@@ -1,6 +1,7 @@
 "use client"
 
 import {useFetch} from "@/hooks/useFetch";
+import { useLeaveLink, useLinkSearchParams, useLinkedPage } from "@/hooks/useLinkTarget";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -30,7 +31,7 @@ const EMPTY_POSTS: PostsRes[] = []
 export const ChannelMessageList = memo(function ChannelMessageList({channelId, postId: propPostId, isAdmin, unreadOnOpen}: ChannelMessageListProps) {
 
     const { isMobile } = useMedia();
-    const searchParams = useSearchParams();
+    const searchParams = useLinkSearchParams(useSearchParams());
     const postId = propPostId || searchParams?.get('postId') || undefined;
     const latestMsg = useFetch<CreatePostPaginationResRaw>(postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId)
     const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? GetEndpointUrl.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
@@ -113,7 +114,10 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         }
     }, [ newMsg.data?.data]);
 
+    const leaveLink = useLeaveLink('postId')
     const handleClickedScrollToBottom = () => {
+        // In link mode the latest page isn't loaded: leave the link, and it is (FE-BUG-9).
+        if (leaveLink()) return
 
         if(channelPostState[channelPostState.length -1].post_uuid != latestMsg.data?.data?.posts?.[0]?.post_uuid) {
             const newPosts = [...(latestMsg.data?.data?.posts || [])].reverse();
@@ -173,6 +177,8 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         };
     }, [channelPostState]);
 
+
+    useLinkedPage('channel', channelId, postId, channelPostState, getNewPostsWithCurrentPost.data?.data?.posts, setHasMoreNewPost)
 
     if (latestMsg.isLoading) {
         return (

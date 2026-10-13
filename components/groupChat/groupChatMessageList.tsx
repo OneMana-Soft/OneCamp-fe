@@ -1,6 +1,7 @@
 "use client"
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import { useLeaveLink, useLinkSearchParams, useLinkedPage } from "@/hooks/useLinkTarget";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -37,7 +38,7 @@ const EMPTY_CHATS: PostsRes[] = []
 export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, messageId: propMessageId, unreadOnOpen}: ChatMessageListProps) {
 
     const { isMobile } = useMedia();
-    const searchParams = useSearchParams();
+    const searchParams = useLinkSearchParams(useSearchParams());
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
@@ -130,7 +131,10 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
     }, [ newMsg.data?.data]);
 
 
+    const leaveLink = useLeaveLink('messageId')
     const handleClickedScrollToBottom = () => {
+        // In link mode the latest page isn't loaded: leave the link, and it is (FE-BUG-9).
+        if (leaveLink()) return
 
         if(chatMessageState.length > 0 && chatMessageState[chatMessageState.length -1].chat_uuid != latestMsg.data?.data.chats?.[0]?.chat_uuid) {
             // Copy before reversing — don't mutate the live SWR cache.
@@ -189,6 +193,8 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
         };
     }, [chatMessageState]);
 
+
+    useLinkedPage('group', grpId, messageId, chatMessageState, getNewChatsWithCurrentChat.data?.data?.chats, setHasMoreNewChat)
 
     if (latestMsg.isLoading) {
         return (

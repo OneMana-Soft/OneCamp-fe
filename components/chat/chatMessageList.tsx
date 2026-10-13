@@ -1,6 +1,7 @@
 "use client"
 
 import {useFetch} from "@/hooks/useFetch";
+import { useLeaveLink, useLinkSearchParams, useLinkedPage } from "@/hooks/useLinkTarget";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -31,7 +32,7 @@ interface ChatMessageListProps {
 export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId: propMessageId, unreadOnOpen}: ChatMessageListProps) {
 
     const { isMobile } = useMedia();
-    const searchParams = useSearchParams();
+    const searchParams = useLinkSearchParams(useSearchParams());
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
     const latestMsg = useFetch<CreateChatPaginationResRaw>(messageId ? '' : GetEndpointUrl.GetChatLatestMessage + '/' + chatId)
@@ -143,14 +144,17 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
     }, [ newMsg.data?.data, safeChatMessageState]);
 
 
+    const leaveLink = useLeaveLink('messageId')
     const handleClickedScrollToBottom = useCallback(() => {
+        // In link mode the latest page isn't loaded: leave the link, and it is (FE-BUG-9).
+        if (leaveLink()) return
         if(safeChatMessageState.length > 0 && safeChatMessageState[safeChatMessageState.length -1].chat_uuid != latestMsg.data?.data.chats?.[0]?.chat_uuid) {
             // Copy before reversing — don't mutate the live SWR cache.
             const newChats = latestMsg.data?.data.chats ? [...latestMsg.data.data.chats].reverse() : [];
             dispatch(updateChats({chatId, chats: newChats}))
         }
         dispatch(updateChatScrollToBottom({chatId: chatId, scrollToBottom: true}))
-    }, [safeChatMessageState, latestMsg.data?.data.chats, chatId, dispatch])
+    }, [safeChatMessageState, latestMsg.data?.data.chats, chatId, dispatch, leaveLink])
 
     const getOldMessages = useCallback(() => {
         if(safeChatMessageState.length === 0) return;
@@ -202,6 +206,8 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         };
     }, [safeChatMessageState]); // Re-bind if messages change to ensure correct epoch
 
+
+    useLinkedPage('chat', chatId, messageId, safeChatMessageState, getNewChatsWithCurrentChat.data?.data?.chats, setHasMoreNewChat)
 
     if (latestMsg.isLoading) {
         return (

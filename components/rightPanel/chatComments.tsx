@@ -82,7 +82,10 @@ export const ChatComments = () => {
 
     const post = usePost()
 
-    const chatInfoState = chatState.find(p => p.chat_uuid === rightPanelState.data.chatMessageUUID)
+    // The root from the conversation's loaded messages, live; else from the
+    // thread's own answer. A link to an older message in a conversation already
+    // in memory left the root out of the list, and the thread spun (FE-BUG-8).
+    const chatInfoState = chatState.find(p => p.chat_uuid === rightPanelState.data.chatMessageUUID) ?? chatInfo.data?.data
 
 
     // The server's replies, reconciled once per answer (useThreadReplies).
