@@ -32,6 +32,10 @@ const STREAM_BACKED_KEY_PREFIXES: readonly string[] = [
     // Conversations: previews + unread counts (bodies are reconciled by the
     // resync nonce, which preserves local/optimistic state).
     GetEndpointUrl.GetUserLatestChatList,
+    // The sidebar: each channel's unread badge, and the Activity count. It
+    // isn't asked again on focus, so after a gap the badges stayed as they
+    // were until a reload. Seeded into the store once per answer.
+    GetEndpointUrl.SelfProfileSideNav,
     // Channel metadata: post policy, archive state, name, privacy, membership.
     // Missing a Channel_Update leaves a composer enabled on an archived channel.
     GetEndpointUrl.ChannelBasicInfo,
@@ -68,9 +72,6 @@ export const useMessageSyncManager = () => {
     // Timestamp of the last known healthy MQTT state (message received or connection confirmed stable)
     const lastHealthyTimestampRef = useRef<number>(Date.now())
 
-    // Whether the MQTT client has connected at least once (to distinguish first connect from reconnect)
-    const hasConnectedOnceRef = useRef<boolean>(false)
-
     /**
      * Called whenever an MQTT message is successfully received or the connection is confirmed stable.
      * Keeps the "last healthy" watermark fresh.
@@ -80,8 +81,14 @@ export const useMessageSyncManager = () => {
     }, [])
 
     /**
-     * Called when MQTT connects. On first connect this is a no-op.
-     * On subsequent reconnects, it checks the gap and reconciles if stale.
+     * Called when MQTT reconnects (never for the first connection of the page:
+     * useMqttConnection leaves that one out). It checks the gap and
+     * reconciles if stale.
+     *
+     * It used to keep its own "first connection" flag as well, so the first
+     * call, which is the page's FIRST RECONNECT, was taken for the initial
+     * connect and returned before catching up: the reconnect people actually
+     * have (a broker restart, a laptop lid) lost what was sent in the gap.
      *
      * NON-DESTRUCTIVE STRATEGY:
      * We do NOT clear Redux message/comment state here. Wiping state made
@@ -96,14 +103,7 @@ export const useMessageSyncManager = () => {
      *      previews catch up.
      */
     const handleConnectionEstablished = useCallback(() => {
-        if (!hasConnectedOnceRef.current) {
-            // First connection — nothing to sync, data is fresh from API
-            hasConnectedOnceRef.current = true
-            lastHealthyTimestampRef.current = Date.now()
-            return
-        }
-
-        // This is a RECONNECT — check how long we were disconnected
+        // How long we were disconnected
         const gap = Date.now() - lastHealthyTimestampRef.current
 
         if (gap >= STALE_THRESHOLD_MS) {

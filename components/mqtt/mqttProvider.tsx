@@ -19,6 +19,8 @@ interface MqttContextValue {
     publish: (topic: string, message: string) => Promise<void>
     connect: () => void
     disconnect: () => void
+    /** Tries to reconnect now, rather than when the next wait is up. */
+    reconnect: () => void
     subscribeToTopic: (topic: string, callback: (message: string, topic: string) => void) => string
     unsubscribeFromTopic: (subscriptionId: string) => void
 }
@@ -28,6 +30,9 @@ const MqttContext = createContext<MqttContextValue | null>(null)
 
 /** The live connection's state, or undefined outside the signed-in app (no provider there). */
 export const useMqttConnectionState = () => useContext(MqttContext)?.connectionState
+
+/** Reconnect now (the pill's action), or undefined outside the signed-in app. */
+export const useMqttReconnect = () => useContext(MqttContext)?.reconnect
 
 export const useMqtt = () => {
     const context = useContext(MqttContext)
@@ -47,7 +52,7 @@ const MQTT_CONNECTION_CONFIG = {
     wsUrl: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8083",
     wsPort: process.env.NODE_ENV !== "development" ? 8084 : 8083,
     reconnectInterval: 1000,
-    maxReconnectAttempts: 10, // Increased from 3: covers ~17min of retrying with exponential backoff. After that, handleVisibilityChange reconnects when user returns.
+    // Reconnecting never gives up (lib/mqtt/reconnectDelay).
     typingTimeout: 4000,
 }
 
@@ -75,6 +80,9 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         // refresh the SWR cache but stableConfig would keep the old
         // password reference and the hook would never reconnect.
         mqttConfigRes.data?.data?.password,
+        // The topics: a conversation started or joined since the last answer
+        // is subscribed to without reconnecting (useMqttConnection).
+        mqttConfigRes.data?.data?.topics?.join("\n"),
     ])
 
     /**
@@ -129,9 +137,16 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
     const userUuid = selfProfile.data?.data.user_uuid
     const userStatusState = useSelector((state: RootState) => state.users.usersStatus[userUuid||''] || EMPTY_USER_STATUS);
 
+    // The settings again, for the topics they name now: on a conversation
+    // that became this member's or stopped being theirs (Conversation_Access).
+    const refreshTopics = useCallback(() => {
+        void mqttConfigRes.mutate?.()
+    }, [mqttConfigRes.mutate])
+
     const messageHandler = useMqttMessageHandler({
         connectionConfig: MQTT_CONNECTION_CONFIG,
         userUuid,
+        refreshTopics,
     })
 
     // SYNC MANAGER: Tracks connection health and forces API refetch after stale reconnection
@@ -221,6 +236,7 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         connectionState,
         connect,
         disconnect,
+        reconnect,
         publish,
         subscribeToTopic: mqttSubscribe,
         unsubscribeFromTopic: mqttUnsubscribe,
@@ -350,9 +366,10 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         publish,
         connect,
         disconnect,
+        reconnect,
         subscribeToTopic: handleSubscribeToTopic,
         unsubscribeFromTopic: handleUnsubscribeFromTopic,
-    }), [connectionState, publish, connect, disconnect, handleSubscribeToTopic, handleUnsubscribeFromTopic])
+    }), [connectionState, publish, connect, disconnect, reconnect, handleSubscribeToTopic, handleUnsubscribeFromTopic])
 
     return <MqttContext.Provider value={contextValue}>{children}</MqttContext.Provider>
 }

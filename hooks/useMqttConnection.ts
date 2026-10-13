@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import type { ClientSubscribeCallback, IClientPublishOptions, ISubscriptionMap, MqttClient } from "mqtt"
 import { loadConnect } from "@/lib/mqtt/loadConnect"
 import { RefusedTopicRetries, refusedTopics } from "@/lib/mqtt/subscriptionRetry"
+import { reconnectDelay } from "@/lib/mqtt/reconnectDelay"
+import { tabClientId } from "@/lib/mqtt/tabClientId"
 import {ConnectionConfig, mqttConfigRes, MqttConnectionState} from "@/types/mqtt";
 import { getCookie } from "@/lib/utils/helpers/getCookie";
 
@@ -105,6 +107,11 @@ export const useMqttConnection = ({
     // the page still wants it: one of the config's topics, a dynamic one
     // subscribed and not let go of since, or one the topic manager lists.
     const configTopicsRef = useRef<string[]>(config?.topics ?? [])
+    // The settings' topics this connection holds. A later answer naming one it
+    // doesn't (a conversation started, joined or added to since) is subscribed
+    // to, and one it no longer names (left, removed, a group's old id) is let
+    // go: without reconnecting, so nothing else on the connection is lost.
+    const heldConfigTopics = useRef<Set<string>>(new Set())
     const dynamicTopicManagerRef = useRef(dynamicTopicManager)
     const wantedDynamicTopics = useRef<Set<string>>(new Set())
     useEffect(() => {
@@ -253,32 +260,30 @@ export const useMqttConnection = ({
         if (!isManualDisconnect.current && !schedulingReconnect.current) {
             schedulingReconnect.current = true
             setConnectionState((prev) => {
-                if (prev.reconnectAttempts < connectionConfig.maxReconnectAttempts) {
-                    const delay = Math.min(1000 * Math.pow(2, prev.reconnectAttempts), 30000)
+                // Never gives up: the fast tries, then one every 30 s, each a
+                // little apart from other clients' (lib/mqtt/reconnectDelay).
+                // The pill offers Reconnect once the fast tries are spent.
+                const delay = reconnectDelay(prev.reconnectAttempts)
 
-                    // Clear any existing timeout before setting a new one
-                    clearReconnectTimeout()
-                    
-                    reconnectTimeoutRef.current = setTimeout(() => {
-                        if (isUnmounted.current) {
-                            return
-                        }
-                        schedulingReconnect.current = false
-                        updateConnectionState({
-                            reconnectAttempts: prev.reconnectAttempts + 1,
-                            isConnecting: true,
-                        })
-                        connect() 
-                    }, delay)
-                } else {
-                    console.error("[MQTT] Max reconnection attempts reached")
+                // Clear any existing timeout before setting a new one
+                clearReconnectTimeout()
+
+                reconnectTimeoutRef.current = setTimeout(() => {
+                    if (isUnmounted.current) {
+                        return
+                    }
                     schedulingReconnect.current = false
-                }
+                    updateConnectionState({
+                        reconnectAttempts: prev.reconnectAttempts + 1,
+                        isConnecting: true,
+                    })
+                    connect()
+                }, delay)
                 // Return original state or partial updates, but keep it PURE
                 return prev
             })
         }
-    }, [connectionConfig.maxReconnectAttempts, onDisconnect, updateConnectionState, retries])
+    }, [onDisconnect, updateConnectionState, retries])
 
     const handleError = useCallback(
         (error: Error) => {
@@ -498,7 +503,11 @@ export const useMqttConnection = ({
     }, [retries])
 
     const connect = useCallback(() => {
-        if (!config || connectionState.isConnecting || connectionState.isConnected || connectionPending.current) {
+        // What the client is doing now, not what the render this function
+        // came from said: a timer or a listener set up renders ago calls it.
+        // (A tab back from the background with a dead socket that still
+        // read as connected used to be refused here, and stayed dead.)
+        if (!config || connectionPending.current || clientRef.current?.connected) {
             return
         }
 
@@ -557,23 +566,13 @@ export const useMqttConnection = ({
             }
 
             // UNIQUE ID PER TAB:
-            // Each browser tab gets its own stable ID via sessionStorage.
+            // Each browser tab gets its own stable ID (lib/mqtt/tabClientId).
             // This prevents session takeover when multiple tabs are open (same clientId + clean:false
             // causes EMQX to kick the old connection, triggering "Connection closed" errors).
-            // sessionStorage is per-tab, so reloads within the same tab reuse the ID (maintaining session persistence),
-            // but different tabs get different IDs.
+            // A reload of the tab reuses the ID (maintaining session persistence); a duplicated tab,
+            // which copies the first one's sessionStorage, takes a new one.
             const deviceId = getCookie("deviceID")?.slice(0, 8) || "dev"
             const userSlice = userUuid?.slice(0, 8) || 'shared'
-            let tabId = ''
-            if (typeof window !== 'undefined') {
-                tabId = sessionStorage.getItem('mqtt_tab_id') || ''
-                if (!tabId) {
-                    tabId = Math.random().toString(36).slice(2, 6)
-                    sessionStorage.setItem('mqtt_tab_id', tabId)
-                }
-            }
-            const stableClientId = `c_${deviceId}_${userSlice}_${tabId}`
-            uniqueClientIdRef.current = stableClientId
 
             // SETTLE DELAY: Give the broker/OS a moment to finalize any previous 'end(true)'
             if (settleDelayRef.current) clearTimeout(settleDelayRef.current)
@@ -585,7 +584,8 @@ export const useMqttConnection = ({
                 }
 
                 try {
-                    const connect = await loadConnect()
+                    const [connect, tabId] = await Promise.all([loadConnect(), tabClientId()])
+                    uniqueClientIdRef.current = `c_${deviceId}_${userSlice}_${tabId}`
                     // The first connection waits for the library: the page may
                     // have gone in the meantime.
                     if (isUnmounted.current) {
@@ -623,9 +623,17 @@ export const useMqttConnection = ({
                         // tries at refused topics start over.
                         retries.reset()
                         handleConnect()
-                        const configTopics = config.topics || []
-                        const dynamicTopics = dynamicTopicManager?.getTopicsToSubscribe() || []
-                        const allTopics = [...configTopics, ...dynamicTopics]
+                        // The latest settings' topics, not those this
+                        // connection was first made with: a conversation
+                        // started or joined since is among them.
+                        const configTopics = configTopicsRef.current
+                        heldConfigTopics.current = new Set(configTopics)
+                        // And every topic the page took up since it loaded and
+                        // still wants (a doc or a table open): a session the
+                        // broker didn't keep (a restart, an hour away) holds
+                        // none of them, and they went deaf.
+                        const dynamicTopics = [...wantedDynamicTopics.current, ...(dynamicTopicManager?.getTopicsToSubscribe() || [])]
+                        const allTopics = [...new Set([...configTopics, ...dynamicTopics])]
                         subscribeToTopics(client, allTopics)
                     })
 
@@ -652,8 +660,6 @@ export const useMqttConnection = ({
         }
     }, [
         config,
-        connectionState.isConnecting,
-        connectionState.isConnected,
         connectionConfig,
         handleConnect,
         handleDisconnect,
@@ -730,59 +736,46 @@ export const useMqttConnection = ({
         }
     }, [config, connectionState.isConnected, connectionState.isConnecting, connectionState.reconnectAttempts, connect, updateConnectionState])
 
+    // Try now rather than when the wait is up: the network or the tab came
+    // back, or the person asked (the pill's Reconnect). A try already waiting
+    // is dropped, so there's one try, not two clients racing for the session.
+    const reconnectNow = useCallback(() => {
+        if (isManualDisconnect.current || lastAuthFailedCredsRef.current) return
+        if (clientRef.current?.connected) return
+        clearReconnectTimeout()
+        schedulingReconnect.current = false
+        updateConnectionState({ reconnectAttempts: 0, isConnecting: true })
+        connect()
+    }, [connect, clearReconnectTimeout, updateConnectionState])
+
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.visibilityState === "visible") {
-                // Don't fight EMQX: if we last failed with rejected
-                // credentials, only reconnect after the provider has
-                // delivered fresh ones (the config-rotation effect
-                // above will clear isManualDisconnect when that
-                // happens).
-                if (isManualDisconnect.current || lastAuthFailedCredsRef.current) {
-                    return
-                }
-
-                const stateConnected = latestConnectionStateRef.current.isConnected
-                // ZOMBIE-SOCKET DETECTION (iOS PWA): after the OS suspends a
-                // backgrounded tab the WebSocket can die WITHOUT firing
-                // 'close', so our state still reads connected while the
-                // underlying client is actually dead. Trust the client's own
-                // liveness over our cached flag: if state says connected but
-                // the client isn't, tear the zombie down and reconnect so the
-                // stream (and the reconnect-driven resync) actually resumes.
-                const clientLive = !!clientRef.current && clientRef.current.connected
-                if (stateConnected && !clientLive) {
-                    if (clientRef.current) {
-                        clientRef.current.removeAllListeners()
-                        clientRef.current.end(true)
-                        clientRef.current = null
-                    }
-                    updateConnectionState({ isConnected: false, isConnecting: true, reconnectAttempts: 0 })
-                    connect()
-                    return
-                }
-
-                if (!stateConnected) {
-                    // Reset attempts to allow a fresh cycle of reconnections if we previously gave up.
-                    updateConnectionState({ reconnectAttempts: 0, isConnecting: true })
-                    connect()
-                }
-            }
-        }
-
-        // NETWORK RETURNED. The backoff chain gives up after
-        // maxReconnectAttempts (~17 minutes), and until now the only thing that
-        // re-armed it was the tab going away and coming back. Someone sitting in
-        // a foreground tab through a wifi drop or a broker restart therefore had
-        // a permanently dead stream with no visibilitychange to rescue it — the
-        // app looked fine and silently stopped updating. The browser's own
-        // online signal is the cheapest, most reliable "try again now" there is.
-        const handleOnline = () => {
+            if (document.visibilityState !== "visible") return
+            // Don't fight EMQX: if we last failed with rejected credentials,
+            // only reconnect after the provider has delivered fresh ones (the
+            // config-rotation effect above will clear isManualDisconnect when
+            // that happens).
             if (isManualDisconnect.current || lastAuthFailedCredsRef.current) return
-            if (latestConnectionStateRef.current.isConnected) return
-            updateConnectionState({ reconnectAttempts: 0, isConnecting: true })
-            connect()
+            if (clientRef.current?.connected) return
+            // ZOMBIE-SOCKET DETECTION (iOS PWA): after the OS suspends a
+            // backgrounded tab the WebSocket can die WITHOUT firing 'close', so
+            // our state still reads connected while the client is dead. Trust
+            // the client over the flag: tear the zombie down and reconnect, so
+            // the stream (and the reconnect-driven resync) actually resumes.
+            if (clientRef.current && latestConnectionStateRef.current.isConnected) {
+                clientRef.current.removeAllListeners()
+                clientRef.current.end(true)
+                clientRef.current = null
+                connectionPending.current = false
+                updateConnectionState({ isConnected: false })
+            }
+            reconnectNow()
         }
+
+        // NETWORK RETURNED: the browser's own online signal is the cheapest,
+        // most reliable "try again now" there is, rather than waiting out the
+        // backoff in a foreground tab.
+        const handleOnline = () => reconnectNow()
 
         document.addEventListener("visibilitychange", handleVisibilityChange)
         window.addEventListener("focus", handleVisibilityChange)
@@ -793,7 +786,29 @@ export const useMqttConnection = ({
             window.removeEventListener("focus", handleVisibilityChange)
             window.removeEventListener("online", handleOnline)
         }
-    }, [connect, updateConnectionState])
+    }, [reconnectNow, updateConnectionState])
+
+    // A later settings answer: subscribe to the topics it names that this
+    // connection doesn't hold, and let go of those it no longer names (unless
+    // the page still wants one for itself). See heldConfigTopics.
+    const topicsKey = (config?.topics ?? []).join("\n")
+    useEffect(() => {
+        const client = clientRef.current
+        if (!client || !client.connected) return
+        const next = new Set(topicsKey ? topicsKey.split("\n") : [])
+        const held = heldConfigTopics.current
+        const added = [...next].filter((topic) => !held.has(topic))
+        const gone = [...held].filter((topic) => !next.has(topic) && !wantedDynamicTopics.current.has(topic) &&
+            !(dynamicTopicManagerRef.current?.getTopicsToSubscribe().includes(topic) ?? false))
+        heldConfigTopics.current = next
+        if (added.length) subscribeToTopics(client, added)
+        if (gone.length) {
+            for (const topic of gone) retries.forget(topic)
+            client.unsubscribe(gone, (err) => {
+                if (err) console.warn("[MQTT] Unsubscribe from topics no longer ours failed:", err.message)
+            })
+        }
+    }, [topicsKey, subscribeToTopics, retries])
 
     useEffect(() => {
         isUnmounted.current = false
@@ -821,6 +836,7 @@ export const useMqttConnection = ({
         connectionState,
         connect,
         disconnect,
+        reconnect: reconnectNow,
         publish,
         client: clientRef.current,
         subscribeToTopic,
