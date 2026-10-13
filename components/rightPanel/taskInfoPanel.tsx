@@ -55,7 +55,7 @@ import {TaskTimeSection} from "@/components/task/taskTimeSection"
 import { TaskEstimateField } from "@/components/task/taskEstimateField"
 import { TaskFieldsSection } from "@/components/task/taskFieldsSection"
 import {TaskClientReview} from "@/components/task/taskClientReview"
-import {useDebounce} from "@/hooks/useDebounce"
+import { useSaveOnEdit } from "@/hooks/useSaveOnEdit"
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice"
 import {TaskStatusPriorityControl} from "@/components/task/taskStatusPriorityControl"
 import {TaskAssigneePicker} from "@/components/task/taskAssigneePicker"
@@ -132,9 +132,14 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // clicking through multiple fields) into a single expensive SWR sweep.
     const revalidateTaskListsTimeout = useRef<ReturnType<typeof setTimeout>|null>(null)
 
+    // The tags as shown. They are saved only from the picker's change
+    // (saveLabel, below), never from this state: a save from its changes also
+    // ran on mount with the empty first value, and wiped the tags of a task
+    // whose details were already cached (PROJ-BUG-1).
     const [taskLabel, setTaskLabel] = useState<string>("")
+    // The tags as the server has them: its last answer, or the last save it took.
+    const savedLabel = useRef("")
     const [managingStatuses, setManagingStatuses] = useState(false)
-    const [taskName, setTaskName] = useState<UpdateTaskName>({} as UpdateTaskName)
     // The task's status as it stands (category and custom status); the option
     // shown is derived from it and the project's statuses, which may load later.
     const [statusFields, setStatusFields] = useState<TaskStatusFields>({})
@@ -149,9 +154,6 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     const [streamFilter, setStreamFilter] = useState<StreamFilter>("all")
     const entrance = usePanelEntrance()
     const taskTime = useTaskTime(taskUUID)
-
-    const taskNameUpdateDebounce = useDebounce(taskName, CONSTANTS.DEBOUNCE_DELAY)
-    const taskLabelDebounce = useDebounce(taskLabel, CONSTANTS.DEBOUNCE_DELAY)
 
     const taskInfo = useFetch<TaskInfoRawInterface>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
         // Long-interval fallback refresh. Catches missed MQTT messages
@@ -353,9 +355,10 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                 return
             }
 
-            // Only update if the value has actually changed
-            const currentValue = taskInfo.data.data.task_label || ""
-            if (trimmedLabel === currentValue) {
+            // Only when it differs from what the server has. The cached task
+            // isn't patched after a save, so its label would still be the old
+            // one: changing the tags and then changing them back sent nothing.
+            if (trimmedLabel === savedLabel.current) {
                 return
             }
 
@@ -369,6 +372,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     },
                 })
                 .then(() => {
+                    savedLabel.current = trimmedLabel
                     dispatch(updateTaskLabelInTaskList({taskId: taskUUID, value: trimmedLabel}))
                     optimisticUpdateTask({ task_uuid: taskUUID, task_label: trimmedLabel }, taskInfo.data!.data.task_project.project_uuid)
                     // No list revalidation: label doesn't affect columns or filters.
@@ -626,6 +630,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         setSelectedPriority(priorities.find((p) => p.value === data.task_priority))
         setTaskSubTasks(data.task_sub_tasks||[])
         setTaskLabel(data.task_label || "")
+        savedLabel.current = data.task_label || ""
         setTaskIsDeleted(!isZeroEpoch(data.task_deleted_at || ''))
         setTaskAttachments(data.task_attachments || [])
     }, [taskInfo.data?.data, taskUUID, dispatch])
@@ -640,17 +645,21 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taskInputState, taskUUID])
 
-    useEffect(() => {
-        updateTaskLabel(taskLabelDebounce)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [taskLabelDebounce])
-
-    useEffect(() => {
-        if (taskNameUpdateDebounce.taskName?.trim() && taskNameUpdateDebounce.taskUUID) {
-            updateTaskName(taskNameUpdateDebounce.taskName, taskNameUpdateDebounce.taskUUID)
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [taskNameUpdateDebounce])
+    // The tags and the name are saved from the person's own changes only, half
+    // a second after the last (hooks/useSaveOnEdit): never on mount, never
+    // the server's own answer echoed back.
+    const saveLabel = useSaveOnEdit(updateTaskLabel, { delay: CONSTANTS.DEBOUNCE_DELAY, key: taskUUID })
+    const editLabel = useCallback(
+        (label: string) => {
+            setTaskLabel(label)
+            saveLabel(label)
+        },
+        [saveLabel],
+    )
+    const saveName = useSaveOnEdit(
+        (name: UpdateTaskName) => updateTaskName(name.taskName, name.taskUUID),
+        { delay: CONSTANTS.DEBOUNCE_DELAY, key: taskUUID },
+    )
 
     const handleStatusSelect = useCallback(
         (value: string) => {
@@ -916,7 +925,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         <ResizeableTextInput
                             delay={3000}
                             content={taskInfo.data?.data.task_name || ""}
-                            textUpdate={(s: string) => setTaskName({ taskName: s, taskUUID })}
+                            textUpdate={(s: string) => saveName({ taskName: s, taskUUID })}
                             disabled={!isAdmin}
                             className="!min-h-0 !border-0 !bg-transparent !px-1 !py-0.5 !text-title-2 !shadow-none"
                         />
@@ -981,7 +990,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         <div className={propertyRow()} data-property="labels">
                             <span className={propertyLabel}>Labels</span>
                             <div className="min-w-0">
-                                <TagPicker projectId={projectUUID} label={taskLabel} canEdit={isAdmin} onChange={setTaskLabel} />
+                                <TagPicker projectId={projectUUID} label={taskLabel} canEdit={isAdmin} onChange={editLabel} />
                             </div>
                         </div>
                     )}
@@ -1030,7 +1039,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                                 updateTaskStatus(newStatus, id, patch)
                             }
                         }
-                        onRename={(id, name) => setTaskName({ taskName: name, taskUUID: id })}
+                        onRename={(id, name) => saveName({ taskName: name, taskUUID: id })}
                         onUpdateStart={(id, d) => {
                                 setTaskSubTasks((prevSubtasks) =>
                                     prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_start_date: d?.toISOString() || "" } : subtask)),
