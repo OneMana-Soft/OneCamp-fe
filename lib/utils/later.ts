@@ -9,7 +9,7 @@
 import { format } from "date-fns"
 import { shortDate, shortTime } from "@/lib/utils/date/shortDate"
 
-export type LaterItemType = "post" | "comment" | "chat" | "task" | "doc" | "project" | "board"
+export type LaterItemType = "post" | "comment" | "chat" | "task" | "doc" | "project" | "board" | "reminder"
 
 interface ReminderChoice {
   key: string

@@ -21,7 +21,7 @@ import { HubRow, HubRowSkeleton, HubToolButton } from "@/components/ui/hubRow"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { HubFrame, HubTabs } from "@/components/activity/hubFrame"
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
-import { Bookmark, Check, ClipboardList, Clock, FileText, Hash, LayoutDashboard, MessageCircle, Undo2, X } from "@/lib/icons"
+import { Bell, Bookmark, Check, ClipboardList, Clock, FileText, Hash, LayoutDashboard, MessageCircle, Undo2, X } from "@/lib/icons"
 import { useLaterActions, useLaterList } from "@/hooks/useLater"
 import type { LaterItem } from "@/services/laterService"
 import { reminderPill, type ReminderTone } from "@/lib/utils/later"
@@ -46,6 +46,9 @@ function leadFor(item: LaterItem): ReactNode {
       return <ClipboardList className="size-4 text-ink-3" />
     case "board":
       return <LayoutDashboard className="size-4 text-ink-3" />
+    // "Remind me" from the assistant (CAL-BUG-6): a reminder, not a thing saved.
+    case "reminder":
+      return <Bell className="size-4 text-ink-3" />
     default:
       return <Bookmark className="size-4 text-ink-3" />
   }
