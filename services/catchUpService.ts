@@ -18,6 +18,12 @@ export interface CatchUpRequest {
   channel_uuid?: string
   chat_grp_id?: string
   to_user_uuid?: string
+  /**
+   * How many were unread as the conversation was opened. Opening it moves the
+   * last-seen the recap would start from to now; the server starts at the
+   * oldest of these instead (and never before its lookback).
+   */
+  unread?: number
   timezone?: string
   location?: string
   local_time?: string

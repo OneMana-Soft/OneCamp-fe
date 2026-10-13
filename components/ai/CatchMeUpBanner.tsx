@@ -66,12 +66,16 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
         // Map the conversation type to a precise catch-up scope. The recap
         // covers ONLY the unread window (since last seen), not the last N
         // messages — that's the UX leap over a blunt summary.
+        // The unread count is the one shown on opening: opening the
+        // conversation already marked it seen, so the server's own last-seen
+        // would leave nothing to recap.
+        const unread = unreadCount > 0 ? unreadCount : undefined
         const req: CatchUpRequest =
             type === "dm"
-                ? { scope_type: "chat", to_user_uuid: channelUUID }
+                ? { scope_type: "chat", to_user_uuid: channelUUID, unread }
                 : type === "group"
-                  ? { scope_type: "chat", chat_grp_id: channelUUID }
-                  : { scope_type: "channel", channel_uuid: channelUUID }
+                  ? { scope_type: "chat", chat_grp_id: channelUUID, unread }
+                  : { scope_type: "channel", channel_uuid: channelUUID, unread }
 
         try {
             const result = await catchUp(req)
@@ -94,7 +98,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
             setError(e?.response?.data?.err || e?.message || "Failed to generate summary")
             setState("idle")
         }
-    }, [channelUUID, catchUp, type])
+    }, [channelUUID, catchUp, type, unreadCount])
 
     const handleDismiss = useCallback(() => {
         setState("dismissed")
