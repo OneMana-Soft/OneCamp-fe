@@ -5,6 +5,7 @@ import { RoomEvent } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
 import { FEATURE_CALLS, useClientConfig, useFeatureState } from "@/hooks/useClientConfig";
 import { persistTranscriptLine, reportTranscriptionCapability } from "@/services/transcriptService";
+import { readCaption } from "@/lib/calls/signals";
 
 // Why the caption overlay may be showing nothing. Reported upward because an
 // empty overlay looks identical whether the recognizer is muted, unsupported by
@@ -198,39 +199,18 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
   useEffect(() => {
     if (!room) return;
 
-    const onDataReceived = (payload: Uint8Array, participant?: any, kind?: any, topic?: string) => {
-        if (topic === "lk.transcription" && participant?.identity !== localParticipant.identity) {
-            try {
-                const decoder = new TextDecoder();
-                const jsonString = decoder.decode(payload);
-                const data = JSON.parse(jsonString);
-                
-                if (data.text) {
-                    // Backend Mode: valid transcript from agent checking
-                    if (mode === 'backend') {
-                         const payloadIdentity = data.participantIdentity;
-                         const myIdentity = localParticipant.identity;
-                         
-                         // If the transcript is FOR ME (from backend), update local UI
-                         if (payloadIdentity === myIdentity) {
-                             onTranscript(data);
-                             return; // Don't treat my own speech as echo
-                         }
-                    }
-
-                    // Add to buffer
-                    remoteTranscriptsBuffer.current.push({
-                        text: data.text,
-                        timestamp: Date.now()
-                    });
-                    
-                    // Keep buffer small (last 3 seconds?)
-                    // Actually clean it up lazy or periodically? Lazy on usage is fine.
-                }
-            } catch (e) {
-                // ignore
-            }
+    const onDataReceived = (payload: Uint8Array, participant?: any, _kind?: any, topic?: string) => {
+        if (!participant || participant.identity === localParticipant.identity) return;
+        // The speaker is the sender; only the agent names someone else (lib/calls/signals).
+        const data = readCaption(payload, participant, topic);
+        if (!data?.text) return;
+        // Server mode: the agent's line about this person is theirs to show.
+        if (mode === 'backend' && data.participantIdentity === localParticipant.identity) {
+            onTranscript(data);
+            return; // Don't treat my own speech as echo
         }
+        // Remembered briefly, to tell this person's echo of it from their own words.
+        remoteTranscriptsBuffer.current.push({ text: String(data.text), timestamp: Date.now() });
     };
 
     room.on(RoomEvent.DataReceived, onDataReceived);

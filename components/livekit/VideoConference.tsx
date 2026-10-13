@@ -34,6 +34,7 @@ import {
 } from "./callState";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
 import { cn } from "@/lib/utils/helpers/cn"
+import { readCaption } from "@/lib/calls/signals"
 import { useConfirm } from "@/hooks/useConfirm"
 import { toast } from "@/hooks/use-toast"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
@@ -267,7 +268,7 @@ function useRemovalNotice(room: Room, removalRef: MutableRefObject<CallRemoval |
   useEffect(() => {
     const onData = (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
       if (topic !== CALL_TOPIC) return;
-      const removal = readRemovalPacket(payload, !!participant);
+      const removal = readRemovalPacket(payload, participant);
       if (removal) removalRef.current = removal;
     };
     room.on(RoomEvent.DataReceived, onData);
@@ -619,28 +620,12 @@ function MyVideoConference({
         kind?: DataPacket_Kind,
         topic?: string
       ) => {
-        if (topic === "lk.transcription") {
-          try {
-              const decoder = new TextDecoder();
-              const jsonString = decoder.decode(payload);
-              const data = JSON.parse(jsonString);
-
-              // For remote transcripts, ensure name is populated from participant if missing
-              if (!data.participantName && participant) {
-                  data.participantName = participant.name || participant.identity;
-              }
-              // Ensure identity is present
-              if (!data.participantIdentity && participant) {
-                  data.participantIdentity = participant.identity;
-              }
-
-              handleTranscript(data);
-          } catch (e) {
-              console.error("Failed to parse transcript:", e);
-          }
-        }
+        // The speaker is whoever LiveKit says sent it; only the agent
+        // speaks for others (lib/calls/signals). A packet once named anyone.
+        const line = readCaption(payload, participant, topic);
+        if (line) handleTranscript(line);
       };
-
+  
       room.on(RoomEvent.DataReceived, onDataReceived);
       return () => {
           room.off(RoomEvent.DataReceived, onDataReceived);

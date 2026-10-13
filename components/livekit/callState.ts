@@ -4,6 +4,8 @@
 // reads it from here. Pure, with no LiveKit import, so a guest page or the
 // green room can use it without the call's bundle.
 
+import { readSignal, type SignalSender } from "@/lib/calls/signals"
+
 /** Where captioned speech is turned into text: the CALLS-FE ↔ CALLS-BE contract's `where`. */
 export type TranscriptionWhere = "browser" | "server" | "deepgram" | "google" | "openai" | "custom"
 
@@ -129,10 +131,16 @@ export function captionsConfirmText(t: Pick<CallTranscription, "where" | "kept">
   return `Everyone in the call is told, and can stop their own voice being captioned. ${said} ${kept}`
 }
 
-/** "Captions on · Maya", the pill's words, with the first name only. Pure. */
-export function captionsLabel(t: Pick<CallTranscription, "by">): string {
+/**
+ * The pill's words, with the first name only: "Transcript on · Maya" while
+ * the words are kept as the call's transcript, "Captions on · Maya" when they
+ * are only shown (an instant meeting). A pill that said captions while a
+ * transcript was being kept undersold what was happening. Pure.
+ */
+export function captionsLabel(t: Pick<CallTranscription, "by" | "kept">): string {
+  const what = t.kept === false ? "Captions on" : "Transcript on"
   const first = t.by?.split(" ")[0]
-  return first ? `Captions on · ${first}` : "Captions on"
+  return first ? `${what} · ${first}` : what
 }
 
 /**
@@ -167,19 +175,14 @@ export interface CallRemoval {
 
 /**
  * The server's "you are being removed" packet, or null. Only the server may
- * send it: a packet from another participant is never believed, or anyone
- * could end someone else's call with a message. Pure.
+ * send it (lib/calls/signals): a packet from a participant is never believed,
+ * or anyone could end someone else's call with a message. Pure.
  */
-export function readRemovalPacket(payload: Uint8Array, fromParticipant: boolean): CallRemoval | null {
-  if (fromParticipant) return null
-  try {
-    const m = JSON.parse(new TextDecoder().decode(payload)) as Record<string, unknown>
-    if (m?.t !== "removed") return null
-    const reason = m.reason === "host" || m.reason === "link_revoked" || m.reason === "not_member" ? m.reason : "unknown"
-    return { reason, by: str(m.by) }
-  } catch {
-    return null
-  }
+export function readRemovalPacket(payload: Uint8Array, sender: SignalSender | undefined): CallRemoval | null {
+  const m = readSignal<Record<string, unknown>>(payload, sender, { topic: CALL_TOPIC, from: "server" })
+  if (m?.t !== "removed") return null
+  const reason = m.reason === "host" || m.reason === "link_revoked" || m.reason === "not_member" ? m.reason : "unknown"
+  return { reason, by: str(m.by) }
 }
 
 /**

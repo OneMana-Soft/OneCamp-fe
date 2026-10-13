@@ -102,8 +102,10 @@ describe("CALL-BUG-2: captions are one switch for the call, said with where spee
     expect(captionsWhereText({ where: "custom" })).toContain("speech-to-text service this workspace set up")
     expect(captionsConfirmText({ where: "browser", kept: true })).toContain("(Google in Chrome, Microsoft in Edge)")
     expect(captionsConfirmText({ where: "browser", kept: true })).toContain("Everyone in the call is told")
-    expect(captionsLabel({ by: "Maya Chen" })).toBe("Captions on · Maya")
-    expect(captionsLabel({})).toBe("Captions on")
+    // Kept as a transcript, the pill says so (calls audit); shown only, captions.
+    expect(captionsLabel({ by: "Maya Chen" })).toBe("Transcript on · Maya")
+    expect(captionsLabel({ by: "Maya Chen", kept: false })).toBe("Captions on · Maya")
+    expect(captionsLabel({ kept: false })).toBe("Captions on")
   })
 
   it("recognises the workspace's language, else the person's, never a fixed en-US", () => {
@@ -141,10 +143,10 @@ describe("CALL-BUG-4: the agent's state in words", () => {
 describe("CALL-BUG-11: only the server can say someone was removed", () => {
   const packet = (o: object) => new TextEncoder().encode(JSON.stringify(o))
   it("believes the server, never a participant", () => {
-    expect(readRemovalPacket(packet({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }), false)).toEqual({ reason: "host", by: "Maya Chen" })
-    expect(readRemovalPacket(packet({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }), true)).toBeNull()
-    expect(readRemovalPacket(packet({ t: "other" }), false)).toBeNull()
-    expect(readRemovalPacket(packet({ t: "removed", reason: "made-up" }), false)).toEqual({ reason: "unknown", by: undefined })
+    expect(readRemovalPacket(packet({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }), undefined)).toEqual({ reason: "host", by: "Maya Chen" })
+    expect(readRemovalPacket(packet({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }), { identity: "jonas" })).toBeNull()
+    expect(readRemovalPacket(packet({ t: "other" }), undefined)).toBeNull()
+    expect(readRemovalPacket(packet({ t: "removed", reason: "made-up" }), undefined)).toEqual({ reason: "unknown", by: undefined })
   })
 
   it("tells a member they can't come back, and never tells a guest so", () => {
