@@ -3,7 +3,7 @@
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
-import { useClientConfig } from "@/hooks/useClientConfig";
+import { FEATURE_CALLS, useClientConfig, useFeatureState } from "@/hooks/useClientConfig";
 import { persistTranscriptLine, reportTranscriptionCapability } from "@/services/transcriptService";
 
 // Why the caption overlay may be showing nothing. Reported upward because an
@@ -11,7 +11,7 @@ import { persistTranscriptLine, reportTranscriptionCapability } from "@/services
 // this browser, or simply waiting for someone to speak — and the user can only
 // act on the first two if we say which it is.
 export interface TranscriberState {
-  status: "listening" | "starting" | "mic-off" | "unsupported" | "disabled" | "error";
+  status: "listening" | "starting" | "mic-off" | "unsupported" | "disabled" | "off" | "error";
   // The SpeechRecognition error code when status is "error" (not-allowed,
   // audio-capture, network, ...). Carried up so the UI can name the actual
   // problem rather than leaving the user to open devtools.
@@ -21,9 +21,37 @@ export interface TranscriberState {
 interface FrontendTranscriberProps {
   onTranscript: (data: any) => void;
   onStatus?: (state: TranscriberState) => void;
+  /**
+   * Captions are on for the call, this person has been shown where their
+   * speech goes, and hasn't asked to be left out (CALL-BUG-2). Nothing is
+   * recognised, and no audio leaves the browser, unless this is true. It used
+   * to run for every member whenever their microphone was on, captions or
+   * not, and nobody in the call was told.
+   */
+  active: boolean;
+  /** The call keeps a transcript (any call but an instant meeting): final lines are stored. */
+  persist: boolean;
+  /** The language to recognise, BCP-47. Left to the browser when absent; never a fixed en-US. */
+  language?: string;
 }
 
-export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscriberProps) {
+/**
+ * Whether Chrome can recognise this language on the device itself, so the
+ * audio never leaves it (Chrome 139's on-device Web Speech). Anything else,
+ * an older Chrome, Edge, an error, is "no", and the browser's own service is
+ * used, which the call's notice names.
+ */
+export async function canRecogniseOnDevice(SpeechRecognition: unknown, language: string | undefined): Promise<boolean> {
+  const available = (SpeechRecognition as { available?: (o: { langs: string[]; processLocally: boolean }) => Promise<string> } | undefined)?.available;
+  if (typeof available !== "function" || !language) return false;
+  try {
+    return (await available.call(SpeechRecognition, { langs: [language], processLocally: true })) === "available";
+  } catch {
+    return false;
+  }
+}
+
+export function FrontendTranscriber({ onTranscript, onStatus, active, persist, language }: FrontendTranscriberProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const [isListening, setIsListening] = useState(false);
@@ -41,8 +69,18 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
   // a build-time env var). "frontend" → run the browser Web-Speech recognizer
   // here; "backend" → the server-side agent transcribes, we only relay/render
   // remote transcripts; "off" → no transcription at all.
+  //
+  // Fail closed until the server has answered: the config's stand-in says
+  // "frontend", and guessing wrong here sends someone's speech to a speech
+  // service the workspace turned off.
   const { transcription_mode: mode } = useClientConfig();
-  const enabled = mode === 'frontend';
+  const configKnown = useFeatureState(FEATURE_CALLS) !== "unknown";
+  const enabled = active && configKnown && mode === 'frontend';
+  // On-device recognition where Chrome offers it for this language; null
+  // while that is being asked, and nothing starts until it is answered.
+  const [onDevice, setOnDevice] = useState<boolean | null>(null);
+  const languageRef = useRef(language);
+  const persistRef = useRef(persist);
   
   // Use refs to keep track of latest values without triggering re-renders/effect cleanup
   // Reported once per call. A browser with no recognizer contributes nothing to
@@ -110,7 +148,23 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
       localParticipantRef.current = localParticipant;
       enabledRef.current = enabled;
       roomRef.current = room;
-  }, [localParticipant, enabled, room]);
+      languageRef.current = language;
+      persistRef.current = persist;
+  }, [localParticipant, enabled, room, language, persist]);
+
+  // Ask once per language whether it can be recognised on this device.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    setOnDevice(null);
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    void canRecogniseOnDevice(SpeechRecognition, language).then((ok) => {
+      if (!cancelled) setOnDevice(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
   // Listen for remote transcripts to populate buffer
   useEffect(() => {
@@ -168,7 +222,8 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
 
   const isMicOn = localParticipant.isMicrophoneEnabled;
   useEffect(() => {
-    if (typeof window === 'undefined' || mode === 'backend') return;
+    // Made whatever the mode: making one starts nothing and sends nothing.
+    if (typeof window === 'undefined') return;
 
     // Check browser support
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -181,7 +236,8 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    // The person's language, set again before every start (applyLanguage).
+    if (languageRef.current) recognition.lang = languageRef.current;
 
     // Retry logic state - moved to top level
 
@@ -215,6 +271,7 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
           setTimeout(() => {
               if (localParticipantRef.current?.isMicrophoneEnabled && enabledRef.current && recognitionRef.current) {
                   try {
+                     applyLanguage(recognitionRef.current, languageRef.current);
                      recognitionRef.current.start();
                   } catch(e: any) { 
                       // Ignore 'already started' errors which can happen due to race conditions
@@ -349,7 +406,8 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
         // Best-effort and deliberately silent: a caption that appeared is worth
         // more than an error about a transcript nobody asked for. A refusal is
         // the normal answer for the moment after everyone hangs up.
-        if (isFinal) {
+        // Never in a call that keeps no transcript (an instant meeting).
+        if (isFinal && persistRef.current) {
             void persistTranscriptLine({
                 room_name: roomRef.current?.name ?? "",
                 text,
@@ -382,34 +440,52 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
     };
   }, []); // Run ONCE on mount
 
-  // Toggle Start/Stop based on Mic state
+  // Start and stop with the microphone, and only while enabled. On-device
+  // where it can be: the answer to that is waited for, so the first words
+  // never go to the cloud while the question is still open.
   useEffect(() => {
-     if (isMicOn && enabled && recognitionRef.current && !isListening) {
+     const recognition = recognitionRef.current;
+     if (isMicOn && enabled && onDevice !== null && recognition && !isListening) {
+         applyLanguage(recognition, languageRef.current);
+         if ("processLocally" in recognition) recognition.processLocally = onDevice;
          try {
-            recognitionRef.current.start();
+            recognition.start();
          } catch(e) { 
              // often throws if already started
          }
-     } else if ((!isMicOn || !enabled) && isListening && recognitionRef.current) {
-         recognitionRef.current.stop();
+     } else if ((!isMicOn || !enabled) && recognition) {
+         // Stopped even before onstart has said it is listening: a start
+         // that is still opening is stopped too.
+         try {
+             recognition.stop();
+         } catch {
+             /* not started */
+         }
      }
-  }, [isMicOn, enabled]);
+  }, [isMicOn, enabled, onDevice]);
 
   // Report why captions are, or are not, being produced.
   useEffect(() => {
     const roomName = roomRef.current?.name ?? "";
-    if (enabled && !supported && roomName && reportedRoomRef.current !== roomName) {
+    // Only for a call that is making a transcript: this browser can't add to it.
+    if (enabled && persist && !supported && roomName && reportedRoomRef.current !== roomName) {
         reportedRoomRef.current = roomName;
         void reportTranscriptionCapability(roomName, false);
     }
 
     if (!onStatus) return;
-    if (!enabled) return onStatus({ status: "disabled" });
+    if (mode === 'off') return onStatus({ status: "disabled" });
+    if (!enabled) return onStatus({ status: "off" });
     if (!supported) return onStatus({ status: "unsupported" });
     if (fatalError) return onStatus({ status: "error", error: fatalError });
     if (!isMicOn) return onStatus({ status: "mic-off" });
     onStatus({ status: isListening ? "listening" : "starting" });
-  }, [onStatus, enabled, supported, isMicOn, isListening, fatalError]);
+  }, [onStatus, enabled, persist, mode, supported, isMicOn, isListening, fatalError]);
 
   return null;
+}
+
+/** The language to recognise, set before a start; the browser's own when there is none. */
+function applyLanguage(recognition: { lang?: string }, language: string | undefined) {
+  if (language) recognition.lang = language;
 }

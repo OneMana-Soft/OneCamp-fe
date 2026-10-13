@@ -1,43 +1,49 @@
 "use client";
 
 import { use, useState } from "react";
-import { VideoConference } from "@/components/livekit/VideoConference";
+import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
-import { getGuestMeetingStatus, joinGuestMeeting } from "@/services/guestService";
+import { joinLanguage, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState";
+import { getGuestMeetingStatus } from "@/services/guestService";
+import { joinGuestMeetingAs } from "@/services/callService";
 import { GuestCentered as Centered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
 import { PublicFrame } from "@/components/guest/PublicFrame";
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
-import { Loader2, Video } from "@/lib/icons";
+import { Loader2, UserMinus, Video } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Tile } from "@/components/ui/graphics/Tile";
 
-type Phase = "prejoin" | "joining" | "in-call" | "ended" | "unavailable";
+type Phase = "prejoin" | "joining" | "in-call" | "ended" | "removed" | "unavailable";
 
 const gone = <GuestLinkGone detail="The meeting may have ended, or the invite has expired or been revoked. Ask the host for a new link." />;
+
+/** The link's status, with what the meeting is doing (the contract's recording and transcription). */
+type GuestMeetingStatus = { available: boolean; workspace_name?: string } & Pick<CallStateRead, "recording" | "transcription">;
 
 export default function GuestMeetingPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
 
     // 1. Validate the link before showing the join form, trying again while
     //    the server is busy or out of reach.
-    const { data: status, trouble } = useGuestAnswer(`meet:${token}`, () => getGuestMeetingStatus(token));
+    const { data, trouble } = useGuestAnswer(`meet:${token}`, () => getGuestMeetingStatus(token));
+    const status = data as GuestMeetingStatus | null;
     const [phase, setPhase] = useState<Phase>("prejoin");
     const [liveToken, setLiveToken] = useState("");
     const [errorMsg, setErrorMsg] = useState("");
     // The name they joined as, so a rejoin doesn't ask for it again.
     const [lastName, setLastName] = useState("");
+    // The green room's choice, carried into the call (CALL-BUG-1).
+    const [choice, setChoice] = useState({ audio: true, video: true });
+    // Why the host took them out (CALL-BUG-11).
+    const [removal, setRemoval] = useState<CallRemoval | null>(null);
 
     const handleJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => {
         setErrorMsg("");
         setPhase("joining");
         const displayName = (values.displayName || "").trim();
         setLastName(displayName);
-        const res = await joinGuestMeeting(
-            token,
-            displayName,
-            values.audioEnabled,
-            values.videoEnabled,
-        );
+        setChoice({ audio: values.audioEnabled, video: values.videoEnabled });
+        const res = await joinGuestMeetingAs(token, displayName, joinLanguage());
         if (res.ok && res.data?.token) {
             setLiveToken(res.data.token);
             setPhase("in-call");
@@ -57,7 +63,14 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
         setPhase("unavailable");
     };
 
-    const handleDisconnect = () => setPhase("ended");
+    const handleDisconnect = (end?: CallEnd) => {
+        if (end?.removed) {
+            setRemoval(end.removed);
+            setPhase("removed");
+            return;
+        }
+        setPhase("ended");
+    };
 
     if (!status) {
         return (
@@ -66,6 +79,20 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
     }
 
     if (phase === "unavailable") return gone;
+
+    // Removed by the host, or their link turned off (CALL-BUG-11): why, and no
+    // Join again, which would only walk them back into a meeting they were
+    // taken out of.
+    if (phase === "removed") {
+        const { title, detail } = removedText(removal, true);
+        return (
+            <Centered>
+                <Tile hue="berry" size="lg"><UserMinus /></Tile>
+                <h1 className="text-base font-semibold text-foreground">{title}</h1>
+                <p className="text-sm text-muted-foreground" role="status">{detail} You can close this tab.</p>
+            </Centered>
+        );
+    }
 
     // Any disconnect lands here, a dropped connection included, and the link
     // still works. Leaving by mistake was a dead end ("You can close this
@@ -91,9 +118,10 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                     token={liveToken}
                     serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || ""}
                     onDisconnect={handleDisconnect}
-                    toggleRecording={() => { /* guests cannot record */ }}
                     isAdmin={false}
                     guest
+                    audio={choice.audio}
+                    video={choice.video}
                 />
             </div>
         );
@@ -106,7 +134,13 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                 {errorMsg && (
                     <p className="mb-2 text-sm text-danger-ink" role="alert">{errorMsg}</p>
                 )}
-                <PreJoin onJoin={handleJoin} username={lastName} nameEditable joining={phase === "joining"} />
+                {/* Told before joining (CALL-BUG-12): a recording, and
+                    captions with where speech goes. */}
+                <PreJoin onJoin={handleJoin} username={lastName} nameEditable joining={phase === "joining"}
+                    recording={!!status.recording?.on}
+                    recordingBy={status.recording?.on ? status.recording.by || null : null}
+                    transcription={status.transcription}
+                />
             </div>
             {phase === "joining" && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50" role="status" aria-label="Joining the meeting">

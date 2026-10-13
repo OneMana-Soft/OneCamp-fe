@@ -19,7 +19,8 @@ import {
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react"
 import { ConnectionQuality, Track, type Participant } from "livekit-client"
-import { Pin, PinOff } from "@/lib/icons"
+import { Ellipsis, Pin, PinOff, UserMinus } from "@/lib/icons"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils/helpers/cn"
 import { CameraOffFace, NamePlate, SpeakingRing, cameraIsOff, isAgentParticipant, useRing } from "./CallStage"
 import { guestName } from "./callLevels"
@@ -46,6 +47,7 @@ export function StageTile({
   onPin,
   size = "md",
   contain = false,
+  onRemove,
   className,
 }: {
   trackRef?: TrackReferenceOrPlaceholder
@@ -55,6 +57,8 @@ export function StageTile({
   size?: "sm" | "md" | "lg"
   /** A shared screen fits the frame rather than filling it. */
   contain?: boolean
+  /** The host may remove this person (CALL-BUG-11): a menu on the tile, never on your own or an agent's. */
+  onRemove?: (participant: Participant) => void
   className?: string
 }) {
   const trackRef = useEnsureTrackRef(given)
@@ -71,6 +75,7 @@ export function StageTile({
   const { name, guest } = guestName(who.identity || "", who.name || who.identity || "Guest")
   const agent = isAgentParticipant(who)
   const reconnecting = quality === ConnectionQuality.Lost
+  const removable = !!onRemove && !who.isLocal && !agent && !screen
 
   return (
     <div
@@ -103,6 +108,30 @@ export function StageTile({
       {reconnecting ? (
         <span role="status" className="absolute inset-0 grid place-items-center text-ui-sm text-[#A8ABB1]">
           Reconnecting…
+        </span>
+      ) : null}
+      {removable ? (
+        // Beside the pin where there is one. Its own button, so pressing it
+        // never also brings the tile to the stage.
+        <span className={cn("absolute top-2 z-[3]", onPin ? "right-10" : "right-2")} onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`More for ${name}`}
+                className="grid size-7 place-items-center rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0] opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-brand group-hover/tile:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100 [&_svg]:size-3.5"
+                data-tile-menu=""
+              >
+                <Ellipsis />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" onClick={() => onRemove?.(who)}>
+                <UserMinus />
+                Remove from call
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
       ) : null}
       {onPin ? (

@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 const joinGuestMeeting = vi.fn()
 vi.mock("@/services/guestService", () => ({
   getGuestMeetingStatus: async () => ({ ok: true, data: { title: "Acme weekly" } }),
-  joinGuestMeeting: (...args: unknown[]) => joinGuestMeeting(...args),
+}))
+// The join carries the guest's language for the server's agent (callService).
+vi.mock("@/services/callService", () => ({
+  joinGuestMeetingAs: (...args: unknown[]) => joinGuestMeeting(...args),
 }))
 // The real join form and call need devices and a media server; these stand in
 // with the same props.
@@ -21,8 +24,11 @@ vi.mock("@/components/livekit/PreJoin", () => ({
   },
 }))
 vi.mock("@/components/livekit/VideoConference", () => ({
-  VideoConference: ({ onDisconnect }: { onDisconnect: () => void }) => (
-    <button type="button" data-testid="call" onClick={onDisconnect}>Leave</button>
+  VideoConference: ({ onDisconnect }: { onDisconnect: (end?: unknown) => void }) => (
+    <>
+      <button type="button" data-testid="call" onClick={() => onDisconnect()}>Leave</button>
+      <button type="button" onClick={() => onDisconnect({ removed: { reason: "host", by: "Maya Chen" } })}>Removed by the host</button>
+    </>
   ),
 }))
 
@@ -60,5 +66,18 @@ describe("a guest in a meeting", () => {
     expect(screen.getByRole("heading", { level: 1, name: "You left the meeting" })).toBeInTheDocument()
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join again" })))
     expect(screen.getByLabelText("Your name")).toHaveValue("Jordan")
+  })
+
+  // CALL-BUG-11: removed by the host, the guest reads why and isn't offered
+  // a way straight back into the meeting.
+  it("says the host removed them, with no Join again", async () => {
+    joinGuestMeeting.mockResolvedValue({ ok: true, data: { token: "live" } })
+    await open()
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Jordan" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join call" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Removed by the host" })))
+    expect(screen.getByRole("heading", { level: 1, name: "You were removed from the meeting" })).toBeInTheDocument()
+    expect(screen.getByText(/Maya Chen removed you from this meeting\./)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Join again" })).toBeNull()
   })
 })

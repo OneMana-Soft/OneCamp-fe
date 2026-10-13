@@ -8,11 +8,14 @@
 import { displayNameOf } from "@/lib/personName"
 import { useCallback, useState } from "react"
 import { PreJoin } from "@/components/livekit/PreJoin"
-import { VideoConference } from "@/components/livekit/VideoConference"
-import { CallLeft } from "@/components/livekit/CallStage"
+import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference"
+import { CallLeft, CallRemoved } from "@/components/livekit/CallStage"
+import { joinLanguage, peopleInCall, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
-import { usePost } from "@/hooks/usePost"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { callStatePath } from "@/services/callService"
 import type { CallTokenResponseInterface, RawUserDMInterface, UserProfileInterface } from "@/types/user"
 import type { ChannelInfoInterfaceResp } from "@/types/channel"
 
@@ -58,68 +61,111 @@ function usePlace(kind: CallKind, id: string, selfId?: string): { place?: string
   return { place: names.length ? `with ${names.join(", ")}` : undefined, isAdmin: true }
 }
 
+/**
+ * The call as it is before joining (CALL-BUG-12): whether it is recorded or
+ * captioned, and by whom, so the green room can say so before Join; who is in
+ * it; and whether this person may remove others. Kept fresh while the green
+ * room is open, since a recording can start while someone decides.
+ */
+function useCallState(kind: CallKind, id: string, waiting: boolean): CallStateRead | undefined {
+  const { data } = useFetch<{ data?: CallStateRead }>(callStatePath(kind, id), undefined, { refreshInterval: waiting ? 10_000 : 0 }, OWN_ERRORS)
+  return data?.data
+}
+
 export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKind; id: string; onLeave: () => void; embedded?: boolean }) {
   const call = CALLS[kind]
-  const post = usePost()
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const { place, isAdmin, live } = usePlace(kind, id, self.data?.data.user_uuid)
   const [joined, setJoined] = useState(false)
   const [token, setToken] = useState("")
+  // The green room's choice, carried into the call (CALL-BUG-1).
+  const [choice, setChoice] = useState({ audio: true, video: true })
+  const [joinError, setJoinError] = useState<string | undefined>()
+  const state = useCallState(kind, id, !joined)
   // After leaving: how long it lasted, and the way back in (hub.md C11).
   const [left, setLeft] = useState<{ minutes: number } | null>(null)
+  // Removed by a host (CALL-BUG-11): why, and no way back into this call.
+  const [removed, setRemoved] = useState<CallRemoval | null>(null)
   const [joinedAt, setJoinedAt] = useState<number | null>(null)
 
   const join = useCallback(
     (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
       setJoined(true)
-      post
-        .makeRequest<Record<string, unknown>, CallTokenResponseInterface>({
-          apiEndpoint: call.token,
-          payload: { [call.idField]: id, audio_enabled: values.audioEnabled, video_enabled: values.videoEnabled },
-        })
+      setJoinError(undefined)
+      setChoice({ audio: values.audioEnabled, video: values.videoEnabled })
+      const language = joinLanguage()
+      axiosInstance
+        .post<{ data?: CallTokenResponseInterface }>(
+          call.token,
+          { [call.idField]: id, audio_enabled: values.audioEnabled, video_enabled: values.videoEnabled, ...(language ? { language } : {}) },
+          OWN_ERRORS,
+        )
         .then((resp) => {
-          if (resp) {
-            setToken(resp.token)
-            setJoinedAt(Date.now())
-          } else setJoined(false)
+          const t = resp.data?.data?.token
+          if (!t) throw new Error("The call didn't answer with a way in.")
+          setToken(t)
+          setJoinedAt(Date.now())
+        })
+        .catch((e: unknown) => {
+          // Said under Join: a removal ("You were removed from this call.")
+          // or anything else that kept them out.
+          setJoined(false)
+          setJoinError(apiErrorMessage(e, "Try again in a moment."))
         })
     },
-    [post, call, id],
+    [call, id],
   )
 
+  // The request itself, so a refusal can be said in the call (CALL-BUG-9's
+  // silent spinner): the dock reads the rejection.
   const toggleRecording = useCallback(
-    (isRecording: boolean) => {
-      void post.makeRequest({ apiEndpoint: isRecording ? call.stop : call.start, payload: { [call.idField]: id } })
-    },
-    [post, call, id],
+    (isRecording: boolean) => axiosInstance.post(isRecording ? call.stop : call.start, { [call.idField]: id }, OWN_ERRORS),
+    [call, id],
   )
 
-  const leaveCall = useCallback(() => {
-    setLeft({ minutes: joinedAt ? Math.max(1, Math.round((Date.now() - joinedAt) / 60000)) : 0 })
-    setJoined(false)
-    setToken("")
-  }, [joinedAt])
+  const leaveCall = useCallback(
+    (end?: CallEnd) => {
+      setJoined(false)
+      setToken("")
+      if (end?.removed) {
+        setRemoved(end.removed)
+        return
+      }
+      setLeft({ minutes: joinedAt ? Math.max(1, Math.round((Date.now() - joinedAt) / 60000)) : 0 })
+    },
+    [joinedAt],
+  )
 
+  const backLabel = kind === "channel" && place ? `Back to ${place.replace(/^in /, "")}` : "Back"
+  if (removed) {
+    const { title, detail } = removedText(removed)
+    return <CallRemoved title={title} detail={detail} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
+  }
   if (left) {
     return (
       <CallLeft
         minutes={left.minutes || undefined}
         onRejoin={() => setLeft(null)}
         onBack={onLeave}
-        backLabel={kind === "channel" && place ? `Back to ${place.replace(/^in /, "")}` : "Back"}
+        backLabel={backLabel}
         embedded={embedded}
       />
     )
   }
   if (!joined) {
+    const active = state?.active ?? live
     return (
       <PreJoin
         onJoin={join}
         username={displayNameOf(self.data?.data) || ""}
         hueId={self.data?.data.user_uuid}
         place={place}
-        live={!!live}
-        inCall={kind === "channel" && live === false ? [] : undefined}
+        live={!!active}
+        inCall={peopleInCall(state?.participants) ?? (kind === "channel" && active === false ? [] : undefined)}
+        recording={!!state?.recording?.on}
+        recordingBy={state?.recording?.on ? state.recording.by || null : null}
+        transcription={state?.transcription}
+        joinError={joinError}
         onCancel={onLeave}
         embedded={embedded}
       />
@@ -134,6 +180,9 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
       isAdmin={isAdmin}
       place={place}
       embedded={embedded}
+      audio={choice.audio}
+      video={choice.video}
+      canRemove={!!state?.can_remove}
     />
   )
 }

@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalVideoTrack, type LocalTrack } from "livekit-client";
-import { Headphones, Loader2, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
+import { Captions, Headphones, Loader2, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -22,6 +22,8 @@ import { MicMeter, NamePlate, StageFace, callScreenHeight } from "./CallStage";
 import { CONTROL_KEYS, CONTROL_LABELS, DockButton } from "./VideoControls";
 import { SPEAKING_THRESHOLD } from "./callLevels";
 import { readDevicePrefs, writeDevicePref, type DevicePrefs } from "./callDevices";
+import { callKeyAction } from "./callKeys";
+import { captionsWhereText, type CallTranscription } from "./callState";
 
 export interface PreJoinPerson {
   id: string;
@@ -52,8 +54,15 @@ interface PreJoinProps {
   inCall?: PreJoinPerson[];
   /** The call is live, though who is in it is not known (a channel's ch_call_active). */
   live?: boolean;
-  /** Who is recording, when the call is being recorded. */
+  /**
+   * Who is recording, when the call is being recorded (CALL-BUG-12). Said
+   * above Join, so nobody joins a recording without being told.
+   */
   recordingBy?: string | null;
+  /** The call is being recorded, whether or not who started it is known. */
+  recording?: boolean;
+  /** The call's captions, when they are on: who turned them on and where speech goes (CALL-BUG-2). */
+  transcription?: CallTranscription;
   /** Joining is under way: the button holds its width and says so. */
   joining?: boolean;
   /** Why joining failed, said under the button. */
@@ -93,6 +102,8 @@ export function PreJoin({
   inCall,
   live = false,
   recordingBy,
+  recording = false,
+  transcription,
   joining = false,
   joinError,
 }: PreJoinProps) {
@@ -169,6 +180,22 @@ export function PreJoin({
     setCameraAttempt((n) => n + 1);
   };
   const toggleAudio = () => setAudioEnabled(!audioEnabled);
+  // M and V, as the two buttons' tooltips teach (CALL-BUG-13): they only
+  // worked inside the call. Never while typing a guest's name.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const action = callKeyAction(e, ["mic", "camera"]);
+      if (!action) return;
+      e.preventDefault();
+      if (action === "mic") setAudioEnabled((on) => !on);
+      else {
+        setCameraProblem(null);
+        setVideoEnabled((on) => !on);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const pick = (kind: keyof DevicePrefs, id: string) => {
     writeDevicePref(kind, id);
     setPrefs((p) => ({ ...p, [kind]: id }));
@@ -305,6 +332,28 @@ export function PreJoin({
               </div>
             )}
 
+            {/* What the call is doing, said before Join rather than after:
+                people learned of a recording from the pill, already on it. */}
+            {recordingBy || recording || transcription?.on ? (
+              <div className="mt-4 flex flex-col gap-2" data-call-notices="">
+                {recordingBy || recording ? (
+                  <p role="note" className="flex items-start gap-2 rounded-[10px] bg-sunken px-3 py-2 text-ui-sm text-foreground ring-1 ring-inset ring-line" data-recording-notice="">
+                    <span aria-hidden className="mt-[5px] size-2 shrink-0 rounded-[4px] bg-destructive" />
+                    <span>{recordingBy ? `This call is being recorded by ${recordingBy}.` : "This call is being recorded."} Joining puts you in the recording.</span>
+                  </p>
+                ) : null}
+                {transcription?.on ? (
+                  <p role="note" className="flex items-start gap-2 rounded-[10px] bg-sunken px-3 py-2 text-ui-sm text-foreground ring-1 ring-inset ring-line" data-captions-notice="">
+                    <Captions aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-3" />
+                    <span>
+                      {transcription.by ? `Captions are on, turned on by ${transcription.by}. ` : "Captions are on. "}
+                      <span className="text-ink-2">{captionsWhereText(transcription)}</span>
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <Button
               size="lg"
               className="mt-4 w-full"
@@ -328,12 +377,6 @@ export function PreJoin({
                 Cancel
               </Button>
             )}
-            {recordingBy ? (
-              <p className="mt-2.5 flex items-center gap-1.5 text-meta text-ink-3">
-                <span aria-hidden className="size-1.5 rounded-[3px] bg-destructive" />
-                This call is being recorded by {recordingBy}
-              </p>
-            ) : null}
           </div>
         </div>
       </div>
