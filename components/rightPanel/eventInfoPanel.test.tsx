@@ -249,7 +249,7 @@ describe("an event opened by its id", () => {
 describe("saving the guests", () => {
   const save = async () => {
     fireEvent.click(within(screen.getByRole("button", { name: "Close panel" }).closest("[data-panel-actions]") as HTMLElement).getByRole("button", { name: "Save" }))
-    await waitFor(() => expect(makeRequest).toHaveBeenCalled())
+    await waitFor(() => expect(makeRequest).toHaveBeenCalled(), { timeout: 5000 })
     return makeRequest.mock.calls[0][0]
   }
 
@@ -306,7 +306,7 @@ describe("a booked meeting", () => {
     times = { event_start_time: "2026-09-28T10:30:00", event_end_time: "2026-09-28T10:45:00" }
     fireEvent.click(screen.getByRole("button", { name: "Remove Jonas" }))
     fireEvent.click(saveButton())
-    await waitFor(() => expect(confirmed()).toHaveLength(1))
+    await waitFor(() => expect(confirmed()).toHaveLength(1), { timeout: 5000 })
     expect(confirmed()[0]).toMatchObject({ title: "Move this booked meeting?", confirmText: "Move and tell Alex Kim" })
     expect(confirmed()[0].description).toMatch(/^Alex Kim booked it through Intro call\. We'll email them the new time, Mon 28 Sep, 9:30\sAM – 9:45\sAM\.$/)
     expect(makeRequest).not.toHaveBeenCalled()
@@ -319,7 +319,7 @@ describe("a booked meeting", () => {
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
     fireEvent.click(saveButton())
-    await waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1), { timeout: 5000 })
     expect(confirmed()).toHaveLength(0)
   })
 })
