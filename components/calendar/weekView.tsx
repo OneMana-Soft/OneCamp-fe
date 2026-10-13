@@ -27,8 +27,10 @@ interface TimedItem extends CalendarItemLike {
   title: string;
   start: Date;
   end: Date;
-  topMin: number; // minutes from midnight (clamped to day)
-  endMin: number;
+  topMin: number; // minutes from midnight on the clock (clamped to the day)
+  endMin: number; // where the block's drawing ends (at least 20 minutes down)
+  /** How long it really is, in minutes: a move keeps this, not the drawn height. */
+  lenMin: number;
   col: number;
   cols: number;
   movable: boolean;
@@ -119,6 +121,11 @@ export function packDay<T extends { topMin: number; endMin: number; col: number;
   return result;
 }
 
+/** Minutes since midnight on the clock: what the hour lines and atMinutes count. Pure. */
+export function wallMinutes(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
 /** Where a block sits across its column: full, split in two, or cascaded by 12 px. Pure. */
 export function blockGeometry(col: number, cols: number): { left: string; width: string } {
   if (cols <= 1) return { left: "2px", width: "calc(100% - 4px)" };
@@ -192,16 +199,22 @@ export function WeekView({
           return;
         }
 
-        const clampedStart = start < dayStart ? dayStart : start;
-        const clampedEnd = end > dayEnd ? dayEnd : end;
-        const topMin = (clampedStart.getTime() - dayStart.getTime()) / 60000;
-        const endMin = (clampedEnd.getTime() - dayStart.getTime()) / 60000;
+        // By the clock, as the hour lines and the now line are drawn: on a day
+        // the clocks change, time elapsed since midnight drew a 10:00 meeting
+        // on the 09:00 line, and a drag saved it from there (CAL-BUG-18). A
+        // span from another day starts at the top; one into the next ends at
+        // the bottom.
+        const topMin = start < dayStart ? 0 : wallMinutes(start);
+        const endMin = end >= dayEnd ? DAY_MINUTES : wallMinutes(end);
         timed[di].push({
           ...base,
           start,
           end,
           topMin,
+          // Drawn at least 20 minutes tall, so its title fits; moved by its own length.
           endMin: Math.max(endMin, topMin + 20),
+          // (By the clock too; only an hour the clocks repeat can run it backwards.)
+          lenMin: endMin > topMin ? endMin - topMin : Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
           col: 0,
           cols: 1,
           movable: !!onEventChange && isSameDay(start, end) && (canMove ? canMove(base.uuid) : true),
@@ -319,13 +332,13 @@ export function WeekView({
       uuid: it.uuid,
       day,
       startMin: it.topMin,
-      endMin: it.endMin,
+      endMin: it.topMin + it.lenMin,
       pressMin: minuteAt(e.clientY),
       pressX: e.clientX,
       pressY: e.clientY,
       curDay: day,
       curStart: it.topMin,
-      curEnd: it.endMin,
+      curEnd: it.topMin + it.lenMin,
       active: kind !== "move",
       el,
     };
