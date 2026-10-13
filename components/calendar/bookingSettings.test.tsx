@@ -3,15 +3,21 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 let fetched: { data?: unknown; isLoading: boolean } = { isLoading: false }
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ ...fetched, mutate: vi.fn() }) }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(), isSubmitting: false }) }))
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
-vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+const makeRequest = vi.fn()
+const toast = vi.fn()
+const confirm = vi.fn()
+vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 
-import { BookingSettings, sampleTimes } from "./bookingSettings"
+import { BookingSettings, deletePageWords, sampleTimes } from "./bookingSettings"
 
 afterEach(() => {
   cleanup()
   fetched = { isLoading: false }
+  makeRequest.mockReset()
+  toast.mockReset()
+  confirm.mockReset()
 })
 
 const page = { id: "b1", slug: "sam-rivera", title: "Intro call with Sam", description: "", duration_minutes: 30, buffer_minutes: 10, min_notice_minutes: 240, max_days_ahead: 30, active: true, hours: { days: [1, 2, 3], start: "09:00", end: "17:00", tz: "UTC" } }
@@ -53,3 +59,38 @@ describe("the booking settings page", () => {
     expect(sampleTimes({ days: [1], start: "09:00", end: "10:30", tz: "UTC" }, 30, 10)).toEqual(["9:00 AM", "9:40 AM"])
   })
 })
+
+// CAL-BUG-3: deleting a page deleted its bookings, and every guest's link to
+// cancel. The bookings stay now, and the confirmation says how many.
+describe("deleting a booking page", () => {
+  it("says how many upcoming bookings stay, and that their guests can still cancel", () => {
+    fetched = { isLoading: false, data: { data: [{ ...page, upcoming_bookings: 2 }] } }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete Intro call with Sam" }))
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: "Its link stops working. Its 2 upcoming bookings stay on your calendar, and their guests can still cancel." }))
+    expect(deletePageWords(1)).toBe("Its link stops working. Its 1 upcoming booking stays on your calendar, and its guest can still cancel.")
+    expect(deletePageWords(0)).toBe("Its link stops working. It has no upcoming bookings.")
+  })
+
+  it("leaves a refusal to the dialog, which says the server's reason, and keeps the page", async () => {
+    fetched = { isLoading: false, data: { data: [{ ...page, upcoming_bookings: 2 }] } }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete Intro call with Sam" }))
+    const { onConfirm } = confirm.mock.calls[0][0]
+    const refusal = { response: { status: 409, data: { msg: "This page has 2 upcoming bookings. Switch it off instead." } } }
+    makeRequest.mockRejectedValueOnce(refusal)
+    await expect(onConfirm()).rejects.toBe(refusal)
+    expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ quiet: true }))
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it("says what stayed once it's deleted", async () => {
+    fetched = { isLoading: false, data: { data: [{ ...page, upcoming_bookings: 2 }] } }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete Intro call with Sam" }))
+    makeRequest.mockResolvedValueOnce({ upcoming_bookings: 2 })
+    await confirm.mock.calls[0][0].onConfirm()
+    expect(toast).toHaveBeenCalledWith({ title: "Deleted “Intro call with Sam”", description: "2 upcoming bookings stay on your calendar." })
+  })
+})
+
