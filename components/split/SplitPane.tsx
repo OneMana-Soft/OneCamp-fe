@@ -104,12 +104,12 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        {/* The page's address is the main view's: a pane never reads its link (FE-BUG-12). */}
+        <InSplitPaneContext.Provider value={true}>
         <PanelErrorBoundary resetKey={`${pane.kind}:${pane.id}`} onClose={() => run({ type: "close" }, index)} closeLabel={`Close this ${what}`}>
-          {/* The page's address is the main view's: a pane never reads its link (FE-BUG-12). */}
-          <InSplitPaneContext.Provider value={true}>
-            <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
-          </InSplitPaneContext.Provider>
+          <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
         </PanelErrorBoundary>
+        </InSplitPaneContext.Provider>
       </div>
     </section>
   )

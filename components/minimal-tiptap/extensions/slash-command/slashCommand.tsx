@@ -322,35 +322,19 @@ export interface BackendCommandEntry {
 
 type BackendCommandProvider = (query: string) => BackendCommandEntry[]
 
-// The command providers of the conversations on screen, by surface key: the
-// page's, and each split pane's. A composer's "/" and the commands it runs are
-// its own conversation's (FE-BUG-11). There was one provider for the app and
-// one window-wide event, so with two conversations side by side /poll posted
-// in both and /remind set two reminders, and closing a pane took the other's
-// commands with it. "" is a provider registered for no surface (a test's).
+// By surface: a composer's commands are its conversation's (FE-BUG-11).
 const backendCommandProviders = new Map<string, BackendCommandProvider>()
 
-const providerFor = (surface: string | null | undefined): BackendCommandProvider | null =>
-  backendCommandProviders.get(surface || "") ?? null
+const providerFor = (surface?: string | null) => backendCommandProviders.get(surface || "")
+const SURFACE = "data-command-surface"
 
-/**
- * The command surface a composer belongs to: the key a conversation view's
- * CommandSurface marks beside it (data-command-surface on an element that is,
- * or is a child of, one of the editor's ancestors), or a thread panel's own.
- * Null for an editor outside every surface.
- */
-export function commandSurfaceOf(editor: { view?: { dom?: Element | null } } | null | undefined): string | null {
-  let el: Element | null | undefined
-  try {
-    el = editor?.view?.dom
-  } catch {
-    return null
-  }
-  for (; el; el = el.parentElement) {
-    const own = el.getAttribute("data-command-surface")
-    if (own) return own
-    const beside = el.querySelector(":scope > [data-command-surface]")
-    if (beside) return beside.getAttribute("data-command-surface")
+/** A composer's surface: data-command-surface on, or beside, an ancestor. */
+type SurfaceEditor = { view?: { dom?: Element | null } } | null
+
+export function commandSurfaceOf(editor?: SurfaceEditor): string | null {
+  for (let el = editor?.view?.dom; el; el = el.parentElement) {
+    const at = el.hasAttribute(SURFACE) ? el : el.querySelector(`:scope > [${SURFACE}]`)
+    if (at) return at.getAttribute(SURFACE)
   }
   return null
 }
@@ -367,19 +351,12 @@ export function isSlashMenuOpen(): boolean {
   return slashMenuOpen
 }
 
-/**
- * Registers a conversation's command provider (its command runner does, for
- * its surface key), or removes it (null). Returns the removal, which leaves a
- * provider registered since for the same surface in place.
- */
-export function setBackendCommandProvider(provider: BackendCommandProvider | null, surface = ""): () => void {
-  if (!provider) {
-    backendCommandProviders.delete(surface)
-    return () => {}
-  }
-  backendCommandProviders.set(surface, provider)
+/** Registers a surface's provider (null removes it); returns its removal. */
+export function setBackendCommandProvider(provider: BackendCommandProvider | null, surface = "") {
+  if (provider) backendCommandProviders.set(surface, provider)
+  else backendCommandProviders.delete(surface)
   return () => {
-    if (backendCommandProviders.get(surface) === provider) backendCommandProviders.delete(surface)
+    if (provider && backendCommandProviders.get(surface) === provider) backendCommandProviders.delete(surface)
   }
 }
 
@@ -460,9 +437,6 @@ function resolveBackendCommandName(query: string, surface: string | null): strin
  * extracted from the composer's mention nodes — so a command like
  * "/dm @Akash hi" can resolve @Akash to the exact UUID the user picked instead
  * of fuzzy-matching the display name. The runner forwards it in the event.
- *
- * `surface` is the sending composer's (commandSurfaceOf): only that
- * conversation's commands count, and only its runner runs one.
  */
 export function maybeDispatchSlashCommand(
   plainText: string,
@@ -522,11 +496,11 @@ interface NodeLike {
 }
 
 export const slashCommandSuggestion = {
-  items: ({ query, commands, editor }: { query: string; commands: SlashCommandItem[]; editor?: Parameters<typeof commandSurfaceOf>[0] }): SlashCommandItem[] => {
+  items: ({ query, commands, editor }: { query: string; commands: SlashCommandItem[]; editor?: SurfaceEditor }): SlashCommandItem[] => {
     const q = query.toLowerCase().slice(1) // Remove leading /
 
-    // Merge backend (app/core) commands when the composer's conversation has a
-    // provider (its command runner). Docs register none, so their menu is unchanged.
+    // Merge backend (app/core) commands when a provider is registered (chat
+    // composer). Docs register no provider, so their menu is unchanged.
     let backendItems: SlashCommandItem[] = []
     const provider = providerFor(commandSurfaceOf(editor))
     if (provider) {

@@ -10,12 +10,12 @@ import type { ReactNode } from "react"
 // back. FE-BUG-12: a split pane read the main view's link as its own.
 
 let address = new URLSearchParams()
-const replace = vi.fn()
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => address,
-  useRouter: () => ({ replace }),
-  usePathname: () => "/app/channel/c1",
-}))
+vi.mock("next/navigation", () => ({ useSearchParams: () => address }))
+/** The page at a path and query, as the browser and the router both hold it. */
+const at = (query: string) => {
+  window.history.replaceState(null, "", `/app/channel/c1${query ? `?${query}` : ""}`)
+  address = new URLSearchParams(query)
+}
 
 const { default: store, RESET_STORE_ACTION } = await import("@/store/store")
 const { InSplitPaneContext, useLeaveLink, useLinkSearchParams, useLinkedPage } = await import("@/hooks/useLinkTarget")
@@ -34,31 +34,30 @@ const held = () => (store.getState().channel.channelPosts.c1 ?? []).map((p: { po
 
 beforeEach(() => {
   store.dispatch({ type: RESET_STORE_ACTION })
-  address = new URLSearchParams()
-  replace.mockClear()
+  at("")
 })
 afterEach(cleanup)
 
 describe("the link in the page's address", () => {
   it("is the main view's, and no split pane's", () => {
-    address = new URLSearchParams("postId=old")
+    at("postId=old")
     expect(renderHook(() => useLinkSearchParams(useSearchParams()), { wrapper: main }).result.current?.get("postId")).toBe("old")
     expect(renderHook(() => useLinkSearchParams(useSearchParams()), { wrapper: pane }).result.current).toBeNull()
   })
 
   it("is left by dropping it from the address, keeping the rest", () => {
-    address = new URLSearchParams("postId=old&tab=files")
+    at("postId=old&tab=files")
     const { result } = renderHook(() => useLeaveLink("postId"), { wrapper: main })
     expect(result.current()).toBe(true)
-    expect(replace).toHaveBeenCalledWith("/app/channel/c1?tab=files", { scroll: false })
+    expect(window.location.pathname + window.location.search).toBe("/app/channel/c1?tab=files")
   })
 
   it("isn't a pane's to leave, nor there to leave without one", () => {
-    address = new URLSearchParams("postId=old")
+    at("postId=old")
     expect(renderHook(() => useLeaveLink("postId"), { wrapper: pane }).result.current()).toBe(false)
-    address = new URLSearchParams()
+    expect(window.location.search).toBe("?postId=old")
+    at("")
     expect(renderHook(() => useLeaveLink("postId"), { wrapper: main }).result.current()).toBe(false)
-    expect(replace).not.toHaveBeenCalled()
   })
 })
 
