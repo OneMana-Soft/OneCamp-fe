@@ -6,9 +6,11 @@
 // one line, and its state. Hover lifts it to e2. Clicking a card opens a side
 // sheet with what it adds and what it needs. Install is one click: the button
 // becomes a spinner, then "Installed ✓", in a slot of one width so nothing
-// beside it moves. Apps that need a credential are installed and flagged
-// "Finish setup", which opens the app editor. A category is a neutral chip
-// (§1.5): hue is identity, never a category.
+// beside it moves. An app that still needs something (a key, a sign-in, the
+// address that answers its commands) is installed and says "Needs setup",
+// with Set up, which opens the app editor; until then the server keeps its
+// commands out of everyone's "/" menu. A category is a neutral chip (§1.5):
+// hue is identity, never a category.
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { useCallback, useMemo, useState } from "react"
@@ -295,10 +297,14 @@ export function InstallSlot({ item, busy, fresh, onInstall, onConfigure }: {
     onConfigure: () => void
 }) {
     if (item.installed && item.needs_setup) {
+        // Installed, not yet answering: its commands wait until it is set up.
         return (
-            <Button size="sm" variant="secondary" className="cx-app-slot gap-1 text-warning-ink" onClick={onConfigure}>
-                <AlertCircle aria-hidden="true" /> Finish setup
-            </Button>
+            <span data-app-needs-setup="" className="inline-flex items-center gap-2">
+                <StateWord tone="warning">Needs setup</StateWord>
+                <Button size="sm" variant="secondary" className="gap-1" onClick={onConfigure} aria-label={`Set up ${item.name}`}>
+                    <AlertCircle aria-hidden="true" /> Set up
+                </Button>
+            </span>
         )
     }
     const state = busy ? "busy" : item.installed ? "done" : "idle"
