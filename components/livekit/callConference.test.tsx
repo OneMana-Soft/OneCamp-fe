@@ -132,7 +132,7 @@ describe("CALL-BUG-2: nothing is recognised until captions are deliberately on",
     await act(async () => render(call({ transcriptionConfig: { mode: "frontend", language: "de-DE" } })))
     const notice = screen.getByText("Maya Chen turned on captions").closest("[data-captions-notice]")!
     expect(notice.textContent).toContain("your browser's speech service (Google in Chrome, Microsoft in Edge)")
-    expect(screen.getByRole("button", { name: /Captions on · Maya/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Transcript on · Maya/ })).toBeInTheDocument()
     await waitFor(() => expect(recognition().start).toHaveBeenCalled())
     expect(recognition().lang).toBe("de-DE")
   })
@@ -190,7 +190,20 @@ describe("CALL-BUG-2: nothing is recognised until captions are deliberately on",
     room.metadata = metadata({ transcription: { ...on, byId: "sam", by: "Sam Rivera" } })
     await act(async () => render(call()))
     expect(screen.queryByText(/turned on captions/)).toBeNull()
-    expect(screen.getByRole("button", { name: /Captions on · Sam/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Transcript on · Sam/ })).toBeInTheDocument()
+  })
+})
+
+describe("calls audit: a caption is drawn under the name of whoever sent it", () => {
+  it("shows a forged line under the sender's name, not the one it claims", async () => {
+    room.metadata = metadata({ transcription: on })
+    await act(async () => render(call()))
+    const forged = new TextEncoder().encode(JSON.stringify({ participantIdentity: "maya", participantName: "Maya Chen", text: "I approve the budget", isFinal: true, id: "f1" }))
+    await act(async () => room.emit("dataReceived", forged, { identity: "jonas", name: "Jonas Weber" }, undefined, "lk.transcription"))
+    const captions = document.querySelector("[data-captions]")!
+    expect(captions.textContent).toContain("Jonas Weber")
+    expect(captions.textContent).toContain("I approve the budget")
+    expect(captions.textContent).not.toContain("Maya Chen")
   })
 })
 

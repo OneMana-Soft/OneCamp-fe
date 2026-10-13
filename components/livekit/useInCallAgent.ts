@@ -5,6 +5,7 @@ import { useRoomContext, useLocalParticipant } from "@livekit/components-react";
 import { RoomEvent, RemoteParticipant, DataPacket_Kind } from "livekit-client";
 import { PostEndpointUrl } from "@/services/endPoints";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
+import { readSignal, senderOf } from "@/lib/calls/signals";
 
 /**
  * useInCallAgent — the brain of the multiplayer in-call AI assistant.
@@ -103,14 +104,11 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
             _kind?: DataPacket_Kind,
             topic?: string,
         ) => {
-            if (topic !== AI_TOPIC) return;
-            let msg: AIWire;
-            try {
-                msg = JSON.parse(decoder.current.decode(payload));
-            } catch {
-                return;
-            }
+            // Questions come from people, answers from the server alone
+            // (lib/calls/signals): who sent it is LiveKit's word, not the packet's.
+            const msg = readSignal<AIWire>(payload, participant, { topic: AI_TOPIC, from: ["participant", "server"], received: topic });
             if (!msg || msg.v !== 1) return;
+            if ((msg.t === "q") !== (senderOf(participant) === "participant")) return;
 
             // Defensive bounds — a peer could broadcast arbitrarily large data.
             if (msg.t === "q" && typeof msg.question === "string") {
