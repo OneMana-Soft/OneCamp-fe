@@ -110,6 +110,9 @@ interface VideoConferenceProps {
  */
 export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px]"
 
+/** How long a disconnect before connecting waits for the connect's error, which says why. */
+const FAILURE_WAIT_MS = 400
+
 export function VideoConference({
   token,
   serverUrl,
@@ -165,7 +168,9 @@ export function VideoConference({
   const handleDisconnected = useCallback(
     (reason?: DisconnectReason) => {
       if (reason === DisconnectReason.PARTICIPANT_REMOVED) report({ removed: removalRef.current ?? { reason: "unknown" } });
-      else if (!connectedRef.current) report({ failed: connectFailureOf(errorRef.current, reason) });
+      // LiveKit says "disconnected" before the failed connect's error arrives
+      // (a refused token read as the network): give the error a moment.
+      else if (!connectedRef.current) window.setTimeout(() => report({ failed: connectFailureOf(errorRef.current, reason) }), FAILURE_WAIT_MS);
       else report();
     },
     [report],

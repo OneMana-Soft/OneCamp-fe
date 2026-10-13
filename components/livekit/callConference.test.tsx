@@ -229,8 +229,12 @@ describe("CALL-BUG-23: a call that never connects says why", () => {
     const onDisconnect = vi.fn()
     await act(async () => render(call({ onDisconnect })))
     const lk = fail(liveKitProps)
-    await act(async () => lk.onError(Object.assign(new Error("could not establish signal connection: unauthorized"), { name: "ConnectionError", reason: 0, status: 401 })))
+    // LiveKit's order: the disconnect first, then the connect's error.
     await act(async () => lk.onDisconnected(DisconnectReason.JOIN_FAILURE))
+    await act(async () => lk.onError(Object.assign(new Error("invalid authorization token"), { name: "ConnectionError", reason: 0, status: 401 })))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500))
+    })
     expect(onDisconnect).toHaveBeenCalledTimes(1)
     expect(onDisconnect).toHaveBeenCalledWith({ failed: "permission" })
   })
@@ -239,6 +243,9 @@ describe("CALL-BUG-23: a call that never connects says why", () => {
     const onDisconnect = vi.fn()
     await act(async () => render(call({ onDisconnect })))
     await act(async () => fail(liveKitProps).onDisconnected(DisconnectReason.JOIN_FAILURE))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500))
+    })
     expect(onDisconnect).toHaveBeenLastCalledWith({ failed: "network" })
     cleanup()
     const second = vi.fn()
