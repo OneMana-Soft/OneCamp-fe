@@ -28,7 +28,9 @@ vi.mock("@/components/livekit/VideoConference", () => ({
     conference = p
     return (
       <div data-testid="conference">
+        <button type="button" onClick={() => (p.onConnected as (() => void) | undefined)?.()}>Connected</button>
         <button type="button" onClick={() => p.onDisconnect({ removed: { reason: "host", by: "Maya Chen" } })}>Removed</button>
+        <button type="button" onClick={() => p.onDisconnect({ failed: "server" })}>Fail</button>
         <button type="button" onClick={() => p.onDisconnect()}>Leave</button>
       </div>
     )
@@ -38,6 +40,7 @@ vi.mock("@/components/livekit/VideoConference", () => ({
 const router = { push: vi.fn(), replace: vi.fn(), back: vi.fn() }
 vi.mock("next/navigation", () => ({ useRouter: () => router }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ transcription_mode: "frontend", transcription_language: "de-DE" }) }))
 const joinInstantMeeting = vi.fn()
 const createInstantMeetingAs = vi.fn()
 vi.mock("@/services/callService", async (orig) => ({
@@ -130,6 +133,62 @@ describe("CALL-BUG-11: someone removed is told why, and can't walk back in", () 
   })
 })
 
+describe("CALL-BUG-23: a call that never connected says so, with Try again", () => {
+  it("says why, offers Try again, and joins again with the same choice", async () => {
+    post.mockResolvedValue({ data: { data: { token: "tok" } } })
+    render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Mute" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
+    await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Fail" })))
+    expect(screen.getByRole("heading", { name: "Couldn't connect to the call" })).toBeInTheDocument()
+    expect(screen.getByText("The call server had a problem. Try again in a moment.")).toBeInTheDocument()
+    expect(screen.queryByText(/You left/)).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Try again" })))
+    expect(post).toHaveBeenLastCalledWith("/ch/getCallToken", expect.objectContaining({ audio_enabled: false }), expect.anything())
+  })
+
+  it("never says \"You left\" or a duration for a call that never connected", async () => {
+    post.mockResolvedValue({ data: { data: { token: "tok" } } })
+    render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
+    await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
+    expect(screen.queryByText(/You left/)).toBeNull()
+    expect(screen.getByRole("button", { name: "Join now" })).toBeInTheDocument()
+    // Connected, then left: the card, with its duration.
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
+    await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Connected" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
+    expect(screen.getByRole("heading", { name: "You left the call" })).toBeInTheDocument()
+    expect(screen.getByText("1 min")).toBeInTheDocument()
+  })
+
+  it("hands the workspace's transcription settings to a member's call", async () => {
+    post.mockResolvedValueOnce({ data: { data: { token: "tok" } } })
+    render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
+    await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
+    expect(conference.transcriptionConfig).toEqual({ mode: "frontend", where: undefined, language: "de-DE" })
+  })
+})
+
+describe("the Linux desktop app, which has no WebRTC", () => {
+  afterEach(() => {
+    delete (window as unknown as { __TAURI__?: unknown }).__TAURI__
+  })
+  it("offers the browser instead of a Join that can't connect", async () => {
+    ;(window as unknown as { __TAURI__?: unknown }).__TAURI__ = {}
+    const open = vi.spyOn(window, "open").mockImplementation(() => null)
+    render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open in your browser" })).toBeInTheDocument())
+    expect(screen.queryByRole("button", { name: "Join now" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Open in your browser" }))
+    expect(open).toHaveBeenCalledWith(`${window.location.origin}/app/meet/ch/c1`, "_blank", "noopener")
+  })
+})
+
 describe("CALL-BUG-17 and 9: an instant meeting's own page", () => {
   it("opens straight into the call the start page made, with Invite and no Record", () => {
     handOffMeeting("m1", { hostToken: "host-tok", audio: true, video: false })
@@ -148,6 +207,7 @@ describe("CALL-BUG-17 and 9: an instant meeting's own page", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join meeting" })))
     expect(joinInstantMeeting).toHaveBeenCalledWith("m2", "hi-IN")
     await waitFor(() => expect(conference.token).toBe("fresh"))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Connected" })))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
     expect(screen.getByRole("button", { name: "Rejoin" })).toBeInTheDocument()
   })

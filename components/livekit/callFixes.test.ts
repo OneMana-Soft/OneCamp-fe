@@ -3,7 +3,7 @@
 // the recording link.
 import { describe, expect, it } from "vitest"
 import { AudioPresets } from "livekit-client"
-import { SCREEN_UNAVAILABLE, callMediaFailure, canShareScreen } from "./callErrors"
+import { CONNECT_FAILURE_TEXT, SCREEN_UNAVAILABLE, callMediaFailure, callsUnavailableHere, canShareScreen, connectFailureOf } from "./callErrors"
 import { CALL_KEYS, CONTROL_KEYS, callKeyAction } from "./callKeys"
 import {
   captionsConfirmText,
@@ -38,6 +38,8 @@ describe("CALL-BUG-1: a device that won't turn on says why", () => {
     expect(callMediaFailure("screen", err("NotAllowedError", "Permission denied"))).toBeNull()
     expect(callMediaFailure("screen", err("NotAllowedError", "Permission denied by system"))?.title).toBe("Your computer blocked screen sharing")
     expect(callMediaFailure("screen", err("DeviceUnsupportedError"))?.title).toBe(SCREEN_UNAVAILABLE)
+    // The Linux desktop app with no screencast portal.
+    expect(callMediaFailure("screen", err("OverconstrainedError", "Invalid constraint"))?.title).toBe("Screen sharing isn't available on this computer")
   })
 })
 
@@ -196,6 +198,35 @@ describe("CALL-BUG-10 and 16: the recording's link and state", () => {
     expect(linkSpent({ expiresAt: 100_000 }, 40_000)).toBe(true)
     expect(linkSpent({}, 1e15)).toBe(false)
     expect(linkSpent(null)).toBe(false)
+  })
+})
+
+describe("CALL-BUG-23: why a call never connected, by what can be done", () => {
+  const conn = (message: string, reason?: number, status?: number) => Object.assign(new Error(message), { name: "ConnectionError", reason, status })
+  it("tells the network from permission from the server", () => {
+    expect(connectFailureOf(conn("could not establish signal connection: invalid token", 0, 401))).toBe("permission")
+    expect(connectFailureOf(conn("could not establish signal connection", 1))).toBe("network")
+    expect(connectFailureOf(conn("could not establish pc connection", 2))).toBe("network")
+    expect(connectFailureOf(conn("room connection has timed out (signal)", 1))).toBe("network")
+    expect(connectFailureOf(conn("internal error", 2, 500))).toBe("server")
+    expect(connectFailureOf(null, 3 /* SERVER_SHUTDOWN */)).toBe("server")
+    expect(connectFailureOf(null, 7 /* JOIN_FAILURE */)).toBe("network")
+    expect(connectFailureOf(undefined)).toBe("network")
+  })
+
+  it("says each in plain words", () => {
+    expect(CONNECT_FAILURE_TEXT.network).toContain("Check your connection")
+    expect(CONNECT_FAILURE_TEXT.permission).toContain("didn't accept")
+    expect(CONNECT_FAILURE_TEXT.server).toContain("had a problem")
+  })
+})
+
+describe("the Linux desktop app, which has no WebRTC", () => {
+  it("is told apart from a browser, and from a desktop app that can call", () => {
+    expect(callsUnavailableHere({ __TAURI__: {} })).toContain("Your browser can")
+    expect(callsUnavailableHere({ __TAURI__: {}, RTCPeerConnection: function () {} })).toBeNull()
+    expect(callsUnavailableHere({})).toBeNull()
+    expect(callsUnavailableHere(undefined)).toBeNull()
   })
 })
 
