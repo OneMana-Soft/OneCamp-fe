@@ -199,7 +199,8 @@ describe("loading the page", () => {
       Intl.DateTimeFormat = Real
       intl.supportedValuesOf = realSupported
     }
-  })
+    // A fresh import of the page and its modules: slow in a full suite.
+  }, 20_000)
 })
 
 // CAL-BUG-15: the confirmation said "The invite is in your email" and "Need

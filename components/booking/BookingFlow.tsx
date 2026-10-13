@@ -23,6 +23,7 @@ import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
 import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
 import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
+import { dateTimeFormat } from "@/lib/utils/date/dayAndTime"
 
 /** The card's width at each step: pick a day, pick a time, the form, booked. */
 export const STEP_WIDTH: Record<1 | 2 | 3 | 4, string> = {
@@ -44,22 +45,8 @@ export function slotTime(iso: string, tz: string, h24: boolean): string {
   return formatFor(h24 ? "en-GB" : "en-US", tz, { hour: "numeric", minute: "2-digit", hour12: !h24 }).format(new Date(iso))
 }
 
-/**
- * One formatter per locale, zone and options, kept for the page's life:
- * building one is the costly part, and the page made one for every slot,
- * label and render (CAL-BUG-20). A zone the browser doesn't know throws, as
- * before, and isn't kept.
- */
-const formats = new Map<string, Intl.DateTimeFormat>()
-function formatFor(locale: string, tz: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  const key = `${locale}|${tz}|${JSON.stringify(opts)}`
-  let f = formats.get(key)
-  if (!f) {
-    f = new Intl.DateTimeFormat(locale, { timeZone: tz, ...opts })
-    formats.set(key, f)
-  }
-  return f
-}
+/** A kept formatter in a zone (the app's one cache, lib/utils/date/dayAndTime): CAL-BUG-20. */
+const formatFor = (locale: string, tz: string, opts: Intl.DateTimeFormatOptions) => dateTimeFormat(locale, { timeZone: tz, ...opts })
 
 function parts(iso: string, tz: string, opts: Intl.DateTimeFormatOptions) {
   const p = formatFor("en-GB", tz, opts).formatToParts(new Date(iso))

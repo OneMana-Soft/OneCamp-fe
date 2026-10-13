@@ -222,7 +222,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
-                ...bookedMeetingConfirm(booking, "move", `${format(times.start, "EEE d MMM")}, ${shortTime(times.start)} – ${shortTime(times.end)}`),
+                ...bookedMeetingConfirm(booking, "move", times.start, times.end),
                 onConfirm: () => save(values),
             }
         }));
