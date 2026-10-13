@@ -426,9 +426,24 @@ export const createExtensions = (
               return false
             }
             if (onSubmitRef?.current) {
+              // In a composer (an editor that sends), Enter in a list makes the
+              // next item (and on an empty one leaves the list), and in a code
+              // block the next line: false lets the list's and the code block's
+              // own Enter run. Enter sent from anywhere, so a list never got a
+              // second item and a half-written code block was posted and pushed
+              // (MC-BUG-5). Ctrl or Cmd with Enter always sends.
+              if (this.editor.isActive('listItem') || this.editor.isActive('codeBlock')) {
+                return false
+              }
               return onSubmitRef.current();
             }
             return false
+          },
+          'Mod-Enter': () => {
+            if (isSlashMenuOpen() || !onSubmitRef?.current) {
+              return false
+            }
+            return onSubmitRef.current()
           },
           'Shift-Enter': () => {
              if (this.editor.isActive('codeBlock')) {
