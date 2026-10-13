@@ -23,7 +23,12 @@ export interface Booked {
   start: string
   end: string
   cancel_token: string
+  /** The confirmation email went out, with the calendar invite in it. */
   emailed: boolean
+  /** The booking's id, not secret: the invite's UID is `<booking_id>@onecamp`, so the page's .ics is the same event. */
+  booking_id?: string
+  /** The page's owner was told of it (an Inbox item, or an email). */
+  owner_told?: boolean
 }
 
 export interface BookingView {
@@ -33,6 +38,13 @@ export interface BookingView {
   end: string
   cancelled: boolean
   slug: string
+  booking_id?: string
+  /** The page still takes bookings: false once it is deleted, switched off, or its owner has left. */
+  page_live?: boolean
+  /** The owner cancelled it, by deleting the meeting. */
+  cancelled_by_host?: boolean
+  /** On the answer to a cancel: the owner was told. */
+  owner_told?: boolean
 }
 
 export const getBookingPage = (slug: string, from: Date, to: Date) =>
