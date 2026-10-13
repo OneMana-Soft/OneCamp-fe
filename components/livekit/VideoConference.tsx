@@ -686,7 +686,7 @@ function MyVideoConference({
         description: isGuest
           ? `${name} is disconnected at once and told why. A guest can open their link again; to keep them out, make a new link and turn off the old one.`
           : `${name} is disconnected at once, told why, and can't rejoin this call while it lasts.`,
-        confirmText: "Remove",
+        confirmText: "Remove from call",
         destructive: true,
         onConfirm: async () => {
           try {
