@@ -15,11 +15,14 @@ import type { SearchScope } from "@/lib/search/scopes"
 export function ScopeChips({
   scopes,
   counts,
+  more = false,
   value,
   onChange,
 }: {
   scopes: { id: SearchScope; label: string }[]
   counts: Record<SearchScope, number>
+  /** The search has more than the results counted: each count reads "12+". */
+  more?: boolean
   value: SearchScope
   onChange: (scope: SearchScope) => void
 }) {
@@ -63,7 +66,10 @@ export function ScopeChips({
               )}
             >
               {s.label}
-              <span className="font-book text-ink-3 tabular-nums">{counts[s.id]}</span>
+              <span className="font-book text-ink-3 tabular-nums">
+                {counts[s.id]}
+                {more ? "+" : ""}
+              </span>
             </button>
           )
         })}

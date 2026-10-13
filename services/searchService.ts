@@ -1,6 +1,7 @@
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
 import { usePost } from "@/hooks/usePost";
 import { useCallback } from "react";
+import axiosInstance from "@/lib/axiosInstance";
 
 export interface SearchResult {
     type: "chat" | "post" | "comment" | "attachment" | "doc" | "board" | "task" | "user" | "project" | "channel" | "team";
@@ -21,6 +22,8 @@ export interface SearchResult {
 interface SearchResponse {
     page: SearchResult[];
     has_more: boolean;
+    /** The cursor of the page after this one, while has_more. */
+    next?: string;
 }
 
 export const useGlobalSearch = () => {
@@ -43,3 +46,13 @@ export const useGlobalSearch = () => {
  * "a/b" was a route that doesn't exist, and "50%" failed before it was sent.
  */
 export const GlobalSearchGet = (searchText: string) => `${GetEndpointUrl.GlobalSearch}${encodeURIComponent(searchText.trim())}`;
+
+/**
+ * The page of a search after the cursor a page answered with (its next), for
+ * "Show more": the server asks the index for the hits after that page's last.
+ */
+export async function fetchSearchPage(searchText: string, after: string): Promise<SearchResponse> {
+    const res = await axiosInstance.get(`${GlobalSearchGet(searchText)}?after=${encodeURIComponent(after)}`);
+    const data = res.data?.data ?? {};
+    return { page: data.page ?? [], has_more: !!data.has_more, next: data.next };
+}
