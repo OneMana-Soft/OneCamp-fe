@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { localDate, placeAllByDates, placedByDates } from "./allDay"
+import { allDayLastDay, localDate, placeAllByDates, placedByDates } from "./allDay"
 
 // CAL-BUG-2: a Google all-day event comes with its dates, and instants at
 // midnight UTC on its first day and the day after its last, which New York,
@@ -77,3 +77,18 @@ describe("anything else", () => {
     expect(localDate("2026-10-14")?.getDate()).toBe(14)
   })
 })
+
+// One way to count an all-day item's last day, for every view (audit).
+describe("an all-day item's last day", () => {
+  it("is the day before its end, in days, and never before its first", () => {
+    process.env.TZ = "America/New_York"
+    // 1 November 2026 is 25 hours long there.
+    expect(allDayLastDay(new Date(2026, 10, 1), new Date(2026, 10, 2)).getDate()).toBe(1)
+    expect(allDayLastDay(new Date(2026, 9, 14), new Date(2026, 9, 17)).getDate()).toBe(16)
+    expect(allDayLastDay(new Date(2026, 9, 14), new Date(2026, 9, 14)).getDate()).toBe(14)
+    process.env.TZ = "America/Santiago"
+    // 6 September 2026 starts at 01:00 there.
+    expect(allDayLastDay(new Date(2026, 8, 6), new Date(2026, 8, 7)).getDate()).toBe(6)
+  })
+})
+

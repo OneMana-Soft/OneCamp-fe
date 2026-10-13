@@ -23,6 +23,17 @@ export interface AllDayFields {
 
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 
+/**
+ * An all-day item's last day: the day before its (exclusive) end, counted in
+ * days, so a 23- or 25-hour clock-change day and a date without a midnight
+ * (Chile, 6 September) count right; never before its first day.
+ */
+export function allDayLastDay(start: Date, end: Date): Date {
+  const first = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const before = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1)
+  return before < first ? first : before
+}
+
 /** "2026-10-14" as the reader's midnight that day; null for anything else. */
 export function localDate(date: string | null | undefined): Date | null {
   const m = DATE.exec(date ?? "")

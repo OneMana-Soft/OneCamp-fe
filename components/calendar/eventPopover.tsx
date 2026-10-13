@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { addDays, differenceInMinutes, format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
+import { differenceInMinutes, format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
 import { Calendar as CalendarIcon, Ellipsis, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { shortTime } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import { CALENDAR_HUE, hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { allDayItem } from "@/components/calendar/calendarLayout";
-import { placedByDates } from "@/lib/calendar/allDay";
+import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import type { CalendarEventInterface } from "@/types/calendar";
 
 /**
@@ -92,9 +92,9 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
   const sameDay = info.start.toDateString() === info.end.toDateString();
   // An all-day item's last day is the one before its end, counted in days:
   // a day the clocks change on is 23 or 25 hours long.
-  const lastDay = addDays(info.end, -1);
+  const lastDay = allDayLastDay(info.start, info.end);
   const time = info.allDay
-    ? lastDay <= info.start || isSameDay(info.start, lastDay)
+    ? isSameDay(info.start, lastDay)
       ? `${format(info.start, "EEE d MMM")} · All day`
       : `${format(info.start, "EEE d MMM")} – ${format(lastDay, "EEE d MMM")}`
     : sameDay
