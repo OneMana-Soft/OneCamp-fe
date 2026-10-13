@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, renderHook } from "@testing-library/react"
 
-// Home's today (CAL-BUG-2): a Google all-day event comes with its dates and
-// placeholder instants at 12:00 UTC. Home places it by its dates, as an
+// Home's today (CAL-BUG-2): a Google all-day event comes with its dates beside
+// instants at midnight UTC. Home places it by its dates, as an
 // all-day item, and "Next" is the next meeting, never the all-day one.
 const answer = {
   data: [
     {
       event_uuid: "gcal-offsite",
       event_title: "Offsite",
-      event_start_time: "2026-10-14T12:00:00Z",
-      event_end_time: "2026-10-14T12:00:00Z",
+      event_start_time: "2026-10-14T00:00:00Z",
+      event_end_time: "2026-10-15T00:00:00Z",
       event_all_day: true,
       event_start_date: "2026-10-14",
       event_end_date: "2026-10-15",
@@ -46,7 +46,7 @@ describe("Home's today", () => {
     })
   }
 
-  it("leaves yesterday's Google all-day event off today (Auckland reads its 12:00 UTC as 01:00 today)", () => {
+  it("leaves yesterday's Google all-day event off today (in Auckland its instants run to 13:00 today)", () => {
     process.env.TZ = "Pacific/Auckland"
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date(2026, 9, 15, 10))

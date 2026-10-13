@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { localDate, placeAllByDates, placedByDates } from "./allDay"
 
-// CAL-BUG-2: a Google all-day event comes with its dates and placeholder
-// instants at 12:00 UTC. Each test runs in the zones that showed the bug
-// (New York and India read the old midnight-UTC instants as two days) and in
-// Auckland, where 12:00 UTC on the 14th is 01:00 on the 15th.
+// CAL-BUG-2: a Google all-day event comes with its dates, and instants at
+// midnight UTC on its first day and the day after its last, which New York,
+// India and Auckland each read as two days. Each test runs in those zones.
 const ZONES = ["America/New_York", "Asia/Kolkata", "Pacific/Auckland"]
 const original = process.env.TZ
 afterEach(() => {
@@ -15,8 +14,8 @@ afterEach(() => {
 const offsite = (extra: Record<string, unknown> = {}) => ({
   event_uuid: "gcal-offsite",
   event_title: "Offsite",
-  event_start_time: "2026-10-14T12:00:00Z",
-  event_end_time: "2026-10-14T12:00:00Z",
+  event_start_time: "2026-10-14T00:00:00Z",
+  event_end_time: "2026-10-15T00:00:00Z",
   event_all_day: true,
   event_start_date: "2026-10-14",
   event_end_date: "2026-10-15",
@@ -36,15 +35,15 @@ describe("a Google all-day event", () => {
 
   it("covers each of its days, and no more, when it runs for several", () => {
     process.env.TZ = "Pacific/Auckland"
-    const e = placedByDates(offsite({ event_end_time: "2026-10-16T12:00:00Z", event_end_date: "2026-10-17" }))
+    const e = placedByDates(offsite({ event_end_time: "2026-10-17T00:00:00Z", event_end_date: "2026-10-17" }))
     expect(e.event_start_time).toBe(new Date(2026, 9, 14).toISOString())
     expect(e.event_end_time).toBe(new Date(2026, 9, 17).toISOString())
   })
 
-  it("falls back on the placeholders' days when the dates are missing", () => {
+  it("falls back on the instants' UTC dates when the dates are missing", () => {
     process.env.TZ = "Pacific/Auckland"
-    // The first day at 12:00 UTC and the last day at 12:00 UTC: 14 to 16 October.
-    const e = placedByDates(offsite({ event_start_date: undefined, event_end_date: undefined, event_end_time: "2026-10-16T12:00:00Z" }))
+    // Midnight UTC on the first day and on the day after the last: 14 to 16 October.
+    const e = placedByDates(offsite({ event_start_date: undefined, event_end_date: undefined, event_end_time: "2026-10-17T00:00:00Z" }))
     expect(e.event_start_time).toBe(new Date(2026, 9, 14).toISOString())
     expect(e.event_end_time).toBe(new Date(2026, 9, 17).toISOString())
   })

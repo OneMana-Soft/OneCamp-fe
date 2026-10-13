@@ -3,12 +3,13 @@
  *
  * The server sends a Google all-day event with its dates, event_start_date
  * and event_end_date ("YYYY-MM-DD", the end exclusive, as Google gives them),
- * and placeholder instants at 12:00 UTC. Read as instants, "Offsite" on
- * Wednesday 14 October sat on Tuesday and Wednesday in New York and on
- * Wednesday and Thursday in India, from 20:00 to 20:00. A date is the same
- * day everywhere, so the web places these by their dates: the instants become
- * the reader's own midnights, the end exclusive, which is how every view
- * already draws an all-day event. Everything else is left as it came. Pure.
+ * beside instants at midnight UTC on its first day and on the day after its
+ * last. Read as instants, "Offsite" on Wednesday 14 October sat on Tuesday
+ * and Wednesday in New York and on Wednesday and Thursday in India, from
+ * 20:00 to 20:00. A date is the same day everywhere, so the web places these
+ * by their dates: the instants become the reader's own midnights, the end
+ * exclusive, which is how every view already draws an all-day event.
+ * Everything else is left as it came. Pure.
  */
 export interface AllDayFields {
   event_start_time: string
@@ -31,24 +32,24 @@ export function localDate(date: string | null | undefined): Date | null {
   return out.getFullYear() === y && out.getMonth() === mo && out.getDate() === d ? out : null
 }
 
-/** The day a placeholder instant stands for: the server puts them at 12:00 UTC on it. */
-function placeholderDay(iso: string, plusDays = 0): Date | null {
+/** The date a midnight-UTC instant stands for, as the reader's midnight. */
+function utcDate(iso: string): Date | null {
   const t = new Date(iso)
   if (Number.isNaN(t.getTime())) return null
-  return new Date(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + plusDays)
+  return new Date(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate())
 }
 
 /**
  * The item with its instants at the reader's midnights when it is a Google
  * all-day event; the same object otherwise, and when they already are.
- * Without dates (a server that sent only the flag) the placeholders' days
- * stand in: the first day at 12:00 UTC, and the last day at 12:00 UTC.
+ * Without dates (a server that sent only the flag) the instants' UTC dates
+ * stand in: midnight UTC on the first day, and on the day after the last.
  */
 export function placedByDates<T extends AllDayFields>(e: T): T {
   if (!e.event_all_day) return e
-  const start = localDate(e.event_start_date) ?? placeholderDay(e.event_start_time)
+  const start = localDate(e.event_start_date) ?? utcDate(e.event_start_time)
   if (!start) return e
-  let end = localDate(e.event_end_date) ?? placeholderDay(e.event_end_time, 1)
+  let end = localDate(e.event_end_date) ?? utcDate(e.event_end_time)
   if (!end || end <= start) end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1)
   const s = start.toISOString()
   const en = end.toISOString()
