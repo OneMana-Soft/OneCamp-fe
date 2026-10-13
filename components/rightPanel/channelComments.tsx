@@ -84,7 +84,10 @@ export const ChannelComments = () => {
 
     const post = usePost()
 
-    const postState = channelState?.find(p => p.post_uuid === rightPanelState.data.postUUID);
+    // The root from the conversation's loaded messages, live; else from the
+    // thread's own answer. A link to an older message in a conversation already
+    // in memory left the root out of the list, and the thread spun (FE-BUG-8).
+    const postState = channelState?.find(p => p.post_uuid === rightPanelState.data.postUUID) ?? postInfo.data?.data;
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
 

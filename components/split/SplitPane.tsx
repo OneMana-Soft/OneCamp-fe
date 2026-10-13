@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, Video, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
+import { InSplitPaneContext } from "@/hooks/useLinkTarget"
 import { cn } from "@/lib/utils/helpers/cn"
 import { isCallPane, type Pane, type PaneKind } from "@/lib/split"
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary"
@@ -104,7 +105,10 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
         <PanelErrorBoundary resetKey={`${pane.kind}:${pane.id}`} onClose={() => run({ type: "close" }, index)} closeLabel={`Close this ${what}`}>
-          <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
+          {/* The page's address is the main view's: a pane never reads its link (FE-BUG-12). */}
+          <InSplitPaneContext.Provider value={true}>
+            <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
+          </InSplitPaneContext.Provider>
         </PanelErrorBoundary>
       </div>
     </section>

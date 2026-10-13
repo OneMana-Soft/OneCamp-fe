@@ -46,6 +46,7 @@ import { newLocalId } from "@/lib/chat/pendingSend";
 import { appMutate } from "@/lib/swrMutate";
 import { PendingSendContext } from "@/components/message/sendStatus";
 import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
+import { useInSplitPane } from "@/hooks/useLinkTarget";
 import { useSWRConfig } from "swr";
 import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
 import axiosInstance from "@/lib/axiosInstance";
@@ -60,6 +61,8 @@ export function ChatView({ chatId }: { chatId: string }) {
   const { toast } = useToast();
   const dispatch = useDispatch();
   const store = useStore<RootState>();
+  // Beside the page, the address's link is the main view's, never this one's (FE-BUG-12).
+  const inPane = useInSplitPane();
   const { cache } = useSWRConfig();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
@@ -204,7 +207,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     // Parked on an older message from a link, the latest are not loaded, so
     // there is nowhere to show it yet: it is sent as it was, and goes back in
     // the message box if it does not go.
-    if (viewingLinkedMessage("messageId")) {
+    if (!inPane && viewingLinkedMessage("messageId")) {
       const unsent: Draft = { html: body, files, previews: chatState.filesPreview ?? [], replyToUuid, replyToAuthorName: chatState.replyToAuthorName, replyToText: chatState.replyToText };
       axiosInstance.post(PostEndpointUrl.CreateChatMessage, {
         media_attachments: files,
