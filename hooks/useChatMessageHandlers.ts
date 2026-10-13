@@ -71,48 +71,49 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                         // the local optimistic copy and a real insert for
                         // every other client. Forwarded messages also need
                         // to land in state on this code path because the
-                        // optimistic-create handler skips them.
-                        if (!mqttChatInfo.data.chat_fwd_msg_chat && !mqttChatInfo.data.chat_fwd_msg_post) {
-                            if (isGroupChat) {
-                                dispatch(
-                                    createGroupChat({
-                                        chatId: mqttChatInfo.data.chat_uuid,
-                                        chatCreatedAt: mqttChatInfo.data.chat_created_at,
-                                        chatText: mqttChatInfo.data.chat_html_text,
-                                        grpId: grpId,
-                                        chatBy: {
-                                            user_uuid: mqttChatInfo.data.user_uuid,
-                                            user_name: mqttChatInfo.data.user_full_name,
-                                            user_profile_object_key: mqttChatInfo.data.user_profile_object_key,
-                                            is_bot: mqttChatInfo.data.is_bot,
-                                        },
-                                        attachments: mqttChatInfo.data.chat_attachments,
-                                        fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
-                                        fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
-                                        replyTo: mqttChatInfo.data.chat_reply_to,
-                                    })
-                                )
-                            } else {
-                                dispatch(
-                                    createChat({
-                                        chatId: mqttChatInfo.data.chat_uuid,
-                                        chatCreatedAt: mqttChatInfo.data.chat_created_at,
-                                        chatText: mqttChatInfo.data.chat_html_text,
-                                        dmId: dmId,
-                                        chatBy: {
-                                            user_uuid: mqttChatInfo.data.user_uuid,
-                                            user_name: mqttChatInfo.data.user_full_name,
-                                            user_profile_object_key: mqttChatInfo.data.user_profile_object_key,
-                                            is_bot: mqttChatInfo.data.is_bot,
-                                        },
-                                        attachments: mqttChatInfo.data.chat_attachments,
-                                        chatTo: selfProfile.data?.data || {} as UserProfileDataInterface,
-                                        fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
-                                        fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
-                                        replyTo: mqttChatInfo.data.chat_reply_to,
-                                    })
-                                )
-                            }
+                        // optimistic-create handler skips them. (They were
+                        // skipped here too, so a forward into a DM or a group
+                        // never appeared until the conversation was opened
+                        // again.)
+                        if (isGroupChat) {
+                            dispatch(
+                                createGroupChat({
+                                    chatId: mqttChatInfo.data.chat_uuid,
+                                    chatCreatedAt: mqttChatInfo.data.chat_created_at,
+                                    chatText: mqttChatInfo.data.chat_html_text,
+                                    grpId: grpId,
+                                    chatBy: {
+                                        user_uuid: mqttChatInfo.data.user_uuid,
+                                        user_name: mqttChatInfo.data.user_full_name,
+                                        user_profile_object_key: mqttChatInfo.data.user_profile_object_key,
+                                        is_bot: mqttChatInfo.data.is_bot,
+                                    },
+                                    attachments: mqttChatInfo.data.chat_attachments,
+                                    fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
+                                    fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
+                                    replyTo: mqttChatInfo.data.chat_reply_to,
+                                })
+                            )
+                        } else {
+                            dispatch(
+                                createChat({
+                                    chatId: mqttChatInfo.data.chat_uuid,
+                                    chatCreatedAt: mqttChatInfo.data.chat_created_at,
+                                    chatText: mqttChatInfo.data.chat_html_text,
+                                    dmId: dmId,
+                                    chatBy: {
+                                        user_uuid: mqttChatInfo.data.user_uuid,
+                                        user_name: mqttChatInfo.data.user_full_name,
+                                        user_profile_object_key: mqttChatInfo.data.user_profile_object_key,
+                                        is_bot: mqttChatInfo.data.is_bot,
+                                    },
+                                    attachments: mqttChatInfo.data.chat_attachments,
+                                    chatTo: selfProfile.data?.data || {} as UserProfileDataInterface,
+                                    fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
+                                    fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
+                                    replyTo: mqttChatInfo.data.chat_reply_to,
+                                })
+                            )
                         }
 
                         // ALWAYS update the "last message" preview in the chat list
