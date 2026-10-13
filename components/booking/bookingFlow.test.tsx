@@ -155,3 +155,49 @@ describe("booked", () => {
     expect(celebrate).not.toHaveBeenCalled()
   })
 })
+
+// CAL-BUG-20: the page built a date formatter for every slot, label and
+// render, mounted both time zone pickers (one hidden), and listed every zone
+// for each before anyone opened one. It builds a handful now, and the zone
+// list the first time a picker opens.
+describe("loading the page", () => {
+  it("builds fewer than 10 date formatters, and lists the zones only when the picker opens", async () => {
+    vi.resetModules()
+    const Real = Intl.DateTimeFormat
+    const intl = Intl as unknown as { supportedValuesOf: (key: string) => string[] }
+    const realSupported = intl.supportedValuesOf
+    let made = 0
+    let listed = 0
+    Intl.DateTimeFormat = new Proxy(Real, {
+      construct(target, args) {
+        made++
+        return Reflect.construct(target, args)
+      },
+      apply(target, self, args) {
+        made++
+        return Reflect.apply(target, self, args)
+      },
+    })
+    intl.supportedValuesOf = (key: string) => {
+      if (key === "timeZone") listed++
+      return realSupported.call(Intl, key)
+    }
+    try {
+      const { BookingFlow: Fresh } = await import("./BookingFlow")
+      await act(async () => {
+        render(<Fresh slug="sam-rivera" />)
+      })
+      await act(async () => {})
+      expect(document.querySelector("[data-available]")).toBeTruthy()
+      expect(made).toBeLessThan(10)
+      expect(listed).toBe(0)
+      expect(screen.getAllByRole("button", { name: /^Time zone:/ })).toHaveLength(1)
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: /^Time zone:/ })))
+      expect(screen.getByRole("listbox", { name: "Time zones" })).toBeTruthy()
+      expect(listed).toBeGreaterThan(0)
+    } finally {
+      Intl.DateTimeFormat = Real
+      intl.supportedValuesOf = realSupported
+    }
+  })
+})

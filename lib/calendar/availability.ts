@@ -29,9 +29,19 @@ export function timeZones(first: string = browserTZ()): string[] {
   return [first, ...all.filter((z) => z !== first)]
 }
 
+// One formatter per zone (and per kind of day words), kept: the booking page
+// asked for a new one for every slot it grouped (CAL-BUG-20).
+const dayKeyFormats = new Map<string, Intl.DateTimeFormat>()
+const dayWordFormats = new Map<string, Intl.DateTimeFormat>()
+
 /** "2026-10-06": the calendar day an instant falls on in a zone. */
 export function dayKey(iso: string | Date, tz: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso))
+  let f = dayKeyFormats.get(tz)
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+    dayKeyFormats.set(tz, f)
+  }
+  return f.format(new Date(iso))
 }
 
 /** Slots by the day they fall on in the viewer's zone, in order. */
@@ -69,7 +79,12 @@ export const formatRange = (start: string, end: string, tz: string) =>
  * about the comma after the weekday.
  */
 function dayWords(iso: string, tz: string, width: "short" | "long"): string {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: width, day: "numeric", month: width }).formatToParts(new Date(iso))
+  let f = dayWordFormats.get(`${tz}|${width}`)
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: width, day: "numeric", month: width })
+    dayWordFormats.set(`${tz}|${width}`, f)
+  }
+  const parts = f.formatToParts(new Date(iso))
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ""
   return `${part("weekday")} ${part("day")} ${part("month")}`
 }
