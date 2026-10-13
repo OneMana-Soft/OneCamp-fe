@@ -85,3 +85,16 @@ describe("Later, empty", () => {
     expect(container.querySelector("svg")).toBeTruthy()
   })
 })
+
+// CAL-BUG-6: "Remind me" from the assistant is a Later reminder now, drawn
+// with a bell rather than the bookmark of a thing saved.
+describe("a reminder in Later", () => {
+  it("leads with a bell", () => {
+    items = [{ ...item("r", "Call the bank"), item_type: "reminder", item_id: "r-1", link: "/app/later" }]
+    mount("open")
+    expect(screen.getByText("Call the bank")).toBeTruthy()
+    expect(document.querySelector("svg.lucide-bell")).toBeTruthy()
+    expect(document.querySelector("svg.lucide-bookmark")).toBeNull()
+  })
+})
+
