@@ -182,9 +182,9 @@ describe("the Linux desktop app, which has no WebRTC", () => {
     ;(window as unknown as { __TAURI__?: unknown }).__TAURI__ = {}
     const open = vi.spyOn(window, "open").mockImplementation(() => null)
     render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
-    await waitFor(() => expect(screen.getByRole("button", { name: "Open in your browser" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open the call in your browser" })).toBeInTheDocument())
     expect(screen.queryByRole("button", { name: "Join now" })).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "Open in your browser" }))
+    fireEvent.click(screen.getByRole("button", { name: "Open the call in your browser" }))
     expect(open).toHaveBeenCalledWith(`${window.location.origin}/app/meet/ch/c1`, "_blank", "noopener")
   })
 })

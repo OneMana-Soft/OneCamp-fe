@@ -68,7 +68,7 @@ interface PreJoinProps {
   joining?: boolean;
   /** Why joining failed, said under the button. */
   joinError?: string;
-  /** The call's own page, for "Open in your browser" where this app can't make calls (the Linux desktop app). */
+  /** The call's own page, for "Open the call in your browser" where this app can't make calls (the Linux desktop app). */
   openUrl?: string;
 }
 
@@ -366,7 +366,7 @@ export function PreJoin({
                 <p role="note" className="text-ui-sm text-ink-2 text-pretty">{unavailable}</p>
                 {/* The desktop app hands a new window's address to the system browser. */}
                 <Button size="lg" className="mt-3 w-full" onClick={() => window.open(openUrl || window.location.href, "_blank", "noopener")}>
-                  Open in your browser
+                  Open the call in your browser
                 </Button>
               </div>
             ) : (
