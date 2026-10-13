@@ -23,6 +23,7 @@ import { CONTROL_KEYS, CONTROL_LABELS, DockButton } from "./VideoControls";
 import { SPEAKING_THRESHOLD } from "./callLevels";
 import { readDevicePrefs, writeDevicePref, type DevicePrefs } from "./callDevices";
 import { callKeyAction } from "./callKeys";
+import { callsUnavailableHere } from "./callErrors";
 import { captionsWhereText, type CallTranscription } from "./callState";
 
 export interface PreJoinPerson {
@@ -67,6 +68,8 @@ interface PreJoinProps {
   joining?: boolean;
   /** Why joining failed, said under the button. */
   joinError?: string;
+  /** The call's own page, for "Open in your browser" where this app can't make calls (the Linux desktop app). */
+  openUrl?: string;
 }
 
 /** What the preview says when there is no picture. Pure. */
@@ -106,6 +109,7 @@ export function PreJoin({
   transcription,
   joining = false,
   joinError,
+  openUrl,
 }: PreJoinProps) {
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -117,6 +121,9 @@ export function PreJoin({
   const [cameraAttempt, setCameraAttempt] = useState(0);
   const [prefs, setPrefs] = useState<DevicePrefs>({});
   useEffect(() => setPrefs(readDevicePrefs()), []);
+  // The Linux desktop app has no WebRTC: a Join there could only fail.
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+  useEffect(() => setUnavailable(callsUnavailableHere()), []);
 
   const trackRef = useRef<LocalTrack | undefined>(undefined);
 
@@ -354,21 +361,31 @@ export function PreJoin({
               </div>
             ) : null}
 
-            <Button
-              size="lg"
-              className="mt-4 w-full"
-              disabled={nameMissing || joining}
-              onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim() })}
-            >
-              {joining ? (
-                <>
-                  <Loader2 className="motion-safe:animate-spin" aria-hidden />
-                  Joining…
-                </>
-              ) : (
-                joinLabel
-              )}
-            </Button>
+            {unavailable ? (
+              <div className="mt-4" data-calls-unavailable="">
+                <p role="note" className="text-ui-sm text-ink-2 text-pretty">{unavailable}</p>
+                {/* The desktop app hands a new window's address to the system browser. */}
+                <Button size="lg" className="mt-3 w-full" onClick={() => window.open(openUrl || window.location.href, "_blank", "noopener")}>
+                  Open in your browser
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="lg"
+                className="mt-4 w-full"
+                disabled={nameMissing || joining}
+                onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim() })}
+              >
+                {joining ? (
+                  <>
+                    <Loader2 className="motion-safe:animate-spin" aria-hidden />
+                    Joining…
+                  </>
+                ) : (
+                  joinLabel
+                )}
+              </Button>
+            )}
             {joinError ? (
               <p role="alert" className="mt-2 text-meta text-danger-ink">Couldn&apos;t join: {joinError}</p>
             ) : null}

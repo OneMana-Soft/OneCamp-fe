@@ -24,10 +24,12 @@ vi.mock("@/components/livekit/PreJoin", () => ({
   },
 }))
 vi.mock("@/components/livekit/VideoConference", () => ({
-  VideoConference: ({ onDisconnect }: { onDisconnect: (end?: unknown) => void }) => (
+  VideoConference: ({ onDisconnect, onConnected }: { onDisconnect: (end?: unknown) => void; onConnected?: () => void }) => (
     <>
       <button type="button" data-testid="call" onClick={() => onDisconnect()}>Leave</button>
+      <button type="button" onClick={() => onConnected?.()}>Connected</button>
       <button type="button" onClick={() => onDisconnect({ removed: { reason: "host", by: "Maya Chen" } })}>Removed by the host</button>
+      <button type="button" onClick={() => onDisconnect({ failed: "network" })}>Network failed</button>
     </>
   ),
 }))
@@ -62,6 +64,7 @@ describe("a guest in a meeting", () => {
     await open()
     fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Jordan" } })
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join call" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Connected" })))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
     expect(screen.getByRole("heading", { level: 1, name: "You left the meeting" })).toBeInTheDocument()
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join again" })))
@@ -79,5 +82,20 @@ describe("a guest in a meeting", () => {
     expect(screen.getByRole("heading", { level: 1, name: "You were removed from the meeting" })).toBeInTheDocument()
     expect(screen.getByText(/Maya Chen removed you from this meeting\./)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Join again" })).toBeNull()
+  })
+
+  // CALL-BUG-23: a meeting that never connected said "You left the meeting"
+  // within five seconds, with no reason.
+  it("says a meeting that never connected couldn't, why, and offers Try again", async () => {
+    joinGuestMeeting.mockResolvedValue({ ok: true, data: { token: "live" } })
+    await open()
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Jordan" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join call" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Network failed" })))
+    expect(screen.getByRole("heading", { level: 1, name: "Couldn't connect to the meeting" })).toBeInTheDocument()
+    expect(screen.getByText(/Check your connection/)).toBeInTheDocument()
+    expect(screen.queryByText(/You left/)).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Try again" })))
+    expect(screen.getByLabelText("Your name")).toHaveValue("Jordan")
   })
 })

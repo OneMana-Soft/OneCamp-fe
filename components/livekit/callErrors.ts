@@ -41,6 +41,8 @@ export function callMediaFailure(device: CallDevice, error: unknown): CallFailur
 
   if (device === "screen") {
     if (name === "DeviceUnsupportedError" || name === "NotSupportedError" || name === "NotFoundError") return { title: SCREEN_UNAVAILABLE, description: "Share from a computer instead." }
+    // The Linux desktop app, with no screencast portal (an X11 session): measured by the desktop fixer.
+    if (name === "OverconstrainedError") return { title: "Screen sharing isn't available on this computer", description: "Share from a browser instead." }
     if (name === "NotAllowedError" || name === "PermissionDeniedError") {
       // Chrome says "by system" when the computer, not the person, said no.
       if (/system/i.test(message)) {
@@ -88,4 +90,52 @@ export function canShareScreen(
   if (!nav?.mediaDevices) return false
   if (proto) return typeof (proto as { getDisplayMedia?: unknown }).getDisplayMedia === "function"
   return typeof (nav.mediaDevices as { getDisplayMedia?: unknown }).getDisplayMedia === "function"
+}
+
+// --- A call that never connected (CALL-BUG-23) ---
+
+/** Why a call never connected, by what the person can do about it. */
+export type ConnectFailure = "network" | "permission" | "server"
+
+// livekit-client's ConnectionErrorReason (NotAllowed 0, ServerUnreachable 1,
+// InternalError 2, Cancelled 3, LeaveRequest 4, Timeout 5) and the
+// DisconnectReasons that mean the join itself failed. Numbers, so this file
+// stays free of LiveKit.
+const REASON_NOT_ALLOWED = 0
+const REASON_UNREACHABLE = 1
+const REASON_TIMEOUT = 5
+const DISCONNECT_SERVER = new Set([3 /* SERVER_SHUTDOWN */, 6 /* STATE_MISMATCH */])
+
+/**
+ * Which kind of failure kept a call from connecting: the network (LiveKit
+ * unreachable, ICE failed, timed out), permission (the server refused the
+ * token) or the server itself. Anything unclear is the network, the likeliest
+ * and the one a person can check. Pure.
+ */
+export function connectFailureOf(error: unknown, disconnectReason?: number): ConnectFailure {
+  const e = (error && typeof error === "object" ? error : {}) as { name?: string; reason?: number; status?: number; message?: string }
+  const message = String(e.message ?? "")
+  if (e.reason === REASON_NOT_ALLOWED || e.status === 401 || e.status === 403 || /not allowed|unauthori[sz]ed|invalid token|permission/i.test(message)) return "permission"
+  if (e.reason === REASON_UNREACHABLE || e.reason === REASON_TIMEOUT || /pc connection|ice|timed out|timeout|unreachable|websocket|network|fetch/i.test(message)) return "network"
+  if ((typeof e.status === "number" && e.status >= 500) || /internal|server/i.test(message)) return "server"
+  if (disconnectReason !== undefined && DISCONNECT_SERVER.has(disconnectReason)) return "server"
+  return "network"
+}
+
+/** What a failed connection says, by its kind. */
+export const CONNECT_FAILURE_TEXT: Record<ConnectFailure, string> = {
+  network: "Your network couldn't reach the call. Check your connection, then try again.",
+  permission: "The call server didn't accept the connection. Trying again asks it for a new one.",
+  server: "The call server had a problem. Try again in a moment.",
+}
+
+/**
+ * Why this app can't make calls at all, or null. The Linux desktop app's
+ * WebKitGTK is built without WebRTC on every mainstream distribution, so
+ * LiveKit can't connect there: offer the browser instead of a Join that
+ * fails. Pure.
+ */
+export function callsUnavailableHere(win: { __TAURI__?: unknown; RTCPeerConnection?: unknown } | undefined = typeof window === "undefined" ? undefined : (window as unknown as { __TAURI__?: unknown; RTCPeerConnection?: unknown })): string | null {
+  if (!win || !win.__TAURI__) return null
+  return typeof win.RTCPeerConnection === "undefined" ? "This app can't join calls on this computer yet. Your browser can." : null
 }

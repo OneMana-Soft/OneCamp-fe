@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation"
 import { PreJoin } from "@/components/livekit/PreJoin"
 import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference"
 import { CallLeft, CallRemoved } from "@/components/livekit/CallStage"
+import { useTranscriptionConfig } from "@/components/livekit/CallView"
+import { CONNECT_FAILURE_TEXT, type ConnectFailure } from "@/components/livekit/callErrors"
 import { joinLanguage, peopleInCall, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState"
 import { dropMeetingHandoff, peekMeetingHandoff, rememberGuestLink, rememberedGuestLink } from "@/components/livekit/instantMeeting"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -28,7 +30,7 @@ import { guestMeetingLink } from "@/services/guestService"
 import { instantMeetingPath, joinInstantMeeting, newInstantMeetingLink } from "@/services/callService"
 import type { UserProfileInterface } from "@/types/user"
 
-type Phase = "prejoin" | "joining" | "in-call" | "left" | "removed"
+type Phase = "prejoin" | "joining" | "in-call" | "left" | "removed" | "failed"
 
 /** Why the page can't open this meeting, from the server's answer: not the creator's, or over. Pure. */
 export function meetingUnavailable(status: number, code: string): { title: string; detail: string } | null {
@@ -55,7 +57,10 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   const [choice, setChoice] = useState({ audio: handoff?.audio ?? true, video: handoff?.video ?? true })
   const [joinError, setJoinError] = useState<string | undefined>()
   const [removal, setRemoval] = useState<CallRemoval | null>(null)
-  const [joinedAt, setJoinedAt] = useState<number | null>(handoff ? Date.now() : null)
+  const [failure, setFailure] = useState<ConnectFailure>("network")
+  // When the call connected: one that never did has no duration (CALL-BUG-23).
+  const [joinedAt, setJoinedAt] = useState<number | null>(null)
+  const transcriptionConfig = useTranscriptionConfig()
   const [link, setLink] = useState(() => rememberedGuestLink(meetingId))
 
   // The meeting as it is (creator only): whether it is recorded or captioned,
@@ -77,7 +82,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
       joinInstantMeeting(meetingId, joinLanguage())
         .then((res) => {
           setToken(res.host_token)
-          setJoinedAt(Date.now())
+          setJoinedAt(null)
           setPhase("in-call")
         })
         .catch((e: unknown) => {
@@ -89,15 +94,24 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
     [meetingId],
   )
 
-  const leave = useCallback((end?: CallEnd) => {
-    setToken("")
-    if (end?.removed) {
-      setRemoval(end.removed)
-      setPhase("removed")
-      return
-    }
-    setPhase("left")
-  }, [])
+  const leave = useCallback(
+    (end?: CallEnd) => {
+      setToken("")
+      if (end?.removed) {
+        setRemoval(end.removed)
+        setPhase("removed")
+        return
+      }
+      if (end?.failed) {
+        setFailure(end.failed)
+        setPhase("failed")
+        return
+      }
+      // Left before it connected: back to the green room, no "You left".
+      setPhase(joinedAt ? "left" : "prejoin")
+    },
+    [joinedAt],
+  )
 
   const newLink = useCallback(
     async (revokePrevious: boolean) => {
@@ -117,6 +131,17 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   if (phase === "removed") {
     const { title, detail } = removedText(removal)
     return <CallRemoved title={title} detail={detail} onBack={back} />
+  }
+  if (phase === "failed") {
+    return (
+      <CallRemoved
+        kind="failed"
+        title="Couldn't connect to the meeting"
+        detail={CONNECT_FAILURE_TEXT[failure]}
+        primary={{ label: "Try again", onClick: () => join({ audioEnabled: choice.audio, videoEnabled: choice.video }) }}
+        onBack={back}
+      />
+    )
   }
   if (unavailable && phase !== "in-call") {
     return <CallRemoved title={unavailable.title} detail={unavailable.detail} primary={{ label: "Start a new meeting", onClick: () => router.push("/app/meet/instant") }} onBack={back} />
@@ -145,6 +170,8 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
           video={choice.video}
           canRemove={state?.can_remove ?? true}
           extraStatus={<InviteControl link={link} onNewLink={newLink} confirm={confirm} />}
+          onConnected={() => setJoinedAt(Date.now())}
+          transcriptionConfig={transcriptionConfig}
         />
       </div>
     )

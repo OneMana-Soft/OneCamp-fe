@@ -51,6 +51,31 @@ export async function canRecogniseOnDevice(SpeechRecognition: unknown, language:
   }
 }
 
+/**
+ * Errors that trying again won't fix: the browser, the person or the speech
+ * service said no, or there is no microphone or no such language.
+ */
+export const RECOGNISER_REFUSALS = new Set(["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "bad-grammar"]);
+
+/**
+ * When to start the recogniser again after it ended, in ms, or null for
+ * never (CALL-BUG-24). A refused recogniser was restarted every 100 ms for
+ * the whole call, about 500 times a minute, a quarter of the main thread. A
+ * refusal is final now: captions say why instead. A network error backs off
+ * 1 s, 2 s, 4 s, up to 30 s. Chrome ends a healthy session after a pause, and
+ * that restarts at once, unless sessions keep ending as soon as they start,
+ * which backs off the same way. Pure.
+ */
+export function nextRecogniserStart(lastError: string | null, quickFailures: number): number | null {
+  if (lastError && RECOGNISER_REFUSALS.has(lastError)) return null;
+  if (lastError === "network") return Math.min(1000 * 2 ** Math.max(0, quickFailures - 1), 30_000);
+  if (quickFailures >= 3) return Math.min(100 * 2 ** quickFailures, 30_000);
+  return 100;
+}
+
+/** A session shorter than this, with nothing heard, counts as a failure to start. */
+const QUICK_END_MS = 2000;
+
 export function FrontendTranscriber({ onTranscript, onStatus, active, persist, language }: FrontendTranscriberProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
@@ -94,9 +119,12 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
   // Store recent remote transcripts to detect echo
   const remoteTranscriptsBuffer = useRef<{text: string, timestamp: number}[]>([]);
 
-  // Retry logic state
-  const retryCountRef = useRef(0);
+  // Restart policy state (nextRecogniserStart): the last error, how many
+  // sessions in a row ended quickly with nothing heard, and when this one began.
+  const quickFailuresRef = useRef(0);
   const lastErrorRef = useRef<string | null>(null);
+  const sessionStartRef = useRef(0);
+  const heardRef = useRef(false);
 
   // Map to store the start time of each utterance (keyed by resultIndex)
   const startTimesRef = useRef<Map<number, number>>(new Map());
@@ -243,6 +271,8 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
 
     recognition.onstart = () => {
       sessionRef.current++;
+      sessionStartRef.current = Date.now();
+      heardRef.current = false;
       setIsListening(true);
       setFatalError(null);
       lastErrorRef.current = null;
@@ -251,22 +281,15 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
 
     recognition.onend = () => {
       setIsListening(false);
-      
-      // Auto-restart logic
+      // A session that ended at once with nothing heard counts towards backing off.
+      const quick = !heardRef.current && Date.now() - sessionStartRef.current < QUICK_END_MS;
+      quickFailuresRef.current = quick ? quickFailuresRef.current + 1 : 0;
+
       if (localParticipantRef.current?.isMicrophoneEnabled && enabledRef.current && recognitionRef.current) {
-          let delay = 100;
-          
-          if (lastErrorRef.current === 'network') {
-               // Exponential backoff: 1s, 2s, 4s... max 30s
-               delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
-               console.warn(`Transcription network error. Retrying in ${delay}ms…`);
-               retryCountRef.current++;
-          } else {
-               // If it stopped cleanly or other non-fatal error, reset retry if we had a successful run?
-               // Actually, if we just ran successfully for a while, we should reset.
-               // But 'onresult' resets it. If we start and immediately stop without result, maybe we shouldn't reset?
-               // For now, let's rely on onresult to reset.
-          }
+          const delay = nextRecogniserStart(lastErrorRef.current, quickFailuresRef.current);
+          // Refused: stay stopped. Captions say why (the error status), and
+          // turning the microphone or captions off and on tries again.
+          if (delay === null) return;
 
           setTimeout(() => {
               if (localParticipantRef.current?.isMicrophoneEnabled && enabledRef.current && recognitionRef.current) {
@@ -295,8 +318,9 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
     };
 
     recognition.onresult = (event: any) => {
-      // Reset retry count on successful result
-      retryCountRef.current = 0;
+      // Heard something: this session is healthy.
+      heardRef.current = true;
+      quickFailuresRef.current = 0;
       lastErrorRef.current = null;
 
       const lp = localParticipantRef.current;
@@ -474,12 +498,15 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
     }
 
     if (!onStatus) return;
-    if (mode === 'off') return onStatus({ status: "disabled" });
-    if (!enabled) return onStatus({ status: "off" });
-    if (!supported) return onStatus({ status: "unsupported" });
-    if (fatalError) return onStatus({ status: "error", error: fatalError });
-    if (!isMicOn) return onStatus({ status: "mic-off" });
-    onStatus({ status: isListening ? "listening" : "starting" });
+    // Called, never returned: an effect's return value is its cleanup.
+    const state: TranscriberState =
+      mode === 'off' ? { status: "disabled" }
+      : !enabled ? { status: "off" }
+      : !supported ? { status: "unsupported" }
+      : fatalError ? { status: "error", error: fatalError }
+      : !isMicOn ? { status: "mic-off" }
+      : { status: isListening ? "listening" : "starting" };
+    onStatus(state);
   }, [onStatus, enabled, persist, mode, supported, isMicOn, isListening, fatalError]);
 
   return null;

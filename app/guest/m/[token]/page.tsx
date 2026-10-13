@@ -4,16 +4,17 @@ import { use, useState } from "react";
 import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
 import { joinLanguage, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState";
+import { CONNECT_FAILURE_TEXT, type ConnectFailure } from "@/components/livekit/callErrors";
 import { getGuestMeetingStatus } from "@/services/guestService";
 import { joinGuestMeetingAs } from "@/services/callService";
 import { GuestCentered as Centered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
 import { PublicFrame } from "@/components/guest/PublicFrame";
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
-import { Loader2, UserMinus, Video } from "@/lib/icons";
+import { Loader2, UserMinus, Video, WifiOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Tile } from "@/components/ui/graphics/Tile";
 
-type Phase = "prejoin" | "joining" | "in-call" | "ended" | "removed" | "unavailable";
+type Phase = "prejoin" | "joining" | "in-call" | "ended" | "removed" | "failed" | "unavailable";
 
 const gone = <GuestLinkGone detail="The meeting may have ended, or the invite has expired or been revoked. Ask the host for a new link." />;
 
@@ -36,6 +37,9 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
     const [choice, setChoice] = useState({ audio: true, video: true });
     // Why the host took them out (CALL-BUG-11).
     const [removal, setRemoval] = useState<CallRemoval | null>(null);
+    // Why the meeting never connected (CALL-BUG-23), and whether it ever did.
+    const [failure, setFailure] = useState<ConnectFailure>("network");
+    const [connected, setConnected] = useState(false);
 
     const handleJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => {
         setErrorMsg("");
@@ -46,6 +50,7 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
         const res = await joinGuestMeetingAs(token, displayName, joinLanguage());
         if (res.ok && res.data?.token) {
             setLiveToken(res.data.token);
+            setConnected(false);
             setPhase("in-call");
             return;
         }
@@ -69,7 +74,13 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
             setPhase("removed");
             return;
         }
-        setPhase("ended");
+        if (end?.failed) {
+            setFailure(end.failed);
+            setPhase("failed");
+            return;
+        }
+        // Left before it connected: back to the join form, not "You left".
+        setPhase(connected ? "ended" : "prejoin");
     };
 
     if (!status) {
@@ -90,6 +101,21 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                 <Tile hue="berry" size="lg"><UserMinus /></Tile>
                 <h1 className="text-base font-semibold text-foreground">{title}</h1>
                 <p className="text-sm text-muted-foreground" role="status">{detail} You can close this tab.</p>
+            </Centered>
+        );
+    }
+
+    // Never connected (CALL-BUG-23): which kind of failure, and Try again.
+    // It used to say "You left the meeting" within five seconds, with no reason.
+    if (phase === "failed") {
+        return (
+            <Centered>
+                <Tile hue="sun" size="lg"><WifiOff /></Tile>
+                <h1 className="text-base font-semibold text-foreground">Couldn&apos;t connect to the meeting</h1>
+                <p className="text-sm text-muted-foreground" role="status">{CONNECT_FAILURE_TEXT[failure]}</p>
+                <Button onClick={() => setPhase("prejoin")}>
+                    Try again
+                </Button>
             </Centered>
         );
     }
@@ -122,6 +148,7 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                     guest
                     audio={choice.audio}
                     video={choice.video}
+                    onConnected={() => setConnected(true)}
                 />
             </div>
         );

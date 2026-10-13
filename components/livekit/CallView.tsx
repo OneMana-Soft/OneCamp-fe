@@ -9,9 +9,11 @@ import { displayNameOf } from "@/lib/personName"
 import { useCallback, useState } from "react"
 import { PreJoin } from "@/components/livekit/PreJoin"
 import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference"
+import { CONNECT_FAILURE_TEXT, type ConnectFailure } from "@/components/livekit/callErrors"
 import { CallLeft, CallRemoved } from "@/components/livekit/CallStage"
 import { joinLanguage, peopleInCall, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
+import { useClientConfig } from "@/hooks/useClientConfig"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -86,7 +88,11 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   const [left, setLeft] = useState<{ minutes: number } | null>(null)
   // Removed by a host (CALL-BUG-11): why, and no way back into this call.
   const [removed, setRemoved] = useState<CallRemoval | null>(null)
+  // Never connected (CALL-BUG-23): which kind of failure, and Try again.
+  const [failed, setFailed] = useState<ConnectFailure | null>(null)
+  // When the call connected: a call that never did has no duration.
   const [joinedAt, setJoinedAt] = useState<number | null>(null)
+  const transcriptionConfig = useTranscriptionConfig()
 
   const join = useCallback(
     (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
@@ -104,7 +110,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
           const t = resp.data?.data?.token
           if (!t) throw new Error("The call didn't answer with a way in.")
           setToken(t)
-          setJoinedAt(Date.now())
+          setJoinedAt(null)
         })
         .catch((e: unknown) => {
           // Said under Join: a removal ("You were removed from this call.")
@@ -131,12 +137,37 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
         setRemoved(end.removed)
         return
       }
-      setLeft({ minutes: joinedAt ? Math.max(1, Math.round((Date.now() - joinedAt) / 60000)) : 0 })
+      if (end?.failed) {
+        setFailed(end.failed)
+        return
+      }
+      // Left before the call connected: back to the green room, no "You left".
+      if (!joinedAt) return
+      setLeft({ minutes: Math.max(1, Math.round((Date.now() - joinedAt) / 60000)) })
     },
     [joinedAt],
   )
 
   const backLabel = kind === "channel" && place ? `Back to ${place.replace(/^in /, "")}` : "Back"
+  if (failed) {
+    return (
+      <CallRemoved
+        kind="failed"
+        title="Couldn't connect to the call"
+        detail={CONNECT_FAILURE_TEXT[failed]}
+        primary={{
+          label: "Try again",
+          onClick: () => {
+            setFailed(null)
+            join({ audioEnabled: choice.audio, videoEnabled: choice.video })
+          },
+        }}
+        onBack={onLeave}
+        backLabel={backLabel}
+        embedded={embedded}
+      />
+    )
+  }
   if (removed) {
     const { title, detail } = removedText(removed)
     return <CallRemoved title={title} detail={detail} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
@@ -144,7 +175,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   if (left) {
     return (
       <CallLeft
-        minutes={left.minutes || undefined}
+        minutes={left.minutes}
         onRejoin={() => setLeft(null)}
         onBack={onLeave}
         backLabel={backLabel}
@@ -166,6 +197,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
         recordingBy={state?.recording?.on ? state.recording.by || null : null}
         transcription={state?.transcription}
         joinError={joinError}
+        openUrl={typeof window === "undefined" ? undefined : new URL(`/app/meet/${kind === "channel" ? "ch" : kind === "chat" ? "chat" : "grp"}/${id}`, window.location.origin).href}
         onCancel={onLeave}
         embedded={embedded}
       />
@@ -183,6 +215,14 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
       audio={choice.audio}
       video={choice.video}
       canRemove={!!state?.can_remove}
+      onConnected={() => setJoinedAt(Date.now())}
+      transcriptionConfig={transcriptionConfig}
     />
   )
+}
+
+/** The workspace's transcription settings, for a member's call (VideoConference's transcriptionConfig). */
+export function useTranscriptionConfig() {
+  const c = useClientConfig() as ReturnType<typeof useClientConfig> & { transcription_where?: string; transcription_language?: string }
+  return { mode: c.transcription_mode, where: c.transcription_where, language: c.transcription_language }
 }

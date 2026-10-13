@@ -559,9 +559,9 @@ export function CallLeft({
 }
 
 /**
- * After being removed (CALL-BUG-11): why, and that there is no way back into
- * this call, so the card offers no Rejoin. Only the way back to where they
- * came from.
+ * A call that ended without the person choosing to leave: removed (CALL-BUG-
+ * 11), with no Rejoin, or never connected (CALL-BUG-23), with Try again. Why,
+ * and the way on.
  */
 export function CallRemoved({
   title,
@@ -569,18 +569,20 @@ export function CallRemoved({
   onBack,
   backLabel,
   primary,
+  kind = "removed",
   embedded,
 }: {
   title: string
   detail: string
   onBack?: () => void
   backLabel?: string
-  /** A way forward that isn't back into this call (a new meeting). */
+  /** A way forward that isn't straight back into this call (Try again, a new meeting). */
   primary?: { label: string; onClick: () => void }
+  kind?: "removed" | "failed" | "unavailable"
   embedded?: boolean
 }) {
   return (
-    <div className={cn("dark flex h-full w-full items-center justify-center bg-[#0B0C0E] p-4 text-foreground", callScreenHeight(embedded))} data-call-removed="">
+    <div className={cn("dark flex h-full w-full items-center justify-center bg-[#0B0C0E] p-4 text-foreground", callScreenHeight(embedded))} data-call-notice={kind}>
       <div role="alert" className="hub-pop w-[360px] max-w-full rounded-[16px] bg-[#1B1C1F] p-5 shadow-e4">
         <h2 className="text-title-3 font-semibold">{title}</h2>
         <p className="mt-1 text-ui text-ink-2 text-pretty">{detail}</p>

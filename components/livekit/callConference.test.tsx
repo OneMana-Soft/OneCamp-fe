@@ -115,7 +115,7 @@ afterEach(() => {
 })
 
 const call = (props: Partial<Parameters<typeof VideoConference>[0]> = {}) => (
-  <VideoConference token="t" serverUrl="ws://lk" isAdmin={false} {...props} />
+  <VideoConference token="t" serverUrl="ws://lk" isAdmin={false} transcriptionConfig={{ mode: "frontend" }} {...props} />
 )
 const recognition = () => FakeRecognition.made[0]
 
@@ -128,9 +128,8 @@ describe("CALL-BUG-2: nothing is recognised until captions are deliberately on",
   })
 
   it("tells a member who turned them on and where their speech goes, then listens, in the workspace's language", async () => {
-    config = { transcription_mode: "frontend", transcription_language: "de-DE" }
     room.metadata = metadata({ transcription: on })
-    await act(async () => render(call()))
+    await act(async () => render(call({ transcriptionConfig: { mode: "frontend", language: "de-DE" } })))
     const notice = screen.getByText("Maya Chen turned on captions").closest("[data-captions-notice]")!
     expect(notice.textContent).toContain("your browser's speech service (Google in Chrome, Microsoft in Edge)")
     expect(screen.getByRole("button", { name: /Captions on · Maya/ })).toBeInTheDocument()
@@ -138,10 +137,10 @@ describe("CALL-BUG-2: nothing is recognised until captions are deliberately on",
     expect(recognition().lang).toBe("de-DE")
   })
 
-  it("tells a guest too, who never runs a recogniser", async () => {
+  it("tells a guest too, who never runs a recogniser and never reads the workspace's settings", async () => {
     room = makeRoom("meet-1")
     room.metadata = metadata({ transcription: { ...on, kept: false } })
-    await act(async () => render(call({ guest: true })))
+    await act(async () => render(call({ guest: true, transcriptionConfig: undefined })))
     expect(screen.getByText("Maya Chen turned on captions").closest("[data-captions-notice]")!.textContent).toContain("The text isn't kept after the call.")
     expect(screen.queryByRole("button", { name: "Stop captioning me" })).toBeNull()
     expect(FakeRecognition.made).toHaveLength(0)
@@ -208,15 +207,65 @@ describe("CALL-BUG-11: someone removed is told why", () => {
     const onDisconnect = vi.fn()
     await act(async () => render(call({ onDisconnect })))
     const packet = new TextEncoder().encode(JSON.stringify({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }))
-    // A participant can't say it; the server can.
+    // A participant can't say it.
     await act(async () => room.emit("dataReceived", packet, { identity: "jonas" }, undefined, "oc.call"))
     await act(async () => (liveKitProps.onDisconnected as (r: DisconnectReason) => void)(DisconnectReason.PARTICIPANT_REMOVED))
     expect(onDisconnect).toHaveBeenLastCalledWith({ removed: { reason: "unknown" } })
+  })
+
+  it("believes the server's packet", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    const packet = new TextEncoder().encode(JSON.stringify({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }))
     await act(async () => room.emit("dataReceived", packet, undefined, undefined, "oc.call"))
     await act(async () => (liveKitProps.onDisconnected as (r: DisconnectReason) => void)(DisconnectReason.PARTICIPANT_REMOVED))
     expect(onDisconnect).toHaveBeenLastCalledWith({ removed: { reason: "host", by: "Maya Chen" } })
-    await act(async () => (liveKitProps.onDisconnected as (r: DisconnectReason) => void)(DisconnectReason.CLIENT_INITIATED))
-    expect(onDisconnect).toHaveBeenLastCalledWith()
+  })
+})
+
+describe("CALL-BUG-23: a call that never connects says why", () => {
+  const fail = (props: Record<string, unknown>) => props as { onError: (e: Error) => void; onDisconnected: (r?: DisconnectReason) => void; onConnected: () => void }
+  it("reports a refused connection as permission, once", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    const lk = fail(liveKitProps)
+    await act(async () => lk.onError(Object.assign(new Error("could not establish signal connection: unauthorized"), { name: "ConnectionError", reason: 0, status: 401 })))
+    await act(async () => lk.onDisconnected(DisconnectReason.JOIN_FAILURE))
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    expect(onDisconnect).toHaveBeenCalledWith({ failed: "permission" })
+  })
+
+  it("reports an unreachable server or a failed ICE as the network, and a server fault as the server", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    await act(async () => fail(liveKitProps).onDisconnected(DisconnectReason.JOIN_FAILURE))
+    expect(onDisconnect).toHaveBeenLastCalledWith({ failed: "network" })
+    cleanup()
+    const second = vi.fn()
+    await act(async () => render(call({ onDisconnect: second })))
+    await act(async () => fail(liveKitProps).onError(Object.assign(new Error("internal error"), { name: "ConnectionError", reason: 2, status: 500 })))
+    expect(second).toHaveBeenLastCalledWith({ failed: "server" })
+  })
+
+  it("says nothing more after the person left while it was still connecting", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave call" })))
+    await act(async () => fail(liveKitProps).onError(Object.assign(new Error("Client initiated disconnect"), { name: "ConnectionError", reason: 3 })))
+    await act(async () => fail(liveKitProps).onError(Object.assign(new Error("could not establish signal connection"), { name: "ConnectionError", reason: 1 })))
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    expect(onDisconnect.mock.calls[0][0]).toBeUndefined()
+  })
+
+  it("treats a drop after connecting as leaving, and says it connected", async () => {
+    const onDisconnect = vi.fn()
+    const onConnected = vi.fn()
+    await act(async () => render(call({ onDisconnect, onConnected })))
+    await act(async () => fail(liveKitProps).onConnected())
+    expect(onConnected).toHaveBeenCalled()
+    await act(async () => fail(liveKitProps).onDisconnected(DisconnectReason.SIGNAL_CLOSE))
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    expect(onDisconnect.mock.calls[0][0]).toBeUndefined()
   })
 })
 

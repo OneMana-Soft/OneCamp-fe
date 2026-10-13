@@ -21,7 +21,7 @@ import { StageTile } from "./StageTile";
 import { captureTiles, flipTiles, type TileRects } from "./stageMotion";
 import { readDevicePrefs } from "./callDevices";
 import { callRoomOptions } from "./roomOptions";
-import { callMediaFailure } from "./callErrors";
+import { callMediaFailure, connectFailureOf, type ConnectFailure } from "./callErrors";
 import { guestName } from "./callLevels";
 import {
   CALL_TOPIC,
@@ -37,14 +37,29 @@ import { InCallAIPanel } from "./InCallAIPanel";
 import { useInCallAgent } from "./useInCallAgent";
 import { cn } from "@/lib/utils/helpers/cn"
 import { useConfirm } from "@/hooks/useConfirm"
-import { useClientConfig } from "@/hooks/useClientConfig"
 import { toast } from "@/hooks/use-toast"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
 import { removeFromCall, setCallTranscription } from "@/services/callService"
 
-/** How a call ended for this screen. Leaving says nothing; being removed says why, when the server did. */
+/**
+ * How a call ended for this screen. Leaving says nothing; being removed says
+ * why, when the server did; a call that never connected says which kind of
+ * failure kept it out (CALL-BUG-23).
+ */
 export interface CallEnd {
   removed?: CallRemoval;
+  failed?: ConnectFailure;
+}
+
+/**
+ * The workspace's transcription settings (/config/client), handed in by a
+ * member's page. A guest's page has none: /config is behind the session, and
+ * a guest's call never makes an authed read.
+ */
+export interface CallTranscriptionConfig {
+  mode?: "frontend" | "backend" | "off";
+  where?: string;
+  language?: string;
 }
 
 interface VideoConferenceProps {
@@ -83,6 +98,9 @@ interface VideoConferenceProps {
   canRemove?: boolean;
   /** Controls of the page's own beside the call's status pills (an instant meeting's Invite). */
   extraStatus?: ReactNode;
+  /** The call has connected: from now on, leaving is leaving, and it has a duration. */
+  onConnected?: () => void;
+  transcriptionConfig?: CallTranscriptionConfig;
 }
 
 
@@ -107,6 +125,8 @@ export function VideoConference({
   video = true,
   canRemove = false,
   extraStatus,
+  onConnected,
+  transcriptionConfig,
 }: VideoConferenceProps) {
   const [shouldConnect, setShouldConnect] = useState(false);
 
@@ -126,19 +146,43 @@ export function VideoConference({
 
   // Why this person is being removed, when the server says so first.
   const removalRef = useRef<CallRemoval | null>(null);
-  const handleDisconnected = useCallback(
-    (reason?: DisconnectReason) => {
-      if (reason === DisconnectReason.PARTICIPANT_REMOVED) onDisconnect?.({ removed: removalRef.current ?? { reason: "unknown" } });
-      else onDisconnect?.();
+  // A call that never connected is a failure, never "You left the call · 1
+  // min" (CALL-BUG-23): connected is set only when LiveKit says so, and the
+  // end is reported once, whichever of the error and the disconnect comes first.
+  const connectedRef = useRef(false);
+  const errorRef = useRef<unknown>(null);
+  const reportedRef = useRef(false);
+  const report = useCallback(
+    (end?: CallEnd) => {
+      if (reportedRef.current) return;
+      reportedRef.current = true;
+      onDisconnect?.(end);
     },
     [onDisconnect],
   );
-  // A call that never connects said nothing: the stage stayed empty.
-  const handleError = useCallback((e: Error) => {
-    if (e?.name === "ConnectionError" || /livekit url/i.test(e?.message ?? "")) {
-      showCallFailure({ title: "Couldn't connect to the call", description: "Check your connection, then leave and join again." });
-    }
-  }, []);
+  const handleConnected = useCallback(() => {
+    connectedRef.current = true;
+    onConnected?.();
+  }, [onConnected]);
+  const handleDisconnected = useCallback(
+    (reason?: DisconnectReason) => {
+      if (reason === DisconnectReason.PARTICIPANT_REMOVED) report({ removed: removalRef.current ?? { reason: "unknown" } });
+      else if (!connectedRef.current) report({ failed: connectFailureOf(errorRef.current, reason) });
+      else report();
+    },
+    [report],
+  );
+  // A connection refused or unreachable before it ever connected. A connect
+  // cancelled because the person left first is not a failure: and their own
+  // Leave goes through report too, so nothing said after it is shown.
+  const handleError = useCallback(
+    (e: Error) => {
+      errorRef.current = e;
+      const cancelled = (e as { reason?: number }).reason === 3 /* ConnectionErrorReason.Cancelled */;
+      if (!connectedRef.current && !cancelled) report({ failed: connectFailureOf(e) });
+    },
+    [report],
+  );
 
   if (!token) {
     return <CallConnecting place={place} embedded={embedded} />;
@@ -161,12 +205,13 @@ export function VideoConference({
         serverUrl={serverUrl}
         onDisconnected={handleDisconnected}
         onError={handleError}
+        onConnected={handleConnected}
         connect={shouldConnect}
         className="h-full w-full"
       >
         <LayoutContextProvider>
             <MyVideoConference
-              onDisconnect={onDisconnect}
+              onDisconnect={report}
               parentToggleRecording={toggleRecording}
               isAdmin={isAdmin}
               guest={guest}
@@ -175,6 +220,7 @@ export function VideoConference({
               canRemove={canRemove}
               removalRef={removalRef}
               extraStatus={extraStatus}
+              config={transcriptionConfig}
             />
             <RoomAudioRenderer />
         </LayoutContextProvider>
@@ -228,11 +274,6 @@ function useRemovalNotice(room: Room, removalRef: MutableRefObject<CallRemoval |
   }, [room, removalRef]);
 }
 
-type ClientConfigWithTranscription = ReturnType<typeof useClientConfig> & {
-  transcription_language?: string;
-  transcription_where?: string;
-};
-
 function MyVideoConference({
   onDisconnect,
   parentToggleRecording,
@@ -243,6 +284,7 @@ function MyVideoConference({
   canRemove,
   removalRef,
   extraStatus,
+  config = {},
 }: {
   onDisconnect?: (end?: CallEnd) => void;
   parentToggleRecording?: (isRecording: boolean) => Promise<unknown> | void;
@@ -253,6 +295,7 @@ function MyVideoConference({
   canRemove: boolean;
   removalRef: MutableRefObject<CallRemoval | null>;
   extraStatus?: ReactNode;
+  config?: CallTranscriptionConfig;
 }) {
   const tracks = useTracks(
     [
@@ -393,7 +436,6 @@ function MyVideoConference({
 
   // --- Captions: one switch for the whole call (CALL-BUG-2) ---
   const transcription = meta.transcription;
-  const config = useClientConfig() as ClientConfigWithTranscription;
   const confirm = useConfirm();
   // Each time captions come on is a session of its own: its notice, and
   // everyone's overlay shown again.
@@ -413,7 +455,7 @@ function MyVideoConference({
   useEffect(() => {
     if (session !== null) setCaptionsHidden(false);
   }, [session]);
-  const where = transcription.where ?? config.transcription_where ?? (config.transcription_mode === "frontend" ? "browser" : undefined);
+  const where = transcription.where ?? config.where ?? (config.mode === "frontend" ? "browser" : undefined);
   const browserCaptions = where === "browser";
   const keepsTranscript = transcription.on ? transcription.kept !== false : !room.name.startsWith("meet-");
   const recogniserActive = !guest && session !== null && seenSession === session && !notMe && browserCaptions;
@@ -454,7 +496,7 @@ function MyVideoConference({
   const turnCaptionsOff = () => {
     switchCaptions(false).catch((e: Error) => showCallFailure({ title: "Couldn't turn captions off", description: e.message }));
   };
-  const captionsAvailable = transcription.on || (!guest && config.transcription_mode !== "off");
+  const captionsAvailable = transcription.on || (!guest && config.mode !== "off");
 
   // Why no captions are appearing, so switching them on never leaves the user
   // staring at an empty screen wondering whether the feature is broken.
@@ -803,7 +845,7 @@ function MyVideoConference({
                 onStatus={setCaptionState}
                 active={recogniserActive}
                 persist={keepsTranscript}
-                language={speechLanguage(config.transcription_language)}
+                language={speechLanguage(config.language)}
             />
         )}
     </div>
