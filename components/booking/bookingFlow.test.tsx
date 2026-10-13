@@ -235,13 +235,14 @@ describe("the confirmation", () => {
     expect(screen.getByRole("link", { name: "Add to calendar (.ics)" })).toBeTruthy()
   })
 
-  it("adds the same event as the email's invite, and never puts the cancel token in its id", async () => {
+  it("adds the same event as the email's invite, and never carries the cancel link", async () => {
     await bookWith({ emailed: true, booking_id: "b-123" })
     const ics = await icsText()
     expect(ics).toContain("UID:b-123@onecamp")
     expect(ics).not.toContain("UID:secret-token")
-    expect(ics).toContain("To cancel:")
-    expect(ics).not.toMatch(/change or cancel/)
+    // The cancel link is the guest's credential: never in an event that travels.
+    expect(ics).not.toContain("secret-token")
+    expect(screen.getByRole("link", { name: "Google Calendar" }).getAttribute("href")).not.toContain("secret-token")
   })
 })
 

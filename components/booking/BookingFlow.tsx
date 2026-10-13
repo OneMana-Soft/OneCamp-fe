@@ -906,9 +906,12 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
   // the booking, and a UID travels wherever the event goes.
   const uid = React.useMemo(() => booked.booking_id || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, [booked])
   const ics = React.useMemo(() => {
-    const file = icsFor({ uid, title, start: booked.start, end: booked.end, description: `To cancel: ${cancelUrl}`, url: cancelUrl })
+    // No cancel link in it: the link is the guest's credential, and a calendar
+    // event is forwarded and shared far more freely than this page or the
+    // email, which both show it (the server's invite leaves it out too).
+    const file = icsFor({ uid, title, start: booked.start, end: booked.end })
     return URL.createObjectURL(new Blob([file], { type: "text/calendar" }))
-  }, [booked, uid, title, cancelUrl])
+  }, [booked, uid, title])
   React.useEffect(() => () => URL.revokeObjectURL(ics), [ics])
 
   // The area's one public celebration: someone outside the workspace just did
@@ -941,7 +944,7 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
             <a href={ics} download="booking.ics">Add to calendar (.ics)</a>
           </Button>
           <Button asChild variant="secondary" size="sm">
-            <a href={googleCalendarUrl({ title, start: booked.start, end: booked.end, details: `To cancel: ${cancelUrl}` })} target="_blank" rel="noreferrer">
+            <a href={googleCalendarUrl({ title, start: booked.start, end: booked.end, })} target="_blank" rel="noreferrer">
               Google Calendar
             </a>
           </Button>
