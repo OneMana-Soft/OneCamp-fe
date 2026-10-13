@@ -74,6 +74,8 @@ export function GroupChatView({ grpId }: { grpId: string }) {
                 text_html: chat.chat_body_text,
                 grp_id: grpId,
                 ...(chat.chat_reply_to?.chat_uuid ? { reply_to_uuid: chat.chat_reply_to.chat_uuid } : {}),
+                // Try again after a lost answer is the same message, not a second one.
+                ...(chat.chat_local_id ? { client_msg_id: chat.chat_local_id } : {}),
             }
             const info = store.getState().groupChat.locallyCreatedGrpInfo[grpId]
             if (info && info.grpId && !info.haveSentFirstChat) {

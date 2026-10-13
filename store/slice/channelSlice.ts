@@ -575,11 +575,13 @@ const channelSlice = createSlice({
             p.post_send_state = undefined
         },
 
+        // Its answer was lost. Unless its realtime echo came first: then the
+        // server has it, everyone sees it, and it isn't "Not sent".
         failPendingPost: (state, action: {payload: PendingPost}) => {
             const { channelId, localId } = action.payload;
             const list = state.channelPosts[channelId];
             const i = list ? indexOfLocal(list, POST_ACCESS, localId) : -1;
-            if (i >= 0) list[i].post_send_state = "failed"
+            if (i >= 0 && list[i].post_send_state === "sending") list[i].post_send_state = "failed"
         },
 
         retryPendingPost: (state, action: {payload: PendingPost}) => {

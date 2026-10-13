@@ -408,7 +408,8 @@ const chatSlice = createSlice({
             const { dmId, localId } = action.payload;
             const list = state.chatMessages[dmId];
             const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
-            if (i >= 0) list[i].chat_send_state = "failed"
+            // Unless its realtime echo came first: then the server has it.
+            if (i >= 0 && list[i].chat_send_state === "sending") list[i].chat_send_state = "failed"
         },
 
         retryPendingChat: (state, action: {payload: {dmId: string, localId: string}}) => {
