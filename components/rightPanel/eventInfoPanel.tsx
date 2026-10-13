@@ -1,7 +1,7 @@
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { addDays, format, parseISO, isSameDay } from "date-fns";
+import { format, parseISO, isSameDay } from "date-fns";
 import { shortDateTime, shortTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fieldLabel, fieldRow, inlineAdd, sectionTitle } from "@/lib/ui/fieldRow";
 import { cn } from "@/lib/utils/helpers/cn";
 import { allDayItem } from "@/components/calendar/calendarLayout";
-import { placedByDates } from "@/lib/calendar/allDay";
+import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
@@ -187,7 +187,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // An all-day event ends at the next day's midnight: its last day is the one
     // before, counted in days (a day the clocks change on isn't 24 hours).
     const allDay = allDayItem(event, start, end);
-    const lastMoment = allDay ? addDays(end, -1) : end;
+    const lastMoment = allDay ? allDayLastDay(start, end) : end;
 
     const save = async (values: FormValues) => {
         try {

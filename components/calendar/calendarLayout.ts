@@ -1,5 +1,5 @@
 import { addDays, endOfDay, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns"
-import { placedByDates } from "@/lib/calendar/allDay"
+import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay"
 
 /**
  * Laying calendar items out on days and weeks, once per change of data,
@@ -64,10 +64,7 @@ export function placeItems<T extends DatedItem>(items: readonly T[]): Placed<T>[
 export function lastDayOf(p: Placed): Date {
   // An all-day event's last day is the one before its (exclusive) end date,
   // even where that date's midnight doesn't exist (a clock change at 00:00).
-  if (p.item.event_all_day) {
-    const last = startOfDay(addDays(p.end, -1))
-    return last < startOfDay(p.start) ? startOfDay(p.start) : last
-  }
+  if (p.item.event_all_day) return allDayLastDay(p.start, p.end)
   const atMidnight = p.end.getTime() === startOfDay(p.end).getTime()
   if (!p.item.isTask && atMidnight && p.end > p.start) return startOfDay(new Date(p.end.getTime() - 1))
   return startOfDay(p.end)

@@ -1,6 +1,6 @@
 "use client";
 
-import { addDays, differenceInCalendarDays, differenceInMinutes, format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
+import { differenceInCalendarDays, differenceInMinutes, format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
 import { shortTime } from "@/lib/utils/date/shortDate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotCalendar } from "@/components/ui/graphics";
@@ -8,6 +8,7 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { Button } from "@/components/ui/button";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { allDayItem } from "@/components/calendar/calendarLayout";
+import { allDayLastDay } from "@/lib/calendar/allDay";
 import { joinLinkOf } from "@/components/calendar/eventPopover";
 import { cn } from "@/lib/utils/helpers/cn";
 
@@ -48,8 +49,8 @@ function itemDetail(item: AgendaItem, day: Date): string {
   if (item.event_is_focus) return item.event_title.trim().toLowerCase() === "focus time" ? times : `Focus time, ${times}`;
   if (allDayItem(item, start, end)) {
     // Its last day, counted in days: a day the clocks change on isn't 24 hours.
-    const last = addDays(end, -1);
-    return last <= start || isSameDay(start, last) ? "All day" : `All day, until ${format(last, "d MMM")}`;
+    const last = allDayLastDay(start, end);
+    return isSameDay(start, last) ? "All day" : `All day, until ${format(last, "d MMM")}`;
   }
   if (!isSameDay(start, day)) return "Continues";
   return times;
