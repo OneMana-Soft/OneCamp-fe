@@ -14,14 +14,16 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { useIsMuted, type TrackReferenceOrPlaceholder } from "@livekit/components-react"
 import { ParticipantKind, Track } from "livekit-client"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { HUE_CLASS, avatarHueClass } from "@/components/ui/graphics/hues"
-import { MicOff } from "@/lib/icons"
+import { Captions, MicOff } from "@/lib/icons"
 import { hueFor, type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
 import { prefersReducedMotion } from "@/lib/celebrate"
 import { RING_OFF, formatElapsed, guestName, levelToBars, ringOpacity, type RingState } from "./callLevels"
+import { captionsLabel, captionsWhereText, type CallTranscription } from "./callState"
 
 /** Whether a tile shows a face rather than a picture: a camera with nothing to show. Pure. */
 export function cameraIsOff(trackRef: Pick<TrackReferenceOrPlaceholder, "source" | "publication">, muted: boolean): boolean {
@@ -268,19 +270,132 @@ export function PlacePill({ place, since }: { place?: string; since: number | nu
 }
 
 /**
+ * Where the call's status pills sit (C8): top-centre beside nothing on a
+ * wide stage; on a phone, top-right, clear of the place pill at the left
+ * (the recording pill once sat over it there).
+ */
+export function CallStatusRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="pointer-events-none absolute right-3 top-3 z-20 flex max-w-[calc(50%-12px)] items-center justify-end gap-1.5 @3xl:right-auto @3xl:left-1/2 @3xl:max-w-none @3xl:-translate-x-1/2" data-call-status="">
+      {children}
+    </div>
+  )
+}
+
+/**
  * Says the call is being recorded, and by whom, for as long as it is (C8): a
- * steady 8px danger dot and the words, top-centre, announced once. Steady,
- * never pulsing.
+ * steady 8px danger dot and the words, announced once. Steady, never
+ * pulsing. On a phone the pill keeps the dot and the time; who started it is
+ * still read out.
  */
 export function RecordingPill({ by, since }: { by: string | null; since?: number | null }) {
   const elapsed = useElapsed(since ?? null)
   return (
-    <div role="status" className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
+    <div role="status" className="min-w-0">
       <span className={cn(STAGE_PILL, "hub-pop-down text-[#EEEEF0]")} data-recording-pill="">
-        <span className="size-2 rounded-full bg-destructive" aria-hidden="true" />
-        {by ? `Recording · started by ${by}` : "Recording"}
+        <span className="size-2 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+        Recording{by ? <span className="sr-only @3xl:not-sr-only">{` · started by ${by}`}</span> : null}
         {elapsed ? <span className="tabular-nums text-ink-2">{elapsed}</span> : null}
       </span>
+    </div>
+  )
+}
+
+/**
+ * Says captions are on, who turned them on and where everyone's speech goes
+ * (CALL-BUG-2), for as long as they are on: a pill beside the recording's
+ * that opens the details, and a member's choices: to stop their own voice
+ * being captioned, or to turn captions off for everyone.
+ */
+export function CaptionsPill({
+  transcription,
+  captioningMe,
+  onToggleMe,
+  onTurnOff,
+}: {
+  transcription: CallTranscription
+  /** Whether this person's own speech is being captioned; undefined where they have no choice (a guest). */
+  captioningMe?: boolean
+  onToggleMe?: () => void
+  /** Turns captions off for everyone; a member's choice, never a guest's. */
+  onTurnOff?: () => void
+}) {
+  const label = captionsLabel(transcription)
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${label}. Where speech goes`}
+          className={cn(STAGE_PILL, "hub-pop-down pointer-events-auto text-[#EEEEF0] transition-colors hover:bg-[#2A2B30] focus-visible:outline-2 focus-visible:outline-brand")}
+          data-captions-pill=""
+        >
+          <Captions className="size-3.5 shrink-0" aria-hidden />
+          <span className="hidden truncate @3xl:inline">{label}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="center" className="w-80 max-w-[calc(100vw-24px)] text-ui-sm" data-captions-details="">
+        <p className="font-medium text-foreground">Captions are on</p>
+        {transcription.by ? <p className="text-meta text-ink-3">Turned on by {transcription.by}</p> : null}
+        <p className="mt-2 text-ink-2 text-pretty">{captionsWhereText(transcription)}</p>
+        {captioningMe === false ? <p className="mt-2 text-ink-2">Your own speech isn&apos;t being captioned.</p> : null}
+        {onToggleMe || onTurnOff ? (
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            {onToggleMe ? (
+              <Button size="sm" variant="ghost" onClick={onToggleMe}>
+                {captioningMe === false ? "Caption me again" : "Stop captioning me"}
+              </Button>
+            ) : null}
+            {onTurnOff ? (
+              <Button size="sm" variant="secondary" onClick={onTurnOff}>
+                Turn off for everyone
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * The first thing each person reads when captions come on (CALL-BUG-2): who
+ * turned them on and where their own speech goes, before anything they say
+ * is sent. It stays until they say they've read it; the pill keeps saying it
+ * after that.
+ */
+export function CaptionsNotice({
+  transcription,
+  onDismiss,
+  captioningMe,
+  onToggleMe,
+}: {
+  transcription: CallTranscription
+  onDismiss: () => void
+  captioningMe?: boolean
+  onToggleMe?: () => void
+}) {
+  return (
+    <div
+      role="status"
+      className="hub-pop-down pointer-events-auto w-full max-w-[440px] rounded-[14px] bg-[#1F2024] p-3 text-ui-sm text-[#EEEEF0] shadow-e3 ring-1 ring-white/[0.09]"
+      data-captions-notice=""
+    >
+      <p className="flex items-center gap-2 font-medium">
+        <Captions className="size-4 shrink-0 text-[#A8ABB1]" aria-hidden />
+        {transcription.by ? `${transcription.by} turned on captions` : "Captions are on"}
+      </p>
+      <p className="mt-1 text-[#A8ABB1] text-pretty">{captionsWhereText(transcription)}</p>
+      <div className="mt-2.5 flex flex-wrap justify-end gap-2">
+        {onToggleMe && captioningMe !== false ? (
+          <Button size="sm" variant="ghost" onClick={onToggleMe}>
+            Stop captioning me
+          </Button>
+        ) : null}
+        <Button size="sm" variant="secondary" onClick={onDismiss}>
+          Got it
+        </Button>
+      </div>
     </div>
   )
 }
@@ -388,10 +503,14 @@ export function CallConnecting({ place, embedded }: { place?: string; embedded?:
   )
 }
 
-/** You are reconnecting (C11): a sun-tint banner, top-centre. The stage dims behind it. */
-export function CallReconnecting() {
+/**
+ * You are reconnecting (C11): a sun-tint banner, top-centre. The stage dims
+ * behind it. Inline, it takes its place in the stack under the pills, above
+ * the captions notice.
+ */
+export function CallReconnecting({ inline = false }: { inline?: boolean }) {
   return (
-    <div role="status" className="pointer-events-none absolute left-1/2 top-12 z-30 -translate-x-1/2">
+    <div role="status" className={inline ? "pointer-events-none" : "pointer-events-none absolute left-1/2 top-12 z-30 -translate-x-1/2"}>
       <span className="hub-pop-down flex h-7 items-center rounded-[14px] bg-camp-sun-tint px-3 text-meta font-medium text-camp-sun-ink">Reconnecting…</span>
     </div>
   )
@@ -434,6 +553,47 @@ export function CallLeft({
           ) : null}
         </div>
         {recorded ? <p className="mt-3 text-meta text-ink-3">Recording will be ready in Recordings.</p> : null}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * After being removed (CALL-BUG-11): why, and that there is no way back into
+ * this call, so the card offers no Rejoin. Only the way back to where they
+ * came from.
+ */
+export function CallRemoved({
+  title,
+  detail,
+  onBack,
+  backLabel,
+  primary,
+  embedded,
+}: {
+  title: string
+  detail: string
+  onBack?: () => void
+  backLabel?: string
+  /** A way forward that isn't back into this call (a new meeting). */
+  primary?: { label: string; onClick: () => void }
+  embedded?: boolean
+}) {
+  return (
+    <div className={cn("dark flex h-full w-full items-center justify-center bg-[#0B0C0E] p-4 text-foreground", callScreenHeight(embedded))} data-call-removed="">
+      <div role="alert" className="hub-pop w-[360px] max-w-full rounded-[16px] bg-[#1B1C1F] p-5 shadow-e4">
+        <h2 className="text-title-3 font-semibold">{title}</h2>
+        <p className="mt-1 text-ui text-ink-2 text-pretty">{detail}</p>
+        {onBack || primary ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {primary ? <Button onClick={primary.onClick}>{primary.label}</Button> : null}
+            {onBack ? (
+              <Button variant="secondary" onClick={onBack}>
+                {backLabel ?? "Back"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   )

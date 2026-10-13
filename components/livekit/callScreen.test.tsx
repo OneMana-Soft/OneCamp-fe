@@ -68,7 +68,10 @@ describe("the pre-join screen", () => {
   it("says who is in the call from the room's list, and never guesses", () => {
     render(<PreJoin onJoin={() => {}} username="Sam Rivera" inCall={[{ id: "maya", name: "Maya Chen" }, { id: "jonas", name: "Jonas Weber" }]} recordingBy="Sam" />)
     expect(screen.getByText("Maya and Jonas are in the call")).toBeTruthy()
-    expect(screen.getByText("This call is being recorded by Sam")).toBeTruthy()
+    // CALL-BUG-12: said before Join, not after it.
+    const notice = screen.getByText("This call is being recorded by Sam. Joining puts you in the recording.")
+    const join = screen.getByRole("button", { name: "Join now" })
+    expect(notice.compareDocumentPosition(join) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(whoIsHere([])).toBe("No one's here yet. You'll be the first.")
     expect(whoIsHere(undefined)).toBeNull()
     expect(whoIsHere(undefined, true)).toBe("Someone is in the call")

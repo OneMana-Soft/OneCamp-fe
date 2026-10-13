@@ -15,8 +15,11 @@ import { authedStreamFetch } from "@/lib/utils/streamFetch";
  *      channel (topic "oc.ai") so the whole room sees "Alice asked: …" instantly;
  *   2. the asker's client streams the answer from the AI over SSE (only the
  *      asker pays the round-trip — answers aren't computed N times);
- *   3. when the answer completes, the asker BROADCASTS the final text so every
- *      other participant's panel fills in the same answer.
+ *   3. when the answer completes, the SERVER broadcasts the final text (topic
+ *      "oc.ai", no sender participant) with the asker's identity, so every
+ *      other participant's panel fills in the same answer (CALL-BUG-14). The
+ *      asker used to broadcast it, and any participant could send an answer
+ *      for any question id: anyone could put words in OneCamp AI's mouth.
  *
  * This makes the assistant a genuinely collaborative, shareable surface rather
  * than a private side-chat, while keeping bandwidth low (we broadcast the
@@ -33,6 +36,8 @@ export interface InCallQAItem {
     error?: string;
     /** Asker: streaming the answer. Others: waiting for the broadcast answer. */
     streaming: boolean;
+    /** Who asked, by identity: the sender of the question, never a name in it. */
+    askerId?: string;
 }
 
 const AI_TOPIC = "oc.ai";
@@ -51,6 +56,8 @@ interface AIWireAnswer {
     id: string;
     answer: string;
     error?: string;
+    /** The asker's identity; the server says it, and it must match the question's sender. */
+    askedById?: string;
 }
 type AIWire = AIWireQuestion | AIWireAnswer;
 
@@ -114,10 +121,12 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
             }
 
             if (msg.t === "q") {
+                // A question comes from a participant, never from nowhere.
+                if (!participant) return;
                 // Trust the SENDER's participant identity for attribution rather
                 // than the wire-provided name (which a peer could spoof).
                 const askedByName =
-                    participant?.name || participant?.identity || msg.askedByName || "Someone";
+                    participant.name || participant.identity || msg.askedByName || "Someone";
                 setItems((prev) => {
                     if (prev.some((it) => it.id === msg.id)) return prev;
                     return [
@@ -129,6 +138,7 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
                             mine: false,
                             answer: "",
                             streaming: true,
+                            askerId: participant.identity,
                         },
                     ];
                 });
@@ -147,17 +157,21 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
                     delete remoteWatchdogs.current[msg.id];
                 }, 60000);
             } else if (msg.t === "a") {
-                if (remoteWatchdogs.current[msg.id]) {
+                // Only the server answers (no sender participant), and only for
+                // the person who asked: a participant can't replace an answer.
+                if (participant || !msg.askedById) return;
+                let accepted = false;
+                setItems((prev) =>
+                    prev.map((it) => {
+                        if (!acceptsAnswer(it, msg.id, msg.askedById)) return it;
+                        accepted = true;
+                        return { ...it, answer: msg.answer, error: msg.error, streaming: false };
+                    }),
+                );
+                if (accepted && remoteWatchdogs.current[msg.id]) {
                     clearTimeout(remoteWatchdogs.current[msg.id]);
                     delete remoteWatchdogs.current[msg.id];
                 }
-                setItems((prev) =>
-                    prev.map((it) =>
-                        it.id === msg.id
-                            ? { ...it, answer: msg.answer, error: msg.error, streaming: false }
-                            : it,
-                    ),
-                );
             }
         };
 
@@ -206,7 +220,7 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
                             : it,
                     ),
                 );
-                broadcast({ v: 1, t: "a", id, answer: finalAnswer, error: finalError });
+                // No broadcast: the server sends everyone the answer itself.
             };
 
             try {
@@ -215,6 +229,8 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
                     jsonBody: {
                         room_id: roomId,
                         question,
+                        // So the server can send everyone the answer under this id.
+                        question_id: id,
                         recent_transcript: transcript,
                     },
                     signal: abortRef.current.signal,
@@ -320,4 +336,14 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
     }, []);
 
     return { items, ask, cancel, isStreaming };
+}
+
+/**
+ * Whether an answer may fill this item (CALL-BUG-14): it is for this question,
+ * from the server for the participant who asked it, and the question isn't
+ * this person's own (they streamed theirs). Pure; the caller has already
+ * checked the answer came from the server.
+ */
+export function acceptsAnswer(item: Pick<InCallQAItem, "id" | "mine" | "askerId">, answerId: string, askedById: string | undefined): boolean {
+    return item.id === answerId && !item.mine && !!item.askerId && item.askerId === askedById;
 }

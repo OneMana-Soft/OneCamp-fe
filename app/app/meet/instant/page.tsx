@@ -3,103 +3,70 @@
 import { displayNameOf } from "@/lib/personName"
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { VideoConference } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
+import { joinLanguage } from "@/components/livekit/callState";
+import { handOffMeeting, meetingPagePath, rememberGuestLink } from "@/components/livekit/instantMeeting";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl } from "@/services/endPoints";
-import { createInstantMeeting, guestMeetingLink } from "@/services/guestService";
-import { Button } from "@/components/ui/button";
-import { Copy, Check, Loader2, Link as LinkIcon } from "@/lib/icons";
-import { useToast } from "@/hooks/use-toast";
+import { guestMeetingLink } from "@/services/guestService";
+import { createInstantMeetingAs, meetingIdOf } from "@/services/callService";
+import { apiErrorMessage } from "@/lib/utils/apiError";
+import { Loader2 } from "@/lib/icons";
 
+/**
+ * Starting an instant meeting (⌘K › Start a meeting). Once the server has
+ * made it, the meeting moves to its own page, /app/meet/m/<id>, which its
+ * creator can come back to (CALL-BUG-17): the host's token and the guest link
+ * used to live only in this page's state, and leaving or reloading lost both.
+ */
 export default function InstantMeetingPage() {
     const router = useRouter();
-    const { toast } = useToast();
-
-    const [token, setToken] = useState("");
-    const [guestLink, setGuestLink] = useState("");
     const [starting, setStarting] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const [startError, setStartError] = useState<string | undefined>();
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
 
     const handlePreJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
         setStarting(true);
+        setStartError(undefined);
         try {
-            const res = await createInstantMeeting(values.audioEnabled, values.videoEnabled);
-            setToken(res.host_token);
-            setGuestLink(guestMeetingLink(res.guest_token));
-        } catch {
-            toast({
-                title: "Couldn't start the meeting",
-                description: "Guest access may be disabled. Ask an admin to enable it.",
-                variant: "destructive",
-            });
-            router.back();
-        } finally {
+            const res = await createInstantMeetingAs(joinLanguage());
+            const id = meetingIdOf(res);
+            handOffMeeting(id, { hostToken: res.host_token, audio: values.audioEnabled, video: values.videoEnabled });
+            rememberGuestLink(id, guestMeetingLink(res.guest_token));
+            router.replace(meetingPagePath(id));
+        } catch (e) {
+            // Said under the button, with the server's reason: guest access
+            // switched off is the usual one.
+            setStartError(apiErrorMessage(e, "Guest access may be off for this workspace. Ask an admin to turn it on."));
             setStarting(false);
         }
     };
 
-    const copyLink = async () => {
-        try {
-            await navigator.clipboard.writeText(guestLink);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch {
-            toast({ title: "Copy failed", description: "Copy the link manually.", variant: "destructive" });
-        }
-    };
-
-    const handleDisconnect = () => {
+    const handleCancel = () => {
         if (window.history.length > 1) router.back();
         else router.push("/app/home");
     };
 
-    if (!token) {
-        return (
-            <div className="relative">
-                <PreJoin
-                    onJoin={handlePreJoin}
-                    username={displayNameOf(selfProfile.data?.data) || ""}
-                    hueId={selfProfile.data?.data.user_uuid}
-                    joinLabel="Start meeting"
-                    joining={starting}
-                    // A new meeting: nobody is in it yet.
-                    inCall={[]}
-                    onCancel={handleDisconnect}
-                />
-                {starting && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-                        <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" />
-                    </div>
-                )}
-            </div>
-        );
-    }
-
     return (
-        <div className="relative h-full w-full">
-            {/* Guest invite bar — copy the shareable link. */}
-            <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 px-3">
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-1.5 shadow-overlay">
-                    <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="hidden sm:inline text-xs text-muted-foreground">Invite a guest</span>
-                    <Button size="sm" variant="secondary" className="h-7 gap-1.5 text-xs" onClick={copyLink}>
-                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        {copied ? "Copied" : "Copy link"}
-                    </Button>
-                </div>
-            </div>
-
-            <VideoConference
-                token={token}
-                serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || ""}
-                onDisconnect={handleDisconnect}
-                toggleRecording={() => { /* host instant meeting: recording disabled in v1 */ }}
-                isAdmin={true}
+        <div className="relative">
+            <PreJoin
+                onJoin={handlePreJoin}
+                username={displayNameOf(selfProfile.data?.data) || ""}
+                hueId={selfProfile.data?.data.user_uuid}
+                joinLabel="Start meeting"
+                joining={starting}
+                joinError={startError}
+                // A new meeting: nobody is in it yet.
+                inCall={[]}
+                onCancel={handleCancel}
             />
+            {starting && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+                    <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" />
+                </div>
+            )}
         </div>
     );
 }

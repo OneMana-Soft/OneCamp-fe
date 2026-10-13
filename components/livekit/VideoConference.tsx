@@ -13,23 +13,51 @@ import {
   TrackReferenceOrPlaceholder,
   ParticipantClickEvent,
 } from "@livekit/components-react";
-import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, ConnectionState } from "livekit-client";
-import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
-import { VideoControls } from "./VideoControls";
-import { CallConnecting, CallReconnecting, CaptionsOverlay, PlacePill, RecordingPill } from "./CallStage";
+import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, ConnectionState, DisconnectReason, type Participant, type Room } from "livekit-client";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo, type MutableRefObject, type ReactNode } from "react";
+import { VideoControls, showCallFailure } from "./VideoControls";
+import { CallConnecting, CallReconnecting, CallStatusRow, CaptionsNotice, CaptionsOverlay, CaptionsPill, PlacePill, RecordingPill } from "./CallStage";
 import { StageTile } from "./StageTile";
 import { captureTiles, flipTiles, type TileRects } from "./stageMotion";
 import { readDevicePrefs } from "./callDevices";
+import { callRoomOptions } from "./roomOptions";
+import { callMediaFailure } from "./callErrors";
+import { guestName } from "./callLevels";
+import {
+  CALL_TOPIC,
+  captionsConfirmText,
+  readCallMetadata,
+  readRemovalPacket,
+  speechLanguage,
+  type CallMetadata,
+  type CallRemoval,
+} from "./callState";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
 import { InCallAIPanel } from "./InCallAIPanel";
 import { useInCallAgent } from "./useInCallAgent";
 import { cn } from "@/lib/utils/helpers/cn"
+import { useConfirm } from "@/hooks/useConfirm"
+import { useClientConfig } from "@/hooks/useClientConfig"
+import { toast } from "@/hooks/use-toast"
+import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
+import { removeFromCall, setCallTranscription } from "@/services/callService"
+
+/** How a call ended for this screen. Leaving says nothing; being removed says why, when the server did. */
+export interface CallEnd {
+  removed?: CallRemoval;
+}
 
 interface VideoConferenceProps {
   token: string;
   serverUrl: string;
-  onDisconnect?: () => void;
-  toggleRecording: (isRecording: boolean) => void;
+  onDisconnect?: (end?: CallEnd) => void;
+  /**
+   * Starts (false) or stops (true) the recording. Return the request, so a
+   * refusal can be said. Absent where this call can't be recorded from here
+   * (an instant meeting, a guest): Record isn't shown, rather than spinning
+   * for a second and doing nothing (CALL-BUG-9).
+   */
+  toggleRecording?: (isRecording: boolean) => Promise<unknown> | void;
   isAdmin: boolean;
   // Guest mode (unauthenticated external participant). When true we skip every
   // feature that calls an authed backend endpoint — the frontend transcriber
@@ -44,6 +72,17 @@ interface VideoConferenceProps {
   // it fills the pane. Its layout follows its own width either way (container
   // queries), so a narrow pane gets the compact controls a phone gets.
   embedded?: boolean;
+  /**
+   * The green room's choice (CALL-BUG-1). Joining muted means muted: the
+   * call used to turn both on at connect whatever was chosen, and a token
+   * that left them out refused it in silence.
+   */
+  audio?: boolean;
+  video?: boolean;
+  /** May remove others from the call (the server's can_remove, CALL-BUG-11). */
+  canRemove?: boolean;
+  /** Controls of the page's own beside the call's status pills (an instant meeting's Invite). */
+  extraStatus?: ReactNode;
 }
 
 
@@ -59,7 +98,15 @@ export function VideoConference({
   token,
   serverUrl,
   onDisconnect,
-                                    toggleRecording, isAdmin, guest = false, place, embedded = false
+  toggleRecording,
+  isAdmin,
+  guest = false,
+  place,
+  embedded = false,
+  audio = true,
+  video = true,
+  canRemove = false,
+  extraStatus,
 }: VideoConferenceProps) {
   const [shouldConnect, setShouldConnect] = useState(false);
 
@@ -70,8 +117,28 @@ export function VideoConference({
   }, [token]);
 
 
-  // The microphone and camera picked in the green room.
+  // The microphone, camera and speaker picked in the green room, as the
+  // room's defaults, with adaptive stream and dynacast (roomOptions).
   const [prefs] = useState(() => (typeof window === "undefined" ? {} : readDevicePrefs()));
+  const options = useMemo(() => callRoomOptions(prefs), [prefs]);
+  // The choice at Join, held for the call: published once, when connected.
+  const [initial] = useState(() => ({ audio, video }));
+
+  // Why this person is being removed, when the server says so first.
+  const removalRef = useRef<CallRemoval | null>(null);
+  const handleDisconnected = useCallback(
+    (reason?: DisconnectReason) => {
+      if (reason === DisconnectReason.PARTICIPANT_REMOVED) onDisconnect?.({ removed: removalRef.current ?? { reason: "unknown" } });
+      else onDisconnect?.();
+    },
+    [onDisconnect],
+  );
+  // A call that never connects said nothing: the stage stayed empty.
+  const handleError = useCallback((e: Error) => {
+    if (e?.name === "ConnectionError" || /livekit url/i.test(e?.message ?? "")) {
+      showCallFailure({ title: "Couldn't connect to the call", description: "Check your connection, then leave and join again." });
+    }
+  }, []);
 
   if (!token) {
     return <CallConnecting place={place} embedded={embedded} />;
@@ -84,24 +151,31 @@ export function VideoConference({
       data-call-stage=""
     >
       <LiveKitRoom
-        video={prefs.videoinput ? { deviceId: prefs.videoinput } : true}
-        audio={{ 
-            ...(prefs.audioinput ? { deviceId: prefs.audioinput } : {}),
-            echoCancellation: true, 
-            noiseSuppression: true, 
-            autoGainControl: true,
-            channelCount: 1,
-            sampleRate: { ideal: 48000 },
-            sampleSize: 16
-        }}
+        // Nothing is turned on by LiveKit itself: the green room's choice is
+        // published once connected (usePublishChoice), each device on its
+        // own, so a refusal can name the device.
+        audio={false}
+        video={false}
+        options={options}
         token={token}
         serverUrl={serverUrl}
-        onDisconnected={onDisconnect}
+        onDisconnected={handleDisconnected}
+        onError={handleError}
         connect={shouldConnect}
         className="h-full w-full"
       >
         <LayoutContextProvider>
-            <MyVideoConference onDisconnect={onDisconnect} parentToggleRecording={toggleRecording} isAdmin={isAdmin} guest={guest} place={place} />
+            <MyVideoConference
+              onDisconnect={onDisconnect}
+              parentToggleRecording={toggleRecording}
+              isAdmin={isAdmin}
+              guest={guest}
+              place={place}
+              initial={initial}
+              canRemove={canRemove}
+              removalRef={removalRef}
+              extraStatus={extraStatus}
+            />
             <RoomAudioRenderer />
         </LayoutContextProvider>
       </LiveKitRoom>
@@ -109,7 +183,77 @@ export function VideoConference({
   );
 }
 
-function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest = false, place }: { onDisconnect?: () => void , parentToggleRecording: (isRecording: boolean) => void, isAdmin: boolean, guest?: boolean, place?: string }) {
+/**
+ * The green room's choice, published once the call is connected: the
+ * microphone and the camera each on their own, so a refusal says which and
+ * why (CALL-BUG-1). Off means off: nothing is opened.
+ */
+export function usePublishChoice(room: Room, connected: boolean, initial: { audio: boolean; video: boolean }) {
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || !connected) return;
+    done.current = true;
+    const lp = room.localParticipant;
+    if (initial.audio) lp.setMicrophoneEnabled(true).catch((e: unknown) => showCallFailure(callMediaFailure("microphone", e)));
+    if (initial.video) lp.setCameraEnabled(true).catch((e: unknown) => showCallFailure(callMediaFailure("camera", e)));
+  }, [room, connected, initial]);
+}
+
+/** The room's metadata as the call's state: recording and captions, kept current. */
+function useCallMetadata(room: Room): CallMetadata {
+  const [meta, setMeta] = useState(() => readCallMetadata(room.metadata));
+  useEffect(() => {
+    const update = () => setMeta(readCallMetadata(room.metadata));
+    update();
+    room.on(RoomEvent.RoomMetadataChanged, update);
+    return () => {
+      room.off(RoomEvent.RoomMetadataChanged, update);
+    };
+  }, [room]);
+  return meta;
+}
+
+/** The server's word on why this person is being removed, kept for when the call drops. */
+function useRemovalNotice(room: Room, removalRef: MutableRefObject<CallRemoval | null>) {
+  useEffect(() => {
+    const onData = (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
+      if (topic !== CALL_TOPIC) return;
+      const removal = readRemovalPacket(payload, !!participant);
+      if (removal) removalRef.current = removal;
+    };
+    room.on(RoomEvent.DataReceived, onData);
+    return () => {
+      room.off(RoomEvent.DataReceived, onData);
+    };
+  }, [room, removalRef]);
+}
+
+type ClientConfigWithTranscription = ReturnType<typeof useClientConfig> & {
+  transcription_language?: string;
+  transcription_where?: string;
+};
+
+function MyVideoConference({
+  onDisconnect,
+  parentToggleRecording,
+  isAdmin,
+  guest = false,
+  place,
+  initial,
+  canRemove,
+  removalRef,
+  extraStatus,
+}: {
+  onDisconnect?: (end?: CallEnd) => void;
+  parentToggleRecording?: (isRecording: boolean) => Promise<unknown> | void;
+  isAdmin: boolean;
+  guest?: boolean;
+  place?: string;
+  initial: { audio: boolean; video: boolean };
+  canRemove: boolean;
+  removalRef: MutableRefObject<CallRemoval | null>;
+  extraStatus?: ReactNode;
+}) {
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -117,15 +261,15 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
     ],
     { onlySubscribed: false }
   ).filter(t => t.participant.identity !== 'transcriber-bot');
-  
+
   const [layout, setLayout] = useState<'grid' | 'speaker'>('grid');
   const [focusedTrack, setFocusedTrack] = useState<TrackReferenceOrPlaceholder | null>(null);
   const screenShareTrack = tracks.find(t => t.source === Track.Source.ScreenShare);
-  
+
   // Use a stable ID to prevent re-triggering effect on every render or manual focus change
   const screenShareId = screenShareTrack ? `${screenShareTrack.participant.identity}-${screenShareTrack.source}` : undefined;
 
-  const { localParticipant, microphoneTrack } = useLocalParticipant();
+  const { localParticipant } = useLocalParticipant();
   // Force cleanup of tracks on unmount to ensure camera light turns off
   useEffect(() => {
       return () => {
@@ -140,47 +284,9 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
       };
   }, [localParticipant]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [krispProcessor, setKrispProcessor] = useState<any | undefined>(undefined);
-
-  // Krisp Noise Filter is NOT supported on self-hosted LiveKit (requires LiveKit Cloud).
-  // Enabling it causes 404 errors on /settings endpoint.
-  // We disable it here for now.
-  /*
-  useEffect(() => {
-    const enableKrisp = async () => {
-      if (!isKrispNoiseFilterSupported()) {
-        console.warn("Krisp noise filter is not supported on this browser");
-        return;
-      }
-
-      try {
-        const processor = KrispNoiseFilter();
-        // Some versions might require initialization, but if 'enable' is missing, likely just instantiation
-        // or it's a different API. We'll set it.
-        setKrispProcessor(processor);
-      } catch (e) {
-        console.error("Failed to enable Krisp noise filter", e);
-      }
-    };
-
-    enableKrisp();
-  }, []);
-
-  useEffect(() => {
-    if (microphoneTrack?.track && krispProcessor) {
-       // Ensure it's treated as a LocalAudioTrack which supports processors
-       (microphoneTrack.track as LocalAudioTrack).setProcessor(krispProcessor);
-       return () => {
-           if (microphoneTrack.track) {
-                // Use undefined to clear the processor
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (microphoneTrack.track as LocalAudioTrack).setProcessor(null as any);
-           }
-       };
-    }
-  }, [microphoneTrack, krispProcessor]);
-  */
+  // Krisp Noise Filter is NOT supported on self-hosted LiveKit (requires
+  // LiveKit Cloud): enabling it causes 404 errors on /settings. LiveKit's own
+  // noise suppression and voice isolation run instead (roomOptions).
 
   useEffect(() => {
     if (screenShareTrack) {
@@ -191,23 +297,13 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
         // Don't auto-switch back to grid, let user decide or stay in speaker if they want
     }
   }, [screenShareId]);
-  
-  const otherTracks = tracks.filter(t => {
-      if (!focusedTrack) return false;
-      // Exclude the specific track being focused
-      // If same participant AND same source, exclude it.
-      if (t.participant.identity === focusedTrack.participant.identity && t.source === focusedTrack.source) {
-          return false;
-      }
-      return true;
-  });
 
   const [activeSpeakerTrack, setActiveSpeakerTrack] = useState<TrackReferenceOrPlaceholder | null>(null);
 
   // Smooth Active Speaker Switching: Debounce updates to prevent rapid switching
   useEffect(() => {
     // Find who is CURRENTLY speaking (instant)
-    const currentSpeaker = tracks.find(t => t.participant.isSpeaking && t.source === Track.Source.Camera) || 
+    const currentSpeaker = tracks.find(t => t.participant.isSpeaking && t.source === Track.Source.Camera) ||
                            tracks.find(t => t.participant.isSpeaking);
 
     // If the instant speaker is different from the stabilized one
@@ -222,7 +318,6 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
   }, [tracks, activeSpeakerTrack]);
 
   const onParticipantClick = (evt: ParticipantClickEvent) => {
-      // ... existing extraction logic ...
       let trackPublication = evt.track;
       let trackSource = evt.track?.source;
 
@@ -230,7 +325,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
           const participantTracks = tracks.filter(t => t.participant.identity === evt.participant.identity);
           const screenShare = participantTracks.find(t => t.source === Track.Source.ScreenShare);
           const camera = participantTracks.find(t => t.source === Track.Source.Camera);
-          
+
           if (screenShare) {
               trackPublication = screenShare.publication;
               trackSource = screenShare.source;
@@ -276,58 +371,91 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
       }
   }
 
-  const effectiveFocusedTrack = focusedTrack || 
-                                autoSelection || 
+  const effectiveFocusedTrack = focusedTrack ||
+                                autoSelection ||
                                 (tracks.length > 0 ? tracks[0] : null);
 
-  // Recording State driven by Room Metadata
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingUser, setRecordingUser] = useState<string | null>(null);
+  const room = useRoomContext();
+  const connection = useConnectionState(room);
+  const reconnecting = connection === ConnectionState.Reconnecting;
+  usePublishChoice(room, connection === ConnectionState.Connected, initial);
+  useRemovalNotice(room, removalRef);
+
+  // The call's state, from the room's metadata (the server writes it):
+  // whether it is recorded, and whether captions are on (callState).
+  const meta = useCallMetadata(room);
+  const isRecording = meta.recording.on;
   // When this screen first saw the recording on, for the pill's clock.
   const [recordingSince, setRecordingSince] = useState<number | null>(null);
   useEffect(() => {
     setRecordingSince((was) => (isRecording ? (was ?? Date.now()) : null));
   }, [isRecording]);
 
-
-  
-  const room = useRoomContext();
-
+  // --- Captions: one switch for the whole call (CALL-BUG-2) ---
+  const transcription = meta.transcription;
+  const config = useClientConfig() as ClientConfigWithTranscription;
+  const confirm = useConfirm();
+  // Each time captions come on is a session of its own: its notice, and
+  // everyone's overlay shown again.
+  const session = transcription.on ? (transcription.since ?? 0) : null;
+  const iTurnedThemOn = !!transcription.byId && transcription.byId === localParticipant.identity;
+  const [noticeDismissed, setNoticeDismissed] = useState<number | null>(null);
+  const noticeOpen = session !== null && !iTurnedThemOn && noticeDismissed !== session;
+  // Set after the notice has rendered: nothing this person says is sent
+  // before they have been shown where it goes.
+  const [seenSession, setSeenSession] = useState<number | null>(null);
   useEffect(() => {
-      const updateRecordingState = () => {
-          if (!room.metadata) {
-              setIsRecording(false);
-              setRecordingUser(null);
-              return;
-          }
+    setSeenSession(session);
+  }, [session]);
+  // "Stop captioning me": this person's own browser stops listening.
+  const [notMe, setNotMe] = useState(false);
+  const [captionsHidden, setCaptionsHidden] = useState(false);
+  useEffect(() => {
+    if (session !== null) setCaptionsHidden(false);
+  }, [session]);
+  const where = transcription.where ?? config.transcription_where ?? (config.transcription_mode === "frontend" ? "browser" : undefined);
+  const browserCaptions = where === "browser";
+  const keepsTranscript = transcription.on ? transcription.kept !== false : !room.name.startsWith("meet-");
+  const recogniserActive = !guest && session !== null && seenSession === session && !notMe && browserCaptions;
+  const showCaptions = transcription.on && !captionsHidden;
 
-          try {
-              const metadata = JSON.parse(room.metadata);
-              if (metadata.isRecording) {
-                  setIsRecording(true);
-                  setRecordingUser(metadata.recordingStartedBy || "Unknown User");
-              } else {
-                  setIsRecording(false);
-                  setRecordingUser(null);
-              }
-          } catch (e) {
-              console.error("Failed to parse room metadata", e);
-          }
-      };
+  const switchCaptions = useCallback(
+    async (on: boolean) => {
+      try {
+        await setCallTranscription(room.name, on);
+      } catch (e) {
+        const code = apiErrorCode(e);
+        throw new Error(
+          code === "transcription_disabled"
+            ? "Captions are turned off for this workspace. An admin can turn them on under Call transcription."
+            : code === "not_in_call"
+              ? "You aren't connected to the call yet. Try again in a moment."
+              : apiErrorMessage(e, "Captions didn't change. Try again."),
+        );
+      }
+    },
+    [room],
+  );
+  const onCaptions = () => {
+    if (transcription.on) {
+      setCaptionsHidden((hidden) => !hidden);
+      return;
+    }
+    if (guest) return;
+    // Deliberate: the person turning them on reads first what it means for
+    // everyone, and where everyone's speech goes.
+    confirm({
+      title: "Turn on captions for everyone?",
+      description: captionsConfirmText({ where, kept: keepsTranscript }),
+      confirmText: "Turn on captions",
+      onConfirm: () => switchCaptions(true),
+    });
+  };
+  const turnCaptionsOff = () => {
+    switchCaptions(false).catch((e: Error) => showCallFailure({ title: "Couldn't turn captions off", description: e.message }));
+  };
+  const captionsAvailable = transcription.on || (!guest && config.transcription_mode !== "off");
 
-      // Initial check
-      updateRecordingState();
-
-      // Listen for updates
-      room.on(RoomEvent.RoomMetadataChanged, updateRecordingState);
-      
-      return () => {
-          room.off(RoomEvent.RoomMetadataChanged, updateRecordingState);
-      };
-  }, [room]);
-
-  // State for active transcripts: map participantIdentity -> { accumulated, lastFinalId, name, lastUpdate }
-  const [showCaptions, setShowCaptions] = useState(false);
   // Why no captions are appearing, so switching them on never leaves the user
   // staring at an empty screen wondering whether the feature is broken.
   const [captionState, setCaptionState] = useState<TranscriberState>({ status: "starting" });
@@ -345,14 +473,15 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
       .map((l) => `${l.name}: ${l.text}`)
       .join("\n");
   }, []);
-  const [activeTranscripts, setActiveTranscripts] = useState<Record<string, { 
-      accumulated: string, 
+  // State for active transcripts: map participantIdentity -> { accumulated, lastFinalId, name, lastUpdate }
+  const [activeTranscripts, setActiveTranscripts] = useState<Record<string, {
+      accumulated: string,
       lastFinalId: string,
       name: string,
       id: string, // Keep tracking latest ID for staleness
       lastUpdate: number
   }>>({});
-  
+
   // Cleanup stale transcripts
   const transcriptTimestamps = useRef<Record<string, number>>({});
 
@@ -377,15 +506,15 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
   }, []);
 
     const handleTranscript = (data: any) => {
-        const pName = data.participantName || "Unknown"; 
+        const pName = data.participantName || "Unknown";
         const pIdentity = data.participantIdentity || "unknown_user";
-        
+
         // 1. Filter out Interim results
         if (!data.isFinal) {
              // We update the timestamp to prevent cleanup while they are speaking, even if text isn't shown yet.
              // But we need an ID. Use data.id.
              if (data.id) transcriptTimestamps.current[data.id] = Date.now();
-             return; 
+             return;
         }
 
         // 2. Process Final results
@@ -403,7 +532,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 
         setActiveTranscripts(prev => {
             const current = prev[pIdentity];
-            
+
             // Deduplication: If we already added this ID, ignore.
             if (current && current.lastFinalId === data.id) {
                 return prev;
@@ -416,20 +545,20 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 
             // Update timestamp
             transcriptTimestamps.current[data.id] = Date.now();
-            
+
             // Append logic
             let newAccumulated = current?.accumulated || "";
             const newSentence = data.text.trim();
             if (newSentence.length > 0) {
                 newAccumulated = newAccumulated ? `${newAccumulated} ${newSentence}` : newSentence;
             }
-            
+
             return {
                 ...prev,
-                [pIdentity]: { 
+                [pIdentity]: {
                     accumulated: newAccumulated,
                     lastFinalId: data.id,
-                    name: pName, 
+                    name: pName,
                     id: data.id,
                     lastUpdate: Date.now()
                 }
@@ -439,7 +568,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 
     useEffect(() => {
       if (!room) return;
-  
+
       const onDataReceived = (
         payload: Uint8Array,
         participant?: RemoteParticipant,
@@ -451,7 +580,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
               const decoder = new TextDecoder();
               const jsonString = decoder.decode(payload);
               const data = JSON.parse(jsonString);
-              
+
               // For remote transcripts, ensure name is populated from participant if missing
               if (!data.participantName && participant) {
                   data.participantName = participant.name || participant.identity;
@@ -460,21 +589,19 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
               if (!data.participantIdentity && participant) {
                   data.participantIdentity = participant.identity;
               }
-              
+
               handleTranscript(data);
           } catch (e) {
               console.error("Failed to parse transcript:", e);
           }
         }
       };
-  
+
       room.on(RoomEvent.DataReceived, onDataReceived);
       return () => {
           room.off(RoomEvent.DataReceived, onDataReceived);
       };
     }, [room, showCaptions]);
-
-  const toggleCaptions = () => setShowCaptions(!showCaptions);
 
   // Multiplayer in-call AI agent — owns the shared Q&A conversation and the
   // LiveKit data-channel broadcast, so the conversation survives the panel
@@ -489,27 +616,61 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
   }, [aiPanelOpen, inCallAgent.items.length]);
   const aiUnread = aiPanelOpen ? 0 : Math.max(0, inCallAgent.items.length - aiSeenCount);
 
-   const [isRecordingActionLoading, setIsRecordingActionLoading] = useState(false);
+  const [isRecordingActionLoading, setIsRecordingActionLoading] = useState(false);
 
+  // A refusal is said, not swallowed: the button used to spin for a second
+  // and go back as if nothing had been asked.
   const toggleRecording = async () => {
-      if (isRecordingActionLoading) return;
-      
+      if (isRecordingActionLoading || !parentToggleRecording) return;
+
       setIsRecordingActionLoading(true);
       try {
           await parentToggleRecording(isRecording);
           // Wait a bit for metadata to propagate
           await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (e) {
-          console.error("Failed to toggle recording", e);
+          showCallFailure({
+              title: isRecording ? "Couldn't stop the recording" : "Couldn't start the recording",
+              description: apiErrorMessage(e, "Try again in a moment."),
+          });
       } finally {
           setIsRecordingActionLoading(false);
       }
   };
 
+  // Removing someone (CALL-BUG-11): asked first, then the server tells them
+  // why and disconnects them.
+  const askRemove = useCallback(
+    (p: Participant) => {
+      const { name, guest: isGuest } = guestName(p.identity || "", p.name || p.identity || "Guest");
+      confirm({
+        title: `Remove ${name} from the call?`,
+        description: isGuest
+          ? `${name} is disconnected at once and told why. A guest can open their link again; to keep them out, make a new link and turn off the old one.`
+          : `${name} is disconnected at once, told why, and can't rejoin this call while it lasts.`,
+        confirmText: "Remove",
+        destructive: true,
+        onConfirm: async () => {
+          try {
+            await removeFromCall(room.name, p.identity);
+          } catch (e) {
+            const code = apiErrorCode(e);
+            if (code === "not_in_call") {
+              toast({ title: `${name} had already left the call` });
+              return;
+            }
+            throw new Error(code === "not_allowed" ? "You can't remove people from this call." : apiErrorMessage(e, "Couldn't remove them. Try again."));
+          }
+          toast({ title: `${name} was removed from the call` });
+        },
+      });
+    },
+    [confirm, room],
+  );
+  const onRemove = canRemove && !guest ? askRemove : undefined;
+
   // How long this screen has been in the call, for the place pill.
   const [joinedAt] = useState(() => Date.now());
-  const connection = useConnectionState(room);
-  const reconnecting = connection === ConnectionState.Reconnecting;
 
   // The stage's reflow: tiles slide to their new places when the set of
   // tiles or the layout changes (stageMotion).
@@ -524,12 +685,38 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
   }, [tileKey]);
 
   const sameTrack = (a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlaceholder) => a.participant.identity === b.participant.identity && a.source === b.source;
+  // A member in browser mode chooses for their own voice; a guest has no recogniser to stop.
+  const captioningMe = !guest && browserCaptions ? !notMe : undefined;
+  const toggleMe = !guest && browserCaptions ? () => setNotMe((v) => !v) : undefined;
 
   return (
     <div className="relative flex h-full w-full flex-col">
         <PlacePill place={place} since={joinedAt} />
-        {isRecording && <RecordingPill by={recordingUser} since={recordingSince} />}
-        {reconnecting && <CallReconnecting />}
+        <CallStatusRow>
+            {extraStatus}
+            {isRecording && <RecordingPill by={meta.recording.by ?? null} since={recordingSince} />}
+            {transcription.on && (
+                <CaptionsPill
+                    transcription={transcription}
+                    captioningMe={captioningMe}
+                    onToggleMe={toggleMe}
+                    onTurnOff={guest ? undefined : turnCaptionsOff}
+                />
+            )}
+        </CallStatusRow>
+        {(reconnecting || noticeOpen) && (
+            <div className="pointer-events-none absolute inset-x-3 top-12 z-30 flex flex-col items-center gap-2">
+                {reconnecting && <CallReconnecting inline />}
+                {noticeOpen && (
+                    <CaptionsNotice
+                        transcription={transcription}
+                        onDismiss={() => setNoticeDismissed(session)}
+                        captioningMe={captioningMe}
+                        onToggleMe={toggleMe}
+                    />
+                )}
+            </div>
+        )}
 
         <div ref={stageRef} className={cn("relative flex flex-1 overflow-hidden transition-opacity duration-200", reconnecting && "opacity-70")}>
             {layout === 'speaker' && effectiveFocusedTrack ? (
@@ -541,6 +728,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                             contain
                             pinned={!!focusedTrack && sameTrack(focusedTrack, effectiveFocusedTrack)}
                             onPin={() => setFocusedTrack(focusedTrack ? null : effectiveFocusedTrack)}
+                            onRemove={onRemove}
                         />
                     </div>
                     {tracks.some((t) => !sameTrack(t, effectiveFocusedTrack)) && (
@@ -564,15 +752,15 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
             ) : (
                     <div className={cn("h-full w-full [&_.lk-grid-layout]:gap-2 [&_.lk-grid-layout]:p-0", STAGE_FRAME)}>
                         <GridLayout tracks={tracks}>
-                            <StageTile onParticipantClick={onParticipantClick} />
+                            <StageTile onParticipantClick={onParticipantClick} onRemove={onRemove} />
                         </GridLayout>
                     </div>
             )}
-            
+
             {/* Captions, read out as they change. */}
             {showCaptions && (
                 <CaptionsOverlay
-                    idleMessage={captionMessage(captionState)}
+                    idleMessage={captionMessage(captionState, { notMe, browser: browserCaptions, guest })}
                     entries={Object.entries(activeTranscripts).map(([identity, data]) => ({ identity, name: data.name, text: data.accumulated || "" }))}
                 />
             )}
@@ -592,23 +780,32 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                 </div>
             )}
         </div>
-        <VideoControls 
-            onDisconnect={onDisconnect} 
+        <VideoControls
+            onDisconnect={onDisconnect ? () => onDisconnect() : undefined}
             layout={layout}
             onLayoutChange={(newLayout) => {
                 setLayout(newLayout);
             }}
-            onToggleRecording={isAdmin ? toggleRecording : undefined}
+            onToggleRecording={isAdmin && parentToggleRecording ? toggleRecording : undefined}
             isRecording={isRecording}
             isRecordingLoading={isRecordingActionLoading}
             recordingSince={recordingSince}
-            onToggleCaptions={toggleCaptions}
+            onToggleCaptions={captionsAvailable ? onCaptions : undefined}
             showCaptions={showCaptions}
+            captionsOff={!transcription.on}
             onToggleAI={guest ? undefined : () => setAiPanelOpen((v) => !v)}
             isAIOpen={aiPanelOpen}
             aiUnreadCount={aiUnread}
         />
-        {!guest && <FrontendTranscriber onTranscript={handleTranscript} onStatus={setCaptionState} />}
+        {!guest && (
+            <FrontendTranscriber
+                onTranscript={handleTranscript}
+                onStatus={setCaptionState}
+                active={recogniserActive}
+                persist={keepsTranscript}
+                language={speechLanguage(config.transcription_language)}
+            />
+        )}
     </div>
   );
 }
@@ -616,12 +813,15 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 // What to tell the user while the caption overlay has nothing to show. Every
 // one of these used to render as an empty box, which is indistinguishable from
 // a broken feature, and the recognizer errors were only visible in devtools.
-function captionMessage(state: TranscriberState): string {
+export function captionMessage(state: TranscriberState, ctx: { notMe?: boolean; browser?: boolean; guest?: boolean } = {}): string {
+    if (ctx.notMe) return "Your own speech isn't being captioned. Everyone else's appears here.";
+    // The server transcribes (or this is a guest, who never runs a recogniser).
+    if (ctx.guest || ctx.browser === false) return "Listening for speech…";
     switch (state.status) {
         case "disabled":
             return "Captions are turned off for this workspace.";
         case "unsupported":
-            return "This browser cannot transcribe speech, so nothing you say reaches the captions, the transcript or the meeting recap. Chrome or Edge can.";
+            return "This browser can't caption what you say: Chrome or Edge can. Everyone else's speech still appears here.";
         case "mic-off":
             return "Unmute your microphone to caption what you say.";
         case "error":
