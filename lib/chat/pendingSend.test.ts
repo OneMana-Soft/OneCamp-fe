@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { configureStore } from "@reduxjs/toolkit"
 import channelSlice, { addPendingPost, confirmPendingPost, createPost, failPendingPost, removePendingPost, retryPendingPost } from "@/store/slice/channelSlice"
-import chatSlice, { addPendingChat, confirmPendingChat, createChat } from "@/store/slice/chatSlice"
-import groupChatSlice, { addPendingGroupChat, confirmPendingGroupChat, createGroupChat } from "@/store/slice/groupChatSlice"
+import chatSlice, { addPendingChat, confirmPendingChat, createChat, failPendingChat } from "@/store/slice/chatSlice"
+import groupChatSlice, { addPendingGroupChat, confirmPendingGroupChat, createGroupChat, failPendingGroupChat } from "@/store/slice/groupChatSlice"
 import type { PostsRes } from "@/types/post"
 import type { ChatInfo } from "@/types/chat"
 import { indexOfEchoed, isLocalId, newLocalId, plainText, rowKey } from "./pendingSend"
@@ -77,6 +77,17 @@ describe("a post sent from here", () => {
     expect(s.getState().channel.channelPosts.c1).toHaveLength(1)
   })
 
+  // The echo came, so everyone has it; then the answer to the send was lost (a
+  // timeout, a proxy's 502). It said "Not sent", and Try again posted it twice.
+  it("stays sent when its echo came first and its answer was lost", () => {
+    const s = store()
+    s.dispatch(addPendingPost({ channelId: "c1", post: pending("local-1", "<p>Ship it</p>") }))
+    s.dispatch(createPost({ channelId: "c1", postId: "p9", postText: "<p>Ship it</p>", postCreatedAt: "2026-10-10T09:00:01.000Z", postBy: SAM as PostsRes["post_by"], attachments: [] }))
+    s.dispatch(failPendingPost({ channelId: "c1", localId: "local-1" }))
+    expect(s.getState().channel.channelPosts.c1[0].post_send_state).toBeUndefined()
+    expect(s.getState().channel.channelPosts.c1[0].post_uuid).toBe("p9")
+  })
+
   it("keeps someone else's post with the same words as a post of its own", () => {
     const s = store()
     s.dispatch(addPendingPost({ channelId: "c1", post: pending("local-1", "<p>+1</p>") }))
@@ -122,6 +133,18 @@ describe("a direct or group message sent from here", () => {
     expect(list).toHaveLength(1)
     expect(list[0].chat_uuid).toBe("m9")
     expect(list[0].chat_send_state).toBeUndefined()
+  })
+
+  it("stays sent in a DM and a group when its echo came first and its answer was lost", () => {
+    const s = store()
+    s.dispatch(addPendingChat({ dmId: "maya", chat: chat("local-1") }))
+    s.dispatch(createChat({ dmId: "maya", chatId: "m9", chatText: "<p>On it.</p>", chatCreatedAt: "2026-10-10T09:00:01.000Z", chatBy: SAM as ChatInfo["chat_from"], chatTo: {} as ChatInfo["chat_to"], attachments: [] }))
+    s.dispatch(failPendingChat({ dmId: "maya", localId: "local-1" }))
+    expect(s.getState().chat.chatMessages.maya[0].chat_send_state).toBeUndefined()
+    s.dispatch(addPendingGroupChat({ grpId: "g1", chat: chat("local-2") }))
+    s.dispatch(createGroupChat({ grpId: "g1", chatId: "m10", chatText: "<p>On it.</p>", chatCreatedAt: "2026-10-10T09:00:02.000Z", chatBy: SAM as ChatInfo["chat_from"], attachments: [] }))
+    s.dispatch(failPendingGroupChat({ grpId: "g1", localId: "local-2" }))
+    expect(s.getState().groupChat.chatMessages.g1[0].chat_send_state).toBeUndefined()
   })
 
   it("is confirmed in place in a group", () => {

@@ -127,6 +127,8 @@ export function ChatView({ chatId }: { chatId: string }) {
       to_uuid: chatId,
       text_html: chat.chat_body_text,
       ...(chat.chat_reply_to?.chat_uuid ? { reply_to_uuid: chat.chat_reply_to.chat_uuid } : {}),
+      // Try again after a lost answer is the same message, not a second one.
+      ...(chat.chat_local_id ? { client_msg_id: chat.chat_local_id } : {}),
     }),
     draftOf: (chat) => ({
       html: chat.chat_body_text,

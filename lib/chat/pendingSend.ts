@@ -16,10 +16,14 @@ export type SendState = "sending" | "failed"
 
 let counter = 0
 
-/** An id for a message that has none from the server yet. */
+/**
+ * An id for a message that has none from the server yet. It goes with the
+ * send (client_msg_id), and a send tried again with it is the same send: two
+ * of the person's tabs must never make the same one, so a random part too.
+ */
 export function newLocalId(): string {
   counter = (counter + 1) % 1e6
-  return `local-${Date.now().toString(36)}-${counter.toString(36)}`
+  return `local-${Date.now().toString(36)}-${counter.toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 }
 
 export function isLocalId(id: string | undefined | null): boolean {

@@ -36,6 +36,8 @@ export interface ChatInfo {
 export interface CreateOrUpdateChatsReq {
     text_html?: string
     media_attachments?: AttachmentMediaReq[]
+    /** The id the message was shown with: a send tried again with it is the same send. */
+    client_msg_id?: string
     chat_id?: string
     to_uuid?: string
     grp_id?: string

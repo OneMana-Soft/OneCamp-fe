@@ -38,6 +38,8 @@ export interface PostsRes {
 export interface CreateOrUpdatePostsReq {
     post_text_html?: string
     post_attachments?: AttachmentMediaReq[]
+    /** The id the post was shown with: a send tried again with it is the same send. */
+    client_msg_id?: string
     channel_id?: string
     post_id?: string
     // When set, makes this post an inline reply to another post in the channel.

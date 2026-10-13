@@ -126,6 +126,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
             channel_id: channelId,
             post_text_html: post.post_text,
             ...(post.post_reply_to?.post_uuid ? { reply_to_uuid: post.post_reply_to.post_uuid } : {}),
+            // Try again after a lost answer is the same post, not a second one.
+            ...(post.post_local_id ? { client_msg_id: post.post_local_id } : {}),
         }),
         draftOf: (post) => ({
             html: post.post_text,
