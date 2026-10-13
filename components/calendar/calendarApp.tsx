@@ -152,7 +152,7 @@ export function CalendarApp() {
     const { data: tasksRes, isLoading: isLoadingTasks, isError: tasksError, mutate: mutateTasks } = useFetch<UserInfoRawInterface>(
         `${GetEndpointUrl.GetUserTaskList}?pageIndex=0&pageSize=100&${rangeQuery}`, undefined, keep
     );
-    const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean } }>(GetEndpointUrl.GoogleCalendarStatus);
+    const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean; accountEmail?: string } }>(GetEndpointUrl.GoogleCalendarStatus);
     const { data: bookingRes } = useFetch<{ data: unknown[] }>(calendarsOpen || railShown ? GetEndpointUrl.GetBookingPages : "");
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const selfId = selfProfile?.data?.data?.user_uuid;
@@ -164,6 +164,29 @@ export function CalendarApp() {
         void mutateTasks();
     };
     const googleConnected = !!gcalStatus?.data?.isConnected;
+    // Which Google account it is ("" for a link made before the server said).
+    const googleAccount = gcalStatus?.data?.accountEmail || undefined;
+
+    // Back from Google's consent screen: the server's connectors callback lands
+    // here with ?connector=success|error (CAL-BUG-8). Said once, then dropped
+    // from the address.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const status = params.get("connector");
+        const provider = params.get("provider");
+        if (!status || (provider && provider !== "google_calendar")) return;
+        if (status === "success") {
+            void Promise.resolve(mutateGcalStatus()).then((res) => {
+                const who = res?.data?.accountEmail;
+                toast({ title: "Google Calendar is connected", description: who ? `Connected as ${who}.` : "Its events show here now.", tone: "success" });
+            });
+            void mutateEvents();
+        } else if (status === "error") {
+            toast({ title: "Couldn't connect Google Calendar", description: "The sign-in didn't finish. Try again from Calendars.", variant: "destructive" });
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on landing
+    }, []);
 
     const handleConnectGCal = async () => {
         const res = await post.makeRequest<undefined, { url: string }>({ method: "GET", apiEndpoint: GetEndpointUrl.GoogleCalendarAuthUrl as unknown as PostEndpointUrl });
@@ -430,6 +453,7 @@ export function CalendarApp() {
                 router.push("/app/calendar/booking");
             }}
             googleConnected={googleConnected}
+            googleAccount={googleAccount}
             onConnectGoogle={handleConnectGCal}
             onDisconnectGoogle={askUnlinkGCal}
             busy={post.isSubmitting}

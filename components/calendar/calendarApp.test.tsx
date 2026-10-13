@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // What the calendar asks the server for, by URL, and what each answers.
 const asked: string[] = []
 let connected = false
+let account = ""
 let loading = false
 let failing = false
 let free = false
@@ -21,13 +22,14 @@ vi.mock("@/hooks/useFetch", () => ({
     if (url.includes("/event/getEvents")) return { data: { data: events ?? (free ? [] : [standup()]) }, isLoading: false, mutate: vi.fn() }
     if (url.includes("assignedTaskList")) return { data: { data: { user_tasks: [] } }, isLoading: false, mutate: vi.fn() }
     if (url.includes("bookingPages")) return { data: { data: [{}, {}] }, isLoading: false, mutate: vi.fn() }
-    return { data: { data: { isConnected: connected } }, isLoading: false, mutate: vi.fn() }
+    return { data: { data: { isConnected: connected, accountEmail: account } }, isLoading: false, mutate: vi.fn(async () => ({ data: { isConnected: connected, accountEmail: account } })) }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
 const makeRequest = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+const toast = vi.fn()
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: mobile, isDesktop: !mobile }) }))
@@ -42,6 +44,8 @@ afterEach(() => {
   asked.length = 0
   confirm.mockReset()
   connected = false
+  account = ""
+  toast.mockReset()
   loading = false
   failing = false
   free = false
@@ -245,6 +249,38 @@ describe("moving a booked meeting", () => {
       await confirm.mock.calls[0][0].onConfirm()
     })
     expect(makeRequest).toHaveBeenCalledTimes(1)
+  })
+})
+
+// CAL-BUG-8: Google Calendar links through the connectors flow now, whose
+// callback lands on the calendar with ?connector=success|error.
+describe("linking Google Calendar", () => {
+  it("says which Google account is connected", () => {
+    connected = true
+    account = "maya@gmail.com"
+    render(<CalendarApp />)
+    fireEvent.click(screen.getByRole("button", { name: /Calendars/ }))
+    expect(document.querySelector("[data-google-account]")?.textContent).toBe("Connected as maya@gmail.com")
+  })
+
+  it("says so on coming back from Google, and drops the answer from the address", async () => {
+    connected = true
+    account = "maya@gmail.com"
+    window.history.replaceState({}, "", "/app/calendar?connector=success&provider=google_calendar")
+    await act(async () => {
+      render(<CalendarApp />)
+    })
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Google Calendar is connected", description: "Connected as maya@gmail.com." }))
+    expect(window.location.search).toBe("")
+  })
+
+  it("says when the sign-in didn't finish", async () => {
+    window.history.replaceState({}, "", "/app/calendar?connector=error")
+    await act(async () => {
+      render(<CalendarApp />)
+    })
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't connect Google Calendar", variant: "destructive" }))
+    expect(window.location.search).toBe("")
   })
 })
 
