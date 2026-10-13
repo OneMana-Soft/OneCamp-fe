@@ -22,6 +22,7 @@ import { dayKey, googleCalendarUrl, icsFor, timeZones, type Slot } from "@/lib/c
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
 import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
+import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
 
 /** The card's width at each step: pick a day, pick a time, the form, booked. */
 export const STEP_WIDTH: Record<1 | 2 | 3 | 4, string> = {
@@ -143,6 +144,11 @@ export function BookingFlow({ slug }: { slug: string }) {
   const [slot, setSlot] = React.useState<Slot | null>(null)
   const [taken, setTaken] = React.useState<string | null>(null)
   const [booked, setBooked] = React.useState<Booked | null>(null)
+  // Too many requests from here (429), or no answer: the page says so and
+  // asks again when the server allows, never calling the page gone (CAL-BUG-14).
+  const [trouble, setTrouble] = React.useState<Exclude<PublicTrouble, "gone"> | null>(null)
+  const [monthTrouble, setMonthTrouble] = React.useState<Exclude<PublicTrouble, "gone"> | null>(null)
+  const [monthRetry, setMonthRetry] = React.useState(0)
   // One time zone picker, where the layout puts it: the aside on a computer,
   // under the month on a phone. Both used to mount, one hidden (CAL-BUG-20).
   const wide = useMinWidth(640)
@@ -166,23 +172,36 @@ export function BookingFlow({ slug }: { slug: string }) {
     })
   }, [])
 
-  // The first answer: the page, and its first fortnight.
+  // The first answer: the page, and its first fortnight. Asked again, later
+  // each time and never before the server's Retry-After, while the server is
+  // busy or out of reach.
   React.useEffect(() => {
     let live = true
-    void (async () => {
+    let failures = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const attempt = async () => {
       const now = new Date()
       const res = await getBookingPage(slug, now, new Date(now.getTime() + 14 * DAY_MS))
       if (!live) return
       if (!res.ok) {
-        setState(res.status === 404 ? "missing" : "error")
+        const t = publicTrouble(res.status)
+        if (t === "gone") {
+          setState(res.status === 404 ? "missing" : "error")
+          return
+        }
+        setTrouble(t)
+        timer = setTimeout(() => void attempt(), retryDelayMs(failures++, res.retryAfter))
         return
       }
+      setTrouble(null)
       setPage(res.data)
       merge(res.data.slots)
       setState("ready")
-    })()
+    }
+    void attempt()
     return () => {
       live = false
+      clearTimeout(timer)
     }
   }, [slug, merge])
 
@@ -201,6 +220,7 @@ export function BookingFlow({ slug }: { slug: string }) {
   React.useEffect(() => {
     if (!page || loadedMonths.has(shownKey)) return
     let live = true
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
     void (async () => {
       const now = Date.now()
       const start = Math.max(now, Date.UTC(shown.y, shown.m, 1) - DAY_MS)
@@ -216,12 +236,21 @@ export function BookingFlow({ slug }: { slug: string }) {
       ])
       if (!live) return
       for (const a of answers) if (a.ok) merge(a.data.slots)
+      // A month whose answer didn't come isn't "no free times": it waits and asks again.
+      const failed = answers.find((a) => !a.ok && publicTrouble(a.status) !== "gone")
+      if (failed && !failed.ok) {
+        setMonthTrouble(publicTrouble(failed.status) as Exclude<PublicTrouble, "gone">)
+        retryTimer = setTimeout(() => setMonthRetry((n) => n + 1), retryDelayMs(monthRetry, failed.retryAfter))
+        return
+      }
+      setMonthTrouble(null)
       setLoadedMonths((s) => new Set(s).add(shownKey))
     })()
     return () => {
       live = false
+      clearTimeout(retryTimer)
     }
-  }, [page, shownKey, shown.y, shown.m, slug, loadedMonths, merge])
+  }, [page, shownKey, shown.y, shown.m, slug, loadedMonths, merge, monthRetry])
 
   const byDay = React.useMemo(() => {
     const out = new Map<string, Slot[]>()
@@ -252,7 +281,7 @@ export function BookingFlow({ slug }: { slug: string }) {
   if (state === "error") {
     return <PublicGone surface="booking" title="This page didn't load" detail="Check your connection and reload the page." />
   }
-  if (state === "loading" || !page) return <BookingSkeleton />
+  if (state === "loading" || !page) return <BookingSkeleton label={trouble ? retryingText[trouble] : undefined} />
 
   const step: 1 | 2 | 3 | 4 = booked ? 4 : slot ? 3 : day ? 2 : 1
   const daySlots = day ? byDay.get(day) ?? [] : []
@@ -312,6 +341,7 @@ export function BookingFlow({ slug }: { slug: string }) {
                     setSplit(null)
                     setTaken(null)
                   }}
+                  note={monthTrouble ? retryingText[monthTrouble] : undefined}
                 />
                 {/* On a phone the zone sits under the calendar. */}
                 {!wide ? (
@@ -484,6 +514,7 @@ function MonthGrid({
   canNext,
   onMonth,
   onPick,
+  note,
 }: {
   y: number
   m: number
@@ -496,6 +527,8 @@ function MonthGrid({
   canNext: boolean
   onMonth: (by: 1 | -1) => void
   onPick: (key: string) => void
+  /** Why the month's times are still coming (busy, out of reach). */
+  note?: string
 }) {
   const lead = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7
   const count = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
@@ -609,6 +642,11 @@ function MonthGrid({
             )
           })}
         </div>
+        {note ? (
+          <p role="status" className="mt-3 text-meta text-ink-3" data-month-note="">
+            {note}
+          </p>
+        ) : null}
         {!loading && available.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="content-pop-in pointer-events-auto inline-flex items-center gap-2 rounded-[18px] bg-raised py-1.5 pl-3.5 pr-1.5 text-ui-sm text-ink-2 shadow-e1">
@@ -799,7 +837,8 @@ function GuestForm({
     setBusy(false)
     if (res.ok) return onBooked(res.data)
     if (res.status === 409 || /taken/i.test(res.msg)) return onTaken(slot)
-    if (res.status === 400 && res.msg) {
+    // A refusal in the server's words: a bad field, or too many bookings from here.
+    if ((res.status === 400 || res.status === 429) && res.msg) {
       setFailed(res.msg)
       return
     }
@@ -824,7 +863,7 @@ function GuestForm({
         {errors.email ? (
           <p id="g-email-err" role="alert" className="text-meta text-danger-ink">{errors.email}</p>
         ) : (
-          <p id="g-email-hint" className="text-meta text-ink-3">We&apos;ll send the invite and a link to change it.</p>
+          <p id="g-email-hint" className="text-meta text-ink-3">For the invite, and a link to cancel.</p>
         )}
       </div>
       <div className="grid gap-1.5">
@@ -862,10 +901,14 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
   const cancelUrl = typeof window === "undefined" ? "" : `${window.location.origin}/booking/${booked.cancel_token}`
   const title = `${booked.title} with ${booked.owner_name}`
   const first = (booked.owner_name || "").split(/\s+/)[0]
+  // The same event as the invite in the email (its UID is the booking's id),
+  // so a guest who adds both gets one. Never the cancel token: that cancels
+  // the booking, and a UID travels wherever the event goes.
+  const uid = React.useMemo(() => booked.booking_id || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, [booked])
   const ics = React.useMemo(() => {
-    const file = icsFor({ uid: booked.cancel_token, title, start: booked.start, end: booked.end, description: `To change or cancel: ${cancelUrl}`, url: cancelUrl })
+    const file = icsFor({ uid, title, start: booked.start, end: booked.end, description: `To cancel: ${cancelUrl}`, url: cancelUrl })
     return URL.createObjectURL(new Blob([file], { type: "text/calendar" }))
-  }, [booked, title, cancelUrl])
+  }, [booked, uid, title, cancelUrl])
   React.useEffect(() => () => URL.revokeObjectURL(ics), [ics])
 
   // The area's one public celebration: someone outside the workspace just did
@@ -889,8 +932,8 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
           {slotTime(booked.start, tz, h24)} – {slotTime(booked.end, tz, h24)} · {zoneLabel(tz)}
         </p>
         {booked.emailed ? (
-          <p className="mt-3 inline-flex items-center gap-2 text-ui-sm text-ink-2">
-            <Mail className="size-3.5 text-ink-3" aria-hidden="true" /> The invite is in your email
+          <p className="mt-3 inline-flex items-center gap-2 text-ui-sm text-ink-2" data-emailed="">
+            <Mail className="size-3.5 text-ink-3" aria-hidden="true" /> We&apos;ve emailed you the invite
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
@@ -898,23 +941,19 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
             <a href={ics} download="booking.ics">Add to calendar (.ics)</a>
           </Button>
           <Button asChild variant="secondary" size="sm">
-            <a href={googleCalendarUrl({ title, start: booked.start, end: booked.end, details: `To change or cancel: ${cancelUrl}` })} target="_blank" rel="noreferrer">
+            <a href={googleCalendarUrl({ title, start: booked.start, end: booked.end, details: `To cancel: ${cancelUrl}` })} target="_blank" rel="noreferrer">
               Google Calendar
             </a>
           </Button>
         </div>
       </div>
-      <p className="mt-4 max-w-sm text-meta text-ink-3">
-        {booked.emailed ? (
-          "Need to change it? Use the link in your email."
-        ) : (
-          <>
-            Keep this link to change or cancel:{" "}
-            <a className="break-all text-ink-2 underline underline-offset-2" href={cancelUrl}>
-              {cancelUrl}
-            </a>
-          </>
-        )}
+      {/* The link only cancels: there is no changing a booking yet. It shows
+          whether or not the email went out (CAL-BUG-15). */}
+      <p className="mt-4 max-w-sm text-meta text-ink-3" data-cancel-link="">
+        {booked.emailed ? "To cancel, use the link in your email, or this one: " : "Keep this link to cancel: "}
+        <a className="break-all text-ink-2 underline underline-offset-2" href={cancelUrl}>
+          {cancelUrl}
+        </a>
       </p>
     </div>
   )
@@ -954,9 +993,15 @@ export function BookingSpot({ checkRef, owner }: { checkRef?: React.Ref<SVGGElem
 // While it loads.
 // ----------------------------------------------------------------------------
 
-function BookingSkeleton() {
+function BookingSkeleton({ label }: { label?: string }) {
   return (
     <PublicFrame surface="booking" header={false} mainClassName="sm:px-6 sm:pt-[72px]">
+      {/* Why it is still loading, when the server is busy or out of reach. */}
+      {label ? (
+        <p role="status" className={cn("mb-3 w-full px-5 text-center text-ui-sm text-ink-2 sm:px-0", STEP_WIDTH[1])} data-booking-retrying="">
+          {label}
+        </p>
+      ) : null}
       <PaperCard className={cn("overflow-hidden", STEP_WIDTH[1])} role="status" aria-label="Loading booking page">
         <div aria-hidden="true" className="flex max-sm:flex-col">
           <div className="flex flex-col gap-3 border-line p-6 sm:w-[260px] sm:border-r sm:p-7">

@@ -201,3 +201,78 @@ describe("loading the page", () => {
     }
   })
 })
+
+// CAL-BUG-15: the confirmation said "The invite is in your email" and "Need
+// to change it? Use the link in your email" when the email held no invite and
+// the link can only cancel; and it hid the cancel link whenever it was sent.
+describe("the confirmation", () => {
+  async function bookWith(extra: Record<string, unknown>) {
+    bookSlot.mockResolvedValue({ ok: true, data: { title: "Intro call", owner_name: "Sam Rivera", start: PAGE.slots[1].start, end: PAGE.slots[1].end, cancel_token: "secret-token", ...extra } })
+    await toForm()
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jordan" } })
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "j@example.com" } })
+    await act(async () => fireEvent.click(document.querySelector("[data-book-button]")!))
+  }
+  const icsText = async () => {
+    const calls = (URL.createObjectURL as unknown as { mock: { calls: [Blob][] } }).mock.calls
+    return calls.length ? calls[calls.length - 1][0].text() : ""
+  }
+
+  it("says the invite was emailed only when it was, and always offers the calendars and the cancel link", async () => {
+    await bookWith({ emailed: true, booking_id: "b-123" })
+    const page = document.querySelector("[data-booked]")!.textContent!
+    expect(page).toContain("We've emailed you the invite")
+    expect(page).not.toMatch(/invite is in your email|Need to change it/)
+    expect(screen.getByRole("link", { name: "Add to calendar (.ics)" })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Google Calendar" })).toBeTruthy()
+    expect(document.querySelector("[data-cancel-link]")?.textContent).toMatch(/^To cancel, use the link in your email, or this one: .*\/booking\/secret-token$/)
+  })
+
+  it("keeps the cancel link on the page when nothing was emailed, and promises no email", async () => {
+    await bookWith({ emailed: false, booking_id: "b-123" })
+    expect(document.querySelector("[data-emailed]")).toBeNull()
+    expect(document.querySelector("[data-cancel-link]")?.textContent).toMatch(/^Keep this link to cancel: .*\/booking\/secret-token$/)
+    expect(screen.getByRole("link", { name: "Add to calendar (.ics)" })).toBeTruthy()
+  })
+
+  it("adds the same event as the email's invite, and never puts the cancel token in its id", async () => {
+    await bookWith({ emailed: true, booking_id: "b-123" })
+    const ics = await icsText()
+    expect(ics).toContain("UID:b-123@onecamp")
+    expect(ics).not.toContain("UID:secret-token")
+    expect(ics).toContain("To cancel:")
+    expect(ics).not.toMatch(/change or cancel/)
+  })
+})
+
+// CAL-BUG-14: a page that answers 429 says so and asks again when the server
+// allows; it never says the page isn't there.
+describe("too many requests", () => {
+  it("says so while it waits, then shows the page", async () => {
+    // The clock as well as the date (a second call while faking keeps the first's list).
+    vi.useRealTimers()
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] })
+    vi.setSystemTime(new Date("2026-10-10T08:00:00Z"))
+    getBookingPage.mockReset()
+    getBookingPage.mockResolvedValueOnce({ ok: false, status: 429, msg: "Too many requests from here.", retryAfter: 30 }).mockResolvedValue({ ok: true, data: PAGE })
+    await act(async () => {
+      render(<BookingFlow slug="sam-rivera" />)
+    })
+    expect(document.querySelector("[data-booking-retrying]")?.textContent).toBe("Too many requests, wait a minute.")
+    expect(screen.queryByText("This booking page isn't available")).toBeNull()
+    await act(async () => {
+      vi.advanceTimersByTime(61_000)
+    })
+    await act(async () => {})
+    expect(day("2026-10-12").hasAttribute("data-available")).toBe(true)
+  })
+
+  it("puts a refused booking in the server's words", async () => {
+    bookSlot.mockResolvedValue({ ok: false, status: 429, msg: "Too many bookings from here. Try again later." })
+    await toForm()
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jordan" } })
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "j@example.com" } })
+    await act(async () => fireEvent.click(document.querySelector("[data-book-button]")!))
+    expect(screen.getByRole("alert").textContent).toContain("Too many bookings from here. Try again later.")
+  })
+})
