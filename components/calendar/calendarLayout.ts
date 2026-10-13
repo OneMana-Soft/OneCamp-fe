@@ -1,4 +1,5 @@
 import { addDays, endOfDay, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns"
+import { placedByDates } from "@/lib/calendar/allDay"
 
 /**
  * Laying calendar items out on days and weeks, once per change of data,
@@ -16,6 +17,10 @@ export interface DatedItem {
   isTask?: boolean
   event_is_focus?: boolean
   event_is_away?: boolean
+  /** A Google all-day event, placed by these dates (lib/calendar/allDay). */
+  event_all_day?: boolean
+  event_start_date?: string
+  event_end_date?: string
   task_project?: { project_uuid?: string } | null
 }
 
@@ -34,10 +39,15 @@ export const dayKey = (d: Date) => format(d, "yyyy-MM-dd")
  */
 export const WEEK_STARTS_ON = 1 as const
 
-/** Items with their dates parsed once; anything without a usable date is left out. */
+/**
+ * Items with their dates parsed once; anything without a usable date is left
+ * out. A Google all-day event is placed by its dates, at the reader's own
+ * midnights, and kept that way in `item` too (lib/calendar/allDay).
+ */
 export function placeItems<T extends DatedItem>(items: readonly T[]): Placed<T>[] {
   const out: Placed<T>[] = []
-  for (const item of items) {
+  for (const raw of items) {
+    const item = placedByDates(raw)
     const start = parseISO(item.event_start_time)
     const end = parseISO(item.event_end_time)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue
@@ -52,6 +62,12 @@ export function placeItems<T extends DatedItem>(items: readonly T[]): Placed<T>[
  * day it is due, whatever the time.
  */
 export function lastDayOf(p: Placed): Date {
+  // An all-day event's last day is the one before its (exclusive) end date,
+  // even where that date's midnight doesn't exist (a clock change at 00:00).
+  if (p.item.event_all_day) {
+    const last = startOfDay(addDays(p.end, -1))
+    return last < startOfDay(p.start) ? startOfDay(p.start) : last
+  }
   const atMidnight = p.end.getTime() === startOfDay(p.end).getTime()
   if (!p.item.isTask && atMidnight && p.end > p.start) return startOfDay(new Date(p.end.getTime() - 1))
   return startOfDay(p.end)
@@ -110,7 +126,7 @@ export function layoutWeek<T extends DatedItem>(weekStart: Date, placed: readonl
       span: Math.min(span, 7 - col),
       startsHere: p.start >= ws,
       endsHere: lastDay <= we,
-      timed: span === 1 && !p.item.isTask,
+      timed: span === 1 && !p.item.isTask && !allDayItem(p.item, p.start, p.end),
       start: p.start,
     })
   }
@@ -141,5 +157,10 @@ export function monthGridRange(anchor: Date): { start: Date; end: Date } {
 export function isAllDay(start: Date, end: Date): boolean {
   const midnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0
   return midnight(start) && midnight(end) && end.getTime() - start.getTime() >= 23 * 3600 * 1000
+}
+
+/** An item shown as "All day": a Google all-day event by its flag, anything else by its times. */
+export function allDayItem(item: { event_all_day?: boolean }, start: Date, end: Date): boolean {
+  return !!item.event_all_day || isAllDay(start, end)
 }
 

@@ -67,6 +67,8 @@ export const INNER_SLOTS = [60, 250, 170] as const
 export interface TimedEvent {
   event_start_time: string
   event_end_time: string
+  /** A Google all-day event, already at the reader's midnights (lib/calendar/allDay). */
+  event_all_day?: boolean
 }
 
 export type EventTime = "past" | "current" | "future"
@@ -141,10 +143,16 @@ export function todayRange(now: Date): { start: Date; end: Date } {
   return { start, end }
 }
 
-/** An event that fills the day (it starts at or before midnight and ends at or after the next). */
+/**
+ * An event that fills the day (it starts at or before midnight and ends at or
+ * after the next), or a Google all-day event on today's date.
+ */
 export function isAllDay(ev: TimedEvent, now: Date): boolean {
   const { start, end } = todayRange(now)
-  return Date.parse(ev.event_start_time) <= start.getTime() && Date.parse(ev.event_end_time) >= end.getTime()
+  const s = Date.parse(ev.event_start_time)
+  const e = Date.parse(ev.event_end_time)
+  if (ev.event_all_day) return s < end.getTime() && e > start.getTime()
+  return s <= start.getTime() && e >= end.getTime()
 }
 
 export interface AgendaPlan<E extends TimedEvent> {

@@ -12,6 +12,7 @@ import { kindOf, type CalendarItemLike } from "@/components/calendar/calendarTon
 import { atMinutes, clickRange, createRange, durationLabel, minutesAt, moveRange, resizeRange, DAY_MINUTES } from "@/lib/calendar/calendarDrag";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
+import { placedByDates } from "@/lib/calendar/allDay";
 
 /** px per hour: 15 minutes is 14 px (content.md C07). */
 export const HOUR_HEIGHT = 56;
@@ -175,7 +176,7 @@ export function WeekView({
     const timed: TimedItem[][] = days.map(() => []);
     const allDay: AllDayItem[][] = days.map(() => []);
 
-    const pushTimedOrAllDay = (base: AllDayItem, start: Date, end: Date) => {
+    const pushTimedOrAllDay = (base: AllDayItem, start: Date, end: Date, allDayEvent = false) => {
       days.forEach((day, di) => {
         const dayStart = startOfDay(day);
         const dayEnd = addDays(dayStart, 1);
@@ -185,7 +186,8 @@ export function WeekView({
         const spansFullDay = start <= dayStart && end >= dayEnd;
         const isMultiDay = !isSameDay(start, end) && durationMs >= DAY_MINUTES * 60 * 1000;
 
-        if (spansFullDay || isMultiDay) {
+        // A Google all-day event is in the rail on its dates, whatever its length.
+        if (allDayEvent || spansFullDay || isMultiDay) {
           allDay[di].push(base);
           return;
         }
@@ -208,11 +210,13 @@ export function WeekView({
     };
 
     if (showEvents) {
-      events.forEach((e) => {
+      events.forEach((raw) => {
+        // Placed by its dates when it is a Google all-day event (CAL-BUG-2).
+        const e = placedByDates(raw);
         const start = parseISO(e.event_start_time);
         const end = parseISO(e.event_end_time);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-        pushTimedOrAllDay({ uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away }, start, end);
+        pushTimedOrAllDay({ uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away }, start, end, !!e.event_all_day);
       });
     }
 
