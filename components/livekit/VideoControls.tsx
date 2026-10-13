@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useLocalParticipant, useMediaDeviceSelect, useRoomContext } from "@livekit/components-react"
+import { supportsAudioOutputSelection } from "livekit-client"
 import {
   Captions,
   CaptionsOff,
@@ -22,12 +23,15 @@ import {
   VideoOff,
 } from "@/lib/icons"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils/helpers/cn"
 import { springPop } from "@/lib/celebrate"
-import { FeatureGate } from "@/components/common/withFeature"
-import { FEATURE_AI } from "@/hooks/useClientConfig"
+import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
+import { toast } from "@/hooks/use-toast"
 import { formatElapsed } from "./callLevels"
+import { CONTROL_KEYS, callKeyAction, type CallAction } from "./callKeys"
+import { SCREEN_UNAVAILABLE, callMediaFailure, canShareScreen, type CallDevice, type CallFailure } from "./callErrors"
+import { writeDevicePref, type DevicePrefs } from "./callDevices"
 
 /**
  * The words every control says, shared with the green room (PreJoin), so a
@@ -40,8 +44,22 @@ export const CONTROL_LABELS = {
   cameraOn: "Turn camera on",
 } as const
 
-/** The keys the tooltips teach. VideoControls answers M and V. */
-export const CONTROL_KEYS = { mic: "M", camera: "V", share: "⇧S", captions: "C", ai: "J", layout: "L" } as const
+/** The keys the tooltips teach, from the one table the handlers answer (callKeys). */
+export { CONTROL_KEYS }
+
+let lastFailure: { title: string; at: number } | null = null
+
+/**
+ * Says why a call action failed, once: LiveKit can report one failure twice
+ * (as an event and as a rejection), and two toasts for one problem read as
+ * two problems. Null says nothing (the screen picker was closed).
+ */
+export function showCallFailure(f: CallFailure | null, now = Date.now()): void {
+  if (!f) return
+  if (lastFailure && lastFailure.title === f.title && now - lastFailure.at < 4000) return
+  lastFailure = { title: f.title, at: now }
+  toast({ title: f.title, description: f.description, variant: "destructive" })
+}
 
 export type DockState = "on" | "off" | "active"
 
@@ -57,7 +75,7 @@ export const DOCK_STATE_CLASS: Record<DockState, string> = {
 }
 
 const DOCK_BUTTON =
-  "relative grid size-12 shrink-0 place-items-center transition-[border-radius,background-color,color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-40 @3xl:size-11 [&_svg]:size-5"
+  "relative grid size-12 shrink-0 place-items-center transition-[border-radius,background-color,color,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-40 aria-disabled:opacity-40 @3xl:size-11 [&_svg]:size-5"
 
 interface DockButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   label: string
@@ -70,10 +88,12 @@ interface DockButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElem
   menu?: React.ReactNode
   pressed?: boolean
   badge?: React.ReactNode
+  /** The tooltip's words in place of the name and key: why the control can't work here. */
+  hint?: string
 }
 
 /** One dock control: 44px, a 20px icon, its state as shape and colour, its name and key in the tooltip. */
-export function DockButton({ label, short, shortcut, state = "on", icon, menu, pressed, badge, className, onClick, ...rest }: DockButtonProps) {
+export function DockButton({ label, short, shortcut, state = "on", icon, menu, pressed, badge, hint, className, onClick, ...rest }: DockButtonProps) {
   const iconRef = React.useRef<HTMLSpanElement>(null)
   return (
     <span className="flex flex-col items-center gap-1" data-dock-control="">
@@ -99,8 +119,8 @@ export function DockButton({ label, short, shortcut, state = "on", icon, menu, p
             </button>
           </TooltipTrigger>
           <TooltipContent className="flex items-center gap-1.5">
-            {label}
-            {shortcut ? <kbd className="kbd">{shortcut}</kbd> : null}
+            {hint ?? label}
+            {shortcut && !hint ? <kbd className="kbd">{shortcut}</kbd> : null}
           </TooltipContent>
         </Tooltip>
         {menu ? <span className="hidden @3xl:flex">{menu}</span> : null}
@@ -111,26 +131,26 @@ export function DockButton({ label, short, shortcut, state = "on", icon, menu, p
   )
 }
 
-/** The 20 x 44 chevron segment attached to Mic and Camera, opening a device menu. */
-export function DeviceMenu({
-  label,
-  devices,
-  activeId,
-  onPick,
-  off = false,
-}: {
+/** One kind of device in a device menu: its heading, the devices and the one in use. */
+export interface DeviceGroup {
   label: string
   devices: { deviceId: string; label: string }[]
   activeId?: string
   onPick: (id: string) => void
-  off?: boolean
-}) {
+}
+
+/**
+ * The 20 x 44 chevron segment attached to Mic and Camera, opening a device
+ * menu. The microphone's menu also lists speakers where the browser can
+ * choose one (CALL-BUG-21), as Meet's and Zoom's do.
+ */
+export function DeviceMenu({ label, groups, off = false }: { label: string; groups: DeviceGroup[]; off?: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Choose a ${label.toLowerCase()}`}
+          aria-label={label}
           className={cn(
             "grid h-11 w-5 place-items-center rounded-r-[12px] bg-[#24252A] text-[#A8ABB1] transition-colors hover:text-[#EEEEF0] focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3",
             off && "rounded-r-[22px] bg-[#2E1215]",
@@ -140,12 +160,17 @@ export function DeviceMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-64">
-        <DropdownMenuLabel className="text-meta text-ink-3">{label}</DropdownMenuLabel>
-        {devices.length === 0 ? <DropdownMenuItem disabled>No devices found</DropdownMenuItem> : null}
-        {devices.map((d) => (
-          <DropdownMenuItem key={d.deviceId} onClick={() => onPick(d.deviceId)} className={cn(d.deviceId === activeId && "font-medium")}>
-            <span className="truncate">{d.label || "Default"}</span>
-          </DropdownMenuItem>
+        {groups.map((g, i) => (
+          <React.Fragment key={g.label}>
+            {i > 0 ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuLabel className="text-meta text-ink-3">{g.label}</DropdownMenuLabel>
+            {g.devices.length === 0 ? <DropdownMenuItem disabled>No devices found</DropdownMenuItem> : null}
+            {g.devices.map((d) => (
+              <DropdownMenuItem key={d.deviceId} onClick={() => g.onPick(d.deviceId)} className={cn(d.deviceId === g.activeId && "font-medium")}>
+                <span className="truncate">{d.label || "Default"}</span>
+              </DropdownMenuItem>
+            ))}
+          </React.Fragment>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -161,6 +186,12 @@ export interface CallDockProps {
   onToggleMic: () => void
   onToggleCamera: () => void
   onToggleShare?: () => void
+  /**
+   * Why Share can't work here (CALL-BUG-19): a phone or tablet browser has
+   * no screen capture. The control stays, dimmed, and says so when pressed,
+   * rather than doing nothing.
+   */
+  shareUnavailable?: string
   micMenu?: React.ReactNode
   cameraMenu?: React.ReactNode
   onDisconnect: () => void
@@ -175,6 +206,8 @@ export interface CallDockProps {
   recordingSince?: number | null
   onToggleCaptions?: () => void
   showCaptions?: boolean
+  /** Captions are off for the whole call, so the control turns them on for everyone (CALL-BUG-2). */
+  captionsOff?: boolean
   onToggleAI?: () => void
   isAIOpen?: boolean
   aiUnreadCount?: number
@@ -189,6 +222,8 @@ export interface CallDockProps {
  */
 export function CallDock(p: CallDockProps) {
   const elapsed = useRecordingClock(p.isRecording ? (p.recordingSince ?? null) : null)
+  // Ask AI only where this server has AI (the v1 edition has no AI routes).
+  const aiAvailable = useFeature(FEATURE_AI)
   const hasShareGroup = Boolean(p.onToggleShare || p.onToggleCaptions)
   return (
     <TooltipProvider delayDuration={300}>
@@ -227,24 +262,36 @@ export function CallDock(p: CallDockProps) {
         {hasShareGroup ? <Divider /> : null}
         {p.onToggleShare ? (
           <span className="hidden @3xl:flex">
-            <DockButton
-              label={p.sharing ? "Stop sharing" : "Share screen"}
-              shortcut={CONTROL_KEYS.share}
-              state={p.sharing ? "active" : "on"}
-              pressed={!!p.sharing}
-              icon={p.sharing ? <MonitorOff /> : <MonitorUp />}
-              onClick={p.onToggleShare}
-            />
+            {p.shareUnavailable ? (
+              // Dimmed but still pressable: the tooltip, and a toast on a
+              // touch screen that has no hover, say why.
+              <DockButton
+                label="Share screen"
+                aria-disabled
+                icon={<MonitorUp />}
+                onClick={() => showCallFailure({ title: p.shareUnavailable!, description: "Share from a computer instead." })}
+                hint={p.shareUnavailable}
+              />
+            ) : (
+              <DockButton
+                label={p.sharing ? "Stop sharing" : "Share screen"}
+                shortcut={CONTROL_KEYS.share}
+                state={p.sharing ? "active" : "on"}
+                pressed={!!p.sharing}
+                icon={p.sharing ? <MonitorOff /> : <MonitorUp />}
+                onClick={p.onToggleShare}
+              />
+            )}
           </span>
         ) : null}
         {p.onToggleCaptions ? (
           <span className="hidden @3xl:flex">
             <DockButton
-              label={p.showCaptions ? "Hide captions" : "Show captions"}
+              label={captionsAction(p)}
               shortcut={CONTROL_KEYS.captions}
-              state={p.showCaptions ? "active" : "on"}
-              pressed={!!p.showCaptions}
-              icon={p.showCaptions ? <CaptionsOff /> : <Captions />}
+              state={!p.captionsOff && p.showCaptions ? "active" : "on"}
+              pressed={!p.captionsOff && !!p.showCaptions}
+              icon={!p.captionsOff && p.showCaptions ? <CaptionsOff /> : <Captions />}
               onClick={p.onToggleCaptions}
             />
           </span>
@@ -252,8 +299,7 @@ export function CallDock(p: CallDockProps) {
 
         {/* Together */}
         <Divider />
-        {p.onToggleAI ? (
-          <FeatureGate feature={FEATURE_AI}>
+        {p.onToggleAI && aiAvailable ? (
             <DockButton
               label={p.isAIOpen ? "Hide OneCamp AI" : "Ask AI"}
               short="Ask AI"
@@ -270,7 +316,6 @@ export function CallDock(p: CallDockProps) {
                 ) : null
               }
             />
-          </FeatureGate>
         ) : null}
         {p.onChatToggle ? (
           <span className="hidden @3xl:flex">
@@ -319,6 +364,15 @@ export function CallDock(p: CallDockProps) {
   )
 }
 
+/**
+ * What the captions control does now: turn them on for the whole call, or
+ * show or hide them on this screen once they are on. Pure.
+ */
+export function captionsAction(p: Pick<CallDockProps, "captionsOff" | "showCaptions">): string {
+  if (p.captionsOff) return "Turn on captions"
+  return p.showCaptions ? "Hide captions" : "Show captions"
+}
+
 /** Record: a disc, a spinner while it starts, then a steady dot and the elapsed time in mono. */
 function RecordButton({ recording, loading, elapsed, onClick }: { recording: boolean; loading: boolean; elapsed: string; onClick: () => void }) {
   return (
@@ -363,15 +417,26 @@ function MoreMenu(p: CallDockProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="end" className="mb-2 w-60 p-1">
           {p.onToggleShare ? (
-            <DropdownMenuItem onClick={p.onToggleShare} className="h-[52px]">
-              {p.sharing ? <MonitorOff /> : <MonitorUp />}
-              {p.sharing ? "Stop sharing" : "Share screen"}
-            </DropdownMenuItem>
+            p.shareUnavailable ? (
+              // A phone has no screen capture: the row says so rather than doing nothing.
+              <DropdownMenuItem disabled className="h-[52px]" data-share-unavailable="">
+                <MonitorUp />
+                <span className="flex min-w-0 flex-col">
+                  <span>Share screen</span>
+                  <span className="text-meta text-ink-3">Not available in this browser</span>
+                </span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={p.onToggleShare} className="h-[52px]">
+                {p.sharing ? <MonitorOff /> : <MonitorUp />}
+                {p.sharing ? "Stop sharing" : "Share screen"}
+              </DropdownMenuItem>
+            )
           ) : null}
           {p.onToggleCaptions ? (
             <DropdownMenuItem onClick={p.onToggleCaptions} className="h-[52px]">
-              {p.showCaptions ? <CaptionsOff /> : <Captions />}
-              {p.showCaptions ? "Hide captions" : "Show captions"}
+              {!p.captionsOff && p.showCaptions ? <CaptionsOff /> : <Captions />}
+              {captionsAction(p)}
             </DropdownMenuItem>
           ) : null}
           {p.onChatToggle ? (
@@ -409,39 +474,96 @@ function useRecordingClock(since: number | null): string {
   return since === null ? "" : formatElapsed(now - since)
 }
 
-/** A device menu for one kind, reading and switching the room's device. */
-function RoomDeviceMenu({ kind, label, off }: { kind: MediaDeviceKind; label: string; off: boolean }) {
+/** Whether this browser can send call audio to a chosen speaker (Safari can't). */
+const speakerChoice = () => typeof window !== "undefined" && supportsAudioOutputSelection()
+
+/**
+ * A device menu for one kind, reading and switching the room's device, and
+ * remembering the pick for the next call. The microphone's lists speakers
+ * too, where they can be chosen (CALL-BUG-21). A switch that fails says so.
+ */
+function RoomDeviceMenu({ kind, label, off }: { kind: "audioinput" | "videoinput"; label: string; off: boolean }) {
   const room = useRoomContext()
-  const { devices, activeDeviceId, setActiveMediaDevice } = useMediaDeviceSelect({ kind, room })
-  return <DeviceMenu label={label} off={off} devices={devices} activeId={activeDeviceId} onPick={(id) => void setActiveMediaDevice(id)} />
+  const input = useMediaDeviceSelect({ kind, room })
+  const output = useMediaDeviceSelect({ kind: "audiooutput", room })
+  const [canPickSpeaker] = React.useState(speakerChoice)
+  const pick = (k: keyof DevicePrefs, select: (id: string) => Promise<void>, what: string) => (id: string) => {
+    select(id)
+      .then(() => writeDevicePref(k, id))
+      .catch(() => showCallFailure({ title: `Couldn't switch to that ${what}`, description: "It may have been unplugged. Choose another." }))
+  }
+  const groups: DeviceGroup[] = [
+    { label, devices: input.devices, activeId: input.activeDeviceId, onPick: pick(kind, input.setActiveMediaDevice, label.toLowerCase()) },
+  ]
+  if (kind === "audioinput" && canPickSpeaker) {
+    groups.push({ label: "Speaker", devices: output.devices, activeId: output.activeDeviceId, onPick: pick("audiooutput", output.setActiveMediaDevice, "speaker") })
+  }
+  const name = groups.length > 1 ? `Choose a ${label.toLowerCase()} or speaker` : `Choose a ${label.toLowerCase()}`
+  return <DeviceMenu label={name} off={off} groups={groups} />
 }
 
-interface VideoControlsProps extends Omit<CallDockProps, "micOn" | "cameraOn" | "onToggleMic" | "onToggleCamera" | "onDisconnect" | "sharing" | "onToggleShare"> {
+interface VideoControlsProps extends Omit<CallDockProps, "micOn" | "cameraOn" | "onToggleMic" | "onToggleCamera" | "onDisconnect" | "sharing" | "onToggleShare" | "shareUnavailable"> {
   onDisconnect?: () => void
 }
 
-/** The dock, wired to the room: the local participant's tracks and devices, and the M and V keys. */
+/**
+ * Turns a device on or off and says why when it can't (CALL-BUG-1): the
+ * dock used to drop the answer, so a refused microphone left the button red
+ * and the reason in the console. One press at a time: a second press while
+ * the browser is still asking for permission would queue a second request.
+ */
+function useDeviceToggle(device: CallDevice, enabled: boolean, set: (on: boolean) => Promise<unknown>) {
+  const busy = React.useRef(false)
+  return React.useCallback(async () => {
+    if (busy.current) return
+    busy.current = true
+    const next = !enabled
+    try {
+      await set(next)
+    } catch (e) {
+      showCallFailure(next ? callMediaFailure(device, e) : { title: `Couldn't turn off your ${device === "screen" ? "screen share" : device}`, description: "Try again." })
+    } finally {
+      busy.current = false
+    }
+  }, [device, enabled, set])
+}
+
+/** The dock, wired to the room: the local participant's tracks and devices, and the call's keys (callKeys). */
 export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
   const room = useRoomContext()
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant()
+  const aiAvailable = useFeature(FEATURE_AI)
+  const [shareable] = React.useState(() => canShareScreen())
 
-  const toggleMic = React.useCallback(() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled), [localParticipant, isMicrophoneEnabled])
-  const toggleCamera = React.useCallback(() => void localParticipant.setCameraEnabled(!isCameraEnabled), [localParticipant, isCameraEnabled])
-  const toggleShare = () => void localParticipant.setScreenShareEnabled(!isScreenShareEnabled)
+  const toggleMic = useDeviceToggle("microphone", isMicrophoneEnabled, React.useCallback((on: boolean) => localParticipant.setMicrophoneEnabled(on), [localParticipant]))
+  const toggleCamera = useDeviceToggle("camera", isCameraEnabled, React.useCallback((on: boolean) => localParticipant.setCameraEnabled(on), [localParticipant]))
+  const toggleShare = useDeviceToggle("screen", isScreenShareEnabled, React.useCallback((on: boolean) => localParticipant.setScreenShareEnabled(on), [localParticipant]))
   const leave = () => (onDisconnect ? onDisconnect() : void room.disconnect())
 
-  // M and V, as the tooltips say, never while typing.
+  // Every key a tooltip teaches, from the one table, never while typing.
+  const { onToggleCaptions, onToggleAI, onLayoutChange, layout } = rest
+  const actions = React.useMemo<Partial<Record<CallAction, () => void>>>(
+    () => ({
+      mic: () => void toggleMic(),
+      camera: () => void toggleCamera(),
+      share: shareable ? () => void toggleShare() : undefined,
+      captions: onToggleCaptions,
+      ai: aiAvailable ? onToggleAI : undefined,
+      layout: onLayoutChange ? () => onLayoutChange(layout === "grid" ? "speaker" : "grid") : undefined,
+    }),
+    [toggleMic, toggleCamera, toggleShare, shareable, onToggleCaptions, aiAvailable, onToggleAI, onLayoutChange, layout],
+  )
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return
-      const t = e.target as HTMLElement | null
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
-      if (e.key === "m" || e.key === "M") toggleMic()
-      else if (e.key === "v" || e.key === "V") toggleCamera()
+      const action = callKeyAction(e)
+      const run = action ? actions[action] : undefined
+      if (!run) return
+      e.preventDefault()
+      run()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [toggleMic, toggleCamera])
+  }, [actions])
 
   return (
     <CallDock
@@ -449,9 +571,10 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
       micOn={isMicrophoneEnabled}
       cameraOn={isCameraEnabled}
       sharing={isScreenShareEnabled}
-      onToggleMic={toggleMic}
-      onToggleCamera={toggleCamera}
-      onToggleShare={toggleShare}
+      onToggleMic={() => void toggleMic()}
+      onToggleCamera={() => void toggleCamera()}
+      onToggleShare={() => void toggleShare()}
+      shareUnavailable={shareable ? undefined : SCREEN_UNAVAILABLE}
       onDisconnect={leave}
       micMenu={<RoomDeviceMenu kind="audioinput" label="Microphone" off={!isMicrophoneEnabled} />}
       cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} />}
