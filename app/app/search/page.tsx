@@ -46,7 +46,10 @@ export default function SearchPage() {
         retry,
         handleResultClick,
         handlePreview,
-        handleSearchSubmit
+        handleSearchSubmit,
+        hasMore,
+        loadMore,
+        isLoadingMore,
     } = useSearch({ initialQuery: query, debounceMs: 150 })
 
     const inputRef = useRef<HTMLInputElement>(null)
@@ -106,6 +109,8 @@ export default function SearchPage() {
     }
 
     const total = scope === "all" ? results.length : counts[scope]
+    // The index holds more than the pages fetched: every count is "at least".
+    const plus = hasMore ? "+" : ""
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background font-sans">
@@ -162,7 +167,7 @@ export default function SearchPage() {
 
                     {shown && (results.length > 0 || isLoading) ? (
                         <div className="mt-3">
-                            <ScopeChips scopes={chips} counts={counts} value={scope} onChange={setScope} />
+                            <ScopeChips scopes={chips} counts={counts} more={hasMore} value={scope} onChange={setScope} />
                         </div>
                     ) : null}
 
@@ -171,7 +176,7 @@ export default function SearchPage() {
                         {!isLoading && results.length > 0 ? (
                             <>
                                 <span data-search-count="">
-                                    {total === 1 ? "1 result" : `${total} results`} for “{shown}”
+                                    {total === 1 && !plus ? "1 result" : `${total}${plus} results`} for “{shown}”
                                 </span>
                                 <span aria-hidden>·</span>
                                 <DropdownMenu>
@@ -224,7 +229,7 @@ export default function SearchPage() {
                                         className="hub-sticky-head sticky top-0 z-[3] flex h-8 items-center gap-2 pl-12 text-meta font-medium text-ink-3"
                                     >
                                         {g.label}
-                                        <span className="font-book tabular-nums">{g.total}</span>
+                                        <span className="font-book tabular-nums">{g.total}{plus}</span>
                                     </h2>
                                     <ul>
                                         {g.rows.map((result) => {
@@ -244,6 +249,21 @@ export default function SearchPage() {
                                     ) : null}
                                 </section>
                             ))}
+                            {hasMore ? (
+                                <div className="mb-4 pl-12">
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        data-search-show-more=""
+                                        onClick={() => void loadMore?.()}
+                                        disabled={isLoadingMore}
+                                        aria-busy={isLoadingMore || undefined}
+                                    >
+                                        {isLoadingMore ? "Loading more…" : "Show more"}
+                                    </Button>
+                                </div>
+                            ) : null}
                             <p className="hidden pl-12 text-meta text-ink-3 md:flex md:items-center md:gap-1">
                                 <kbd className="kbd">↑</kbd>
                                 <kbd className="kbd">↓</kbd> to move through them

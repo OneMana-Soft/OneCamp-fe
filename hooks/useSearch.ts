@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch } from "react-redux"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
 import { useDebounce } from "@/hooks/useDebounce"
-import { GlobalSearchGet, SearchResult } from "@/services/searchService"
+import { fetchSearchPage, GlobalSearchGet, SearchResult } from "@/services/searchService"
 import { openUI } from "@/store/slice/uiSlice"
 import type {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -44,7 +44,35 @@ export const useSearch = ({
     )
 
     // One empty list, so a list with nothing in it is the same list each render.
-    const results: SearchResult[] = (searching && searchData?.data?.page) || NO_RESULTS
+    const firstPage: SearchResult[] = (searching && searchData?.data?.page) || NO_RESULTS
+
+    // The pages "Show more" fetched after the first, for the query they were
+    // fetched for: a new query starts from its own first page. The page used
+    // to say "20 results" for the first 20 of any number, with no way on.
+    const [more, setMore] = useState<{ q: string; rows: SearchResult[]; next?: string; hasMore: boolean }>({ q: "", rows: [], hasMore: false })
+    const [isLoadingMore, setIsLoadingMore] = useState(false)
+    const q = debouncedValue.trim()
+    // Show more has answered for this query, even with nothing.
+    const ownMore = searching && more.q === q
+    const results: SearchResult[] = useMemo(() => (ownMore ? [...firstPage, ...more.rows] : firstPage), [ownMore, firstPage, more.rows])
+    const hasMore = searching && (ownMore ? more.hasMore : !!searchData?.data?.has_more)
+    const nextCursor: string | undefined = ownMore ? more.next : searchData?.data?.next
+
+    const loadMore = useCallback(async () => {
+        if (!hasMore || !nextCursor || isLoadingMore) return
+        setIsLoadingMore(true)
+        try {
+            const page = await fetchSearchPage(q, nextCursor)
+            setMore((m) => {
+                const before = m.q === q ? m.rows : []
+                return { q, rows: [...before, ...page.page], next: page.next, hasMore: page.has_more && !!page.next }
+            })
+        } catch {
+            // Show more stays; pressing it again asks again.
+        } finally {
+            setIsLoadingMore(false)
+        }
+    }, [hasMore, nextCursor, isLoadingMore, q])
     // Waiting with nothing to show yet (a first search, not a refinement), and
     // refreshing while an older answer shows, which lists dim.
     const isSearching = searching && isLoading && results.length === 0
@@ -111,6 +139,10 @@ export const useSearch = ({
         handleClear,
         handleResultClick,
         handlePreview,
-        handleSearchSubmit
+        handleSearchSubmit,
+        // More than these: "20+ results", and Show more fetches the next page.
+        hasMore,
+        loadMore,
+        isLoadingMore,
     }
 }
