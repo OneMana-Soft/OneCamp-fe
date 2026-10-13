@@ -1,39 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { fieldLabel } from "@/lib/ui/fieldRow"
 
 // The event panel reads like the task panel: quiet labels in one column,
 // each value on one line, sentence-case section titles, and no accent on
-// what is only a label.
+// what is only a label. It loads its event by id (CAL-BUG-7).
 
 const SAM = { user_uuid: "289b6b5d-c30c-427a-bcec-634cb294f285", user_name: "Sam Rivera", user_full_name: "Sam Rivera", user_profile_object_key: "" }
 const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-000000000002", user_name: "Maya", user_full_name: "Maya Chen", user_profile_object_key: "" }
+const JONAS = { user_uuid: "5e1f0000-0000-4000-8000-000000000003", user_name: "Jonas", user_full_name: "Jonas Berg", user_profile_object_key: "" }
 let participants: (typeof SAM)[] = []
 let times = { event_start_time: "2026-09-28T09:30:00", event_end_time: "2026-09-28T09:45:00" }
 let loading = false
 let eventId = "e1"
+// What GET /event/getEvent/{id} answers: the event, or a failure.
+let failure: { status: number; data?: unknown } | null = null
+// Every URL the panel asked for.
+const asked: string[] = []
+const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_created_by: SAM, event_participants: participants })
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: () => ({
-    data: loading ? undefined : {
-      data: [
-        {
-          event_uuid: eventId,
-          event_title: "Standup",
-          ...times,
-          event_created_by: SAM,
-          event_participants: participants,
-        },
-      ],
-    },
-    isLoading: loading,
-    mutate: vi.fn(),
-  }),
+  useFetch: (url: string) => {
+    asked.push(url)
+    // A list holds this month's events only (the old fallback's range).
+    if (url.startsWith("/event/getEvents")) return { data: { data: [] }, isLoading: false, mutate: vi.fn() }
+    if (loading) return { data: undefined, isLoading: true, mutate: vi.fn() }
+    if (failure) return { data: undefined, isLoading: false, isError: { response: failure }, mutate: vi.fn() }
+    return { data: url === `/event/getEvent/${encodeURIComponent(eventId)}` ? { data: standup() } : undefined, isLoading: false, mutate: vi.fn() }
+  },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: SAM.user_uuid } } }),
 }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn() }) }))
+const makeRequest = vi.fn()
+vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest }) }))
 vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => vi.fn() }))
-vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn() }) }))
+// SWR's cache: a list already loaded (the calendar's month, Home's today).
+let cache = new Map<string, unknown>()
+vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn(), cache }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
 
 import EventInfoPanel from "./eventInfoPanel"
@@ -44,12 +46,16 @@ afterEach(() => {
   eventId = "e1"
   participants = []
   times = { event_start_time: "2026-09-28T09:30:00", event_end_time: "2026-09-28T09:45:00" }
+  failure = null
+  cache = new Map()
+  asked.length = 0
+  makeRequest.mockReset()
 })
 
-function panel(props: { onClose?: () => void } = {}) {
+function panel(props: { onClose?: () => void; uuid?: string } = {}) {
   return render(
     <TooltipProvider>
-      <EventInfoPanel eventUUID="e1" {...props} />
+      <EventInfoPanel eventUUID={props.uuid ?? "e1"} onClose={props.onClose} />
     </TooltipProvider>,
   )
 }
@@ -168,7 +174,7 @@ describe("an event in the side panel", () => {
     expect(screen.queryByText(/Loading event details/)).toBeNull()
     cleanup()
     loading = false
-    eventId = "someone-elses"
+    failure = { status: 404, data: { msg: "This event isn't available." } }
     panel()
     expect(screen.getByRole("heading", { name: "This event isn't available" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Close" })).toBeTruthy()
@@ -179,5 +185,92 @@ describe("an event in the side panel", () => {
     panel({ onClose: vi.fn() })
     expect(screen.queryByRole("button", { name: "Close panel" })).toBeNull()
     expect(screen.getByRole("button", { name: "Edit event" })).toBeTruthy()
+  })
+})
+
+// CAL-BUG-7: on a phone, and from a link, the panel looked for the event in
+// today's month only, so any other event read "This event isn't available".
+describe("an event opened by its id", () => {
+  const listKey = "/event/getEvents?startDate=2026-09-28T00:00:00.000Z&endDate=2026-11-01T23:59:59.999Z"
+
+  it("is asked for by its id, so an event two months out opens", () => {
+    eventId = "e-december"
+    times = { event_start_time: "2026-12-14T10:00:00", event_end_time: "2026-12-14T11:00:00" }
+    panel({ uuid: "e-december", onClose: vi.fn() })
+    expect(asked).toContain("/event/getEvent/e-december")
+    expect(screen.getByRole("heading", { name: "Standup" })).toBeTruthy()
+    expect(screen.getByText("Monday 14 December 2026")).toBeTruthy()
+  })
+
+  it("asks for a Google event by the id the list gave it", () => {
+    eventId = "gcal-abc_20261214T100000Z"
+    panel({ uuid: "gcal-abc_20261214T100000Z" })
+    expect(asked).toContain("/event/getEvent/gcal-abc_20261214T100000Z")
+  })
+
+  it("shows the list's copy while it loads", () => {
+    loading = true
+    cache.set(listKey, { data: { data: [standup()] } })
+    panel()
+    expect(screen.getByRole("heading", { name: "Standup" })).toBeTruthy()
+    expect(screen.queryByRole("status", { name: "Loading the event" })).toBeNull()
+  })
+
+  it("believes the server over the list when it says the event isn't there for you", () => {
+    failure = { status: 404, data: { msg: "This event isn't available." } }
+    cache.set(listKey, { data: { data: [standup()] } })
+    panel()
+    expect(screen.getByRole("heading", { name: "This event isn't available" })).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "Standup" })).toBeNull()
+  })
+
+  it("keeps to the list's copy on a server without the route (a bare 404)", () => {
+    failure = { status: 404, data: "404 page not found" }
+    cache.set(listKey, { data: { data: [standup()] } })
+    panel()
+    expect(screen.getByRole("heading", { name: "Standup" })).toBeTruthy()
+  })
+
+  it("says a failed load failed, with Try again", () => {
+    failure = { status: 502 }
+    panel()
+    expect(screen.getByRole("heading", { name: "Couldn't load this event" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Try again/ })).toBeTruthy()
+  })
+})
+
+// CAL-BUG-1 (the web's half): a guest removed in the panel is left out of
+// what it saves, and removing the last sends an empty list, never none.
+describe("saving the guests", () => {
+  const save = async () => {
+    fireEvent.click(within(screen.getByRole("button", { name: "Close panel" }).closest("[data-panel-actions]") as HTMLElement).getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(makeRequest).toHaveBeenCalled())
+    return makeRequest.mock.calls[0][0]
+  }
+
+  it("leaves out the guest removed", async () => {
+    participants = [MAYA, JONAS]
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    fireEvent.click(screen.getByRole("button", { name: "Remove Jonas" }))
+    const call = await save()
+    expect(call.payload.participants).toEqual([MAYA.user_uuid])
+  })
+
+  it("sends an empty list when the last guest is removed", async () => {
+    participants = [MAYA]
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    fireEvent.click(screen.getByRole("button", { name: "Remove Maya" }))
+    const call = await save()
+    expect(call.payload).toHaveProperty("participants", [])
+  })
+
+  // CAL-BUG-16 (the web's half): a refused save says the server's reason.
+  it("lets the server's reason for a refusal be told", async () => {
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    const call = await save()
+    expect(call).toMatchObject({ showErrorToast: true, failureTitle: "Couldn't save the event" })
   })
 })

@@ -203,6 +203,7 @@ export enum GetEndpointUrl {
     GoogleCalendarAuthUrl = "/integration/google-calendar/auth-url",
     GoogleCalendarStatus = "/integration/google-calendar/status",
     GoogleCalendarEvents = "/event/getEvents",
+    GetEvent = "/event/getEvent",
 
     // Per-user connectors (Gmail, Calendar, GitHub) the AI can read/act through.
     Connectors = "/connectors",
