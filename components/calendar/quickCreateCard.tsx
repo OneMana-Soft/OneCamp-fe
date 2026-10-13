@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Moon, UserPlus, X } from "@/lib/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -9,13 +9,16 @@ import { TimeList } from "@/components/ui/date-time-picker";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
 import { Button } from "@/components/ui/button";
 import { usePost } from "@/hooks/usePost";
-import { PostEndpointUrl } from "@/services/endPoints";
+import { useDebounce } from "@/hooks/useDebounce";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { shortTime } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import { displayNameOf } from "@/lib/personName";
 import { parseEventText, type ParsedEvent } from "@/lib/calendar/parseEventText";
+import { foldName, matchName, type GuestCandidate, type NameMatch } from "@/lib/calendar/guestMatch";
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import type { CreateEventPayload } from "@/types/calendar";
 import type { ChannelAndUserListInterfaceResp } from "@/types/user";
 import type { CalendarDraft } from "@/components/calendar/weekView";
@@ -47,14 +50,23 @@ interface QuickCreateCardProps {
 
 const chip =
   "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md bg-hover px-2 text-meta font-medium text-ink-2 ring-1 ring-inset ring-line outline-none transition-colors hover:bg-press hover:text-ink focus-visible:ring-2 focus-visible:ring-brand [&_svg]:size-3";
+/** A person named in the title: a chip that holds its own buttons. */
+const nameChip = "inline-flex min-h-6 max-w-full shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md bg-hover px-2 py-0.5 text-meta font-medium text-ink-2 ring-1 ring-inset ring-line [&_svg]:size-3";
+const chipButton = "inline-flex items-center rounded-[4px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand";
 
 export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreated, onMoreOptions }: QuickCreateCardProps) {
   const [text, setText] = useState("");
   const [focus, setFocus] = useState(false);
   const [guests, setGuests] = useState<PickedPerson[]>([]);
   const [picker, setPicker] = useState<null | "date" | "time" | "guests">(null);
+  // The people named after "with": what each name came to, and what the
+  // person decided (someone picked, or null: nobody for that name).
+  const [lookups, setLookups] = useState<Record<string, NameMatch>>({});
+  const [decided, setDecided] = useState<Record<string, GuestCandidate | null>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const post = usePost();
+  // Its own, so a lookup never greys out Save.
+  const lookup = usePost();
   // The draft the card opened on (or a chip last set): what the parse adjusts from.
   const base = useRef<CalendarDraft | null>(draft);
   const wasOpen = useRef(!!draft);
@@ -65,6 +77,8 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
       setFocus(false);
       setGuests([]);
       setPicker(null);
+      setLookups({});
+      setDecided({});
       base.current = null;
     }
     wasOpen.current = !!draft;
@@ -89,22 +103,51 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
   const isFocus = focus || parsed.focus;
   const title = parsed.title || (isFocus ? "Focus time" : "");
 
-  const values = (): QuickCreateValues | null =>
-    draft ? { title, start: draft.start, end: draft.end, isFocus, guests } : null;
-
-  const resolvePeople = async (): Promise<string[]> => {
-    const ids = new Set(guests.map((g) => g.uuid));
-    for (const name of parsed.people) {
-      if (guests.some((g) => g.name.toLowerCase().startsWith(name.toLowerCase()))) continue;
-      const res = await post.makeRequest<{ search_text: string }, ChannelAndUserListInterfaceResp[]>({
-        apiEndpoint: PostEndpointUrl.SearchUserAndChannel,
-        payload: { search_text: name },
-      });
-      const hit = Array.isArray(res) ? res.find((r) => r.user_uuid && displayNameOf(r).toLowerCase().startsWith(name.toLowerCase())) : undefined;
-      if (hit) ids.add(hit.user_uuid);
+  // Each name after "with" is looked up while it is typed, once, and the card
+  // shows who it came to (CAL-BUG-10). Save never looks anyone up.
+  const named = useMemo(() => {
+    const seen = new Set<string>();
+    return parsed.people.filter((n) => {
+      const k = foldName(n);
+      return !!k && !seen.has(k) && !!seen.add(k);
+    });
+  }, [parsed.people]);
+  const settledNames = useDebounce(named.join("\u0000"), 250);
+  useEffect(() => {
+    if (!draft || !settledNames) return;
+    for (const name of settledNames.split("\u0000")) {
+      const k = foldName(name);
+      if (lookups[k]) continue;
+      setLookups((cur) => ({ ...cur, [k]: { state: "looking" } }));
+      lookup
+        .makeRequest<{ search_text: string }, ChannelAndUserListInterfaceResp[]>({ apiEndpoint: PostEndpointUrl.SearchUserAndChannel, payload: { search_text: name }, quiet: true })
+        .then((res) => {
+          const hits = (Array.isArray(res) ? res : []).filter((r) => r.user_uuid).map((r) => ({ uuid: r.user_uuid, name: displayNameOf(r) || "Someone", avatarKey: r.user_profile_object_key || undefined }));
+          setLookups((cur) => ({ ...cur, [k]: matchName(name, hits) }));
+        })
+        .catch(() => setLookups((cur) => ({ ...cur, [k]: { state: "failed" } })));
     }
-    return [...ids];
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per settled list of names
+  }, [settledNames, !!draft]);
+
+  // Who each name invites: the one picked, or the one found, unless set aside.
+  const namedPeople = named.map((name) => {
+    const k = foldName(name);
+    const choice = decided[k];
+    const match: NameMatch = lookups[k] ?? { state: "looking" };
+    const person = choice === null ? null : choice ?? (match.state === "found" ? match.person : null);
+    return { key: k, name, match, person, setAside: choice === null };
+  });
+  const invited = useMemo(() => {
+    const out = new Map<string, PickedPerson>();
+    for (const g of guests) out.set(g.uuid, g);
+    for (const n of namedPeople) if (n.person) out.set(n.person.uuid, { uuid: n.person.uuid, name: n.person.name });
+    return [...out.values()];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- namedPeople is derived from these
+  }, [guests, named, lookups, decided]);
+
+  const values = (): QuickCreateValues | null =>
+    draft ? { title, start: draft.start, end: draft.end, isFocus, guests: invited } : null;
 
   const save = async () => {
     const v = values();
@@ -112,7 +155,9 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
       inputRef.current?.focus();
       return;
     }
-    const participants = await resolvePeople();
+    // Only the people the card shows: a name still being looked up, or one
+    // that asks who, invites nobody.
+    const participants = v.guests.map((g) => g.uuid);
     const res = await post.makeRequest<CreateEventPayload>({
       apiEndpoint: PostEndpointUrl.CreateCalendarEvent,
       payload: {
@@ -194,6 +239,50 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
               className="relative w-full bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
             />
           </div>
+          {namedPeople.some((n) => !n.setAside) ? (
+            <ul className="flex flex-wrap gap-1.5 px-4 pt-2.5" aria-label="People named" data-named-people="">
+              {namedPeople.map((n) =>
+                n.setAside ? null : (
+                  <li key={n.key} className="flex max-w-full">
+                    {n.person ? (
+                      <span className={cn(nameChip, "pr-1")} data-guest="invited">
+                        <IdentityMark
+                          variant="avatar"
+                          size={16}
+                          id={avatarSeed(n.person.name)}
+                          label={n.person.name}
+                          src={n.person.avatarKey ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${n.person.avatarKey}` : undefined}
+                        />
+                        <span className="max-w-[11rem] truncate text-ink">{n.person.name}</span>
+                        <button type="button" aria-label={`Don't invite ${n.person.name}`} onClick={() => setDecided((d) => ({ ...d, [n.key]: null }))} className={cn(chipButton, "size-5 justify-center text-ink-3 hover:bg-press hover:text-ink")}>
+                          <X aria-hidden="true" />
+                        </button>
+                      </span>
+                    ) : n.match.state === "choose" ? (
+                      <span role="group" aria-label={`Who is ${n.name}?`} className={cn(nameChip, "pr-1")} data-guest="choose">
+                        <span className="text-ink">{n.name}?</span>
+                        {n.match.options.map((o, i) => (
+                          <Fragment key={o.uuid}>
+                            {i > 0 ? <span aria-hidden="true" className="text-ink-4">·</span> : null}
+                            <button type="button" onClick={() => setDecided((d) => ({ ...d, [n.key]: o }))} className={cn(chipButton, "px-0.5 text-brand-text hover:underline")}>
+                              {o.name}
+                            </button>
+                          </Fragment>
+                        ))}
+                        <button type="button" aria-label={`Invite nobody for ${n.name}`} onClick={() => setDecided((d) => ({ ...d, [n.key]: null }))} className={cn(chipButton, "size-5 justify-center text-ink-3 hover:bg-press hover:text-ink")}>
+                          <X aria-hidden="true" />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className={cn(nameChip, "text-ink-3")} aria-busy={n.match.state === "looking" || undefined} data-guest={n.match.state}>
+                        {n.match.state === "none" ? `No one called ${n.name}` : n.match.state === "failed" ? `Couldn't look up ${n.name}` : `Finding ${n.name}…`}
+                      </span>
+                    )}
+                  </li>
+                ),
+              )}
+            </ul>
+          ) : null}
           <div className="flex flex-wrap gap-1.5 px-4 pb-3 pt-3">
             <Popover open={picker === "date"} onOpenChange={(o) => setPicker(o ? "date" : null)}>
               <PopoverAnchor asChild>
@@ -245,11 +334,11 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
               <PopoverAnchor asChild>
                 <button type="button" className={chip} onClick={() => setPicker("guests")}>
                   <UserPlus aria-hidden="true" />
-                  {guests.length || parsed.people.length ? [...guests.map((g) => g.name.split(" ")[0]), ...parsed.people].slice(0, 2).join(", ") : "Add guests"}
+                  {guests.length ? `${guests.slice(0, 2).map((g) => g.name.split(" ")[0]).join(", ")}${guests.length > 2 ? ` +${guests.length - 2}` : ""}` : "Add guests"}
                 </button>
               </PopoverAnchor>
               <PopoverContent align="start" className="content-float w-[280px] rounded-xl bg-pop p-3 shadow-e3">
-                <PeoplePicker value={guests} onChange={setGuests} placeholder="Add guests by name" />
+                <PeoplePicker value={guests} onChange={setGuests} exclude={namedPeople.flatMap((n) => (n.person ? [n.person.uuid] : []))} placeholder="Add guests by name" />
               </PopoverContent>
             </Popover>
             <span className={cn(chip, "cursor-default hover:bg-hover hover:text-ink-2")} title="Your OneCamp calendar">
