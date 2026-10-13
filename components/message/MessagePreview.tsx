@@ -66,20 +66,17 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
     // The server sends nothing else of it (models/dgraph HideDeletedForwards).
     if (msgInfo.deleted) {
         return (
-            <div data-forwarded="" data-forward-deleted="" className="relative mt-2 min-w-0 max-w-[520px] overflow-hidden rounded-xl bg-sunken py-2.5 pl-4 pr-3">
-                <span aria-hidden="true" className="absolute bottom-2 left-1.5 top-2 w-0.5 rounded-full bg-line" />
+            <ForwardCard bar="bg-line" deleted>
                 <p className="text-ui-sm italic text-ink-3">This message was deleted.</p>
-            </div>
+            </ForwardCard>
         )
     }
 
-    // A forwarded message (design v3 chat, C23): a sunken card with a 2px
-    // bar in its author's hue (never the accent), their face and name, where
-    // and when it was said, the words clamped to four lines with a fade, and
-    // the way back to the original.
+    // A forwarded message (design v3 chat, C23): its author's face and name,
+    // where and when it was said, the words clamped to four lines with a
+    // fade, and the way back to the original.
     return (
-        <div data-forwarded="" className="relative mt-2 min-w-0 max-w-[520px] overflow-hidden rounded-xl bg-sunken py-2.5 pl-4 pr-3">
-            <span aria-hidden="true" className={cn("absolute bottom-2 left-1.5 top-2 w-0.5 rounded-full bg-hue", HUE_CLASS[hueFor(name)])} />
+        <ForwardCard bar={cn("bg-hue", HUE_CLASS[hueFor(name)])}>
             <div className="flex min-w-0 items-center gap-2">
                 {relayed ? (
                     <span className="size-5 shrink-0">
@@ -126,6 +123,20 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                     )}
                 </p>
             )}
+        </ForwardCard>
+    )
+}
+
+/**
+ * The card a forward is drawn in (design v3 chat, C23): sunken, with a 2px
+ * bar down its left in bar's colour, the author's hue (never the accent), or
+ * the line colour for a forward whose original was deleted.
+ */
+function ForwardCard({ bar, deleted, children }: { bar: string; deleted?: boolean; children: React.ReactNode }) {
+    return (
+        <div data-forwarded="" data-forward-deleted={deleted ? "" : undefined} className="relative mt-2 min-w-0 max-w-[520px] overflow-hidden rounded-xl bg-sunken py-2.5 pl-4 pr-3">
+            <span aria-hidden="true" className={cn("absolute bottom-2 left-1.5 top-2 w-0.5 rounded-full", bar)} />
+            {children}
         </div>
     )
 }
