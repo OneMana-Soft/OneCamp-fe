@@ -17,7 +17,7 @@
 
 import React, { useEffect, useState, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
-import { getAttention, ATTENTION_KEY, type AttentionResult, type AttentionItem } from "@/services/memoryService"
+import { getAttention, attentionKey, type AttentionResult, type AttentionItem } from "@/services/memoryService"
 import { forgetShared, peekShared } from "@/lib/utils/sharedRequest"
 import { approvePendingAction, rejectPendingAction } from "@/services/pendingActionService"
 import { removePendingAction } from "@/store/slice/pendingActionSlice"
@@ -71,8 +71,8 @@ function AttentionCard({ base = [], baseLoading = false, footer, noChannels, cla
   const dispatch = useDispatch()
   // Start from the answer kept from a moment ago, if any, so coming back to
   // Home shows the list at once instead of a placeholder.
-  const [data, setData] = useState<AttentionResult | null>(() => peekShared<AttentionResult>(ATTENTION_KEY) ?? null)
-  const [loading, setLoading] = useState(() => peekShared(ATTENTION_KEY) === undefined)
+  const [data, setData] = useState<AttentionResult | null>(() => peekShared<AttentionResult>(attentionKey()) ?? null)
+  const [loading, setLoading] = useState(() => peekShared(attentionKey()) === undefined)
   const [now] = useState(() => new Date())
 
   useEffect(() => {
@@ -104,7 +104,7 @@ function AttentionCard({ base = [], baseLoading = false, footer, noChannels, cla
     }
   }, [])
 
-  const forget = () => forgetShared(ATTENTION_KEY)
+  const forget = () => forgetShared(attentionKey())
 
   const onApprove = async (item: NeedsItem) => {
     if (!item.refId) throw new Error("the request is gone")

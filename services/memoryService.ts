@@ -10,6 +10,7 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { sharedRequest } from "@/lib/utils/sharedRequest"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 export type MemoryKind = "decision" | "commitment" | "question" | "glossary"
 export type MemoryStatus = "open" | "resolved" | "superseded" | "dismissed"
@@ -152,17 +153,22 @@ export interface BriefingResult {
   day_items?: BriefingDayItem[]
 }
 
-/** Keys for the kept answers (see lib/utils/sharedRequest). */
-export const BRIEFING_KEY = "ai/briefing"
-export const ATTENTION_KEY = "ai/attention"
+/**
+ * Keys for the kept answers (see lib/utils/sharedRequest), one per zone: the
+ * briefing's and the queue's "today" is the reader's day in the device's zone
+ * (CAL-BUG-13), so an answer for another zone is never shown again.
+ */
+export const briefingKey = (tz: string = browserTZ()) => `ai/briefing?tz=${tz}`
+export const attentionKey = (tz: string = browserTZ()) => `ai/attention?tz=${tz}`
 
 /** The briefing, one request for every card asking at once. */
 export function getBriefing(): Promise<BriefingResult> {
-  return sharedRequest(BRIEFING_KEY, fetchBriefing)
+  const tz = browserTZ()
+  return sharedRequest(briefingKey(tz), () => fetchBriefing(tz))
 }
 
-async function fetchBriefing(): Promise<BriefingResult> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAIBriefing)
+async function fetchBriefing(tz: string): Promise<BriefingResult> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIBriefing}?tz=${encodeURIComponent(tz)}`)
   const d = res.data?.data
   // Normalize every collection to an array regardless of the payload shape.
   // A Go nil slice marshals to JSON `null`, and an older/cached backend or a
@@ -205,11 +211,12 @@ export interface AttentionResult {
 // questions, upcoming calendar). Read-only; self-hides when AI is off.
 /** "What needs me", one request for every card asking at once. */
 export function getAttention(): Promise<AttentionResult> {
-  return sharedRequest(ATTENTION_KEY, fetchAttention)
+  const tz = browserTZ()
+  return sharedRequest(attentionKey(tz), () => fetchAttention(tz))
 }
 
-async function fetchAttention(): Promise<AttentionResult> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAIAttention)
+async function fetchAttention(tz: string): Promise<AttentionResult> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIAttention}?tz=${encodeURIComponent(tz)}`)
   const d = res.data?.data
   // Normalize the shape so the card never crashes on a null/omitted slice
   // (Go nil slice → JSON null) or a partial response — see getBriefing.
