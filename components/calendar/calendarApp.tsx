@@ -34,7 +34,8 @@ import { HueBlock } from "@/components/calendar/HueBlock";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { agendaDays } from "@/lib/utils/calendarAgenda";
-import { dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
+import { allDayItem, dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
+import { placeAllByDates } from "@/lib/calendar/allDay";
 
 export type CalendarView = "day" | "week" | "month" | "agenda";
 const VIEWS: { id: CalendarView; label: string; key: string }[] = [
@@ -177,7 +178,8 @@ export function CalendarApp() {
             onConfirm: handleUnlinkGCal,
         });
 
-    const allEvents = useMemo(() => eventsRes?.data || [], [eventsRes]);
+    // Google all-day events are placed by their dates from here on (CAL-BUG-2).
+    const allEvents = useMemo(() => placeAllByDates(eventsRes?.data || []), [eventsRes]);
     const events = useMemo(() => allEvents.filter((e) => (e.event_uuid.startsWith("gcal-") ? showGoogle : showEvents)), [allEvents, showEvents, showGoogle]);
     const tasks = useMemo(() => tasksRes?.data?.user_tasks || [], [tasksRes]);
     const q = searchQuery.trim().toLowerCase();
@@ -426,7 +428,11 @@ export function CalendarApp() {
                     {dayItems.map((it) => (
                         <HueBlock key={it.event_uuid} item={it} variant="row" past={parseISO(it.event_end_time) < now} onClick={(e) => clickItem(it, e.currentTarget)} className="w-full">
                             <span className="min-w-0 flex-1 truncate">{it.event_title}</span>
-                            {!it.isTask ? <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">{shortTime(parseISO(it.event_start_time))}</span> : null}
+                            {!it.isTask ? (
+                                <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">
+                                    {allDayItem(it, parseISO(it.event_start_time), parseISO(it.event_end_time)) ? "All day" : shortTime(parseISO(it.event_start_time))}
+                                </span>
+                            ) : null}
                         </HueBlock>
                     ))}
                     {dayItems.length === 0 ? <p className="text-ui-sm text-ink-3">A clear day.</p> : null}

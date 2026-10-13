@@ -1,13 +1,13 @@
 "use client";
 
-import { differenceInCalendarDays, differenceInMinutes, format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
+import { addDays, differenceInCalendarDays, differenceInMinutes, format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
 import { shortTime } from "@/lib/utils/date/shortDate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { Button } from "@/components/ui/button";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
-import { isAllDay } from "@/components/calendar/calendarLayout";
+import { allDayItem } from "@/components/calendar/calendarLayout";
 import { joinLinkOf } from "@/components/calendar/eventPopover";
 import { cn } from "@/lib/utils/helpers/cn";
 
@@ -25,6 +25,8 @@ interface AgendaItem {
   isTask?: boolean;
   event_is_focus?: boolean;
   event_is_away?: boolean;
+  /** A Google all-day event (lib/calendar/allDay). */
+  event_all_day?: boolean;
   task_project?: { project_uuid?: string } | null;
 }
 
@@ -44,9 +46,10 @@ function itemDetail(item: AgendaItem, day: Date): string {
   const times = `${shortTime(start)} to ${shortTime(end)}`;
   // A focus block is usually called "Focus time": say it once.
   if (item.event_is_focus) return item.event_title.trim().toLowerCase() === "focus time" ? times : `Focus time, ${times}`;
-  if (isAllDay(start, end)) {
-    const last = subMinutes(end, 1);
-    return isSameDay(start, last) ? "All day" : `All day, until ${format(last, "d MMM")}`;
+  if (allDayItem(item, start, end)) {
+    // Its last day, counted in days: a day the clocks change on isn't 24 hours.
+    const last = addDays(end, -1);
+    return last <= start || isSameDay(start, last) ? "All day" : `All day, until ${format(last, "d MMM")}`;
   }
   if (!isSameDay(start, day)) return "Continues";
   return times;
@@ -60,7 +63,7 @@ export function nextItemId(days: { day: Date; items: AgendaItem[] }[], now: Date
       if (it.isTask || it.event_is_away) continue;
       const start = parseISO(it.event_start_time);
       const end = parseISO(it.event_end_time);
-      if (isAllDay(start, end) || end <= now) continue;
+      if (allDayItem(it, start, end) || end <= now) continue;
       const at = start.getTime();
       if (!best || at < best.at) best = { id: it.event_uuid, at };
     }
@@ -129,7 +132,7 @@ export function CalendarAgenda({
                 const kind = kindOf(item);
                 const isNext = item.event_uuid === next && isSameDay(start, day);
                 const live = isNext && start <= now && now < end;
-                const timed = !item.isTask && !isAllDay(start, end) && isSameDay(start, day);
+                const timed = !item.isTask && !allDayItem(item, start, end) && isSameDay(start, day);
                 const link = item.event_description ? joinLinkOf(item) : null;
                 const soon = !!link && differenceInMinutes(start, now) <= 10 && now < end;
                 const i = n++;

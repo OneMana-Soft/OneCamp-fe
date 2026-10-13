@@ -1,7 +1,7 @@
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { addDays, format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { shortDateTime, shortTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
@@ -18,7 +18,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fieldLabel, fieldRow, inlineAdd, sectionTitle } from "@/lib/ui/fieldRow";
 import { cn } from "@/lib/utils/helpers/cn";
-import { isAllDay } from "@/components/calendar/calendarLayout";
+import { allDayItem } from "@/components/calendar/calendarLayout";
+import { placedByDates } from "@/lib/calendar/allDay";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
 
     const { data: eventsRes, isLoading, mutate } = useFetch<GetEventsResponse>(fetchUrl);
     const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
-    const event = eventsRes?.data?.find(e => e.event_uuid === eventUUID);
+    const listed = eventsRes?.data?.find(e => e.event_uuid === eventUUID);
+    // A Google all-day event by its dates, never its instants (CAL-BUG-2).
+    const event = React.useMemo(() => (listed ? placedByDates(listed) : undefined), [listed]);
     const dispatch = useDispatch();
 
     const currentUserUUID = selfProfile?.data?.user_uuid;
@@ -173,9 +176,10 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
 
     const start = parseISO(event.event_start_time);
     const end = parseISO(event.event_end_time);
-    // An all-day event ends at the next day's midnight: its last day is the one before.
-    const allDay = isAllDay(start, end);
-    const lastMoment = allDay ? new Date(end.getTime() - 60_000) : end;
+    // An all-day event ends at the next day's midnight: its last day is the one
+    // before, counted in days (a day the clocks change on isn't 24 hours).
+    const allDay = allDayItem(event, start, end);
+    const lastMoment = allDay ? addDays(end, -1) : end;
 
     const handleSave = async (values: FormValues) => {
         try {

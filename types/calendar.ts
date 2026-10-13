@@ -14,6 +14,14 @@ export interface CalendarEventInterface {
     event_is_focus?: boolean;
     /** Time off: the creator is away; the workload counts those working days out of their capacity. */
     event_is_away?: boolean;
+    /**
+     * A Google all-day event: placed by event_start_date and event_end_date
+     * ("YYYY-MM-DD", the end exclusive), never by its placeholder instants
+     * (lib/calendar/allDay).
+     */
+    event_all_day?: boolean;
+    event_start_date?: string;
+    event_end_date?: string;
     isTask?: boolean;
 }
 

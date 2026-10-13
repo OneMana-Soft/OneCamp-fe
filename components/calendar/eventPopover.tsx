@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { differenceInMinutes, format, formatDistanceStrict, parseISO } from "date-fns";
+import { addDays, differenceInMinutes, format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
 import { Calendar as CalendarIcon, Ellipsis, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ import { displayNameOf } from "@/lib/personName";
 import { shortTime } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import { CALENDAR_HUE, hueOf, kindOf } from "@/components/calendar/calendarTones";
-import { isAllDay } from "@/components/calendar/calendarLayout";
+import { allDayItem } from "@/components/calendar/calendarLayout";
+import { placedByDates } from "@/lib/calendar/allDay";
 import type { CalendarEventInterface } from "@/types/calendar";
 
 /**
@@ -65,9 +66,11 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
   const open = !!event && !!anchor;
   const info = useMemo(() => {
     if (!event) return null;
-    const start = parseISO(event.event_start_time);
-    const end = parseISO(event.event_end_time);
-    const allDay = isAllDay(start, end);
+    // A Google all-day event by its dates, never its instants (CAL-BUG-2).
+    const placed = placedByDates(event);
+    const start = parseISO(placed.event_start_time);
+    const end = parseISO(placed.event_end_time);
+    const allDay = allDayItem(placed, start, end);
     const when = whenLabel(start, end, now);
     const link = joinLinkOf(event);
     const minutesToStart = differenceInMinutes(start, now);
@@ -87,10 +90,13 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
   const guests = event.event_participants ?? [];
   const names = guests.map((g) => displayNameOf(g) || "Someone");
   const sameDay = info.start.toDateString() === info.end.toDateString();
+  // An all-day item's last day is the one before its end, counted in days:
+  // a day the clocks change on is 23 or 25 hours long.
+  const lastDay = addDays(info.end, -1);
   const time = info.allDay
-    ? sameDay || differenceInMinutes(info.end, info.start) <= 24 * 60
+    ? lastDay <= info.start || isSameDay(info.start, lastDay)
       ? `${format(info.start, "EEE d MMM")} · All day`
-      : `${format(info.start, "EEE d MMM")} – ${format(new Date(info.end.getTime() - 1), "EEE d MMM")}`
+      : `${format(info.start, "EEE d MMM")} – ${format(lastDay, "EEE d MMM")}`
     : sameDay
       ? `${format(info.start, "EEE d MMM")} · ${shortTime(info.start)} – ${shortTime(info.end)}`
       : `${format(info.start, "EEE d MMM")}, ${shortTime(info.start)} – ${format(info.end, "EEE d MMM")}, ${shortTime(info.end)}`;

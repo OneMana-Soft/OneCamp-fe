@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { HueBlock } from "@/components/calendar/HueBlock";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
-import { dayKey, type DatedItem, type WeekBar } from "@/components/calendar/calendarLayout";
+import { allDayItem, dayKey, type DatedItem, type WeekBar } from "@/components/calendar/calendarLayout";
 import type { CalendarDraft } from "@/components/calendar/weekView";
 
 /**
@@ -414,7 +414,11 @@ function MorePopover<T extends MonthItem>({
               className="w-full"
             >
               <span className="min-w-0 flex-1 truncate">{item.event_title}</span>
-              {!item.isTask ? <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">{shortTime(parseISO(item.event_start_time))}</span> : null}
+              {!item.isTask ? (
+                <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">
+                  {allDayItem(item, parseISO(item.event_start_time), parseISO(item.event_end_time)) ? "All day" : shortTime(parseISO(item.event_start_time))}
+                </span>
+              ) : null}
             </HueBlock>
           ))}
         </div>
