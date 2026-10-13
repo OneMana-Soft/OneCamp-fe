@@ -5,9 +5,9 @@ import {Dialog, DialogContent, DialogTitle} from "@/components/ui/dialog";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {closeUI} from "@/store/slice/uiSlice";
-import {useEffect, useState, useRef, useMemo} from "react";
+import {useEffect, useState, useRef, useMemo, type ReactNode} from "react";
 import {useFetch} from "@/hooks/useFetch";
-import { LoaderCircle, X, Download, Maximize2, Minimize2 } from "@/lib/icons";
+import { AlertTriangle, Captions, Disc, LoaderCircle, X, Download, Maximize2, Minimize2 } from "@/lib/icons";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
 import {TranscriptInfoInterface} from "@/types/recording";
 import {useMedia} from "@/context/MediaQueryContext";
@@ -17,18 +17,20 @@ import {formatFileSizeForAttachment} from "@/lib/utils/format/formatFileSizeForA
 import {formatDateForAttachment} from "@/lib/utils/date/formatDateforAttachment";
 import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
-
-// ... existing imports
+import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
+import {SaysLoadFailure} from "@/lib/http/loadFailure";
 
 export const RecordingPlayerDialog = () => {
     const dispatch = useDispatch();
     const {isOpen, data} = useSelector((state: RootState) => state.ui.recordingPlayer);
-    const [mediaUrl, setMediaUrl] = useState<string>("");
     const { isMobile } = useMedia();
     const [isFullscreen, setIsFullscreen] = useState(false);
     
-    // Video Controls
-    const videoRef = useRef<HTMLVideoElement>(null);
+    // The recording's link, fresh whenever it runs out (CALL-BUG-10), and
+    // its state when there is nothing to play (CALL-BUG-16).
+    const playback = useRecordingPlayback(data.mediaGetUrl && data.egressId ? `${data.mediaGetUrl}/${data.egressId}` : "", isOpen);
+    const media = playback.media;
+    const mediaUrl = media?.status === "ready" ? media.url ?? "" : "";
     const [currentTime, setCurrentTime] = useState(0);
 
     /* ... useEffects ... */
@@ -42,10 +44,14 @@ export const RecordingPlayerDialog = () => {
     const toggleFullscreen = () => {
         setIsFullscreen(!isFullscreen);
     }
-    
-    // We fetch the presigned URL for the media
-    const mediaUrlInfo = useFetch<{url?: string; data?: {url: string} | string}>(data.mediaGetUrl + "/" + data.egressId);
 
+    const transcriptOnly = media?.status === "transcript_only";
+    // The download takes a fresh link when this one has run out.
+    const download = async () => {
+        const url = await playback.freshUrl();
+        if (url) downloadFile(url, data.fileName);
+    };
+    
     // Transcript State
     const [transcriptList, setTranscriptList] = useState<TranscriptInfoInterface[]>([]);
     const [pageIndex, setPageIndex] = useState(0);
@@ -55,20 +61,6 @@ export const RecordingPlayerDialog = () => {
     const transcriptInfo = useFetch<{data: {recording_transcript: any[]; transcript_count: number; recording_stared_at?: string}, pageCount: number}>(
         data.transcriptGetUrl ? `${data.transcriptGetUrl}/${data.egressId}?pageIndex=${pageIndex}&pageSize=${pageSize}` : ""
     );
-
-    useEffect(() => {
-        if (isOpen && mediaUrlInfo.data) {
-           if (mediaUrlInfo.data.url) {
-               setMediaUrl(mediaUrlInfo.data.url);
-           } else if (mediaUrlInfo.data.data) {
-               if (typeof mediaUrlInfo.data.data === 'object' && 'url' in mediaUrlInfo.data.data) {
-                   setMediaUrl((mediaUrlInfo.data.data as any).url);
-               } else if (typeof mediaUrlInfo.data.data === 'string') {
-                    setMediaUrl(mediaUrlInfo.data.data);
-               }
-           }
-        }
-    }, [mediaUrlInfo.data, isOpen]);
 
     // Reset state when dialog opens/closes or egressId changes
     useEffect(() => {
@@ -104,13 +96,6 @@ export const RecordingPlayerDialog = () => {
         }
         return data?.recordedAt ? new Date(data.recordedAt).getTime() : 0;
     }, [data, transcriptInfo]);
-
-    const handleSeek = (seconds: number) => {
-        if (videoRef.current) {
-            videoRef.current.currentTime = seconds;
-            videoRef.current.play();
-        }
-    };
 
     const handleClose = () => {
         dispatch(closeUI('recordingPlayer'));
@@ -165,13 +150,10 @@ export const RecordingPlayerDialog = () => {
       // Active Highlight Logic
       const isActive = currentTime >= startTimeSeconds && currentTime < endTimeSeconds;
 
+      // A fresh link first when this one has run out: a click on a line
+      // after five minutes used to fail.
       const handleJump = () => {
-         if(videoRef.current) {
-             videoRef.current.currentTime = Math.max(0, startTimeSeconds);
-             if(videoRef.current.paused) {
-                 videoRef.current.play();
-             }
-         }
+         if (mediaUrl) void playback.seekTo(startTimeSeconds);
       };
         return (
             <div 
@@ -217,7 +199,7 @@ export const RecordingPlayerDialog = () => {
                     
                     <div className="flex items-center gap-2">
                         {mediaUrl && (
-                             <Button variant="outline" size="sm" onClick={() => downloadFile(mediaUrl, data.fileName)} className="hidden md:flex gap-2 h-8">
+                             <Button variant="outline" size="sm" onClick={() => void download()} className="hidden md:flex gap-2 h-8">
                                 <Download className="h-3.5 w-3.5" />
                                 <span className="text-xs">Download</span>
                             </Button>
@@ -237,41 +219,45 @@ export const RecordingPlayerDialog = () => {
                 {/* Main Content: Video + Transcript */}
                 <div className={cn("flex flex-1 overflow-hidden flex-col md:flex-row")}>
                     
-                    {/* Video Area */}
+                    {/* Video Area: none for a call that was transcribed, not recorded. */}
+                    {!transcriptOnly && (
                     <div className={cn("flex-1 bg-black flex justify-center items-center relative min-h-[30vh]", isFullscreen ? "h-full" : "")}>
-                        {mediaUrl ? (
+                        {mediaUrl && !playback.playbackFailed ? (
                             <div className="w-full h-full flex justify-center items-center">
-                                { }
                                 <video 
-                                    ref={videoRef}
-                                    src={mediaUrl} 
+                                    {...playback.videoProps}
                                     controls 
-                                    autoPlay 
                                     playsInline
                                     className="max-h-full max-w-full"
-                                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                                    onTimeUpdate={(e) => {
+                                        playback.videoProps.onTimeUpdate(e);
+                                        setCurrentTime(e.currentTarget.currentTime);
+                                    }}
                                 />
                             </div>
                         ) : (
-                            <div className="flex gap-2 items-center text-white/70">
-                                <LoaderCircle className="animate-spin h-5 w-5"/> 
-                                <span className="text-sm">Loading Video…</span>
-                            </div>
+                            <RecordingStageMessage media={media} loadError={playback.loadError} playbackFailed={playback.playbackFailed} onRetry={media ? playback.retry : () => void playback.reload()} />
                         )}
                     </div>
+                    )}
 
                     {/* Transcript Area */}
                     <div className={cn(
                         // Its size snaps when full screen changes: a transitioned
                         // width and height laid the dialog out on every frame.
-                        "flex flex-col border-l border-border bg-background transition-colors",
-                        isFullscreen && !isMobile ? "w-[350px]" : "w-full md:w-[350px] h-[40vh] md:h-full"
+                        "flex flex-col bg-background transition-colors",
+                        transcriptOnly
+                            ? "w-full flex-1"
+                            : cn("border-l border-border", isFullscreen && !isMobile ? "w-[350px]" : "w-full md:w-[350px] h-[40vh] md:h-full")
                     )}>
                         <div className="p-3 border-b font-medium text-sm bg-muted/10 flex justify-between items-center">
-                            <span>Transcript</span>
+                            <span className="flex items-center gap-2">
+                                {transcriptOnly ? <Captions className="size-4 text-ink-3" aria-hidden /> : null}
+                                {transcriptOnly ? "Transcript · this call wasn't recorded" : "Transcript"}
+                            </span>
                             {/* Mobile download button since header one is hidden */}
                              {mediaUrl && isMobile && (
-                                <Button aria-label="Download recording" variant="ghost" size="sm" onClick={() => downloadFile(mediaUrl, data.fileName)} className="h-7 w-7 p-0">
+                                <Button aria-label="Download recording" variant="ghost" size="sm" onClick={() => void download()} className="h-7 w-7 p-0">
                                     <Download className="h-4 w-4" />
                                 </Button>
                             )}
@@ -302,3 +288,56 @@ export const RecordingPlayerDialog = () => {
         </Dialog>
     );
 };
+
+/**
+ * What the stage says when there is no picture (CALL-BUG-16): still loading,
+ * a recording that failed or was aborted (it used to open as a black frame
+ * with controls), one still being recorded, or a link that wouldn't play.
+ */
+export function RecordingStageMessage({
+    media,
+    loadError,
+    playbackFailed,
+    onRetry,
+}: {
+    media: RecordingMedia | null
+    loadError: boolean
+    playbackFailed: boolean
+    onRetry: () => void
+}) {
+    const box = (icon: ReactNode, title: string, detail: string, retry = false) => (
+        <div role="status" className="flex max-w-sm flex-col items-center gap-2 px-6 text-center text-white" data-recording-state={media?.status ?? (loadError ? "error" : "loading")}>
+            {icon}
+            <p className="text-ui font-medium">{title}</p>
+            <p className="text-ui-sm text-white/70 text-pretty">{detail}</p>
+            {retry ? (
+                <Button size="sm" variant="secondary" className="mt-1" onClick={onRetry}>
+                    Try again
+                </Button>
+            ) : null}
+        </div>
+    )
+    if (media?.status === "failed") {
+        return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "This recording couldn't be saved", "Something went wrong while the call was being recorded, so there's nothing to play. You can delete it from the recordings list.")
+    }
+    if (media?.status === "recording") {
+        return box(<Disc className="size-6 text-[#F2555A]" aria-hidden />, "Still recording", "This call is still being recorded. It can be played once the recording stops.")
+    }
+    if (playbackFailed) {
+        return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "This recording can't be played", "The link to it didn't work, even after a fresh one.", true)
+    }
+    if (loadError) {
+        return (
+            <>
+                <SaysLoadFailure />
+                {box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "Couldn't load the recording", "Check your connection and try again.", true)}
+            </>
+        )
+    }
+    return (
+        <div role="status" className="flex gap-2 items-center text-white/70">
+            <LoaderCircle className="animate-spin h-5 w-5" aria-hidden />
+            <span className="text-sm">Loading the recording…</span>
+        </div>
+    )
+}
