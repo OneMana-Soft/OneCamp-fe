@@ -40,11 +40,28 @@ const DAY_MS = 864e5
 
 /** "10:30" (24 h) or "10:30 AM", in a zone. */
 export function slotTime(iso: string, tz: string, h24: boolean): string {
-  return new Intl.DateTimeFormat(h24 ? "en-GB" : "en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: !h24 }).format(new Date(iso))
+  return formatFor(h24 ? "en-GB" : "en-US", tz, { hour: "numeric", minute: "2-digit", hour12: !h24 }).format(new Date(iso))
+}
+
+/**
+ * One formatter per locale, zone and options, kept for the page's life:
+ * building one is the costly part, and the page made one for every slot,
+ * label and render (CAL-BUG-20). A zone the browser doesn't know throws, as
+ * before, and isn't kept.
+ */
+const formats = new Map<string, Intl.DateTimeFormat>()
+function formatFor(locale: string, tz: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${tz}|${JSON.stringify(opts)}`
+  let f = formats.get(key)
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, { timeZone: tz, ...opts })
+    formats.set(key, f)
+  }
+  return f
 }
 
 function parts(iso: string, tz: string, opts: Intl.DateTimeFormatOptions) {
-  const p = new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts }).formatToParts(new Date(iso))
+  const p = formatFor("en-GB", tz, opts).formatToParts(new Date(iso))
   return (t: Intl.DateTimeFormatPartTypes) => p.find((x) => x.type === t)?.value ?? ""
 }
 
@@ -65,16 +82,38 @@ export function bookLabel(slot: Slot, tz: string, h24: boolean): string {
   return `Book ${shortDay(slot.start, tz)}, ${slotTime(slot.start, tz, h24)}`
 }
 
+/**
+ * A zone's name as Intl says it ("long", "shortOffset"), or "" when it can't,
+ * through a kept formatter (CAL-BUG-20: the page built one per call).
+ */
+function zoneName(tz: string, style: "long" | "shortOffset"): string {
+  try {
+    return formatFor("en-US", tz, { timeZoneName: style }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""
+  } catch {
+    return ""
+  }
+}
+
 /** "India Standard Time (GMT+5:30)". */
 export function zoneLabel(tz: string): string {
-  try {
-    const now = new Date()
-    const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "long" }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value
-    const off = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value
-    return name ? `${name}${off ? ` (${off})` : ""}` : tz.replace(/_/g, " ")
-  } catch {
-    return tz.replace(/_/g, " ")
-  }
+  const name = zoneName(tz, "long")
+  const off = zoneName(tz, "shortOffset")
+  return name ? `${name}${off ? ` (${off})` : ""}` : tz.replace(/_/g, " ")
+}
+
+/** Whether the window is at least `px` wide, following it as it changes. */
+function useMinWidth(px: number): boolean {
+  const query = `(min-width: ${px}px)`
+  const [on, setOn] = React.useState(() => typeof window !== "undefined" && !!window.matchMedia?.(query)?.matches)
+  React.useEffect(() => {
+    const mq = window.matchMedia?.(query)
+    if (!mq) return
+    const change = () => setOn(mq.matches)
+    change()
+    mq.addEventListener?.("change", change)
+    return () => mq.removeEventListener?.("change", change)
+  }, [query])
+  return on
 }
 
 /** The month a day key falls in: { y, m } with m from 0. */
@@ -84,7 +123,7 @@ const shiftMonth = (y: number, m: number, by: number) => {
   const d = new Date(Date.UTC(y, m + by, 1))
   return { y: d.getUTCFullYear(), m: d.getUTCMonth() }
 }
-const monthName = (y: number, m: number) => new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m, 1)))
+const monthName = (y: number, m: number) => formatFor("en-GB", "UTC", { month: "long" }).format(new Date(Date.UTC(y, m, 1)))
 
 // ----------------------------------------------------------------------------
 // The flow.
@@ -104,6 +143,9 @@ export function BookingFlow({ slug }: { slug: string }) {
   const [slot, setSlot] = React.useState<Slot | null>(null)
   const [taken, setTaken] = React.useState<string | null>(null)
   const [booked, setBooked] = React.useState<Booked | null>(null)
+  // One time zone picker, where the layout puts it: the aside on a computer,
+  // under the month on a phone. Both used to mount, one hidden (CAL-BUG-20).
+  const wide = useMinWidth(640)
 
   React.useEffect(() => {
     const z = browserTZ()
@@ -234,7 +276,7 @@ export function BookingFlow({ slug }: { slug: string }) {
           <Confirmation booked={booked} tz={tz} h24={h24} />
         ) : (
           <div className="flex max-sm:flex-col">
-            <HostAside page={page} tz={tz} onTz={setTz} h24={h24} onH24={setH24} slot={slot} />
+            <HostAside page={page} tz={tz} onTz={setTz} h24={h24} onH24={setH24} slot={slot} zonePicker={wide} />
             {slot ? (
               <GuestForm
                 key={slot.start}
@@ -272,9 +314,11 @@ export function BookingFlow({ slug }: { slug: string }) {
                   }}
                 />
                 {/* On a phone the zone sits under the calendar. */}
-                <div className="px-3 pb-2 sm:hidden">
-                  <TimeZoneButton tz={tz} onTz={setTz} h24={h24} onH24={setH24} className="max-w-full" />
-                </div>
+                {!wide ? (
+                  <div className="px-3 pb-2 sm:hidden">
+                    <TimeZoneButton tz={tz} onTz={setTz} h24={h24} onH24={setH24} className="max-w-full" />
+                  </div>
+                ) : null}
                 {day ? (
                   <SlotColumn
                     key={day}
@@ -309,6 +353,7 @@ function HostAside({
   h24,
   onH24,
   slot,
+  zonePicker,
 }: {
   page: PublicBookingPage
   tz: string
@@ -316,6 +361,8 @@ function HostAside({
   h24: boolean
   onH24: (v: boolean) => void
   slot: Slot | null
+  /** Whether the time zone picker is here (a computer) rather than under the month. */
+  zonePicker: boolean
 }) {
   const [more, setMore] = React.useState(false)
   return (
@@ -351,7 +398,7 @@ function HostAside({
           ) : null}
         </div>
       ) : null}
-      <TimeZoneButton tz={tz} onTz={onTz} h24={h24} onH24={onH24} className="-ml-2 max-w-[calc(100%+8px)] self-start max-sm:hidden" />
+      {zonePicker ? <TimeZoneButton tz={tz} onTz={onTz} h24={h24} onH24={onH24} className="-ml-2 max-w-[calc(100%+8px)] self-start max-sm:hidden" /> : null}
     </aside>
   )
 }
@@ -360,7 +407,8 @@ function HostAside({
 function TimeZoneButton({ tz, onTz, h24, onH24, className }: { tz: string; onTz: (tz: string) => void; h24: boolean; onH24: (v: boolean) => void; className?: string }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
-  const zones = React.useMemo(() => timeZones(browserTZ()), [])
+  // Built when the list first opens, never on load (CAL-BUG-20).
+  const zones = React.useMemo(() => (open ? timeZones(browserTZ()) : []), [open])
   const items: CommandListItem[] = React.useMemo(() => {
     const q = query.trim().toLowerCase()
     return zones
@@ -535,7 +583,7 @@ function MonthGrid({
                 aria-disabled={!open || undefined}
                 aria-pressed={isSel || undefined}
                 aria-current={isToday ? "date" : undefined}
-                aria-label={`${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(k + "T12:00:00Z"))}${open ? `, ${slots!.length} ${slots!.length === 1 ? "time" : "times"}` : ", no times"}`}
+                aria-label={`${formatFor("en-GB", "UTC", { weekday: "long", day: "numeric", month: "long" }).format(new Date(k + "T12:00:00Z"))}${open ? `, ${slots!.length} ${slots!.length === 1 ? "time" : "times"}` : ", no times"}`}
                 tabIndex={open && k === roving ? 0 : -1}
                 onClick={() => open && onPick(k)}
                 className={cn(
@@ -583,7 +631,7 @@ function MonthGrid({
 // ----------------------------------------------------------------------------
 
 function partOfDay(iso: string, tz: string): "Morning" | "Afternoon" | "Evening" {
-  const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", hour12: false }).format(new Date(iso)))
+  const h = Number(formatFor("en-GB", tz, { hour: "numeric", hour12: false }).format(new Date(iso)))
   return h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening"
 }
 
@@ -609,8 +657,8 @@ function SlotColumn({
   onNext: (s: Slot) => void
 }) {
   const at = new Date(key + "T12:00:00Z")
-  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(at)
-  const monthWord = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(at)
+  const weekday = formatFor("en-GB", "UTC", { weekday: "long" }).format(at)
+  const monthWord = formatFor("en-GB", "UTC", { month: "long" }).format(at)
   const grouped = slots.length > 8
   let lastGroup = ""
   const takenSlot = taken ? slots.find((s) => s.start === taken) : undefined
