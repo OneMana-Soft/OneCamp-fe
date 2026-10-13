@@ -12,9 +12,9 @@ describe("a booked meeting's confirmation", () => {
       description: "Alex Kim booked it through Intro call. We'll email them that it's cancelled.",
       confirmText: "Delete and tell Alex Kim",
     })
-    expect(bookedMeetingConfirm(alex, "move", "Thu 15 Oct, 10:30 – 11:00")).toEqual({
+    expect(bookedMeetingConfirm(alex, "move", new Date(2026, 9, 15, 10, 30), new Date(2026, 9, 15, 11))).toEqual({
       title: "Move this booked meeting?",
-      description: "Alex Kim booked it through Intro call. We'll email them the new time, Thu 15 Oct, 10:30 – 11:00.",
+      description: "Alex Kim booked it through Intro call. We'll email them the new time, Thu 15 Oct, 10:30 AM – 11:00 AM.",
       confirmText: "Move and tell Alex Kim",
     })
   })

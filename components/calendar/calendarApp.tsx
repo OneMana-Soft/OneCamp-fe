@@ -37,6 +37,7 @@ import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgend
 import { allDayItem, dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
 import { placeAllByDates } from "@/lib/calendar/allDay";
 import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
+import { dayAndTime } from "@/lib/utils/date/dayAndTime";
 
 export type CalendarView = "day" | "week" | "month" | "agenda";
 const VIEWS: { id: CalendarView; label: string; key: string }[] = [
@@ -355,7 +356,7 @@ export function CalendarApp() {
         if (!e) return;
         if (e.event_booking && !confirmed) {
             confirm({
-                ...bookedMeetingConfirm(e.event_booking, "move", `${format(start, "EEE d MMM")}, ${shortTime(start)} – ${shortTime(end)}`),
+                ...bookedMeetingConfirm(e.event_booking, "move", start, end),
                 onConfirm: () => changeTimes(uuid, start, end, undoing, true),
             });
             return;
@@ -379,7 +380,7 @@ export function CalendarApp() {
         if (undoing) return;
         toast({
             title: `Moved “${e.event_title}”`,
-            description: `${format(start, "EEE d MMM")}, ${shortTime(start)} – ${shortTime(end)}`,
+            description: dayAndTime(start, end),
             action: (
                 <ToastAction altText="Undo the move" onClick={() => void changeTimes(uuid, parseISO(before.start), parseISO(before.end), true)}>
                     Undo

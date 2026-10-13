@@ -8,6 +8,8 @@
  * confirms, the calendar names the guest and says whether they'll be told
  * (they can't be when the workspace sends no email). Pure.
  */
+import { dayAndTime } from "@/lib/utils/date/dayAndTime"
+
 export interface EventBooking {
   guest_name: string
   page_title: string
@@ -21,8 +23,9 @@ export interface BookedConfirm {
   confirmText: string
 }
 
-/** The confirmation before deleting or moving a booked meeting; `when` is the new time, for a move. */
-export function bookedMeetingConfirm(b: EventBooking, action: "delete" | "move", when?: string): BookedConfirm {
+/** The confirmation before deleting or moving a booked meeting; for a move, the new start and end. */
+export function bookedMeetingConfirm(b: EventBooking, action: "delete" | "move", start?: Date, end?: Date): BookedConfirm {
+  const when = start ? dayAndTime(start, end) : ""
   const guest = b.guest_name.trim() || "Your guest"
   const through = b.page_title.trim() ? ` through ${b.page_title.trim()}` : ""
   const booked = `${guest} booked it${through}.`

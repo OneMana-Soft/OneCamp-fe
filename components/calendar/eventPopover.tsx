@@ -15,6 +15,7 @@ import { CALENDAR_HUE, hueOf, kindOf } from "@/components/calendar/calendarTones
 import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import type { CalendarEventInterface } from "@/types/calendar";
+import { dayAndTime } from "@/lib/utils/date/dayAndTime";
 
 /**
  * Clicking an event opens this (content.md C12, owner decision 4): a 360 px
@@ -99,7 +100,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
       : `${format(info.start, "EEE d MMM")} – ${format(lastDay, "EEE d MMM")}`
     : sameDay
       ? `${format(info.start, "EEE d MMM")} · ${shortTime(info.start)} – ${shortTime(info.end)}`
-      : `${format(info.start, "EEE d MMM")}, ${shortTime(info.start)} – ${format(info.end, "EEE d MMM")}, ${shortTime(info.end)}`;
+      : dayAndTime(info.start, info.end);
 
   return (
     <Popover open={open} onOpenChange={(o) => !o && onClose()}>

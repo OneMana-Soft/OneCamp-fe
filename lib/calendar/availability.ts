@@ -3,6 +3,7 @@
  * viewer's zone, and the calendar file a booked guest takes away. Pure.
  */
 import { browserTZ } from "@/lib/utils/timeZone"
+import { dateTimeFormat } from "@/lib/utils/date/dayAndTime"
 
 export interface WorkingHours {
   days: number[] // 0 Sunday … 6 Saturday
@@ -29,19 +30,10 @@ export function timeZones(first: string = browserTZ()): string[] {
   return [first, ...all.filter((z) => z !== first)]
 }
 
-// One formatter per zone (and per kind of day words), kept: the booking page
-// asked for a new one for every slot it grouped (CAL-BUG-20).
-const dayKeyFormats = new Map<string, Intl.DateTimeFormat>()
-const dayWordFormats = new Map<string, Intl.DateTimeFormat>()
-
 /** "2026-10-06": the calendar day an instant falls on in a zone. */
 export function dayKey(iso: string | Date, tz: string): string {
-  let f = dayKeyFormats.get(tz)
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
-    dayKeyFormats.set(tz, f)
-  }
-  return f.format(new Date(iso))
+  // Kept by the one cache: the booking page asked for a new one per slot (CAL-BUG-20).
+  return dateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso))
 }
 
 /** Slots by the day they fall on in the viewer's zone, in order. */
@@ -64,7 +56,7 @@ export function groupByDay(slots: Slot[], tz: string): { day: string; slots: Slo
 
 /** "11:00 AM", in a zone. */
 export const formatTime = (iso: string, tz: string) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso))
+  dateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso))
 
 /** "Tue 6 Oct" for a day key; the key is a date, so it reads the same anywhere. */
 export const formatDay = (key: string) => dayWords(key + "T12:00:00Z", "UTC", "short")
@@ -79,12 +71,7 @@ export const formatRange = (start: string, end: string, tz: string) =>
  * about the comma after the weekday.
  */
 function dayWords(iso: string, tz: string, width: "short" | "long"): string {
-  let f = dayWordFormats.get(`${tz}|${width}`)
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: width, day: "numeric", month: width })
-    dayWordFormats.set(`${tz}|${width}`, f)
-  }
-  const parts = f.formatToParts(new Date(iso))
+  const parts = dateTimeFormat("en-GB", { timeZone: tz, weekday: width, day: "numeric", month: width }).formatToParts(new Date(iso))
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ""
   return `${part("weekday")} ${part("day")} ${part("month")}`
 }
