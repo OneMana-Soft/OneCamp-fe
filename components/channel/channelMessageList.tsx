@@ -15,6 +15,7 @@ import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
+import { pageEdgeQuery } from "@/lib/chat/pageEdge";
 
 interface ChannelMessageListProps {
     channelId: string;
@@ -47,11 +48,14 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
 
     const [hasMoreOldPost, setHasMoreOldPost] = useState(true)
     const [oldChannelPostTime, setOldChannelPostTime] = useState(0)
-    const oldMsg = useFetch<CreatePostPaginationResRaw>(oldChannelPostTime == 0 ? '' : GetEndpointUrl.GetOldPostBefore + '/' + channelId + '/' + oldChannelPostTime)
+    // The post the older page starts next to (lib/chat/pageEdge).
+    const [oldEdge, setOldEdge] = useState('')
+    const oldMsg = useFetch<CreatePostPaginationResRaw>(oldChannelPostTime == 0 ? '' : GetEndpointUrl.GetOldPostBefore + '/' + channelId + '/' + oldChannelPostTime + oldEdge)
 
     const [hasMoreNewPost, setHasMoreNewPost] = useState(!!postId)
     const [newChannelPostsTime, setNewChannelPostsTime] = useState(0)
-    const newMsg = useFetch<CreatePostPaginationResRaw>(newChannelPostsTime == 0 ? '' : GetEndpointUrl.GetNewPostAfter + '/' + channelId + '/' + newChannelPostsTime)
+    const [newEdge, setNewEdge] = useState('')
+    const newMsg = useFetch<CreatePostPaginationResRaw>(newChannelPostsTime == 0 ? '' : GetEndpointUrl.GetNewPostAfter + '/' + channelId + '/' + newChannelPostsTime + newEdge)
 
 
 
@@ -146,6 +150,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         const lastTimeString = channelPostState[0].post_created_at
 
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
+        setOldEdge(pageEdgeQuery(lastTimeString, channelPostState[0].post_uuid))
         setOldChannelPostTime(epochTime)
         setHasMoreOldPost(false)
     }
@@ -154,6 +159,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         if (channelPostState.length === 0) return
         const lastTimeString = channelPostState[channelPostState.length -1].post_created_at
         const epochTime = Math.ceil(Date.parse(lastTimeString) / 1000);
+        setNewEdge(pageEdgeQuery(lastTimeString, channelPostState[channelPostState.length -1].post_uuid))
         setNewChannelPostsTime(epochTime)
         setHasMoreNewPost(false)
     }
