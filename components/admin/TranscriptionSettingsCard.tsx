@@ -72,9 +72,17 @@ const MODE_OPTIONS = (Object.keys(MODE_LABEL) as TranscriptionMode[]).map((value
  */
 const CONTROL = "w-full @xl:w-72"
 
-const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
-    frontend: "Each person's browser transcribes their own speech. Free and needs no key, but it favours English and only Chrome and Edge take part: someone on Firefox or Safari is missing from the transcript.",
-    backend: "An agent on the server transcribes every speaker with the speech-to-text model below. Better quality, and nobody is left out. The bundled server keeps the audio on this machine; a cloud provider bills per minute.",
+/**
+ * What each mode does, and where the audio goes (CALL-BUG-2). Browser mode
+ * was "Free and needs no key", silent about the audio, while the Google Cloud
+ * provider below said plainly that it sends audio to Google. Browser mode
+ * sends it to Google or Microsoft too, from each person's browser. Nothing
+ * runs in any mode until someone in the call turns captions on, and the call
+ * tells everyone when they do.
+ */
+export const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
+    frontend: "Each person's browser turns their own speech into text while captions are on in a call. Chrome sends the audio to Google, and Edge to Microsoft; Firefox and Safari can't take part. Free and needs no key. Everyone in the call is told before anything is sent.",
+    backend: "An agent on the server transcribes every speaker with the speech-to-text model below while captions are on in a call. Better quality, and nobody is left out. The bundled server keeps the audio on this machine; a cloud provider bills per minute.",
     off: "No live captions, and no transcript is kept for any call.",
 }
 
@@ -128,10 +136,26 @@ const sourceNote = (source: string | undefined) => {
 const withSource = (help: string, source: string | undefined) =>
     [help, source ? SOURCE_NOTE[source] : undefined].filter(Boolean).join(" ")
 
+/** The settings, with the agent's heartbeat (CALL-BUG-4): whether a server transcriber is connected. */
+type ConfigWithAgent = TranscriptionConfig & { where?: string; agent?: { running: boolean; seen_at?: number } }
+
+/** The agent's state in words: "Running" or "Not running", never a colour alone. Pure. */
+export function agentStatus(agent: ConfigWithAgent["agent"]): { running: boolean; label: string; detail: string } | null {
+    if (!agent) return null
+    if (agent.running) {
+        return { running: true, label: "Running", detail: "The transcription agent is connected and joins calls when captions are turned on." }
+    }
+    return {
+        running: false,
+        label: "Not running",
+        detail: "No transcription agent is connected, so calls get no captions and no transcript in this mode. Start it on the server.",
+    }
+}
+
 export default function TranscriptionSettingsCard() {
     const { toast } = useToast()
     const confirm = useConfirm()
-    const [config, setConfig] = useState<TranscriptionConfig | null>(null)
+    const [config, setConfig] = useState<ConfigWithAgent | null>(null)
     const [failed, setFailed] = useState(false)
     const [retrying, setRetrying] = useState(false)
 
@@ -297,6 +321,7 @@ export default function TranscriptionSettingsCard() {
 
     const busy = savingBackend || testing
     const where: Where = sttProvider === "local" ? "server" : "provider"
+    const agent = agentStatus(config?.agent)
     const pickWhere = (next: Where) => {
         if (next === where) return
         setSttProvider(next === "server" ? "local" : config && config.stt_provider !== "local" ? config.stt_provider : CLOUD_PROVIDERS[0])
@@ -399,6 +424,23 @@ export default function TranscriptionSettingsCard() {
                                         disabled={busy}
                                     />
                                 </SettingRow>
+
+                                {agent ? (
+                                    <div role="status" data-agent-status={agent.running ? "running" : "not-running"} className="set-row flex items-start gap-2">
+                                        {agent.running ? (
+                                            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-ink" aria-hidden="true" />
+                                        ) : (
+                                            <XCircle className="mt-0.5 size-4 shrink-0 text-danger-ink" aria-hidden="true" />
+                                        )}
+                                        <div className="min-w-0 flex-1 space-y-2">
+                                            <p className="text-xs">
+                                                <span className={agent.running ? "font-medium text-foreground" : "font-medium text-danger-ink"}>Agent: {agent.label}.</span>{" "}
+                                                <span className="text-muted-foreground text-pretty">{agent.detail}</span>
+                                            </p>
+                                            {!agent.running ? <CodeRow value="make stt_up" label="start command" className="max-w-xs" /> : null}
+                                        </div>
+                                    </div>
+                                ) : null}
 
                                 {where === "server" ? (
                                     <div data-ram-hint="" className="set-row flex items-start gap-3">
