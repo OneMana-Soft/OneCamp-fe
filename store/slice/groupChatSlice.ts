@@ -9,6 +9,7 @@ import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
 import { ExtendedChats, chatContentDiffers, CHAT_ACCESS } from "./chatSlice";
 import { hasServerIdElsewhere, indexOfEchoed, indexOfLocal } from "@/lib/chat/pendingSend";
+import { newerThanAnswer } from "@/lib/chat/liveChange";
 import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 
@@ -415,6 +416,7 @@ const groupChatSlice = createSlice({
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(messageId == chat.chat_uuid) {
                     chat.chat_body_text = htmlText
+                    chat.chat_live_at = Date.now()
                 }
 
                 return chat
@@ -440,6 +442,7 @@ const groupChatSlice = createSlice({
                     chat.chat_reactions = chat.chat_reactions?.filter((reaction) => {
                         return reaction.uid !== reactionId
                     })
+                    chat.chat_live_at = Date.now()
                 }
                 return chat
             })
@@ -474,7 +477,13 @@ const groupChatSlice = createSlice({
                 contentDiffers: chatContentDiffers,
                 isOptimistic: (chat) => !!chat.chat_added_locally,
                 shouldAcceptIncoming: (chat) => !chat.chat_uuid || !isTombstoned(state.deletedChats, grpId, chat.chat_uuid),
-                mergeMatched: (current, server) => ({ ...current, ...server, chat_added_locally: false }),
+                // A message changed live since this answer was asked for keeps
+                // what it has (lib/chat/liveChange); otherwise the server's
+                // copy wins, a list it left out counting as empty.
+                mergeMatched: (current, server) =>
+                    newerThanAnswer(current.chat_live_at, authoritativeThrough)
+                        ? { ...server, ...current, chat_added_locally: false }
+                        : { ...current, ...server, chat_reactions: server.chat_reactions ?? [], chat_comment_count: server.chat_comment_count ?? 0, chat_added_locally: false },
                 sort: (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at),
             });
 
@@ -495,6 +504,7 @@ const groupChatSlice = createSlice({
                         }
                         return reaction
                     })
+                    chat.chat_live_at = Date.now()
                 }
 
                 return chat
@@ -533,6 +543,7 @@ const groupChatSlice = createSlice({
                             reaction_on_content_added_by: addedBy
                         })
                     }
+                    chat.chat_live_at = Date.now()
                 }
 
                 return chat
@@ -589,6 +600,7 @@ const groupChatSlice = createSlice({
                     if (!alreadyTracked) {
                         chat.chat_comments.push(comment);
                         chat.chat_comment_count = (chat.chat_comment_count || 0) + 1
+                        chat.chat_live_at = Date.now()
                     }
                 }
 
@@ -612,6 +624,7 @@ const groupChatSlice = createSlice({
                     if (wasTracked) {
                         chat.chat_comments = chat.chat_comments.filter((c) => c.comment_uuid != comment.comment_uuid)
                         chat.chat_comment_count = Math.max(0, (chat.chat_comment_count || 0) - 1)
+                        chat.chat_live_at = Date.now()
                     }
                 }
 

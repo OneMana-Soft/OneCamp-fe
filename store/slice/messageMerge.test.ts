@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import chatSlice, { mergeChats, updateChats, invalidateAllChatMessages, createChat, removeChatByChatId } from "@/store/slice/chatSlice"
-import channelSlice, { mergeChannelPosts, updateChannelPosts, invalidateChannelPosts, createPost, removePostByPostId } from "@/store/slice/channelSlice"
+import channelSlice, { mergeChannelPosts, updateChannelPosts, invalidateChannelPosts, createPost, removePostByPostId, updatePostByPostId, removePostReactionByPostId } from "@/store/slice/channelSlice"
 import { TOMBSTONE_TTL_MS } from "@/lib/utils/deletionTombstone"
 import groupChatSlice, { mergeGroupChats, updateGroupChats } from "@/store/slice/groupChatSlice"
 import messageResyncSlice, { triggerMessageResync } from "@/store/slice/messageResyncSlice"
@@ -26,6 +26,43 @@ const post = (uuid: string, createdAt: string, text?: string): PostsRes =>
         post_by: {} as any,
         post_comment_count: 0,
     }) as PostsRes
+
+// A page asked for before a live change can land after it, with the message as
+// it was: the change stays. A page asked for after it is the server's word,
+// and a list it leaves out (no reactions any more) is empty.
+describe("a live change and a page of messages", () => {
+    const reducer = channelSlice.reducer
+    const channelId = "ch-live"
+    const withReaction = { ...post("a", "2024-01-01T00:00:00Z", "<p>v1</p>"), post_reactions: [{ uid: "r1", reaction_emoji_id: "+1" }] } as PostsRes
+
+    it("keeps an edit made after the page was asked for", () => {
+        let state = reducer(undefined, updateChannelPosts({ channelId, posts: [withReaction] }))
+        const askedAt = Date.now() - 1_000
+        state = reducer(state, updatePostByPostId({ channelId, postId: "a", htmlText: "<p>v2</p>" }))
+        state = reducer(state, mergeChannelPosts({ channelId, posts: [withReaction], authoritativeThrough: askedAt }))
+        expect(state.channelPosts[channelId][0].post_text).toBe("<p>v2</p>")
+    })
+
+    it("keeps a reaction taken off after the page was asked for", () => {
+        let state = reducer(undefined, updateChannelPosts({ channelId, posts: [withReaction] }))
+        const askedAt = Date.now() - 1_000
+        state = reducer(state, removePostReactionByPostId({ channelId, postId: "a", reactionId: "r1" }))
+        state = reducer(state, mergeChannelPosts({ channelId, posts: [withReaction], authoritativeThrough: askedAt }))
+        expect(state.channelPosts[channelId][0].post_reactions ?? []).toHaveLength(0)
+    })
+
+    it("takes the server's copy when the page was asked for after the change", () => {
+        let state = reducer(undefined, updateChannelPosts({ channelId, posts: [withReaction] }))
+        state = reducer(state, updatePostByPostId({ channelId, postId: "a", htmlText: "<p>v2</p>" }))
+        const askedAt = Date.now() + 1_000
+        // The server has the edit, and the reaction was taken off elsewhere:
+        // it leaves the list out.
+        const server = post("a", "2024-01-01T00:00:00Z", "<p>v3</p>")
+        state = reducer(state, mergeChannelPosts({ channelId, posts: [server], authoritativeThrough: askedAt }))
+        expect(state.channelPosts[channelId][0].post_text).toBe("<p>v3</p>")
+        expect(state.channelPosts[channelId][0].post_reactions).toEqual([])
+    })
+})
 
 describe("chatSlice.mergeChats", () => {
     const reducer = chatSlice.reducer

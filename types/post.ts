@@ -31,6 +31,8 @@ export interface PostsRes {
     post_local_id?: string
     /** Sent from here and not yet confirmed: still sending, or not sent. */
     post_send_state?: SendState
+    /** When it last changed live here (lib/chat/liveChange), by this client's clock. */
+    post_live_at?: number
 }
 
 export interface CreateOrUpdatePostsReq {

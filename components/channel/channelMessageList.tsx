@@ -14,6 +14,7 @@ import {ChannelTypingBar} from "@/components/typingIndicator/typingIndicatorBar"
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
+import { dataToSeed } from "@/lib/swrMutate";
 
 interface ChannelMessageListProps {
     channelId: string;
@@ -33,7 +34,8 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
     const { isMobile } = useMedia();
     const searchParams = useLinkSearchParams(useSearchParams());
     const postId = propPostId || searchParams?.get('postId') || undefined;
-    const latestMsg = useFetch<CreatePostPaginationResRaw>(postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId)
+    const latestKey = postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId
+    const latestMsg = useFetch<CreatePostPaginationResRaw>(latestKey)
     const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? GetEndpointUrl.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
 
     // A revisited channel picks up posts that arrived while away because SWR
@@ -67,22 +69,33 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         // [] each time, which is a new value, which ran this effect again: an
         // empty channel never rendered, it hit React's update limit instead.
         if(!postId && latestMsg.data?.data?.posts?.length && channelPostState.length == 0 ) {
+            // An empty list has nothing to lose: seeded, and the answer noted.
+            dataToSeed(latestKey, latestMsg.data)
             const newPosts = [...latestMsg.data.data.posts].reverse();
             dispatch(updateChannelPosts({channelId, posts: newPosts}))
-        } else if (!postId && latestMsg.data?.data?.posts && channelPostState.length > 0) {
+        } else if (!postId && channelPostState.length > 0) {
             // Already-loaded channel revisited (navigation / notification
             // deep-link): merge the fresh latest window so a post that arrived
             // while away appears without a hard refresh. Preserves optimistic
             // sends + paginated history; no-op when nothing changed.
-            const latest = [...latestMsg.data.data.posts].reverse();
-            dispatch(mergeChannelPosts({
-                channelId,
-                posts: latest,
-                authoritativeThrough: latestMsg.lastRequestStartedAt,
-            }))
+            //
+            // Each answer once (lib/swrMutate dataToSeed). This runs on every
+            // change to the list, and merging the same cached answer each time
+            // put back what it held when it was fetched: a live edit, a
+            // reaction or a reply count snapped back, and a first reaction
+            // never settled, looping the list.
+            const answer = dataToSeed(latestKey, latestMsg.data)
+            if (answer?.data?.posts) {
+                const latest = [...answer.data.posts].reverse();
+                dispatch(mergeChannelPosts({
+                    channelId,
+                    posts: latest,
+                    authoritativeThrough: latestMsg.lastRequestStartedAt,
+                }))
+            }
         }
 
-    }, [getNewPostsWithCurrentPost, latestMsg, channelPostState, postId, channelId, dispatch]);
+    }, [getNewPostsWithCurrentPost, latestMsg, latestKey, channelPostState, postId, channelId, dispatch]);
 
     useEffect(() => {
 

@@ -22,6 +22,7 @@ import {
 import {GroupChatMessages} from "@/components/groupChat/groupChatMessages";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
+import { dataToSeed } from "@/lib/swrMutate";
 
 interface ChatMessageListProps {
     grpId: string;
@@ -43,7 +44,8 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
 
-    const latestMsg = useFetch<CreateChatPaginationResRaw>(messageId || (!dmParticipantsInfo.data?.data) ? '' : GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId)
+    const latestKey = messageId || (!dmParticipantsInfo.data?.data) ? '' : GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId
+    const latestMsg = useFetch<CreateChatPaginationResRaw>(latestKey)
     const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? GetEndpointUrl.GetNewGroupChatIncludingCurrentChat + '/' + grpId + '/' + messageId: '')
 
     // Revalidate the latest window on open/switch so a revisited group picks
@@ -80,22 +82,29 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
         // Non-empty only: an empty answer stored a new [] that re-ran this effect.
         if(!messageId && latestMsg.data?.data.chats?.length && chatMessageState.length == 0 ) {
+            // An empty list has nothing to lose: seeded, and the answer noted.
+            dataToSeed(latestKey, latestMsg.data)
             // Copy before reversing: latestMsg.data is the live SWR cache.
             const newChats = [...latestMsg.data.data.chats].reverse();
 
             dispatch(updateGroupChats({grpId, chats: newChats}))
-        } else if (!messageId && latestMsg.data?.data.chats && chatMessageState.length > 0) {
+        } else if (!messageId && chatMessageState.length > 0) {
             // Already-loaded group revisited: merge the fresh latest window so
             // a message that arrived while away appears without a hard refresh.
-            const latest = [...latestMsg.data.data.chats].reverse();
-            dispatch(mergeGroupChats({
-                grpId,
-                chats: latest,
-                authoritativeThrough: latestMsg.lastRequestStartedAt,
-            }))
+            // Each answer once (lib/swrMutate dataToSeed): merging the same
+            // cached answer on every change put back live edits and reactions.
+            const answer = dataToSeed(latestKey, latestMsg.data)
+            if (answer?.data.chats) {
+                const latest = [...answer.data.chats].reverse();
+                dispatch(mergeGroupChats({
+                    grpId,
+                    chats: latest,
+                    authoritativeThrough: latestMsg.lastRequestStartedAt,
+                }))
+            }
         }
 
-    }, [getNewChatsWithCurrentChat, latestMsg, chatMessageState, messageId, grpId, dispatch]);
+    }, [getNewChatsWithCurrentChat, latestMsg, latestKey, chatMessageState, messageId, grpId, dispatch]);
 
     useEffect(() => {
 
