@@ -105,6 +105,10 @@ function oneCampNotificationRoute(data, selfUUID) {
     if (type === 'approval') {
         return '/app/home';
     }
+    // 'calendar': a booking made or cancelled on one of your booking pages.
+    if (type === 'calendar') {
+        return '/app/calendar';
+    }
     // 'reminder' carries no target: focus the app and let it surface the reminder.
     return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
 }

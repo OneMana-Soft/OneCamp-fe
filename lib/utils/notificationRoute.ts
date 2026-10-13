@@ -125,6 +125,11 @@ export function notificationRoute(
     case "approval":
       return "/app/home"
 
+    // A booking made or cancelled on one of your booking pages: the calendar,
+    // since a cancelled booking's meeting is gone.
+    case "calendar":
+      return "/app/calendar"
+
     // A fired /remind carries no target: focus the app and let the in-app
     // surface show the reminder itself.
     case "reminder":
