@@ -3,6 +3,8 @@
 // and only inside the call. Now the table drives the handlers and the
 // tooltips both, so a key can't be taught without being answered.
 
+import { isTyping } from "@/lib/goKeys"
+
 export type CallAction = "mic" | "camera" | "share" | "captions" | "ai" | "layout"
 
 export interface CallKey {
@@ -31,14 +33,6 @@ type KeyLike = Pick<KeyboardEvent, "key" | "shiftKey" | "metaKey" | "ctrlKey" | 
   isComposing?: boolean
 }
 
-/** Typing in a field, an editor or a select: no call key fires there. */
-function isTyping(target: EventTarget | null | undefined): boolean {
-  const t = target as HTMLElement | null | undefined
-  if (!t || typeof t !== "object") return false
-  if (t.isContentEditable) return true
-  return typeof t.tagName === "string" && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)
-}
-
 /**
  * The action a key press asks for, or null: never with ⌘, Ctrl or Alt held,
  * never on a held key's repeats, never while typing. Shift must match the
@@ -46,7 +40,9 @@ function isTyping(target: EventTarget | null | undefined): boolean {
  */
 export function callKeyAction(e: KeyLike, allowed?: readonly CallAction[]): CallAction | null {
   if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.isComposing) return null
-  if (isTyping(e.target)) return null
+  // Typing, or a surface with its own letters (a whiteboard beside the call):
+  // the app's one rule for that (lib/goKeys).
+  if (e.target && typeof (e.target as Element).tagName === "string" && isTyping(e.target as Element)) return null
   const key = (e.key || "").toLowerCase()
   const row = CALL_KEYS.find((k) => k.key === key && !!k.shift === !!e.shiftKey)
   if (!row) return null
