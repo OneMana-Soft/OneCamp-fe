@@ -63,12 +63,12 @@ describe("the booking settings page", () => {
 // CAL-BUG-3: deleting a page deleted its bookings, and every guest's link to
 // cancel. The bookings stay now, and the confirmation says how many.
 describe("deleting a booking page", () => {
-  it("says how many upcoming bookings stay, and that their guests can still cancel", () => {
+  it("says how many upcoming bookings it has, promising nothing a server may refuse", () => {
     fetched = { isLoading: false, data: { data: [{ ...page, upcoming_bookings: 2 }] } }
     render(<BookingSettings />)
     fireEvent.click(screen.getByRole("button", { name: "Delete Intro call with Sam" }))
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: "Its link stops working. Its 2 upcoming bookings stay on your calendar, and their guests can still cancel." }))
-    expect(deletePageWords(1)).toBe("Its link stops working. Its 1 upcoming booking stays on your calendar, and its guest can still cancel.")
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: "Its link stops working. It has 2 upcoming bookings." }))
+    expect(deletePageWords(1)).toBe("Its link stops working. It has 1 upcoming booking.")
     expect(deletePageWords(0)).toBe("Its link stops working. It has no upcoming bookings.")
   })
 

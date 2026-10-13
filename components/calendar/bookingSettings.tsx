@@ -42,15 +42,17 @@ interface BookingPage {
 }
 
 /**
- * What deleting a page leaves (CAL-BUG-3): its link stops working, and its
- * upcoming bookings stay, their guests still able to cancel. It used to
- * delete them too, and every guest's link with them.
+ * What deleting a page is said to do (CAL-BUG-3): its link stops working, and
+ * how many upcoming bookings it has. It used to promise "Bookings already made
+ * stay on your calendar" while deleting them, and every guest's link with them.
  */
 export function deletePageWords(upcoming: number | undefined): string {
   if (upcoming === undefined) return "Its link stops working. Bookings already made stay on your calendar."
   if (upcoming === 0) return "Its link stops working. It has no upcoming bookings."
-  if (upcoming === 1) return "Its link stops working. Its 1 upcoming booking stays on your calendar, and its guest can still cancel."
-  return `Its link stops working. Its ${upcoming} upcoming bookings stay on your calendar, and their guests can still cancel.`
+  // Only what holds everywhere: some servers keep a page with bookings to come
+  // (they answer 409, "Switch it off instead"), so what happens to them is
+  // the answer's to say, in the dialog or the toast after.
+  return `Its link stops working. It has ${upcoming} upcoming ${upcoming === 1 ? "booking" : "bookings"}.`
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
