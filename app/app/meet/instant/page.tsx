@@ -37,9 +37,9 @@ export default function InstantMeetingPage() {
             rememberGuestLink(id, guestMeetingLink(res.guest_token));
             router.replace(meetingPagePath(id));
         } catch (e) {
-            // Said under the button, with the server's reason: guest access
-            // switched off is the usual one.
-            setStartError(apiErrorMessage(e, "Guest access may be off for this workspace. Ask an admin to turn it on."));
+            // Said under the button, in the server's words when it has them
+            // (guest access off names itself); never a guessed cause.
+            setStartError(apiErrorMessage(e, "Couldn't start the meeting. Try again in a moment."));
             setStarting(false);
         }
     };

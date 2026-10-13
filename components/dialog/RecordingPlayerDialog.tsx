@@ -18,6 +18,7 @@ import {formatDateForAttachment} from "@/lib/utils/date/formatDateforAttachment"
 import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
+import {toast} from "@/hooks/use-toast";
 
 export const RecordingPlayerDialog = () => {
     const dispatch = useDispatch();
@@ -49,6 +50,7 @@ export const RecordingPlayerDialog = () => {
     const download = async () => {
         const url = await playback.freshUrl();
         if (url) downloadFile(url, data.fileName);
+        else toast({ title: "Couldn't download the recording", description: "Its link didn't come back. Try again in a moment.", variant: "destructive" });
     };
     
     // Transcript State

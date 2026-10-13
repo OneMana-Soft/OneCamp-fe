@@ -3,8 +3,9 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const joinGuestMeeting = vi.fn()
+const getGuestMeetingStatus = vi.fn(async () => ({ ok: true, data: { title: "Acme weekly" } as Record<string, unknown> }))
 vi.mock("@/services/guestService", () => ({
-  getGuestMeetingStatus: async () => ({ ok: true, data: { title: "Acme weekly" } }),
+  getGuestMeetingStatus: () => getGuestMeetingStatus(),
 }))
 // The join carries the guest's language for the server's agent (callService).
 vi.mock("@/services/callService", () => ({
@@ -13,10 +14,11 @@ vi.mock("@/services/callService", () => ({
 // The real join form and call need devices and a media server; these stand in
 // with the same props.
 vi.mock("@/components/livekit/PreJoin", () => ({
-  PreJoin: ({ username, onJoin }: { username: string; onJoin: (v: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => void }) => {
+  PreJoin: ({ username, onJoin, recordingBy }: { username: string; recordingBy?: string | null; onJoin: (v: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => void }) => {
     const [name, setName] = useState(username)
     return (
       <div>
+        {recordingBy ? <p>Recorded by {recordingBy}</p> : null}
         <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
         <button type="button" onClick={() => onJoin({ audioEnabled: true, videoEnabled: false, displayName: name })}>Join call</button>
       </div>
@@ -82,6 +84,23 @@ describe("a guest in a meeting", () => {
     expect(screen.getByRole("heading", { level: 1, name: "You were removed from the meeting" })).toBeInTheDocument()
     expect(screen.getByText(/Maya Chen removed you from this meeting\./)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Join again" })).toBeNull()
+  })
+
+  // Calls audit: the guest's green room read the meeting once, so a
+  // recording that started while they decided wasn't said before Join.
+  it("says a recording that starts while the guest is in the green room", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+    try {
+      await open()
+      expect(screen.queryByText(/Recorded by/)).toBeNull()
+      getGuestMeetingStatus.mockResolvedValue({ ok: true, data: { title: "Acme weekly", recording: { on: true, by: "Maya Chen" } } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000)
+      })
+      expect(screen.getByText("Recorded by Maya Chen")).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // CALL-BUG-23: a meeting that never connected said "You left the meeting"

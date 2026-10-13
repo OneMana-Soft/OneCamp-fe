@@ -1,25 +1,25 @@
 "use client";
 
-import { use, useState } from "react";
-import { VideoConference, type CallEnd } from "@/components/livekit/VideoConference";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import { VideoConference } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
-import { joinLanguage, removedText, type CallRemoval, type CallStateRead } from "@/components/livekit/callState";
-import { CONNECT_FAILURE_TEXT, type ConnectFailure } from "@/components/livekit/callErrors";
+import { CallEndScreen } from "@/components/livekit/CallEndScreen";
+import { JoinHandled, useCallLifecycle } from "@/components/livekit/useCallLifecycle";
+import type { CallStateRead } from "@/components/livekit/callState";
 import { getGuestMeetingStatus } from "@/services/guestService";
 import { joinGuestMeetingAs } from "@/services/callService";
-import { GuestCentered as Centered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
 import { PublicFrame } from "@/components/guest/PublicFrame";
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
-import { Loader2, UserMinus, Video, WifiOff } from "@/lib/icons";
-import { Button } from "@/components/ui/button";
-import { Tile } from "@/components/ui/graphics/Tile";
-
-type Phase = "prejoin" | "joining" | "in-call" | "ended" | "removed" | "failed" | "unavailable";
+import { Loader2 } from "@/lib/icons";
 
 const gone = <GuestLinkGone detail="The meeting may have ended, or the invite has expired or been revoked. Ask the host for a new link." />;
 
 /** The link's status, with what the meeting is doing (the contract's recording and transcription). */
 type GuestMeetingStatus = { available: boolean; workspace_name?: string } & Pick<CallStateRead, "recording" | "transcription">;
+
+/** How often the green room asks again, so a recording that starts while the guest decides is said before Join. */
+const REFRESH_MS = 10_000;
 
 export default function GuestMeetingPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
@@ -27,61 +27,46 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
     // 1. Validate the link before showing the join form, trying again while
     //    the server is busy or out of reach.
     const { data, trouble } = useGuestAnswer(`meet:${token}`, () => getGuestMeetingStatus(token));
-    const status = data as GuestMeetingStatus | null;
-    const [phase, setPhase] = useState<Phase>("prejoin");
-    const [liveToken, setLiveToken] = useState("");
-    const [errorMsg, setErrorMsg] = useState("");
+    const [fresh, setFresh] = useState<GuestMeetingStatus | null>(null);
+    const status = (fresh ?? data) as GuestMeetingStatus | null;
     // The name they joined as, so a rejoin doesn't ask for it again.
     const [lastName, setLastName] = useState("");
-    // The green room's choice, carried into the call (CALL-BUG-1).
-    const [choice, setChoice] = useState({ audio: true, video: true });
-    // Why the host took them out (CALL-BUG-11).
-    const [removal, setRemoval] = useState<CallRemoval | null>(null);
-    // Why the meeting never connected (CALL-BUG-23), and whether it ever did.
-    const [failure, setFailure] = useState<ConnectFailure>("network");
-    const [connected, setConnected] = useState(false);
+    const nameRef = useRef("");
+    const [nameError, setNameError] = useState("");
+    // The link turned out to be dead when joining.
+    const [unavailable, setUnavailable] = useState(false);
 
-    const handleJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => {
-        setErrorMsg("");
-        setPhase("joining");
-        const displayName = (values.displayName || "").trim();
-        setLastName(displayName);
-        setChoice({ audio: values.audioEnabled, video: values.videoEnabled });
-        const res = await joinGuestMeetingAs(token, displayName, joinLanguage());
-        if (res.ok && res.data?.token) {
-            setLiveToken(res.data.token);
-            setConnected(false);
-            setPhase("in-call");
-            return;
-        }
-        if (!res.ok && res.status === 400) {
-            setErrorMsg("Please enter your name.");
-            setPhase("prejoin");
-            return;
-        }
-        // A busy or unreachable server is worth another try; a dead link isn't.
-        if (!res.ok && publicTrouble(res.status) !== "gone") {
-            setErrorMsg(sendFailedText(res));
-            setPhase("prejoin");
-            return;
-        }
-        setPhase("unavailable");
-    };
+    const call = useCallLifecycle(
+        useCallback(
+            async ({ language }) => {
+                setNameError("");
+                const res = await joinGuestMeetingAs(token, nameRef.current, language);
+                if (res.ok && res.data?.token) return res.data.token;
+                if (!res.ok && res.status === 400) {
+                    setNameError("Please enter your name.");
+                    throw new JoinHandled();
+                }
+                // A busy or unreachable server is worth another try; a dead link isn't.
+                if (!res.ok && publicTrouble(res.status) !== "gone") throw new Error(sendFailedText(res));
+                setUnavailable(true);
+                throw new JoinHandled();
+            },
+            [token],
+        ),
+    );
 
-    const handleDisconnect = (end?: CallEnd) => {
-        if (end?.removed) {
-            setRemoval(end.removed);
-            setPhase("removed");
-            return;
-        }
-        if (end?.failed) {
-            setFailure(end.failed);
-            setPhase("failed");
-            return;
-        }
-        // Left before it connected: back to the join form, not "You left".
-        setPhase(connected ? "ended" : "prejoin");
-    };
+    // While the guest is in the green room, the meeting is read again: a
+    // recording or captions that start meanwhile are said before Join.
+    const waiting = call.phase === "prejoin" || call.phase === "joining";
+    useEffect(() => {
+        if (!waiting || !data) return;
+        const t = window.setInterval(() => {
+            void getGuestMeetingStatus(token).then((res) => {
+                if (res.ok) setFresh(res.data as GuestMeetingStatus);
+            });
+        }, REFRESH_MS);
+        return () => window.clearInterval(t);
+    }, [waiting, data, token]);
 
     if (!status) {
         return (
@@ -89,71 +74,37 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
         );
     }
 
-    if (phase === "unavailable") return gone;
+    if (unavailable) return gone;
 
-    // Removed by the host, or their link turned off (CALL-BUG-11): why, and no
-    // Join again, which would only walk them back into a meeting they were
-    // taken out of.
-    if (phase === "removed") {
-        const { title, detail } = removedText(removal, true);
-        return (
-            <Centered>
-                <Tile hue="berry" size="lg"><UserMinus /></Tile>
-                <h1 className="text-base font-semibold text-foreground">{title}</h1>
-                <p className="text-sm text-muted-foreground" role="status">{detail} You can close this tab.</p>
-            </Centered>
-        );
+    // Removed (CALL-BUG-11), never connected (CALL-BUG-23), or left: said on
+    // the guest's own frame.
+    if (call.phase === "left" || call.phase === "removed" || call.phase === "failed") {
+        return <CallEndScreen call={call} guest noun="meeting" />;
     }
 
-    // Never connected (CALL-BUG-23): which kind of failure, and Try again.
-    // It used to say "You left the meeting" within five seconds, with no reason.
-    if (phase === "failed") {
-        return (
-            <Centered>
-                <Tile hue="sun" size="lg"><WifiOff /></Tile>
-                <h1 className="text-base font-semibold text-foreground">Couldn&apos;t connect to the meeting</h1>
-                <p className="text-sm text-muted-foreground" role="status">{CONNECT_FAILURE_TEXT[failure]}</p>
-                <Button onClick={() => setPhase("prejoin")}>
-                    Try again
-                </Button>
-            </Centered>
-        );
-    }
-
-    // Any disconnect lands here, a dropped connection included, and the link
-    // still works. Leaving by mistake was a dead end ("You can close this
-    // tab"); the way back in is one press, as the same name. (The error line
-    // is always empty by now: a join that reached the call cleared it.)
-    if (phase === "ended") {
-        return (
-            <Centered>
-                <Tile hue="sky" size="lg"><Video /></Tile>
-                <h1 className="text-base font-semibold text-foreground">You left the meeting</h1>
-                <p className="text-sm text-muted-foreground">If you dropped out by mistake, join again under the same name. Otherwise you can close this tab.</p>
-                <Button onClick={() => setPhase("prejoin")}>
-                    Join again
-                </Button>
-            </Centered>
-        );
-    }
-
-    if (phase === "in-call" && liveToken) {
+    if (call.phase === "in-call" && call.token) {
         return (
             <div className="h-dvh w-full">
                 <VideoConference
-                    token={liveToken}
+                    token={call.token}
                     serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || ""}
-                    onDisconnect={handleDisconnect}
+                    onDisconnect={call.onDisconnect}
+                    onConnected={call.onConnected}
                     isAdmin={false}
                     guest
-                    audio={choice.audio}
-                    video={choice.video}
-                    onConnected={() => setConnected(true)}
+                    audio={call.choice.audio}
+                    video={call.choice.video}
                 />
             </div>
         );
     }
 
+    const errorMsg = nameError || call.joinError;
+    const join = (v: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => {
+        nameRef.current = (v.displayName || "").trim();
+        setLastName(nameRef.current);
+        call.join(v);
+    };
     // prejoin / joining
     return (
         <PublicFrame surface="guest-meeting" title="Joining as a guest" className="relative">
@@ -163,13 +114,13 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                 )}
                 {/* Told before joining (CALL-BUG-12): a recording, and
                     captions with where speech goes. */}
-                <PreJoin onJoin={handleJoin} username={lastName} nameEditable joining={phase === "joining"}
+                <PreJoin onJoin={join} username={lastName} nameEditable joining={call.phase === "joining"}
                     recording={!!status.recording?.on}
                     recordingBy={status.recording?.on ? status.recording.by || null : null}
                     transcription={status.transcription}
                 />
             </div>
-            {phase === "joining" && (
+            {call.phase === "joining" && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50" role="status" aria-label="Joining the meeting">
                     <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
                 </div>

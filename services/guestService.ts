@@ -4,26 +4,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { publicCall } from "@/services/publicApi"
 import type { DataTable, TableField, TableRow } from "@/services/tableService"
 
-// --- Member: start an instant meeting (authed) ---
-
-interface InstantMeetingResponse {
-    room: string
-    host_token: string
-    guest_token: string // raw link token, shown once
-    grant_id: string
-    expires_at: string
-}
-
-export async function createInstantMeeting(
-    audioEnabled: boolean,
-    videoEnabled: boolean,
-): Promise<InstantMeetingResponse> {
-    const res = await axiosInstance.post(PostEndpointUrl.CreateInstantMeeting, {
-        audio_enabled: audioEnabled,
-        video_enabled: videoEnabled,
-    })
-    return (res.data as { data: InstantMeetingResponse }).data
-}
+// --- Member: an instant meeting's guest link ---
 
 /** Build the shareable guest link for a raw guest token. */
 export function guestMeetingLink(rawToken: string): string {
@@ -38,13 +19,6 @@ export function guestMeetingLink(rawToken: string): string {
 
 export const getGuestMeetingStatus = (token: string) =>
     publicCall<{ available: boolean }>(`/guest/meet/${encodeURIComponent(token)}`)
-
-/** A 400 is the name, for the guest to fix. */
-export const joinGuestMeeting = (token: string, displayName: string, audioEnabled: boolean, videoEnabled: boolean) =>
-    publicCall<{ token: string; room: string }>(`/guest/meet/${encodeURIComponent(token)}/join`, {
-        method: "POST",
-        body: JSON.stringify({ display_name: displayName, audio_enabled: audioEnabled, video_enabled: videoEnabled }),
-    })
 
 // --- Member: create a scoped, read-only external share link for a doc/board ---
 
