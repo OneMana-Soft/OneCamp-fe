@@ -25,7 +25,8 @@ vi.mock("@/hooks/useFetch", () => ({
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(), isSubmitting: false }) }))
+const makeRequest = vi.fn()
+vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
@@ -47,6 +48,8 @@ afterEach(() => {
   mobile = false
   events = null
   vi.useRealTimers()
+  vi.restoreAllMocks()
+  makeRequest.mockReset()
 })
 
 const ranges = () => new Set(asked.filter((u) => u.includes("/event/getEvents")))
@@ -206,3 +209,42 @@ describe("the desktop agenda", () => {
     expect(listed()).toEqual(["Tuesday 20 Oct", "Friday 30 Oct"])
   })
 })
+
+// CAL-BUG-4: a booking is an ordinary event on its owner's calendar, and
+// dragging it to another time left its guest untold, at the old time.
+describe("moving a booked meeting", () => {
+  it("asks first, naming its guest, and moves nothing until confirmed", async () => {
+    if (typeof window.PointerEvent === "undefined") {
+      class PointerEventPolyfill extends MouseEvent {
+        pointerId: number
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init)
+          this.pointerId = init.pointerId ?? 1
+        }
+      }
+      ;(window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = PointerEventPolyfill
+    }
+    // Seven 100px columns after a 56px gutter, the grid's top at 0: an hour is 56px.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const col = this.dataset?.dayCol
+      const left = col !== undefined ? 56 + Number(col) * 100 : 56
+      return { left, right: left + (col !== undefined ? 100 : 700), top: 0, bottom: 24 * 56, width: col !== undefined ? 100 : 700, height: 24 * 56, x: left, y: 0, toJSON: () => ({}) } as DOMRect
+    })
+    events = [{ ...standup(), event_booking: { guest_name: "Alex Kim", page_title: "Intro call", guest_told: true } }]
+    render(<CalendarApp />)
+    const block = document.querySelector('[data-hue-block="event"]') as HTMLElement
+    const column = block.closest("[data-day-col]") as HTMLElement
+    const x = 56 + Number(column.dataset.dayCol) * 100 + 50
+    fireEvent.pointerDown(block, { button: 0, clientX: x, clientY: 9 * 56 + 5 })
+    fireEvent.pointerMove(column.parentElement!, { clientX: x, clientY: 11 * 56 + 5 })
+    fireEvent.pointerUp(column.parentElement!, { clientX: x, clientY: 11 * 56 + 5 })
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Move this booked meeting?", confirmText: "Move and tell Alex Kim" }))
+    expect(confirm.mock.calls[0][0].description).toMatch(/^Alex Kim booked it through Intro call\. We'll email them the new time, .*11:00/)
+    expect(makeRequest).not.toHaveBeenCalled()
+    await act(async () => {
+      await confirm.mock.calls[0][0].onConfirm()
+    })
+    expect(makeRequest).toHaveBeenCalledTimes(1)
+  })
+})
+

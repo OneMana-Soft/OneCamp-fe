@@ -36,6 +36,7 @@ import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgendaWindow, previousAgendaWindow, type AgendaWindow } from "@/lib/utils/calendarAgenda";
 import { allDayItem, dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
 import { placeAllByDates } from "@/lib/calendar/allDay";
+import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
 
 export type CalendarView = "day" | "week" | "month" | "agenda";
 const VIEWS: { id: CalendarView; label: string; key: string }[] = [
@@ -323,11 +324,19 @@ export function CalendarApp() {
 
     /**
      * A move or a resize: drawn at once, sent, and put back if it fails. Once
-     * it lands, a toast says where it went, with Undo.
+     * it lands, a toast says where it went, with Undo. A booked meeting asks
+     * first, naming its guest and whether they'll be told (CAL-BUG-4).
      */
-    const changeTimes = useCallback(async (uuid: string, start: Date, end: Date, undoing = false): Promise<void> => {
+    const changeTimes = useCallback(async (uuid: string, start: Date, end: Date, undoing = false, confirmed = false): Promise<void> => {
         const e = allEvents.find((x) => x.event_uuid === uuid);
         if (!e) return;
+        if (e.event_booking && !confirmed) {
+            confirm({
+                ...bookedMeetingConfirm(e.event_booking, "move", `${format(start, "EEE d MMM")}, ${shortTime(start)} – ${shortTime(end)}`),
+                onConfirm: () => changeTimes(uuid, start, end, undoing, true),
+            });
+            return;
+        }
         const before = { start: e.event_start_time, end: e.event_end_time };
         const patch = (s: string, en: string) => (cur: GetEventsResponse | undefined) =>
             cur?.data ? { ...cur, data: cur.data.map((x) => (x.event_uuid === uuid ? { ...x, event_start_time: s, event_end_time: en } : x)) } : cur;
@@ -354,7 +363,7 @@ export function CalendarApp() {
                 </ToastAction>
             ),
         });
-    }, [allEvents, mutateEvents, sendTimes, toast]);
+    }, [allEvents, mutateEvents, sendTimes, toast, confirm]);
 
     const moveDays = useCallback((item: MonthItem, days: number) => {
         void changeTimes(item.event_uuid, addDays(parseISO(item.event_start_time), days), addDays(parseISO(item.event_end_time), days));

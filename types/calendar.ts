@@ -1,4 +1,5 @@
 import { UserProfileDataInterface } from "@/types/user";
+import type { EventBooking } from "@/lib/calendar/bookedMeeting";
 
 export interface CalendarEventInterface {
     uid?: string;
@@ -22,6 +23,8 @@ export interface CalendarEventInterface {
     event_all_day?: boolean;
     event_start_date?: string;
     event_end_date?: string;
+    /** Someone booked it through a booking page: shown to its creator only, while the booking is to come. */
+    event_booking?: EventBooking;
     isTask?: boolean;
 }
 
