@@ -26,6 +26,7 @@ import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
+import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
 import { FALLBACK_EVENT_TYPES, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
 import axiosInstance from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -128,6 +129,8 @@ interface WebhookData {
   bot_name: string
   events?: string
   is_active: boolean
+  scope_type?: string
+  scope_entity_id?: string | null
 }
 
 interface Props {
@@ -145,6 +148,8 @@ const blankForm = {
   bot_name: "Webhook Bot",
   events: [] as string[],
   is_active: true,
+  scope_type: "org" as string,
+  scope_entity_id: "",
 }
 
 const NO_CHANNEL_VALUE = "__none__"
@@ -152,7 +157,7 @@ const NO_CHANNEL_VALUE = "__none__"
 export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webhook }: Props) {
   const post = usePost()
   const [form, setForm] = useState({ ...blankForm })
-  const [errors, setErrors] = useState<{ name?: string; target_url?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string; target_url?: string; scope?: string }>({})
   const nameRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
 
@@ -176,6 +181,8 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
         bot_name: webhook.bot_name,
         events,
         is_active: webhook.is_active,
+        scope_type: webhook.scope_type || "org",
+        scope_entity_id: webhook.scope_entity_id || "",
       })
       setErrors({})
     }
@@ -193,6 +200,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
     if (webhook?.type === "outgoing" && form.target_url.trim() && !form.target_url.trim().startsWith("https://")) {
       next.target_url = "Use an address that starts with https://, so events travel encrypted."
     }
+    if (webhook?.type === "outgoing") next.scope = scopeProblem(form.scope_type, form.scope_entity_id)
     setErrors(next)
     if (next.name) {
       nameRef.current?.focus()
@@ -202,6 +210,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
       urlRef.current?.focus()
       return
     }
+    if (next.scope) return
     try {
       await post.makeRequest({
         apiEndpoint: PostEndpointUrl.UpdateWebhook,
@@ -215,6 +224,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
           bot_name: form.bot_name.trim() || "Webhook Bot",
           events: form.events.length > 0 ? form.events : undefined,
           is_active: form.is_active,
+          ...(webhook?.type === "outgoing" ? scopePayload(form.scope_type, form.scope_entity_id) : {}),
         },
         showToast: true,
       })
@@ -271,6 +281,18 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
                   placeholder="https://api.example.com/webhook…"
                 />
               </Field>
+              <WebhookScopeFields
+                scope={form.scope_type}
+                entity={form.scope_entity_id}
+                onChange={(scope_type, scope_entity_id) => {
+                  setForm(f => ({ ...f, scope_type, scope_entity_id }))
+                  if (errors.scope) setErrors((er) => ({ ...er, scope: undefined }))
+                }}
+                channels={channels}
+                channelsLoading={channelsLoading}
+                idPrefix="edit"
+                error={errors.scope}
+              />
               <WebhookEventChoice events={EVENT_TYPES} chosen={form.events} onChange={(events) => setForm(f => ({ ...f, events }))} idPrefix="edit-ev" />
             </>
           )}

@@ -27,6 +27,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { groupEvents } from "@/components/admin/webhookParts"
+import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
 
 export const FALLBACK_EVENT_TYPES = [
   "post.created", "post.updated", "post.deleted",
@@ -128,7 +129,7 @@ const TYPE_HELP: Record<WebhookType, string> = {
 export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: Props) {
   const post = usePost()
   const [form, setForm] = useState({ ...blankForm })
-  const [errors, setErrors] = useState<{ name?: string; target_url?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string; target_url?: string; scope?: string }>({})
   const nameRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
 
@@ -155,6 +156,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
       const url = form.target_url.trim()
       if (!url) next.target_url = "Enter the address to send events to."
       else if (!url.startsWith("https://")) next.target_url = "Use an address that starts with https://, so events travel encrypted."
+      next.scope = scopeProblem(form.scope_type, form.scope_entity_id)
     }
     setErrors(next)
     if (next.name) {
@@ -165,6 +167,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
       urlRef.current?.focus()
       return
     }
+    if (next.scope) return
     try {
       await post.makeRequest({
         apiEndpoint: PostEndpointUrl.CreateWebhook,
@@ -176,8 +179,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
           target_url: form.type === "outgoing" ? form.target_url.trim() : undefined,
           channel_id: form.type === "incoming" && form.channel_id.trim() ? form.channel_id.trim() : undefined,
           events: form.type === "outgoing" && form.events.length > 0 ? form.events : undefined,
-          scope_type: form.scope_type || "org",
-          scope_entity_id: form.scope_entity_id.trim() || undefined,
+          ...(form.type === "outgoing" ? scopePayload(form.scope_type, form.scope_entity_id) : {}),
         },
         showToast: true,
       })
@@ -249,35 +251,18 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
                   placeholder="https://api.example.com/webhook…"
                 />
               </Field>
-              <Field label="Events from" help="Limit which events it is sent.">
-                <Select value={form.scope_type} onValueChange={(v) => setForm(f => ({ ...f, scope_type: v, scope_entity_id: "" }))}>
-                  <SelectTrigger id="wh-scope"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="org">The whole workspace</SelectItem>
-                    <SelectItem value="channel">One channel</SelectItem>
-                    <SelectItem value="project">One project</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              {form.scope_type === "channel" && (
-                <Field label="Channel">
-                  <Select value={form.scope_entity_id || undefined} onValueChange={(v) => setForm(f => ({ ...f, scope_entity_id: v }))} disabled={channelsLoading}>
-                    <SelectTrigger id="wh-scope-channel">
-                      <SelectValue placeholder={channelsLoading ? "Loading channels…" : "Choose a channel"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {channels.map(ch => (
-                        <SelectItem key={ch.ch_uuid} value={ch.ch_uuid}>{ch.ch_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-              {form.scope_type === "project" && (
-                <Field label="Project ID" help="The last part of the project's address in your browser.">
-                  <Input id="wh-scope-project" value={form.scope_entity_id} onChange={(e) => setForm(f => ({ ...f, scope_entity_id: e.target.value }))} spellCheck={false} autoComplete="off" />
-                </Field>
-              )}
+              <WebhookScopeFields
+                scope={form.scope_type}
+                entity={form.scope_entity_id}
+                onChange={(scope_type, scope_entity_id) => {
+                  setForm(f => ({ ...f, scope_type, scope_entity_id }))
+                  if (errors.scope) setErrors((er) => ({ ...er, scope: undefined }))
+                }}
+                channels={channels}
+                channelsLoading={channelsLoading}
+                idPrefix="wh"
+                error={errors.scope}
+              />
               <WebhookEventChoice events={EVENT_TYPES} chosen={form.events} onChange={(events) => setForm(f => ({ ...f, events }))} idPrefix="wh-ev" />
             </>
           )}
