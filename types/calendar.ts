@@ -17,7 +17,7 @@ export interface CalendarEventInterface {
     event_is_away?: boolean;
     /**
      * A Google all-day event: placed by event_start_date and event_end_date
-     * ("YYYY-MM-DD", the end exclusive), never by its placeholder instants
+     * ("YYYY-MM-DD", the end exclusive), never by its midnight-UTC instants
      * (lib/calendar/allDay).
      */
     event_all_day?: boolean;

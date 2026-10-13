@@ -10,9 +10,8 @@ import { placedByDates } from "@/lib/calendar/allDay"
 
 // CAL-BUG-2: "Offsite", a Google all-day event on Wednesday 14 October, sat
 // on two days for everyone outside UTC, with clock times. It comes with its
-// dates and placeholder instants at 12:00 UTC; every view places it by the
-// dates. Auckland reads 12:00 UTC on the 14th as 01:00 on the 15th, so an
-// instant there lands on the wrong day.
+// dates beside instants at midnight UTC, which New York, India and Auckland
+// each read as two days; every view places it by the dates.
 const ZONES = ["America/New_York", "Asia/Kolkata", "Pacific/Auckland"]
 const original = process.env.TZ
 afterEach(() => {
@@ -24,8 +23,8 @@ afterEach(() => {
 const offsite = (extra: Partial<CalendarEventInterface> = {}): CalendarEventInterface => ({
   event_uuid: "gcal-offsite",
   event_title: "Offsite",
-  event_start_time: "2026-10-14T12:00:00Z",
-  event_end_time: "2026-10-14T12:00:00Z",
+  event_start_time: "2026-10-14T00:00:00Z",
+  event_end_time: "2026-10-15T00:00:00Z",
   event_all_day: true,
   event_start_date: "2026-10-14",
   event_end_date: "2026-10-15",
@@ -50,7 +49,7 @@ for (const zone of ZONES) {
 
     it("covers each of its days when it runs for several", () => {
       process.env.TZ = zone
-      const byDay = itemsByDay(placeItems([offsite({ event_end_time: "2026-10-16T12:00:00Z", event_end_date: "2026-10-17" })]), new Date(2026, 9, 1), new Date(2026, 9, 31))
+      const byDay = itemsByDay(placeItems([offsite({ event_end_time: "2026-10-17T00:00:00Z", event_end_date: "2026-10-17" })]), new Date(2026, 9, 1), new Date(2026, 9, 31))
       expect(daysWith(byDay, "gcal-offsite")).toEqual(["2026-10-14", "2026-10-15", "2026-10-16"])
     })
 
@@ -89,7 +88,7 @@ for (const zone of ZONES) {
 describe("a Google all-day event on a day without a midnight", () => {
   it("still reads All day, on its own date (Chile skips 00:00 on 6 September 2026)", () => {
     process.env.TZ = "America/Santiago"
-    const e = offsite({ event_start_time: "2026-09-06T12:00:00Z", event_end_time: "2026-09-06T12:00:00Z", event_start_date: "2026-09-06", event_end_date: "2026-09-07" })
+    const e = offsite({ event_start_time: "2026-09-06T00:00:00Z", event_end_time: "2026-09-07T00:00:00Z", event_start_date: "2026-09-06", event_end_date: "2026-09-07" })
     const byDay = itemsByDay(placeItems([e]), new Date(2026, 8, 1), new Date(2026, 8, 30))
     expect(daysWith(byDay, "gcal-offsite")).toEqual(["2026-09-06"])
     const anchor = document.createElement("button")
