@@ -179,6 +179,13 @@ const RescheduleDialog: React.FC<{
                 })}
               </ul>
             )}
+            {/* What the times leave out, such as a calendar that couldn't be
+                read, under them (CAL-BUG-12). With no times it is said above. */}
+            {result.note && result.candidates.length > 0 ? (
+              <p className="text-2xs text-muted-foreground" data-schedule-note="">
+                {result.note}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </DialogContent>

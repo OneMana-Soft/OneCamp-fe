@@ -9,6 +9,7 @@
 
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 export interface ScheduleParticipant {
   uuid: string
@@ -45,9 +46,12 @@ export async function proposeSchedule(input: ScheduleProposeInput): Promise<Sche
   // JS getTimezoneOffset() returns minutes BEHIND UTC (e.g. IST = -330), so we
   // negate to get "local = UTC + offset".
   const utc_offset_mins = -new Date().getTimezoneOffset()
+  // The zone itself, so business hours follow its clock across a daylight
+  // saving change; the offset is only the older server's fallback (CAL-BUG-12).
   const res = await axiosInstance.post(PostEndpointUrl.AISchedulePropose, {
     ...input,
     utc_offset_mins,
+    timezone: browserTZ(),
   })
   return (
     res.data?.data ?? {
@@ -114,6 +118,7 @@ export async function proposeReschedule(
   const res = await axiosInstance.post(PostEndpointUrl.AIScheduleReschedule, {
     event_uuid: eventUUID,
     utc_offset_mins,
+    timezone: browserTZ(),
     ...opts,
   })
   return (
