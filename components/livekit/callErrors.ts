@@ -4,7 +4,9 @@
 // reason in the console, so someone who joined muted could never be heard and
 // was never told why. Pure, and free of LiveKit, so it is tested alone.
 
-export type CallDevice = "microphone" | "camera" | "screen"
+import { SCREEN_UNAVAILABLE, mediaFailure, type MediaDevice } from "@/lib/media/mediaFailure"
+
+export type CallDevice = MediaDevice
 
 export interface CallFailure {
   title: string
@@ -38,43 +40,11 @@ export function callMediaFailure(device: CallDevice, error: unknown): CallFailur
       ? { title: "This call doesn't allow screen sharing", description: "Ask the host, or leave and rejoin the call." }
       : { title: `This call didn't allow your ${thing}`, description: "Leave and rejoin the call, then try again." }
   }
-
-  if (device === "screen") {
-    if (name === "DeviceUnsupportedError" || name === "NotSupportedError" || name === "NotFoundError") return { title: SCREEN_UNAVAILABLE, description: "Share from a computer instead." }
-    // The Linux desktop app, with no screencast portal (an X11 session): measured by the desktop fixer.
-    if (name === "OverconstrainedError") return { title: "Screen sharing isn't available on this computer", description: "Share from a browser instead." }
-    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-      // Chrome says "by system" when the computer, not the person, said no.
-      if (/system/i.test(message)) {
-        return { title: "Your computer blocked screen sharing", description: "Allow screen recording for your browser in your computer's privacy settings, then try again." }
-      }
-      return null
-    }
-    if (name === "AbortError") return null
-    return { title: "Couldn't share your screen", description: "Try again, or pick a different window." }
-  }
-
-  switch (name) {
-    case "NotAllowedError":
-    case "PermissionDeniedError":
-    case "SecurityError":
-      return {
-        title: `Your browser blocked the ${thing}`,
-        description: `Allow the ${thing} for this site from the icon at the left of the address bar, then try again.`,
-      }
-    case "NotFoundError":
-    case "DevicesNotFoundError":
-    case "OverconstrainedError":
-      return { title: `No ${thing} was found`, description: `Connect a ${thing}, or choose another in the menu beside the button.` }
-    case "NotReadableError":
-    case "TrackStartError":
-      return { title: `Your ${thing} is in use`, description: `Another app may be using it. Close that app, then try again.` }
-  }
-  return { title: `Couldn't turn on your ${thing}`, description: "Try again, or choose another device." }
+  // The browser's own refusals: one mapper for the app (lib/media).
+  return mediaFailure(device, error)
 }
 
-/** The reason Share screen is unavailable, said on the control and in its toast. */
-export const SCREEN_UNAVAILABLE = "Screen sharing isn't available in this browser"
+export { SCREEN_UNAVAILABLE }
 
 /**
  * Whether this browser can share a screen at all (CALL-BUG-19). Phone

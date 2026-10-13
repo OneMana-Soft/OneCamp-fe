@@ -24,6 +24,7 @@ import { SPEAKING_THRESHOLD } from "./callLevels";
 import { readDevicePrefs, writeDevicePref, type DevicePrefs } from "./callDevices";
 import { callKeyAction } from "./callKeys";
 import { callsUnavailableHere } from "./callErrors";
+import { mediaFailure } from "@/lib/media/mediaFailure";
 import { captionsWhereText, type CallTranscription } from "./callState";
 
 export interface PreJoinPerson {
@@ -151,12 +152,12 @@ export function PreJoin({
         } catch (e) {
           if (cancelled) return
           console.error("Failed to acquire video track", e);
-          const denied = e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "SecurityError");
-          setCameraProblem(
-            denied
-              ? { kind: "denied", message: "OneCamp is not allowed to use your camera. Allow it in the browser, or join with audio." }
-              : { kind: "busy", message: "Your camera could not be opened. It may be in use by another app. You can join with audio." },
-          );
+          // The app's one set of words for a refusal (lib/media); the denied
+          // state also offers how to allow the camera.
+          const name = (e as { name?: string })?.name;
+          const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
+          const f = mediaFailure("camera", e);
+          setCameraProblem({ kind: denied ? "denied" : "busy", message: `${f?.title ?? "Your camera couldn't start"}. You can join with audio.` });
           setVideoEnabled(false);
         }
       } else if (trackRef.current) {
