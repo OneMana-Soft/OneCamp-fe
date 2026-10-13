@@ -37,6 +37,20 @@ interface BookingPage {
   min_notice_minutes: number
   max_days_ahead: number
   active: boolean
+  /** Its bookings still to come (the server's count; absent from an older one). */
+  upcoming_bookings?: number
+}
+
+/**
+ * What deleting a page leaves (CAL-BUG-3): its link stops working, and its
+ * upcoming bookings stay, their guests still able to cancel. It used to
+ * delete them too, and every guest's link with them.
+ */
+export function deletePageWords(upcoming: number | undefined): string {
+  if (upcoming === undefined) return "Its link stops working. Bookings already made stay on your calendar."
+  if (upcoming === 0) return "Its link stops working. It has no upcoming bookings."
+  if (upcoming === 1) return "Its link stops working. Its 1 upcoming booking stays on your calendar, and its guest can still cancel."
+  return `Its link stops working. Its ${upcoming} upcoming bookings stay on your calendar, and their guests can still cancel.`
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -119,15 +133,19 @@ function PageList({ pages, loading, onEdit, onChanged }: { pages: BookingPage[];
   const remove = (p: BookingPage) =>
     confirm({
       title: `Delete the booking page “${p.title}”?`,
-      description: "Its link stops working. Bookings already made stay on your calendar.",
+      description: deletePageWords(p.upcoming_bookings),
       confirmText: "Delete booking page",
       destructive: true,
+      // A refusal (a server that keeps pages with bookings to come) is said in
+      // the dialog, in the server's words, and the page stays.
       onConfirm: async () => {
-        const res = await makeRequest<{ id: string }, unknown>({ apiEndpoint: PostEndpointUrl.DeleteBookingPage, payload: { id: p.id! }, showErrorToast: true })
-        if (res !== undefined) {
-          toast({ title: `Deleted “${p.title}”`, description: "Bookings already made stay on your calendar." })
-          onChanged()
-        }
+        const res = await makeRequest<{ id: string }, { upcoming_bookings?: number }>({ apiEndpoint: PostEndpointUrl.DeleteBookingPage, payload: { id: p.id! }, quiet: true })
+        const left = typeof res?.upcoming_bookings === "number" ? res.upcoming_bookings : p.upcoming_bookings
+        toast({
+          title: `Deleted “${p.title}”`,
+          description: left ? `${left} upcoming ${left === 1 ? "booking stays" : "bookings stay"} on your calendar.` : "Its link no longer works.",
+        })
+        onChanged()
       },
     })
 
@@ -193,7 +211,8 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
     e.preventDefault()
     const res = await makeRequest<BookingPage, BookingPage>({
       apiEndpoint: PostEndpointUrl.SaveBookingPage,
-      payload: { ...p, slug: slugify(p.slug || p.title) },
+      // The count is the server's to say, never sent back.
+      payload: { ...p, upcoming_bookings: undefined, slug: slugify(p.slug || p.title) },
       showErrorToast: true,
     })
     if (res) {
