@@ -16,9 +16,11 @@ let loading = false
 let eventId = "e1"
 // What GET /event/getEvent/{id} answers: the event, or a failure.
 let failure: { status: number; data?: unknown } | null = null
+// The event's booking, when someone booked it through a booking page.
+let booking: { guest_name: string; page_title: string; guest_told: boolean } | undefined
 // Every URL the panel asked for.
 const asked: string[] = []
-const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_created_by: SAM, event_participants: participants })
+const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_created_by: SAM, event_participants: participants, ...(booking ? { event_booking: booking } : {}) })
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
@@ -32,7 +34,8 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 const makeRequest = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest }) }))
-vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => vi.fn() }))
+const dispatch = vi.fn()
+vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => dispatch }))
 // SWR's cache: a list already loaded (the calendar's month, Home's today).
 let cache = new Map<string, unknown>()
 vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn(), cache }) }))
@@ -50,6 +53,8 @@ afterEach(() => {
   cache = new Map()
   asked.length = 0
   makeRequest.mockReset()
+  dispatch.mockReset()
+  booking = undefined
 })
 
 function panel(props: { onClose?: () => void; uuid?: string } = {}) {
@@ -272,5 +277,49 @@ describe("saving the guests", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
     const call = await save()
     expect(call).toMatchObject({ showErrorToast: true, failureTitle: "Couldn't save the event" })
+  })
+})
+
+// CAL-BUG-4: deleting or moving a booked meeting left its guest untold.
+describe("a booked meeting", () => {
+  const confirmed = () => dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
+  const saveButton = () => within(screen.getByRole("button", { name: "Close panel" }).closest("[data-panel-actions]") as HTMLElement).getByRole("button", { name: "Save" })
+
+  it("names its guest before it is deleted, and whether they'll be told", () => {
+    booking = { guest_name: "Alex Kim", page_title: "Intro call", guest_told: false }
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
+    expect(confirmed()[0]).toMatchObject({
+      title: "Delete this booked meeting?",
+      description: "Alex Kim booked it through Intro call. They won't be told: this workspace doesn't send email, so let them know yourself.",
+      confirmText: "Delete meeting",
+      destructive: true,
+    })
+  })
+
+  it("asks before its time changes, and saves only once confirmed", async () => {
+    booking = { guest_name: "Alex Kim", page_title: "Intro call", guest_told: true }
+    participants = [MAYA, JONAS]
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    // The meeting moves meanwhile (another tab): this form, still at 9:30, would move it back.
+    times = { event_start_time: "2026-09-28T10:30:00", event_end_time: "2026-09-28T10:45:00" }
+    fireEvent.click(screen.getByRole("button", { name: "Remove Jonas" }))
+    fireEvent.click(saveButton())
+    await waitFor(() => expect(confirmed()).toHaveLength(1))
+    expect(confirmed()[0]).toMatchObject({ title: "Move this booked meeting?", confirmText: "Move and tell Alex Kim" })
+    expect(confirmed()[0].description).toMatch(/^Alex Kim booked it through Intro call\. We'll email them the new time, Mon 28 Sep, 9:30\sAM – 9:45\sAM\.$/)
+    expect(makeRequest).not.toHaveBeenCalled()
+    await confirmed()[0].onConfirm()
+    expect(makeRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it("saves a change that doesn't move it at once", async () => {
+    booking = { guest_name: "Alex Kim", page_title: "Intro call", guest_told: true }
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    fireEvent.click(saveButton())
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1))
+    expect(confirmed()).toHaveLength(0)
   })
 })

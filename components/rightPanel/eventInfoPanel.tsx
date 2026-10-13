@@ -22,6 +22,7 @@ import { fieldLabel, fieldRow, inlineAdd, sectionTitle } from "@/lib/ui/fieldRow
 import { cn } from "@/lib/utils/helpers/cn";
 import { allDayItem } from "@/components/calendar/calendarLayout";
 import { placedByDates } from "@/lib/calendar/allDay";
+import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
 import { Button } from "@/components/ui/button";
@@ -184,7 +185,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     const allDay = allDayItem(event, start, end);
     const lastMoment = allDay ? addDays(end, -1) : end;
 
-    const handleSave = async (values: FormValues) => {
+    const save = async (values: FormValues) => {
         try {
             await post.makeRequest<CreateEventPayload>({
                 apiEndpoint: (PostEndpointUrl.UpdateCalendarEvent + `/${event.event_uuid}`) as PostEndpointUrl,
@@ -210,6 +211,21 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             // Deleted meanwhile, or no longer yours to see: the panel says so.
             if ((e as { response?: { status?: number } })?.response?.status === 404) void mutate();
         }
+    };
+    // A booked meeting asks before its time changes, naming its guest (CAL-BUG-4).
+    const handleSave = (values: FormValues) => {
+        const booking = event.event_booking;
+        const minute = (d: Date) => Math.floor(d.getTime() / 60_000);
+        const times = away ? wholeDays(new Date(values.startTime), new Date(values.endTime)) : { start: new Date(values.startTime), end: new Date(values.endTime) };
+        const moved = minute(times.start) !== minute(parseISO(event.event_start_time)) || minute(times.end) !== minute(parseISO(event.event_end_time));
+        if (!booking || !moved) return save(values);
+        dispatch(openUI({
+            key: 'confirmAlert',
+            data: {
+                ...bookedMeetingConfirm(booking, "move", `${format(times.start, "EEE d MMM")}, ${shortTime(times.start)} – ${shortTime(times.end)}`),
+                onConfirm: () => save(values),
+            }
+        }));
     };
     const handleClose = close;
 
@@ -277,12 +293,14 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     };
 
     const handleDelete = async () => {
+        // A booked meeting names its guest, and whether they'll be told (CAL-BUG-4).
+        const words = event.event_booking
+            ? bookedMeetingConfirm(event.event_booking, "delete")
+            : { title: "Delete this event?", description: "It's removed from everyone's calendar. This can't be undone.", confirmText: "Delete event" };
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
-                title: "Delete this event?",
-                description: "It's removed from everyone's calendar. This can't be undone.",
-                confirmText: "Delete event",
+                ...words,
                 destructive: true,
                 onConfirm: executeDelete
             }
