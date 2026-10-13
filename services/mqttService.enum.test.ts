@@ -20,4 +20,7 @@ describe("MQTT message types match the backend", () => {
   it("Chat_Seen is 34", () => {
     expect(MqttMessageType.Chat_Seen).toBe(34)
   })
+  it("Conversation_Access is 38 (MESSAGE_CONVERSATION_ACCESS)", () => {
+    expect(MqttMessageType.Conversation_Access).toBe(38)
+  })
 })

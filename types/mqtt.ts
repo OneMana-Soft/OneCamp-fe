@@ -22,7 +22,6 @@ export interface ConnectionConfig {
     wsUrl: string
     wsPort: number
     reconnectInterval: number
-    maxReconnectAttempts: number
     typingTimeout: number
 }
 

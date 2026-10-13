@@ -32,15 +32,21 @@ import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingA
 import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
 import { statusFieldsFromMessage } from "@/lib/taskStatus";
 import { importProgressStale } from "@/lib/importLive";
+import { applyConversationAccess, readConversationAccess } from "@/lib/mqtt/conversationAccess";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
     userUuid?: string
+    /** Fetches the connection's settings again, for the topics they name now. */
+    refreshTopics?: () => void
 }
 
-export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMessageHandlerProps) => {
+export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopics }: UseMqttMessageHandlerProps) => {
     const dispatch = useDispatch()
     const typingTimeouts = useRef<Map<string, TypingTimeout>>(new Map())
+    // The latest one, so a new function each render keeps the handler stable.
+    const refreshTopicsRef = useRef(refreshTopics)
+    refreshTopicsRef.current = refreshTopics
 
     const userHandlers = useUserMessageHandlers({ userUuid })
     const postHandlers = usePostMessageHandlers({ userUuid })
@@ -436,6 +442,17 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                             console.warn("[MQTT] Failed to parse channel update message", e)
                         }
                         break
+
+                    case MqttMessageType.Conversation_Access: {
+                        // A conversation became this member's, or stopped
+                        // being theirs: the topics are fetched again and the
+                        // lists showing it refresh (lib/mqtt/conversationAccess).
+                        const access = readConversationAccess(JSON.parse(messageStr)?.data)
+                        if (access) {
+                            applyConversationAccess(access, { refreshTopics: () => refreshTopicsRef.current?.(), mutate })
+                        }
+                        break
+                    }
 
                     default:
                         console.warn("[MQTT] Unknown message type:", parsedMessage.type)

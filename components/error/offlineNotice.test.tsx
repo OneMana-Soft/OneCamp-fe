@@ -3,8 +3,9 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-let mqtt: { isConnected: boolean } | undefined = undefined
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqttConnectionState: () => mqtt }))
+let mqtt: { isConnected: boolean; reconnectAttempts?: number } | undefined = undefined
+const reconnect = vi.fn()
+vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqttConnectionState: () => mqtt, useMqttReconnect: () => reconnect }))
 let ready = false
 const reload = vi.fn()
 vi.mock("@/hooks/useUpdateReady", () => ({ useUpdateReady: () => ({ ready, reload }) }))
@@ -69,6 +70,23 @@ describe("the connection pill", () => {
     mqtt = { isConnected: false }
     view.rerender(<FootPill />)
     expect(pill()?.textContent).toMatch(/Live updates paused/)
+  })
+
+  // It gave up after about three minutes while saying "reconnecting". It never
+  // gives up now, and once the fast tries are spent it says it tries every
+  // 30 s, and offers to try now.
+  it("says how often it tries once the fast tries are spent, with Reconnect", () => {
+    mqtt = { isConnected: true }
+    const view = render(<FootPill />)
+    mqtt = { isConnected: false, reconnectAttempts: 2 }
+    view.rerender(<FootPill />)
+    expect(pill()?.textContent).toMatch(/Live updates paused · reconnecting/)
+    expect(screen.queryByRole("button", { name: "Reconnect" })).toBeNull()
+    mqtt = { isConnected: false, reconnectAttempts: 5 }
+    view.rerender(<FootPill />)
+    expect(pill()?.textContent).toMatch(/Live updates paused · trying every 30 s/)
+    act(() => screen.getByRole("button", { name: "Reconnect" }).click())
+    expect(reconnect).toHaveBeenCalledOnce()
   })
 
   it("offers Reload when a new version is out", () => {

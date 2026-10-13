@@ -1,12 +1,15 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { useDispatch } from "react-redux"
 import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, Video, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { InSplitPaneContext } from "@/hooks/useLinkTarget"
 import { cn } from "@/lib/utils/helpers/cn"
 import { isCallPane, type Pane, type PaneKind } from "@/lib/split"
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary"
+import { replacePane } from "@/store/slice/splitSlice"
+import { useConversationMoved } from "@/hooks/useConversationMoved"
 import { FocusPill } from "@/components/split/FocusPill"
 
 // Each view loads only when it is first split, so the split costs nothing until used.
@@ -69,6 +72,9 @@ const barButton =
  */
 export function SplitPane({ pane, index, active, focused }: { pane: Pane; index: number; active: boolean; focused: boolean }) {
   const run = useSplitActions()
+  const dispatch = useDispatch()
+  // A group beside the page follows it to its new id when someone is added.
+  useConversationMoved(pane.kind === "group" ? "group" : null, pane.id, (to) => dispatch(replacePane({ index, pane: { ...pane, id: to } })))
   const { label, icon: Icon } = KIND[pane.kind]
   const what = label.toLowerCase()
   return (

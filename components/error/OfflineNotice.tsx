@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
-import { useMqttConnectionState } from "@/components/mqtt/mqttProvider"
+import { useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttProvider"
+import { FAST_RECONNECT_TRIES } from "@/lib/mqtt/reconnectDelay"
 import { useUpdateReady } from "@/hooks/useUpdateReady"
 import { isSchemaOutdated, subscribeSchemaOutdated } from "@/lib/schemaOutdated"
 import { WifiOff, Zap } from "@/lib/icons"
@@ -16,7 +17,9 @@ import { cn } from "@/lib/utils/helpers/cn"
  *     while the browser is online ("Can't reach the server"); writes won't
  *     be saved, so a Retry asks again;
  *   - the live connection dropped while the API still works ("Live updates
- *     paused"): it replaces the top bar's connection dot;
+ *     paused"): it replaces the top bar's connection dot. It never stops
+ *     trying (lib/mqtt/reconnectDelay); once the fast tries are spent it says
+ *     it tries every 30 seconds, and offers Reconnect to try now;
  *   - a newer build is out ("A new version is ready", polled from the build
  *     id): Reload, never automatically while somebody is typing. The chunk
  *     error reload (lib/chunkRecovery) stays the fallback. When the
@@ -67,15 +70,16 @@ function probeServer(onAnswer: () => void) {
 
 export type ConnectionPill =
   | { kind: "offline"; title: string; line: string }
-  | { kind: "live"; title: string }
+  | { kind: "live"; title: string; waiting: boolean }
   | { kind: "update"; title: string }
   | null
 
 /** What the pill should say now, if anything. */
-function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload: () => void } {
+function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload: () => void; reconnect?: () => void } {
   const online = useSyncExternalStore(subscribeOnline, browserOnline, assumeOnline)
   const unreachable = useSyncExternalStore(subscribeConnectivity, isServerUnreachable, assumeReachable)
   const connectionState = useMqttConnectionState()
+  const reconnect = useMqttReconnect()
   const update = useUpdateReady()
   const schemaOutdated = useSyncExternalStore(subscribeSchemaOutdated, isSchemaOutdated, notOutdated)
 
@@ -105,13 +109,17 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
   if (!online) pill = { kind: "offline", title: "You're offline", line: "Changes won't be saved until you're back." }
   else if (unreachable) pill = { kind: "offline", title: "Can't reach the server", line: "Trying again. Nothing you've saved is lost." }
   else if (schemaOutdated) pill = { kind: "update", title: "A newer version of OneCamp is ready. Reload to keep editing" }
-  else if (wasLive && connectionState && !connectionState.isConnected) pill = { kind: "live", title: "Live updates paused · reconnecting" }
+  else if (wasLive && connectionState && !connectionState.isConnected) {
+    // Past the fast tries the waits are 30 s long: say so, and offer to try now.
+    const waiting = (connectionState.reconnectAttempts ?? 0) >= FAST_RECONNECT_TRIES
+    pill = { kind: "live", title: waiting ? "Live updates paused · trying every 30 s" : "Live updates paused · reconnecting", waiting }
+  }
   else if (update.ready) pill = { kind: "update", title: "A new version is ready" }
 
-  return { pill, retry: () => probeServer(noteNetworkOk), reload: update.reload }
+  return { pill, retry: () => probeServer(noteNetworkOk), reload: update.reload, reconnect }
 }
 
-function Pill({ pill, retry, reload, className }: { pill: NonNullable<ConnectionPill>; retry: () => void; reload: () => void; className?: string }) {
+function Pill({ pill, retry, reload, reconnect, className }: { pill: NonNullable<ConnectionPill>; retry: () => void; reload: () => void; reconnect?: () => void; className?: string }) {
   let lead: ReactNode
   let action: ReactNode = null
   const btn = "h-6 shrink-0 rounded-[6px] px-2 text-2xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -120,6 +128,9 @@ function Pill({ pill, retry, reload, className }: { pill: NonNullable<Connection
     action = <button type="button" onClick={retry} className={cn(btn, "bg-raised text-ink shadow-e1")}>Retry</button>
   } else if (pill.kind === "live") {
     lead = <Zap className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+    if (pill.waiting && reconnect) {
+      action = <button type="button" onClick={reconnect} className={cn(btn, "bg-raised text-ink shadow-e1")}>Reconnect</button>
+    }
   } else {
     lead = <span className="shell-footpill-dot" aria-hidden="true" />
     action = <button type="button" onClick={reload} className={cn(btn, "bg-brand text-brand-foreground shadow-primary")}>Reload</button>
@@ -131,7 +142,7 @@ function Pill({ pill, retry, reload, className }: { pill: NonNullable<Connection
       data-connection-pill={pill.kind}
       data-tone={pill.kind === "offline" ? "warn" : undefined}
       className={cn("shell-footpill", className)}
-      title={pill.kind === "offline" ? `${pill.title}. ${pill.line}` : pill.kind === "update" ? pill.title : undefined}
+      title={pill.kind === "offline" ? `${pill.title}. ${pill.line}` : pill.kind === "update" || pill.kind === "live" ? pill.title : undefined}
     >
       {lead}
       <span className="min-w-0 flex-1 truncate">{pill.title}</span>
@@ -150,21 +161,22 @@ export function FootPill() {
       hostListeners.forEach((fn) => fn())
     }
   }, [])
-  const { pill, retry, reload } = useConnectionPill()
+  const { pill, retry, reload, reconnect } = useConnectionPill()
   if (!pill) return null
-  return <Pill pill={pill} retry={retry} reload={reload} />
+  return <Pill pill={pill} retry={retry} reload={reload} reconnect={reconnect} />
 }
 
 /** The root's copy: floats bottom-left on a wide screen, above the tab bar on a phone, when no shell hosts the pill. */
 export function OfflineNotice() {
   const isHosted = useSyncExternalStore(subscribeHosts, hosted, notHosted)
-  const { pill, retry, reload } = useConnectionPill()
+  const { pill, retry, reload, reconnect } = useConnectionPill()
   if (!pill || isHosted) return null
   return (
     <Pill
       pill={pill}
       retry={retry}
       reload={reload}
+      reconnect={reconnect}
       className="fixed z-[var(--z-toast)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 !m-0 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 sm:bottom-4 sm:left-4 sm:max-w-sm sm:translate-x-0"
     />
   )

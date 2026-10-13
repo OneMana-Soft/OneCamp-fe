@@ -62,6 +62,14 @@ export enum MqttMessageType {
     // Chat_Seen mirrors backend MESSAGE_CHAT_SEEN: someone has seen a DM or
     // group chat up to a time; its read receipts show it.
     Chat_Seen,
+    // Conversation_Access mirrors backend MESSAGE_CONVERSATION_ACCESS, on the
+    // member's own topic: a conversation became theirs (a DM or group started,
+    // a channel made, joined or added to; a group's new id when it took
+    // someone in) or stopped being theirs (removed from a channel, or left
+    // it). The app fetches its topics again (lib/mqtt/conversationAccess).
+    // 35 to 37 are message types this edition doesn't use; the backend keeps
+    // their numbers.
+    Conversation_Access = 38,
 }
 
 /** MESSAGE_TASK_FIELD's data: a task's value of a field now (null once taken off), and who set it. */
