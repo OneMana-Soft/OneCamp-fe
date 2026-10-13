@@ -32,7 +32,7 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
     const dispatch = useDispatch()
     const { mutate: globalMutate } = useSWRConfig()
 
-    const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean } }>(
+    const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean; accountEmail?: string } }>(
         GetEndpointUrl.GoogleCalendarStatus,
     )
 
@@ -99,6 +99,7 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                     <DrawerItem
                         icon={isConnected ? Link2Off : Link2}
                         label="Google Calendar"
+                        description={isConnected && gcalStatus?.data?.accountEmail ? `Connected as ${gcalStatus.data.accountEmail}` : undefined}
                         onClick={handleGCalToggle}
                         trailing={
                             isToggling ? (

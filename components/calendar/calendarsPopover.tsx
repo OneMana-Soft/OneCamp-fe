@@ -163,6 +163,7 @@ export function CalendarsPanel({
   bookingCount,
   onBookingPages,
   googleConnected,
+  googleAccount,
   onConnectGoogle,
   onDisconnectGoogle,
   busy,
@@ -178,6 +179,8 @@ export function CalendarsPanel({
   bookingCount?: number;
   onBookingPages: () => void;
   googleConnected: boolean;
+  /** The Google account linked, when the server says which. */
+  googleAccount?: string;
   onConnectGoogle: () => void;
   onDisconnectGoogle: () => void;
   busy?: boolean;
@@ -228,7 +231,13 @@ export function CalendarsPanel({
           <GoogleGlyph />
           Disconnect Google Calendar
         </button>
-      ) : (
+      ) : null}
+      {googleConnected && googleAccount ? (
+        <p className="truncate pb-1 pl-8 pr-1.5 text-meta text-ink-3" title={googleAccount} data-google-account="">
+          Connected as {googleAccount}
+        </p>
+      ) : null}
+      {googleConnected ? null : (
         <button
           type="button"
           onClick={onConnectGoogle}
