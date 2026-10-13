@@ -33,6 +33,7 @@ import { toPendingActionSurface, type PendingAction } from "@/services/pendingAc
 import { statusFieldsFromMessage } from "@/lib/taskStatus";
 import { importProgressStale } from "@/lib/importLive";
 import { applyConversationAccess, readConversationAccess } from "@/lib/mqtt/conversationAccess";
+import { isDesktopApp } from "@/lib/desktopApp";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -383,6 +384,16 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                             }
                         } catch {
                             // Not a receipt we can read: the next open fetches them.
+                        }
+                        break
+
+                    case MqttMessageType.Desktop_Notice:
+                        // A notification for the desktop app to raise: its
+                        // webview has no web push. Only there, and its code
+                        // loads only when one comes (lib/desktopNotices).
+                        if (isDesktopApp()) {
+                            const notice = JSON.parse(messageStr)?.data
+                            void import("@/lib/desktopNotices").then((m) => m.raiseDesktopNotice(notice, userUuid))
                         }
                         break
 

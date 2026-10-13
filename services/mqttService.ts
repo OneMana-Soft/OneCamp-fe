@@ -70,6 +70,10 @@ export enum MqttMessageType {
     // 35 to 37 are message types this edition doesn't use; the backend keeps
     // their numbers.
     Conversation_Access = 38,
+    // Desktop_Notice mirrors backend MESSAGE_DESKTOP_NOTICE, on the member's
+    // own topic: a notification for the desktop app to raise, sent beside
+    // every push (lib/desktopNotices). A browser tab ignores it: it has push.
+    Desktop_Notice,
 }
 
 /** MESSAGE_TASK_FIELD's data: a task's value of a field now (null once taken off), and who set it. */
