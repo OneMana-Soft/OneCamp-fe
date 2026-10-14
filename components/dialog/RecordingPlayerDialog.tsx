@@ -18,7 +18,6 @@ import {formatDateForAttachment} from "@/lib/utils/date/formatDateforAttachment"
 import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
-import {SaysLoadFailure} from "@/lib/http/loadFailure";
 
 export const RecordingPlayerDialog = () => {
     const dispatch = useDispatch();
@@ -327,12 +326,7 @@ export function RecordingStageMessage({
         return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "This recording can't be played", "The link to it didn't work, even after a fresh one.", true)
     }
     if (loadError) {
-        return (
-            <>
-                <SaysLoadFailure />
-                {box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "Couldn't load the recording", "Check your connection and try again.", true)}
-            </>
-        )
+        return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "Couldn't load the recording", "Check your connection and try again.", true)
     }
     return (
         <div role="status" className="flex gap-2 items-center text-white/70">
