@@ -1,7 +1,8 @@
 import React from "react";
 import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
 import axiosInstance from "@/lib/axiosInstance";
-import {useDispatch} from "react-redux";
+import {useDispatch, useStore} from "react-redux";
+import type {RootState} from "@/store/store";
 import {
     addProjectAttachmentPreviewFiles, addProjectAttachmentUploadedFiles, deleteProjectAttachmentPreviewFiles, markProjectAttachmentPreviewFailed,
     updateProjectAttachmentPreviewFiles, updateProjectAttachmentPreviewFilesUUID
@@ -61,6 +62,7 @@ import {
 } from "@/store/slice/createTaskDailogSlice";
 import {
     addGroupChatPreviewFiles, addGroupChatUploadedFiles, deleteGroupChatPreviewFiles,
+    groupNotYetOnServer,
     updateGroupChatPreviewFiles,
     updateGroupChatPreviewFilesUUID
 } from "@/store/slice/groupChatSlice";
@@ -76,6 +78,8 @@ interface UploadJson {
     src_value?:  string
     channel_uuids?: string[]
     chat_uuids?: string[]
+    // A group not on the server yet: its people's ids, which make its id (generateGroupChatId).
+    participants?: string[]
 }
 
 
@@ -140,13 +144,16 @@ const uploadFileToDoc = (file: File, docUUID: string, config: AxiosRequestConfig
 }
 
 
-const uploadFileToGroupChat = (file: File, grpId: string, config: AxiosRequestConfig ={}) => {
+// A file goes only to a group the server can tell the uploader is in. A group made here whose first
+// message hasn't gone yet isn't on the server, so the upload names its people (groupNotYetOnServer).
+const uploadFileToGroupChat = (file: File, grpId: string, config: AxiosRequestConfig ={}, people?: string[]) => {
     const formData = new FormData();
     formData.append('file', file);
 
     const jd:UploadJson = {
         src_key: "grpChat",
-        src_value: grpId
+        src_value: grpId,
+        ...(people?.length ? { participants: people } : {}),
     }
 
     const jsonData = JSON.stringify(jd);
@@ -190,6 +197,7 @@ const uploadFileToChannelsAndChats = (file: File, chatUUIDs: string[], channelUU
 export const useUploadFile = () => {
 
     const dispatch = useDispatch();
+    const store = useStore<RootState>();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const clientConfig = useClientConfig();
@@ -1381,10 +1389,12 @@ export const useUploadFile = () => {
                 },
             };
 
+            const notYetOnServer = groupNotYetOnServer(store.getState().groupChat, grpId)
             const uploadPromise = uploadFileToGroupChat(
                 file,
                 grpId,
-                config
+                config,
+                notYetOnServer?.participants.map((p) => p.user_uuid),
             )
                 .then((res) => {
                     const uploadMediaRes: UploadFileInterfaceRes = res.data;

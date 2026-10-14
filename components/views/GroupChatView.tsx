@@ -25,7 +25,7 @@ import {
     restoreUnsentGroupChatMessage,
     retryPendingGroupChat,
     updateGroupChatScrollToBottom,
-    ChatInputState, UpdateGrpChatLocally
+    ChatInputState, UpdateGrpChatLocally, groupNotYetOnServer
 } from "@/store/slice/groupChatSlice";
 import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/chatSlice";
 import {resetUserChatUnread} from "@/store/slice/userSlice";
@@ -48,10 +48,7 @@ export function GroupChatView({ grpId }: { grpId: string }) {
 
     // A group made here whose first message has not gone yet: the server makes
     // the group with that message, from its participants.
-    const notYetOnServer = useSelector((state: RootState) => {
-        const info = state.groupChat.locallyCreatedGrpInfo[grpId]
-        return !!(info && info.grpId && !info.haveSentFirstChat)
-    });
+    const notYetOnServer = useSelector((state: RootState) => !!groupNotYetOnServer(state.groupChat, grpId));
     const groupExists = !notYetOnServer
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -77,8 +74,8 @@ export function GroupChatView({ grpId }: { grpId: string }) {
                 // Try again after a lost answer is the same message, not a second one.
                 ...(chat.chat_local_id ? { client_msg_id: chat.chat_local_id } : {}),
             }
-            const info = store.getState().groupChat.locallyCreatedGrpInfo[grpId]
-            if (info && info.grpId && !info.haveSentFirstChat) {
+            const info = groupNotYetOnServer(store.getState().groupChat, grpId)
+            if (info) {
                 payload.participants = info.participants.map((t) => t.uid || '')
                 payload.grp_id = ''
             }
@@ -102,8 +99,7 @@ export function GroupChatView({ grpId }: { grpId: string }) {
                 chatUuid: res?.uuid || '',
                 grpId: grpId
             }))
-            const info = store.getState().groupChat.locallyCreatedGrpInfo[grpId]
-            if (info && info.grpId && !info.haveSentFirstChat) {
+            if (groupNotYetOnServer(store.getState().groupChat, grpId)) {
                 dispatch(UpdateGrpChatLocally({grpId}))
             }
             void appMutate(latestKey)

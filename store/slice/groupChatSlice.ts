@@ -170,6 +170,19 @@ interface ExtendedLocallyCreatedChats {
     [key: string]:  LocallyCreatedGrpInfoInterface;
 }
 
+/**
+ * A group made here whose first message has not gone yet, or undefined. The server makes the
+ * group with that message, from its people, so until then it can't say who is in it: the message
+ * names them, and so does a file added to it (useUploadFile).
+ */
+export function groupNotYetOnServer(
+    groupChat: { locallyCreatedGrpInfo: ExtendedLocallyCreatedChats },
+    grpId: string,
+): LocallyCreatedGrpInfoInterface | undefined {
+    const info = groupChat.locallyCreatedGrpInfo[grpId]
+    return info && info.grpId && !info.haveSentFirstChat ? info : undefined
+}
+
 const initialState = {
     // Which conversations have messages in memory, least recent first (lib/utils/recentlyLoaded).
     loadedOrder: [] as string[],
