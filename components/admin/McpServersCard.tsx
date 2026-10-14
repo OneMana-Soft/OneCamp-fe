@@ -180,28 +180,37 @@ const McpServersCard = ({ embedded = false }: { embedded?: boolean } = {}) => {
                     {s.last_error && <p className="text-xs text-danger-ink">{s.last_error}</p>}
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Switch
-                      checked={s.enabled}
-                      disabled={busyId === s.id}
-                      onCheckedChange={(v) => handleToggle(s, v)}
-                      aria-label={`Use ${s.name}`}
-                    />
-                    <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} className="h-8 w-8" onClick={() => setEditing(s)} title="Edit">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Remove ${s.name}`}
-                      className="h-8 w-8 text-danger-ink hover:text-danger-ink"
-                      disabled={busyId === s.id}
-                      onClick={() => handleDelete(s)}
-                      title="Remove"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  {/* Only whoever added it, or an admin, may change, switch or remove
+                      it: its tools act with its own credential. Everyone else
+                      can see what it offers, and is told who may change it. */}
+                  {s.can_manage === false ? (
+                    <p className="max-w-40 shrink-0 text-right text-xs text-muted-foreground sm:max-w-56">
+                      Only whoever added it, or an admin, can change it.
+                    </p>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Switch
+                        checked={s.enabled}
+                        disabled={busyId === s.id}
+                        onCheckedChange={(v) => handleToggle(s, v)}
+                        aria-label={`Use ${s.name}`}
+                      />
+                      <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} className="h-8 w-8" onClick={() => setEditing(s)} title="Edit">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove ${s.name}`}
+                        className="h-8 w-8 text-danger-ink hover:text-danger-ink"
+                        disabled={busyId === s.id}
+                        onClick={() => handleDelete(s)}
+                        title="Remove"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </li>
               )
             })}

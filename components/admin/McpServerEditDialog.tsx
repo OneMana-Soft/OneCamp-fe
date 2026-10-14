@@ -18,12 +18,14 @@ import {
   createMcpServer,
   updateMcpServer,
   testMcpServer,
+  mcpSecretHow,
 } from "@/services/mcpService"
 import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
 import { Field } from "@/components/ui/field"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
+import { SECRET_REENTRY_CODE, secretMoves, secretReentryHint } from "@/lib/utils/secretDestination"
 
 interface McpServerEditDialogProps {
   server: McpServer | null
@@ -56,10 +58,11 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
   const [saving, setSaving] = React.useState(false)
   // Each problem under the field it is about: one red line at the dialog's
   // foot, tied to no field, was all there was.
-  const [errors, setErrors] = React.useState<{ name?: string; url?: string; header?: string }>({})
+  const [errors, setErrors] = React.useState<{ name?: string; url?: string; header?: string; secret?: string }>({})
   const nameRef = React.useRef<HTMLInputElement>(null)
   const urlRef = React.useRef<HTMLInputElement>(null)
   const headerRef = React.useRef<HTMLInputElement>(null)
+  const secretRef = React.useRef<HTMLInputElement>(null)
 
   // Test connection
   const [testing, setTesting] = React.useState(false)
@@ -99,6 +102,21 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
     setTestError(null)
   }, [open, server, prefill])
 
+  // A stored token is bound to the address it was given for: moving the
+  // address, or how the token is sent, without entering it again would carry
+  // it somewhere new, which the server refuses. So the field asks for it then.
+  const hasStoredSecret = !!server && (server.has_auth_secret || !!server.auth_secret_unreadable)
+  const secretMustBeEntered =
+    editing &&
+    !!server &&
+    hasStoredSecret &&
+    authType !== "none" &&
+    secretMoves(
+      { url: server.url, how: mcpSecretHow(server.auth_type, server.auth_header_name) },
+      { url: url.trim(), how: mcpSecretHow(authType, authHeaderName) },
+    )
+  const secretMissing = secretMustBeEntered && !authSecret.trim()
+
   const buildInput = (): McpServerInput => ({
     name: name.trim(),
     description: description.trim() || undefined,
@@ -114,6 +132,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
     if (!name.trim()) next.name = "Give the server a name."
     if (!url.trim() || !/^https?:\/\//i.test(url.trim())) next.url = "Enter its address, starting with https:// or http://."
     if (authType === "header" && !authHeaderName.trim()) next.header = "Enter the header's name."
+    if (secretMissing) next.secret = secretReentryHint()
     return next
   }
 
@@ -123,14 +142,27 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
     if (next.name) return nameRef.current?.focus()
     if (next.url) return urlRef.current?.focus()
     if (next.header) return headerRef.current?.focus()
+    if (next.secret) return secretRef.current?.focus()
     setSaving(true)
     try {
       if (editing && server) await updateMcpServer(server.id, buildInput(), secretTouched)
       else await createMcpServer(buildInput())
       toast({ title: editing ? `${name.trim()} saved` : `${name.trim()} added`, description: "Its tools appear in a moment." })
       onSaved()
-    } catch {
-      // interceptor surfaces the error
+    } catch (e) {
+      // Said where it belongs: a token that must be entered again under the
+      // token, anything else (an address this workspace won't reach, a server
+      // only its owner may change) in plain words.
+      if (apiErrorCode(e) === SECRET_REENTRY_CODE) {
+        setErrors((er) => ({ ...er, secret: apiErrorMessage(e, secretReentryHint()) }))
+        secretRef.current?.focus()
+      } else {
+        toast({
+          title: editing ? "Couldn't save the server" : "Couldn't add the server",
+          description: apiErrorMessage(e, "Try again in a moment."),
+          variant: "destructive",
+        })
+      }
     } finally {
       setSaving(false)
     }
@@ -254,24 +286,35 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
 
           {authType !== "none" && (
             <div className="grid gap-2">
-              <Label htmlFor="mcp-secret">{authType === "bearer" ? "Token" : "Header value"}</Label>
-              <Input
-                id="mcp-secret"
-                type="password"
-                value={authSecret}
-                onChange={(e) => {
-                  setAuthSecret(e.target.value)
-                  setSecretTouched(true)
-                }}
-                placeholder={
-                  editing && server?.auth_secret_unreadable
-                    ? "Enter the secret again"
-                    : editing && server?.has_auth_secret
-                      ? "Saved: leave blank to keep it"
-                      : ""
-                }
-                autoComplete="new-password"
-              />
+              <Field
+                label={authType === "bearer" ? "Token" : "Header value"}
+                required={secretMustBeEntered}
+                help={secretMustBeEntered && !errors.secret ? secretReentryHint() : undefined}
+                error={errors.secret}
+              >
+                <Input
+                  ref={secretRef}
+                  id="mcp-secret"
+                  type="password"
+                  value={authSecret}
+                  required={secretMustBeEntered}
+                  onChange={(e) => {
+                    setAuthSecret(e.target.value)
+                    setSecretTouched(true)
+                    if (errors.secret) setErrors((er) => ({ ...er, secret: undefined }))
+                  }}
+                  placeholder={
+                    secretMustBeEntered
+                      ? "Enter it again for the new address"
+                      : editing && server?.auth_secret_unreadable
+                        ? "Enter the secret again"
+                        : editing && server?.has_auth_secret
+                          ? "Saved: leave blank to keep it"
+                          : ""
+                  }
+                  autoComplete="new-password"
+                />
+              </Field>
               {/* Offering to keep a secret that cannot be decrypted is the one thing
                   this field must not do: leaving it blank would look like a save and
                   change nothing. */}

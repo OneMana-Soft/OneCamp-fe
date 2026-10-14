@@ -8,6 +8,11 @@ import { checkRemoteBrain } from "@/services/agentService"
 // and a real fetch leaves SWR's retry timer running after the page is gone.
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, mutate: vi.fn() }) }))
 
+// An existing agent's dialog also shows its evaluations and what its history
+// suggests, which read the store; not what these tests are about.
+vi.mock("@/components/admin/AgentEvalSection", () => ({ AgentEvalSection: () => null }))
+vi.mock("@/components/admin/AgentLearningSection", () => ({ AgentLearningSection: () => null }))
+
 vi.mock("@/services/agentService", async (orig) => ({
     ...(await orig<typeof import("@/services/agentService")>()),
     listAgentSkills: vi.fn().mockResolvedValue([]),
@@ -176,5 +181,61 @@ describe("an A2A agent as the remote", () => {
         expect(text).toMatch(/not this agent's instructions or knowledge/)
         expect(text).toMatch(/given no tools here/)
         expect(text).not.toMatch(/permission, approval and audit/)
+    })
+})
+
+// A stored secret is bound to the address it was given for. Moving a saved
+// remote agent's address, protocol or header without entering the secret again
+// would send it somewhere new: the form asks for it, and checks nothing until
+// it is there.
+describe("a remote agent's secret kept for another address", () => {
+    afterEach(() => {
+        cleanup()
+        vi.clearAllMocks()
+    })
+
+    const remote = {
+        id: "a1",
+        name: "Bot",
+        instructions: "Answer.",
+        enabled_tools: "[]",
+        trigger_type: "manual",
+        trigger_config: "{}",
+        scope: "{}",
+        max_steps: 4,
+        is_active: true,
+        dm_able: false,
+        autonomy: "approval",
+        agui_endpoint: "https://bots.example.com/ag-ui",
+        remote_protocol: "agui",
+        agui_auth_header: "",
+        agui_auth_set: true,
+        run_count: 0,
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-01T00:00:00Z",
+    }
+    const hint = "Enter the secret again for the new address."
+
+    it("is asked for again when the address moves to another host", async () => {
+        render(<AgentEditDialog open agent={remote as never} onClose={() => {}} onSaved={() => {}} />)
+        const endpoint = await screen.findByLabelText(/Remote agent/i)
+        expect(screen.queryByText(hint)).toBeNull()
+        fireEvent.change(endpoint, { target: { value: "https://elsewhere.example.net/ag-ui" } })
+        expect(screen.getByText(hint)).toBeTruthy()
+        const secret = screen.getByLabelText(/^Secret/)
+        expect(secret.hasAttribute("required")).toBe(true)
+        fireEvent.click(screen.getByText("Test connection"))
+        await waitFor(() => expect(secret.getAttribute("aria-invalid")).toBe("true"))
+        expect(checkRemoteBrain).not.toHaveBeenCalled()
+    })
+
+    it("is kept for another path on the same host, and for the bearer header by name", async () => {
+        vi.mocked(checkRemoteBrain).mockResolvedValue({ ok: true, reply: "ok" })
+        render(<AgentEditDialog open agent={remote as never} onClose={() => {}} onSaved={() => {}} />)
+        fireEvent.change(await screen.findByLabelText(/Remote agent/i), { target: { value: "https://bots.example.com/v2/ag-ui" } })
+        fireEvent.change(screen.getByLabelText("Auth header"), { target: { value: "Authorization" } })
+        expect(screen.queryByText(hint)).toBeNull()
+        fireEvent.click(screen.getByText("Test connection"))
+        await waitFor(() => expect(checkRemoteBrain).toHaveBeenCalled())
     })
 })

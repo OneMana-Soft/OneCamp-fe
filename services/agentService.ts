@@ -1276,3 +1276,14 @@ export async function getAgentInventory(): Promise<AgentInventory> {
 export async function revokeInventoryCredential(id: string): Promise<void> {
   await axiosInstance.post(`${PostEndpointUrl.RevokeInventoryCredential}/${id}/revoke`)
 }
+
+/**
+ * How a remote agent's stored secret is attached, as the server compares it
+ * (models/postgres/AIAgent RemoteSecretDestinationOf): its protocol, and the
+ * header it rides in, where no header and Authorization are the same bearer
+ * token. Moving either, or the address, needs the secret entered again.
+ */
+export function remoteSecretHow(protocol?: string, header?: string): string[] {
+  const h = (header || "").trim()
+  return [(protocol || "agui").trim().toLowerCase() || "agui", h.toLowerCase() === "authorization" ? "" : h]
+}

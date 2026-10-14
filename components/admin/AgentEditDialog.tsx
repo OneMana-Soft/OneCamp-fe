@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { Spark } from "@/components/ui/graphics/motifs"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { secretMoves, secretReentryHint } from "@/lib/utils/secretDestination"
 import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug, Shield } from "@/lib/icons"
 import {
   Agent,
@@ -55,6 +56,7 @@ import {
   checkRemoteBrain,
   type RemoteBrainResult,
   type RemoteProtocol,
+  remoteSecretHow,
 } from "@/services/agentService"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { AgentEvalSection } from "@/components/admin/AgentEvalSection"
@@ -266,6 +268,28 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   const [aguiAuthSecret, setAguiAuthSecret] = React.useState("")
   const [aguiChecking, setAguiChecking] = React.useState(false)
   const [aguiCheck, setAguiCheck] = React.useState<RemoteBrainResult | null>(null)
+  const [aguiSecretError, setAguiSecretError] = React.useState<string | null>(null)
+  const aguiSecretRef = React.useRef<HTMLInputElement>(null)
+  const advancedRef = React.useRef<HTMLDetailsElement>(null)
+  // A stored secret is bound to the address it was given for: moving the
+  // address, the protocol or the header without entering it again would carry
+  // it somewhere new, which the server refuses. So the field asks for it then.
+  const remoteSecretMustBeEntered =
+    !!agent &&
+    (!!agent.agui_auth_set || !!agent.agui_auth_unreadable) &&
+    aguiEndpoint.trim() !== "" &&
+    secretMoves(
+      { url: agent.agui_endpoint || "", how: remoteSecretHow(agent.remote_protocol, agent.agui_auth_header) },
+      { url: aguiEndpoint.trim(), how: remoteSecretHow(remoteProtocol, aguiAuthHeader) },
+    )
+  const remoteSecretMissing = remoteSecretMustBeEntered && !aguiAuthSecret.trim()
+  /** Says, under the secret, that it must be entered again, and goes there. */
+  const askForRemoteSecret = React.useCallback(() => {
+    setStep("where")
+    if (advancedRef.current) advancedRef.current.open = true
+    setAguiSecretError(secretReentryHint("secret"))
+    window.setTimeout(() => aguiSecretRef.current?.focus(), 0)
+  }, [])
 
   /**
    * Try the endpoint now, so a wrong address or a stale secret is a sentence
@@ -274,6 +298,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
    * the field is left blank, because the client never sees it.
    */
   const handleCheckRemote = React.useCallback(async () => {
+    if (remoteSecretMissing) {
+      askForRemoteSecret()
+      return
+    }
     setAguiChecking(true)
     setAguiCheck(null)
     try {
@@ -292,7 +320,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     } finally {
       setAguiChecking(false)
     }
-  }, [aguiEndpoint, aguiAuthHeader, aguiAuthSecret, agent?.id, remoteProtocol])
+  }, [aguiEndpoint, aguiAuthHeader, aguiAuthSecret, agent?.id, remoteProtocol, remoteSecretMissing, askForRemoteSecret])
   const [ambient, setAmbient] = React.useState(false)
   const [ambientKeywords, setAmbientKeywords] = React.useState("")
   const [autonomy, setAutonomy] = React.useState<"auto" | "approval" | "plan">("auto")
@@ -660,6 +688,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
   const handleSave = async () => {
     if (!jobIsComplete()) return
+    if (remoteSecretMissing) {
+      askForRemoteSecret()
+      return
+    }
     setError(null)
     setSaving(true)
     try {
@@ -1315,7 +1347,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               trigger and an autonomy level; everything here has a sensible default
               and most agents never need it. Native <details> so it costs no state
               and keeps its open/closed position while the dialog is open. */}
-          <details className="group rounded-xl border bg-muted/20">
+          <details ref={advancedRef} className="group rounded-xl border bg-muted/20">
             <summary className="flex cursor-pointer select-none items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
               Advanced
@@ -1402,15 +1434,40 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       />
                     </div>
                     <div className="grid gap-1">
-                      <Label htmlFor="agent-agui-secret" className="text-xs">Secret</Label>
+                      <Label htmlFor="agent-agui-secret" className="text-xs">
+                        Secret
+                        {remoteSecretMustBeEntered && <span className="ml-0.5 text-muted-foreground" aria-hidden="true">*</span>}
+                      </Label>
                       <Input
+                        ref={aguiSecretRef}
                         id="agent-agui-secret"
                         type="password"
-                        placeholder={agent?.agui_auth_set ? "Stored. Leave blank to keep it." : "Optional"}
+                        required={remoteSecretMustBeEntered}
+                        aria-invalid={aguiSecretError ? true : undefined}
+                        aria-describedby={remoteSecretMustBeEntered ? "agent-agui-secret-note" : undefined}
+                        placeholder={
+                          remoteSecretMustBeEntered
+                            ? "Enter it again for the new address"
+                            : agent?.agui_auth_set
+                              ? "Stored. Leave blank to keep it."
+                              : "Optional"
+                        }
                         value={aguiAuthSecret}
-                        onChange={(e) => setAguiAuthSecret(e.target.value)}
+                        onChange={(e) => {
+                          setAguiAuthSecret(e.target.value)
+                          if (aguiSecretError) setAguiSecretError(null)
+                        }}
                         autoComplete="new-password"
                       />
+                      {remoteSecretMustBeEntered && (
+                        <p
+                          id="agent-agui-secret-note"
+                          aria-live="polite"
+                          className={cn("text-xs text-pretty", aguiSecretError ? "font-medium text-danger-ink" : "text-muted-foreground")}
+                        >
+                          {aguiSecretError ?? secretReentryHint("secret")}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1419,7 +1476,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                      it, and one sentence because the Test connection error below carries
                      the detail (which address, which half of the rule) when it matters. */
                   <p className="-mt-1 text-xs text-muted-foreground">
-                    Off your own network: https and a secret required.{" "}
+                    Only an agent an admin adds can be on this server&apos;s own network; anywhere else needs https and a secret.{" "}
                     {remoteProtocol === "a2a"
                       ? "Runs send it the conversation it is asked about, not this agent's instructions or knowledge."
                       : "Runs send it this agent's instructions, knowledge and tool results."}

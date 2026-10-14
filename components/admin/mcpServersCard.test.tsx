@@ -73,4 +73,24 @@ describe("MCP servers", () => {
     expect(chip.className).toMatch(/\bchip\b/)
     expect(chip.className).not.toMatch(/\bhue-|bg-hue-tint/)
   })
+
+  // Its tools act with its own credential, so only whoever added it, or an
+  // admin, may change, switch or remove it. Everyone else sees what it offers
+  // and who may change it, not controls that would be refused.
+  it("shows its controls only to people who may use them", () => {
+    fetchState.servers = {
+      data: { data: [{ ...server, can_manage: false }, { ...server, id: "m2", name: "Mine", can_manage: true }] },
+      isLoading: false,
+      isError: undefined,
+      mutate: vi.fn(),
+    }
+    fetchState.catalog = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<McpServersCard />)
+    expect(screen.queryByRole("switch", { name: "Use GitHub tools" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Edit GitHub tools" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Remove GitHub tools" })).toBeNull()
+    expect(screen.getByText("Only whoever added it, or an admin, can change it.")).toBeTruthy()
+    expect(screen.getByRole("switch", { name: "Use Mine" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Edit Mine" })).toBeTruthy()
+  })
 })

@@ -10,7 +10,7 @@ vi.mock("@/services/mcpService", async (orig) => ({
 }))
 
 import { McpServerEditDialog } from "@/components/admin/McpServerEditDialog"
-import { createMcpServer, testMcpServer } from "@/services/mcpService"
+import { createMcpServer, testMcpServer, updateMcpServer } from "@/services/mcpService"
 
 afterEach(() => {
   cleanup()
@@ -74,5 +74,62 @@ describe("the MCP server dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Test connection/ }))
     const chip = await screen.findByText("list_issues")
     expect(chip.closest("span")?.className).not.toMatch(/rounded-full/)
+  })
+
+  // A stored token is bound to the address it was given for. Moving the
+  // address, or how it is sent, without entering it again would carry an
+  // admin's token anywhere: the field asks for it, and nothing is sent until
+  // it is there.
+  describe("a token kept for another address", () => {
+    const openSaved = () => render(<McpServerEditDialog server={saved as never} open onClose={() => {}} onSaved={() => {}} />)
+    const hint = "Enter the token again for the new address."
+
+    it("is asked for again when the address moves to another host", async () => {
+      openSaved()
+      const token = screen.getByLabelText(/Token/)
+      expect(screen.queryByText(hint)).toBeNull()
+      fireEvent.change(screen.getByLabelText("Server address"), { target: { value: "https://elsewhere.example.net/github" } })
+      expect(screen.getByText(hint)).toBeTruthy()
+      expect(token.hasAttribute("required")).toBe(true)
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+      await waitFor(() => expect(token.getAttribute("aria-invalid")).toBe("true"))
+      expect(document.activeElement).toBe(token)
+      expect(updateMcpServer).not.toHaveBeenCalled()
+
+      vi.mocked(updateMcpServer).mockResolvedValue(saved as never)
+      fireEvent.change(token, { target: { value: "new-token" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+      await waitFor(() => expect(updateMcpServer).toHaveBeenCalled())
+      expect(vi.mocked(updateMcpServer).mock.calls[0][2]).toBe(true)
+    })
+
+    it("is asked for again when the token moves into a header", () => {
+      openSaved()
+      fireEvent.click(screen.getByRole("radio", { name: "Custom header" }))
+      fireEvent.change(screen.getByLabelText("Header name"), { target: { value: "X-Api-Key" } })
+      expect(screen.getByText(hint)).toBeTruthy()
+    })
+
+    it("is kept for another path on the same host", async () => {
+      vi.mocked(updateMcpServer).mockResolvedValue(saved as never)
+      openSaved()
+      fireEvent.change(screen.getByLabelText("Server address"), { target: { value: "https://mcp.kestrel.studio/v2/github" } })
+      expect(screen.queryByText(hint)).toBeNull()
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+      await waitFor(() => expect(updateMcpServer).toHaveBeenCalled())
+      expect(vi.mocked(updateMcpServer).mock.calls[0][2]).toBe(false)
+    })
+
+    it("puts the server's refusal under the token, in its words", async () => {
+      vi.mocked(updateMcpServer).mockRejectedValue({
+        response: { status: 400, data: { code: "secret_reentry", msg: hint } },
+      })
+      openSaved()
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "GitHub" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+      const token = screen.getByLabelText(/Token/)
+      await waitFor(() => expect(token.getAttribute("aria-invalid")).toBe("true"))
+      expect(screen.getByText(hint)).toBeTruthy()
+    })
   })
 })

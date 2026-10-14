@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 
 // MCP (Model Context Protocol) server admin client. An MCP server is an
@@ -30,6 +30,13 @@ export interface McpServer {
    */
   auth_secret_unreadable?: boolean
   enabled: boolean
+  /**
+   * Whether the person reading may change, switch, test or remove it: whoever
+   * added it, or an admin. Its tools act with its own credential, so nobody
+   * else may point it anywhere. Absent from an older server: treated as yes,
+   * and the server refuses anyone else either way.
+   */
+  can_manage?: boolean
   tool_prefix: string
   tools_cache: string // raw JSON array string, exactly as the server reported it
   // tools is the API-enriched tool list: the same tools, each carrying the risk
@@ -115,8 +122,11 @@ export interface McpCatalogEntry {
   installed: boolean
 }
 
+// Saving says its own errors (the dialog puts a refused address or a secret
+// that must be entered again under the field it is about), so these two opt
+// out of the interceptor's toast.
 export async function createMcpServer(input: McpServerInput): Promise<McpServer> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateMcpServer, input)
+  const res = await axiosInstance.post(PostEndpointUrl.CreateMcpServer, input, OWN_ERRORS)
   return res.data?.data as McpServer
 }
 
@@ -125,10 +135,11 @@ export async function updateMcpServer(
   input: McpServerInput,
   updateSecret: boolean,
 ): Promise<McpServer> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateMcpServer}/${id}/update`, {
-    ...input,
-    update_secret: updateSecret,
-  })
+  const res = await axiosInstance.post(
+    `${PostEndpointUrl.UpdateMcpServer}/${id}/update`,
+    { ...input, update_secret: updateSecret },
+    OWN_ERRORS,
+  )
   return res.data?.data as McpServer
 }
 
@@ -148,4 +159,9 @@ export async function testMcpServer(
 ): Promise<{ ok: boolean; tools?: McpTool[]; msg?: string }> {
   const res = await axiosInstance.post(`${PostEndpointUrl.TestMcpServer}/${id}/test`)
   return { ok: !!res.data?.ok, tools: res.data?.data as McpTool[], msg: res.data?.msg }
+}
+
+/** How a server's stored secret is attached: its auth type, and the header for header auth. */
+export function mcpSecretHow(authType: McpAuthType, headerName?: string | null): string[] {
+  return [authType, authType === "header" ? (headerName || "").trim() : ""]
 }
