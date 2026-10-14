@@ -55,13 +55,9 @@ describe("a booking's own page", () => {
   })
 
   it("asks before cancelling, in the page, not with a browser dialog", async () => {
-    await act(async () => {
-      render(
-        <Suspense fallback={null}>
-          <ManageBooking params={Promise.resolve({ token: "t" })} />
-        </Suspense>,
-      )
-    })
+    // The day before the meeting: from its end (14 Oct, 11:30 IST) the page
+    // says it has happened and offers no cancelling.
+    await show()
     fireEvent.click(await screen.findByRole("button", { name: "Cancel booking" }))
     expect(screen.getByText("Cancel this meeting?")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Keep it" })).toBeTruthy()
