@@ -189,8 +189,8 @@ describe("the desktop agenda", () => {
     events = [on(9, 5), on(9, 20), on(9, 30), on(10, 2), on(10, 5)]
     render(<CalendarApp />)
     fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
-    // The title's text holds each of its wordings, longest first.
-    const title = () => document.querySelector("[data-calendar-header] [data-period-title]")?.textContent ?? ""
+    // The header's title, as the other tests here read it.
+    const title = () => document.querySelector("[aria-live]")?.textContent ?? ""
     const listed = () => Array.from(document.querySelectorAll("[data-agenda] section")).map((s) => s.getAttribute("aria-label"))
     expect(listed()).toEqual(["Tuesday 20 Oct", "Friday 30 Oct"])
     act(() => void fireEvent.keyDown(window, { key: "j" }))
