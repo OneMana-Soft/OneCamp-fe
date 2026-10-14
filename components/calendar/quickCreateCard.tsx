@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { displayNameOf } from "@/lib/personName";
 import { parseEventText, type ParsedEvent } from "@/lib/calendar/parseEventText";
 import { foldName, matchName, type GuestCandidate, type NameMatch } from "@/lib/calendar/guestMatch";
-import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import type { CreateEventPayload } from "@/types/calendar";
 import type { ChannelAndUserListInterfaceResp } from "@/types/user";
 import type { CalendarDraft } from "@/components/calendar/weekView";
@@ -249,7 +248,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
                         <IdentityMark
                           variant="avatar"
                           size={16}
-                          id={avatarSeed(n.person.name)}
+                          id={n.person.uuid}
                           label={n.person.name}
                           src={n.person.avatarKey ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${n.person.avatarKey}` : undefined}
                         />
