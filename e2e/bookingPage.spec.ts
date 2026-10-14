@@ -38,11 +38,15 @@ const PAGE = () => ({
   bookable_until: new Date(Date.now() + 30 * 864e5).toISOString(),
 })
 
-/** Counts every date formatter the page builds, from its first script on. */
+/**
+ * Counts every date formatter the page builds, and each time it lists the
+ * time zones, from its first script on.
+ */
 async function countFormatters(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __dtf: number }
+    const w = window as unknown as { __dtf: number; __zones: number }
     w.__dtf = 0
+    w.__zones = 0
     const Real = Intl.DateTimeFormat
     Intl.DateTimeFormat = new Proxy(Real, {
       construct(target, args) {
@@ -54,6 +58,14 @@ async function countFormatters(page: Page) {
         return Reflect.apply(target, self, args)
       },
     })
+    const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+    const supported = intl.supportedValuesOf
+    if (supported) {
+      intl.supportedValuesOf = (key: string) => {
+        if (key === "timeZone") w.__zones++
+        return supported.call(Intl, key)
+      }
+    }
   })
 }
 
@@ -69,11 +81,15 @@ for (const [name, viewport] of [
     await expect(page.locator("[data-available]").first()).toBeVisible({ timeout: 30_000 })
     const onLoad = await page.evaluate(() => (window as unknown as { __dtf: number }).__dtf)
     expect(onLoad, `date formatters built on load: ${onLoad}`).toBeLessThan(40)
+    // The zone list is built when the picker opens, never on load. Here it
+    // lists the zones by name, without a formatter for each.
+    const zones = () => page.evaluate(() => (window as unknown as { __zones: number }).__zones)
+    expect(await zones(), "time zone lists built on load").toBe(0)
     const pickers = page.getByRole("button", { name: /^Time zone:/ })
     await expect(pickers).toHaveCount(1)
     await pickers.click()
     await expect(page.getByRole("listbox", { name: "Time zones" })).toBeVisible()
-    expect(await page.evaluate(() => (window as unknown as { __dtf: number }).__dtf)).toBeGreaterThan(onLoad + 100)
+    expect(await zones()).toBeGreaterThan(0)
   })
 }
 
