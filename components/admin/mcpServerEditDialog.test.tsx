@@ -113,7 +113,8 @@ describe("the MCP server dialog", () => {
     it("is kept for another path on the same host", async () => {
       vi.mocked(updateMcpServer).mockResolvedValue(saved as never)
       openSaved()
-      fireEvent.change(screen.getByLabelText("Server address"), { target: { value: "https://mcp.kestrel.studio/v2/github" } })
+      // The saved address's own host, on another path.
+      fireEvent.change(screen.getByLabelText("Server address"), { target: { value: saved.url.replace("/github", "/v2/github") } })
       expect(screen.queryByText(hint)).toBeNull()
       fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
       await waitFor(() => expect(updateMcpServer).toHaveBeenCalled())
