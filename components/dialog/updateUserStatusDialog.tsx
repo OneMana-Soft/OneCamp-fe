@@ -33,6 +33,8 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { browserTZ } from "@/lib/utils/timeZone"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { statusEndOf, statusTextLength, statusTextProblem, STATUS_TEXT_MAX } from "@/lib/status/statusRule"
+import { isComposingKey } from "@/lib/keys/ime"
 
 
 const DEFAULT_STATUSES: UserEmojiStatus[] = [
@@ -149,11 +151,16 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
     setEmoji(currentStatus.status_user_emoji_id ?? defaultState.emoji)
     setMessage(currentStatus.status_user_emoji_desc ?? defaultState.message)
     setExpiresIn(currentStatus.status_user_emoji_expiry_in ?? defaultState.expiration_setting)
-    setExpiresAt(currentStatus.status_user_emoji_expiry_at ? new Date(currentStatus.status_user_emoji_expiry_at) : defaultState.expires_at)
+    const ends = currentStatus.status_user_emoji_expiry_at ? new Date(currentStatus.status_user_emoji_expiry_at) : undefined
+    setExpiresAt(ends && !Number.isNaN(ends.getTime()) ? ends : defaultState.expires_at)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStatus?.status_user_emoji_id, dialogOpenState])
 
   const hasStatus = Boolean(currentStatus)
+  // The server's rule for the words (lib/status/statusRule): Save waits for
+  // words, and says when they are past the limit.
+  const textProblem = statusTextProblem(message)
+  const tooLong = statusTextLength(message) > STATUS_TEXT_MAX
 
   const { isMobile } = useMedia()
 
@@ -180,13 +187,17 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
   // Saved at once: the status shows beside the name as the dialog closes, and
   // goes back to what it was if the server refuses it (the request says why).
   function onSave() {
-    if (!message.trim()) return
+    if (statusTextProblem(message)) return
     const previous = currentStatus
-    const expiryAt = expiresAt ? Math.floor(expiresAt.getTime() / 1000).toString() : ""
+    // The store keeps the end as the server sends it (ISO), and the request
+    // carries it in epoch seconds: the store once kept the seconds, which no
+    // reader could parse, and editing that status sent "NaN".
+    const ends = statusEndOf(expiresAt)
+    const expiryAt = ends ? Math.floor(new Date(ends).getTime() / 1000).toString() : ""
     dispatch(updateUserEmojiStatus({userUUID: selfId, status: {
         status_user_emoji_expiry_in: expiresIn || undefined,
         status_user_emoji_desc: message.trim(),
-        status_user_emoji_expiry_at: expiryAt,
+        status_user_emoji_expiry_at: ends,
         status_user_emoji_id: emoji,
       }}));
     closeModal()
@@ -242,16 +253,22 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
               onChange={(e) => setMessage(e.target.value)}
               placeholder="What’s your status?"
               aria-label="Status"
+              aria-invalid={tooLong || undefined}
+              aria-describedby={tooLong ? "status-too-long" : undefined}
               autoComplete="off"
               className="h-full min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-ink-3 md:text-ui"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                // An input method's Enter picks its word (lib/keys/ime).
+                if (e.key === 'Enter' && !isComposingKey(e.nativeEvent)) {
                   e.preventDefault()
                   onSave()
                 }
               }}
           />
         </div>
+        {tooLong ? (
+            <p id="status-too-long" className="-mt-1.5 px-1 text-meta text-danger-ink">{textProblem}</p>
+        ) : null}
 
         {focusUntil ? (
             <div data-status-automatic="" className="flex h-9 items-center gap-2.5 rounded-md px-2 text-ui">
@@ -309,7 +326,8 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                         setExpiresAt(defaultState.expires_at)
                       }}
                       className={cn(
-                          "inline-flex h-[26px] items-center rounded-[13px] px-2.5 text-meta font-medium transition-colors",
+                          // A finger's 44px on a phone, where the sheet has the room.
+                          "inline-flex h-[26px] items-center rounded-[13px] px-2.5 text-meta font-medium transition-colors max-sm:h-11 max-sm:rounded-[22px] max-sm:px-3",
                           on ? "bg-raised text-foreground shadow-sel" : "hub-chip-rest text-ink-2 hover:text-foreground",
                       )}
                   >
@@ -326,10 +344,22 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                 Clear status
               </Button>
           ) : null}
-          <Button size="sm" className="ml-auto" onClick={onSave} disabled={!message.trim()}>
+          <Button size="sm" className="ml-auto" onClick={onSave} disabled={!!textProblem}>
             {hasStatus ? 'Save' : 'Set status'}
           </Button>
         </div>
+        {/* Inside the menu: a dialog beside it took the focus from the
+            popover on a computer, which closed it, the dialog with it, and
+            no custom time could be set. */}
+        <CustomExpirationCalendarDialog
+            dialogOpenState={customExpirationCalendarDialogOpen}
+            setOpenState={setCustomExpirationCalendarDialogOpen}
+            initialDate={expiresAt ?? addHours(new Date(), 1)}
+            onChange={(date) => {
+              setExpiresIn('custom')
+              setExpiresAt(date)
+            }}
+        />
       </div>
   )
 
@@ -364,15 +394,6 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
               </PopoverContent>
             </Popover>
         )}
-        <CustomExpirationCalendarDialog
-            dialogOpenState={customExpirationCalendarDialogOpen}
-            setOpenState={setCustomExpirationCalendarDialogOpen}
-            initialDate={expiresAt ?? addHours(new Date(), 1)}
-            onChange={(date) => {
-              setExpiresIn('custom')
-              setExpiresAt(date)
-            }}
-        />
       </>
   );
 };

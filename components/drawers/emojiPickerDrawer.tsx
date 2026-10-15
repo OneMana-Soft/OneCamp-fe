@@ -8,10 +8,9 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer";
-import {ALL_REACTION_CATEGORIES, StandardReaction, SyncCustomReaction, SyncCustomReactionResp} from "@/types/reaction";
+import {ALL_REACTION_CATEGORIES, StandardReaction, SyncCustomReaction} from "@/types/reaction";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {useAddFrequentlyUsedReaction, useFrequentlyUsedReactions} from "@/hooks/reactions/useFrequentlyUsedReactions";
-import {useFetch} from "@/hooks/useFetch";
 import {notEmpty} from "@/lib/utils/validation/notEmpty";
 import {useSearchReactions} from "@/hooks/reactions/useSearchReactions";
 import {Input} from "@/components/ui/input";
@@ -31,7 +30,6 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
     const [query, setQuery] = useState('')
     const { data } = useEmojiMartData()
     const { addReactionIdToFrequents } = useAddFrequentlyUsedReaction()
-    const customReactions = useFetch<SyncCustomReactionResp>("")
     const { frequentlyUsedReactions } = useFrequentlyUsedReactions({ hideCustomReactions: !showCustomReactions })
     const { reactionSearchResults } = useSearchReactions(query, {
         maxResults: 90,
@@ -69,8 +67,6 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
 
     const renderedCategories = useMemo(() => ALL_REACTION_CATEGORIES.map((categoryName) => {
         const reactions = (() => {
-            if (!showCustomReactions && categoryName === 'custom') return
-            if (categoryName === 'custom') return customReactions.data?.data
             if (categoryName === 'frequent') return frequentlyUsedReactions
 
             return data?.categories
@@ -110,7 +106,7 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
                 onReactionSelect={handleReactionSelect}
             />
         )
-    }), [showCustomReactions, customReactions.data?.data, frequentlyUsedReactions, data, handleReactionSelect])
+    }), [frequentlyUsedReactions, data, handleReactionSelect])
 
     return (
         <Drawer detent="large" open={localOpen} onOpenChange={closeDrawer} repositionInputs={false}>
