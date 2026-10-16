@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { STATUS_TEXT_MAX, statusEndOf, statusTextLength, statusTextProblem } from "@/lib/status/statusRule"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+pinTestClock()
 
 // The server's one rule for a status (business/User/emojiStatus.go), as the
 // menu keeps it: the same limit, counted the same way, in the same words.
