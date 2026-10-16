@@ -22,7 +22,7 @@ describe("the emoji pickers", () => {
 
     // The phone's picker, even when asked for a workspace's own emoji.
     render(<EmojiPickerDrawer reactionDrawerOpenState setReactionDrawerOpenState={() => {}} showCustomReactions onReactionSelect={() => {}} />)
-    await waitFor(() => expect(screen.getAllByRole("heading").map((h) => h.textContent)).toContain("Smileys and people"), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByRole("heading").map((h) => h.textContent)).toContain("Smileys & People"), { timeout: 5000 })
     expect(screen.getAllByRole("heading").map((h) => h.textContent)).not.toContain("Custom")
   })
 })
