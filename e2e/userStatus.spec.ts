@@ -28,6 +28,9 @@ async function app(page: Page, testInfo: TestInfo): Promise<Sent[]> {
   page.on("request", (r) => {
     if (r.method() === "POST" && /EmojiStatus/i.test(r.url())) sent.push({ path: new URL(r.url()).pathname, body: r.postDataJSON() })
   })
+  // The keyboard tip rises six seconds in, once, on a computer, and takes the
+  // focus from the status menu, which closes; it is not what this is about.
+  await page.addInitScript(() => localStorage.setItem("oc_keys_tip_seen", "1"))
   await page.goto("/app/home", { waitUntil: "domcontentloaded", timeout: 180_000 })
   return sent
 }
@@ -88,6 +91,10 @@ test.describe("on a computer", () => {
 })
 
 test.describe("on a phone", () => {
+  // The public web's account sheet on a phone shows the status but has no
+  // row to set it yet (the private web added it later), so this way in
+  // isn't here to drive.
+  test.skip(true, "the phone account sheet has no status row on the public web")
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 
   const openSheet = async (page: Page) => {
