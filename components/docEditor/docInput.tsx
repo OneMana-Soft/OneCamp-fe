@@ -16,6 +16,7 @@ import { celebrate } from '@/lib/celebrate'
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
 import { createTable } from '@/services/tableService'
+import { tableForDoc } from '@/components/docEditor/tableForDoc'
 import { DOC_EXTRA_EXTENSIONS } from '@/components/docEditor/docExtensions'
 import { DOC_SLASH_COMMANDS } from '@/components/minimal-tiptap/extensions/slash-command/slashCommand'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
@@ -233,6 +234,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         // when another reader opens the doc, the embed fetches the table AS THAT
         // USER, so the table's own permissions are enforced server-side (a private
         // table simply shows an "unavailable" placeholder to others, never leaks).
+        // A new table is as private as the doc (tableForDoc): it was made for the
+        // whole workspace, so a private doc's new table reached everyone.
         const [embedTableOpen, setEmbedTableOpen] = React.useState(false)
         const [creatingTable, setCreatingTable] = React.useState(false)
         React.useEffect(() => {
@@ -254,7 +257,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             if (!editor || !editor.isEditable || creatingTable) return
             setCreatingTable(true)
             try {
-                const t = await createTable({ name: "Untitled table", visibility: "workspace" })
+                const { visibility } = docId ? await tableForDoc(docId) : { visibility: 'private' as const }
+                const t = await createTable({ name: "Untitled table", visibility })
                 editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
                 setEmbedTableOpen(false)
             } catch {
@@ -262,7 +266,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             } finally {
                 setCreatingTable(false)
             }
-        }, [editor, creatingTable])
+        }, [editor, creatingTable, docId])
 
         if (!editor) {
             return null
