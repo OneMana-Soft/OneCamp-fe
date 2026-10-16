@@ -111,7 +111,7 @@ async function person(user) {
   const context = await browser.newContext({ viewport, ...(PHONE ? phoneOpts : {}), serviceWorkers: "block" })
   await installProbe(context)
   await context.addInitScript(watcher)
-  await fakeApp(context, { user, docs: DOCS, collab, rtt: RTT })
+  await fakeApp(context, { app: BASE, user, docs: DOCS, collab, rtt: RTT })
   return context
 }
 async function newPage(context) {

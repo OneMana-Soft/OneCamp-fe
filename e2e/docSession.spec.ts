@@ -28,7 +28,7 @@ function docs() {
 
 async function person(browser: import("@playwright/test").Browser, who: keyof typeof USERS, all: object[], collab: ReturnType<typeof collabFor>) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } })
-  await fakeApp(context, { user: USERS[who], docs: all, collab })
+  await fakeApp(context, { app: String(test.info().project.use.baseURL), user: USERS[who], docs: all, collab })
   const page = await context.newPage()
   return { context, page, sockets: (context as BrowserContext & { __collabSockets: { close(): void; open: boolean }[] }).__collabSockets }
 }
