@@ -7,6 +7,8 @@
  * to the current context). Names come from what the sidebar already holds; a
  * page whose name is not known yet falls back to its section.
  */
+import { placeForLocation } from "@/lib/adminSections"
+
 export interface TitleLookups {
   channels?: Record<string, string>
   projects?: Record<string, string>
@@ -14,6 +16,8 @@ export interface TitleLookups {
   docs?: Record<string, string>
   boards?: Record<string, string>
   people?: Record<string, string>
+  /** The name the page gave itself (lib/utils/pageName): a task, a goal. */
+  own?: string
 }
 
 const SECTIONS: Record<string, string> = {
@@ -30,16 +34,29 @@ const SECTIONS: Record<string, string> = {
   project: "Project",
   team: "Team",
   calendar: "Calendar",
+  goals: "Goals",
   tables: "Tables",
   templates: "Templates",
   search: "Search",
   ai: "OneCamp AI",
   settings: "Settings",
+  admin: "Admin",
   user: "Profile",
+  profile: "Profile",
+  recordings: "Recordings",
+  posts: "Your posts",
+  meet: "Meeting",
 }
 
-export function pageTitle(pathname: string, lookups: TitleLookups = {}, unread = 0): string {
-  const seg = (pathname || "").split(/[?#]/)[0].split("/").filter(Boolean)
+/** What the page is beyond its address: an admin page's ?tab=, or a name it gives itself (the 404). */
+export interface TitleWhere {
+  tab?: string | null
+  label?: string | null
+}
+
+export function pageTitle(pathname: string, lookups: TitleLookups = {}, unread = 0, where: TitleWhere = {}): string {
+  const path = (pathname || "").split(/[?#]/)[0]
+  const seg = path.split("/").filter(Boolean)
   // seg[0] is "app"; seg[1] the section; seg[2] an id, or "group" for a group DM.
   const section = seg[1] || ""
   const id = seg[2] || ""
@@ -54,8 +71,15 @@ export function pageTitle(pathname: string, lookups: TitleLookups = {}, unread =
       chat: id === "group" ? "Group chat" : lookups.people?.[id],
       user: lookups.people?.[id],
     }
-    label = named[section]?.trim() || label
+    label = lookups.own?.trim() || named[section]?.trim() || label
   }
+  // Each settings and admin section by its own name (QA SH-11): every one
+  // was "Settings", and every admin page "OneCamp".
+  if (section === "settings" || section === "admin") {
+    const place = placeForLocation(path, where.tab ?? null)
+    if (place) label = `${place.label} · Settings`
+  }
+  if (where.label?.trim()) label = where.label.trim()
   const count = unread > 0 ? `(${unread > 99 ? "99+" : unread}) ` : ""
   return `${count}${label ? `${label} · ` : ""}OneCamp`
 }

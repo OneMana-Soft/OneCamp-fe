@@ -1,11 +1,15 @@
 import { format } from "date-fns"
+import { clockTime } from "@/lib/utils/date/clock"
 
-// The one way the app writes a date and a time: "9 Oct" this year and
-// "9 Oct 2025" in another, and "3:10 PM". Day before month, as most of the
-// world reads it: the messages said "Oct 9" (the US order) and some screens
-// "09/10/26", which reads as the 10th of September to half the world. Spelled
-// out here rather than left to the browser's locale, so one moment reads the
-// same in every list, message and tooltip, on every machine.
+// The one way the app writes a date: "9 Oct" this year and "9 Oct 2025" in
+// another. Day before month, as most of the world reads it: the messages said
+// "Oct 9" (the US order) and some screens "09/10/26", which reads as the 10th
+// of September to half the world. Spelled out here rather than left to the
+// browser's locale, so one day reads the same in every list, message and
+// tooltip, on every machine.
+//
+// The time beside it is the reader's own clock (lib/utils/date/clock): "3:10
+// PM" in an American browser, "15:10" in a British one.
 
 /**
  * A day as a list shows it: "7 Oct" this year, "7 Oct 2025" in another.
@@ -16,19 +20,19 @@ export function shortDate(d: Date, now: Date = new Date()): string {
   return format(d, d.getFullYear() === now.getFullYear() ? "d MMM" : "d MMM yyyy")
 }
 
-/** A time of day: "3:10 PM", with no leading zero on the hour. */
-export function shortTime(d: Date): string {
-  return format(d, "h:mm a")
-}
-
 /** A day and its time: "9 Oct, 3:10 PM", with the year when it isn't this one. */
 export function shortDateTime(d: Date, now: Date = new Date()): string {
-  return `${shortDate(d, now)}, ${shortTime(d)}`
+  return `${shortDate(d, now)}, ${clockTime(d)}`
+}
+
+/** A day in full, for a tooltip or a screen reader: "Friday 9 October 2026". */
+export function fullDate(d: Date): string {
+  return format(d, "EEEE d MMMM yyyy")
 }
 
 /** All of it, for a tooltip or a screen reader: "Friday 9 October 2026, 3:10 PM". */
 export function fullDateTime(d: Date): string {
-  return format(d, "EEEE d MMMM yyyy, h:mm a")
+  return `${fullDate(d)}, ${clockTime(d)}`
 }
 
 /**

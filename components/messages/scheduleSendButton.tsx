@@ -7,33 +7,28 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarClock } from "@/lib/icons"
-import { schedulePresets, toLocalInputValue, type SchedulePreset } from "@/lib/messages/schedulePresets"
+import { SEND_LATER_MAX_LEAD_MS, schedulePresets, sendLaterProblem, toLocalInputValue, type SchedulePreset } from "@/lib/messages/schedulePresets"
 
-/** A list of moments plus any time typed in: send later, pause notifications. */
+/** A list of moments plus any time typed in, inside the send-later window. */
 export function SchedulePicker({
   onPick,
   busy,
   presets: presetsFor = schedulePresets,
   actionLabel = "Schedule",
-  maxMs,
 }: {
   onPick: (at: Date) => void
   busy?: boolean
   presets?: (now: Date) => SchedulePreset[]
   actionLabel?: string
-  /** How far ahead a typed time may be. */
-  maxMs?: number
 }) {
   const now = new Date()
   const presets = presetsFor(now)
   const inputId = React.useId()
+  const problemId = React.useId()
   const [custom, setCustom] = React.useState(() => toLocalInputValue(new Date(now.getTime() + 60 * 60 * 1000)))
   const customAt = custom ? new Date(custom) : null
-  const customOk =
-    !!customAt &&
-    !Number.isNaN(customAt.getTime()) &&
-    customAt.getTime() > Date.now() + 60_000 &&
-    (maxMs === undefined || customAt.getTime() <= Date.now() + maxMs)
+  // Why the typed time can't be used, said under it (the server's own rule).
+  const problem = sendLaterProblem(customAt, Date.now())
   return (
     <div className="grid gap-1">
       {presets.map((p) => (
@@ -61,11 +56,12 @@ export function SchedulePicker({
             type="datetime-local"
             value={custom}
             min={toLocalInputValue(now)}
-            max={maxMs === undefined ? undefined : toLocalInputValue(new Date(now.getTime() + maxMs))}
+            max={toLocalInputValue(new Date(now.getTime() + SEND_LATER_MAX_LEAD_MS))}
             onChange={(e) => setCustom(e.target.value)}
             className="h-8 w-full min-w-0 rounded-md border bg-background px-2 text-sm"
           />
-          <Button size="sm" className="h-8 self-end" disabled={!customOk || busy} onClick={() => customAt && onPick(customAt)}>
+          {problem && <p id={problemId} className="px-1 text-meta text-ink-2">{problem}</p>}
+          <Button size="sm" className="h-8 self-end" disabled={!!problem || busy} aria-describedby={problem ? problemId : undefined} onClick={() => customAt && onPick(customAt)}>
             {actionLabel}
           </Button>
         </div>

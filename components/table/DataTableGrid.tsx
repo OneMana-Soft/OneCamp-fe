@@ -6,7 +6,7 @@ import "./table.css"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Copy, Maximize2, Plus, Trash2, X } from "@/lib/icons"
+import { Copy, Maximize2, Pin, Plus, Trash2, X } from "@/lib/icons"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
 import {
@@ -14,7 +14,7 @@ import {
   createRow,
   deleteField,
   deleteRow,
-  nextRowPosition,
+  isNumeric,
   parseFieldConfig,
   parseRowValues,
   updateField,
@@ -24,22 +24,38 @@ import {
 } from "@/services/tableService"
 import { nextCell, swallowsAtEdge, type CellKind } from "@/lib/tables/gridKeys"
 import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
-import { Cell, cellKind, isNumeric, optionIndexOf, type CellContext } from "@/components/table/gridCells"
-import { AddColumn, ColumnHeader, type ColumnPage, type ColumnSaveInput } from "@/components/table/ColumnMenu"
+import { Cell, cellKind, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { AddColumn, ColumnHeader, type ColumnCreateInput, type ColumnPage, type ColumnSaveInput } from "@/components/table/ColumnMenu"
 import { useCellCommit, type CellCommit } from "@/lib/tables/useCellCommit"
 import { rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
 import { SUMMARY_LABEL, defaultSummary, summarize, summaryChoices } from "@/lib/tables/summary"
+import { isComposingKey } from "@/lib/keys/ime"
+import { formatLocale } from "@/lib/tables/numberFormat"
 
 export { groupedNumber } from "@/components/table/gridCells"
 
 interface DataTableGridProps {
-  /** Where a new row goes, when rows are filtered out of this view: after every row. */
-  nextPosition?: number
   tableId: string
   fields: TableField[]
   rows: TableRow[]
   canManage: boolean
   onChange: () => void // ask the parent to revalidate the bundle
+  /**
+   * Rows this grid just added (New row, Duplicate), for a page that holds
+   * rows past the first page: they're the table's last, so it reads through
+   * to them. `focus` for a new row, which then takes the focus (focusRow).
+   * Without it, the grid asks for the table again (onChange).
+   */
+  onCreated?: (rows: TableRow[], focus?: boolean) => void
+  /** A row to focus the first cell of, once it's among the rows; onFocused says it was. */
+  focusRow?: string | null
+  onFocused?: () => void
+  /** The rows in view near the last one given: the page reads a page more. */
+  onNearEnd?: () => void
+  /** A row kept in sight that the view's rules would hide or move, and why (a new one). */
+  marked?: { rowId: string; note: string } | null
+  /** A cell of a row took the focus. */
+  onRowFocus?: (rowId: string) => void
   /**
    * What to say when there are no rows to show: under the column names and
    * above "New row", which both stay, so the next step is right there.
@@ -55,6 +71,8 @@ interface DataTableGridProps {
   /** Summary functions the reader chose; a summary bar shows when given. */
   summary?: Record<string, SummaryFn>
   onSummary?: (fieldId: string, fn: SummaryFn) => void
+  /** The rows loaded, when they aren't the whole table: each summary says it's of these alone. */
+  loaded?: number
   /** From a column's menu. */
   onSort?: (fieldId: string, dir: "asc" | "desc") => void
   onFilter?: (fieldId: string) => void
@@ -100,6 +118,8 @@ const GUTTER = 44
 const ADD_COL = 48
 /** Rows shown before the grid's frame has been measured. */
 const FIRST_SCREEN_ROWS = 40
+/** How near the last row given the view gets before the page reads more: about three screens. */
+const NEAR_END_ROWS = 60
 
 const touchScreen = () => typeof window !== "undefined" && !!window.matchMedia?.("(hover: none)").matches
 
@@ -122,7 +142,12 @@ export function DataTableGrid({
   rows,
   canManage,
   onChange,
-  nextPosition,
+  onCreated,
+  focusRow,
+  onFocused,
+  onNearEnd,
+  marked,
+  onRowFocus,
   empty,
   rowHeight = "medium",
   hidden,
@@ -130,6 +155,7 @@ export function DataTableGrid({
   onWidth,
   summary,
   onSummary,
+  loaded,
   onSort,
   onFilter,
   onHide,
@@ -148,7 +174,7 @@ export function DataTableGrid({
     return [...fields].sort((a, b) => a.position - b.position).filter((f) => !hide.has(f.id))
   }, [fields, hidden])
 
-  const own = useCellCommit({ tableId, fields, rows, onChange })
+  const own = useCellCommit({ tableId, rows, onChange })
   const { commitCell, linkCell } = shared ?? own
 
   const latest = React.useRef({ rows })
@@ -176,8 +202,9 @@ export function DataTableGrid({
   const handleAddRow = async () => {
     setAdding(true)
     try {
-      await createRow(tableId, {}, nextPosition ?? nextRowPosition(rows))
-      onChange()
+      const r = await createRow(tableId, {})
+      if (onCreated && r?.id) onCreated([r], true)
+      else onChange()
     } catch {
       // surfaced by interceptor
     } finally {
@@ -206,22 +233,25 @@ export function DataTableGrid({
     })
   }
 
+  // Copies go after every row, one after another, in the order shown.
   const duplicateSelected = async () => {
     const ids = new Set(selected)
     const picked = rows.filter((r) => ids.has(r.id))
-    let pos = nextPosition ?? nextRowPosition(latest.current.rows)
+    const made: TableRow[] = []
     try {
-      for (const r of picked) await createRow(tableId, writableValues(fields, parseRowValues(r)), pos++)
+      for (const r of picked) made.push(await createRow(tableId, writableValues(fields, parseRowValues(r))))
       setSelected(new Set())
       toast({ title: picked.length === 1 ? "Row duplicated" : `${picked.length} rows duplicated` })
     } catch {
       // surfaced
     } finally {
-      onChange()
+      const added = made.filter((r) => r?.id)
+      if (onCreated && added.length) onCreated(added)
+      else onChange()
     }
   }
 
-  const createColumn = async (input: ColumnSaveInput) => {
+  const createColumn = async (input: ColumnCreateInput) => {
     const pos = fields.length ? Math.max(...fields.map((f) => f.position)) + 1 : 0
     try {
       const f = await createField(tableId, { name: input.name, type: input.type, position: pos, config: input.config })
@@ -233,11 +263,16 @@ export function DataTableGrid({
     }
   }
 
-  const saveColumn = async (field: TableField, input: ColumnSaveInput) => {
+  // Resolves whether it saved. A save sends what the menu changed and nothing
+  // of the page's copy: its place, sent with a rename or an option, put back a
+  // column someone had moved meanwhile, and its name a rename.
+  const saveColumn = async (field: TableField, input: ColumnSaveInput): Promise<boolean> => {
     try {
-      await updateField(tableId, field.id, { name: input.name, type: input.type, config: input.config, position: field.position })
+      await updateField(tableId, field.id, input)
+      return true
     } catch {
       // surfaced
+      return false
     } finally {
       onChange()
     }
@@ -288,8 +323,13 @@ export function DataTableGrid({
     const w = widths?.[f.id] ?? columnWidth(f)
     return compact && i === 0 ? Math.min(w, 140) : w
   }
-  const colCount = sortedFields.length + 1 + (canManage ? 1 : 0)
-  const tableWidth = GUTTER + sortedFields.reduce((w, f, i) => w + widthOf(f, i), 0) + (canManage ? ADD_COL : 0)
+  // The gutter, the fields, and a last column at the end (Add column for an
+  // editor, nothing for a reader) that takes whatever room is left: with
+  // every column a fixed width, a fixed-layout table shares spare room out
+  // across all of them, so a new table's one column started a third of the
+  // way across, behind a stretched row-number gutter.
+  const colCount = sortedFields.length + 2
+  const tableWidth = GUTTER + sortedFields.reduce((w, f, i) => w + widthOf(f, i), 0) + ADD_COL
 
   // ---- the gliding ring and the frozen shadow ----------------------------
   const ringRef = React.useRef<HTMLDivElement>(null)
@@ -316,8 +356,11 @@ export function DataTableGrid({
     (e: React.FocusEvent) => {
       ringCell.current = (e.target as HTMLElement).closest<HTMLElement>("tbody td[data-kind]")
       placeRing()
+      const at = (e.target as HTMLElement).closest<HTMLElement>("tbody tr[data-index]")?.dataset.index
+      const id = at === undefined ? undefined : latest.current.rows[Number(at)]?.id
+      if (id) onRowFocus?.(id)
     },
-    [placeRing],
+    [placeRing, onRowFocus],
   )
   const onFocusOut = React.useCallback((e: React.FocusEvent) => {
     const to = e.relatedTarget as HTMLElement | null
@@ -425,7 +468,7 @@ export function DataTableGrid({
         const el = root.querySelector<HTMLElement>(`[data-cell="${row}:${col}"]`)
         if (!el) return false
         el.focus()
-        if (el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "date") el.select()
+        if (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "date")) el.select()
         return true
       }
       if (place()) return
@@ -437,11 +480,20 @@ export function DataTableGrid({
     [],
   )
 
+  // The row the page asked to focus (one just added), once it's here: its first cell.
+  React.useEffect(() => {
+    if (!focusRow) return
+    const index = rows.findIndex((r) => r.id === focusRow)
+    if (index < 0) return
+    focusCell(index, 0)
+    onFocused?.()
+  }, [focusRow, rows, focusCell, onFocused])
+
   const onGridKey = React.useCallback(
     (e: React.KeyboardEvent<HTMLTableElement>) => {
       const target = e.target as HTMLElement
       const at = target.closest<HTMLElement>("[data-cell]")?.dataset.cell
-      if (!at || e.nativeEvent.isComposing) return
+      if (!at || isComposingKey(e.nativeEvent)) return
       const [row, col] = at.split(":").map(Number)
       // Shift+Space selects the focused cell's row.
       if (e.key === " " && e.shiftKey) {
@@ -455,13 +507,15 @@ export function DataTableGrid({
       const kind = (target.closest<HTMLElement>("[data-kind]")?.dataset.kind ?? "text") as CellKind
       let atStart = true
       let atEnd = true
-      if (target instanceof HTMLInputElement && (kind === "text" || kind === "number")) {
+      let lines: { first: boolean; last: boolean } | undefined
+      if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && (kind === "text" || kind === "number")) {
         const s = target.selectionStart ?? 0
         const end = target.selectionEnd ?? 0
         atStart = s === 0 && end === 0
         atEnd = s === target.value.length && end === target.value.length
+        if (target instanceof HTMLTextAreaElement) lines = { first: !target.value.slice(0, s).includes("\n"), last: !target.value.slice(end).includes("\n") }
       }
-      const to = nextCell(e, { row, col }, { rows: latest.current.rows.length, cols: sortedFields.length }, { kind, atStart, atEnd })
+      const to = nextCell(e, { row, col }, { rows: latest.current.rows.length, cols: sortedFields.length }, { kind, atStart, atEnd, lines })
       if (to) {
         e.preventDefault()
         e.stopPropagation()
@@ -508,7 +562,7 @@ export function DataTableGrid({
               {sortedFields.map((f, i) => (
                 <col key={f.id} style={{ width: widthOf(f, i) }} />
               ))}
-              {canManage && <col style={{ width: ADD_COL }} />}
+              <col data-spare="" />
             </colgroup>
             <thead className="sticky top-0 z-[4]">
               <tr>
@@ -531,7 +585,6 @@ export function DataTableGrid({
                     index={i}
                     field={f}
                     fields={sortedFields}
-                    rows={rows}
                     tableId={tableId}
                     canManage={canManage}
                     frozen={i === 0}
@@ -549,7 +602,7 @@ export function DataTableGrid({
                     onAutoFit={onWidth ? autoFit : undefined}
                   />
                 ))}
-                {canManage && <AddColumn tableId={tableId} fields={sortedFields} onCreate={createColumn} />}
+                {canManage ? <AddColumn tableId={tableId} fields={sortedFields} onCreate={createColumn} /> : <th aria-hidden="true" className="h-9 p-0" />}
               </tr>
             </thead>
             <GridBody
@@ -567,6 +620,8 @@ export function DataTableGrid({
               onToggle={toggleRow}
               onOpen={onOpenRow}
               afterRows={afterRows}
+              onNearEnd={onNearEnd}
+              marked={marked}
             />
             {showSummary ? (
               <tfoot className="sticky bottom-0 z-[4]">
@@ -579,10 +634,11 @@ export function DataTableGrid({
                       rows={rows}
                       frozen={i === 0}
                       fn={summary?.[f.id] ?? defaultSummary(f)}
+                      loaded={loaded}
                       onPick={onSummary ? (fn) => onSummary(f.id, fn) : undefined}
                     />
                   ))}
-                  {canManage && <td className="border-t border-line bg-sheet" />}
+                  <td className="border-t border-line bg-sheet" />
                 </tr>
               </tfoot>
             ) : null}
@@ -630,16 +686,21 @@ export function DataTableGrid({
   )
 }
 
-/** One summary cell (T14): "Sum 3,280" in meta, a menu of functions on click. */
-function SummaryCell({ field, rows, frozen, fn, onPick }: { field: TableField; rows: TableRow[]; frozen: boolean; fn: SummaryFn; onPick?: (fn: SummaryFn) => void }) {
+/**
+ * One summary cell (T14): "Sum 3,280" in meta, a menu of functions on click.
+ * Of the rows loaded alone, it says so ("Sum of 500 loaded"): a 1,200-row
+ * budget's Sum was of its first 500, unmarked (the W0 audit).
+ */
+function SummaryCell({ field, rows, frozen, fn, loaded, onPick }: { field: TableField; rows: TableRow[]; frozen: boolean; fn: SummaryFn; loaded?: number; onPick?: (fn: SummaryFn) => void }) {
   const result = React.useMemo(() => summarize(field, rows, fn), [field, rows, fn])
   const numeric = isNumeric(field)
+  const label = result && loaded !== undefined ? `${result.label} of ${formatLocale(loaded, {})} loaded` : result?.label
   const body = result ? (
     <>
-      <span className="text-ink-4">{result.label}</span> <span className="tabular-nums text-ink-2">{result.value}</span>
+      <span className="text-ink-3">{label}</span> <span className="tabular-nums text-ink-2">{result.value}</span>
     </>
   ) : (
-    <span className="text-ink-4 opacity-0 transition-opacity group-hover/sum:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Summarise</span>
+    <span className="text-ink-3 opacity-0 transition-opacity group-hover/sum:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Summarise</span>
   )
   return (
     <td data-frozen={frozen || undefined} className="group/sum h-8 border-t border-line bg-sheet p-0">
@@ -648,7 +709,7 @@ function SummaryCell({ field, rows, frozen, fn, onPick }: { field: TableField; r
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={`${field.name} summary: ${result ? `${result.label} ${result.value}` : "none"}`}
+              aria-label={`${field.name} summary: ${result ? `${label} ${result.value}` : "none"}`}
               className={cn("flex h-8 w-full items-center gap-1 truncate px-3 text-meta hover:bg-hover", numeric && "justify-end")}
             >
               {body}
@@ -690,6 +751,8 @@ const GridBody = React.memo(function GridBody({
   onToggle,
   onOpen,
   afterRows,
+  onNearEnd,
+  marked,
 }: {
   rows: TableRow[]
   height: number
@@ -705,6 +768,8 @@ const GridBody = React.memo(function GridBody({
   onToggle: (rowId: string) => void
   onOpen?: (rowId: string) => void
   afterRows: () => void
+  onNearEnd?: () => void
+  marked?: { rowId: string; note: string } | null
 }) {
   // Every row is one of the four preset heights (the cells clip), so rows
   // are never measured: measuring put a ResizeObserver and a layout read on
@@ -737,6 +802,11 @@ const GridBody = React.memo(function GridBody({
   const padTop = items.length ? items[0].start : 0
   const padBottom = items.length ? virtualizer.getTotalSize() - items[items.length - 1].end : 0
   const anySelected = selected.size > 0
+  // Within a few screens of the last row given: the page reads on.
+  const last = items.length ? items[items.length - 1].index : -1
+  React.useEffect(() => {
+    if (onNearEnd && rows.length && last >= rows.length - NEAR_END_ROWS) onNearEnd()
+  }, [onNearEnd, last, rows.length])
   return (
     <tbody>
       {padTop > 0 && (
@@ -762,6 +832,7 @@ const GridBody = React.memo(function GridBody({
             onLink={onLink}
             onToggle={onToggle}
             onOpen={onOpen}
+            note={marked?.rowId === row.id ? marked.note : undefined}
           />
         )
       })}
@@ -792,6 +863,7 @@ const GridRow = React.memo(
     onLink,
     onToggle,
     onOpen,
+    note,
   }: {
     row: TableRow
     rowIndex: number
@@ -805,6 +877,8 @@ const GridRow = React.memo(
     onLink: (rowId: string, fieldId: string, change: { add?: string[]; remove?: string[] }) => void
     onToggle: (rowId: string) => void
     onOpen?: (rowId: string) => void
+    /** Why the row shows here though the view's rules would hide or move it. */
+    note?: string
   }) {
     const values = React.useMemo(() => parseRowValues(row), [row])
     return (
@@ -813,19 +887,20 @@ const GridRow = React.memo(
         data-selected={selected || undefined}
         aria-rowindex={rowIndex + 2}
         aria-selected={selected || undefined}
+        data-marked={note ? "" : undefined}
         className="group"
         style={{ height }}
       >
-        <td data-gutter="" className="p-0">
+        <td data-gutter="" className="p-0" title={note}>
           <span className="relative flex h-full items-center justify-center">
             <span
               className={cn(
-                "text-meta tabular-nums text-ink-4 transition-opacity",
+                "text-meta tabular-nums text-ink-3 transition-opacity",
                 (selecting || selected) && canManage && "opacity-0",
                 canManage && "group-hover:opacity-0",
               )}
             >
-              {rowIndex + 1}
+              {note ? <Pin className="size-3.5 text-camp-sun-ink" aria-label={`New row. ${note}`} /> : rowIndex + 1}
             </span>
             {canManage ? (
               <input
@@ -834,17 +909,21 @@ const GridRow = React.memo(
                 checked={selected}
                 onChange={() => onToggle(row.id)}
                 className={cn(
-                  "v3-check absolute left-2 transition-opacity",
+                  "v3-check absolute left-2 transition-opacity [@media(hover:none)]:left-0.5",
                   selected || selecting ? "opacity-100" : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
                 )}
               />
             ) : null}
             {onOpen ? (
+              // On a touch screen it keeps 8 px clear of the first cell, and
+              // the checkbox moves out of its way: a browser gives a tap near
+              // a small button to the button, and this one took taps meant
+              // for the cell (TAB-BUG-15).
               <button
                 type="button"
                 aria-label={`Open row ${rowIndex + 1}`}
                 onClick={() => onOpen(row.id)}
-                className="pointer-events-none absolute right-0.5 inline-flex size-5 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-press hover:text-ink group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+                className="pointer-events-none absolute right-0.5 inline-flex size-5 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-press hover:text-ink group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:right-2 [@media(hover:none)]:opacity-100"
               >
                 <Maximize2 className="size-3" />
               </button>
@@ -864,7 +943,7 @@ const GridRow = React.memo(
             />
           </td>
         ))}
-        {canManage && <td className="p-0" />}
+        <td className="p-0" />
       </tr>
     )
   },
@@ -881,5 +960,6 @@ const GridRow = React.memo(
     a.onCommit === b.onCommit &&
     a.onLink === b.onLink &&
     a.onToggle === b.onToggle &&
-    a.onOpen === b.onOpen,
+    a.onOpen === b.onOpen &&
+    a.note === b.note,
 )

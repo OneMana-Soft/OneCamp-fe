@@ -37,6 +37,14 @@ describe("PageHeader", () => {
     expect(line.closest("[data-page-title-row]")).toBeNull()
   })
 
+  it("sets its title on the app scale's page title step, as every other page's title is (PTC-39)", () => {
+    render(<PageHeader title="Templates" />)
+    const title = screen.getByRole("heading", { level: 1 })
+    expect(title.className.split(/\s+/)).toContain("text-title-1")
+    // The step carries its own tracking and weight; nothing may undo them.
+    expect(title.className).not.toMatch(/\b(tracking-|text-(2xl|3xl)\b)/)
+  })
+
   it("keeps a 36px control from making the title's row taller than the title", () => {
     const { container } = render(<PageHeader title="Projects" actions={<button type="button">New project</button>} />)
     const actions = container.querySelector("[data-page-actions]")!

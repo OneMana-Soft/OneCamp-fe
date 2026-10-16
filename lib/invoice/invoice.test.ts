@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { buildInvoice, money, round2, suggestNumber } from "./invoice"
+import { buildInvoice, defaultPeriod, money, round2, suggestNumber, type Period } from "./invoice"
+import type { TimeReport } from "@/lib/tasks/time"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+pinTestClock()
 
 const report = {
   by_task: [
@@ -71,4 +75,40 @@ describe("formatting", () => {
   it("formats money in the currency", () => expect(money("USD", "en-US")(1234.5)).toBe("$1,234.50"))
   it("survives an unknown currency", () => expect(money("XYZ1", "en-US")(2)).toBe("2.00 XYZ1"))
   it("suggests an invoice number", () => expect(suggestNumber("Q4 launch", new Date(2026, 9, 5))).toBe("QL-2026-10"))
+})
+
+describe("defaultPeriod (PTC-41)", () => {
+  const now = new Date(2026, 9, 15, 10) // 15 Oct 2026
+  const timeIn = (billable: Record<string, number>) => {
+    const asked: string[] = []
+    const timeOf = async (p: Period): Promise<TimeReport> => {
+      const key = `${p.from.getMonth() + 1}/${p.from.getDate()}`
+      asked.push(key)
+      const b = billable[key] ?? 0
+      return { from: p.from.toISOString(), to: p.to.toISOString(), seconds: b, billable_seconds: b, entries: b ? 1 : 0, running: 0, by_person: [], by_task: [], truncated: false }
+    }
+    return { timeOf, asked }
+  }
+
+  it("bills last month, as a monthly bill does, when it has billable time", async () => {
+    const { timeOf, asked } = timeIn({ "9/1": 3600 })
+    const { period, report } = await defaultPeriod(timeOf, now)
+    expect([period.from, period.to]).toEqual([new Date(2026, 8, 1), new Date(2026, 9, 1)])
+    expect(report.billable_seconds).toBe(3600)
+    expect(asked).toEqual(["9/1"])
+  })
+
+  it("bills this month so far when last month has nothing to bill and this month has", async () => {
+    const { timeOf, asked } = timeIn({ "10/1": 23040 })
+    const { period, report } = await defaultPeriod(timeOf, now)
+    expect([period.from, period.to]).toEqual([new Date(2026, 9, 1), new Date(2026, 9, 16)])
+    expect(report.billable_seconds).toBe(23040)
+    expect(asked).toEqual(["9/1", "10/1"])
+  })
+
+  it("stays on last month when neither has anything to bill", async () => {
+    const { timeOf } = timeIn({})
+    const { period } = await defaultPeriod(timeOf, now)
+    expect(period.from).toEqual(new Date(2026, 8, 1))
+  })
 })

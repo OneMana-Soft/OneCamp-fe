@@ -16,7 +16,7 @@ import { SettingsPhoneList } from "@/components/admin/SettingsPhoneList"
 import { useJumpFlash } from "@/hooks/useJumpFlash"
 import { SETTINGS_GROUP_LABEL, SETTINGS_PLACES, adminPlace, normaliseAdminTab, type SettingsGroupKey } from "@/lib/adminSections"
 import { useMedia } from "@/context/MediaQueryContext"
-import { FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
+import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
 
 // The people tabs wait in their own frame's shape (header, toolbar, six rows),
 // so nothing moves when the card's code arrives and again when its data does;
@@ -38,6 +38,7 @@ const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsers
 const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
 const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
 const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
+const ExportCard = dynamic(() => import("@/components/admin/ExportCard"), { loading: AdminCardSkeleton })
 const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
 const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
 const GuestAccessCard = dynamic(() => import("@/components/admin/GuestAccessCard"), { loading: AdminCardSkeleton })
@@ -57,9 +58,9 @@ const UpdatesCard = dynamic(() => import("@/components/admin/UpdatesCard"), { lo
  * Vertical rhythm between top-level cards on a tab that holds more than one.
  *
  * A named constant rather than the literal repeated three times, so the tabs cannot drift apart and
- * so adminLayout.test.ts can assert that every multi-card tab actually uses it. A tab once had no
- * wrapper at all and its cards rendered flush against each other; that is not detectable by
- * reading one tab in isolation, which is why the rule is expressed once and checked.
+ * so adminLayout.test.ts can assert that every multi-card tab actually uses it. The AI Models tab
+ * previously had no wrapper at all and its cards rendered flush against each other; that is not
+ * detectable by reading one tab in isolation, which is why the rule is expressed once and checked.
  */
 const ADMIN_SECTION_STACK = "space-y-8"
 
@@ -84,8 +85,13 @@ const TAB_GROUPS: TabGroup[] = (["workspace", "ai", "connections", "records", "s
 
 const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
 
+// AI & agents has sub-pages under a tab bar in place of an on-this-page rail
+// (components/admin/ai/aiTabs, where its old jump ids map to them).
+
 /** The jumps of a long section: its cards, from the settings map, once each. */
 function jumpsFor(tab: string): { id: string; label: string }[] | null {
+  // The tab bar under AI & agents' header is its navigation.
+  if (tab === "ai-models") return null
   if (tab !== "security" && tab !== "integrations" && tab !== "settings") return null
   const seen = new Set<string>()
   const out: { id: string; label: string }[] = []
@@ -101,12 +107,16 @@ const AdminPage = () => {
   const searchParams = useSearchParams()
   const { isMobile } = useMedia()
   const { toast } = useToast()
-  // Transcription exists only when the server has LiveKit behind it, and the
-  // page cannot know that until the config request answers. A cold load of
-  // /app/admin?tab=transcription used to open on Teams and stay there.
+  // Two sections exist only when the server has the subsystem behind them,
+  // and the page cannot know that until the config request answers. A cold
+  // load of /app/admin?tab=ai-models, which is what every link to the drill
+  // card is, used to open on Teams and stay there.
+  const aiState = useFeatureState(FEATURE_AI)
   const callsState = useFeatureState(FEATURE_CALLS)
+  const aiAvailable = aiState === "available"
   const callsAvailable = callsState === "available"
   const visibleTabs = TABS.filter((tab) => {
+    if (tab.value === "ai-models") return aiAvailable
     if (tab.value === "transcription") return callsAvailable
     return true
   })
@@ -123,7 +133,7 @@ const AdminPage = () => {
   // The URL asked for a gated section and the server has not said yet whether
   // it exists: hold the section's skeleton rather than answer early.
   const gateForRequested =
-    requestedTab === "transcription" ? callsState : "available"
+    requestedTab === "ai-models" ? aiState : requestedTab === "transcription" ? callsState : "available"
   const waitingOnRequestedTab = gateForRequested === "unknown"
   const activeTab = requestedTabVisible ? requestedTab : "users"
   const processed = useRef(false)
@@ -215,7 +225,7 @@ const AdminPage = () => {
               {/* A tab holding more than one card wraps them in ADMIN_SECTION_STACK.
                   
                   One shared value rather than a per-tab judgement, and space-y-8 rather than the
-                  space-y-6 this used to be, because 8 is what the long cards already put between their
+                  space-y-6 this used to be, because 8 is what AIModelsCard already puts between its
                   OWN sections. At 6 the gap between two top-level cards was tighter than the gap
                   between subsections inside one of them, which reads as though the cards belong
                   together. Separation has to grow with level, not shrink. */}
@@ -287,9 +297,11 @@ const AdminPage = () => {
               <TabsContent value="import" className="mt-0 outline-none">
                 <div className={ADMIN_SECTION_STACK}>
                   {/* Slack first: chat history is the migration most teams arrive
-                      with, and the other providers carry projects and tasks. */}
+                      with, and the other providers carry projects and tasks
+                      (Notion its pages too). The docs' export closes it. */}
                   <SlackImportCard />
                   <ImportCard />
+                  <ExportCard />
                 </div>
               </TabsContent>
               </>

@@ -61,10 +61,12 @@ export function PageHeader({
       <div data-page-title-row="" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <h1
           className={cn(
-            // No extra tracking: Inter Tight is already set tight, and
-            // tracking-tight on top of it ran the words together.
-            "min-w-[min(100%,16rem)] flex-1 font-display font-semibold tracking-normal text-foreground text-balance",
-            size === "lg" ? "text-3xl" : "text-2xl",
+            // The app scale's page title (24/30 at 590, -0.019em), or the
+            // Home greeting's display step: each carries its own tracking.
+            // This said tracking-normal, so these pages' titles were set
+            // looser than every other page's (PTC-39).
+            "min-w-[min(100%,16rem)] flex-1 font-display text-foreground text-balance",
+            size === "lg" ? "text-display" : "text-title-1",
             !phoneTitle && "max-sm:sr-only",
           )}
         >

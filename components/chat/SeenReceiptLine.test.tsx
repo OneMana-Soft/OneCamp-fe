@@ -42,13 +42,16 @@ describe("Seen under your latest message", () => {
     expect(screen.queryByText(/Seen/)).toBeNull()
   })
 
-  // Design v3 chat, C32: under your last message on the right, with the other
-  // person's face in a DM.
-  it("sits under your last message on the right, with their face", () => {
+  // Design v3 chat, C32: under your last message, with the other person's
+  // face in a DM. On the message's own text column (68px in: the row's 20px
+  // and its 36px avatar column and 12px gap), not the sheet's far right edge,
+  // which put it a screen's width from a short message.
+  it("sits under your last message where its words start, with their face", () => {
     receipts = { data: { on: true, seen: [{ user_uuid: "maya", seen_at: "2026-10-08T09:05:00Z" }] } }
     render(<SeenReceiptLine target={{ kind: "dm", otherUUID: "maya" }} latest={msg("me", "2026-10-08T09:00:00Z")} />)
     const line = screen.getByText("Seen").closest("p")!
-    expect(line.className).toContain("justify-end")
+    expect(line.className).toContain("pl-[68px]")
+    expect(line.className).not.toContain("justify-end")
     expect(line.querySelector("[data-face]")).toBeTruthy()
   })
 

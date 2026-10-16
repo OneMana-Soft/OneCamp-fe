@@ -145,3 +145,52 @@ describe("the conversation's furniture", () => {
     expect(floating?.className).toContain("h-0")
   })
 })
+
+// QA F-27: below md the composer floats over the list's last 150px, and a
+// sticky offset counts from above that padding, so "Jump to latest" hung
+// about 100px over the conversation, across a message's author.
+describe("the way back on a phone", () => {
+  const phone = (matches: boolean) =>
+    vi.fn((query: string) => ({ matches: matches && query === "(max-width: 767.98px)", media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }))
+  let card: HTMLElement
+  beforeEach(() => {
+    card = document.createElement("div")
+    card.setAttribute("data-phone-composer", "")
+    card.getBoundingClientRect = () => ({ top: 760 }) as DOMRect
+    document.body.appendChild(card)
+  })
+  afterEach(() => {
+    card.remove()
+    Reflect.deleteProperty(window, "matchMedia")
+  })
+  const scrolledUp = () => {
+    render(list(items(10)))
+    const scroller = document.querySelector<HTMLElement>('div[style*="overflow-y: auto"]')!
+    scroller.getBoundingClientRect = () => ({ bottom: 844 }) as DOMRect
+    act(() => readerScrolls(400))
+    return document.querySelector<HTMLElement>("[data-jump-row]")!
+  }
+
+  it("hangs 12px above the composer's card", () => {
+    window.matchMedia = phone(true) as unknown as typeof window.matchMedia
+    // 844 - 760 between the list's foot and the card, + 12, - the 150px room.
+    expect(scrolledUp().style.bottom).toBe("-54px")
+  })
+
+  it("hangs 12px above a computer's composer under the list, where the list still keeps the room", () => {
+    window.matchMedia = phone(true) as unknown as typeof window.matchMedia
+    card.remove()
+    card = document.createElement("div")
+    card.setAttribute("data-composer", "")
+    // The composer sits 8px under the list's foot.
+    card.getBoundingClientRect = () => ({ top: 852 }) as DOMRect
+    document.body.appendChild(card)
+    // 844 - 852, + 12, - the 150px room: the pill's foot 12px above the card.
+    expect(scrolledUp().style.bottom).toBe("-146px")
+  })
+
+  it("keeps the list's own offset on a computer", () => {
+    window.matchMedia = phone(false) as unknown as typeof window.matchMedia
+    expect(scrolledUp().style.bottom).toBe("")
+  })
+})

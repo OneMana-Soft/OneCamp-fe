@@ -108,10 +108,11 @@ const PAIRS: Array<[string, string, number, string]> = [
   ["muted-foreground", "sunken", 4.5, "secondary text on the sunken surface"],
   ["foreground", "pop", 4.5, "a menu item"],
   ["muted-foreground", "pop", 4.5, "a menu item's secondary text"],
-  // ink-3 is for timestamps, IDs, placeholders and idle icons, never
-  // sentences (design v3, §3.3): it holds 3:1, the floor for a glyph.
-  ["ink-3", "background", 3.0, "a timestamp or an idle icon on the sheet"],
-  ["ink-3", "frame", 3.0, "an idle sidebar icon on the frame"],
+  // ink-3 is meta text (timestamps, counts, the agent provenance line): it
+  // reads at AA since D-SD4 (13 Oct 2026). It was 3:1, the floor for a glyph.
+  // Every ink on every surface and state is in inkContrast.test.ts.
+  ["ink-3", "background", 4.5, "a timestamp on the sheet, the chat surface"],
+  ["ink-3", "frame", 4.5, "meta text on the bare frame"],
   ["agent-ink", "agent-muted", 4.5, "an agent's tag on its tinted ground (agent-i on agent-t)"],
   ["agent", "background", 4.5, "agent-coloured text on the page"],
   ["agent-foreground", "agent", 4.5, "a label on a solid agent surface"],

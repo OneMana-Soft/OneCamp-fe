@@ -8,12 +8,13 @@ import { JoinHandled, useCallLifecycle } from "@/components/livekit/useCallLifec
 import type { CallStateRead } from "@/components/livekit/callState";
 import { getGuestMeetingStatus } from "@/services/guestService";
 import { joinGuestMeetingAs } from "@/services/callService";
-import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { PublicGone } from "@/components/guest/publicStates";
 import { PublicFrame } from "@/components/guest/PublicFrame";
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
 import { Loader2 } from "@/lib/icons";
 
-const gone = <GuestLinkGone detail="The meeting may have ended, or the invite has expired or been revoked. Ask the host for a new link." />;
+const gone = <PublicGone surface="guest-meeting" noun="meeting link" detail="The meeting may have ended, or the invite expired or was turned off. Ask the host for a new link." />;
 
 /** The link's status, with what the meeting is doing (the contract's recording and transcription). */
 type GuestMeetingStatus = { available: boolean; workspace_name?: string } & Pick<CallStateRead, "recording" | "transcription">;
@@ -107,14 +108,19 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
     };
     // prejoin / joining
     return (
-        <PublicFrame surface="guest-meeting" title="Joining as a guest" className="relative">
-            <div className="mx-auto flex max-w-md flex-col items-center px-4 pt-6">
+        <PublicFrame surface="guest-meeting" workspaceName={status?.workspace_name} title="Joining as a guest" className="relative">
+            {/* The frame's full width, never shrunk to fit: the green room is
+                a size container (its layout follows its own width), so it
+                gives its parent no width of its own, and a shrink-to-fit
+                parent of 448px max collapsed it to its 32px of padding. The
+                whole join form was a white strip a guest couldn't use. */}
+            <div data-guest-meeting="" className="flex w-full flex-1 flex-col [&>[data-prejoin]]:flex-1">
                 {errorMsg && (
-                    <p className="mb-2 text-sm text-danger-ink" role="alert">{errorMsg}</p>
+                    <p className="mx-auto mt-4 max-w-md px-4 text-sm text-danger-ink" role="alert">{errorMsg}</p>
                 )}
                 {/* Told before joining (CALL-BUG-12): a recording, and
                     captions with where speech goes. */}
-                <PreJoin onJoin={join} username={lastName} nameEditable joining={call.phase === "joining"}
+                <PreJoin onJoin={join} username={lastName} nameEditable joining={call.phase === "joining"} embedded
                     recording={!!status.recording?.on}
                     recordingBy={status.recording?.on ? status.recording.by || null : null}
                     transcription={status.transcription}

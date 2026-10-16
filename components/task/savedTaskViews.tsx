@@ -10,11 +10,11 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Bookmark, Check, Trash2 } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
+import { Bookmark, Trash2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useTaskViews } from "@/hooks/useTaskViews"
 import { sameView, type TaskViewState } from "@/lib/tasks/views"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 interface PanelProps {
   scope: string
@@ -61,8 +61,9 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
                 aria-current={active?.id === v.id ? "true" : undefined}
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
               >
-                <Check className={cn("h-3.5 w-3.5 shrink-0", active?.id === v.id ? "opacity-100" : "opacity-0")} aria-hidden />
-                <span className="truncate">{v.name}</span>
+                <span className="min-w-0 flex-1 truncate">{v.name}</span>
+                {/* The view in use: the shared check at the row's end, as a select's chosen option has it. */}
+                <MenuCheck checked={active?.id === v.id} />
               </button>
               <Button
                 variant="ghost"

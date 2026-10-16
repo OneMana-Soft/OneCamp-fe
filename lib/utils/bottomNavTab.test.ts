@@ -12,7 +12,10 @@ describe("bottomNavTab", () => {
   it("selects More for pages reached through it", () => {
     expect(bottomNavTab("/app/myTask", TABS)).toBe("more")
     expect(bottomNavTab("/app/doc/d1", TABS)).toBe("more")
-    // A prefix is not a section: /app/channelx is not under /app/channel.
-    expect(bottomNavTab("/app/channelx", TABS)).toBe("more")
+  })
+  // A prefix is not a section: /app/channelx is not under /app/channel. Nor
+  // is it any page at all (a 404), so it marks no tab, More included.
+  it("selects no tab for an address no route answers", () => {
+    expect(bottomNavTab("/app/channelx", TABS)).toBe("")
   })
 })

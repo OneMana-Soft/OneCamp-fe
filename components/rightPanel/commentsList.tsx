@@ -13,23 +13,20 @@ interface CommentsListProps {
     removeReaction: (reactionId: string, commentId:string, idx:number) => void
     addOrUpdateReaction: (emojiId:string, reactionId: string, commentUUID:string, idx:number) => void
     removeComment: (id:string, idx: number) => void
-    updateComment: (id:string, body: string, idx:number) => void
+    updateComment: (id:string, body: string, idx:number) => Promise<boolean> | boolean | void
     getMediaURL: string
     /** Shown when there are no replies yet (a thread); nothing when not given. */
     empty?: React.ReactNode
-    /** "cards": each comment on its own sunken card, as a doc's comments are (content.md D16). */
-    variant?: "cards"
 }
 
 // The panel around this list re-renders on every keystroke in its composer and
 // recreates these handlers each time. The outer shell hands the list stable
 // wrappers that call the latest handler, so the replies re-render only when
 // they change.
-export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty, variant }: CommentsListProps) => {
+export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty }: CommentsListProps) => {
     return (
         <CommentsListInner
             empty={empty}
-            variant={variant}
             comments={comments}
             addOrUpdateReaction={useStableCallback(addOrUpdateReaction)}
             removeReaction={useStableCallback(removeReaction)}
@@ -40,7 +37,8 @@ export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, re
     )
 }
 
-const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty, variant }: CommentsListProps) {
+// A doc's comments are thread cards of their own (components/docComments/ThreadCard).
+const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty }: CommentsListProps) {
     // Replies by the same person within five minutes read as one turn.
     const continued = useMemo(
         () => continuedFlags(comments ?? [], (c) => ({ author: c.comment_by?.user_uuid, at: c.comment_created_at, isBot: !!c.comment_by?.is_bot })),
@@ -63,25 +61,18 @@ const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdat
                         key={comment.comment_uuid}
                         userInfo={comment.comment_by}
                         createdAt={comment.comment_created_at}
+                        updatedAt={comment.comment_updated_at}
                         content={comment.comment_text}
                         rawReactions={comment.comment_reactions}
                         addReaction={(emojiId:string, reactionId: string) => {addOrUpdateReaction(emojiId, reactionId, comment.comment_uuid, idx)}}
                         removeReaction={(reactionId: string)=>{removeReaction(reactionId, comment.comment_uuid, idx)}}
                         deleteMessage={(commentUUID)=>{removeComment(commentUUID, idx)}}
-                        updateMessage={(commentUUID, body) => {updateComment(commentUUID, body, idx)}}
+                        updateMessage={(commentUUID, body) => updateComment(commentUUID, body, idx)}
                         commentUUID={comment.comment_uuid}
                         getMediaUrl={getMediaURL}
                         attachments={comment.comment_attachments}
-                        continued={variant === "cards" ? false : continued[idx]}
+                        continued={continued[idx]}
                     />
-                        // A card names its author every time: cards are read one by one.
-                        if (variant === "cards") {
-                            return (
-                                <div key={comment.comment_uuid} data-comment-card="" className="content-rise rounded-xl bg-sunken px-1.5 py-1">
-                                    {message}
-                                </div>
-                            )
-                        }
                         // A reply that arrives slides in; the first six stagger in with the panel (chat v3).
                         return (
                             <div

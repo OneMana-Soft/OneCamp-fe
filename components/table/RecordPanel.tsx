@@ -3,13 +3,58 @@
 import * as React from "react"
 import "./table.css"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp, Trash2, X } from "@/lib/icons"
+import { ChevronDown, ChevronUp, Loader2, Trash2, X } from "@/lib/icons"
+import { Spark } from "@/components/ui/graphics"
 import { useConfirm } from "@/hooks/useConfirm"
-import { deleteRow, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
-import { Cell, FIELD_GLYPH, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { deleteRow, fillTableAIColumn, parseFieldConfig, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { Cell, FIELD_GLYPH, fitLines, lineBreakKey, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { aiPromptOf } from "@/components/table/ColumnMenu"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import type { CellCommit } from "@/lib/tables/useCellCommit"
 import { relativeTime } from "@/lib/utils/relativeTime"
+import { useAIAvailable } from "@/hooks/useClientConfig"
+import { useToast } from "@/hooks/use-toast"
+
+/**
+ * Under an AI column's value [AI]: whether a person wrote it, which the AI
+ * then leaves be, and "Fill again", which asks the AI for this row's cell
+ * whoever wrote it (TAB-BUG-4), where AI is on: with it off (or on the
+ * edition without it) the button could only fail.
+ */
+function AiCellNote({ tableId, field, row, onFilled }: { tableId: string; field: TableField; row: TableRow; onFilled: () => void }) {
+  const ai = useAIAvailable()
+  const { toast } = useToast()
+  const [filling, setFilling] = React.useState(false)
+  const kept = !!row.ai_kept?.includes(field.id)
+  const fill = async () => {
+    setFilling(true)
+    try {
+      // The model failing is an answer that filled nothing, not an error.
+      const res = await fillTableAIColumn(tableId, field.id, [row.id])
+      if (!res?.filled) toast({ title: "Couldn't fill this cell", description: "Try again in a moment.", variant: "destructive" })
+    } catch {
+      // surfaced by the interceptor
+    } finally {
+      setFilling(false)
+      onFilled()
+    }
+  }
+  // This edition has no AI, so it says nothing about AI under a cell, even one
+  // an AI edition once filled and a person then wrote over.
+  if (!ai) return null
+  // A second dd under the value: a dt may have several.
+  return (
+    <dd className="col-start-2 -mt-0.5 flex items-center gap-2 pb-1 text-meta text-ink-3 max-sm:col-start-1" data-ai-cell-note="">
+      {kept ? <span>Written by a person, so AI leaves it be</span> : null}
+      {ai ? (
+        <button type="button" onClick={() => void fill()} disabled={filling} className="inline-flex items-center gap-1 font-medium text-agent-ink outline-none hover:underline focus-visible:underline disabled:opacity-60">
+          {filling ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <Spark size={12} className="text-agent" />}
+          {filling ? "Filling…" : "Fill again"}
+        </button>
+      ) : null}
+    </dd>
+  )
+}
 
 /**
  * A row opened as a record (content.md T15): a panel at the right, 480 px on
@@ -160,11 +205,12 @@ export function RecordPanel({
                     onLink={(change) => void commit.linkCell(row.id, f.id, change)}
                   />
                 </dd>
+                {aiPromptOf(parseFieldConfig(f)) ? <AiCellNote tableId={tableId} field={f} row={row} onFilled={onChange} /> : null}
               </div>
             )
           })}
         </dl>
-        <p className="mt-6 text-meta text-ink-4">
+        <p className="mt-6 text-meta text-ink-3">
           {row.updated_at ? `Edited ${relativeTime(row.updated_at)}` : null}
           {row.created_at ? ` · Added ${relativeTime(row.created_at)}` : null}
         </p>
@@ -173,17 +219,28 @@ export function RecordPanel({
   )
 }
 
-/** The record's title: its primary value at title size, saved on blur or Enter. */
+/**
+ * The record's title: its primary value at title size, saved on blur or
+ * Enter. A text area as tall as its lines, as a text cell is, so a title
+ * with line breaks keeps them (TAB-BUG-7).
+ */
 function PanelTitle({ label, value, readOnly, onCommit }: { label: string; value: string; readOnly?: boolean; onCommit: (v: string) => void }) {
   const [text, setText] = React.useState(value)
-  if (readOnly) return <h2 className="mb-4 font-display text-title-2 text-ink">{value || "Untitled"}</h2>
+  const ref = React.useRef<HTMLTextAreaElement>(null)
+  React.useLayoutEffect(() => {
+    if (ref.current) fitLines(ref.current, true)
+  }, [text])
+  if (readOnly) return <h2 className="mb-4 whitespace-pre-wrap break-words font-display text-title-2 text-ink">{value || "Untitled"}</h2>
   return (
-    <input
+    <textarea
+      ref={ref}
+      rows={1}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => text !== value && onCommit(text)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur()
+        const next = lineBreakKey(e)
+        if (next !== null) setText(next)
         if (e.key === "Escape" && text !== value) {
           e.stopPropagation()
           setText(value)
@@ -191,7 +248,7 @@ function PanelTitle({ label, value, readOnly, onCommit }: { label: string; value
       }}
       aria-label={label}
       placeholder="Untitled"
-      className="-mx-2 mb-4 block w-[calc(100%+16px)] rounded-lg bg-transparent px-2 py-1 font-display text-title-2 text-ink outline-none placeholder:text-ink-4 hover:bg-hover focus:bg-transparent"
+      className="-mx-2 mb-4 block w-[calc(100%+16px)] resize-none overflow-hidden break-words rounded-lg bg-transparent px-2 py-1 font-display text-title-2 text-ink outline-none placeholder:text-ink-3 hover:bg-hover focus:bg-transparent"
     />
   )
 }

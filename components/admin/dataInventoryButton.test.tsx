@@ -66,5 +66,7 @@ describe("where a member's data is stored", () => {
 
   it("writes the counts as a CSV", () => {
     expect(inventoryCsv({ total_rows: 2, locations: [{ table: "a,b", column: "c", rows: 2 }] } as never)).toBe('table,column,rows\n"a,b",c,2\n')
+    // A name that starts like a formula stays text (lib/csv), as every CSV the app writes.
+    expect(inventoryCsv({ total_rows: 1, locations: [{ table: "=cmd", column: "c", rows: 1 }] } as never)).toBe(`table,column,rows\n"'=cmd",c,1\n`)
   })
 })

@@ -1,5 +1,6 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { fullDateTime, shortDate as dayAndMonth, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
+import { fullDateTime, shortDate as dayAndMonth, shortDateTime } from "@/lib/utils/date/shortDate"
+import { clockTime } from "@/lib/utils/date/clock"
 
 // The person's own Gmail inside OneCamp. The server reads it with the Gmail
 // connection they made, sanitises every body and drops remote images.
@@ -99,5 +100,5 @@ export function mailDate(raw: string, now = new Date()): string {
 export function shortDate(raw: string, now = new Date()): string {
   const d = new Date(raw)
   if (Number.isNaN(d.getTime())) return ""
-  return d.toDateString() === now.toDateString() ? shortTime(d) : dayAndMonth(d, now)
+  return d.toDateString() === now.toDateString() ? clockTime(d) : dayAndMonth(d, now)
 }

@@ -64,7 +64,9 @@ describe("the doc editor's frame", () => {
   const src = readFileSync(join(__dirname, "docInput.tsx"), "utf8")
 
   it("does not render again on every keystroke", () => {
-    expect(src).toMatch(/shouldRerenderOnTransaction:\s*false/)
+    // The doc's editor is made by useDocEditor, which says so for every doc surface.
+    expect(src).toMatch(/useDocEditor\(/)
+    expect(readFileSync(join(__dirname, "useDocEditor.ts"), "utf8")).toMatch(/shouldRerenderOnTransaction:\s*false/)
   })
 
   it("reads nothing from the editor while rendering the frame: the footer and toolbar follow it themselves", () => {
@@ -73,13 +75,15 @@ describe("the doc editor's frame", () => {
   })
 
   it("offers formatting only to someone who can edit", () => {
-    expect(src).toMatch(/canEdit && !isMobile && \(/)
+    // A reader's selection bar shows too, with only asking and commenting (docs incident, 14 Oct 2026).
+    expect(src).toMatch(/\(canEdit \|\| readerBar\) && !isMobile && \(/)
     expect(src).toMatch(/canEdit && isMobile && !focusMode/)
   })
 
   it("has no footer: the reading time is in the meta line, the count in More", () => {
     expect(src).not.toMatch(/DocFooter/)
-    const meta = src.slice(src.indexOf("const DocMeta"), src.indexOf("function useChecklistDone"))
+    expect(src).toMatch(/<DocTitle\b/)
+    const meta = readFileSync(join(__dirname, "DocMetaLine.tsx"), "utf8")
     expect(meta).toMatch(/useDocCounts\(editor\)/)
     expect(meta).toMatch(/min read/)
   })

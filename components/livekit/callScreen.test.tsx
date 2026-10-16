@@ -3,7 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Track } from "livekit-client"
-import { hueFor } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
 
 vi.mock("livekit-client", async (orig) => ({
   ...(await orig<typeof import("livekit-client")>()),
@@ -26,7 +26,7 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: fal
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => false }))
 
 import { PreJoin, previewMessage } from "@/components/livekit/PreJoin"
-import { CameraOffFace, CaptionsOverlay, LivePill, NamePlate, RecordingPill, StageFace, cameraIsOff } from "@/components/livekit/CallStage"
+import { CallRemoved, CameraOffFace, CaptionsOverlay, GREEN_ROOM_GROUND, LivePill, NamePlate, RecordingPill, StageFace, cameraIsOff } from "@/components/livekit/CallStage"
 import { CallDock, CONTROL_LABELS, VideoControls } from "@/components/livekit/VideoControls"
 import { whoIsHere } from "@/components/livekit/PreJoin"
 import { ParticipantKind } from "livekit-client"
@@ -45,6 +45,40 @@ describe("the pre-join screen", () => {
     expect(line.textContent).toBe(" ")
     rerender(<PreJoin onJoin={() => {}} username="Sam Rivera" place="in #engineering" />)
     expect(container.querySelector("[data-call-place]")!.textContent).toBe("Call in #engineering")
+  })
+
+  // F-54: a meeting that can't be opened was dark whatever the theme. Only
+  // what stands in for the stage once a call is over keeps the stage's dark.
+  it("sits a meeting that can't be opened on the green room's ground, and keeps the dark for a call that's over", () => {
+    const { container: unavailable } = render(<CallRemoved kind="unavailable" title="We couldn't find this meeting" detail="" />)
+    const ground = unavailable.querySelector('[data-call-notice="unavailable"]')!
+    expect(ground.className).not.toMatch(/(^|\s)dark(\s|$)/)
+    for (const cls of GREEN_ROOM_GROUND.split(" ")) expect(ground.classList.contains(cls)).toBe(true)
+    const { container: removed } = render(<CallRemoved kind="removed" title="You were removed" detail="" />)
+    expect(removed.querySelector('[data-call-notice="removed"]')!.classList.contains("dark")).toBe(true)
+    const { container: green } = render(<PreJoin onJoin={() => {}} username="Sam Rivera" />)
+    for (const cls of GREEN_ROOM_GROUND.split(" ")) expect(green.querySelector("[data-prejoin]")!.classList.contains(cls)).toBe(true)
+  })
+
+  // "Call in #engineering" was ink-3, which holds 3:1 and is for timestamps
+  // and idle icons (design v3, §3.3); over the phone's glow it read as pale grey.
+  it("writes the place in the ink for words", () => {
+    const { container } = render(<PreJoin onJoin={() => {}} username="Sam Rivera" place="in #engineering" />)
+    const line = container.querySelector("[data-call-place]")!
+    expect(line.className).toMatch(/\btext-ink-2\b/)
+    expect(line.className).not.toMatch(/\btext-ink-[34]\b/)
+  })
+
+  // The three device names floated right-aligned at three places, each after
+  // whatever its row ended with.
+  it("lines its devices up on one grid, the names starting together", () => {
+    const { container } = render(<PreJoin onJoin={() => {}} username="Sam Rivera" />)
+    const rows = Array.from(container.querySelectorAll("[data-device-row]"))
+    expect(rows).toHaveLength(3)
+    expect(new Set(rows.map((r) => r.className)).size).toBe(1)
+    expect(rows[0].className).toMatch(/\bgrid\b/)
+    for (const select of Array.from(container.querySelectorAll("[data-devices] select"))) expect(select.className).toContain("text-left")
+    expect(container.querySelector("[data-devices]")!.textContent).not.toContain("▾")
   })
 
   it("says the camera is starting while it starts, not that it is off", () => {
@@ -92,7 +126,8 @@ describe("the call stage", () => {
     expect(cameraIsOff({ source: Track.Source.Camera, publication: undefined }, false)).toBe(true)
     expect(cameraIsOff({ source: Track.Source.ScreenShare, publication: undefined }, true)).toBe(false)
     const { container } = render(<CameraOffFace trackRef={{ participant: person("maya", "Maya Chen"), source: Track.Source.Camera } as never} />)
-    expect(container.querySelector("[data-camera-off]")?.getAttribute("data-hue")).toBe(hueFor("maya"))
+    // One colour per person (app/personHue.test.ts): by the name, not the call identity.
+    expect(container.querySelector("[data-camera-off]")?.getAttribute("data-hue")).toBe(personHue("Maya Chen"))
     expect(screen.getByText("Maya Chen")).toBeTruthy()
   })
 
@@ -252,5 +287,15 @@ describe("the call stage's frame", () => {
     const { STAGE_FRAME } = await import("@/components/livekit/VideoConference")
     expect(STAGE_FRAME.split(" ")).toEqual(expect.arrayContaining(["px-3", "pt-12", "pb-24", "@3xl:pb-[84px]"]))
     // Importing the stage pulls in LiveKit; give it time on a loaded machine.
+  }, 20_000)
+
+  // LiveKit's theme sets system-ui on everything under data-lk-theme: the
+  // call was the one place in the app not drawn in Inter.
+  it("is drawn in the app's face, handed to LiveKit through its own variable", async () => {
+    const src = readFileSync(resolve(__dirname, "VideoConference.tsx"), "utf8")
+    const root = src.slice(src.lastIndexOf("<div", src.indexOf('data-lk-theme="default"')), src.indexOf('data-lk-theme="default"'))
+    expect(root).toContain("${STAGE_TYPE}")
+    const { STAGE_TYPE } = await import("@/components/livekit/VideoConference")
+    expect(STAGE_TYPE).toBe("[--lk-font-family:var(--font-sans)]")
   }, 20_000)
 })

@@ -8,6 +8,7 @@ describe("a goal's project row", () => {
   const row = src.slice(src.indexOf("function ProjectRow"), src.indexOf("function ProjectRow") + 2500)
   it("keeps its name at least 14rem wide before the rest wraps under it, with the project's mark", () => {
     expect(row).toContain("min-w-[min(100%,14rem)] flex-1")
-    expect(row).toContain("<IdentityMark id={p.project_uuid}")
+    // The project's tile, as in its header, the sidebar and the overview (work.md rule 1).
+    expect(row).toContain("<ProjectTile id={p.project_uuid}")
   })
 })

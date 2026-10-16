@@ -1,8 +1,9 @@
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay } from "date-fns";
-import { shortDateTime, shortTime } from "@/lib/utils/date/shortDate";
+import { shortDateTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
@@ -42,6 +43,7 @@ import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
 import { SafeHtml } from "@/components/safeHtml/SafeHtml";
+import { clockTime } from "@/lib/utils/date/clock";
 
 const formSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -365,7 +367,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             <div className={fieldRow()}>
                                 <dt className={fieldLabel}>Time</dt>
                                 <dd className="flex min-h-8 min-w-0 items-center truncate text-sm tabular-nums text-foreground">
-                                    {allDay ? "All day" : isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
+                                    {allDay ? "All day" : isSameDay(start, end) ? `${clockTime(start)} to ${clockTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
                                 </dd>
                             </div>
                             {event.event_is_focus && (
@@ -387,7 +389,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                         <IdentityMark
                                             variant="avatar"
                                             size={20}
-                                            id={event.event_created_by.user_uuid}
+                                            id={avatarSeed(event.event_created_by)}
                                             label={displayNameOf(event.event_created_by) || "Unknown"}
                                             src={event.event_created_by.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${event.event_created_by.user_profile_object_key}` : undefined}
                                         />
@@ -423,7 +425,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                             <IdentityMark
                                                 variant="avatar"
                                                 size={24}
-                                                id={participant.user_uuid}
+                                                id={avatarSeed(participant)}
                                                 label={displayNameOf(participant) || "Someone"}
                                                 src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : undefined}
                                             />
@@ -516,7 +518,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                     {participants.map((p) => (
                                         <span key={p.user_uuid} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-muted pl-1.5 pr-1 text-sm">
-                                            <IdentityMark variant="avatar" size={20} id={p.user_uuid} label={displayNameOf(p) || "Someone"} />
+                                            <IdentityMark variant="avatar" size={20} id={avatarSeed(p)} label={displayNameOf(p) || "Someone"} />
                                             <span className="max-w-[10rem] truncate">{displayNameOf(p)}</span>
                                             <button
                                                 type="button"

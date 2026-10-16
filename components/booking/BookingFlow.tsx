@@ -5,9 +5,11 @@
 // the visitor's zone (changeable); only free slots exist here, never the
 // owner's events. No account needed.
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { FitLabel } from "@/components/common/FitLabel"
 import { CommandList, type CommandListItem } from "@/components/ui/CommandList"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,12 +25,18 @@ import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
 import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
 import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
-import { dateTimeFormat } from "@/lib/utils/date/dayAndTime"
+import { clockTime, dateTimeFormat, readsTwelveHour } from "@/lib/utils/date/clock"
 
-/** The card's width at each step: pick a day, pick a time, the form, booked. */
+/**
+ * The card's width at each step: pick a day, pick a time, the form, booked.
+ * Picking a time needs 1,000 px side by side; below 1,048 px of window (a
+ * tablet, a small laptop) the times go under the month instead and the card
+ * keeps the month's width. They went off the card's right edge, so an iPad
+ * could pick a day and never see a time.
+ */
 export const STEP_WIDTH: Record<1 | 2 | 3 | 4, string> = {
   1: "sm:max-w-[740px]",
-  2: "sm:max-w-[1000px]",
+  2: "sm:max-w-[740px] min-[1048px]:max-w-[1000px]",
   3: "sm:max-w-[700px]",
   4: "sm:max-w-[560px]",
 }
@@ -40,12 +48,12 @@ const DAY_MS = 864e5
 // Words for a moment, in the visitor's zone.
 // ----------------------------------------------------------------------------
 
-/** "10:30" (24 h) or "10:30 AM", in a zone. */
+/** "10:30" (24 h) or "10:30 AM", in a zone: the visitor's own choice of clock (the 24-hour switch). */
 export function slotTime(iso: string, tz: string, h24: boolean): string {
-  return formatFor(h24 ? "en-GB" : "en-US", tz, { hour: "numeric", minute: "2-digit", hour12: !h24 }).format(new Date(iso))
+  return clockTime(iso, { timeZone: tz, hour12: !h24 })
 }
 
-/** A kept formatter in a zone (the app's one cache, lib/utils/date/dayAndTime): CAL-BUG-20. */
+/** A kept formatter in a zone (the app's one cache, lib/utils/date/clock): CAL-BUG-20. */
 const formatFor = (locale: string, tz: string, opts: Intl.DateTimeFormatOptions) => dateTimeFormat(locale, { timeZone: tz, ...opts })
 
 function parts(iso: string, tz: string, opts: Intl.DateTimeFormatOptions) {
@@ -71,15 +79,34 @@ export function bookLabel(slot: Slot, tz: string, h24: boolean): string {
 }
 
 /**
- * A zone's name as Intl says it ("long", "shortOffset"), or "" when it can't,
- * through a kept formatter (CAL-BUG-20: the page built one per call).
+ * A zone's name as Intl says it ("long", "longGeneric", "shortOffset"), or ""
+ * when it can't. `keep` false builds a formatter that isn't kept: the zone
+ * list asks once for each of some 420 zones.
  */
-function zoneName(tz: string, style: "long" | "shortOffset"): string {
+function zoneName(tz: string, style: "long" | "longGeneric" | "shortOffset", keep = true): string {
   try {
-    return formatFor("en-US", tz, { timeZoneName: style }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""
+    const f = keep ? formatFor("en-US", tz, { timeZoneName: style }) : new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: style })
+    return f.formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""
   } catch {
     return ""
   }
+}
+
+/** "New York": the place a zone is named for. */
+const zoneCity = (tz: string) => (tz.split("/").pop() || tz).replace(/_/g, " ")
+
+/**
+ * A zone said ever shorter, for a label with little room: "Eastern Daylight
+ * Time (GMT-4)", "Eastern Time (GMT-4)", "New York (GMT-4)", "GMT-4". The
+ * aside cut the first to "Eastern Daylight Time (…", losing the offset,
+ * which is the part a visitor checks.
+ */
+export function zoneLabels(tz: string): string[] {
+  const off = zoneName(tz, "shortOffset")
+  const withOff = (n: string) => (off ? `${n} (${off})` : n)
+  const out = [zoneLabel(tz), withOff(zoneName(tz, "longGeneric") || zoneCity(tz)), withOff(zoneCity(tz))]
+  if (off) out.push(off)
+  return out.filter((v, i) => v && out.indexOf(v) === i)
 }
 
 /** "India Standard Time (GMT+5:30)". */
@@ -87,6 +114,34 @@ export function zoneLabel(tz: string): string {
   const name = zoneName(tz, "long")
   const off = zoneName(tz, "shortOffset")
   return name ? `${name}${off ? ` (${off})` : ""}` : tz.replace(/_/g, " ")
+}
+
+interface ZoneRow {
+  z: string
+  label: string
+  off: string
+  hay: string
+}
+
+/**
+ * Every zone as people know it ("Eastern Time · New York", with its offset),
+ * the visitor's own first: built the first time a picker opens and kept for
+ * the page's life. It costs two formatters a zone, about 840, and was built
+ * on load, twice, for two pickers nobody had opened (CAL-BUG-20).
+ */
+let zoneRowsKept: { first: string; rows: ZoneRow[] } | null = null
+function zoneRows(): ZoneRow[] {
+  const first = browserTZ()
+  if (zoneRowsKept?.first !== first) {
+    const rows = timeZones(first).map((z) => {
+      const generic = zoneName(z, "longGeneric", false)
+      const city = zoneCity(z)
+      const label = generic && !/^GMT/.test(generic) ? `${generic} · ${city}` : city
+      return { z, label, off: zoneName(z, "shortOffset", false), hay: `${z.replace(/_/g, " ")} ${label}`.toLowerCase() }
+    })
+    zoneRowsKept = { first, rows }
+  }
+  return zoneRowsKept.rows
 }
 
 /** Whether the window is at least `px` wide, following it as it changes. */
@@ -144,11 +199,7 @@ export function BookingFlow({ slug }: { slug: string }) {
     const z = browserTZ()
     setTz(z)
     // 24-hour time where the visitor's locale reads it that way.
-    try {
-      setH24(!new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12)
-    } catch {
-      /* 12 h then */
-    }
+    setH24(!readsTwelveHour())
   }, [])
 
   const merge = React.useCallback((slots: Slot[]) => {
@@ -263,10 +314,10 @@ export function BookingFlow({ slug }: { slug: string }) {
   }
 
   if (state === "missing") {
-    return <PublicGone surface="booking" title="This booking page isn't available" detail="The link may be wrong, or its owner has turned it off." />
+    return <PublicGone surface="booking" noun="booking page" detail="The link may be wrong, or its owner has turned it off." />
   }
   if (state === "error") {
-    return <PublicGone surface="booking" title="This page didn't load" detail="Check your connection and reload the page." />
+    return <PublicGone surface="booking" noun="booking page" kind="failed" onRetry={() => window.location.reload()} />
   }
   if (state === "loading" || !page) return <BookingSkeleton label={trouble ? retryingText[trouble] : undefined} />
 
@@ -277,7 +328,9 @@ export function BookingFlow({ slug }: { slug: string }) {
     <PublicFrame
       surface="booking"
       header={false}
-      mainClassName="sm:px-6 sm:pt-[72px]"
+      // The credit sits under the card (content.md K01), not at the foot of
+      // the window 300 px below it: the main area doesn't grow.
+      mainClassName="flex-none sm:px-6 sm:pt-[72px]"
       footer={<span className="w-full text-center">Times in {zoneLabel(tz)}</span>}
     >
       <PaperCard
@@ -311,7 +364,7 @@ export function BookingFlow({ slug }: { slug: string }) {
                 }}
               />
             ) : (
-              <>
+              <div className="flex min-w-0 flex-1 flex-col min-[1048px]:flex-row" data-day-and-times="">
                 <MonthGrid
                   y={shown.y}
                   m={shown.m}
@@ -350,7 +403,7 @@ export function BookingFlow({ slug }: { slug: string }) {
                     onNext={(s) => setSlot(s)}
                   />
                 ) : null}
-              </>
+              </div>
             )}
           </div>
         )}
@@ -386,7 +439,7 @@ function HostAside({
     <aside className="flex shrink-0 flex-col gap-3 border-line px-5 pb-4 pt-6 sm:w-[260px] sm:border-r sm:px-6 sm:pb-7 sm:pt-7" data-host-aside="">
       <div className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-2">
         <span className="relative inline-flex shrink-0">
-          <IdentityMark variant="avatar" size={40} id={page.owner_name} label={page.owner_name} className="max-sm:size-8!" />
+          <IdentityMark variant="avatar" size={40} id={avatarSeed(page.owner_name)} label={page.owner_name} className="max-sm:size-8!" />
           <WorkspaceMark size={16} className="absolute -bottom-1 -right-2 ring-2 ring-sheet" />
         </span>
         <div className="min-w-0">
@@ -424,27 +477,35 @@ function HostAside({
 function TimeZoneButton({ tz, onTz, h24, onH24, className }: { tz: string; onTz: (tz: string) => void; h24: boolean; onH24: (v: boolean) => void; className?: string }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
-  // Built when the list first opens, never on load (CAL-BUG-20).
-  const zones = React.useMemo(() => (open ? timeZones(browserTZ()) : []), [open])
+  // Rows say a zone as people know it, "Eastern Time · New York" with its
+  // offset, rather than the database's "America/New York"; a search finds
+  // either. Built when the list first opens, never on load.
+  const named = React.useMemo(() => (open ? zoneRows() : []), [open])
   const items: CommandListItem[] = React.useMemo(() => {
     const q = query.trim().toLowerCase()
-    return zones
-      .filter((z) => !q || z.toLowerCase().replace(/_/g, " ").includes(q))
+    return named
+      .filter((n) => !q || n.hay.includes(q))
       .slice(0, 80)
-      .map((z, i) => ({
-        id: z,
-        label: z.replace(/_/g, " "),
+      .map((n, i) => ({
+        id: n.z,
+        label: n.label,
+        text: n.label,
         group: i === 0 && !q ? "Your time zone" : q ? undefined : "All time zones",
-        trailing: z === tz ? <Check className="size-3.5 text-ink-2" aria-hidden="true" /> : undefined,
+        trailing: (
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-meta text-ink-3 tabular-nums">
+            {n.off}
+            {n.z === tz ? <Check className="size-3.5 text-ink-2" aria-hidden="true" /> : null}
+          </span>
+        ),
       }))
-  }, [zones, query, tz])
+  }, [named, query, tz])
   const listRef = React.useRef<{ onKeyDown: (e: React.KeyboardEvent) => boolean } | null>(null)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className={cn("h-7 gap-1.5 px-2 text-ui-sm font-medium text-ink-2", className)} aria-label={`Time zone: ${zoneLabel(tz)}`}>
-          <Globe className="size-3.5" aria-hidden="true" />
-          <span className="truncate">{zoneLabel(tz)}</span>
+        <Button variant="ghost" size="sm" className={cn("h-7 w-full justify-start gap-1.5 px-2 text-ui-sm font-medium text-ink-2", className)} aria-label={`Time zone: ${zoneLabel(tz)}`}>
+          <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+          <FitLabel options={zoneLabels(tz)} />
           <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
@@ -555,7 +616,7 @@ function MonthGrid({
   }
 
   return (
-    <section className="min-w-0 px-5 pb-5 pt-2 sm:w-[480px] sm:shrink-0 sm:px-6 sm:pb-7 sm:pt-7" aria-label="Pick a day">
+    <section className="min-w-0 px-5 pb-5 pt-2 sm:px-6 sm:pb-7 sm:pt-7 min-[1048px]:w-[480px] min-[1048px]:shrink-0" aria-label="Pick a day">
       <div className="flex items-center justify-between">
         <h2 className="text-heading font-semibold text-ink tabular-nums" aria-live="polite">
           {monthName(y, m)} {y}
@@ -656,7 +717,7 @@ function MonthGrid({
 // ----------------------------------------------------------------------------
 
 function partOfDay(iso: string, tz: string): "Morning" | "Afternoon" | "Evening" {
-  const h = Number(formatFor("en-GB", tz, { hour: "numeric", hour12: false }).format(new Date(iso)))
+  const h = Number(parts(iso, tz, { hour: "numeric", hourCycle: "h23" })("hour"))
   return h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening"
 }
 
@@ -688,7 +749,7 @@ function SlotColumn({
   let lastGroup = ""
   const takenSlot = taken ? slots.find((s) => s.start === taken) : undefined
   return (
-    <section className="content-slide-in flex min-w-0 flex-col border-line px-5 pb-6 pt-2 sm:w-[260px] sm:shrink-0 sm:border-l sm:px-5 sm:pb-7 sm:pt-7" aria-label="Pick a time" data-slot-column="">
+    <section className="content-slide-in flex min-w-0 flex-col border-line px-5 pb-6 pt-2 sm:border-t sm:px-6 sm:pb-7 sm:pt-6 min-[1048px]:w-[260px] min-[1048px]:shrink-0 min-[1048px]:border-l min-[1048px]:border-t-0 min-[1048px]:px-5 min-[1048px]:pt-7" aria-label="Pick a time" data-slot-column="">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-heading font-semibold text-ink">
           {weekday} {Number(key.slice(8))} <span className="text-ui-sm font-normal text-ink-3">{monthWord}</span>
@@ -717,8 +778,8 @@ function SlotColumn({
         </p>
       ) : null}
       <div className="relative mt-4 min-h-0 flex-1">
-        <div className="max-h-[380px] overflow-y-auto pb-6 pt-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-24px),transparent)] max-sm:max-h-none max-sm:[mask-image:none]">
-          <ul className="grid gap-2 max-sm:grid-cols-3">
+        <div className="max-h-[380px] overflow-y-auto pb-6 pt-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-24px),transparent)] max-[1047px]:max-h-none max-[1047px]:[mask-image:none]">
+          <ul className="grid gap-2 max-[1047px]:grid-cols-3">
             {slots.map((s, i) => {
               const group = grouped ? partOfDay(s.start, tz) : ""
               const header = group && group !== lastGroup
@@ -728,9 +789,9 @@ function SlotColumn({
               const time = slotTime(s.start, tz, h24)
               return (
                 <React.Fragment key={s.start}>
-                  {header ? <li className="pt-1 text-micro font-medium text-ink-3 max-sm:col-span-3">{group}</li> : null}
+                  {header ? <li className="pt-1 text-micro font-medium text-ink-3 max-[1047px]:col-span-3">{group}</li> : null}
                   <li
-                    className={cn("content-rise flex h-10 gap-1.5 max-sm:h-11", isSplit && "max-sm:col-span-3")}
+                    className={cn("content-rise flex h-10 gap-1.5 max-sm:h-11", isSplit && "max-[1047px]:col-span-3")}
                     style={{ animationDelay: `${Math.min(i * 12, 150)}ms` }}
                     data-slot={s.start}
                   >
@@ -985,7 +1046,7 @@ export function BookingSpot({ checkRef, owner }: { checkRef?: React.Ref<SVGGElem
 
 function BookingSkeleton({ label }: { label?: string }) {
   return (
-    <PublicFrame surface="booking" header={false} mainClassName="sm:px-6 sm:pt-[72px]">
+    <PublicFrame surface="booking" header={false} mainClassName="flex-none sm:px-6 sm:pt-[72px]">
       {/* Why it is still loading, when the server is busy or out of reach. */}
       {label ? (
         <p role="status" className={cn("mb-3 w-full px-5 text-center text-ui-sm text-ink-2 sm:px-0", STEP_WIDTH[1])} data-booking-retrying="">

@@ -11,6 +11,7 @@ import { HubRow, HubToolButton } from "@/components/ui/hubRow";
 import { hueFor } from "@/lib/campHue";
 import { formatElapsed } from "@/components/livekit/callLevels";
 import { cn } from "@/lib/utils/helpers/cn";
+import { clockTime } from "@/lib/utils/date/clock";
 
 /** How long a call ran, in words: "45 s", "12 min", "1 h 5 min". */
 export function callLength(seconds: number): string {
@@ -30,11 +31,14 @@ export function recordingPlace(rec: RecordingInfoInterface, selfId?: string): st
     return names.length ? names.join(", ") : "Direct message"
 }
 
-/** Whose colour a recording wears: its channel, the other person, or the group. */
+/**
+ * Whose colour a recording wears: its channel, the other person, or the
+ * group. A person keys on their name, as their avatar does (personHue).
+ */
 export function recordingHueKey(rec: RecordingInfoInterface, selfId?: string): string {
     if (rec.recording_channel?.ch_uuid) return rec.recording_channel.ch_uuid
     const others = (rec.recording_dm?.dm_participants || []).filter((p) => p.user_uuid !== selfId)
-    return others.length === 1 ? others[0].user_uuid : rec.recording_dm?.dm_grouping_id || rec.recording_egress_id
+    return others.length === 1 ? displayNameOf(others[0]) || others[0].user_uuid : rec.recording_dm?.dm_grouping_id || rec.recording_egress_id
 }
 
 /**
@@ -45,9 +49,18 @@ export function RecordingThumb({ hueKey, seconds }: { hueKey: string; seconds?: 
     const hue = hueFor(hueKey)
     return (
         <span data-recording-thumb="" data-hue={hue} className={cn(HUE_CLASS[hue], "avatar-person relative grid h-7 w-10 place-items-center rounded-[6px]")}>
-            <Play aria-hidden="true" className="size-3 fill-white text-white transition-transform duration-150 group-hover/hubrow:scale-110" />
+            {/* With the length shown, the triangle moves to the top-left: centred,
+                the badge sat on top of it in a 28px-tall thumbnail. */}
+            <Play
+                aria-hidden="true"
+                data-thumb-play=""
+                className={cn(
+                    "fill-white text-white transition-transform duration-150 group-hover/hubrow:scale-110",
+                    seconds && seconds > 0 ? "absolute left-1.5 top-[3px] size-2.5" : "size-3",
+                )}
+            />
             {seconds && seconds > 0 ? (
-                <span data-duration-badge="" className="absolute right-0.5 bottom-0.5 rounded-[3px] bg-black/60 px-[3px] text-3xs font-semibold leading-[14px] tabular-nums text-white">
+                <span data-duration-badge="" className="absolute right-[2px] bottom-[2px] rounded-[3px] bg-black/60 px-[3px] text-3xs font-semibold leading-3 tabular-nums text-white">
                     {formatElapsed(seconds * 1000)}
                 </span>
             ) : null}
@@ -81,7 +94,7 @@ export const RecordingListRecording = ({
 
     const startedAt = new Date(rec.recording_stared_at)
     const when = Number.isNaN(startedAt.getTime()) ? "" : shortDateTime(startedAt)
-    const time = Number.isNaN(startedAt.getTime()) ? "" : startedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+    const time = Number.isNaN(startedAt.getTime()) ? "" : clockTime(startedAt)
     const starter = displayNameOf(rec.recording_started_by)
     const details = [
         starter ? `Started by ${starter}` : "",

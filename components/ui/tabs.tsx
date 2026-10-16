@@ -35,6 +35,8 @@ const TabsTrigger = React.forwardRef<
       "inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-xs font-medium transition-[color,background-color,box-shadow] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-raised data-[state=active]:text-foreground data-[state=active]:shadow-e1",
       className
     )}
+    // A finger's target is 44px (app/phone.css F3).
+    data-touch-target=""
     {...props}
   />
 ))

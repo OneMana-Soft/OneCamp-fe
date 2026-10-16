@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFetch } from "@/hooks/useFetch"
@@ -72,13 +73,13 @@ export function ProjectRatesDialog({
   const save = async () => {
     if (everyone.trim() === "") return setProblem("Give the rate for everyone. Use 0 if their time isn't billed.")
     const base = centsOf(everyone)
-    if (base === null) return setProblem("The rate for everyone isn't an amount of money, like 85 or 85.50.")
+    if (base === null) return setProblem(`The rate for everyone isn't an amount of money, like 85 or ${fromCents(8550)}.`)
     const list: { user_uuid: string; rate_cents: number }[] = []
     for (const p of people) {
       const v = (own[p.id] ?? "").trim()
       if (v === "") continue
       const cents = centsOf(v)
-      if (cents === null) return setProblem(`${p.left ? "A former member" : p.name}'s rate isn't an amount of money, like 85 or 85.50.`)
+      if (cents === null) return setProblem(`${p.left ? "A former member" : p.name}'s rate isn't an amount of money, like 85 or ${fromCents(8550)}.`)
       list.push({ user_uuid: p.id, rate_cents: cents })
     }
     setProblem("")
@@ -161,7 +162,7 @@ export function ProjectRatesDialog({
                   {people.map((p) => (
                     <li key={p.id} className="grid grid-cols-[1fr_10rem] items-center gap-3">
                       <span className="flex min-w-0 items-center gap-2">
-                        {!p.left && <IdentityMark variant="avatar" id={p.id} label={p.name} size={22} />}
+                        {!p.left && <IdentityMark variant="avatar" id={avatarSeed(p.name)} label={p.name} size={22} />}
                         <Label htmlFor={`rate-${p.id}`} className={p.left ? "truncate font-normal italic text-ink-3" : "truncate font-normal"}>
                           {p.name}
                         </Label>

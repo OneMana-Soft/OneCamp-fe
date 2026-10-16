@@ -1,7 +1,7 @@
 "use client"
 
 import { addressOrHandleOf, displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
-import { Check, Search, User, X } from "@/lib/icons";
+import { Check, Search, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
     UserListInterfaceResp,
@@ -9,8 +9,8 @@ import {
 } from "@/types/user"
 import {Input} from "@/components/ui/input";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {useFetch} from "@/hooks/useFetch";
-import {Badge} from "@/components/ui/badge";
+import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import type { UserProfileInterface } from "@/types/user";
 import { BotTag } from "@/components/ui/botTag";
 import {ChatUserListUserAvatar} from "@/components/chat/chatUserListUserAvatar";
 import {cn} from "@/lib/utils/helpers/cn";
@@ -44,6 +44,9 @@ export function SelectUserToMessageDropdown({
     // user list; these are the per-agent DM-able principals. Empty when AI is
     // off (no dangling affordance).
     const aiTargets = useFetch<{ data: UserProfileDataInterface[] }>(GetEndpointUrl.GetDMableAITargets)
+    // The reader is in the list too, for notes to self: said so, and last,
+    // never the first pick (QA F-47).
+    const selfId = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
 
     // People + DM-able AI teammates, AI first, de-duped by uuid (in case the
     // shared coworker is also present in the user list).
@@ -52,8 +55,9 @@ export function SelectUserToMessageDropdown({
         const ai = aiTargets.data?.data || []
         const seen = new Set(humans.map((u) => u.user_uuid))
         const extraAI = ai.filter((a) => a.user_uuid && !seen.has(a.user_uuid))
-        return [...extraAI, ...humans]
-    }, [usersList.data?.users, aiTargets.data?.data])
+        const all = [...extraAI, ...humans]
+        return selfId ? [...all.filter((u) => u.user_uuid !== selfId), ...all.filter((u) => u.user_uuid === selfId)] : all
+    }, [usersList.data?.users, aiTargets.data?.data, selfId])
 
     // Memoize selected user UUIDs as Set for O(1) lookups
     const selectedUserUuids = useMemo(() => {
@@ -101,97 +105,109 @@ export function SelectUserToMessageDropdown({
         onSelectRef.current(selectedUsers)
     }, [selectedUsers])
 
+    // Design v3 rows (the chat row grammar, DESIGN_V3 §3.10/3.11): a person
+    // is a 48px row with their face, name and handle, the hover overlay under
+    // the pointer and the multi-select ground (--sel) with a checked box when
+    // chosen. Each person was a bordered card, and a chosen one an accent
+    // frame on a peach fill: the accent spent on selection, eight boxes in a
+    // column. Who is chosen sits above as neutral chips with a ×.
     return (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-3">
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4"/>
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-3"/>
                 <Input
                     placeholder={placeholder}
+                    aria-label="Search people"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-8"
                 />
             </div>
             {selectedUsers.length > 0 && (
-                <div className="flex flex-wrap gap-2 p-2 border rounded-lg bg-muted/50">
+                <div data-picked="" className="flex flex-wrap gap-1.5">
                     {selectedUsers.map((user) => (
-                        <Badge
-                            key={user.user_uuid}
-                            variant="secondary"
-                            className="flex items-center gap-1.5 pr-1 py-1"
-                        >
-                            <div className="h-5 w-5 rounded-full overflow-hidden flex-shrink-0 [&_*]:h-5 [&_*]:w-5">
-                                <ChatUserListUserAvatar 
-                                    userProfileObjKey={user.user_profile_object_key} 
-                                    userName={displayNameOf(user)}
-                                />
-                            </div>
-                            <span className="text-xs">{displayNameOf(user)}</span>
+                        <span key={user.user_uuid} className="chip h-7 gap-1.5 rounded-full pl-1 pr-1 text-ink">
+                            <ChatUserListUserAvatar
+                                userProfileObjKey={user.user_profile_object_key}
+                                userName={displayNameOf(user)}
+                                userUUID={user.user_uuid}
+                                isBot={!!user.is_bot}
+                                size={20}
+                            />
+                            <span className="text-meta font-medium">{displayNameOf(user)}</span>
                             <button
+                                type="button"
                                 aria-label={`Remove ${displayNameOf(user)}`}
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     handleRemoveUser(user.user_uuid)
                                 }}
-                                className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
+                                className="flex size-5 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-press hover:text-ink focus-visible:outline-2 focus-visible:outline-ring"
                             >
-                                <X className="h-3 w-3" />
+                                <X className="size-3" aria-hidden="true" />
                             </button>
-                        </Badge>
+                        </span>
                     ))}
                 </div>
             )}
-            <div className="max-h-80 overflow-y-auto space-y-2">
+            <div role="listbox" aria-label="People" aria-multiselectable="true" className="-mx-2 max-h-80 overflow-y-auto">
                 {filteredUsers.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                        <User className="mx-auto h-12 w-12 mb-2 opacity-50"/>
-                        <p>No users found</p>
-                        <p className="text-sm">Try adjusting your search terms</p>
-                    </div>
+                    <p className="px-2 py-6 text-center text-ui-sm text-ink-3">
+                        {searchQuery.trim() ? `No one called \u201c${searchQuery.trim()}\u201d here` : "No one to message yet"}
+                    </p>
                 ) : (
                     filteredUsers.map((user) => {
                         const isSelected = isUserSelected(user.user_uuid)
+                        const isSelf = user.user_uuid === selfId
+                        const handle = addressOrHandleOf(user)
+                        const second = isSelf ? "Notes to self" : user.user_job_title || handle
                         return (
                             <div
                                 key={user.user_uuid}
+                                role="option"
+                                aria-selected={isSelected}
+                                tabIndex={0}
+                                data-person-row=""
                                 onClick={() => handleSelect(user)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault()
+                                        handleSelect(user)
+                                    }
+                                }}
                                 className={cn(
-                                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                                    isSelected
-                                        ? "bg-primary/10 border-primary"
-                                        : "bg-card hover:bg-accent border-border"
+                                    "flex h-12 cursor-pointer items-center gap-3 rounded-lg px-2 transition-colors duration-[140ms] ease-out",
+                                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                                    isSelected ? "bg-sel" : "hover:bg-hover",
                                 )}
                             >
-                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={displayNameOf(user)} />
-
-
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="font-medium text-sm text-foreground truncate">{displayNameOf(user)}</p>
+                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={displayNameOf(user)} userUUID={user.user_uuid} isBot={!!user.is_bot} />
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <span className="truncate text-ui font-medium text-ink">{displayNameOf(user)}</span>
+                                        {isSelf && <span className="shrink-0 text-meta text-ink-3">(you)</span>}
                                         {user.is_bot && <BotTag userUUID={user.user_uuid} />}
-                                        {isSelected &&
-                                            <Check className="h-4 w-4 text-primary flex-shrink-0"/>}
                                     </div>
-                                    {addressOrHandleOf(user) && (
-                                        <p className="text-xs text-muted-foreground truncate mb-1">{addressOrHandleOf(user)}</p>
+                                    {second && (
+                                        <p className="truncate text-meta text-ink-3">{second}</p>
                                     )}
-                                    <div className="flex gap-1">
-                                        {user.user_job_title && <Badge variant="secondary" className="text-xs">
-                                            {user.user_job_title}
-                                        </Badge>}
-                                        {/*<Badge variant="outline" className="text-xs">*/}
-                                        {/*    {user.department}*/}
-                                        {/*</Badge>*/}
-                                    </div>
                                 </div>
+                                {/* The v3 checkbox: 16px r5 on a line-3 ring, moss with a white check when chosen. */}
+                                <span
+                                    aria-hidden="true"
+                                    data-check=""
+                                    className={cn(
+                                        "flex size-4 shrink-0 items-center justify-center rounded-[5px] transition-colors duration-[140ms]",
+                                        isSelected ? "bg-camp-moss text-white" : "ring-[1.5px] ring-inset ring-line-3",
+                                    )}
+                                >
+                                    {isSelected && <Check className="size-3" strokeWidth={2.5} />}
+                                </span>
                             </div>
                         )
                     })
                 )}
             </div>
-
         </div>
-
-
     )
 }

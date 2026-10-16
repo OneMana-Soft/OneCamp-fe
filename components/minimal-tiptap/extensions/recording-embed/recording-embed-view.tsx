@@ -9,6 +9,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Video, CheckSquare } from "@/lib/icons"
 import type { UserProfileInterface } from "@/types/user"
+import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 
 // RecordingEmbedView renders the "Play recording" block inside a meeting-recap
 // message and opens the global recording player on click — in place, no
@@ -17,7 +18,9 @@ import type { UserProfileInterface } from "@/types/user"
 // participant, so we pick the id that isn't the current user.
 export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
   const dispatch = useDispatch()
-  const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // A guest has no session: the recording is the workspace's, not the link's.
+  const guest = useGuestReader()
+  const { data: selfProfile } = useFetch<UserProfileInterface>(guest ? "" : GetEndpointUrl.SelfProfile)
 
   const egress = String(node.attrs.egress || "")
   const kind = String(node.attrs.kind || "")
@@ -94,6 +97,19 @@ export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
   }
 
   const canExtract = roomName() !== ""
+
+  if (guest) {
+    return (
+      <NodeViewWrapper className="recording-embed" data-drag-handle={false}>
+        <span contentEditable={false} className="my-1 inline-flex items-center gap-2 text-ui-sm text-ink-3">
+          <span className="flex size-5 items-center justify-center rounded-md bg-camp-sky-tint text-camp-sky-ink">
+            <Video className="size-3" aria-hidden="true" />
+          </span>
+          A meeting recording, not shared through this link
+        </span>
+      </NodeViewWrapper>
+    )
+  }
 
   return (
     <NodeViewWrapper className="recording-embed" data-drag-handle={false}>

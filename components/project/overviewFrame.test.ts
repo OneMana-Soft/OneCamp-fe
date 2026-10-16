@@ -33,6 +33,11 @@ describe("the projects overview's frame", () => {
     }
     expect(read("components/goals/GoalsView.tsx")).not.toMatch(/\{all\.length > 0 && \(\s*<div/)
   })
+  it("puts every view's band flush under the tabs: Goals' and Reports' sat 12 px lower and 24 px further in (PTC-7)", () => {
+    // The overview wraps no view in an inset of its own; Reports insets its report, not its band.
+    expect(overview).not.toMatch(/"pt-3"|isDesktop && "px-6"\)/)
+    expect(read("components/goals/GoalsView.tsx")).toMatch(/cn\(workToolbar, "h-11 flex-nowrap gap-1\.5", compact && "-mx-4"\)/)
+  })
 })
 
 describe("the projects overview on a phone", () => {

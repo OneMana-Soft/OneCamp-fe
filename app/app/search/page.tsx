@@ -20,16 +20,24 @@ import { SpotSearchV3 } from "@/components/ui/graphics/hubSpots"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScopeChips } from "@/components/search/scopeChips"
 import { SearchResultRow } from "@/components/search/searchResultRow"
+import { ErrorState } from "@/components/ui/error-state"
+import { readSearchWithin, searchWithinHref } from "@/lib/search/within"
+import { SearchWithinChip, useWithinName } from "@/components/search/searchWithinChip"
 
 /**
  * The search page (design v3, hub.md S7–S13): a 52px header, the hub's 760px
  * column from the sheet's edge, a raised 44px field, scope chips with their
- * counts, and the results as two-line rows grouped by type.
+ * counts, the AI's answer, and the results as two-line rows grouped by type.
  */
 export default function SearchPage() {
     const searchParams = useSearchParams()
     // query is what the app links with; q is what people and browsers type.
     const query = searchParams.get("query") || searchParams.get("q") || ""
+    // One conversation, when the search came from its header (QA F-15): said
+    // as a chip, and kept as the address follows what is typed.
+    const withinKey = searchParams.toString()
+    const within = useMemo(() => readSearchWithin(new URLSearchParams(withinKey)), [withinKey])
+    const withinName = useWithinName(within)
     const router = useRouter()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -40,9 +48,11 @@ export default function SearchPage() {
         setInputValue,
         debouncedValue,
         results,
+        resultsFor,
         isLoading,
         isRefreshing,
         isError,
+        isRetrying,
         retry,
         handleResultClick,
         handlePreview,
@@ -50,7 +60,7 @@ export default function SearchPage() {
         hasMore,
         loadMore,
         isLoadingMore,
-    } = useSearch({ initialQuery: query, debounceMs: 150 })
+    } = useSearch({ initialQuery: query, debounceMs: 150, within })
 
     const inputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
@@ -69,8 +79,16 @@ export default function SearchPage() {
         const next = debouncedValue.trim()
         if (next === written.current.trim()) return
         written.current = next
-        router.replace(next ? `/app/search?query=${encodeURIComponent(next)}` : "/app/search", { scroll: false })
-    }, [debouncedValue, router])
+        router.replace(within ? searchWithinHref(within, next) : next ? `/app/search?query=${encodeURIComponent(next)}` : "/app/search", { scroll: false })
+    }, [debouncedValue, router, within])
+
+    // Everywhere again: the same words, without the conversation.
+    const searchEverywhere = useCallback(() => {
+        const words = inputValue.trim()
+        written.current = words
+        router.replace(words ? `/app/search?query=${encodeURIComponent(words)}` : "/app/search", { scroll: false })
+        inputRef.current?.focus()
+    }, [inputValue, router])
 
     // "/" focuses the field from anywhere on the page that is not a field.
     useEffect(() => {
@@ -144,7 +162,7 @@ export default function SearchPage() {
                                 type="search"
                                 name="query"
                                 autoComplete="off"
-                                placeholder="Search messages, docs, tasks and people…"
+                                placeholder={within ? `Search in ${withinName}…` : "Search messages, docs, tasks and people…"}
                                 className="h-full w-full rounded-[10px] bg-transparent pl-11 pr-11 text-base text-foreground outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
                             />
                             {inputValue ? (
@@ -165,6 +183,12 @@ export default function SearchPage() {
                         </div>
                     </form>
 
+                    {within ? (
+                        <div className="mt-3 flex">
+                            <SearchWithinChip name={withinName} onRemove={searchEverywhere} />
+                        </div>
+                    ) : null}
+
                     {shown && (results.length > 0 || isLoading) ? (
                         <div className="mt-3">
                             <ScopeChips scopes={chips} counts={counts} more={hasMore} value={scope} onChange={setScope} />
@@ -176,7 +200,7 @@ export default function SearchPage() {
                         {!isLoading && results.length > 0 ? (
                             <>
                                 <span data-search-count="">
-                                    {total === 1 && !plus ? "1 result" : `${total}${plus} results`} for “{shown}”
+                                    {total === 1 && !plus ? "1 result" : `${total}${plus} results`} for “{resultsFor}”
                                 </span>
                                 <span aria-hidden>·</span>
                                 <DropdownMenu>
@@ -204,11 +228,9 @@ export default function SearchPage() {
                             ))}
                         </div>
                     ) : isError ? (
-                        <div data-search-error="" className="mt-6 flex items-center gap-3 rounded-lg bg-sunken px-4 py-3">
-                            <p className="flex-1 text-ui text-ink-2">Search isn’t answering right now.</p>
-                            <Button variant="ghost" size="sm" onClick={retry}>
-                                Try again
-                            </Button>
+                        // In place of the results, never under an earlier query's (QA DSA-04).
+                        <div data-search-error="">
+                            <ErrorState subject={`results for “${shown}”`} onRetry={retry} retrying={isRetrying} />
                         </div>
                     ) : results.length > 0 ? (
                         <div
@@ -284,6 +306,7 @@ export default function SearchPage() {
                             <p className="mt-1 max-w-sm text-ui text-ink-2 text-pretty">Check the spelling, or try fewer words.</p>
                         </div>
                     )}
+
                 </div>
             </ScrollArea>
         </div>

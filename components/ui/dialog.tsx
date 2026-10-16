@@ -108,7 +108,10 @@ const DialogContent = React.forwardRef<
       ref={ref}
       data-size={size}
       className={cn(
-        "v3-dialog fixed left-[50%] top-[50%] z-[var(--z-modal)] grid w-[calc(100%-2rem)] max-h-[85dvh] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[16px] bg-pop p-5 shadow-e4",
+        // grid-cols-[minmax(0,1fr)]: the one column is the dialog's width and
+        // no wider, so a long name truncates instead of pushing the content
+        // past the dialog's edge (the implicit auto column grew to it).
+        "v3-dialog fixed left-[50%] top-[50%] z-[var(--z-modal)] grid grid-cols-[minmax(0,1fr)] w-[calc(100%-2rem)] max-h-[85dvh] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[16px] bg-pop p-5 shadow-e4",
         DIALOG_SIZE[size],
         className
       )}

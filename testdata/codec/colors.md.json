@@ -1,0 +1,14 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Blue and red text.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

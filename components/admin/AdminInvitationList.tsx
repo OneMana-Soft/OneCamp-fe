@@ -1,10 +1,10 @@
 "use client"
 
+import { personHue } from "@/lib/utils/getAvatarColor"
 import React from "react"
 import { Invitation } from "@/types/user"
 import { Trash2, Mail, RefreshCw, Copy } from "@/lib/icons"
 import { fullDateTime } from "@/lib/utils/date/shortDate"
-import { hueFor } from "@/lib/campHue"
 import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
@@ -75,7 +75,7 @@ export function InviteAvatar({ inv, joinedNow, spanRef }: { inv: Invitation; joi
       <span
         ref={spanRef}
         data-invite-avatar="joined"
-        className={`invite-face inline-flex size-8 items-center justify-center text-2xs font-semibold ${avatarHueClass(hueFor(inv.email))} ${joinedNow ? "invite-joined" : ""}`}
+        className={`invite-face inline-flex size-8 items-center justify-center text-2xs font-semibold ${avatarHueClass(personHue({ user_email_id: inv.email }))} ${joinedNow ? "invite-joined" : ""}`}
       >
         <span>{getNameInitials(inv.email.split("@")[0])}</span>
       </span>

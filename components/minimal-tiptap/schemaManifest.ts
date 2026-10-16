@@ -45,4 +45,4 @@ export function manifestOf(schema: Schema): SchemaManifest {
  * one the server has moved on from opens docs read-only and is asked to reload.
  * schemaManifest.test.ts fails when the manifest changes without this.
  */
-export const SCHEMA_MANIFEST_HASH = '5c7a560bcee8a7b240b3f285b809738008372f7ffc528c1c9b23469439518264'
+export const SCHEMA_MANIFEST_HASH = 'c25f383d83b2dbce9878b35473d0cd7ac01bd89d50159949a2360d91ca784ed6'

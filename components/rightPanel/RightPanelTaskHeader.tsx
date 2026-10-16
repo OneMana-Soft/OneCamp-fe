@@ -43,6 +43,8 @@ type HeaderActionsProps = {
     scrolled?: boolean
     /** On the full task page, there is no page to open and no panel to close. */
     onPage?: boolean
+    /** In the trash: nothing to complete or delete until it is brought back (it read "Completed" beside the deleted banner). */
+    deleted?: boolean
 }
 
 /**
@@ -69,6 +71,7 @@ export function RightPanelTaskHeader({
     projectUUID,
     scrolled = false,
     onPage = false,
+    deleted = false,
 }: HeaderActionsProps) {
     const post = usePost()
     const dispatch = useDispatch()
@@ -126,7 +129,7 @@ export function RightPanelTaskHeader({
             )}
             <span className="flex-1" />
 
-            {(isAdmin || done) && (
+            {!deleted && (isAdmin || done) && (
                 <Button
                     variant="secondary"
                     size="sm"
@@ -163,7 +166,7 @@ export function RightPanelTaskHeader({
                     </Button>
                 )}
                 {laterButton}
-                {isDesktop && isAdmin && onDeleteTask && (
+                {isDesktop && isAdmin && onDeleteTask && !deleted && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className={iconButton} aria-label="More task actions">

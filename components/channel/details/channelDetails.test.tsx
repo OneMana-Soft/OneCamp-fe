@@ -8,23 +8,30 @@ import { Provider } from "react-redux"
 // and Leave existed only on a phone. Destructive actions ask in place (C54).
 
 let admin = false
+// The members list still on its way.
+let membersLoading = false
+// Who made the channel, and whether Maya is one of its admins.
+let creator = "maya"
+let mayaAdmin = true
 // Whether the person looking is a workspace admin, not only the channel's.
 let workspaceAdmin = false
 const { makeRequest } = vi.hoisted(() => ({ makeRequest: vi.fn(async (_req: unknown) => ({})) }))
 const INFO = () => ({
-  data: { channel_info: { ch_uuid: "c1", ch_name: "engineering", ch_about: "Ship the Q4 launch", ch_private: true, ch_post_policy: "everyone", ch_deleted_at: "0001-01-01T00:00:00Z", ch_is_admin: admin, ch_is_member: true, notification_type: "all", ch_created_at: "2026-09-01T10:00:00Z", ch_created_by: { user_uuid: "maya", user_name: "Maya Chen" } } },
+  data: { channel_info: { ch_uuid: "c1", ch_name: "engineering", ch_member_count: 3, ch_about: "Ship the Q4 launch", ch_private: true, ch_post_policy: "everyone", ch_deleted_at: "0001-01-01T00:00:00Z", ch_is_admin: admin, ch_is_member: true, notification_type: "all", ch_created_at: "2026-09-01T10:00:00Z", ch_created_by: { user_uuid: creator, user_name: creator === "me" ? "Sam Rivera" : "Maya Chen" } } },
   isLoading: false,
   mutate: () => {},
 })
 const MEMBERS = () => ({
-  data: { channel_info: { ch_is_admin: admin, ch_is_member: true, ch_private: true, ch_created_by: { user_uuid: "maya" }, ch_members: [
-    { user_uuid: "maya", user_name: "Maya Chen", user_is_admin: true },
+  data: membersLoading ? undefined : { channel_info: { ch_is_admin: admin, ch_is_member: true, ch_private: true, ch_created_by: { user_uuid: creator }, ch_members: [
+    { user_uuid: "maya", user_name: "Maya Chen", user_is_admin: mayaAdmin },
     { user_uuid: "me", user_name: "Sam Rivera", user_is_admin: admin },
     { user_uuid: "jonas", user_name: "Jonas Weber", user_is_admin: false },
   ] } },
-  isLoading: false,
+  isLoading: membersLoading,
   mutate: () => {},
 })
+const { toasted } = vi.hoisted(() => ({ toasted: vi.fn() }))
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toasted }), toast: toasted }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => (url.includes("channelInfoWithMemberAdminFlag") ? MEMBERS() : url.includes("channelBasicInfo") ? INFO() : { data: undefined, isLoading: false, mutate: () => {} }),
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera", user_is_admin: workspaceAdmin } } }),
@@ -58,8 +65,17 @@ afterEach(() => {
   cleanup()
   admin = false
   workspaceAdmin = false
-  makeRequest.mockClear()
+  membersLoading = false
+  creator = "maya"
+  mayaAdmin = true
+  makeRequest.mockReset()
+  makeRequest.mockImplementation(async () => ({}))
+  toasted.mockClear()
 })
+
+/** The options of the request that went with these words. */
+const requestFor = (failureTitle: string) =>
+  makeRequest.mock.calls.map((c) => c[0] as { failureTitle?: string; showErrorToast?: boolean; payload?: Record<string, unknown> }).find((r) => r.failureTitle === failureTitle)
 
 describe("the channel's Details sheet", () => {
   it("is one sheet with About, Members and Notifications, on the sheet surface at e4", () => {
@@ -136,6 +152,80 @@ describe("the channel's Details sheet", () => {
     fireEvent.click(within(screen.getByRole("group", { name: "Make #engineering public?" })).getByRole("button", { name: "Make public" }))
     await vi.waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1))
     expect((makeRequest.mock.calls[0][0] as { payload: { channel_private: boolean } }).payload.channel_private).toBe(false)
+  })
+
+  // "Members · 0" sat over the loading rows for a second (QA F-19).
+  it("never counts the members as 0 while their list loads", () => {
+    membersLoading = true
+    sheet()
+    expect(section("Members · 3")).toBeTruthy()
+    expect(screen.queryByRole("region", { name: "Members · 0" })).toBeNull()
+  })
+
+  // A refusal closed the editor and lost what was typed (QA F-20).
+  it("keeps a description that didn't save in its open editor", async () => {
+    admin = true
+    makeRequest.mockImplementation(async () => {
+      throw new Error("Request failed with status code 500")
+    })
+    sheet()
+    fireEvent.click(screen.getByRole("button", { name: "Edit description" }))
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Plan the Q1 launch" } })
+    fireEvent.click(within(section("About")).getByRole("button", { name: "Save" }))
+    await vi.waitFor(() => expect(requestFor("Couldn't save the description")).toBeTruthy())
+    expect((screen.getByLabelText("Description") as HTMLInputElement).value).toBe("Plan the Q1 launch")
+  })
+
+  // Every setting said "Couldn't update channel", or "Something went wrong" (QA F-35).
+  it("says what didn't happen in each setting's own words", async () => {
+    admin = true
+    sheet()
+    fireEvent.click(within(section("Settings")).getByRole("switch", { name: "Announcement channel" }))
+    fireEvent.click(screen.getByRole("radio", { name: "Nothing" }))
+    await vi.waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(2))
+    expect(requestFor("Couldn't change who can post in #engineering")?.showErrorToast).toBe(true)
+    expect(requestFor("Couldn't change your notifications for #engineering")?.showErrorToast).toBe(true)
+    expect(toasted).toHaveBeenCalledWith(expect.objectContaining({ title: "Only admins post in #engineering now" }))
+  })
+
+  // Archiving said "Channel updated" (QA F-36).
+  it("says a channel was archived, with Restore", async () => {
+    admin = true
+    sheet()
+    fireEvent.click(screen.getByRole("button", { name: "Archive channel" }))
+    fireEvent.click(within(screen.getByRole("group", { name: "Archive #engineering?" })).getByRole("button", { name: "Archive" }))
+    await vi.waitFor(() => expect(toasted).toHaveBeenCalledWith(expect.objectContaining({ title: "#engineering archived" })))
+    const said = toasted.mock.calls.find((c) => c[0].title === "#engineering archived")![0]
+    render(said.action)
+    expect(screen.getByText("Restore")).toBeTruthy()
+    expect(requestFor("Couldn't archive #engineering")?.payload?.channel_archived).toBe(true)
+  })
+
+  // The Owner chip stopped 40px short of the others' "…" (QA F-37).
+  it("puts a role at the right edge of a row with no menu", () => {
+    admin = true
+    sheet()
+    const owner = document.querySelectorAll("[data-member-row]")[0]
+    expect(owner.lastElementChild?.textContent).toBe("Owner")
+  })
+
+  // The creator was held in for good: "You made this channel, so you stay in it" (QA F-46).
+  it("lets the creator leave once someone else is an admin, and says how otherwise", () => {
+    creator = "me"
+    admin = true
+    mayaAdmin = false
+    sheet()
+    const danger = section("Danger zone")
+    expect((within(danger).getByRole("button", { name: "Leave channel" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(within(danger).getByText("You made this channel. Make someone else an admin to leave it.")).toBeTruthy()
+    cleanup()
+
+    mayaAdmin = true
+    sheet()
+    const leave = within(section("Danger zone")).getByRole("button", { name: "Leave channel" }) as HTMLButtonElement
+    expect(leave.disabled).toBe(false)
+    fireEvent.click(leave)
+    expect(screen.getByRole("group", { name: "Leave #engineering?" })).toBeTruthy()
   })
 
   it("opens through one UI key the header can dispatch", () => {

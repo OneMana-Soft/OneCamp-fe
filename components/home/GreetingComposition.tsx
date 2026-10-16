@@ -18,6 +18,7 @@
  * paused while the drawing is off screen or the tab is hidden. Reduced motion
  * shows the last frame and never turns. Decorative: aria-hidden.
  */
+import { personHue } from "@/lib/utils/getAvatarColor"
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
 import { prefersReducedMotion } from "@/lib/celebrate"
@@ -81,7 +82,7 @@ function useOrbitPlayState(ref: React.RefObject<Element | null>, enabled: boolea
 
 /** One person on the orbit: a saturated disc with white initials and a ring in the sheet. */
 function Orbiter({ person, r, step, animate }: { person: CompositionPerson; r: number; step: number; animate: boolean }) {
-  const h = hueFor(person.id)
+  const h = personHue(person.name)
   return (
     <g data-orbiter="person" className={animate ? "hub-pop-in" : undefined} style={{ ["--i" as string]: step } as CSSProperties}>
       <circle r={r + 2.5} fill="var(--sheet)" />

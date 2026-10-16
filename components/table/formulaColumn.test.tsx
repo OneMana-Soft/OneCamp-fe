@@ -2,6 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 const createField = vi.fn().mockResolvedValue({})
+// AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
+const ai = vi.hoisted(() => ({ on: true }))
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
+  useAIAvailable: () => ai.on,
+}))
 vi.mock("@/services/tableService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tableService")>()),
   createField: (...args: unknown[]) => createField(...args),

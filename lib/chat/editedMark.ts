@@ -1,3 +1,5 @@
+import { clockTime } from "@/lib/utils/date/clock";
+
 const ESCAPE_ATTR: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 
 /**
@@ -15,3 +17,15 @@ export function withEditedMark(html: string, title?: string): string {
     return html + `<p>${mark}</p>`;
 }
 
+/**
+ * "Edited 10:42 · originally 10:31", the "(edited)" mark's tooltip (C27), for
+ * a message or a reply; undefined when it was never changed after it was sent
+ * (a save within a second of sending is the send). Pure.
+ */
+export function editedTitle(createdAt: string | undefined, updatedAt?: string): string | undefined {
+    if (!createdAt || !updatedAt) return undefined;
+    const made = new Date(createdAt).getTime();
+    const changed = new Date(updatedAt).getTime();
+    if (!Number.isFinite(made) || !Number.isFinite(changed) || changed - made <= 1000) return undefined;
+    return `Edited ${clockTime(updatedAt)} · originally ${clockTime(createdAt)}`;
+}

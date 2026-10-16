@@ -22,7 +22,6 @@ import {
 import {
   GUEST_POLL_MS,
   GuestComposer,
-  GuestLinkGone,
   GuestMessageView,
   GuestNameForm,
   GuestNotYet,
@@ -35,6 +34,7 @@ import {
 } from "@/components/guest/guestUi"
 import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { PublicGone } from "@/components/guest/publicStates"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
@@ -44,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { GuestCard, GuestStatusGlyph, awaitsReview } from "@/components/guest/GuestReview"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
@@ -99,7 +99,10 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
   const [reviewOnly, setReviewOnly] = useState(false)
   // The guest's name, given in a task's panel; verdicts on cards go under it.
   const [guestName] = useGuestName(token)
-  const projectHue = hueFor(view?.project || token)
+  // The project's own hue and tile, keyed on its id as in the app; by name
+  // from a server that sends no id.
+  const projectKey = view?.project_uuid || view?.project || token
+  const projectHue = useProjectHue(projectKey)
   const narrow = useNarrow()
   const timelineTasks = useMemo(() => timelineTasksOf(view), [view])
 
@@ -121,8 +124,9 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
 
   useGuestPoll(token, BOARD_POLL_MS, (first) => refresh(!first))
 
-  if (state === "loading") return <GuestNotYet trouble={trouble} shape="board" label="Opening the project…" />
-  if (state === "missing" || !view) return <GuestLinkGone />
+  const gone = <PublicGone surface="guest-project" noun="shared project" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />
+  if (state === "loading") return <GuestNotYet trouble={trouble} gone={gone} shape="board" label="Opening the project…" />
+  if (state === "missing" || !view) return gone
 
   const pct = view.total_tasks ? Math.round((view.done_tasks / view.total_tasks) * 100) : 0
   const reviewing = view.columns.flatMap((c) => c.tasks.filter(awaitsReview))
@@ -150,12 +154,17 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
     // board in the app's card anatomy.
     <main data-guest-project="" className={`${HUE_CLASS[projectHue]} relative isolate flex min-h-dvh flex-col bg-frame`}>
       <div aria-hidden="true" data-project-band="" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[280px] [background:radial-gradient(640px_280px_at_120px_0px,color-mix(in_oklab,var(--hue)_10%,transparent),transparent)]" />
-      <div className="mx-auto flex w-full max-w-[1120px] min-h-0 flex-1 flex-col p-0 sm:p-4">
+      {/* 1280px: the board's four 280px columns, their gaps and the sheet's
+          padding are 1212px, and at 1120 the Done column was cut through its
+          cards on a 1440 window with room to spare (critic, 11 Oct). */}
+      <div data-guest-project-frame="" className="mx-auto flex w-full max-w-[1280px] min-h-0 flex-1 flex-col p-0 sm:p-4">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-sheet shadow-sheet sm:rounded-2xl">
           <header className="flex items-start gap-3.5 px-4 pb-4 pt-5 sm:px-7 sm:pt-6">
-            <ProjectTile id={view.project} size={36} />
+            <ProjectTile id={projectKey} size={36} />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-title-1 font-semibold text-foreground">{view.project}</h1>
+              {/* Two lines on a phone before it is cut: beside the ring and the
+                  Guest tag one line kept only "Acme website r…". */}
+              <h1 className="line-clamp-2 text-title-1 font-semibold text-foreground sm:truncate">{view.project}</h1>
               <p className="mt-0.5 text-ui-sm text-ink-2">Shared with you · updated {relativeTime(view.generated_at)}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2.5">

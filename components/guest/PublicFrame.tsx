@@ -7,6 +7,7 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 
 import { GUEST_HUE } from "./guestUi"
+import { namedWorkspace } from "@/lib/workspaceName"
 
 /**
  * The page people outside the workspace see (content.md rule 6): public
@@ -14,11 +15,11 @@ import { GUEST_HUE } from "./guestUi"
  * They judge the product by it without signing in, so it is a finished page:
  *
  * - a 4 px band in the workspace's hue across the top;
- * - the workspace mark;
+ * - the workspace mark and its name (publicWorkspaceName);
  * - `--frame` with the campfire glow at half strength and the grain;
  * - an optional 56 px header, transparent until the page scrolls, then the
  *   sheet at 85 % with the one blur;
- * - a footer line, "Made with OneCamp", at 12 ink-3.
+ * - "Made with OneCamp" as a badge under the page (MadeWithOneCamp).
  *
  * Content goes in as children, usually on a `PaperCard`.
  */
@@ -45,6 +46,16 @@ export interface PublicFrameProps {
   className?: string
   mainClassName?: string
   children: React.ReactNode
+}
+
+/**
+ * The workspace a public page belongs to (G1, content.md rule 6): the
+ * server's public name for it (`workspace_name` on the guest answers), else
+ * this build's own org name, else nothing (the mark alone). Pure apart from
+ * the build's environment.
+ */
+export function publicWorkspaceName(fromServer?: string | null): string | undefined {
+  return namedWorkspace(fromServer) || undefined
 }
 
 /** The workspace's mark: a tile in its hue holding the ring. */
@@ -81,6 +92,7 @@ export function PublicFrame({
   children,
 }: PublicFrameProps) {
   const [scrolled, setScrolled] = React.useState(false)
+  const name = publicWorkspaceName(workspaceName)
   React.useEffect(() => {
     if (!header) return
     const on = () => setScrolled(window.scrollY > 4)
@@ -99,14 +111,16 @@ export function PublicFrame({
         >
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <WorkspaceMark />
-            {workspaceName ? <span className="truncate text-ui font-semibold text-ink">{workspaceName}</span> : null}
+            {/* Whose page this is, then what it is (G1): the name goes first
+                when a phone runs short, the page's title keeps its room. */}
+            {name ? (
+              <span data-workspace-name="" className="min-w-0 shrink-[2] truncate text-ui font-semibold text-ink">
+                {name}
+              </span>
+            ) : null}
             {title ? (
               <>
-                {workspaceName ? (
-                  <span aria-hidden="true" className="text-ink-4">
-                    /
-                  </span>
-                ) : null}
+                {name ? <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line-2" /> : null}
                 <h1 className="min-w-0 truncate text-ui font-medium text-ink-2">{title}</h1>
               </>
             ) : null}
@@ -116,7 +130,7 @@ export function PublicFrame({
       ) : null}
       <main className={cn("flex w-full flex-1 flex-col", fill ? "min-h-0 items-stretch" : "items-center", mainClassName)}>{children}</main>
       <footer className={cn("flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 text-meta text-ink-3", fill ? "py-2" : "pb-8 pt-6")}>
-        <MadeWithOneCamp surface={surface} className="text-meta! text-ink-3!" />
+        <MadeWithOneCamp surface={surface} />
         {reportHref ? (
           <>
             <span aria-hidden="true">·</span>

@@ -1,36 +1,57 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent, type UniqueIdentifier } from "@dnd-kit/core"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
-import { Plus } from "@/lib/icons"
-import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, isComputed, computedOf, nextRowPosition, writableValues } from "@/services/tableService"
+import { Kanban, MoreHorizontal, Plus } from "@/lib/icons"
+import { MenuCheck } from "@/components/ui/menuCheck"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { TableField, TableRow, optionsOf, parseRowValues, createRow, patchRow, isHiddenRef, isComputed, computedOf } from "@/services/tableService"
 import { formulaText, cardTitle } from "@/lib/tables/formula"
+import { hiddenText, listText } from "@/lib/tables/cellFormat"
+import { formatLocale } from "@/lib/tables/numberFormat"
+import { moveKeyOf } from "@/lib/board/keyMove"
+import { BOARD_AUTO_SCROLL, boardAnnouncements } from "@/lib/board/drag"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { hueFor } from "@/lib/campHue"
 import { OptionChip, chipsTinted } from "@/components/table/optionChip"
-import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
+import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
 
 interface DataTableBoardProps {
   tableId: string
   fields: TableField[]
   rows: TableRow[]
   canManage: boolean
-  // groupFieldId picks the select column to group by; falls back to the first
-  // select field in the table.
+  /** The select field this reader groups the board by; the first one when it's unset or gone. */
   groupFieldId?: string
-  onChange: () => void
-  /** Where a new row goes, when rows are filtered out of this view: after every row. */
-  nextPosition?: number
+  /** Asks for the table again; given a row, only as far as that row needs. */
+  onChange: (rowId?: string) => void
+  /** A card added here, for the page to open its record (TAB-BUG-14); without it, the board asks for the table again. */
+  onCreated?: (rows: TableRow[], focus?: boolean) => void
+  /** Opens a card's record: a click, a tap or Enter on it. */
+  onOpenRow?: (rowId: string) => void
   /** Opens the grid, where a select column is added. */
   onOpenGrid?: () => void
 }
 
 const NO_VALUE = "__none__"
+/** Cards a lane draws at first, and how many more each "Show more" adds: a lane drawing every card of 10,000 rows froze a phone. */
+export const LANE_FIRST = 50
+const LANE_STEP = 500
+
+// As the project board's: a few pixels before a drag starts, so a click
+// still opens the card; on touch a short hold, so a tap opens and a swipe
+// scrolls. Made once, or every render rebuilt the sensors.
+const MOUSE = { activationConstraint: { distance: 5 } }
+const TOUCH = { activationConstraint: { delay: 180, tolerance: 8 } }
 
 // formatCardValue renders a row value for a compact board card: arrays (multi
-// select / relation) become a short, comma-joined label list; objects fall back
-// to their label; scalars are stringified. Empty values return "".
+// select / relation) become a short, comma-joined label list (what the reader
+// can't open as one phrase); objects fall back to their label; scalars are
+// stringified. Empty values return "".
 export function formatCardValue(v: unknown, type?: string): string {
   if (v === undefined || v === null || v === "") return ""
   // As the grid shows them: "7 Oct", not "2026-10-07"; "1,580", not "1580".
@@ -42,176 +63,439 @@ export function formatCardValue(v: unknown, type?: string): string {
   if (type === "number" && (typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))))) {
     return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 })
   }
-  if (Array.isArray(v)) {
-    return v
-      .map((item) =>
-        item && typeof item === "object" ? String((item as { label?: string }).label ?? "") : String(item),
-      )
-      .filter(Boolean)
-      .join(", ")
-  }
+  if (Array.isArray(v)) return listText(v)
+  if (isHiddenRef(v)) return hiddenText(1)
   if (typeof v === "object") return String((v as { label?: string }).label ?? "")
   if (typeof v === "boolean") return v ? "Yes" : "No"
   return String(v)
 }
 
-// DataTableBoard is a Kanban view: cards (rows) grouped into columns by a
-// single-select field. Dragging a card between columns updates that field.
+/**
+ * A row's details under its title, as a board card and a phone's day list show
+ * them: the first `max` fields not skipped (its title's, its lane's or day's),
+ * each as the grid shows it, without the empty ones.
+ */
+export function rowDetails(fields: TableField[], values: Record<string, unknown>, skip: (string | undefined)[], max: number): { f: TableField; text: string }[] {
+  return fields
+    .filter((f) => !skip.includes(f.id))
+    .slice(0, max)
+    .map((f) => ({ f, text: isComputed(f) ? formulaText(values[f.id], computedOf(f).result) : formatCardValue(values[f.id], f.type) }))
+    .filter((d) => d.text)
+}
+
+/** The select field a board groups by: the one asked for, else the first. */
+export function boardGroupField(fields: TableField[], groupFieldId?: string): TableField | undefined {
+  const selects = fields.filter((f) => f.type === "select").sort((a, b) => a.position - b.position)
+  return selects.find((f) => f.id === groupFieldId) ?? selects[0]
+}
+
+/**
+ * "Group by" for the board, in the view's toolbar: the table's select fields,
+ * this reader's choice kept with their view of the table. Nothing to choose
+ * with fewer than two.
+ */
+export function BoardGroupBy({ fields, groupFieldId, onPick }: { fields: TableField[]; groupFieldId?: string; onPick: (fieldId: string) => void }) {
+  const selects = fields.filter((f) => f.type === "select").sort((a, b) => a.position - b.position)
+  const current = boardGroupField(fields, groupFieldId)
+  if (selects.length < 2 || !current) return null
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-ui-sm text-ink-2" aria-label={`Group by ${current.name}`}>
+          <Kanban className="size-3.5" /> <span className="max-sm:hidden">Group by</span> <span className="font-medium text-ink">{current.name}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="content-float w-52 rounded-xl p-1 shadow-e3">
+        <DropdownMenuLabel className="text-meta font-medium text-ink-3">Group by</DropdownMenuLabel>
+        {selects.map((f) => (
+          <DropdownMenuItem key={f.id} onSelect={() => onPick(f.id)} aria-current={f.id === current.id ? "true" : undefined} className={cn(f.id === current.id && "font-medium text-ink")}>
+            <span className="flex-1 truncate">{f.name}</span>
+            <MenuCheck checked={f.id === current.id} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** A board column: an option, known by its id so a rename keeps its cards in it, or "No value". */
+type BoardColumn = { key: string; label: string; color?: string }
+
+// DataTableBoard is a Kanban view: cards (rows) grouped into lanes by a
+// single-select field. A card opens its record on a click, a tap or Enter
+// (J and K step through its lane), and moves by a drag (pointer or touch),
+// by Space and the arrow keys, or by its "Move to" menu (TAB-BUG-10). A move
+// sets that field, and only that field.
 export function DataTableBoard({
   tableId,
   fields,
   rows,
   groupFieldId,
   onChange,
-  nextPosition,
+  onCreated,
+  onOpenRow,
   onOpenGrid,
 }: DataTableBoardProps) {
   const { toast } = useToast()
-  const [dragRowId, setDragRowId] = React.useState<string | null>(null)
+  // How many cards each lane draws, by lane, past its first 50.
+  const [laneShows, setLaneShows] = React.useState<Record<string, number>>({})
+  // A card moved here shows in its new lane until the table says so too.
+  const [moved, setMoved] = React.useState<Record<string, { lane: string; was: string }>>({})
+  const [dragging, setDragging] = React.useState<TableRow | null>(null)
+  // A card held from the keyboard, and the lane it would go to.
+  const [held, setHeld] = React.useState<{ rowId: string; lane: number } | null>(null)
+  const [said, say] = React.useState("")
+  const instructions = React.useId()
+  const boardRef = React.useRef<HTMLDivElement>(null)
+  const refocus = React.useRef<string | null>(null)
+  const sensors = useSensors(useSensor(MouseSensor, MOUSE), useSensor(TouchSensor, TOUCH))
 
-  const sortedFields = React.useMemo(
-    () => [...fields].sort((a, b) => a.position - b.position),
-    [fields],
-  )
-
-  // The field we group by: explicit config, else the first select field.
-  const groupField = React.useMemo(() => {
-    if (groupFieldId) {
-      const f = fields.find((x) => x.id === groupFieldId)
-      if (f) return f
-    }
-    return fields.find((f) => f.type === "select")
-  }, [fields, groupFieldId])
+  const sortedFields = React.useMemo(() => [...fields].sort((a, b) => a.position - b.position), [fields])
+  const groupField = React.useMemo(() => boardGroupField(fields, groupFieldId), [fields, groupFieldId])
 
   // The primary display field for a card title: the first text field, else the
   // first field.
-  const titleField = React.useMemo(
-    () => sortedFields.find((f) => f.type === "text") || sortedFields[0],
-    [sortedFields],
-  )
+  const titleField = React.useMemo(() => sortedFields.find((f) => f.type === "text") || sortedFields[0], [sortedFields])
+  const titleOf = React.useCallback((row: TableRow) => (titleField ? cardTitle(titleField, parseRowValues(row)[titleField.id]) : "") || "Untitled", [titleField])
 
-  const columns: { key: string; label: string; color?: string }[] = React.useMemo(() => {
+  const columns: BoardColumn[] = React.useMemo(() => {
     if (!groupField) return []
-    const options = (parseFieldConfig(groupField).options || []) as SelectOption[]
-    return [
-      ...options.map((o) => ({ key: o.label, label: o.label, color: o.color })),
-      { key: NO_VALUE, label: "No value" },
-    ]
+    return [...optionsOf(groupField).map((o) => ({ key: o.id, label: o.label, color: o.color })), { key: NO_VALUE, label: "No value" }]
   }, [groupField])
+
+  // A card's lane: the option its cell names, or "No value" for none, or a
+  // name no option has; where it was just moved, until the table says so.
+  const laneOf = React.useMemo(() => {
+    const byLabel = new Map(columns.filter((c) => c.key !== NO_VALUE).map((c) => [c.label, c.key]))
+    return (row: TableRow): string => {
+      const was = moved[row.id]
+      if (was) return was.lane
+      const v = groupField ? parseRowValues(row)[groupField.id] : undefined
+      return (typeof v === "string" && byLabel.get(v)) || NO_VALUE
+    }
+  }, [columns, groupField, moved])
 
   const rowsByColumn = React.useMemo(() => {
     const map: Record<string, TableRow[]> = {}
     for (const c of columns) map[c.key] = []
-    for (const r of rows) {
-      const v = groupField ? (parseRowValues(r)[groupField.id] as string) || NO_VALUE : NO_VALUE
-      const key = map[v] ? v : NO_VALUE
-      ;(map[key] || (map[key] = [])).push(r)
-    }
+    for (const r of rows) map[laneOf(r)]?.push(r)
     return map
-  }, [rows, columns, groupField])
+  }, [rows, columns, laneOf])
+
+  // A drag by a pointer or a finger says what moves where, as the keys do.
+  const accessibility = React.useMemo(() => {
+    const rowOf = (id: UniqueIdentifier) => rows.find((r) => r.id === id)
+    return {
+      announcements: boardAnnouncements({
+        card: (id) => {
+          const row = rowOf(id)
+          return row ? titleOf(row) : "A card"
+        },
+        lane: (id) => columns.find((c) => c.key === id)?.label ?? "a lane",
+        laneOf: (id) => {
+          const row = rowOf(id)
+          return row ? laneOf(row) : undefined
+        },
+      }),
+    }
+  }, [rows, columns, laneOf, titleOf])
+
+  // A moved card follows the table again once its copy there changes.
+  React.useEffect(() => {
+    setMoved((m) => {
+      const ids = Object.keys(m)
+      if (!ids.length) return m
+      const now = new Map(rows.map((r) => [r.id, r.values]))
+      const left = Object.fromEntries(Object.entries(m).filter(([id, v]) => now.get(id) === v.was))
+      return Object.keys(left).length === ids.length ? m : left
+    })
+  }, [rows])
+
+  // After a move from the keyboard the card is in another lane (a new
+  // element): the focus follows it there.
+  React.useEffect(() => {
+    const id = refocus.current
+    if (!id || held) return
+    const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-card-id]") ?? []).find((c) => c.dataset.cardId === id)
+    if (!card) return
+    refocus.current = null
+    card.focus()
+  })
 
   if (!groupField) {
     return <TableViewState kind="needs-column" column="select" view="board" hue={hueFor(tableId)} onOpenGrid={onOpenGrid} />
   }
 
-  const moveCard = async (row: TableRow, toColumn: string) => {
-    const current = parseRowValues(row)
-    const nextVal = toColumn === NO_VALUE ? "" : toColumn
-    if ((current[groupField.id] || "") === nextVal) return
+  const moveCard = async (row: TableRow, to: BoardColumn) => {
+    if (laneOf(row) === to.key) return
+    setMoved((m) => ({ ...m, [row.id]: { lane: to.key, was: row.values } }))
     try {
-      await updateRow(tableId, row.id, writableValues(fields, { ...current, [groupField.id]: nextVal }), row.position)
-      onChange()
+      await patchRow(tableId, row.id, { [groupField.id]: to.key === NO_VALUE ? "" : to.label })
+      onChange(row.id)
     } catch {
+      // Said by the request; the card goes back.
+      setMoved((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== row.id)))
       onChange()
     }
   }
 
-  const addCard = async (column: string) => {
+  const addCard = async (column: BoardColumn) => {
     try {
-      const pos = nextPosition ?? nextRowPosition(rows)
-      const values = column === NO_VALUE ? {} : { [groupField.id]: column }
-      await createRow(tableId, values, pos)
-      onChange()
+      const r = await createRow(tableId, column.key === NO_VALUE ? {} : { [groupField.id]: column.label })
+      if (onCreated && r?.id) onCreated([r], true)
+      else onChange()
     } catch {
       toast({ title: "Could not add card", variant: "destructive" })
     }
   }
 
+  const onDragStart = ({ active }: DragStartEvent) => setDragging(rows.find((r) => r.id === active.id) ?? null)
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragging(null)
+    const row = rows.find((r) => r.id === active.id)
+    const to = columns.find((c) => c.key === over?.id)
+    if (row && to) void moveCard(row, to)
+  }
+
+  // Enter opens the focused card and Space picks it up; while it's held, left
+  // and right move it between lanes, Space or Enter drops it there and Escape
+  // puts it back, each step said aloud. Otherwise J and K (or up and down)
+  // step through its lane. Caught on the way down, so the card's own Space
+  // never opens it.
+  const onKeyDownCapture = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    const card = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>("[data-card-id]") : null
+    if (!held) {
+      const row = card && e.target === card ? rows.find((r) => r.id === card.dataset.cardId) : undefined
+      if (!row || !card) return
+      if (e.key === "Enter") {
+        e.preventDefault()
+        onOpenRow?.(row.id)
+        return
+      }
+      if (e.key === " ") {
+        e.preventDefault()
+        e.stopPropagation()
+        const lane = columns.findIndex((c) => c.key === laneOf(row))
+        setHeld({ rowId: row.id, lane })
+        say(`Picked up ${titleOf(row)}, in ${columns[lane].label}. Left and right arrow keys move it, Space drops it, Escape puts it back.`)
+        return
+      }
+      const step = e.key === "j" || e.key === "ArrowDown" ? 1 : e.key === "k" || e.key === "ArrowUp" ? -1 : 0
+      if (!step) return
+      e.preventDefault()
+      const lane = Array.from(card.closest("[data-lane]")?.querySelectorAll<HTMLElement>("[data-card-id]") ?? [])
+      lane[lane.indexOf(card) + step]?.focus()
+      return
+    }
+    const key = moveKeyOf(e.key)
+    if (key) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (key === "up" || key === "down") return
+      const lane = Math.max(0, Math.min(columns.length - 1, held.lane + (key === "left" ? -1 : 1)))
+      setHeld({ ...held, lane })
+      say(columns[lane].label)
+      return
+    }
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault()
+      e.stopPropagation()
+      const row = rows.find((r) => r.id === held.rowId)
+      const to = columns[held.lane]
+      refocus.current = held.rowId
+      setHeld(null)
+      if (row && laneOf(row) !== to.key) {
+        void moveCard(row, to)
+        say(`Moved to ${to.label}.`)
+      } else say(`Put back in ${to.label}.`)
+      return
+    }
+    if (e.key === "Escape" || e.key === "Tab") {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+      refocus.current = e.key === "Escape" ? held.rowId : null
+      setHeld(null)
+      say("Put back where it was.")
+    }
+  }
+  // Firefox clicks a button on Space's keyup, which the keydown's
+  // preventDefault doesn't stop: picking a card up opened its record too.
+  const onKeyUpCapture = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === " " && e.target instanceof HTMLElement && e.target.dataset.cardId !== undefined) e.preventDefault()
+  }
+
   return (
-    // Scrolls inside the frame, as the grid does, at the frame's one inset.
-    <div className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-board="">
-    <div className="flex gap-3">
-      {columns.map((col) => (
-        <div
-          key={col.key}
-          className="flex w-72 shrink-0 flex-col rounded-[16px] bg-sunken"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => {
-            const row = rows.find((r) => r.id === dragRowId)
-            if (row) moveCard(row, col.key)
-            setDragRowId(null)
-          }}
-        >
-          {/* The option in its own colour, as the grid's chip and a guest's
-              view show it; the count beside it is a plain number. */}
-          <div className="flex h-10 items-center gap-2 px-3 text-ui-sm font-medium">
-            {col.key === NO_VALUE ? (
-              <span className="truncate text-ink-3">{col.label}</span>
-            ) : (
-              <OptionChip label={col.label} color={col.color} tinted={chipsTinted(groupField)} />
-            )}
-            <span className="shrink-0 text-meta font-normal tabular-nums text-ink-3">
-              {rowsByColumn[col.key]?.length || 0}
-            </span>
-          </div>
-          <div className="flex flex-col gap-2 px-2 pb-2">
-            {(rowsByColumn[col.key] || []).map((row) => {
-              const values = parseRowValues(row)
-              const title = titleField ? cardTitle(titleField, values[titleField.id]) : ""
-              return (
-                <div
-                  key={row.id}
-                  draggable
-                  onDragStart={() => setDragRowId(row.id)}
-                  className={cn(
-                    // A record on the sunken lane: raised on e1, lifting to e2 under the pointer (T16).
-                    "cursor-grab rounded-xl bg-raised p-3 text-ui shadow-e1 transition-[opacity,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:shadow-e2 active:cursor-grabbing",
-                    dragRowId === row.id && "opacity-50",
-                  )}
-                >
-                  <p className="font-medium text-ink">{title || "Untitled"}</p>
-                  <div className="mt-1 space-y-0.5">
-                    {sortedFields
-                      .filter((f) => f.id !== titleField?.id && f.id !== groupField.id)
-                      .slice(0, 3)
-                      .map((f) => {
-                        const cellVal = values[f.id]
-                        const text =
-                          isComputed(f) ? formulaText(cellVal, computedOf(f).result) : formatCardValue(cellVal, f.type)
-                        if (!text) return null
-                        return (
-                          <p key={f.id} className="truncate text-meta text-ink-2">
-                            <span className="text-ink-4">{f.name} </span>
-                            {text}
-                          </p>
-                        )
-                      })}
-                  </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      autoScroll={BOARD_AUTO_SCROLL}
+      accessibility={accessibility}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setDragging(null)}
+    >
+      {/* Scrolls inside the frame, as the grid does, at the frame's one inset;
+          a card held at its edge scrolls it, and only it. */}
+      <div ref={boardRef} className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-board="" data-board-scroll="" onKeyDownCapture={onKeyDownCapture} onKeyUpCapture={onKeyUpCapture}>
+        <div className="flex gap-3">
+          {columns.map((col, i) => {
+            const cards = rowsByColumn[col.key] || []
+            const shows = laneShows[col.key] ?? LANE_FIRST
+            const more = Math.min(cards.length - shows, LANE_STEP)
+            return (
+              <BoardLane key={col.key} column={col} target={held?.lane === i}>
+                {/* The option in its own colour, as the grid's chip and a guest's
+                    view show it; the count beside it is a plain number. */}
+                <div className="flex h-10 items-center gap-2 px-3 text-ui-sm font-medium">
+                  {col.key === NO_VALUE ? <span className="truncate text-ink-3">{col.label}</span> : <OptionChip label={col.label} color={col.color} tinted={chipsTinted(groupField)} />}
+                  <span className="shrink-0 text-meta font-normal tabular-nums text-ink-3">{cards.length}</span>
                 </div>
-              )
-            })}
-            <button
-              type="button"
-              onClick={() => addCard(col.key)}
-              className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add card
-            </button>
-          </div>
+                <div className="flex flex-col gap-2 px-2 pb-2">
+                  {cards.slice(0, shows).map((row) => (
+                    <BoardCard
+                      key={row.id}
+                      row={row}
+                      title={titleOf(row)}
+                      lane={col.key}
+                      fields={sortedFields}
+                      skip={[titleField?.id, groupField.id]}
+                      columns={columns}
+                      held={held?.rowId === row.id}
+                      describedBy={instructions}
+                      onOpen={onOpenRow}
+                      onMove={(to) => void moveCard(row, to)}
+                    />
+                  ))}
+                  {more > 0 ? (
+                    <button
+                      type="button"
+                      data-lane-more=""
+                      onClick={() => setLaneShows((s) => ({ ...s, [col.key]: shows + LANE_STEP }))}
+                      className={cn("flex h-8 items-center justify-center rounded-lg text-ui-sm font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", TOUCH_ROW)}
+                    >
+                      Show {formatLocale(more, {})} more
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void addCard(col)}
+                    className={cn("flex h-8 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", TOUCH_ROW)}
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add card
+                  </button>
+                </div>
+              </BoardLane>
+            )
+          })}
         </div>
-      ))}
-    </div>
+      </div>
+      <p id={instructions} className="sr-only">
+        Enter opens the card. Space picks it up, the left and right arrow keys move it between lanes, and Space puts it down; Escape puts it back.
+      </p>
+      <p aria-live="assertive" aria-atomic="true" className="sr-only" data-board-said="">
+        {said}
+      </p>
+      {typeof document !== "undefined"
+        ? createPortal(
+            <DragOverlay>
+              {dragging ? <div className="w-[272px] rounded-xl bg-raised p-3 text-ui font-medium text-ink shadow-e3">{titleOf(dragging)}</div> : null}
+            </DragOverlay>,
+            document.body,
+          )
+        : null}
+    </DndContext>
+  )
+}
+
+/** A lane, where a card is dropped: ringed while a card is over it, or held for it from the keyboard. */
+function BoardLane({ column, target, children }: { column: BoardColumn; target: boolean; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.key })
+  return (
+    <div ref={setNodeRef} data-lane={column.key} data-drop-target={target || isOver || undefined} className={cn("flex w-72 shrink-0 flex-col rounded-[16px] bg-sunken transition-shadow", (target || isOver) && "ring-2 ring-inset ring-brand/60")}>
+      {children}
     </div>
   )
 }
 
+/**
+ * A card: a button that opens the row's record (a click, a tap, Enter), drags
+ * to another lane (pointer or touch), and has a "Move to" menu, so a touch
+ * screen and a keyboard can move it too.
+ */
+function BoardCard({
+  row,
+  title,
+  lane,
+  fields,
+  skip,
+  columns,
+  held,
+  describedBy,
+  onOpen,
+  onMove,
+}: {
+  row: TableRow
+  title: string
+  lane: string
+  fields: TableField[]
+  /** Fields a card doesn't list: its title's, and its lane's. */
+  skip: (string | undefined)[]
+  columns: BoardColumn[]
+  held: boolean
+  describedBy: string
+  onOpen?: (rowId: string) => void
+  onMove: (to: BoardColumn) => void
+}) {
+  const { setNodeRef, listeners, isDragging } = useDraggable({ id: row.id })
+  const values = parseRowValues(row)
+  const details = rowDetails(fields, values, skip, 3)
+  return (
+    <div className={cn("group/card relative rounded-xl bg-raised shadow-e1 transition-[opacity,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:shadow-e2", isDragging && "opacity-50", held && "shadow-e3 ring-2 ring-brand")}>
+      <button
+        ref={setNodeRef}
+        type="button"
+        data-card-id={row.id}
+        aria-describedby={describedBy}
+        onClick={() => onOpen?.(row.id)}
+        {...listeners}
+        className="block w-full touch-manipulation select-none rounded-xl p-3 pr-9 text-left text-ui outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        <p className="font-medium text-ink">{title}</p>
+        {details.length ? (
+          <div className="mt-1 space-y-0.5">
+            {details.map(({ f, text }) => (
+              <p key={f.id} className="truncate text-meta text-ink-2">
+                <span className="text-ink-3">{f.name} </span>
+                {text}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Move ${title}`}
+            data-touch-target=""
+            className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand group-hover/card:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="content-float w-52 rounded-xl p-1 shadow-e3">
+          <DropdownMenuLabel className="text-meta font-medium text-ink-3">Move to</DropdownMenuLabel>
+          {columns.map((c) => (
+            <DropdownMenuItem key={c.key} disabled={c.key === lane} aria-current={c.key === lane ? "true" : undefined} onSelect={() => onMove(c)}>
+              <span className="flex-1 truncate">{c.label}</span>
+              <MenuCheck checked={c.key === lane} />
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}

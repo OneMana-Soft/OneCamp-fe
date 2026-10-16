@@ -1,5 +1,6 @@
 "use client"
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 import { VALID_COLOR_THEMES } from "@/components/activeTheme/activeTheme"
@@ -126,12 +127,12 @@ export function PlayfulShowcase() {
             <div className="flex flex-wrap items-center gap-2">
               {PEOPLE.map((name) => (
                 <span key={name} title={name}>
-                  <IdentityMark variant="avatar" id={name} label={name} size={32} />
+                  <IdentityMark variant="avatar" id={avatarSeed(name)} label={name} size={32} />
                 </span>
               ))}
               <span className="ml-2 flex items-center gap-1">
                 {PEOPLE.slice(0, 4).map((name) => (
-                  <IdentityMark key={name} variant="avatar" id={name} label={name} size={20} />
+                  <IdentityMark key={name} variant="avatar" id={avatarSeed(name)} label={name} size={20} />
                 ))}
               </span>
             </div>

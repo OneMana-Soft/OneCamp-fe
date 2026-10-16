@@ -71,7 +71,8 @@ const AlertDialogFooter = ({
   <div
     className={cn(
       // No sunken strip in a confirm (it is small): the buttons right-aligned.
-      "mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+      // v3-alert-footer: 44px buttons on a phone (styles/admin/feedback.css).
+      "v3-alert-footer mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
       className
     )}
     {...props}

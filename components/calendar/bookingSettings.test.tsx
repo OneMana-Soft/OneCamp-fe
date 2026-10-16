@@ -52,11 +52,11 @@ describe("the booking settings page", () => {
     expect(preview.textContent).toContain("Intro call with Sam")
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Office hours" } })
     expect(preview.textContent).toContain("Office hours")
-    expect(preview.textContent).toContain("9:00 AM")
+    expect(preview.textContent).toContain("9:00\u00a0AM")
   })
 
   it("offers the first times that fit the hours, the length and the gap", () => {
-    expect(sampleTimes({ days: [1], start: "09:00", end: "10:30", tz: "UTC" }, 30, 10)).toEqual(["9:00 AM", "9:40 AM"])
+    expect(sampleTimes({ days: [1], start: "09:00", end: "10:30", tz: "UTC" }, 30, 10)).toEqual(["9:00\u00a0AM", "9:40\u00a0AM"])
   })
 })
 

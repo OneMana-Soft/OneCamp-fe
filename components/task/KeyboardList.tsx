@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import { BulkTaskBar } from "@/components/task/BulkTaskBar"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useListKeyboard } from "@/hooks/useListKeyboard"
 import { useFetch } from "@/hooks/useFetch"
@@ -15,6 +15,11 @@ import { cn } from "@/lib/utils/helpers/cn"
 import type { ListField } from "@/lib/listKeys"
 import type { StatusOption } from "@/lib/taskStatus"
 import type { TaskInfoInterface } from "@/types/task"
+
+// The bar for a selection, with its pickers, is a chunk of its own: nothing
+// shows it until a task is selected, and it was 13 KB of the project route's
+// first screen (app/firstLoad.test.ts).
+const BulkTaskBar = dynamic(() => import("@/components/task/BulkTaskBar").then((m) => m.BulkTaskBar), { loading: () => null })
 
 /**
  * A list or board of tasks worked from the keyboard (lib/listKeys): J and K

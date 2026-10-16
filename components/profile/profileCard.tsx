@@ -12,6 +12,7 @@
  * This file draws; components/dialog/otherUserProfileDialog.tsx fetches and
  * places it (an anchored popover, a bottom sheet on a phone).
  */
+import { personHue } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -20,15 +21,24 @@ import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { PresenceDot, type Presence } from "@/components/ui/presenceDot"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Bot, Clock } from "@/lib/icons"
-import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 
 export type ProfileKind = "person" | "agent" | "bot" | "self"
 
+/**
+ * Who a profile is to the person reading it: an agent, a bot, themselves, or
+ * someone else. One rule for the card and the profile page (QA SH-05: the
+ * phone's page offered "Message" to yourself). Pure.
+ */
+export function profileKindOf(profile: { is_bot?: boolean; user_bot_kind?: string } | undefined, userUUID: string, selfUUID: string | undefined): ProfileKind {
+  if (profile?.is_bot === true) return profile.user_bot_kind === "agent" || profile.user_bot_kind === "assistant" ? "agent" : "bot"
+  return !!userUUID && userUUID === selfUUID ? "self" : "person"
+}
+
 export interface ProfileCardProps {
   kind: ProfileKind
-  /** A stable key for the person's hue (their uuid). */
+  /** The person's uuid. Their hue is their name's (personHue), as on every avatar. */
   hueId: string
   name: string
   handle?: string
@@ -73,7 +83,7 @@ function Rings({ spark, tone = "white" }: { spark?: boolean; tone?: "white" | "l
 }
 
 export function ProfileCard(p: ProfileCardProps) {
-  const hue = hueFor(p.hueId)
+  const hue = personHue(p.name)
   const agent = p.kind === "agent"
   const bot = p.kind === "bot"
   const avatarPx = p.sheet ? 80 : 64

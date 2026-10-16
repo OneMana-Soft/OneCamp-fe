@@ -137,14 +137,20 @@ export function SpotPlug({ hue = "sun", ...props }: SpotProps) {
   )
 }
 
-/** Something broke, or the page is gone: the ring with a piece out. */
+/**
+ * Something broke, or the page is gone: a page with a "!" on it, in the
+ * dotted orbit. It was the ring with a piece out and its arc beside it, which
+ * read as a loading spinner on every failure screen ("Couldn't connect
+ * GitHub" under what looked like it was still trying).
+ */
 export function SpotError({ hue = "dusk", ...props }: SpotProps) {
   return (
     <Spot hue={hue} {...props}>
-      <circle cx="48" cy="48" r="32" className="fill-hue-tint"/>
-      <circle cx="48" cy="48" r="42" className="stroke-hue" strokeWidth="1.5" strokeDasharray="0 5"/>
-      <path d="M65.3 38A20 20 0 1 1 51.5 28.3" className="stroke-hue-ink" strokeWidth="6"/>
-      <path d="M62.2 19.7a20 20 0 0 1 11.2 7.8" className="stroke-hue" strokeWidth="6"/>
+      <circle cx="48" cy="50" r="32" className="fill-hue-tint"/>
+      <circle cx="48" cy="50" r="42" className="stroke-hue" strokeWidth="1.5" strokeDasharray="0 5"/>
+      <rect x="30" y="26" width="36" height="46" rx="5" className="fill-card stroke-hue-ink" strokeWidth="2"/>
+      {/* The mark and its dot in one path: a round cap draws the empty segment as a dot. */}
+      <path d="M48 38v13m0 10v0" className="stroke-hue-ink" strokeWidth="5"/>
       <path d="M20 71Q20.8 75.2 25 76Q20.8 76.8 20 81Q19.2 76.8 15 76Q19.2 75.2 20 71Z" className="fill-camp-berry"/>
     </Spot>
   )

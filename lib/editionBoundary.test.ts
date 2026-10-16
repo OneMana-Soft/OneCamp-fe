@@ -26,7 +26,7 @@ describe("files every edition carries", () => {
   it.each([
     "components/dialog/editProfileDailog.tsx",
     "components/profile/ProfileSettingsSections.tsx",
-    "components/profile/mobileSelfProfile.tsx",
+    "components/profile/ProfilePage.tsx",
     "components/notifications/NotificationPreferencesCard.tsx",
     "components/notifications/ReadReceiptsCard.tsx",
   ])("%s takes the settings parts from components/ui, a folder every edition has", (file) => {

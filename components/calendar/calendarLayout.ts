@@ -1,5 +1,6 @@
-import { addDays, endOfDay, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns"
+import { addDays, endOfDay, endOfMonth, endOfWeek, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns"
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay"
+import { dayKey, WEEK_STARTS_ON } from "@/lib/utils/date/days"
 
 /**
  * Laying calendar items out on days and weeks, once per change of data,
@@ -30,14 +31,8 @@ export interface Placed<T extends DatedItem = DatedItem> {
   end: Date
 }
 
-export const dayKey = (d: Date) => format(d, "yyyy-MM-dd")
-
-/**
- * The week starts on Monday (content.md C05: the default in India, and where
- * most of the world's working week starts). One constant, so the month grid,
- * the week view, the mini month and what is fetched agree.
- */
-export const WEEK_STARTS_ON = 1 as const
+// The app's day key and week start, shared with docs' dates (lib/utils/date/days).
+export { dayKey, WEEK_STARTS_ON }
 
 /**
  * Items with their dates parsed once; anything without a usable date is left

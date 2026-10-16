@@ -11,6 +11,8 @@ vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useAIAvailable: ()
 const replace = vi.hoisted(() => vi.fn())
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: true, isTablet: false, isDesktop: false }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "u1", user_name: "Sam", user_is_admin: false } } }), useFetch: () => ({}) }))
+vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: "" }) }))
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>

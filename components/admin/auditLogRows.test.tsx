@@ -82,6 +82,24 @@ describe("an audit row's category", () => {
   })
 })
 
+describe("a row on a phone", () => {
+  // Critic, 11 Oct: the row's phone rule hid the chip from the components
+  // layer, which the chip's own utility outranks, so on a phone every chip
+  // stood at the row's end, cut by the screen's edge, and the chevron fell to
+  // a line of its own. The chip hides by a utility now, and the time it hid
+  // with it comes back as the row's second line.
+  it("hides the chip by a utility and says when and what kind under the summary", async () => {
+    const { container } = await mount([entry(1, { category: "security" })])
+    const chip = container.querySelector("[data-audit-category='security']") as HTMLElement
+    expect(chip.className.split(/\s+/)).toContain("max-md:hidden")
+    const meta = container.querySelector("[data-audit-phone-meta]") as HTMLElement
+    expect(meta.className.split(/\s+/)).toContain("md:hidden")
+    expect(meta.textContent).toMatch(/· Security$/)
+    const css = readFileSync("app/styles/admin/people.css", "utf8")
+    expect(css).not.toMatch(/\.audit-row-head \.audit-chip\s*\{/)
+  })
+})
+
 describe("a refusal", () => {
   it("carries the danger glyph before its summary and its reason in danger ink", async () => {
     const { container } = await mount([refusal, entry(1)])

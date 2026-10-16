@@ -21,7 +21,7 @@ vi.mock("@/components/admin/InvitePlaceholder", () => ({ InvitePlaceholder: () =
 
 const { setLastAnchor } = await import("@/lib/hub/lastAnchor")
 const { default: OtherProfileDialog } = await import("@/components/dialog/otherUserProfileDialog")
-const { hueFor } = await import("@/lib/campHue")
+const { personHue } = await import("@/lib/utils/getAvatarColor")
 
 afterEach(() => {
   cleanup()
@@ -47,10 +47,15 @@ describe("the profile card (P1)", () => {
     avatar.remove()
   })
 
-  it("puts the person's hue on the banner, their presence on the avatar, and Message", () => {
+  it("puts the person's hue on the banner, their presence on the avatar, and Message", async () => {
     profile.data = { data: { ...maya, user_job_title: "Designer" } }
     open()
-    expect(document.querySelector("[data-profile-banner]")!.getAttribute("data-hue")).toBe(hueFor("u-maya"))
+    // One colour per person (app/personHue.test.ts): keyed on the name she is
+    // shown by ("maya"), never her uuid, which drew her a second colour here;
+    // the colour of the avatar beside her own messages.
+    expect(document.querySelector("[data-profile-banner]")!.getAttribute("data-hue")).toBe(personHue("maya"))
+    const { getAvatarFallbackClass } = await import("@/lib/utils/getAvatarColor")
+    expect(getAvatarFallbackClass("maya")).toContain(`hue-${personHue("maya")}`)
     expect(document.querySelector("[data-presence]")!.getAttribute("data-presence")).toBe("online")
     expect(screen.getByRole("heading", { name: "maya" })).toBeTruthy()
     expect(screen.getByText("@maya")).toBeTruthy()
@@ -98,5 +103,24 @@ describe("the profile card (P1)", () => {
     profile.data = { data: maya }
     open()
     expect((screen.getByRole("button", { name: "See maya's photo" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  // An agent's card is long: from a name mid-screen it ran off the top at
+  // 1440x900 and off the bottom at 1024x768, its name or its actions cut.
+  it("is never taller than the room on its side, and scrolls inside", () => {
+    profile.data = { data: { user_uuid: "u-rc", user_name: "release-captain", user_full_name: "Release Captain", is_bot: true, user_bot_kind: "agent" } }
+    open("u-rc")
+    const pop = document.querySelector<HTMLElement>("[data-profile-popover]")!
+    expect(pop.className).toContain("max-h-[var(--radix-popover-content-available-height)]")
+    expect(pop.className).toContain("overflow-y-auto")
+    expect(pop.className).not.toContain("overflow-hidden")
+  })
+
+  it("keeps the accent off a glance: Message is a secondary button", () => {
+    profile.data = { data: maya }
+    open()
+    const message = screen.getByRole("button", { name: /Message/ })
+    expect(message.className).not.toMatch(/\bbg-brand\b|bg-primary\b/)
+    expect(message.className).toContain("bg-raised")
   })
 })

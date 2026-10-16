@@ -139,6 +139,17 @@ function useWidth(ref: React.RefObject<Element | null>): number {
 
 // "Nice" number formatting for axis ticks and tooltips: compact for large
 // magnitudes (1.2k, 3.4M), trimmed decimals otherwise.
+
+/**
+ * A category label cut to the room its slot gives it (11.5 px text runs
+ * about 6.5 units a character), never shorter than 10 characters, the old
+ * fixed cut. Pure.
+ */
+export function fitCategoryLabel(label: string, room: number): string {
+    const max = Math.max(10, Math.floor(room / 6.5));
+    return label.length > max ? label.slice(0, max - 1).trimEnd() + "\u2026" : label;
+}
+
 function fmtNumber(n: number): string {
     const abs = Math.abs(n);
     if (abs >= 1_000_000) return trimZeros(n / 1_000_000) + "M";
@@ -345,6 +356,9 @@ const CartesianChart: React.FC<{ chart: NormalizedChart; g: Geo }> = ({ chart, g
     // thinned to every second, third... one, and the tooltips keep the rest.
     const longest = Math.min(10, Math.max(1, ...chart.labels.map((l) => l.length)));
     const labelStep = Math.max(1, Math.ceil((longest * 6.5 + 12) / slotW), Math.ceil(n / 12));
+    // Each shown label then has its slots' room, less the air: a wide chart
+    // writes "Launch film edit" whole instead of "Launch fi…" in 200 px.
+    const labelRoom = slotW * labelStep - 12;
 
     return (
         <>
@@ -395,7 +409,7 @@ const CartesianChart: React.FC<{ chart: NormalizedChart; g: Geo }> = ({ chart, g
                         className="fill-ink-3"
                         fontSize={11.5}
                     >
-                        {label.length > 10 ? label.slice(0, 9) + "\u2026" : label}
+                        {fitCategoryLabel(label, labelRoom)}
                     </text>
                 ) : null
             )}

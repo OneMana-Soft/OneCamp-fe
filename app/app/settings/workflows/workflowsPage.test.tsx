@@ -48,10 +48,17 @@ describe("the settings Workflows page", () => {
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull()
   })
 
-  it("offers no New workflow to a member who can't make them", () => {
+  it("offers no New workflow to a member who can't make them, and says so on a note", () => {
     caps.granted = false
     render(<WorkflowsSettingsPage />)
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull()
-    expect(screen.getByText(/Admin, Permissions/)).toBeTruthy()
+    // A note where the list would be, with a lock (design v3 §2a), not the
+    // header's line alone on a blank page; the header still says what
+    // workflows are.
+    const note = screen.getByRole("note")
+    expect(note).toHaveAttribute("data-permission-locked")
+    expect(note).toHaveTextContent("Making workflows is turned off for you.")
+    expect(note).toHaveTextContent(/Admin, Permissions/)
+    expect(screen.getByText(/replies or turns it into a task/)).toBeTruthy()
   })
 })

@@ -5,7 +5,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { PresenceDot } from "@/components/ui/presenceDot";
 import { usePauseNotifications } from "@/hooks/usePauseNotifications";
-import { lastAnchorRect } from "@/lib/hub/lastAnchor";
+import { lastAnchorRect, SIDEBAR_FOOT } from "@/lib/hub/lastAnchor";
 import { springPop } from "@/lib/celebrate";
 import { cn } from "@/lib/utils/helpers/cn";
 import * as React from "react";
@@ -140,8 +140,9 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
   // Focus time from the calendar is the one automatic status the app knows.
   const { focusUntil } = usePauseNotifications()
   const emojiRef = React.useRef<HTMLSpanElement>(null)
-  // Where it opens: beside what was pressed (the account menu's row), fixed while open.
-  const [anchor] = useState(() => lastAnchorRect())
+  // Where it opens: beside what was pressed, fixed while open. The account
+  // menu's row closes with its menu, so then beside the sidebar foot it rose from.
+  const [anchor] = useState(() => lastAnchorRect(SIDEBAR_FOOT))
 
   // The status the person has now, in the fields, so it can be changed.
   useEffect(() => {
@@ -309,7 +310,9 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                         setExpiresAt(defaultState.expires_at)
                       }}
                       className={cn(
-                          "inline-flex h-[26px] items-center rounded-[13px] px-2.5 text-meta font-medium transition-colors",
+                          // 8px sides: the six fit the 360px popover on one line (hub.md
+                          // P3); at 10 "Custom" wrapped to a line of its own.
+                          "inline-flex h-[26px] items-center rounded-[13px] px-2 text-meta font-medium transition-colors",
                           on ? "bg-raised text-foreground shadow-sel" : "hub-chip-rest text-ink-2 hover:text-foreground",
                       )}
                   >
@@ -349,7 +352,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
             // A popover, not a modal: setting a status is a two-second job.
             <Popover open={dialogOpenState} onOpenChange={onOpenChange} modal={false}>
               <PopoverAnchor asChild>
-                <span aria-hidden style={{ position: "fixed", left: box.left, top: box.top, width: box.width, height: box.height, pointerEvents: "none" }} />
+                <span aria-hidden data-status-anchor="" style={{ position: "fixed", left: box.left, top: box.top, width: box.width, height: box.height, pointerEvents: "none" }} />
               </PopoverAnchor>
               <PopoverContent
                   data-status-popover=""

@@ -27,6 +27,7 @@ import { GrpChatNotificationInterface } from "@/types/chat"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { WorkspaceName } from "@/hooks/useWorkspaceName"
 
 interface GroupChatOptionsDrawerProps {
     drawerOpenState: boolean
@@ -88,8 +89,8 @@ export function GroupChatOptionsDrawer({
         <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
-                    <DrawerTitle className="capitalize">
-                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    <DrawerTitle>
+                        <WorkspaceName />
                     </DrawerTitle>
                     <DrawerDescription>Group chat options</DrawerDescription>
                 </DrawerHeader>

@@ -5,13 +5,14 @@ import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox"
 afterEach(cleanup)
 
 // The language field sits in the profile's grid of text inputs, so it is
-// drawn at an input's own height: 44px on a phone, 36px from md up.
+// drawn at an input's own height: 44px on a phone, 32px from md up (design
+// v3's field; it was 36 beside 32px fields, critic 11 Oct).
 describe("the language field", () => {
   it("is an input's height", () => {
     render(<AppLanguageCombobox userLang="en" onLangChange={() => {}} />)
     const trigger = screen.getByRole("combobox")
     expect(trigger.className).toMatch(/(^|\s)h-11(\s|$)/)
-    expect(trigger.className).toContain("md:h-9")
+    expect(trigger.className).toContain("md:h-8")
   })
 
   it("shows a language saved under its old code by its name", () => {

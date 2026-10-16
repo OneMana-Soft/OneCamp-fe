@@ -153,7 +153,8 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
   {
     key: "admins",
     label: "Admins",
-    description: "Who can change every setting here and read the audit log.",
+    // Not what the note under it says (what admins can do): who they are.
+    description: "The people who run this workspace.",
     href: admin("admins"),
     icon: ShieldAlert,
     hue: SETTINGS_GROUP_HUE.workspace,
@@ -348,15 +349,15 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
   },
   {
     key: "import",
-    label: "Import",
-    description: "Bring channels, projects and tasks from the tools you used before.",
+    label: "Import and export",
+    description: "Bring your work in from the tools you used before, and take the workspace's docs out as a zip.",
     href: admin("import"),
     icon: Database,
     hue: SETTINGS_GROUP_HUE.records,
     group: "records",
     // Four source cards across need more than the 720px column.
     wide: true,
-    keywords: ["slack", "asana", "jira", "trello", "clickup", "monday", "todoist", "linear", "migrate"],
+    keywords: ["slack", "asana", "jira", "trello", "clickup", "monday", "todoist", "linear", "notion", "migrate", "export", "backup", "zip"],
   },
 
   // ── System ──
@@ -384,8 +385,25 @@ export function adminPlace(tab: string): SettingsPlace | undefined {
 /** The place a path (with its search) belongs to, for the nav's current row. */
 export function placeForLocation(pathname: string, tab: string | null): SettingsPlace | undefined {
   if (pathname.startsWith("/app/admin/evidence")) return SETTINGS_PLACES.find((p) => p.key === "evidence")
+  // GitHub's way back after connecting belongs to Integrations, where it
+  // started; it lit Members, the section a bare /app/admin opens on.
+  if (pathname.startsWith("/app/admin/github")) return adminPlace("integrations")
   if (pathname.startsWith("/app/admin")) return adminPlace(normaliseAdminTab(tab, ""))
   return SETTINGS_PLACES.find((p) => p.group === "you" && pathname.startsWith(p.href))
+}
+
+/**
+ * What a phone's top bar calls a settings or admin page. On a phone the page's
+ * own h1 is for screen readers only, so the bar is the one place its name
+ * shows: the section's own name ("Invitations", "Profile"), "Admin" for the
+ * list of admin sections and "Settings" for the list of yours. Every admin
+ * section said "Admin", so a phone never said which one was open, and
+ * Profile said "Settings". Pure.
+ */
+export function phoneSettingsTitle(pathname: string, tab: string | null): string {
+  if (pathname === "/app/admin" && !tab) return "Admin"
+  if (pathname.startsWith("/app/admin")) return placeForLocation(pathname, tab)?.label ?? "Admin"
+  return placeForLocation(pathname, tab)?.label ?? "Settings"
 }
 
 /** Old `?tab=` values that still resolve: links to them exist. */

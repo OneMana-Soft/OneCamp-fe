@@ -86,6 +86,15 @@ export function optionalNameSchema(kind: NameKind, what: string) {
 }
 
 /** The rule's words for a name it refuses, or "" for one it accepts; `what` starts them. */
+/**
+ * What a channel name looks like as it is typed, in New channel and in a
+ * rename: lowercase, spaces as hyphens. A rename once kept "engineering qa",
+ * a name creating a channel never makes (QA F-16).
+ */
+export function channelSlug(typed: string): string {
+  return typed.toLowerCase().replace(/\s+/g, "-")
+}
+
 export function nameProblem(kind: NameKind, what: string, value: string): string {
   const checked = nameSchema(kind, what).safeParse(value)
   return checked.success ? "" : checked.error.issues[0]?.message || `${what} can't be used`

@@ -8,11 +8,11 @@ describe("channelComposerPlaceholder", () => {
     expect(channelComposerPlaceholder("engineering")).toBe("Message #engineering")
     expect(channelComposerPlaceholder("engineering", ["  "])).toBe("Message #engineering")
   })
-  it("drops the channel name on a phone, where the header shows it", () => {
-    expect(channelComposerPlaceholder("engineering", ["Release Captain"], { compact: true })).toBe(
-      "Message or ask @Release Captain",
-    )
+  it("is the plain prompt on a phone, where the agent's name was cut in half", () => {
+    expect(channelComposerPlaceholder("engineering", ["Release Captain"], { compact: true })).toBe("Message #engineering")
     expect(channelComposerPlaceholder("engineering", [], { compact: true })).toBe("Message #engineering")
+    // About 26 characters fit beside the phone composer's three controls.
+    expect(channelComposerPlaceholder("launch-week", ["Release Captain"], { compact: true }).length).toBeLessThanOrEqual(26)
   })
   it("offers the channel's agent", () => {
     expect(channelComposerPlaceholder("engineering", ["Release Captain", "Triage"])).toBe(

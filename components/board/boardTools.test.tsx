@@ -41,14 +41,32 @@ afterEach(() => {
 })
 
 describe("a board's tools", () => {
-  it("on an empty canvas, offer the five templates drawn small on a pop card", () => {
+  it("on an empty canvas, offer the five templates drawn small on a pop card", async () => {
     const { api } = fakeApi()
     render(<BoardTools api={api} editable boardId={BOARD} />)
-    expect(screen.getByText("Start with a template")).toBeTruthy()
+    expect(await screen.findByText("Start with a template")).toBeTruthy()
     const card = document.querySelector("[data-empty-canvas]")!
     expect(card.className).toMatch(/bg-pop/)
     expect(card.querySelectorAll("[data-template-preview]")).toHaveLength(5)
     expect(screen.getByText("or just start drawing")).toBeTruthy()
+  })
+
+  // A full board opened on "Start with a template" for as long as its
+  // drawing took to arrive: the card waits for the sync.
+  it("wait for the board's drawing before calling it empty", async () => {
+    const { api } = fakeApi()
+    const view = render(<BoardTools api={api} editable boardId={BOARD} synced={false} />)
+    await act(() => new Promise((r) => setTimeout(r, 400)))
+    expect(screen.queryByText("Start with a template")).toBeNull()
+    view.rerender(<BoardTools api={api} editable boardId={BOARD} synced />)
+    expect(await screen.findByText("Start with a template")).toBeTruthy()
+  })
+
+  it("step the empty card aside while the AI composer is open", async () => {
+    const { api } = fakeApi()
+    render(<BoardTools api={api} editable boardId={BOARD} quiet />)
+    await act(() => new Promise((r) => setTimeout(r, 400)))
+    expect(screen.queryByText("Start with a template")).toBeNull()
   })
 
   it("offer selected notes as tasks on a floating bar", () => {

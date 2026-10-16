@@ -43,6 +43,8 @@ const Toggle = React.forwardRef<
   <TogglePrimitive.Root
     ref={ref}
     className={cn(toggleVariants({ variant, size }), variant === "underline" && underlineToggle, className)}
+    // A finger's target is 44px (app/phone.css F3).
+    data-touch-target=""
     {...props}
   />
 ))

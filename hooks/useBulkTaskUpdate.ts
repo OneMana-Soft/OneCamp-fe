@@ -16,6 +16,8 @@ export interface BulkResult {
   failed: number
   /** Already that way, so nothing was sent. */
   unchanged: number
+  /** The tasks saved, for an Undo. */
+  done: TaskInfoInterface[]
 }
 
 /** Requests at a time: enough to be quick, few enough to leave the server room. */
@@ -28,7 +30,7 @@ const AT_ONCE = 4
  * lot, not one per task, so failures are quiet here).
  */
 export function useBulkTaskUpdate(listProjectId?: string) {
-  const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate()
+  const { optimisticUpdateTask, optimisticDeleteTask, revalidateTaskKeys } = useTaskUpdate()
   return useCallback(
     async (tasks: TaskInfoInterface[], change: BulkChange): Promise<BulkResult> => {
       const work = tasks.flatMap((task) => {
@@ -36,17 +38,24 @@ export function useBulkTaskUpdate(listProjectId?: string) {
         const project = task.task_project?.project_uuid || listProjectId
         return request && project ? [{ task, request, project }] : []
       })
-      for (const w of work) optimisticUpdateTask({ task_uuid: w.task.task_uuid, ...w.request.patch }, w.project)
+      for (const w of work) {
+        if (w.request.removes) optimisticDeleteTask(w.task.task_uuid, w.project)
+        else optimisticUpdateTask({ task_uuid: w.task.task_uuid, ...w.request.patch }, w.project)
+      }
       const results = await settleLimited(work, AT_ONCE, (w) =>
         axiosInstance.post(w.request.endpoint, { task_uuid: w.task.task_uuid, task_project_uuid: w.project, ...w.request.payload }, OWN_ERRORS),
       )
       const refused = work.filter((_, i) => results[i].status === "rejected")
-      for (const project of new Set(refused.map((w) => w.project))) revalidateTaskKeys(project)
+      const saved = work.filter((_, i) => results[i].status === "fulfilled")
+      // Refused ones are read again, as are tasks back from the trash: their
+      // lists have no copy of them to change.
+      const reread = change.field === "restore" ? [...refused, ...saved] : refused
+      for (const project of new Set(reread.map((w) => w.project))) revalidateTaskKeys(project)
       // A task open in the panel shows its new status, assignee or tags too.
       const opened = new Set(work.map((w) => `${GetEndpointUrl.GetTaskInfo}/${w.task.task_uuid}`))
       void appMutate((key) => typeof key === "string" && opened.has(key))
-      return { changed: work.length - refused.length, failed: refused.length, unchanged: tasks.length - work.length }
+      return { changed: saved.length, failed: refused.length, unchanged: tasks.length - work.length, done: saved.map((w) => w.task) }
     },
-    [listProjectId, optimisticUpdateTask, revalidateTaskKeys],
+    [listProjectId, optimisticUpdateTask, optimisticDeleteTask, revalidateTaskKeys],
   )
 }

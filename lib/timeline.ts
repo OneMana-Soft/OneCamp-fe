@@ -26,6 +26,7 @@ import { colorDot, isClosedStatus, statusOptionOf, type StatusCategory, type Sta
 import { endsOf, wayKept, wayOf, type DependencyFacets } from "@/lib/tasks/dependency"
 import type { CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { taskDate } from "@/lib/tasks/taskDate"
 
 /** A task as GET /project/{id}/timeline sends it. */
 export interface TimelineTask extends TaskStatusFields {
@@ -58,12 +59,7 @@ export const isPending = (t: Pick<TimelineTask, "task_uuid">) => t.task_uuid.sta
 
 // ---- Dates ------------------------------------------------------------------
 
-/** A date the server sent, or null when it's unset: empty, the zero time, or unreadable. */
-export function taskDate(s?: string | null): Date | null {
-  if (!s) return null
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) || d.getFullYear() < 1971 ? null : d
-}
+export { taskDate }
 
 /** The days a task covers, both ends included, as local midnights. */
 interface Span {

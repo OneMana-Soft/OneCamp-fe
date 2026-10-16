@@ -30,14 +30,32 @@ export function installAnchorTracking(doc: Document = document): () => void {
   }
 }
 
-/** The box of the element last pressed, while it is still on the page. */
-export function lastAnchorRect(): DOMRect | null {
-  if (!lastEl || !lastEl.isConnected) return null
-  // An avatar or a name, not the whole row it sits in: the nearest small thing.
-  const el = (lastEl.closest("[data-profile-anchor],button,a,[role=button]") as Element | null) ?? lastEl
-  const r = el.getBoundingClientRect()
-  return r.width === 0 && r.height === 0 ? null : r
+/**
+ * The box of the element last pressed, while it is still on the page. When
+ * it is gone (a menu item closes with its menu), the box of `fallback`, a
+ * selector for what that menu rose from: the status and pause editors open
+ * from the profile menu, and with nothing to anchor to they opened at the
+ * top of the screen, far from the sidebar foot they were asked for at.
+ */
+export function lastAnchorRect(fallback?: string): DOMRect | null {
+  const shown = (r: DOMRect) => r.width > 0 || r.height > 0
+  if (lastEl && lastEl.isConnected) {
+    // An avatar or a name, not the whole row it sits in: the nearest small thing.
+    const el = (lastEl.closest("[data-profile-anchor],button,a,[role=button]") as Element | null) ?? lastEl
+    const r = el.getBoundingClientRect()
+    return shown(r) ? r : null
+  }
+  if (!fallback || typeof document === "undefined") return null
+  // The first of them on screen (a tablet's rail, or the full sidebar's foot).
+  for (const el of Array.from(document.querySelectorAll(fallback))) {
+    const r = el.getBoundingClientRect()
+    if (shown(r)) return r
+  }
+  return null
 }
+
+/** Where the profile menu rises from: the sidebar's foot, or a tablet rail's button. */
+export const SIDEBAR_FOOT = '[data-sidebar-foot], [data-rail] [aria-label="Profile and settings"]'
 
 /** Test seam. */
 export function setLastAnchor(el: Element | null): void {

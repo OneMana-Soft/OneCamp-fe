@@ -10,10 +10,18 @@ export interface DocCounts {
   minutes: number
 }
 
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu
+
+/** Words: what spaces part, each Chinese or Japanese character one. Pure. */
+export function countWords(text: string): number {
+  const cjk = text.match(CJK)?.length ?? 0
+  const rest = text.replace(CJK, " ").trim()
+  return cjk + (rest ? rest.split(/\s+/).length : 0)
+}
+
 /** Words, characters and reading time of a doc's text. Pure. */
 export function countDoc(text: string): DocCounts {
-  const trimmed = text.trim()
-  const words = trimmed === "" ? 0 : trimmed.split(/\s+/).length
+  const words = countWords(text)
   return { words, chars: text.length, minutes: words === 0 ? 0 : Math.max(1, Math.ceil(words / 200)) }
 }
 

@@ -28,6 +28,26 @@ const UNKNOWN: ErrorCopy = { title: "Something went wrong", description: "Try ag
 // status's own words say it better ("You don't have permission to do that").
 const BARE = /^(not authori[sz]ed|unauthori[sz]ed|forbidden|not allowed)\.?$/i
 
+// Server messages that give no reason, only that something failed: a failed
+// refresh in chat said "Something went wrong · internal error". The status's
+// own words are written for people ("The server hit a problem. Try again in a
+// moment.").
+const NO_REASON = /^(internal( server)? error|server error|unknown error|an? (unexpected |unknown )?error( occurred)?|something went wrong|error|failed)\.?$/i
+
+// A server fault's developer text: "Failed to create comment", "failed to
+// update field". It names what broke inside, not what the person can do, so
+// a 5xx never shows it (QA DSA-15).
+const DEVELOPER_TEXT = /^failed to\b/i
+
+/**
+ * The title for the public demo's refusals (code "demo"). The server says why
+ * in its message: everyone who opens the demo is the same account, so it keeps
+ * its own channels and docs, and connects nobody's personal accounts. Under
+ * "Not allowed" that read as a permission the visitor lacked, not as the
+ * demo looking after the next visitor.
+ */
+export const DEMO_REFUSAL_TITLE = "The demo is shared"
+
 /**
  * What a status means in the person's words, for a failure the server sent no
  * words for; undefined for a status with none of its own. Pure.
@@ -38,16 +58,30 @@ export function statusWords(status: number): string | undefined {
   return undefined
 }
 
-/** Whether a server message only says "no", which its status says better. Pure. */
-export function isBareNo(msg: string): boolean {
-  return BARE.test(msg.trim())
+/**
+ * Whether a server's message is worth showing for a failure with this status
+ * (0 for none): it says something, and more than a bare "no" or a bare "it
+ * failed", which the status's own words say better; and from a server fault
+ * (5xx) it isn't the server's developer text ("Failed to create comment").
+ * Pure.
+ */
+export function saysWhy(msg: string, status: number): boolean {
+  const m = msg.trim()
+  if (!m || BARE.test(m) || NO_REASON.test(m)) return false
+  return !(status >= 500 && DEVELOPER_TEXT.test(m))
 }
 
-/** The copy for a failed request. serverMsg is the backend's own msg field. Pure. */
-export function errorToastCopy(status: number | undefined, serverMsg: unknown): ErrorCopy {
+/** The copy for a failed request. serverMsg is the backend's own msg field, code its machine-readable code. Pure. */
+export function errorToastCopy(status: number | undefined, serverMsg: unknown, code?: unknown): ErrorCopy {
   const base = (status && BY_STATUS[status]) || (status && status >= 500 ? SERVER_TROUBLE : UNKNOWN)
   const msg = typeof serverMsg === "string" ? serverMsg.trim() : ""
-  return msg && !BARE.test(msg) ? { title: base.title, description: msg } : base
+  const title = code === "demo" && msg ? DEMO_REFUSAL_TITLE : base.title
+  return saysWhy(msg, status ?? 0) ? { title, description: msg } : base
+}
+
+/** Whether a failed request is the demo explaining itself, whose words are best left as they are. Pure. */
+export function isDemoRefusal(data: unknown): boolean {
+  return !!data && typeof data === "object" && (data as { code?: unknown }).code === "demo"
 }
 
 // One screen can make several requests that fail the same way at once (a page

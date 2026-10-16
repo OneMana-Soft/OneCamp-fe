@@ -1,14 +1,25 @@
-/* THE DOC'S READING TYPE (content.md D07). Scoped to .doc-editor, the doc's
-   editor and its saved-copy snapshot, so messages and comments keep the 15/23
-   body the chat spec sets. 16/26 at -0.011em in a 720 px measure; headings at
-   590 with their own top and bottom space; lists with real markers; the v3
-   checkbox; a quiet quote; a divider with the ring in miniature. */
+/* THE DOC'S READING TYPE (content.md D07, PROGRAM D-1). Scoped to
+   .doc-editor, the doc's editor and its saved-copy snapshot, so messages and
+   comments keep the 15/23 body the chat spec sets. 16/26 at -0.011em in a
+   720 px measure; headings 30, 24, 20 and 16 with their own top and bottom
+   space; lists with real markers; the v3 checkbox; a quiet quote; a divider
+   with the ring in miniature. docTypeScale.test.ts holds the scale. */
 
 .minimal-tiptap-editor.doc-editor .ProseMirror {
   font-size: 1rem;
   line-height: 1.625rem;
   letter-spacing: var(--doc-tracking-body);
   color: var(--ink);
+  /* One caret for the title and the body: the brand's (V8). */
+  caret-color: var(--brand);
+}
+
+/* Right-to-left text sits on the right: each block takes its direction from
+   its own first letters (A1), so a Hebrew line in an English doc reads from
+   the right edge. */
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, li, blockquote) {
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 .minimal-tiptap-editor.doc-editor .ProseMirror p {
@@ -31,34 +42,75 @@
   margin-bottom: 0;
 }
 
-/* Headings at 590 (never 600 below 28 px), each with its own rhythm. */
+/* Headings (D-1): H1 30/38 at 600, H2 24/32 and H3 20/28 at 590 (600 only
+   from 28 px), H4 16/24 at 650 in ink-2, so each level reads as its own
+   (H3 was body size); h5 and h6 as H4. Each has its own rhythm. */
 .minimal-tiptap-editor.doc-editor .ProseMirror .heading-node {
   font-weight: 590;
   color: var(--ink);
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror > h1,
 .minimal-tiptap-editor.doc-editor .ProseMirror h1 {
-  font-size: 1.5rem;
-  line-height: 1.875rem;
+  font-size: 1.875rem;
+  line-height: 2.375rem;
+  font-weight: 600;
   letter-spacing: var(--doc-tracking-h1);
   margin-top: 32px;
   margin-bottom: 8px;
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror > h2,
 .minimal-tiptap-editor.doc-editor .ProseMirror h2 {
-  font-size: 1.25rem;
-  line-height: 1.75rem;
+  font-size: 1.5rem;
+  line-height: 2rem;
   letter-spacing: var(--doc-tracking-h2);
   margin-top: 28px;
   margin-bottom: 6px;
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror > :is(h3, h4, h5, h6),
-.minimal-tiptap-editor.doc-editor .ProseMirror :is(h3, h4, h5, h6) {
+.minimal-tiptap-editor.doc-editor .ProseMirror > h3,
+.minimal-tiptap-editor.doc-editor .ProseMirror h3 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  letter-spacing: var(--doc-tracking-h3);
+  margin-top: 24px;
+  margin-bottom: 4px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > :is(h4, h5, h6),
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(h4, h5, h6) {
   font-size: 1rem;
   line-height: 1.5rem;
+  font-weight: 650;
+  color: var(--ink-2);
   letter-spacing: var(--doc-tracking-body);
   margin-top: 20px;
   margin-bottom: 4px;
+}
+
+/* An empty heading away from the caret says which it is (T2), as the one
+   the caret is in does (the placeholder's "Heading 2"), so a heading left
+   empty isn't a blank gap. Only while the doc can be edited. */
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] :is(h1, h2, h3, h4, h5, h6):not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--ink-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] h1:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Heading 1";
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] h2:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Heading 2";
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] h3:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Heading 3";
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] h4:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Heading 4";
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] h5:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Heading 5";
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] h6:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Heading 6";
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child {
   margin-top: 0;
@@ -267,9 +319,9 @@
   font-style: italic;
 }
 
-/* Placeholder: ink-4, on the current empty line only. */
+/* Placeholder: ink-3 (D-SD4: a hint people read), on the current empty line only. */
 .minimal-tiptap-editor.doc-editor .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, blockquote, li).is-empty::before {
-  color: var(--ink-4);
+  color: var(--ink-3);
 }
 
 /* Images (D11): r10 with a faint inset ring so a white image keeps its edge. */
@@ -277,26 +329,36 @@
   border-radius: 10px;
 }
 
-/* The phone: the same 16/26; headings one step down. */
+/* The phone: the same 16/26; headings one step down, under a 30/36 title:
+   H1 24/32, H2 20/28, H3 18/26 (H4 stays 16/24). */
 @media (max-width: 767px) {
   .minimal-tiptap-editor.doc-editor .ProseMirror > h1,
   .minimal-tiptap-editor.doc-editor .ProseMirror h1 {
-    font-size: 1.375rem;
-    line-height: 1.75rem;
+    font-size: 1.5rem;
+    line-height: 2rem;
+    letter-spacing: var(--doc-tracking-h2);
   }
   .minimal-tiptap-editor.doc-editor .ProseMirror > h2,
   .minimal-tiptap-editor.doc-editor .ProseMirror h2 {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    letter-spacing: var(--doc-tracking-h3);
+  }
+  .minimal-tiptap-editor.doc-editor .ProseMirror > h3,
+  .minimal-tiptap-editor.doc-editor .ProseMirror h3 {
     font-size: 1.125rem;
     line-height: 1.625rem;
   }
 }
 
-/* The doc title (D06): 32/38 at 600, opsz 32, -0.021em, balanced; 26/32 on
-   the phone. The placeholder "Untitled" is ink-4, so it never reads as text. */
+/* The doc title (D-1): 40/48 at 650, opsz 32, -0.022em, balanced, so it
+   reads as a page and not a heading; 30/36 on the phone. The placeholder
+   "Untitled" is ink-3, lighter than the title's ink and still readable
+   (D-SD4). */
 .doc-title {
-  font-size: 2rem;
-  line-height: 2.375rem;
-  font-weight: 600;
+  font-size: 2.5rem;
+  line-height: 3rem;
+  font-weight: 650;
   letter-spacing: var(--doc-tracking-title);
   font-variation-settings: "opsz" 32;
   text-wrap: balance;
@@ -304,13 +366,14 @@
   caret-color: var(--brand);
 }
 .doc-title::placeholder {
-  color: var(--ink-4);
+  color: var(--ink-3);
 }
 @media (max-width: 767px) {
   .doc-title {
-    font-size: 1.625rem;
-    line-height: 2rem;
-    font-variation-settings: "opsz" 28;
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    letter-spacing: var(--doc-tracking-h1);
+    font-variation-settings: "opsz" 30;
   }
 }
 
@@ -325,4 +388,326 @@
 @keyframes content-caret-dot {
   0%, 88.8% { opacity: 0; transform: scale(0.6); }
   100% { opacity: 1; transform: none; }
+}
+
+/* A block's own colour (B2; data-block-color): "sky" puts its text in the
+   hue's ink, "sky_background" puts it on the hue's tint. It covers the
+   block's own line: a paragraph or heading, a quote whole, a list item's or
+   a to-do's first line, a toggle's summary. What sits inside keeps its own
+   (each value is set afresh on every coloured block, so nothing inherits a
+   parent's). */
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color] { --block-ink: initial; --block-tint: initial; }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="gray"] { --block-ink: var(--ink-2); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="sun"] { --block-ink: var(--camp-sun-ink); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="moss"] { --block-ink: var(--camp-moss-ink); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="lake"] { --block-ink: var(--camp-lake-ink); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="sky"] { --block-ink: var(--camp-sky-ink); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="dusk"] { --block-ink: var(--camp-dusk-ink); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="berry"] { --block-ink: var(--camp-berry-ink); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="gray_background"] { --block-tint: var(--press); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="sun_background"] { --block-tint: var(--camp-sun-tint); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="moss_background"] { --block-tint: var(--camp-moss-tint); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="lake_background"] { --block-tint: var(--camp-lake-tint); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="sky_background"] { --block-tint: var(--camp-sky-tint); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="dusk_background"] { --block-tint: var(--camp-dusk-tint); }
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-block-color="berry_background"] { --block-tint: var(--camp-berry-tint); }
+
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, blockquote)[data-block-color],
+.minimal-tiptap-editor.doc-editor .ProseMirror li[data-block-color] > p:first-child,
+.minimal-tiptap-editor.doc-editor .ProseMirror li[data-block-color] > div > p:first-child,
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-type="collapsible"][data-block-color] > :is(p, h1, h2, h3):first-child,
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-type="collapsible"][data-block-color] > .toggle-content > :is(p, h1, h2, h3):first-child {
+  color: var(--block-ink, inherit);
+  background-color: var(--block-tint, transparent);
+}
+/* A background reaches 6 px past the text either side, r6, so the text
+   stays in line with the blocks around it. */
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, blockquote)[data-block-color$="_background"],
+.minimal-tiptap-editor.doc-editor .ProseMirror li[data-block-color$="_background"] > p:first-child,
+.minimal-tiptap-editor.doc-editor .ProseMirror li[data-block-color$="_background"] > div > p:first-child,
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-type="collapsible"][data-block-color$="_background"] > :is(p, h1, h2, h3):first-child,
+.minimal-tiptap-editor.doc-editor .ProseMirror [data-type="collapsible"][data-block-color$="_background"] > .toggle-content > :is(p, h1, h2, h3):first-child {
+  border-radius: 6px;
+  padding-inline: 6px;
+  margin-inline: -6px;
+}
+/* A quote on a tint: its bar at the tint's edge, its text where an
+   uncoloured quote's is. */
+.minimal-tiptap-editor.doc-editor .ProseMirror blockquote[data-block-color$="_background"] {
+  padding: 4px 6px 4px 22px;
+}
+
+/* Toggles (B2, toggle-view in collapsible.ts): a 24 px r6 chevron, ink-3,
+   that turns as it opens, beside the summary line; closed, only the summary
+   shows. Open or closed is the viewer's own. Toggle headings keep their
+   heading's space above them, and the chevron sits on the first line's
+   middle at every size. */
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle {
+  position: relative;
+  padding-left: 26px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.875;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--duration-hover) var(--ease-out);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-open="true"] > .toggle-chevron svg {
+  transform: rotate(90deg);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-level="1"] > .toggle-chevron { top: 7px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-level="2"] > .toggle-chevron { top: 4px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-level="3"] > .toggle-chevron { top: 2px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-open="false"] > .toggle-content > :not(:first-child) {
+  display: none;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-content > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-content > * + * {
+  margin-top: 4px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror > .toggle[data-level="1"]:not(:first-child) { margin-top: 32px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror > .toggle[data-level="2"]:not(:first-child) { margin-top: 28px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror > .toggle[data-level="3"]:not(:first-child) { margin-top: 24px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty {
+  display: block;
+  margin-top: 2px;
+  padding: 2px 0;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--ink-3);
+  cursor: text;
+  transition: color var(--duration-hover) var(--ease-out);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty:hover {
+  color: var(--ink-2);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty[hidden] {
+  display: none;
+}
+/* An empty summary says what it is, caret or not, while the doc can be edited. */
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] .toggle-content > :is(p, h1, h2, h3):first-child:has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Toggle";
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--ink-3);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror[contenteditable="true"] .toggle-content > :is(h1, h2, h3):first-child:has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Toggle heading";
+}
+/* The saved copy, until the editor takes over: toggles closed, as a viewer's
+   are until opened, with the chevron where the editor draws it. */
+.minimal-tiptap-editor.doc-editor .ProseMirror div[data-type="collapsible"]:not(.toggle) {
+  position: relative;
+  padding-left: 26px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror div[data-type="collapsible"]:not(.toggle) > :not(:first-child) {
+  display: none;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror div[data-type="collapsible"]:not(.toggle)::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  width: 16px;
+  height: 16px;
+  background: var(--ink-3);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.875' stroke-linecap='round' stroke-linejoin='round'><path d='M9 18l6-6-6-6'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.875' stroke-linecap='round' stroke-linejoin='round'><path d='M9 18l6-6-6-6'/></svg>") center / contain no-repeat;
+}
+@media (max-width: 767px) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-level="1"] > .toggle-chevron { top: 4px; }
+  .minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-level="2"] > .toggle-chevron { top: 2px; }
+  .minimal-tiptap-editor.doc-editor .ProseMirror .toggle[data-level="3"] > .toggle-chevron { top: 1px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron svg { transition: none; }
+}
+
+/* A heading taken to from the contents or the outline stops clear of the
+   doc's header. */
+.minimal-tiptap-editor.doc-editor .ProseMirror :is(h1, h2, h3) {
+  scroll-margin-top: 72px;
+}
+
+/* The table of contents (B2, /toc): the headings as links, ink-2, each level
+   16 px in; a hover is the --hover wash and ink. */
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0;
+  border-radius: 8px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc.ProseMirror-selectednode {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 35%, transparent);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item {
+  display: block;
+  margin-inline: -6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 0;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item[data-level="2"] { padding-left: 22px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item[data-level="3"] { padding-left: 38px; }
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  color: var(--ink-3);
+}
+
+/* The floating outline (B2, DocOutline.tsx): a rail of 2 px lines in ink-4,
+   16, 12 and 8 px long by level, the reader's in ink-2. Hover or focus opens
+   the headings by name on the pop step (e3, r12), over the margin. */
+.doc-outline {
+  position: fixed;
+  z-index: var(--z-sticky);
+}
+.doc-outline-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 4px;
+  list-style: none;
+}
+.doc-outline-rail > li {
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-4);
+  transition: background-color var(--duration-hover) var(--ease-out);
+}
+.doc-outline-rail > li[data-level="2"] { width: 12px; }
+.doc-outline-rail > li[data-level="3"] { width: 8px; }
+.doc-outline-rail > li[data-active] { background: var(--ink-2); }
+.doc-outline-panel {
+  position: absolute;
+  top: -8px;
+  right: 0;
+  width: 240px;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: var(--e3);
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+  transition: opacity var(--duration-hover) var(--ease-out), transform var(--duration-hover) var(--ease-out);
+}
+.doc-outline-panel > ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-outline:hover .doc-outline-panel,
+.doc-outline:focus-within .doc-outline-panel {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.doc-outline-item {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
+}
+.doc-outline-item:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.doc-outline-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+.doc-outline-item[data-level="2"] { padding-left: 20px; }
+.doc-outline-item[data-level="3"] { padding-left: 32px; }
+.doc-outline-item[aria-current] {
+  color: var(--ink);
+  font-weight: 510;
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-outline-panel,
+  .doc-outline-rail > li { transition: none; }
+}
+
+/* A large quote (B2, the block menu's Large quote): a pull quote at 20/30 in
+   ink, 18/28 on a phone. */
+.minimal-tiptap-editor.doc-editor .ProseMirror blockquote[data-quote-size="large"] {
+  font-size: 1.25rem;
+  line-height: 1.875rem;
+  letter-spacing: var(--doc-tracking-h3);
+  color: var(--ink);
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror blockquote[data-quote-size="large"] p {
+  line-height: 1.875rem;
+}
+@media (max-width: 767px) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror blockquote[data-quote-size="large"],
+  .minimal-tiptap-editor.doc-editor .ProseMirror blockquote[data-quote-size="large"] p {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
 }

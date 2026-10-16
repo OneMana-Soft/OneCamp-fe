@@ -13,18 +13,25 @@ export interface ChannelInfoInterface {
     ch_about: string,
     ch_call_active: boolean,
     unread_post_count : number
+    /** The sidebar's "@2". */
+    unread_mention_count?: number
     ch_created_at: string
     ch_is_admin? : boolean
     ch_is_member?: boolean
     ch_posts: PostsRes[]
     ch_created_by: UserProfileDataInterface,
-    ch_handle: string,
     ch_member_count: number,
     ch_members ?: UserProfileDataInterface[],
     ch_moderators ?: UserProfileDataInterface[],
     ch_deleted_at ?: string
     notification_type ?: string
     ch_recording: RecordingInfoInterface[]
+    /**
+     * People outside the workspace can read it through a live guest link. Sent
+     * on the channel's info and the channel lists, left out when false, and
+     * never in live updates: missing is false.
+     */
+    has_guest_access?: boolean
 
 }
 

@@ -148,13 +148,17 @@
   .you-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
   /* The fields card's one-line helpers: 12.5px ink-2. */
+  /* Up to two lines: one line cut "Your whole name, on your profile. Shown
+     when…" mid-sentence, the half that says when it is used. */
   .you-helper {
     font-size: 12.5px;
     line-height: 18px;
     color: var(--ink-2);
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-wrap: pretty;
   }
 
   /* ---------- Profile: the theme picker and the accent ---------- */
@@ -240,10 +244,9 @@
   .you-mini[data-mode="dark"] .you-mini-side { background: radial-gradient(60px 50px at 0 0, rgb(var(--glow) / 0.35), transparent); }
   .you-mini[data-mode="dark"] .you-mini-sheet { background: #131416; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06); }
   .you-mini[data-mode="dark"] .you-mini-line:not(.you-mini-primary) { background: #26272B; }
-  .you-mini[data-mode="system"] { background: linear-gradient(90deg, #F3F4F6 50%, #0B0C0E 50%); }
-  .you-mini[data-mode="system"] .you-mini-side { background: transparent; }
-  .you-mini[data-mode="system"] .you-mini-sheet { background: linear-gradient(90deg, #FFFFFF 50%, #131416 50%); }
-  .you-mini[data-mode="system"] .you-mini-line:not(.you-mini-primary) { background: linear-gradient(90deg, #E4E5E8 50%, #26272B 50%); }
+  /* The device's own: the dark drawing clipped to the right half of the light one. */
+  .you-mini-pair { position: absolute; inset: 0; }
+  .you-mini-half { position: absolute; inset: 0; clip-path: inset(0 0 0 50%); }
 
   .you-swatches {
     display: flex;
@@ -355,26 +358,6 @@
     background: var(--line);
   }
   .you-events-body { transition: opacity 140ms var(--ease-out); }
-  /* The matrix (720px and wider): events down the side, a 16px checkbox per
-     channel; the column heads 12/510 ink-3. */
-  .you-matrix {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .you-matrix-head {
-    padding: 10px 16px 6px;
-    font-size: 12px;
-    font-weight: 510;
-    color: var(--ink-3);
-  }
-  .you-matrix tbody tr { position: relative; }
-  .you-matrix tbody th,
-  .you-matrix tbody td {
-    padding: 10px 16px;
-    border-top: 1px solid var(--line);
-  }
-  .you-matrix tbody th:first-child { padding-left: 16px; }
-  .you-matrix-event { text-align: left; font-weight: 400; }
   /* Sub-rows a switch reveals: fade and drop 4px into place. */
   .you-reveal { animation: you-reveal 180ms var(--ease-out) both; }
   @keyframes you-reveal {

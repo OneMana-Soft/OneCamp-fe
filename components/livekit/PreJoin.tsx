@@ -7,24 +7,24 @@
  * column on the right.
  */
 
+import { avatarSeed, personHue } from "@/lib/utils/getAvatarColor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalVideoTrack, type LocalTrack } from "livekit-client";
-import { Captions, Headphones, Loader2, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
+import { Captions, ChevronDown, Headphones, Loader2, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
-import { hueFor } from "@/lib/campHue";
 import { cn } from "@/lib/utils/helpers/cn";
-import { MicMeter, NamePlate, StageFace, callScreenHeight } from "./CallStage";
+import { GREEN_ROOM_GROUND, MicMeter, NamePlate, StageFace, callScreenHeight } from "./CallStage";
 import { CONTROL_KEYS, CONTROL_LABELS, DockButton } from "./VideoControls";
 import { SPEAKING_THRESHOLD } from "./callLevels";
 import { readDevicePrefs, writeDevicePref, type DevicePrefs } from "./callDevices";
 import { callKeyAction } from "./callKeys";
 import { callsUnavailableHere } from "./callErrors";
-import { mediaFailure } from "@/lib/media/mediaFailure";
+import { mediaFailure, mediaFailureKind } from "@/lib/media/mediaFailure";
 import { captionsWhereText, type CallTranscription } from "./callState";
 
 export interface PreJoinPerson {
@@ -154,10 +154,8 @@ export function PreJoin({
           console.error("Failed to acquire video track", e);
           // The app's one set of words for a refusal (lib/media); the denied
           // state also offers how to allow the camera.
-          const name = (e as { name?: string })?.name;
-          const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
           const f = mediaFailure("camera", e);
-          setCameraProblem({ kind: denied ? "denied" : "busy", message: `${f?.title ?? "Your camera couldn't start"}. You can join with audio.` });
+          setCameraProblem({ kind: mediaFailureKind(e) === "denied" ? "denied" : "busy", message: `${f?.title ?? "Your camera couldn't start"}. You can join with audio.` });
           setVideoEnabled(false);
         }
       } else if (trackRef.current) {
@@ -220,12 +218,7 @@ export function PreJoin({
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className={cn(
-          "relative flex w-full items-center justify-center overflow-hidden bg-sheet px-4 py-8 @container",
-          // The frame's campfire glow continues behind the green room.
-          "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.14),transparent_68%)]",
-          callScreenHeight(embedded),
-        )}
+        className={cn("flex w-full items-center justify-center px-4 py-8 @container", GREEN_ROOM_GROUND, callScreenHeight(embedded))}
         data-prejoin=""
       >
         <div className="relative grid w-full max-w-[1040px] items-center gap-6 md:grid-cols-[1.6fr_1fr] md:gap-10">
@@ -259,9 +252,9 @@ export function PreJoin({
               </div>
             ) : videoEnabled ? (
               // Starting: your avatar on your hue's dark ground, a shimmer across the frame.
-              <div className={cn(HUE_CLASS[hueFor(selfId)], "absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[radial-gradient(60%_70%_at_50%_45%,var(--hue-tint),#0F1012)]")} data-camera-state="starting">
+              <div className={cn(HUE_CLASS[personHue(self)], "absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[radial-gradient(60%_70%_at_50%_45%,var(--hue-tint),#0F1012)]")} data-camera-state="starting">
                 <span aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,transparent_30%,rgb(255_255_255/0.05)_50%,transparent_70%)] bg-[length:200%_100%] motion-safe:animate-[text-shimmer_1.5s_linear_infinite]" />
-                <IdentityMark variant="avatar" size={64} id={selfId} label={self} />
+                <IdentityMark variant="avatar" size={64} id={avatarSeed(self)} label={self} />
                 <p className="text-ui-sm text-[#A8ABB1]" role="status">{message}</p>
               </div>
             ) : (
@@ -302,8 +295,10 @@ export function PreJoin({
                 You&apos;re muted. Unmute to be heard. <kbd className="kbd">{CONTROL_KEYS.mic}</kbd>
               </p>
             ) : null}
-            {/* Held open before the call's name arrives, so the column doesn't move. */}
-            <p className="min-h-4 text-ui-sm font-medium leading-4 text-ink-3" data-call-place="">
+            {/* Held open before the call's name arrives, so the column doesn't move.
+                Words, so ink-2: ink-3 holds only 3:1, and over the phone's glow
+                it read as pale grey. */}
+            <p className="min-h-4 text-ui-sm font-medium leading-4 text-ink-2" data-call-place="">
               {place ? `Call ${place}` : "\u00a0"}
             </p>
             <h1 className="mt-1.5 text-title-1 font-semibold text-balance">Ready to join?</h1>
@@ -313,7 +308,7 @@ export function PreJoin({
                 {inCall && inCall.length > 0 ? (
                   <span className="flex">
                     {inCall.slice(0, 3).map((p, i) => (
-                      <IdentityMark key={p.id} variant="avatar" size={24} id={p.id} label={p.name} className={cn("ring-2 ring-sheet", i > 0 && "-ml-1.5")} />
+                      <IdentityMark key={p.id} variant="avatar" size={24} id={avatarSeed(p.name)} label={p.name} className={cn("ring-2 ring-sheet", i > 0 && "-ml-1.5")} />
                     ))}
                   </span>
                 ) : null}
@@ -414,27 +409,32 @@ function Devices({ prefs, onPick, level }: { prefs: DevicePrefs; onPick: (kind: 
     setTesting(true)
     void playChime(prefs.audiooutput).finally(() => setTimeout(() => setTesting(false), 1200))
   }, [prefs.audiooutput])
-  const row = "flex h-10 items-center gap-2.5 px-2 text-ui-sm text-ink-2"
+  // One grid for the three rows: the names start on one line, whatever
+  // each row carries at its end (the meter, Test, nothing). They floated
+  // right-aligned at three different places.
+  const row = "grid h-10 grid-cols-[16px_minmax(0,84px)_minmax(0,1fr)_auto] items-center gap-2 px-2 text-ui-sm text-ink-2"
   return (
     <div className="mt-4 rounded-[12px] bg-sunken p-1.5 ring-1 ring-inset ring-line dark:bg-white/[0.025]" data-devices="">
-      <div className={row}>
+      <div className={row} data-device-row="">
         <Mic className="size-4 text-ink-3" aria-hidden />
-        Microphone
+        <span className="truncate">Microphone</span>
         <DeviceSelect label="Microphone" devices={devices.audioinput} value={prefs.audioinput} onChange={(id) => onPick("audioinput", id)} />
         <MicMeter level={level} />
       </div>
-      <div className={row}>
+      <div className={row} data-device-row="">
         <Video className="size-4 text-ink-3" aria-hidden />
-        Camera
+        <span className="truncate">Camera</span>
         <DeviceSelect label="Camera" devices={devices.videoinput} value={prefs.videoinput} onChange={(id) => onPick("videoinput", id)} />
+        <span aria-hidden />
       </div>
-      <div className={row}>
+      <div className={row} data-device-row="">
         <Headphones className="size-4 text-ink-3" aria-hidden />
-        Speaker
+        <span className="truncate">Speaker</span>
         <DeviceSelect label="Speaker" devices={devices.audiooutput} value={prefs.audiooutput} onChange={(id) => onPick("audiooutput", id)} />
-        <Button size="xs" variant="ghost" onClick={test} disabled={testing} aria-label="Test the speaker">
+        {/* "Test" keeps its width while the chime plays: the icon says it. */}
+        <Button size="xs" variant="ghost" onClick={test} disabled={testing} aria-label={testing ? "Playing the test sound" : "Test the speaker"}>
           <Volume2 className={cn(testing && "motion-safe:animate-pulse")} aria-hidden />
-          {testing ? "Playing" : "Test"}
+          Test
         </Button>
       </div>
     </div>
@@ -445,12 +445,12 @@ function Devices({ prefs, onPick, level }: { prefs: DevicePrefs; onPick: (kind: 
 function DeviceSelect({ label, devices, value, onChange }: { label: string; devices: MediaDeviceInfo[]; value?: string; onChange: (id: string) => void }) {
   const current = devices.find((d) => d.deviceId === value) ?? devices[0]
   return (
-    <span className="relative ml-auto flex min-w-0 max-w-[200px] items-center">
+    <span className="relative flex min-w-0 items-center">
       <select
         aria-label={label}
         value={current?.deviceId ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-[6px] bg-transparent py-1 pr-5 pl-1.5 text-right text-ui-sm text-foreground hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand"
+        className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-[6px] bg-transparent py-1 pr-6 pl-1.5 text-left text-ui-sm text-foreground hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand"
       >
         {devices.length === 0 ? <option value="">Default</option> : null}
         {devices.map((d) => (
@@ -459,7 +459,7 @@ function DeviceSelect({ label, devices, value, onChange }: { label: string; devi
           </option>
         ))}
       </select>
-      <span aria-hidden className="pointer-events-none absolute right-1 text-ink-3">▾</span>
+      <ChevronDown aria-hidden className="pointer-events-none absolute right-1.5 size-3.5 text-ink-3" />
     </span>
   )
 }

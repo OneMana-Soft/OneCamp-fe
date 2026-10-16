@@ -37,7 +37,7 @@ vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock("@/components/calendar/createCalendarEventDialog", () => ({ CreateCalendarEventDialog: () => null }))
 
-import { CalendarApp, periodTitle } from "./calendarApp"
+import { CalendarApp, periodTitle, periodTitles } from "./calendarApp"
 
 afterEach(() => {
   cleanup()
@@ -87,6 +87,17 @@ describe("the calendar", () => {
     render(<CalendarApp />)
     const primaries = screen.getAllByRole("button").filter((b) => /\bbg-brand\b/.test(b.className))
     expect(primaries.map((b) => b.textContent)).toEqual(["New eventC"])
+  })
+
+  // Integration review, 12 Oct: at 768 beside the rail the header's title was
+  // cut to "12–18 …". Under 46rem of header New event keeps its plus alone.
+  it("folds New event to its plus under 46rem of header, still named New event", () => {
+    render(<CalendarApp />)
+    const add = document.querySelector("[data-new-event]") as HTMLElement
+    expect(add.getAttribute("aria-label")).toBe("New event")
+    expect(add.className).toContain("@max-[46rem]/calhead:w-8")
+    const words = Array.from(add.querySelectorAll("span")).find((s) => s.textContent === "New event") as HTMLElement
+    expect(words.className).toBe("hidden @[46rem]/calhead:inline")
   })
 
   it("switches views with four buttons over one sliding thumb, asking for nothing new", () => {
@@ -169,11 +180,49 @@ describe("the calendar", () => {
     expect(screen.getByRole("button", { name: "New event" })).toBeTruthy()
   })
 
+  // The week strip carries the arrows on a phone, and the month view hides
+  // the strip: a month on a phone had no way to the next one.
+  it("pages a phone's month view by month", () => {
+    mobile = true
+    render(<CalendarApp />)
+    fireEvent.click(screen.getByRole("button", { name: "month" }))
+    const title = () => document.querySelector("[data-period-title]")?.textContent ?? ""
+    const before = title()
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }))
+    expect(title()).not.toBe(before)
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }))
+    expect(title()).toBe(before)
+    fireEvent.click(screen.getByRole("button", { name: "agenda" }))
+    expect(screen.queryByRole("button", { name: "Next month" })).toBeNull()
+  })
+
   it("titles each period", () => {
     const d = new Date(2026, 9, 15)
     expect(periodTitle("month", d)).toBe("October 2026")
     expect(periodTitle("week", d)).toBe("12 – 18 Oct 2026")
-    expect(periodTitle("day", d)).toBe("Thu 15 Oct")
+    expect(periodTitle("day", d)).toBe("Thursday 15 October 2026")
+  })
+
+  // The header shows the first wording that fits, so a narrow sheet (1120 px
+  // read "12 – 18 Oct 20…") drops the year, then tightens, and never cuts.
+  it("says each period ever shorter: the year goes first", () => {
+    const d = new Date(2026, 9, 15)
+    expect(periodTitles("week", d)).toEqual(["12 – 18 Oct 2026", "12 – 18 Oct", "12–18 Oct"])
+    expect(periodTitles("week", new Date(2026, 9, 1))).toEqual(["28 Sep – 4 Oct 2026", "28 Sep – 4 Oct", "28 Sep–4 Oct"])
+    expect(periodTitles("week", new Date(2026, 11, 31))).toEqual(["28 Dec 2026 – 3 Jan 2027", "28 Dec – 3 Jan 2027", "28 Dec – 3 Jan", "28 Dec–3 Jan"])
+    expect(periodTitles("month", d)).toEqual(["October 2026", "Oct 2026", "Oct"])
+    expect(periodTitles("day", d)).toEqual(["Thursday 15 October 2026", "Thu 15 Oct 2026", "Thu 15 Oct", "15 Oct"])
+    for (const v of ["day", "week", "month", "agenda"] as const) {
+      const t = periodTitles(v, d)
+      for (let i = 1; i < t.length; i++) expect(t[i].length).toBeLessThan(t[i - 1].length)
+    }
+  })
+
+  it("puts the period in a label that fits its room, with the full wording read out", () => {
+    render(<CalendarApp />)
+    const label = document.querySelector("[data-calendar-header] [data-period-title]")
+    expect(label?.hasAttribute("data-fit-label")).toBe(true)
+    expect(label?.getAttribute("aria-live")).toBe("polite")
   })
 })
 
@@ -193,8 +242,8 @@ describe("the desktop agenda", () => {
     events = [on(9, 5), on(9, 20), on(9, 30), on(10, 2), on(10, 5)]
     render(<CalendarApp />)
     fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
-    // The header's title, as the other tests here read it.
-    const title = () => document.querySelector("[aria-live]")?.textContent ?? ""
+    // The title's text holds each of its wordings, longest first.
+    const title = () => document.querySelector("[data-calendar-header] [data-period-title]")?.textContent ?? ""
     const listed = () => Array.from(document.querySelectorAll("[data-agenda] section")).map((s) => s.getAttribute("aria-label"))
     expect(listed()).toEqual(["Tuesday 20 Oct", "Friday 30 Oct"])
     act(() => void fireEvent.keyDown(window, { key: "j" }))

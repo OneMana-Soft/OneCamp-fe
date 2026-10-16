@@ -1,4 +1,5 @@
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
+import { type CampHue } from "@/lib/campHue"
 
 /**
  * The camp palette as the board's canvas needs it: colours, not classes.
@@ -47,8 +48,8 @@ export function avatarColour(hue: CampHue): string {
  * colour their avatar starts from (a1), so the cursor, the flag and their face
  * everywhere else are one colour, with a white edge. Keyed by their user id so
  * every screen shows them the same. (The canvas takes one colour, not the
- * avatar's gradient.)
+ * avatar's gradient.) Keyed as every person is (personHue): by their name.
  */
-export function collaboratorColour(id: string): { background: string; stroke: string } {
-  return { background: avatarColour(hueFor(id)), stroke: "#ffffff" }
+export function collaboratorColour(person: string): { background: string; stroke: string } {
+  return { background: avatarColour(personHue(person)), stroke: "#ffffff" }
 }

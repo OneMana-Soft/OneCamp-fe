@@ -20,7 +20,18 @@ describe("MQTT message types match the backend", () => {
   it("Chat_Seen is 34", () => {
     expect(MqttMessageType.Chat_Seen).toBe(34)
   })
+  it("Content_IO_Job is 35 (MESSAGE_CONTENT_IO_JOB)", () => {
+    expect(MqttMessageType.Content_IO_Job).toBe(35)
+  })
+  it("Doc_Meta is 36 and Notice 37", () => {
+    expect(MqttMessageType.Doc_Meta).toBe(36)
+    expect(MqttMessageType.Notice).toBe(37)
+  })
   it("Conversation_Access is 38 (MESSAGE_CONVERSATION_ACCESS)", () => {
     expect(MqttMessageType.Conversation_Access).toBe(38)
+  })
+  it("Desktop_Notice is 39 and Task_Changed 40 (MESSAGE_TASK_CHANGED)", () => {
+    expect(MqttMessageType.Desktop_Notice).toBe(39)
+    expect(MqttMessageType.Task_Changed).toBe(40)
   })
 })

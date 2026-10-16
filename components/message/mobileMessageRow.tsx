@@ -4,6 +4,7 @@ import * as React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
+import { RelayedPersonCard } from "@/components/message/relayedPersonCard"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,7 @@ import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageAttachments } from "@/components/message/MessageAttachments"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
-import { replyParticipants } from "@/components/message/threadParticipants"
+import { replyParticipants, ThreadParticipants } from "@/components/message/threadParticipants"
 import { BottomMenu } from "@/components/message/bottomMenu"
 import { ReplyLine } from "@/components/message/replyLine"
 import { AgentProvenance } from "@/components/message/agentProvenance"
@@ -27,8 +28,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { isAIBot } from "@/lib/botCopy"
-import { chatClock } from "@/lib/chat/clock"
-import { withEditedMark } from "@/lib/chat/editedMark"
+import { editedTitle } from "@/lib/chat/editedMark"
 import { isEmojiOnly } from "@/lib/chat/emojiOnly"
 import { displayNameOf } from "@/lib/personName"
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import type { UserProfileInterface } from "@/types/user"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import type { MessageSheetPreview } from "@/components/drawers/messageActionSheet"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /** How long a touch rests before the row shows it is pressed: a scroll never flashes it. */
 export const PRESS_DELAY_MS = 60
@@ -52,10 +53,12 @@ export interface MobileMessageRowProps {
     arrived?: boolean
     priority?: boolean
     editing: boolean
+    /** What a failed save held: the box shows it in place of the message's words (F-06). */
+    editDraft?: string
     onEditSave: (body: string) => void
     onEditCancel: () => void
-    /** A tap on the row: its thread. */
-    onOpen: (e: React.MouseEvent) => void
+    /** Opens its thread: a tap on the row, away from its own buttons and links, and Answer. */
+    onOpen: () => void
     onUserClick: (e: React.MouseEvent) => void
     /** The long-press handlers (hooks/useLongPress), off while pending. */
     longPress: Record<string, unknown>
@@ -79,12 +82,15 @@ export function sheetPreview(message: BaseMessage, name: string): MessageSheetPr
     }
 }
 
-function editedTitle(createdAt: string, updatedAt?: string): string | undefined {
-    if (!updatedAt) return undefined
-    const made = new Date(createdAt).getTime()
-    const changed = new Date(updatedAt).getTime()
-    if (!Number.isFinite(made) || !Number.isFinite(changed) || changed - made <= 1000) return undefined
-    return `Edited ${chatClock(updatedAt)} · originally ${chatClock(createdAt)}`
+/**
+ * Whether a tap on a message row opens its thread: not when it lands on one
+ * of the row's own buttons or links (a reaction, a file, a name), which do
+ * their own thing. One rule for a channel's, a DM's and a group's rows; each
+ * kept a copy, and the copy turned Answer, a button, into nothing (PG1-44).
+ */
+export function opensThread(e: React.MouseEvent): boolean {
+    const hit = (e.target as HTMLElement).closest("button, a, .interactive")
+    return !hit || !e.currentTarget.contains(hit)
 }
 
 /**
@@ -103,6 +109,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     arrived = false,
     priority,
     editing,
+    editDraft,
     onEditSave,
     onEditCancel,
     onOpen,
@@ -121,6 +128,10 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     const botKinds = useBotKindMap()
     const kind = useBotKind(message.from.user_uuid, !!message.from.is_bot)
     const isAgent = !relayed && !!message.from.is_bot && isAIBot(kind)
+    // A Check-in's question is the prompt card on a phone too (C13), with
+    // Answer: the demo guide's first step ("Answer today's check-in") led to
+    // a plain post with nothing to press.
+    const checkin = !relayed && !!message.from.is_bot && kind === "checkin" && !editing
     const authorName = relayed ? relayed.name : messageAuthorName(message.from, userInfoState?.userName)
     const body = relayed ? relayed.body : message.bodyText
     const forMe = useMemo(() => mentionsUser(message.bodyText, selfId), [message.bodyText, selfId])
@@ -132,6 +143,9 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     const failed = message.sendState === "failed"
     const pending = !!message.sendState
     const draft = useRef(message.bodyText || "")
+    useEffect(() => {
+        if (editDraft !== undefined) draft.current = editDraft
+    }, [editDraft])
 
     // Pressed: the overlay after 60ms; held, the row shrinks toward the sheet.
     const [pressed, setPressed] = useState(false)
@@ -182,7 +196,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     }
 
     return (
-        <div onClick={editing ? undefined : onOpen} className={editing ? undefined : "block cursor-pointer"}>
+        <div onClick={editing ? undefined : (e) => opensThread(e) && onOpen()} className={editing ? undefined : "block cursor-pointer"}>
             <div
                 id={messageDomId(message.uuid)}
                 data-message-row=""
@@ -229,7 +243,12 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                         <span className="sr-only">{authorName}, {formatFullTimestamp(message.createdAt)}</span>
                     ) : (
                         <div data-name-line="" className="flex h-5 min-w-0 items-center gap-2">
-                            <span className="truncate text-ui font-semibold text-ink" onClick={relayed ? undefined : onUserClick}>{authorName}</span>
+                            {relayed ? (
+                                // No profile to open: the name opens a read-only card (F-42).
+                                <RelayedPersonCard name={authorName} kind={relayed.kind} />
+                            ) : (
+                                <span className="truncate text-ui font-semibold text-ink" onClick={onUserClick}>{authorName}</span>
+                            )}
                             {relayed ? (
                                 <>
                                     <PrincipalTag kind={relayed.kind} />
@@ -242,7 +261,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                                 <FailedMark />
                             ) : (
                                 <time dateTime={isoTimestamp(message.createdAt)} className={cn("shrink-0 text-meta tabular-nums", forMe ? "text-brand-text" : "text-ink-3")}>
-                                    {chatClock(message.createdAt)}
+                                    {clockTime(message.createdAt)}
                                 </time>
                             )}
                             {sending && <SendingNote />}
@@ -255,7 +274,11 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                     )}
                     <div
                         data-emoji-only={emojiOnly && !editing ? "" : undefined}
-                        className="chat-body chat-body-phone break-words"
+                        data-checkin-card={checkin || undefined}
+                        className={cn(
+                            "chat-body chat-body-phone break-words",
+                            checkin && "mt-1 rounded-xl bg-sunken px-3.5 py-3 [&_.ProseMirror_p:first-child]:font-semibold",
+                        )}
                         onClickCapture={handleInternalLinkClick}
                         onClick={editing ? (e) => e.stopPropagation() : undefined}
                     >
@@ -265,18 +288,33 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                             className={cn("max-w-full h-auto", editing && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
                             editorContentClassName="overflow-auto"
                             output="html"
-                            content={body}
+                            content={editing && editDraft !== undefined ? editDraft : body}
                             placeholder="Edit message…"
                             editable={editing}
-                            noBorder={editing}
+                            // Corrected in place at its own size (textInput's "edit", C29).
+                            variant={editing ? "edit" : undefined}
                             mentionContext={mentionContext}
                             editedTitle={edited}
                             buttonOnclick={() => onEditSave(draft.current)}
+                            // Escape cancels, after any menu inside the editor (F-05).
+                            onCancel={editing ? () => (onEditCancel(), true) : undefined}
                             editorClassName="focus:outline-none"
                             onChange={(content) => {
                                 draft.current = content as string
                             }}
                         />
+                        {checkin && (
+                            <div className="mt-3 flex items-center gap-2.5 border-t border-line pt-2.5">
+                                {(message.comments?.length ?? 0) > 0 && <ThreadParticipants participants={replyParticipants(message.comments!.slice().reverse(), botKinds)} />}
+                                <span className="text-meta tabular-nums text-ink-3">
+                                    {(message.commentCount ?? 0) > 0 ? `${message.commentCount} answered` : "Nobody has answered yet"}
+                                </span>
+                                {/* The row opens its thread on a tap; Answer says so out loud. */}
+                                {/* Its own way to the thread: as a tap on the row, it was a
+                                    click inside a button, which the row leaves alone (PG1-44). */}
+                                <Button type="button" size="sm" className="ml-auto" onClick={(e) => { e.stopPropagation(); onOpen() }}>Answer</Button>
+                            </div>
+                        )}
                         {editing && (
                             <div className="mb-1 mt-2 flex items-center justify-end gap-2">
                                 <Button type="button" size="sm" variant="ghost" onClick={onEditCancel}>Cancel</Button>
@@ -309,7 +347,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                         <AgentProvenance asker={message.replyTo && !message.replyTo.from?.is_bot ? { name: displayNameOf(message.replyTo.from), userUUID: message.replyTo.from?.user_uuid } : null} />
                     )}
 
-                    {(message.comments?.length ?? 0) > 0 && (message.commentCount ?? 0) > 0 && (
+                    {!checkin && (message.comments?.length ?? 0) > 0 && (message.commentCount ?? 0) > 0 && (
                         <MessageReplyCount
                             replyCount={message.commentCount}
                             lastCommentCreatedAt={message.comments![message.comments!.length - 1].comment_created_at}

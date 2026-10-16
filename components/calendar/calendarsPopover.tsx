@@ -6,11 +6,11 @@ import { Check, ChevronLeft, ChevronRight, Ellipsis, Link2, Pin, PinOff, Plus } 
 import { DayCell } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import type { CampHue } from "@/lib/campHue";
 import { cn } from "@/lib/utils/helpers/cn";
 import { dayKey, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 
 /**
  * What the second sidebar held, in one popover (content.md C01, C03, C04,
@@ -131,7 +131,7 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
       {row.marks?.length ? (
         <span className="flex items-center gap-0.5" aria-hidden="true">
           {row.marks.map((m) => (
-            <IdentityMark key={m} id={m} variant="square" size={10} />
+            <ProjectTile key={m} id={m} size={14} />
           ))}
         </span>
       ) : null}

@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 
 // Editing a message says how it ends (Escape to cancel, Enter to save), and
 // Escape ends it unchanged. The edit opened with the full row of thirteen
-// formatting icons, two unlabelled buttons and no way out by keyboard.
+// formatting icons, two unlabelled buttons and no way out by keyboard; then
+// with a folded row inside a box five lines tall for a one-line message. It
+// is the editor's "edit" variant now: the words, the emoji, nothing else.
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useFetch", () => ({
@@ -39,7 +41,7 @@ const { BaseMessageCard } = await import("@/components/message/baseMessageCard")
 afterEach(cleanup)
 
 describe("editing a message", () => {
-  it("folds its formatting, says how it ends, and ends unchanged on Escape", () => {
+  it("edits in place in the compact box, says how it ends, and ends unchanged on Escape", () => {
     const updatePost = vi.fn()
     const { container } = render(
       <Provider store={store}>
@@ -60,10 +62,14 @@ describe("editing a message", () => {
     fireEvent.focus(container.querySelector("#msg-p1")!)
     fireEvent.click(screen.getByRole("button", { name: "Edit message" }))
     expect(editorProps.editable).toBe(true)
-    expect(editorProps.toggleToolbar).toBe(true)
+    expect(editorProps.variant).toBe("edit")
     expect(container.textContent).toContain("esc cancel · ⏎ save")
-    fireEvent.keyDown(screen.getByTestId("body"), { key: "Escape" })
+    // Escape is the editor's own (textInput's onCancel, editKeys.test): a
+    // handler on the row never saw it (F-05).
+    expect(typeof editorProps.onCancel).toBe("function")
+    act(() => void (editorProps.onCancel as () => boolean)())
     expect(editorProps.editable).toBe(false)
+    expect(editorProps.variant).toBeUndefined()
     expect(updatePost).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain("Escape to cancel")
   })

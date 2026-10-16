@@ -13,14 +13,15 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
-import { shortTime } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import { displayNameOf } from "@/lib/personName";
 import { parseEventText, type ParsedEvent } from "@/lib/calendar/parseEventText";
 import { foldName, matchName, type GuestCandidate, type NameMatch } from "@/lib/calendar/guestMatch";
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import type { CreateEventPayload } from "@/types/calendar";
 import type { ChannelAndUserListInterfaceResp } from "@/types/user";
 import type { CalendarDraft } from "@/components/calendar/weekView";
+import { clockTime } from "@/lib/utils/date/clock";
 
 /**
  * Quick create (content.md C14): a 340 px pop card anchored to the draft's
@@ -194,7 +195,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
   const timeLabel = draft
     ? allDay
       ? "All day"
-      : `${shortTime(draft.start)} – ${shortTime(draft.end)}`
+      : `${clockTime(draft.start)} – ${clockTime(draft.end)}`
     : "";
   const dateLabel = draft
     ? allDay && draft.end.getTime() - draft.start.getTime() > 86_400_000
@@ -248,7 +249,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
                         <IdentityMark
                           variant="avatar"
                           size={16}
-                          id={n.person.uuid}
+                          id={avatarSeed(n.person.name)}
                           label={n.person.name}
                           src={n.person.avatarKey ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${n.person.avatarKey}` : undefined}
                         />

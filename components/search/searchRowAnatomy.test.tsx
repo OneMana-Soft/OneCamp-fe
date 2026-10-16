@@ -38,7 +38,8 @@ describe("a search result's anatomy", () => {
 
   it("leads with what each type is: a project tile, a status glyph, a face, a glyph in ink-3", () => {
     expect(lead(HITS.project).getAttribute("data-search-lead")).toBe("project")
-    expect(lead(HITS.project).className).toContain("avatar-person")
+    // The one project tile (components/ui/graphics/ProjectTile), at the lead's 24px.
+    expect(lead(HITS.project).querySelector("[data-project-tile]")?.getAttribute("data-project-tile")).toBe("24")
     expect(lead(HITS.task).querySelector("svg")).toBeTruthy()
     expect(lead(HITS.post).getAttribute("data-search-lead")).toBe("message")
     expect(lead(HITS.user).getAttribute("data-search-lead")).toBe("person")

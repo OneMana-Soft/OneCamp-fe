@@ -9,7 +9,7 @@ interface CommentsListProps {
     comments: CommentInfoInterface[]
     addReaction: (emojiId:string, reactionId: string, commentId: string, idx: number) => void
     removeReaction: (reactionId: string, commentId: string, idx:number) => void
-    updateMessage: (id: string, body: string, idx:number) => void;
+    updateMessage: (id: string, body: string, idx:number) => Promise<boolean> | boolean | void;
     deleteMessage: (id: string, idx:number) => void;
     getMediaURL: string
     docId?: string
@@ -46,7 +46,7 @@ export const MobileMessageCommentList = ({ groupUUID, docId, updateMessage, isAd
                     attachments={comment.comment_attachments}
                     addReaction={(emojiId:string, reactionId: string)=>{addReaction(emojiId, reactionId, comment.comment_uuid, idx)}}
                     removeReaction={(reactionId: string)=>{removeReaction(reactionId, comment.comment_uuid, idx)}}
-                    updateMessage={(id: string, body: string)=>{updateMessage(id, body, idx)}}
+                    updateMessage={(id: string, body: string) => updateMessage(id, body, idx)}
                     deleteMessage={(id: string)=>{deleteMessage(id, idx)}}
                     getMediaUrl={getMediaURL}
                     commentUUID={comment.comment_uuid}

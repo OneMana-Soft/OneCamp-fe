@@ -32,12 +32,12 @@ describe("senderName", () => {
 describe("dates, the app's one way", () => {
   const now = new Date(2026, 9, 10, 15, 0)
   it("lists today's mail by its time and older mail by day and month, day first", () => {
-    expect(shortDate(new Date(2026, 9, 10, 9, 5).toISOString(), now)).toBe("9:05 AM")
+    expect(shortDate(new Date(2026, 9, 10, 9, 5).toISOString(), now)).toBe("9:05\u00a0AM")
     expect(shortDate(new Date(2026, 9, 1, 9, 5).toISOString(), now)).toBe("1 Oct")
     expect(shortDate(new Date(2025, 11, 24, 9, 5).toISOString(), now)).toBe("24 Dec 2025")
   })
   it("heads a message with its day and time, and keeps all of it for a tooltip", () => {
-    expect(mailDate(new Date(2026, 9, 1, 15, 30).toISOString(), now)).toBe("1 Oct, 3:30 PM")
-    expect(fullDate(new Date(2026, 9, 1, 15, 30).toISOString())).toBe("Thursday 1 October 2026, 3:30 PM")
+    expect(mailDate(new Date(2026, 9, 1, 15, 30).toISOString(), now)).toBe("1 Oct, 3:30\u00a0PM")
+    expect(fullDate(new Date(2026, 9, 1, 15, 30).toISOString())).toBe("Thursday 1 October 2026, 3:30\u00a0PM")
   })
 })

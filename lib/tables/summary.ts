@@ -3,7 +3,7 @@
 // counts its ticks; anything else is empty until the reader picks a function.
 // Pure.
 
-import { computedOf, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { computedOf, isNumeric, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
 import type { SummaryFn } from "@/lib/tables/display"
 import { formatLocale } from "./numberFormat"
 
@@ -27,11 +27,6 @@ export const SUMMARY_LABEL: Record<SummaryFn, string> = {
 const NUMERIC: SummaryFn[] = ["sum", "average", "median", "min", "max", "range"]
 const ANY: SummaryFn[] = ["count", "empty", "filled", "pct_empty", "pct_filled"]
 
-/** Whether a field's values add up as numbers. */
-export function numericField(f: TableField): boolean {
-  return f.type === "number" || ((f.type === "formula" || f.type === "rollup") && computedOf(f).result === "number")
-}
-
 /** Whether a field's values are ticks. */
 export function checkField(f: TableField): boolean {
   return f.type === "checkbox" || ((f.type === "formula" || f.type === "rollup") && computedOf(f).result === "checkbox")
@@ -39,14 +34,14 @@ export function checkField(f: TableField): boolean {
 
 /** The functions a field's summary may use, in menu order. */
 export function summaryChoices(f: TableField): SummaryFn[] {
-  if (numericField(f)) return [...NUMERIC, ...ANY]
+  if (isNumeric(f)) return [...NUMERIC, ...ANY]
   if (checkField(f)) return ["checked", "unchecked", ...ANY]
   return ANY
 }
 
 /** What a field's summary shows until the reader chooses: numbers sum, checkboxes count ticks. */
 export function defaultSummary(f: TableField): SummaryFn {
-  if (numericField(f)) return "sum"
+  if (isNumeric(f)) return "sum"
   if (checkField(f)) return "checked"
   return "none"
 }

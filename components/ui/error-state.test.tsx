@@ -58,6 +58,17 @@ describe("ErrorState", () => {
     expect(container.innerHTML).not.toMatch(/bg-destructive(?!\/0)/)
   })
 
+  // One error mark (critic integration, 12 Oct): the full-size state drew a
+  // lone grey alert icon while the crash screens and the compact form drew the
+  // error spot. Every failure draws the spot now, at an empty state's 64px.
+  it("draws the error spot, not a bare icon, at the size of an empty state's spot", () => {
+    const { container } = render(<ErrorState subject="this channel's messages" onRetry={() => {}} />)
+    const spot = container.querySelector("[data-empty-illustration]")
+    expect(spot?.querySelector("svg")).toBeTruthy()
+    expect(spot?.className).toContain("[&>svg]:size-16")
+    expect(container.querySelector("[data-empty-icon]")).toBeNull()
+  })
+
   // Inside a section, under its title: the admin sections each drew their own
   // failure (a red banner, an amber one, a line of text, none with Try again).
   it("draws a compact form with the error spot for a failure inside a section", () => {

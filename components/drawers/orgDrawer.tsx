@@ -22,6 +22,7 @@ import { phoneSheet } from "@/components/drawers/phoneSheet"
 import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
 import { PhoneMark } from "@/components/navigationBar/mobile/phoneMark"
 import { destinationHue } from "@/lib/destinationHue"
+import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
 
 /**
  * Where "Help and docs" goes: the docs on the product's site
@@ -49,7 +50,7 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const { can } = useCapabilities()
     const [inviteOpen, setInviteOpen] = useState(false)
-    const orgName = process.env.NEXT_PUBLIC_ORG_NAME || "Your workspace"
+    const orgName = useNamedWorkspace() || "Your workspace"
     const host = typeof window === "undefined" ? "" : window.location.host
     const help = helpUrl()
 

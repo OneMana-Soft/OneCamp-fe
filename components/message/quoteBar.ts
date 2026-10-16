@@ -1,5 +1,5 @@
+import { personHue } from "@/lib/utils/getAvatarColor"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
 import { displayNameOf } from "@/lib/personName"
 import type { UserProfileDataInterface } from "@/types/user"
 
@@ -11,5 +11,5 @@ import type { UserProfileDataInterface } from "@/types/user"
  */
 export function quoteBarClass(by?: Pick<UserProfileDataInterface, "user_name" | "user_full_name"> | string | null): string {
     const name = typeof by === "string" ? by : displayNameOf(by as UserProfileDataInterface | undefined) || ""
-    return `${HUE_CLASS[hueFor(name)]} border-l-2 border-hue/70`
+    return `${HUE_CLASS[personHue(name)]} border-l-2 border-hue/70`
 }

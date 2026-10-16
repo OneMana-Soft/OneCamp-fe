@@ -166,6 +166,7 @@ export function TaskRepeatField({
                       type="button"
                       aria-pressed={on}
                       aria-label={d.long}
+                      data-touch-target=""
                       onClick={() =>
                         setSpec((s) => ({ ...s, days: on ? s.days.filter((c) => c !== d.code) : [...s.days, d.code] }))
                       }

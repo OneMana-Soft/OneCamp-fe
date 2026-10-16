@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, Plus } from "@/lib/icons"
+import { Plus } from "@/lib/icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -70,6 +70,7 @@ export function TagPicker({
         <button
           type="button"
           aria-label={current.length ? `Labels: ${current.join(", ")}. Change labels` : "Add labels"}
+          data-touch-target=""
           className="-ml-2 inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm text-ink-3 transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring"
         >
           {current.length ? <TagPills label={label} /> : "Add labels"}
@@ -93,14 +94,11 @@ export function TagPicker({
                 {options.map((t) => {
                   const on = has(t.name)
                   return (
-                    <CommandItem key={t.name} value={t.name} onSelect={() => toggle(t.name)} disabled={!on && full} className="h-[30px] gap-2 rounded-md">
+                    <CommandItem key={t.name} checked={on} value={t.name} onSelect={() => toggle(t.name)} disabled={!on && full} className="h-[30px] gap-2 rounded-md">
                       {/* The label's own hue as a dot (W06), never a tinted pill. */}
                       <span aria-hidden className={cn(HUE_CLASS[hueFor(t.name)], "size-1.5 shrink-0 rounded-full bg-hue")} />
                       <span className="truncate">{t.name}</span>
-                      <span className="ml-auto flex items-center gap-2">
-                        {t.count > 0 && <span className="text-xs tabular-nums text-ink-3">{t.count}</span>}
-                        <Check className={cn("h-3.5 w-3.5 text-ink-2", !on && "invisible")} />
-                      </span>
+                      {t.count > 0 && <span className="ml-auto text-xs tabular-nums text-ink-3">{t.count}</span>}
                     </CommandItem>
                   )
                 })}

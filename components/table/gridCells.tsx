@@ -1,5 +1,6 @@
 "use client"
 
+import { personHue } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ import { CommandList, type CommandListHandle, type CommandListItem } from "@/com
 import {
   computedOf,
   formulaOf,
+  optionsOf,
   parseFieldConfig,
   relationOf,
   type FieldType,
@@ -38,25 +40,27 @@ import { OptionChip, chipsTinted } from "@/components/table/optionChip"
 import { showFormulaValue } from "@/lib/tables/formula"
 import type { CellKind } from "@/lib/tables/gridKeys"
 import { cellValid, formatNumber, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
+import { parseTypedNumber, typedNumberText } from "@/lib/format/number"
 import type { RowHeight } from "@/lib/tables/display"
 import { localDay } from "@/lib/utils/timeZone"
-import { campHueOf, hueFor } from "@/lib/campHue"
+import { campHueOf } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { formatLocale } from "@/lib/tables/numberFormat"
+import { isComposingKey } from "@/lib/keys/ime"
 
-/** The twelve column types, each with the one-line hint the type menus show. */
+/** The twelve column types, each with the one-line hint the type menus show (kept short: the hint gives way to the name, see ColumnMenu's TypeHint). */
 export const FIELD_TYPES: { value: FieldType; label: string; hint: string }[] = [
   { value: "text", label: "Text", hint: "Names, notes, anything" },
-  { value: "number", label: "Number", hint: "Sums, averages, currency" },
+  { value: "number", label: "Number", hint: "Sums and currency" },
   { value: "select", label: "Select", hint: "One option from a list" },
-  { value: "multi_select", label: "Multi-select", hint: "Several options, as tags" },
-  { value: "date", label: "Date", hint: "A day, for calendars and due dates" },
+  { value: "multi_select", label: "Multi-select", hint: "Several, as tags" },
+  { value: "date", label: "Date", hint: "Due dates, calendars" },
   { value: "checkbox", label: "Checkbox", hint: "Done or not" },
   { value: "url", label: "URL", hint: "A link that opens" },
   { value: "email", label: "Email", hint: "An address to write to" },
   { value: "person", label: "Person", hint: "Who it belongs to" },
   { value: "relation", label: "Relation", hint: "Link to another table" },
-  { value: "formula", label: "Formula", hint: "Compute from other fields" },
+  { value: "formula", label: "Formula", hint: "From other fields" },
   { value: "rollup", label: "Rollup", hint: "Add up what's linked" },
 ]
 
@@ -77,10 +81,6 @@ export const FIELD_GLYPH: Record<FieldType, React.ComponentType<{ className?: st
 }
 
 export const fieldTypeLabel = (type: FieldType) => FIELD_TYPES.find((t) => t.value === type)?.label ?? type
-
-/** A number-like column reads right-aligned in tabular figures. */
-export const isNumeric = (f: TableField): boolean =>
-  f.type === "number" || ((f.type === "formula" || f.type === "rollup") && computedOf(f).result === "number")
 
 /** The kind of control a cell is, for moving around from the keyboard. */
 export function cellKind(f: TableField): CellKind {
@@ -110,7 +110,7 @@ export function optionIndexOf(fields: TableField[]): OptionIndex {
   for (const f of fields) {
     if (f.type !== "select" && f.type !== "multi_select") continue
     const tinted = chipsTinted(f)
-    for (const o of parseFieldConfig(f).options || []) if (!out.has(o.label)) out.set(o.label, { color: o.color, tinted })
+    for (const o of optionsOf(f)) if (!out.has(o.label)) out.set(o.label, { color: o.color, tinted })
   }
   return out
 }
@@ -160,6 +160,18 @@ export interface CellProps {
   onLink: (change: { add?: string[]; remove?: string[] }) => void
 }
 
+/**
+ * How a cell's chips sit: in the record panel, all of them, wrapping; in a
+ * tall row, eight, wrapping; else one line of two (one for a single select),
+ * then "+N". Chips that wrapped in a 40 px row stretched it past the grid's
+ * fixed row height (QA PTC-16).
+ */
+function chipRoom(ctx: CellContext, multi: boolean): { max: number; wrap: boolean } {
+  if (ctx.panel) return { max: Infinity, wrap: true }
+  const tall = ctx.rowHeight === "tall" || ctx.rowHeight === "xtall"
+  return { max: tall ? 8 : multi ? 2 : 1, wrap: tall }
+}
+
 /** The right renderer for a field's type (content.md T08). */
 export function Cell({ field, value, cellId, primary, readOnly, ctx, onCommit, onLink }: CellProps) {
   if (field.type === "formula" || field.type === "rollup") {
@@ -178,6 +190,7 @@ export function Cell({ field, value, cellId, primary, readOnly, ctx, onCommit, o
       <div data-cell={cellId} tabIndex={-1} className={cn("h-full", FOCUS)}>
         <RelationCell
           value={value}
+          room={chipRoom(ctx, true)}
           target={target}
           tableId={tableId}
           tableName={tableName}
@@ -214,8 +227,10 @@ export function CheckboxCell({
   // The springy check: only when someone ticks it, never for a box that was
   // already ticked when the table opened.
   const [pop, setPop] = React.useState(false)
+  // A label as big as the cell, so a click or a tap anywhere in it ticks the
+  // box, as every cell takes one (TAB-BUG-15): the 16 px box alone did.
   return (
-    <div className={cn("flex h-full items-center", start ? "px-3" : "justify-center")}>
+    <label className={cn("flex h-full items-center", start ? "px-3" : "justify-center", !readOnly && "cursor-pointer")}>
       <input
         type="checkbox"
         data-cell={cellId}
@@ -229,7 +244,7 @@ export function CheckboxCell({
         aria-label={label}
         className={cn("v3-check", pop && "animate-spring")}
       />
-    </div>
+    </label>
   )
 }
 
@@ -264,7 +279,7 @@ export function SelectCell({
   onCommit: (v: unknown) => Promise<boolean>
 }) {
   const multi = field.type === "multi_select"
-  const options = React.useMemo(() => parseFieldConfig(field).options || [], [field])
+  const options = React.useMemo(() => optionsOf(field), [field])
   const tinted = chipsTinted(field)
   const saved = React.useMemo<string[]>(
     () => (multi ? (Array.isArray(value) ? (value as string[]) : []) : typeof value === "string" && value ? [value] : []),
@@ -275,15 +290,15 @@ export function SelectCell({
   const [q, setQ] = React.useState("")
   const list = React.useRef<CommandListHandle>(null)
   const colorOf = (label: string) => options.find((o) => o.label === label)?.color
-  const wrap = ctx.rowHeight === "tall" || ctx.rowHeight === "xtall"
-  const maxChips = wrap ? 8 : multi ? 2 : 1
+  const { max: maxChips, wrap } = chipRoom(ctx, multi)
 
   const items: CommandListItem[] = React.useMemo(() => {
     const ql = q.trim().toLowerCase()
+    // Each option by its id; a cell holds the label.
     const out: CommandListItem[] = options
       .filter((o) => !ql || o.label.toLowerCase().includes(ql))
       .map((o) => ({
-        id: o.label,
+        id: o.id,
         label: o.label,
         tile: <OptionDot color={o.color} />,
         trailing: selected.includes(o.label) ? <Check className="size-4 text-camp-moss" aria-hidden="true" /> : undefined,
@@ -298,11 +313,13 @@ export function SelectCell({
       setOpen(false)
       return
     }
+    const label = options.find((o) => o.id === item.id)?.label
+    if (label === undefined) return
     if (multi) {
-      const next = selected.includes(item.id) ? selected.filter((s) => s !== item.id) : [...selected, item.id]
+      const next = selected.includes(label) ? selected.filter((s) => s !== label) : [...selected, label]
       change(next, (v) => onCommit(v))
     } else {
-      change([item.id], () => onCommit(item.id))
+      change([label], () => onCommit(label))
       setOpen(false)
     }
   }
@@ -316,7 +333,7 @@ export function SelectCell({
       ))}
       {more > 0 ? <span className="chip h-[22px] shrink-0 text-ink-2">+{more}</span> : null}
       {selected.length === 0 && !readOnly ? (
-        <span className="text-ui text-ink-4 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Select…</span>
+        <span className="text-ui text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Select…</span>
       ) : null}
     </span>
   )
@@ -462,7 +479,7 @@ export function groupedNumber(text: string): string | null {
 
 /** A person's initials avatar at 20 px, in their hue. */
 function PersonDot({ name }: { name: string }) {
-  const hue = hueFor(name.trim().toLowerCase())
+  const hue = personHue(name)
   const initial = name.trim().charAt(0).toUpperCase()
   return (
     <span aria-hidden="true" className={cn(HUE_CLASS[hue], "avatar-person inline-flex size-5 shrink-0 items-center justify-center rounded-[10px] text-micro font-semibold text-white")}>
@@ -471,14 +488,71 @@ function PersonDot({ name }: { name: string }) {
   )
 }
 
+/** Whether text holds a line break, which only a text area keeps: an input drops it. */
+const hasBreak = (text: string) => /[\r\n]/.test(text)
+
+/** How tall a grid cell's text editor grows while it's edited, before it scrolls. */
+const LINES_MAX_PX = 240
+
 /**
- * A typed cell (text, number, URL, email, person): an input that commits on
- * blur or Enter, so typing never waits on the network. At rest some types
- * read differently from what is typed, drawn over the input until it has the
+ * A text area editing a cell's lines, as tall as they are: at least its cell,
+ * at most `max`, past which it scrolls; `data-grown` when it's taller than
+ * its cell. Closed, it's its cell's height again, at its first line.
+ */
+export function fitLines(el: HTMLTextAreaElement, open: boolean, max = Infinity) {
+  if (!open) {
+    el.style.height = ""
+    el.scrollTop = 0
+    delete el.dataset.grown
+    return
+  }
+  const cell = el.parentElement?.clientHeight ?? 0
+  el.style.height = "auto"
+  const h = Math.min(Math.max(el.scrollHeight, cell), max)
+  el.style.height = `${h}px`
+  if (h > cell + 1) el.dataset.grown = ""
+  else delete el.dataset.grown
+}
+
+/**
+ * Enter in a text area editing a cell: Shift+Enter, or Alt+Enter as in a
+ * spreadsheet, puts a line break where the caret is and gives the new text;
+ * Enter alone saves, by leaving it. Null for any other key, and for Enter;
+ * an input method's Enter, picking a word, is left to it (lib/keys/ime).
+ */
+export function lineBreakKey(e: React.KeyboardEvent<HTMLTextAreaElement>): string | null {
+  if (e.key !== "Enter" || isComposingKey(e.nativeEvent)) return null
+  e.preventDefault()
+  const el = e.currentTarget
+  if (!e.shiftKey && !e.altKey) {
+    el.blur()
+    return null
+  }
+  el.setRangeText("\n", el.selectionStart, el.selectionEnd, "end")
+  return el.value
+}
+
+/**
+ * A typed cell (text, number, URL, email, person) that commits on blur or
+ * Enter, so typing never waits on the network. At rest some types read
+ * differently from what is typed, drawn over the control until it has the
  * focus: a number grouped with its currency and a true minus, a URL as its
  * host in the brand's text colour with a way out, an email with its mail
  * glyph, a person with their avatar, and long text wrapped in tall rows.
  * Escape puts back what was saved; a row that scrolls out commits.
+ *
+ * Text is edited in a text area, which keeps its line breaks (TAB-BUG-7): an
+ * input dropped them, and the first edit saved the lines run together. Enter
+ * saves; Shift+Enter or Alt+Enter adds a line. In the grid it shows its first
+ * line at rest (its lines, in tall rows) and grows over the rows below while
+ * it's edited; in the record panel it's as tall as its lines. A URL, an email
+ * or a person holding a line break is edited the same way, whole, and says
+ * "Edit in full".
+ *
+ * A number is read in the reader's locale, with a currency sign before or
+ * after; text that isn't a number is refused, never saved as another number
+ * or as nothing: the cell keeps its value, ringed, and says "Not a number"
+ * (TAB-BUG-8).
  */
 export function TextCell({
   field,
@@ -498,46 +572,49 @@ export function TextCell({
   onCommit: (value: unknown) => Promise<boolean>
 }) {
   const type = field.type
-  const savedText = value == null ? "" : String(value)
+  const isNumber = type === "number"
+  const savedText = isNumber ? typedNumberText(value) : value == null ? "" : String(value)
   const [local, setLocal] = React.useState<string>(savedText)
   React.useEffect(() => {
     setLocal(savedText)
   }, [savedText])
 
-  const isNumber = type === "number"
-  const parse = React.useCallback(
-    (text: string): unknown => {
-      if (!isNumber) return text
-      const n = text.trim() === "" ? "" : Number(text.replace(/[,\s₹$]/g, "").replace("−", "-"))
-      return n === "" || Number.isNaN(n) ? "" : n
-    },
-    [isNumber],
-  )
+  // What a save sends: a number column's text read as a number, null when it isn't one.
+  const typed = isNumber ? parseTypedNumber(local) : local
+  const notNumber = typed === null
 
   // The latest typing, for a commit when the row leaves the page while its
   // cell still has the focus: removing a focused element does not blur it.
-  const pending = React.useRef<{ text: string; saved: string; commit: () => void } | null>(null)
-  pending.current = { text: local, saved: savedText, commit: () => void onCommit(parse(local)) }
+  const pending = React.useRef<{ due: boolean; commit: () => void } | null>(null)
+  pending.current = { due: local !== savedText && !notNumber, commit: () => void onCommit(typed) }
   React.useEffect(
     () => () => {
       const p = pending.current
-      if (p && p.text !== p.saved) p.commit()
+      if (p?.due) p.commit()
     },
     [],
   )
 
   const commit = () => {
-    if (local === savedText) return
-    void onCommit(parse(local))
+    if (local === savedText || notNumber) return
+    void onCommit(typed)
   }
+
+  // Text's lines, and a URL's, an email's or a person's when it holds a break.
+  const lines = !isNumber && (type === "text" || hasBreak(savedText))
+  const area = React.useRef<HTMLTextAreaElement>(null)
+  // In the record panel a text area is as tall as its lines, always.
+  React.useLayoutEffect(() => {
+    if (lines && ctx.panel && area.current) fitLines(area.current, true)
+  }, [lines, ctx.panel, local])
 
   const tall = ctx.rowHeight === "tall" || ctx.rowHeight === "xtall"
   const fmt = isNumber ? numberFormatOf(field) : null
-  const num = isNumber ? formatNumber(local, fmt ?? {}) : null
-  const invalid = (type === "url" || type === "email") && !cellValid(type, local)
-  const href = type === "url" ? safeHref(local) : type === "email" && local.trim() && !invalid ? `mailto:${local.trim()}` : null
+  const num = typeof typed === "number" ? formatNumber(typed, fmt ?? {}) : null
+  const invalid = notNumber || ((type === "url" || type === "email") && !lines && !cellValid(type, local))
+  const href = lines ? null : type === "url" ? safeHref(local) : type === "email" && local.trim() && !invalid ? `mailto:${local.trim()}` : null
 
-  // What reads at rest, over the input.
+  // What reads at rest, over the control.
   let atRest: React.ReactNode = null
   if (num) {
     atRest = (
@@ -554,6 +631,18 @@ export function TextCell({
         </span>
       </span>
     )
+  } else if (lines) {
+    // The grid's text area shows its first line itself; the panel's, every line.
+    if (!ctx.panel && local.trim() && type !== "text") {
+      atRest = (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate">{local}</span>
+          <span className="shrink-0 text-meta text-ink-3">Edit in full</span>
+        </span>
+      )
+    } else if (!ctx.panel && tall && local.trim()) {
+      atRest = <span className={cn("whitespace-pre-wrap break-words", ctx.rowHeight === "tall" ? "line-clamp-2" : "line-clamp-4")}>{local}</span>
+    }
   } else if (type === "url" && local.trim()) {
     atRest = (
       <span className="flex min-w-0 items-center gap-1">
@@ -590,8 +679,6 @@ export function TextCell({
         <span className="truncate">{local}</span>
       </span>
     )
-  } else if (tall && local.trim() && type === "text") {
-    atRest = <span className={cn("whitespace-pre-wrap break-words", ctx.rowHeight === "tall" ? "line-clamp-2" : "line-clamp-4")}>{local}</span>
   }
 
   const cover = atRest !== null
@@ -607,34 +694,77 @@ export function TextCell({
       </div>
     )
   }
+  const control = cn(
+    "peer h-full w-full bg-transparent text-ui text-ink outline-none",
+    CELL_PAD,
+    primary && "font-medium",
+    isNumber && (ctx.panel ? "tabular-nums" : "text-right tabular-nums"),
+    cover && "text-transparent focus:text-foreground",
+  )
+  const escape = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && local !== savedText) {
+      e.preventDefault()
+      e.stopPropagation()
+      setLocal(savedText)
+    }
+  }
+  // The grid's text area grows while it's edited; the panel's always fits its lines.
+  const fit = (el: HTMLTextAreaElement, open: boolean) => {
+    if (!ctx.panel) fitLines(el, open, LINES_MAX_PX)
+  }
   return (
-    <div className={cn("group/cell relative h-full", invalid && "ring-1 ring-inset ring-destructive")} title={invalid ? (type === "url" ? "This isn't a web address" : "This isn't an email address") : undefined}>
-      <input
-        type={isNumber ? "text" : type === "email" ? "email" : type === "url" ? "url" : "text"}
-        inputMode={isNumber ? "decimal" : undefined}
-        data-cell={cellId}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && local !== savedText) {
-            e.preventDefault()
-            e.stopPropagation()
-            setLocal(savedText)
-          }
-        }}
-        aria-label={field.name}
-        aria-invalid={invalid || undefined}
-        autoComplete="off"
-        spellCheck={type === "text" ? undefined : false}
-        className={cn(
-          "peer h-full w-full bg-transparent text-ui text-ink outline-none",
-          CELL_PAD,
-          primary && "font-medium",
-          isNumber && (ctx.panel ? "tabular-nums" : "text-right tabular-nums"),
-          cover && "text-transparent focus:text-foreground",
-        )}
-      />
+    <div
+      // A tap anywhere in the cell, on a touch screen, where the text box
+      // ignores taps until it has the focus (table.css): the cell takes it,
+      // and hands the focus to the box.
+      tabIndex={-1}
+      onFocus={(e) => e.target === e.currentTarget && e.currentTarget.querySelector<HTMLElement>("[data-cell]")?.focus()}
+      className={cn("group/cell relative h-full outline-none", invalid && "ring-1 ring-inset ring-destructive")}
+      title={invalid ? (notNumber ? "Not a number" : type === "url" ? "This isn't a web address" : "This isn't an email address") : undefined}
+    >
+      {lines ? (
+        <textarea
+          ref={area}
+          rows={1}
+          data-cell={cellId}
+          value={local}
+          onChange={(e) => {
+            setLocal(e.target.value)
+            fit(e.currentTarget, true)
+          }}
+          onFocus={(e) => fit(e.currentTarget, true)}
+          onBlur={(e) => {
+            fit(e.currentTarget, false)
+            commit()
+          }}
+          onKeyDown={(e) => {
+            escape(e)
+            const next = lineBreakKey(e)
+            if (next === null) return
+            setLocal(next)
+            fit(e.currentTarget, true)
+          }}
+          aria-label={field.name}
+          autoComplete="off"
+          spellCheck={type === "text" ? undefined : false}
+          className={cn(control, "block resize-none overflow-hidden break-words", ctx.panel ? "py-2" : "py-[var(--cell-pad-y)]")}
+        />
+      ) : (
+        <input
+          type={isNumber ? "text" : type === "email" ? "email" : type === "url" ? "url" : "text"}
+          inputMode={isNumber ? "decimal" : undefined}
+          data-cell={cellId}
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={escape}
+          aria-label={field.name}
+          aria-invalid={invalid || undefined}
+          autoComplete="off"
+          spellCheck={false}
+          className={control}
+        />
+      )}
       {cover ? (
         <span
           aria-hidden="true"

@@ -23,6 +23,7 @@
 // server · Provider"; on this server, a hint row says the memory it needs and
 // gives the command that starts it as a code row.
 
+import { useSecretReentry } from "@/hooks/useSecretReentry"
 import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -246,6 +247,16 @@ export default function TranscriptionSettingsCard() {
     // The bundled server sits on the stack network with no credential of its
     // own, so asking for a key would be a question with no right answer.
     const usesApiKey = sttProvider === "deepgram" || sttProvider === "openai"
+    // The stored key stays with the provider and address it was given for, as
+    // the server holds it (checkSTTKeyStays): only for the providers whose key
+    // this form manages.
+    const keyReentry = useSecretReentry({
+        stored: !!config?.has_stt_api_key && usesApiKey,
+        entered: apiKey,
+        from: { url: config?.stt_base_url ?? "", how: [config?.stt_provider ?? ""] },
+        to: { url: sttProvider === "openai" ? baseUrl.trim() : "", how: [sttProvider] },
+        noun: "API key",
+    })
 
     const backendDirty =
         !!config &&
@@ -260,6 +271,7 @@ export default function TranscriptionSettingsCard() {
     // relevant secret. Secrets are sent only when non-blank ("keep existing").
     // Returns true on success so callers (Save and test) can chain safely.
     const saveBackend = async (): Promise<boolean> => {
+        if (!keyReentry.check()) return false
         setSavingBackend(true)
         try {
             const req: Parameters<typeof updateTranscriptionConfig>[0] = {
@@ -286,7 +298,7 @@ export default function TranscriptionSettingsCard() {
         } catch (e) {
             toast({
                 title: "Couldn't save the speech-to-text settings",
-                description: apiErrorMessage(e, "Check the fields and try again."),
+                description: apiErrorMessage(e, "Try again in a moment."),
                 variant: "destructive",
             })
             return false
@@ -544,17 +556,23 @@ export default function TranscriptionSettingsCard() {
                                             config.stt_api_key_source,
                                         )}
                                     >
-                                        <Input
-                                            id="stt-api-key"
-                                            aria-describedby="stt-api-key-desc"
-                                            type="password"
-                                            value={apiKey}
-                                            onChange={(e) => setApiKey(e.target.value)}
-                                            placeholder={config.has_stt_api_key ? "••••••••" : "Your provider's API key"}
-                                            disabled={busy}
-                                            className={CONTROL}
-                                            autoComplete="new-password"
-                                        />
+                                        <div className="grid gap-1">
+                                            <Input
+                                                ref={keyReentry.inputProps.ref}
+                                                required={keyReentry.required}
+                                                aria-invalid={keyReentry.inputProps["aria-invalid"]}
+                                                id="stt-api-key"
+                                                aria-describedby={["stt-api-key-desc", keyReentry.inputProps["aria-describedby"]].filter(Boolean).join(" ")}
+                                                type="password"
+                                                value={apiKey}
+                                                onChange={(e) => setApiKey(e.target.value)}
+                                                placeholder={keyReentry.placeholder ?? (config.has_stt_api_key ? "••••••••" : "Your provider's API key")}
+                                                disabled={busy}
+                                                className={CONTROL}
+                                                autoComplete="new-password"
+                                            />
+                                            {keyReentry.note}
+                                        </div>
                                     </SettingRow>
                                 ) : sttProvider === "google" ? (
                                     <SettingRow

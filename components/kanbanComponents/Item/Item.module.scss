@@ -53,9 +53,15 @@
     animation: fadeIn 180ms var(--ease-out);
   }
 
+  // The lifted copy is as wide as the card it lifts. From sm up it is at
+  // most 280px; on a phone a column's card is wider (318px at 390), and the
+  // cap shrank the card as it was picked up, rewrapping its title.
   &.dragOverlay {
     z-index: 999;
-    max-width: 280px;
+
+    @media (min-width: 640px) {
+      max-width: 280px;
+    }
   }
 }
 

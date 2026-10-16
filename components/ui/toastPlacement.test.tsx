@@ -48,7 +48,9 @@ describe("where toasts are drawn", () => {
     expect(cls).toContain("w-[min(100%-32px,360px)]")
     expect(cls).toContain("left-1/2")
     expect(cls).not.toContain("top-[calc(env(safe-area-inset-top)+0.5rem)]")
-    expect(cls).toContain("sm:right-6")
+    // 16px inside the sheet's right edge, the right panel's while it's open
+    // (QA DSA-19: a failed comment's toast sat on the panel's composer).
+    expect(cls).toContain("sm:right-[calc(var(--shell-right-inset,8px)+16px)]")
     expect(cls).toContain("sm:translate-x-0")
     expect(cls).toContain("sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))]")
     expect(cls).toContain("sm:w-[356px]")

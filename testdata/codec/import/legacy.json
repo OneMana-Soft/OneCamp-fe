@@ -1,0 +1,157 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Open toggle",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Its content.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Closed & <escaped>",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Hidden ",
+              "type": "text"
+            },
+            {
+              "marks": [
+                {
+                  "type": "bold"
+                }
+              ],
+              "text": "text",
+              "type": "text"
+            },
+            {
+              "text": ".",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Nested",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "text": "Deep.",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "collapsible"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "No title, so this stays its content.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "sky"
+              },
+              "type": "textStyle"
+            }
+          ],
+          "text": "Blue",
+          "type": "text"
+        },
+        {
+          "text": ", ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "berry"
+              },
+              "type": "textStyle"
+            }
+          ],
+          "text": "red",
+          "type": "text"
+        },
+        {
+          "text": ", ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "gray"
+              },
+              "type": "textStyle"
+            }
+          ],
+          "text": "grey",
+          "type": "text"
+        },
+        {
+          "text": " and a pasted red, which goes.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

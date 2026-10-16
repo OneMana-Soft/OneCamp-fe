@@ -9,8 +9,9 @@ import type { TaskInfoInterface } from "@/types/task"
  * What a card may ask of the board it sits on, without a prop through every
  * column (so a drag never renders a card for it): the columns a card can be
  * moved to from its menu (every drag has a menu alternative, Atlassian's
- * rule), and whether the board spans projects (My Tasks), where each card
- * wears its project's edge and tile. The value is made once per board.
+ * rule), how its task opens and its menu shows, and whether the board spans
+ * projects (My Tasks), where each card wears its project's edge and tile. The
+ * value is made once per board.
  */
 export interface BoardActions {
   /** The columns, in order. */
@@ -19,6 +20,10 @@ export interface BoardActions {
   moveTo: (task: TaskInfoInterface, column: string) => void
   /** Whether this person may move the card. */
   canMove: (task: TaskInfoInterface) => boolean
+  /** Opens the card's task: where the board's page says (a phone, with no panel beside the board: the task's page), else in the panel. */
+  open: (task: TaskInfoInterface) => void
+  /** Opens the card's menu as the board's sheet (a phone: CardSheet); unset, the menu is a dropdown on the card. */
+  openMenu?: (task: TaskInfoInterface) => void
   /** Cards come from many projects: each shows its project. */
   crossProject: boolean
 }

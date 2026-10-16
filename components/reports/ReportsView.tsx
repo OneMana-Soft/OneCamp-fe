@@ -46,10 +46,10 @@ import {
 } from "@/lib/reports"
 import { downloadTextFile } from "@/lib/utils/file/downloadTextFile"
 import { cn } from "@/lib/utils/helpers/cn"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { browserTZ } from "@/lib/utils/timeZone"
-import { hueFor } from "@/lib/campHue"
 import { app_project_path } from "@/types/paths"
+import { useProjectHues } from "@/lib/projectHue"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 
 const isWeeks = (v: unknown): v is number => (REPORT_WEEKS as readonly unknown[]).includes(v)
 const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
@@ -172,6 +172,7 @@ function Section({ title, children, legend }: { title: string; children: React.R
  * a project reads as the same colour in a report as in the sidebar.
  */
 function DoneByProject({ projects, weeks }: { projects: Report["projects"]; weeks: number }) {
+  const projectHues = useProjectHues()
   const rows = projects.filter((p) => p.done > 0).sort((a, b) => b.done - a.done)
   const max = Math.max(1, ...rows.map((p) => p.done))
   return (
@@ -186,9 +187,9 @@ function DoneByProject({ projects, weeks }: { projects: Report["projects"]; week
               <span className="h-2" role="img" aria-label={`${p.done} done`}>
                 <span
                   data-done-bar={p.project_uuid}
-                  data-hue={hueFor(p.project_uuid)}
+                  data-hue={projectHues(p.project_uuid)}
                   className="block h-full rounded-[3px]"
-                  style={{ width: `${(100 * p.done) / max}%`, background: `var(--camp-${hueFor(p.project_uuid)})` }}
+                  style={{ width: `${(100 * p.done) / max}%`, background: `var(--camp-${projectHues(p.project_uuid)})` }}
                 />
               </span>
               <span className="text-right text-xs tabular-nums text-ink-2">{p.done}</span>
@@ -220,11 +221,13 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   const toggle = (id: string) => setChosen(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id])
 
   // The overview's frame (components/task/workFrame): this row is where
-  // Table's row is on every other view, and the report sits 16px under it.
+  // Table's row is on every other view, flush under the tabs with its 28 px
+  // controls (they were 32 px, in a 24 px inset: PTC-7), and the report sits
+  // 16px under it, inset as the projects' rows are.
   const controls = (
-    <div data-work-toolbar="" className={workToolbar}>
+    <div data-work-toolbar="" className={cn(workToolbar, compact && "-mx-4")}>
       <Select value={String(weeks)} onValueChange={(v) => isWeeks(Number(v)) && setWeeks(Number(v))}>
-        <SelectTrigger dense className="h-8 w-auto gap-1.5 text-xs" aria-label="Weeks">
+        <SelectTrigger dense className="h-7 w-auto gap-1.5 text-xs" aria-label="Weeks">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -237,7 +240,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       </Select>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={!report}>
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={!report}>
             <span className="sr-only">Projects: </span>
             {picked.length === 0
               ? "All projects"
@@ -260,7 +263,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
               onCheckedChange={() => toggle(p.project_uuid)}
               onSelect={(e) => e.preventDefault()}
             >
-              <IdentityMark id={p.project_uuid} variant="square" />
+              <ProjectTile id={p.project_uuid} />
               <span className="truncate">{p.project_name}</span>
             </DropdownMenuCheckboxItem>
           ))}
@@ -269,7 +272,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       <Button
         variant="ghost"
         size="sm"
-        className="h-8 gap-1.5 text-xs"
+        className="gap-1.5 text-xs"
         disabled={!report}
         onClick={() => report && downloadTextFile(`onecamp-report-${report.weeks[report.weeks.length - 1]}.csv`, reportCSV(report, personName), "text/csv")}
       >
@@ -279,25 +282,30 @@ export function ReportsView({ compact }: { compact?: boolean }) {
     </div>
   )
 
+  // The band flush under the tabs, and the report 16px under it, inset as
+  // the projects' rows are (a phone's page is inset already).
+  const frame = (children: React.ReactNode, busy?: boolean) => (
+    <div className="pb-4" data-reports="" aria-busy={busy || undefined}>
+      {controls}
+      <div className={cn("mt-4 grid gap-4", !compact && "px-6")}>{children}</div>
+    </div>
+  )
+
   if (report && available.length === 0) {
-    return (
-      <div className="grid gap-4 pb-4" data-reports="">
-        {controls}
-        <WorkState>
-          <EmptyState
-            illustration={<SpotWelcome hue="sky" />}
-            title="No report yet"
-            description="Reports count the work in the projects you're in. Join or start a project and they fill in."
-          />
-        </WorkState>
-      </div>
+    return frame(
+      <WorkState>
+        <EmptyState
+          illustration={<SpotWelcome hue="sky" />}
+          title="No report yet"
+          description="Reports count the work in the projects you're in. Join or start a project and they fill in."
+        />
+      </WorkState>,
     )
   }
 
   if (!report) {
-    return (
-      <div className="grid gap-4 pb-4" data-reports="">
-        {controls}
+    return frame(
+      <>
         {isError ? (
           <WorkState>
             <ErrorState subject="the report" onRetry={() => void mutate()} />
@@ -315,7 +323,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
             <Skeleton className="h-64" />
           </div>
         )}
-      </div>
+      </>,
     )
   }
 
@@ -326,9 +334,8 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   const priorityMax = Math.max(1, ...report.priorities.map((p) => p.open))
   const nothing = report.open === 0 && report.done_total === 0
 
-  return (
-    <div className="grid gap-4 pb-4" data-reports="" aria-busy={isLoading || undefined}>
-      {controls}
+  return frame(
+    <>
       {isError && <p className="text-xs text-danger-ink">The report couldn&apos;t refresh just now. These are the last numbers it had.</p>}
       {/* The KPI strip (W44): four figures on one sunken band. */}
       <dl data-kpi-strip="" className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-lg bg-sunken px-5 py-4 lg:grid-cols-4">
@@ -356,7 +363,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       ) : (
         <>
           <div className={cn("grid gap-4", !compact && (hours || flow) && "lg:grid-cols-2")}>
-            <SvgChart chart={throughputChart(report)} variant="card" className="my-0" subtitle="Done in the chart's first colour, what came in beside it." empty={`Nothing done or added in these ${weeks} weeks.`} />
+            <SvgChart chart={throughputChart(report)} variant="card" className="my-0" subtitle="Tasks finished each week, beside the tasks added." empty={`Nothing done or added in these ${weeks} weeks.`} />
             {hours ? <SvgChart chart={hours} variant="card" className="my-0" /> : report.hours && <p className="self-center text-sm text-ink-2">No hours logged in these {weeks} weeks.</p>}
             {flow && (
               <div className="grid content-start gap-1">
@@ -423,7 +430,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
                   <li key={p.project_uuid} className="grid gap-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2">
-                        <IdentityMark id={p.project_uuid} variant="square" />
+                        <ProjectTile id={p.project_uuid} />
                         <Link href={`${app_project_path}/${p.project_uuid}`} className="truncate text-sm font-medium hover:underline">
                           {p.project_name}
                         </Link>
@@ -478,6 +485,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
         </>
       )}
       {report.truncated && <p className="text-xs text-muted-foreground">A very large project&apos;s tasks were counted up to 5,000 of each kind.</p>}
-    </div>
+    </>,
+    isLoading,
   )
 }

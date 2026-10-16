@@ -20,6 +20,7 @@ import { RootState } from "@/store/store"
 import { useDispatch, useSelector } from "react-redux"
 import { CreateUserChatList } from "@/store/slice/chatSlice"
 import { sortChatList } from "@/lib/utils/sortChatList"
+import { useHeldOrder } from "@/lib/nav/heldOrder"
 import { getOtherUserId } from "@/lib/utils/getOtherUserId"
 import { isExternalUser } from "@/lib/utils/isExternalUser"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
@@ -30,6 +31,9 @@ import { ErrorState } from "@/components/ui/error-state"
 import { withOpenRead } from "@/lib/chat/conversation"
 import { dataToSeed } from "@/lib/swrMutate"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
+
+const NO_DMS: UserDMInterface[] = []
+const dmKey = (dm: UserDMInterface) => dm.dm_grouping_id
 
 export const ChatUserList = ({ chatId }: { chatId: string }) => {
     const dispatch = useDispatch()
@@ -81,6 +85,9 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
         if (!renderDmList || renderDmList.length === 0) return null
         return sortChatList(renderDmList)
     }, [renderDmList])
+    // A row never moves under the pointer, as in the sidebar: one that moved
+    // waits until the pointer leaves or rests (F-17).
+    const { rows: shownDms, handlers: holdOrder } = useHeldOrder(sortedDmList ?? NO_DMS, dmKey)
 
     useEffect(() => {
         if (dmSearchText === "") {
@@ -124,7 +131,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
 
             {/* The channel list's frame (px-2 py-2): a DM row starts where a
                 channel row does, 8px in, its face at 20. It was 4px in. */}
-            <div data-list-frame="" className="flex-1 overflow-y-auto px-2 py-2">
+            <div data-list-frame="" className="flex-1 overflow-y-auto px-2 py-2" {...holdOrder}>
                 <LocalizedErrorBoundary
                     fallbackTitle="Your conversations didn't load"
                     fallbackDescription="The rest of OneCamp still works. Try again."
@@ -140,7 +147,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                         />
                     )}
 
-                    {sortedDmList?.map((dmData, index) => {
+                    {shownDms.map((dmData, index) => {
                         const filteredUser = dmData.dm_participants.filter(
                             (t) => t.user_uuid !== selfUserUuid,
                         )

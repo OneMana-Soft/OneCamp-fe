@@ -141,6 +141,7 @@ export function MoreFields({ children }: { children: React.ReactNode }) {
           type="button"
           onClick={toggle}
           aria-expanded={open}
+          data-touch-target=""
           className="-ml-2 mt-0.5 inline-flex h-7 max-w-full items-center gap-1.5 rounded-sm px-2 text-meta font-[510] text-ink-3 transition-colors hover:bg-hover hover:text-ink-2"
         >
           <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", open ? "rotate-180" : "-rotate-90")} aria-hidden />

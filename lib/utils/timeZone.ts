@@ -21,3 +21,14 @@ export function localDay(d: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
+
+/**
+ * A YYYY-MM-DD day as midnight of that day where the viewer is: localDay's
+ * inverse, for a date picker that holds a Date. Undefined for anything else.
+ * Not new Date("2026-10-14"), which is midnight in UTC: in New York that is
+ * still the 13th.
+ */
+export function dayDate(day: string | null | undefined): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day ?? "")
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : undefined
+}

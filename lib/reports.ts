@@ -3,6 +3,7 @@
 
 import type { NormalizedChart } from "@/lib/utils/chartSpec"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { csvLine } from "@/lib/csv"
 
 export interface ReportCounts {
   to_do: number
@@ -143,14 +144,6 @@ export function hoursChart(r: Report): NormalizedChart | null {
 /** The weekly total of hours, to one decimal. */
 export const totalHours = (r: Report) => Math.round((r.hours ?? []).reduce((a, h) => a + h, 0) * 10) / 10
 
-const csvCell = (v: string | number) => {
-  const s = String(v)
-  // A leading = + - @ (or a tab or carriage return before one) would run as a
-  // formula in a spreadsheet, as the time report's CSV guards on the server.
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s
-  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
-}
-const csvLine = (cells: (string | number)[]) => cells.map(csvCell).join(",")
 
 /** The report as CSV: the weeks, then each project and each person. Pure. */
 export function reportCSV(r: Report, personName: (p: ReportPersonRow) => string): string {

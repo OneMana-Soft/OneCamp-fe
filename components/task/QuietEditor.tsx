@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { BubbleMenu, EditorContent, type Editor } from "@tiptap/react"
+import { EditorContent, type Editor } from "@tiptap/react"
+import { BubbleMenu } from "@/components/minimal-tiptap/components/bubble-menu/bubble-menu"
 import type { Content } from "@tiptap/core"
 
 import { useMinimalTiptapEditor } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap"
@@ -31,6 +32,7 @@ export function QuietEditor({
   onFiles?: (files: File[]) => void
 }) {
   const editor = useMinimalTiptapEditor({
+    kind: "task",
     value,
     output: "html",
     placeholder,

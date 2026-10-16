@@ -5,7 +5,7 @@
  * with a progress ring, then a card to start one from a template. With no
  * project at all, three template cards.
  *
- * A project card is a 32px tile in the project's colour, its name and "6 open
+ * A project card is the project's 32px tile (the one project tile), its name and "6 open
  * · 5 due this week" (overdue in danger ink), and a 28px ring in the project's
  * hue that draws itself on the first visit; hovering shows its percentage.
  * Done is a moss disc with a check. Loaded on its own (lazy).
@@ -15,8 +15,10 @@ import { useDispatch } from "react-redux"
 import { useEffect, useState } from "react"
 
 import { HubSectionHeader } from "@/components/ui/hubRow"
-import { Check, FolderKanban, Plus, Rocket, Users, LayoutTemplate } from "@/lib/icons"
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { Check, Plus } from "@/lib/icons"
+import type { CampHue } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
 import { progressOf, type ProjectOverview } from "@/lib/projectsOverview"
@@ -76,28 +78,16 @@ export function ProjectRing({ value, hue, size = 28, draw = false }: { value: nu
   )
 }
 
-const TILE_GLYPH = [Rocket, Users, FolderKanban, LayoutTemplate]
-
-function ProjectTile({ id, hue }: { id: string; hue: CampHue }) {
-  const Glyph = TILE_GLYPH[(id.charCodeAt(0) || 0) % TILE_GLYPH.length]
-  return (
-    <span
-      aria-hidden
-      className="grid size-8 shrink-0 place-items-center rounded-[9px] text-white hub-tile-hl"
-      style={{ background: `linear-gradient(140deg, var(--camp-${hue}-a1), var(--camp-${hue}-a2))` }}
-    >
-      <Glyph className="size-4" />
-    </span>
-  )
-}
+/** The strip's columns by its own width: one, then two (the odd card out across both), then three. */
+export const STRIP_COLUMNS = "@min-[560px]:grid-cols-2 @min-[860px]:grid-cols-3 @min-[560px]:@max-[860px]:[&>:last-child:nth-child(odd)]:col-span-2"
 
 const CARD = "group/card flex items-center gap-3 rounded-lg bg-sheet px-3.5 py-3 shadow-e1 transition-[box-shadow,translate] duration-[140ms] hover:-translate-y-px hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:bg-[#18191C]"
 
 function ProjectCard({ p, draw }: { p: ProjectOverview; draw: boolean }) {
-  const hue = hueFor(p.project_uuid)
+  const hue = useProjectHue(p.project_uuid)
   return (
     <Link href={`${app_project_path}/${p.project_uuid}`} className={CARD} data-project-card="">
-      <ProjectTile id={p.project_uuid} hue={hue} />
+      <ProjectTile id={p.project_uuid} size={32} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-ui font-medium">{p.project_name}</span>
         <span className="block truncate text-meta text-ink-3">
@@ -144,9 +134,15 @@ export function ProjectsStrip({ draw = false, className }: { draw?: boolean; cla
   const picked = pickProjects(projects ?? [])
   const none = !isLoading && (projects ?? []).length === 0
   return (
-    <section aria-labelledby="projects-title" className={className} data-projects-strip="">
+    <section aria-labelledby="projects-title" className={cn("@container", className)} data-projects-strip="">
       <HubSectionHeader id="projects-title" title="Projects" action={<Link href={app_project_path}>All projects</Link>} />
-      <div className={cn("grid gap-2.5", isMobile ? "grid-cols-1" : "grid-cols-3")}>
+      {/* Three across only where three fit: each card's words need about
+          150px beside its tile and ring ("Customer onboarding", "6 open · 5
+          due this week"), so three want 860px of strip. At 1024 beside the
+          sidebar the strip is narrower, and three cut them to "Customer
+          onbo…" and "5 due this…"; two across there, the last card across
+          both columns when it is alone on its row. */}
+      <div className={cn("grid grid-cols-1 gap-2.5", !isMobile && STRIP_COLUMNS)}>
         {isLoading && !projects ? (
           [0, 1, 2].map((i) => <div key={i} className="h-14 animate-shimmer rounded-lg bg-press" aria-hidden />)
         ) : none ? (

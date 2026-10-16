@@ -11,8 +11,21 @@ vi.mock("react-redux", () => ({
     useSelector: (select: (s: unknown) => unknown) => select(fakeState),
     useDispatch: () => vi.fn(),
 }))
+// One answer per address, the same object each time, as SWR hands out; and
+// Discover's own shape for its pages (searched on the server, by name).
+const answers = new Map<string, unknown>()
+const answerFor = (url: string) => {
+    if (!answers.has(url)) {
+        const u = new URL(url, "http://x")
+        const search = (u.searchParams.get("search") ?? "").toLowerCase()
+        answers.set(url, url.includes("/ch/discover")
+            ? { data: { channels_list: channels.filter((c) => c.ch_name.toLowerCase().includes(search)), has_more: false }, isLoading: false }
+            : { data: { data: { user_dms: [] } } })
+    }
+    return answers.get(url)
+}
 vi.mock("@/hooks/useFetch", () => ({
-    useFetch: () => ({ data: { data: { user_dms: [] } } }),
+    useFetch: (url: string) => answerFor(url),
     useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn() }) }))
@@ -31,6 +44,7 @@ const { ThreadEmpty } = await import("@/components/rightPanel/threadEmpty")
 afterEach(() => {
     cleanup()
     channels = []
+    answers.clear()
 })
 
 function spotUnder(container: HTMLElement, title: string) {

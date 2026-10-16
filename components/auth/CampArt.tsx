@@ -10,7 +10,8 @@
 
 import * as React from "react"
 import { useEffect, useId, useRef, useState } from "react"
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { type CampHue } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
 import { HUE_CLASS, SPARK_PATH, cx } from "@/components/ui/graphics"
 import { ShieldCheck } from "@/lib/icons"
 
@@ -135,7 +136,8 @@ function OnOrbit({ x, y, orbit, i, children }: { x: number; y: number; orbit: "o
 }
 
 const C = 260
-const hueOf = (seed: string): CampHue => hueFor(seed)
+// The inviter and you, as people: by name, or an address's name part (personHue).
+const hueOf = (seed: string): CampHue => personHue(seed.includes("@") ? { user_email_id: seed } : seed)
 const at = (r: number, deg: number) => {
   const a = (deg * Math.PI) / 180
   return { x: +(C + r * Math.cos(a)).toFixed(1), y: +(C + r * Math.sin(a)).toFixed(1) }

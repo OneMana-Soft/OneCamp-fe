@@ -1,24 +1,33 @@
 "use client"
 
+import * as React from 'react'
 import type { ImageOptions } from '@tiptap/extension-image'
 import { Image as TiptapImage } from '@tiptap/extension-image'
-import type { Editor } from '@tiptap/react'
-import { ReactNodeViewRenderer } from '@tiptap/react'
-import { ImageViewBlock } from './components/image-view-block'
+import type { ReactNodeViewProps } from '@tiptap/react'
+import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { filterFiles, randomId, type FileError, type FileValidationOptions } from '../../utils'
 import { ReplaceStep } from '@tiptap/pm/transform'
 import type { Attrs } from '@tiptap/pm/model'
+import { TextSelection } from '@tiptap/pm/state'
+import { findImageById, ImageUploads, placeholderContent, runImageUpload, startImageUploads, type ImageUploadFn } from './uploads'
 
-type ImageAction = 'download' | 'copyImage' | 'copyLink'
-
-interface DownloadImageCommandProps {
-  src: string
-  alt?: string
+// The view loads when a picture first shows (I20), its space held meanwhile.
+// loadImageView loads it ahead, where a picture is about to show.
+export const loadImageView = () => import('./components/image-view-block')
+const View = React.lazy(() => loadImageView().then((m) => ({ default: m.ImageViewBlock })))
+function LazyImage({ ref: _ref, ...props }: ReactNodeViewProps<HTMLElement>) {
+  const { width: w, height: h } = props.node.attrs
+  const style = w && h ? { width: w, maxWidth: '100%', aspectRatio: `${w} / ${h}` } : { minHeight: 160 }
+  const e = React.createElement
+  return e(React.Suspense, { fallback: e(NodeViewWrapper, { 'data-node-loading': '' }, e('div', { style })) }, e(View, props))
 }
 
-interface ImageActionProps extends DownloadImageCommandProps {
-  action: ImageAction
-}
+// align, crop and href, as data-* (lib/codec/media.ts).
+const dataAttr = (key: string) => ({
+  default: null,
+  parseHTML: (el: HTMLElement) => el.getAttribute(`data-${key}`),
+  renderHTML: (a: Record<string, unknown>) => (a[key] ? { [`data-${key}`]: a[key] } : {}),
+})
 
 export type UploadReturnType =
   | string
@@ -28,15 +37,15 @@ export type UploadReturnType =
     }
 
 interface CustomImageOptions extends ImageOptions, Omit<FileValidationOptions, 'allowBase64'> {
-  uploadFn?: (file: File, editor: Editor) => Promise<UploadReturnType>
+  /** Uploads a file and returns its address; given progress and an abort signal (uploads.ts). */
+  uploadFn?: ImageUploadFn
   onImageRemoved?: (props: Attrs) => void
-  onActionSuccess?: (props: ImageActionProps) => void
-  onActionError?: (error: Error, props: ImageActionProps) => void
-  downloadImage?: (props: ImageActionProps, options: CustomImageOptions) => Promise<void>
-  copyImage?: (props: ImageActionProps, options: CustomImageOptions) => Promise<void>
-  copyLink?: (props: ImageActionProps, options: CustomImageOptions) => Promise<void>
   onValidationError?: (errors: FileError[]) => void
-  onToggle?: (editor: Editor, files: File[], pos: number) => void
+}
+
+interface ImageStorage {
+  /** This tab's uploads, by the placeholder's id (uploads.ts). Never in the document. */
+  uploads: ImageUploads
 }
 
 declare module '@tiptap/react' {
@@ -44,102 +53,21 @@ declare module '@tiptap/react' {
     setImages: {
       setImages: (attrs: { src: string | File; alt?: string; title?: string }[]) => ReturnType
     }
-    downloadImage: {
-      downloadImage: (attrs: DownloadImageCommandProps) => ReturnType
-    }
-    copyImage: {
-      copyImage: (attrs: DownloadImageCommandProps) => ReturnType
-    }
-    copyLink: {
-      copyLink: (attrs: DownloadImageCommandProps) => ReturnType
-    }
     toggleImage: {
       toggleImage: () => ReturnType
     }
+    imageUploads: {
+      /** Puts each file in as a placeholder (no address yet) at `pos`, and uploads it. */
+      insertImageFiles: (files: File[], pos?: number) => ReturnType
+      /** Tries a failed upload again. */
+      retryImageUpload: (id: string) => ReturnType
+      /** Takes the image with this id out of the document (and drops its upload). */
+      removeImageById: (id: string) => ReturnType
+    }
   }
 }
 
-const handleError = (
-  error: unknown,
-  props: ImageActionProps,
-  errorHandler?: (error: Error, props: ImageActionProps) => void
-): void => {
-  const typedError = error instanceof Error ? error : new Error('Unknown error')
-  errorHandler?.(typedError, props)
-}
-
-const handleDataUrl = (src: string): { blob: Blob; extension: string } => {
-  const [header, base64Data] = src.split(',')
-  const mimeType = header.split(':')[1].split(';')[0]
-  const extension = mimeType.split('/')[1]
-  const byteCharacters = atob(base64Data)
-  const byteArray = new Uint8Array(byteCharacters.length)
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteArray[i] = byteCharacters.charCodeAt(i)
-  }
-  const blob = new Blob([byteArray], { type: mimeType })
-  return { blob, extension }
-}
-
-const handleImageUrl = async (src: string): Promise<{ blob: Blob; extension: string }> => {
-  const response = await fetch(src)
-  if (!response.ok) throw new Error('Failed to fetch image')
-  const blob = await response.blob()
-  const extension = blob.type.split(/\/|\+/)[1]
-  return { blob, extension }
-}
-
-const fetchImageBlob = async (src: string): Promise<{ blob: Blob; extension: string }> => {
-  return src.startsWith('data:') ? handleDataUrl(src) : handleImageUrl(src)
-}
-
-const saveImage = async (blob: Blob, name: string, extension: string): Promise<void> => {
-  const imageURL = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = imageURL
-  link.download = `${name}.${extension}`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(imageURL)
-}
-
-const downloadImage = async (props: ImageActionProps, options: CustomImageOptions): Promise<void> => {
-  const { src, alt } = props
-  const potentialName = alt || 'image'
-
-  try {
-    const { blob, extension } = await fetchImageBlob(src)
-    await saveImage(blob, potentialName, extension)
-    options.onActionSuccess?.({ ...props, action: 'download' })
-  } catch (error) {
-    handleError(error, { ...props, action: 'download' }, options.onActionError)
-  }
-}
-
-const copyImage = async (props: ImageActionProps, options: CustomImageOptions): Promise<void> => {
-  const { src } = props
-  try {
-    const res = await fetch(src)
-    const blob = await res.blob()
-    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
-    options.onActionSuccess?.({ ...props, action: 'copyImage' })
-  } catch (error) {
-    handleError(error, { ...props, action: 'copyImage' }, options.onActionError)
-  }
-}
-
-const copyLink = async (props: ImageActionProps, options: CustomImageOptions): Promise<void> => {
-  const { src } = props
-  try {
-    await navigator.clipboard.writeText(src)
-    options.onActionSuccess?.({ ...props, action: 'copyLink' })
-  } catch (error) {
-    handleError(error, { ...props, action: 'copyLink' }, options.onActionError)
-  }
-}
-
-export const Image = TiptapImage.extend<CustomImageOptions>({
+export const Image = TiptapImage.extend<CustomImageOptions, ImageStorage>({
   atom: true,
 
   addOptions() {
@@ -147,12 +75,17 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
       ...this.parent?.(),
       allowedMimeTypes: [],
       maxFileSize: 0,
-      uploadFn: undefined,
-      onToggle: undefined,
-      downloadImage: undefined,
-      copyImage: undefined,
-      copyLink: undefined
+      uploadFn: undefined
     }
+  },
+
+  addStorage() {
+    return { uploads: new ImageUploads() }
+  },
+
+  onDestroy() {
+    // Frees the previews; an upload still running is let go.
+    this.storage.uploads.destroy()
   },
 
   addAttributes() {
@@ -180,7 +113,10 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
       },
       fileName: {
         default: null
-      }
+      },
+      align: dataAttr('align'),
+      crop: dataAttr('crop'),
+      href: dataAttr('href')
     }
   },
 
@@ -200,58 +136,74 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
           }
 
           if (validImages.length > 0) {
+            // Files go in as placeholders and upload (never as blob: addresses).
+            const files = validImages.map(image => image.src).filter((f): f is File => f instanceof File)
+            const placed = files.length > 0 && commands.insertImageFiles(files)
+            const linked = validImages.filter(image => !(image.src instanceof File))
+            if (!linked.length) return placed
             return commands.insertContent(
-              validImages.map(image => {
-                if (image.src instanceof File) {
-                  const blobUrl = URL.createObjectURL(image.src)
-                  const id = randomId()
-
-                  return {
-                    type: this.type.name,
-                    attrs: {
-                      id,
-                      src: blobUrl,
-                      alt: image.alt,
-                      title: image.title,
-                      fileName: image.src.name
-                    }
-                  }
-                } else {
-                  return {
-                    type: this.type.name,
-                    attrs: {
-                      id: randomId(),
-                      src: image.src,
-                      alt: image.alt,
-                      title: image.title,
-                      fileName: null
-                    }
-                  }
+              linked.map(image => ({
+                type: this.type.name,
+                attrs: {
+                  id: randomId(),
+                  src: image.src,
+                  alt: image.alt,
+                  title: image.title,
+                  fileName: null
                 }
-              })
+              }))
             )
           }
 
           return false
         },
 
-      downloadImage: attrs => () => {
-        const downloadFunc = this.options.downloadImage || downloadImage
-        void downloadFunc({ ...attrs, action: 'download' }, this.options)
-        return true
-      },
+      insertImageFiles:
+        (files, pos) =>
+        ({ tr, dispatch, commands, editor }) => {
+          const uploadFn = this.options.uploadFn
+          if (!uploadFn || !files.length) return false
+          if (!dispatch) return true
+          const added = files.map(file => this.storage.uploads.add(file))
+          const placed = commands.insertContentAt(pos ?? tr.selection.from, added.map(placeholderContent), { updateSelection: false })
+          if (!placed) {
+            for (const u of added) this.storage.uploads.remove(u.id)
+            return false
+          }
+          // The caret goes on a line after the images, so the next key types
+          // there instead of replacing the image it would otherwise select.
+          const last = findImageById(tr.doc, added[added.length - 1].id)
+          if (last) {
+            const after = last.pos + last.node.nodeSize
+            try {
+              if (!tr.doc.resolve(after).nodeAfter?.isTextblock) tr.insert(after, editor.schema.nodes.paragraph.create())
+              tr.setSelection(TextSelection.create(tr.doc, after + 1))
+            } catch {
+              // Somewhere a paragraph can't go (rare): the selection stays put.
+            }
+          }
+          startImageUploads(editor, added.map(u => u.id), uploadFn)
+          return true
+        },
 
-      copyImage: attrs => () => {
-        const copyImageFunc = this.options.copyImage || copyImage
-        void copyImageFunc({ ...attrs, action: 'copyImage' }, this.options)
-        return true
-      },
+      retryImageUpload:
+        id =>
+        () => {
+          const uploadFn = this.options.uploadFn
+          if (!uploadFn || !this.storage.uploads.get(id)) return false
+          void runImageUpload(this.editor, id, uploadFn)
+          return true
+        },
 
-      copyLink: attrs => () => {
-        const copyLinkFunc = this.options.copyLink || copyLink
-        void copyLinkFunc({ ...attrs, action: 'copyLink' }, this.options)
-        return true
-      },
+      removeImageById:
+        id =>
+        ({ tr, dispatch }) => {
+          const at = findImageById(tr.doc, id)
+          this.storage.uploads.remove(id)
+          if (!at) return false
+          if (dispatch) tr.delete(at.pos, at.pos + at.node.nodeSize)
+          return true
+        },
 
       toggleImage:
         () =>
@@ -276,9 +228,7 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
 
             if (validImages.length === 0) return false
 
-            if (this.options.onToggle) {
-              this.options.onToggle(editor, validImages, editor.state.selection.from)
-            }
+            editor.commands.insertImageFiles(validImages, editor.state.selection.from)
 
             return false
           }
@@ -296,13 +246,9 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
 
         deletedPages.forEach(node => {
           if (node.type.name === 'image') {
-            const attrs = node.attrs
-
-            if (attrs.src.startsWith('blob:')) {
-              URL.revokeObjectURL(attrs.src)
-            }
-
-            this.options.onImageRemoved?.(attrs)
+            // (A placeholder's preview is the upload's to free, uploads.ts:
+            // the image may come back with an undo.)
+            this.options.onImageRemoved?.(node.attrs)
           }
         })
       }
@@ -310,7 +256,7 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(ImageViewBlock, {
+    return ReactNodeViewRenderer(LazyImage, {
       className: 'block-node'
     })
   }

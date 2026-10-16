@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+pinTestClock()
 
 // The Guests bot ("guests"), the Slack bot ("slack") and an agent
 // ("captain"), as the server names their kinds.
@@ -28,7 +31,10 @@ vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () 
 vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel", () => ({
   MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1" }))
+vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
+// A phone row opens its thread by navigating: a press on a guest's card must not.
+const push = vi.hoisted(() => vi.fn())
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/app/channel/c1" }))
 vi.mock("@/components/message/AgentResultCards", () => ({ AgentResultCards: () => null }))
 vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null }))
 
@@ -37,6 +43,7 @@ const { default: store } = await import("@/store/store")
 const { BaseMessageCard } = await import("@/components/message/baseMessageCard")
 const { ChannelMessageMobile } = await import("@/components/channel/channelMessageMobile")
 const { MessageContent } = await import("@/components/rightPanel/messageContent")
+const { MobileMessage } = await import("@/components/mobileMessage/mobileMessage")
 
 function renderMessage(
   from: { user_uuid: string; user_name: string; is_bot?: boolean },
@@ -77,8 +84,9 @@ describe("a channel guest's message", () => {
     expect(container.textContent?.match(/guest/gi)?.length, "one Guest tag, its spoken form, nothing else").toBe(2)
     expect(screen.getByTestId("body").textContent).toBe("<p>Looks good, ship it</p>")
     expect(container.querySelector("[data-relayed-avatar]")?.textContent).toBe("P")
-    // A guest has no profile to open.
-    expect(screen.queryByRole("button", { name: "Priya (Acme)" })).toBeNull()
+    // A guest has no profile: the name opens a read-only card instead (F-42).
+    fireEvent.click(screen.getByRole("button", { name: "Priya (Acme)" }))
+    expect(document.querySelector("[data-relayed-card]")?.textContent).toContain("From Acme.")
   })
 
   it("leaves anyone else's message, label or not, as it was", () => {
@@ -98,6 +106,14 @@ describe("a channel guest's message elsewhere", () => {
     expect(container.textContent?.match(/guest/gi)?.length).toBe(2)
     expect(screen.getByTestId("body").textContent).toBe("<p>Looks good, ship it</p>")
     expect(container.querySelector("[data-relayed-avatar]")).toBeTruthy()
+    // The name opens the same read-only card as in the list (F-42), and
+    // pressing it, or the card, goes nowhere else.
+    push.mockClear()
+    fireEvent.click(screen.getByRole("button", { name: "Priya (Acme)" }))
+    const card = document.querySelector<HTMLElement>("[data-relayed-card]")
+    expect(card?.textContent).toContain("From Acme.")
+    fireEvent.click(card!)
+    expect(push).not.toHaveBeenCalled()
   }
 
   it("reads the same in the mobile list", () => {
@@ -120,6 +136,27 @@ describe("a channel guest's message elsewhere", () => {
     const { container } = render(
       <Provider store={store}>
         <MessageContent
+          userInfo={GUESTS_BOT as never}
+          content={STORED}
+          createdAt="2026-10-10T09:00:00Z"
+          channelUUID="c1"
+          postUUID="p1"
+          commentUUID="r1"
+          addReaction={() => {}}
+          removeReaction={() => {}}
+          updateMessage={() => {}}
+          deleteMessage={() => {}}
+          getMediaUrl=""
+        />
+      </Provider>,
+    )
+    expectGuest(container)
+  })
+
+  it("reads the same as a thread reply on a phone", () => {
+    const { container } = render(
+      <Provider store={store}>
+        <MobileMessage
           userInfo={GUESTS_BOT as never}
           content={STORED}
           createdAt="2026-10-10T09:00:00Z"

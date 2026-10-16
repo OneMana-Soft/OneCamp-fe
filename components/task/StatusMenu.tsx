@@ -4,11 +4,12 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
-import { Check, Settings2 } from "@/lib/icons"
+import { Settings2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { BUILT_IN_STATUSES, type StatusCategory, type StatusOption } from "@/lib/taskStatus"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
+import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 /**
  * The status and priority pickers (design v3, work.md W01, W02): a pop menu
@@ -27,12 +28,16 @@ const CATEGORY_ORDER: StatusCategory[] = ["backlog", "todo", "inProgress", "inRe
 
 const itemClass = "h-[30px] gap-2 rounded-md px-2 text-sm font-[450] data-[selected=true]:bg-press"
 
-/** The row's right side: its number key, then a check on the current one. */
+/**
+ * The row's right side: its number key, then the current one's check (the
+ * shared MenuCheck, at the end as a select's chosen option has it). The row
+ * says it's current with menuCheckState.
+ */
 function RowEnd({ n, current }: { n: number | null; current: boolean }) {
   return (
     <span className="ml-auto flex shrink-0 items-center gap-2">
       {n !== null && n <= 9 ? <span className="kbd">{n}</span> : null}
-      <Check className={cn("h-3.5 w-3.5 text-ink-2", !current && "invisible")} aria-label={current ? "Current" : undefined} aria-hidden={!current} />
+      <MenuCheck checked={current} className="text-ink-2" />
     </span>
   )
 }
@@ -90,6 +95,7 @@ export function StatusMenuContent({
               value={`${status.label} ${status.value}`}
               onSelect={() => onSelect(status.value)}
               className={itemClass}
+              {...menuCheckState(current === status.value)}
             >
               <TaskStatusCell status={status} className="min-w-0" />
               <RowEnd n={i + 1} current={current === status.value} />
@@ -137,7 +143,7 @@ export function PriorityMenuContent({
         <CommandEmpty>{t("noResultFound")}</CommandEmpty>
         <CommandGroup className="p-0">
           {values.map((v, i) => (
-            <CommandItem key={v || "none"} value={v || "no priority"} onSelect={() => onSelect(v)} className={itemClass}>
+            <CommandItem key={v || "none"} value={v || "no priority"} onSelect={() => onSelect(v)} className={itemClass} {...menuCheckState((current ?? "") === v)}>
               <TaskPriorityCell priority={v} />
               <RowEnd n={i + 1} current={(current ?? "") === v} />
             </CommandItem>

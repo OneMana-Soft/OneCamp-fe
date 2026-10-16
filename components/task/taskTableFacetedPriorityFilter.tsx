@@ -1,9 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { FilterChip } from "@/components/task/filterChip"
-import { CheckIcon, } from "@radix-ui/react-icons";
 import { Column } from "@tanstack/react-table";
 
-import { cn } from "@/lib/utils/helpers/cn";
 import {
     Command,
     CommandEmpty,
@@ -50,6 +48,7 @@ export function TaskTableFacetedPriorityFilter<TData, TValue>({
                                 return (
                                     <CommandItem
                                         key={option.value}
+                                        checked={isSelected}
                                         onSelect={() => {
                                             if (isSelected) {
                                                 selectedValues.delete(option.value);
@@ -62,16 +61,6 @@ export function TaskTableFacetedPriorityFilter<TData, TValue>({
                                             );
                                         }}
                                     >
-                                        <div
-                                            className={cn(
-                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                isSelected
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "opacity-50 [&_svg]:invisible"
-                                            )}
-                                        >
-                                            <CheckIcon className={cn("h-4 w-4")} />
-                                        </div>
                                         <TaskPriorityCell priority={option}/>
 
                                         {/*{facets?.get(option.value) && (*/}

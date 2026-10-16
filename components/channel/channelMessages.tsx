@@ -7,20 +7,21 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import { groupByDate } from "@/lib/utils/date/groupByDate"
 import { getGroupDateHeading } from "@/lib/utils/date/getMessageGroupDate"
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
-import type { CreateOrUpdatePostsReq, CreatePostsRes, PostsRes } from "@/types/post"
+import type { PostsRes } from "@/types/post"
 import { ChannelMessage } from "@/components/channel/chanelMessage"
 import type { FlatItem, RowMeta } from "@/types/virtual"
 import { useMedia } from "@/context/MediaQueryContext"
 import { ChannelMessageMobile } from "@/components/channel/channelMessageMobile"
 import { usePost } from "@/hooks/usePost"
+import { useSaveEdit } from "@/hooks/useSaveEdit"
+import { useDeleteMessage } from "@/hooks/useDeleteMessage"
+import { REACTION_NOT_ADDED, REACTION_NOT_REMOVED } from "@/lib/chat/reactionNotAdded"
 import type { CreateOrUpdatePostReaction } from "@/types/reaction"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import {
     createPostReactionPostId,
-    removePostByPostId,
     removePostReactionByPostId,
     updateChannelScrollToBottom,
-    updatePostByPostId,
     updatePostReactionPostId,
     updatePostReactionId,
     ScrollToBottom
@@ -29,18 +30,17 @@ import {updateChatScrollPosition} from "@/store/slice/chatSlice";
 import { useDispatch, useSelector, useStore } from "react-redux"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
-import { openUI } from "@/store/slice/uiSlice"
 import { MessageListVirtua } from "@/components/message/MessaageListVirtua"
 import { mentionsUser } from "@/components/message/tintMentions"
 import type { VListHandle } from "virtua"
 import type { RootState } from "@/store/store"
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen"
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor"
 import { ChannelEmpty } from "@/components/message/emptyConversations"
 import { hueFor } from "@/lib/campHue"
+import { messageSummary } from "@/lib/chat/messageSummary"
 
 interface ChannelMessagesProps {
     posts: PostsRes[]
@@ -55,7 +55,8 @@ interface ChannelMessagesProps {
     clickedScrollToBottom: () => void;
     /** Unread when the conversation was opened: the "New" line goes above the first of them. */
     unreadOnOpen?: number;
-
+    /** Set when the older page failed: the list offers Try again (SD-BUG-1). */
+    retryOlder?: () => void
 }
 
 const EMPTY_SCROLL_TO_BOTTOM: ScrollToBottom = { shouldScrollToBottom: false }
@@ -72,6 +73,7 @@ export const ChannelMessages = ({
                                     isNewMsgLoading,
                                     isOLdMsgLoading,
                                     unreadOnOpen,
+                                    retryOlder,
                                 }: ChannelMessagesProps) => {
     const { isMobile } = useMedia()
 
@@ -79,6 +81,8 @@ export const ChannelMessages = ({
 
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
+    const deleteMessage = useDeleteMessage()
 
     const { toast } = useToast()
     const dispatch = useDispatch()
@@ -141,12 +145,18 @@ export const ChannelMessages = ({
                     reaction_emoji_id: emojiId,
                     reaction_dgraph_id: reactionId,
                 },
+                // A refusal says so in the error toast (QA F-14).
+                showErrorToast: true,
+                failureTitle: REACTION_NOT_ADDED.title,
             })
             .then((res) => {
                 // An answer without the new reaction's id is a failure too: the
                 // pill goes back and a toast says so (design v3 chat, C21). It
                 // used to stay forever, or take the conversation down.
-                if (!reactionId && !res?.reaction_dgraph_id) throw new Error("no reaction id")
+                if (!reactionId && !res?.reaction_dgraph_id) {
+                    toast(REACTION_NOT_ADDED)
+                    throw new Error("no reaction id")
+                }
                 if (reactionId) {
                    // Update success
                 } else if (res?.reaction_dgraph_id && selfProfile.data?.data) {
@@ -169,7 +179,6 @@ export const ChannelMessages = ({
                 }
             })
             .catch(() => {
-                toast({ title: "Couldn't add the reaction. Try again" })
                 // Revert on failure
                 if (reactionId) {
                     if (oldEmojiId) {
@@ -204,6 +213,8 @@ export const ChannelMessages = ({
                     post_id: postId,
                     reaction_dgraph_id: reactionId,
                 },
+                showErrorToast: true,
+                failureTitle: REACTION_NOT_REMOVED,
             })
             .then(() => {
                // Success
@@ -224,99 +235,19 @@ export const ChannelMessages = ({
             })
     })
 
+    // It leaves at once; a refused delete puts it back (QA F-01).
     const executeDeletePost = (postId: string) => {
-        // Store for revert if needed
-        const postToDelete = posts.find(p => p.post_uuid === postId);
-
-        // Optimistic Delete
-        dispatch(removePostByPostId({ postId, channelId }))
-
-        post.makeRequest<CreateOrUpdatePostsReq>({
-                apiEndpoint: PostEndpointUrl.DeleteChannelPost,
-                payload: {
-                    post_id: postId,
-                },
-                showToast: false,
-                showErrorToast: true,
-                description: "Deleting post"
-            })
-            .then((res) => {
-                if (!res) {
-                    // Revert logic would go here if we had an 'addBackPost' action
-                }
-            })
-            .catch(() => {
-                // Revert or notify
-            })
+        void deleteMessage({ kind: "post", channelId, id: postId })
     }
 
-    const handleUpdatePost = useStableCallback((postHTMLText: string, postId: string) => {
-        // Trim leading/trailing empty paragraphs and whitespace before sending.
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
+    // A correction shows at once and, when its save fails, goes back with
+    // the box open on what was typed (hooks/useSaveEdit, F-06, F-07).
+    const handleUpdatePost = useStableCallback((html: string, postId: string) => saveEdit({ kind: "post", channelId, id: postId }, html))
 
-        // Store for revert
-        const originalPost = posts.find(p => p.post_uuid === postId);
-        const originalText = originalPost?.post_text || "";
-
-        // Optimistic Update
-        dispatch(
-            updatePostByPostId({
-                postId: postId,
-                channelId: channelId,
-                htmlText: trimmedHtml,
-            }),
-        )
-
-        post
-            .makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
-                apiEndpoint: PostEndpointUrl.UpdateChannelPost,
-                payload: {
-                    post_id: postId,
-                    post_text_html: trimmedHtml,
-                },
-                showToast: false, // Cleaner UX with optimism
-                showErrorToast: true,
-                description: "Updating post"
-            })
-            .then((res) => {
-                if (!res) {
-                    // Revert
-                    dispatch(updatePostByPostId({ postId, channelId, htmlText: originalText }));
-                }
-            })
-            .catch(() => {
-                // Revert
-                dispatch(updatePostByPostId({ postId, channelId, htmlText: originalText }));
-            })
-    })
-
-    // On a computer, deleting is confirmed in place, inside the message's
-    // More menu (MessageDesktopDropdown, C20); the phone keeps its dialog.
+    // Deleting is confirmed in place, where Delete was chosen: a computer's
+    // More menu (MessageDesktopDropdown, C20), a phone's sheet (SD-5).
     const deleteNow = useStableCallback((id: string) => {
         if (id) executeDeletePost(id)
-    })
-
-    const handleDeletePost = useStableCallback((postId: string) => {
-        if (!postId) return
-
-
-        setTimeout(() => {
-            dispatch(
-                openUI({
-                    key: 'confirmAlert',
-                    data: {
-                        title: "Delete this message?",
-                        description: "It's removed from the channel for everyone. This can't be undone.",
-                        confirmText: "Delete message",
-                        destructive: true,
-                        onConfirm: () => {
-                            setTimeout(() => { executeDeletePost(postId) }, 100)
-                        },
-                    }
-                }),
-            )
-        }, 500)
     })
 
     const groupedPosts = useMemo(() => {
@@ -357,18 +288,14 @@ export const ChannelMessages = ({
                             postInfo={post}
                             isAdmin={isAdmin}
                             channelId={channelId}
-                            removePost={() => {
-                                handleDeletePost(post.post_uuid)
-                            }}
+                            removePost={() => { deleteNow(post.post_uuid) }}
                             addReaction={(emojiId: string, reactionId: string) => {
                                 createOrUpdateReaction(post.post_uuid, emojiId, reactionId)
                             }}
                             removeReaction={(reactionId: string) => {
                                 removeReaction(post.post_uuid, reactionId)
                             }}
-                            updatePost={(body: string) => {
-                                handleUpdatePost(body, post.post_uuid)
-                            }}
+                            updatePost={(body: string) => handleUpdatePost(body, post.post_uuid)}
                             priority={priority}
                             continued={continued}
                         arrived={arrived}
@@ -385,9 +312,7 @@ export const ChannelMessages = ({
                             removeReaction(post.post_uuid, reactionId)
                         }}
                         removePost={() => { deleteNow(post.post_uuid) }}
-                        updatePost={(body: string) => {
-                            handleUpdatePost(body, post.post_uuid)
-                        }}
+                        updatePost={(body: string) => handleUpdatePost(body, post.post_uuid)}
                         priority={priority}
                         continued={continued}
                     arrived={arrived}
@@ -395,13 +320,16 @@ export const ChannelMessages = ({
                 )}
             </div>
         ),
-        [isMobile, isAdmin, channelId, handleDeletePost, deleteNow, createOrUpdateReaction, removeReaction, handleUpdatePost],
+        [isMobile, isAdmin, channelId, deleteNow, createOrUpdateReaction, removeReaction, handleUpdatePost],
     )
     // The row that can't be drawn offers its words; the jump pill counts
     // what arrived for the reader.
     const rawText = useCallback((m: PostsRes) => m.post_text, [])
     const selfIdForPill = selfProfile.data?.data?.user_uuid
     const isForMe = useCallback((m: PostsRes) => mentionsUser(m.post_text, selfIdForPill), [selfIdForPill])
+    // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
+    const rowLabel = useCallback((m: PostsRes) => messageSummary({ from: m.post_by, at: m.post_created_at, html: m.post_text, files: m.post_attachments?.length }), [])
+    const isOwn = useCallback((m: PostsRes) => !!selfIdForPill && m.post_by?.user_uuid === selfIdForPill, [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null)
 
@@ -453,6 +381,10 @@ export const ChannelMessages = ({
             renderItem={renderItem}
             rawText={rawText}
             isForMe={isForMe}
+            label={channelName ? `Messages in #${channelName}` : "Messages"}
+            rowLabel={rowLabel}
+            isOwn={isOwn}
+            retryOlder={retryOlder}
             getDateHeading={getGroupDateHeading}
             fetchOlderMessage={getOldMessages}
             fetchNewMessage={handleGetNewMessage}
@@ -468,6 +400,7 @@ export const ChannelMessages = ({
             empty={
                 <ChannelEmpty channelId={channelId} />
             }
+            start={<ChannelEmpty channelId={channelId} start />}
         />
     )
 }

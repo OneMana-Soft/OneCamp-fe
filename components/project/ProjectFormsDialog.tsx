@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, Loader2, Plus, Trash2 } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
-import { serverMessage } from "@/lib/http/serverMessage"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { FIELD_TYPES, blankForm, formUrl, moveField, newFieldId, type FieldType, type ProjectForm } from "@/lib/forms/forms"
 
@@ -71,7 +71,7 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
       setCopied(token)
       setTimeout(() => setCopied(null), 1500)
     } catch {
-      toast({ title: "Couldn't copy", description: formUrl(token) })
+      toast({ title: "Couldn't copy", description: formUrl(token), tone: "error" })
     }
   }
   const remove = async (f: ProjectForm) => {
@@ -82,7 +82,7 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
       setDeleting(null)
       onChanged()
     } catch (e) {
-      toast({ title: "Couldn't delete", description: serverMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't delete", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -173,7 +173,7 @@ function FormEditor({ projectId, form, onBack, onSaved }: { projectId: string; f
       toast({ title: form.id ? "Saved" : "Form ready", description: formUrl(saved.token!) })
       onSaved()
     } catch (err) {
-      toast({ title: "Couldn't save the form", description: serverMessage(err), variant: "destructive" })
+      toast({ title: "Couldn't save the form", description: apiErrorMessage(err, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }

@@ -96,3 +96,33 @@ describe("Home on the phone", () => {
     expect(src).not.toMatch(/MobileHomeSearchBar/)
   })
 })
+
+describe("the projects strip (H14)", () => {
+  // Three across at a tablet's width, or beside the AI panel, cut every card
+  // to "Customer o…" and "6 open · 5 due …": three only where three fit.
+  it("goes three across by its own width, not the window's", () => {
+    const src = read("components/home/ProjectsStrip.tsx")
+    expect(src).toMatch(/cn\("@container", className\)/)
+    expect(src).toMatch(/"grid grid-cols-1 gap-2\.5", !isMobile && STRIP_COLUMNS\)/)
+    expect(src).not.toMatch(/: "grid-cols-3"/)
+  })
+
+  // At 1024 beside the sidebar the strip was over 720px, so it went three
+  // across and still cut "Customer onbo…" and "5 due this…" (critic review,
+  // 12 Oct). A card's words get what its chrome leaves: 14px padding each
+  // side, the 32px tile, the 28px ring and two 12px gaps.
+  it("gives every card's words 150px at each width it changes columns", () => {
+    // Read from the source: importing the strip brings Home's whole graph in.
+    const STRIP_COLUMNS = /export const STRIP_COLUMNS = "([^"]+)"/.exec(read("components/home/ProjectsStrip.tsx"))![1]
+    const CHROME = 14 * 2 + 32 + 28 + 12 * 2
+    const GAP = 10
+    const steps = [...STRIP_COLUMNS.matchAll(/@min-\[(\d+)px\]:grid-cols-(\d)/g)].map((m) => [Number(m[1]), Number(m[2])])
+    expect(steps.map(([, n]) => n)).toEqual([2, 3])
+    for (const [width, cols] of steps) {
+      const words = (width - GAP * (cols - 1)) / cols - CHROME
+      expect(words, `${cols} across from ${width}px`).toBeGreaterThanOrEqual(150)
+    }
+    // Alone on its row in two columns, the last card spans both.
+    expect(STRIP_COLUMNS).toMatch(/@min-\[560px\]:@max-\[860px\]:\[&>:last-child:nth-child\(odd\)\]:col-span-2/)
+  })
+})

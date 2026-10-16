@@ -78,3 +78,18 @@ describe("the AI-free edition", () => {
         }
     })
 })
+
+// The tables page offered "Describe a table and AI builds it" on this edition,
+// with no gate, posting to an AI route the AI-free server doesn't have (found
+// 16 Oct 2026). Its import has no "AI" in its name, so the check above never
+// saw it: this one reads what the page and the table service hold.
+describe("the tables page", () => {
+  it("offers no AI table builder on this edition", () => {
+    const page = readFileSync(join(process.cwd(), "app/app/tables/page.tsx"), "utf8")
+    for (const banned of ["generateTable", "data-ai-bar", "AI builds", "for AI to build"]) {
+      expect(page.includes(banned), `app/app/tables/page.tsx holds "${banned}"`).toBe(false)
+    }
+    const service = readFileSync(join(process.cwd(), "services/tableService.ts"), "utf8")
+    expect(service.includes("generateTable"), "services/tableService.ts still builds tables with AI").toBe(false)
+  })
+})

@@ -11,9 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ArrowUpDown, Check, ChevronDown, Filter, Plus, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { OPS_FOR, kindOfField, type FieldKind, type FilterRule, type SortRule, type ViewRules } from "@/lib/tables/viewRules"
-import { parseFieldConfig, type TableField } from "@/services/tableService"
-import { TableToolbar } from "@/components/table/TableViewFrame"
+import { formatLocale } from "@/lib/tables/numberFormat"
+import { optionsOf, type TableField } from "@/services/tableService"
+import { TableToolbar, TOUCH_ROW } from "@/components/table/TableViewFrame"
 import { FIELD_GLYPH } from "@/components/table/gridCells"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 const MAX_SORTS = 3
 const MAX_FILTERS = 10
@@ -54,6 +56,7 @@ export function RuleSelect({
           type="button"
           role="combobox"
           aria-label={label}
+          data-touch-target=""
           aria-expanded={open}
           aria-controls={listId}
           aria-haspopup="listbox"
@@ -101,7 +104,7 @@ export function RuleSelect({
                 onChange(o.value)
                 setOpen(false)
               }}
-              className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink outline-none hover:bg-press focus-visible:bg-press [&>svg]:size-3.5 [&>svg]:text-ink-3"
+              className={cn("flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink outline-none hover:bg-press focus-visible:bg-press [&>svg]:size-3.5 [&>svg]:text-ink-3", TOUCH_ROW)}
             >
               {o.icon}
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
@@ -134,10 +137,41 @@ function RuleChip({ children, onOpen, onRemove, removeLabel }: { children: React
   )
 }
 
-function ruleText(rule: FilterRule, field: TableField | undefined): string {
+/**
+ * A filter as its chip says it: "Status is Paid". One still waiting for its
+ * value says so ("Item contains …"); it read "Item contains", a sentence
+ * that stops.
+ */
+export function ruleText(rule: FilterRule, field: TableField | undefined): string {
   if (!field) return ""
   const op = OPS_FOR[kindOfField(field)].find((o) => o.op === rule.op)
-  return `${field.name} ${op?.label ?? ""}${op?.needsValue && rule.value ? ` ${rule.value}` : ""}`.trim()
+  const value = op?.needsValue ? (rule.value ? ` ${rule.value}` : " …") : ""
+  return `${field.name} ${op?.label ?? ""}${value}`.trim()
+}
+
+/**
+ * How many rows show, as the toolbar says it; null when every row does. While
+ * the page doesn't hold every row it says how many it holds, of how many
+ * ("Showing 2,000 of 12,400 rows"), and when a filter or a search leaves out
+ * some, that it looked only in those ("Showing 12 in the 2,000 of 12,400
+ * rows loaded"). total is null when the server doesn't say.
+ */
+export function rowsShownText(shown: number, held: number, total: number | null, complete: boolean): string | null {
+  const n = (x: number) => formatLocale(x, {})
+  if (complete) {
+    const all = total ?? held
+    return shown === all ? null : `Showing ${n(shown)} of ${n(all)} rows`
+  }
+  const of = total === null ? "" : ` of ${n(total)}`
+  return shown === held ? `Showing ${n(held)}${of} rows` : `Showing ${n(shown)} in the ${n(held)}${of} rows loaded`
+}
+
+/** The rows a page holds, when it doesn't hold them all: reading more, or the reader's way to all of them. */
+export interface RowsLoading {
+  reading: boolean
+  failed: boolean
+  onLoadAll: () => void
+  onRetry: () => void
 }
 
 export function ViewRulesBar({
@@ -145,19 +179,22 @@ export function ViewRulesBar({
   rules,
   onChange,
   shown,
+  held,
   total,
-  truncated,
+  loading,
   end,
 }: {
   /** The table's fields, in column order. */
   fields: TableField[]
   rules: ViewRules
   onChange: (rules: ViewRules) => void
-  /** How many rows the rules show, of how many. */
+  /** How many rows the rules and the search show, of the rows the page holds. */
   shown: number
-  total: number
-  /** The table has more rows than were loaded, and the rules see only these. */
-  truncated: boolean
+  held: number
+  /** Every row of the table; null when the server doesn't say. */
+  total: number | null
+  /** Given while the page doesn't hold every row. */
+  loading?: RowsLoading | null
   /** A view's own controls, at the row's end (search, fields, the calendar's month). */
   end?: React.ReactNode
 }) {
@@ -165,6 +202,8 @@ export function ViewRulesBar({
   const [filterOpen, setFilterOpen] = React.useState(false)
   const byId = (id: string) => fields.find((f) => f.id === id)
   const active = rules.sort.length + rules.filters.length > 0
+  const count = rowsShownText(shown, held, total, !loading)
+  const link = "font-medium text-brand-text outline-none hover:underline focus-visible:underline"
   return (
     <TableToolbar end={end}>
       <FilterMenu fields={fields} rules={rules} onChange={onChange} open={filterOpen} onOpenChange={setFilterOpen} />
@@ -196,15 +235,35 @@ export function ViewRulesBar({
         <button
           type="button"
           onClick={() => onChange({ sort: [], filters: [], match: rules.match })}
+          data-touch-target=""
           className="h-6 rounded-md px-1.5 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink"
         >
           Clear
         </button>
       )}
-      {shown !== total && (
-        <span className="pl-1 text-meta tabular-nums text-ink-3" aria-live="polite">
-          Showing {shown} of {total} rows
-          {active && truncated ? ` (of the first ${total})` : ""}
+      {count && (
+        <span className="pl-1 text-meta tabular-nums text-ink-3" aria-live="polite" data-rows-shown="">
+          {count}
+          {loading ? (
+            loading.failed ? (
+              <>
+                {" · Couldn't load the rest. "}
+                <SaysLoadFailure />
+                <button type="button" onClick={loading.onRetry} className={link}>
+                  Try again
+                </button>
+              </>
+            ) : loading.reading ? (
+              " · Loading…"
+            ) : (
+              <>
+                {" · "}
+                <button type="button" onClick={loading.onLoadAll} className={link}>
+                  Load all
+                </button>
+              </>
+            )
+          ) : null}
         </span>
       )}
     </TableToolbar>
@@ -314,7 +373,7 @@ function FilterMenu({
           const kind = kindOfField(field)
           const ops = OPS_FOR[kind]
           const op = ops.find((o) => o.op === rule.op) ?? ops[0]
-          const options = field.type === "select" || field.type === "multi_select" ? parseFieldConfig(field).options || [] : []
+          const options = field.type === "select" || field.type === "multi_select" ? optionsOf(field) : []
           return (
             <div key={i} className="flex items-center gap-1.5">
               <RuleSelect

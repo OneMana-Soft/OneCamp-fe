@@ -26,7 +26,11 @@ export const ChatLoadingSkeleton = () => {
         return () => window.clearTimeout(t)
     }, [])
     return (
-        <div data-message-skeleton="" data-shown={shown || undefined} role="status" aria-label="Loading messages" className={cn("flex h-full w-full flex-col overflow-hidden pt-8", !shown && "invisible")}>
+        // At the foot of the list, where the messages land: a conversation
+        // sits at its end (MessageListVirtua), and a skeleton at the top swapped
+        // for messages at the bottom was a jump the length of the screen. On a
+        // phone it keeps clear of the floating composer, as the list does.
+        <div data-message-skeleton="" data-shown={shown || undefined} role="status" aria-label="Loading messages" className={cn("flex h-full w-full flex-col justify-end overflow-hidden pb-[150px] md:pb-4", !shown && "invisible")}>
             {BODIES.map((lines, i) => (
                 <div
                     key={i}

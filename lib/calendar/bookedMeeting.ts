@@ -8,7 +8,7 @@
  * confirms, the calendar names the guest and says whether they'll be told
  * (they can't be when the workspace sends no email). Pure.
  */
-import { dayAndTime } from "@/lib/utils/date/dayAndTime"
+import { dayAndTime } from "@/lib/utils/date/clock"
 
 export interface EventBooking {
   guest_name: string

@@ -19,11 +19,16 @@ import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberComb
 import { useChannelMembers } from "@/components/member/channelMemberContent"
 import { MemberRow } from "@/components/channel/details/memberRow"
 import { DetailsRow as Row, DetailsSection as Section } from "@/components/channel/details/detailsParts"
+import { ChannelNameRow } from "@/components/channel/details/channelNameRow"
+import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { restoreChannel } from "@/services/channelService"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useDebounce } from "@/hooks/useDebounce"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { removeUserChannelName, updateUserChannelName } from "@/store/slice/userSlice"
+import { removeUserChannelName, setUserChannelNotificationType, updateUserChannelName } from "@/store/slice/userSlice"
 import { displayNameOf } from "@/lib/personName"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { shortDate } from "@/lib/utils/date/shortDate"
@@ -136,6 +141,7 @@ const NOTIFY: { value: string; label: string; description: string }[] = [
 export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: ChannelDetailsSheetProps) {
     const dispatch = useDispatch()
     const router = useRouter()
+    const { toast } = useToast()
     const basic = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : "")
     const { channelInfo: membersInfo, handleMakeAdmin, handleRemoveAdmin, handleAddMember, handleRemoveMember } = useChannelMembers(channelId)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -150,12 +156,18 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
     const members = useMemo(() => membersInfo.data?.channel_info.ch_members ?? [], [membersInfo.data])
     const creatorId = info?.ch_created_by?.user_uuid ?? membersInfo.data?.channel_info.ch_created_by?.user_uuid
     const archived = !!info?.ch_deleted_at && !isZeroEpoch(info.ch_deleted_at)
+    // An archived channel comes back by its admins or a workspace admin.
+    const canRestore = archived && (isAdmin || !!selfProfile.data?.data?.user_is_admin)
+    const [restoring, setRestoring] = useState(false)
     const announcement = info?.ch_post_policy === "admins_only"
     const name = info?.ch_name ?? ""
 
     const [query, setQuery] = useState("")
     const q = useDebounce(query, 200).toLowerCase().replace(/\s+/g, "")
     const shown = useMemo(() => (q ? members.filter((m) => displayNameOf(m).toLowerCase().replace(/\s+/g, "").includes(q)) : members), [members, q])
+    // The list's count once it's there, the channel's own while it loads:
+    // "Members · 0" sat over the loading rows for a second (QA F-19).
+    const memberCount = membersInfo.isLoading ? info?.ch_member_count : members.length
     const [adding, setAdding] = useState(false)
 
     const [editingTopic, setEditingTopic] = useState(false)
@@ -164,8 +176,10 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
     const currentNotification = notification ?? info?.notification_type ?? NotificationType.NotificationAll
 
     // Every setting goes through the one UpdateChannel call with the rest of
-    // the channel as it is, so changing one never resets another.
-    const save = async (patch: Partial<UpdateChannelPayload>) => {
+    // the channel as it is, so changing one never resets another. Each says
+    // what it did, or what didn't happen and why, in its own words: they all
+    // said "Channel updated" or "Couldn't update channel" (QA F-35).
+    const save = async (patch: Partial<UpdateChannelPayload>, words: { failed: string; done?: string }) => {
         if (!info) return
         const payload: UpdateChannelPayload = {
             channel_uuid: channelId,
@@ -177,7 +191,8 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
         }
         basic.mutate({ ...basic.data!, channel_info: { ...info, ch_private: payload.channel_private, ch_post_policy: payload.post_policy, ch_about: payload.channel_about ?? info.ch_about } }, false)
         try {
-            await update.makeRequest<UpdateChannelPayload>({ payload, apiEndpoint: PostEndpointUrl.UpdateChannel, showToast: true })
+            await update.makeRequest<UpdateChannelPayload>({ payload, apiEndpoint: PostEndpointUrl.UpdateChannel, showErrorToast: true, failureTitle: words.failed })
+            if (words.done) toast({ title: words.done })
             if (payload.channel_archived) dispatch(removeUserChannelName({ channelUUID: channelId }))
             else dispatch(updateUserChannelName({ channelUUID: channelId, channelName: payload.channel_name, channelPrivate: payload.channel_private }))
             basic.mutate()
@@ -188,17 +203,39 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
         }
     }
 
+    const restore = async () => {
+        setRestoring(true)
+        try {
+            await restoreChannel(channelId)
+            toast({ title: `#${name} is back`, description: "Its members can post in it again." })
+            basic.mutate()
+        } catch (e) {
+            toast({ title: `Couldn't restore #${name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+        } finally {
+            setRestoring(false)
+        }
+    }
+
+    // The editor stays open with the draft until the description is saved: a
+    // refusal closed it and lost what was typed (QA F-20).
     const saveTopic = async () => {
-        setEditingTopic(false)
-        if (topic.trim() === (info?.ch_about ?? "")) return
-        await save({ channel_about: topic.trim() })
+        const next = topic.trim()
+        if (next === (info?.ch_about ?? "")) return setEditingTopic(false)
+        if (await save({ channel_about: next }, { failed: "Couldn't save the description", done: "Description saved" })) setEditingTopic(false)
     }
 
     const changeNotification = async (next: string) => {
         const before = currentNotification
         setNotification(next)
         try {
-            await notify.makeRequest<ChannelNotificationInterface>({ payload: { channel_id: channelId, notification_type: next }, apiEndpoint: PostEndpointUrl.UpdateChannelNotification })
+            await notify.makeRequest<ChannelNotificationInterface>({
+                payload: { channel_id: channelId, notification_type: next },
+                apiEndpoint: PostEndpointUrl.UpdateChannelNotification,
+                showErrorToast: true,
+                failureTitle: `Couldn't change your notifications for #${name}`,
+            })
+            // The sidebar shows the channel muted, or not, at once.
+            dispatch(setUserChannelNotificationType({ channelUUID: channelId, notificationType: next }))
         } catch {
             setNotification(before)
         }
@@ -207,7 +244,12 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
     const leaveChannel = async () => {
         if (!selfId) return
         try {
-            await leave.makeRequest<ChannelMemberUpdateInterface>({ apiEndpoint: PostEndpointUrl.RemoveChannelMember, payload: { channel_id: channelId, user_id: selfId } })
+            await leave.makeRequest<ChannelMemberUpdateInterface>({
+                apiEndpoint: PostEndpointUrl.RemoveChannelMember,
+                payload: { channel_id: channelId, user_id: selfId },
+                showErrorToast: true,
+                failureTitle: `Couldn't leave #${name}`,
+            })
             dispatch(removeUserChannelName({ channelUUID: channelId }))
             onOpenChange(false)
             router.push(app_channel_path)
@@ -216,14 +258,24 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
         }
     }
 
+    // Archived says so in its own words, with the way back: it said "Channel
+    // updated" (QA F-36).
     const archive = async () => {
-        if (await save({ channel_archived: true })) {
+        if (await save({ channel_archived: true }, { failed: `Couldn't archive #${name}` })) {
             onOpenChange(false)
             router.push(app_channel_path)
+            toast({
+                title: `#${name} archived`,
+                description: "Nobody can post in it until it's restored.",
+                action: <ToastAction altText={`Restore #${name}`} onClick={() => void restore()}>Restore</ToastAction>,
+            })
         }
     }
 
     const createdBy = info?.ch_created_by ? displayNameOf(info.ch_created_by) : ""
+    // The creator may leave, as anyone may, once someone else is an admin, so
+    // the channel keeps one; the server holds to the same rule (QA F-46).
+    const creatorStays = creatorId === selfId && !members.some((m) => m.user_is_admin && m.user_uuid !== selfId)
 
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -255,7 +307,25 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                     </header>
 
                     <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5">
+                        {archived && (
+                            <Section title="Archived">
+                                <Row
+                                    label="Restore channel"
+                                    description={canRestore
+                                        ? "Brings it back with its history, and its members can post again."
+                                        : "Its admins and workspace admins can restore it."}
+                                >
+                                    {canRestore && (
+                                        <Button variant="secondary" size="sm" onClick={() => void restore()} disabled={restoring} aria-busy={restoring || undefined}>
+                                            {restoring ? "Restoring…" : "Restore"}
+                                        </Button>
+                                    )}
+                                </Row>
+                            </Section>
+                        )}
+
                         <Section title="About">
+                            <ChannelNameRow name={name} canRename={isAdmin && !archived} onRename={async (next) => (await save({ channel_name: next }, { failed: `Couldn't rename #${name}`, done: `Renamed to #${next}` })) === true} />
                             {editingTopic ? (
                                 <div className="space-y-2 px-3 py-3">
                                     <Label htmlFor="channel-topic" className="text-meta font-medium text-ink-2">Description</Label>
@@ -273,7 +343,9 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                     />
                                     <div className="flex justify-end gap-2">
                                         <Button variant="ghost" size="sm" onClick={() => setEditingTopic(false)}>Cancel</Button>
-                                        <Button size="sm" onClick={saveTopic}>Save</Button>
+                                        <Button size="sm" onClick={saveTopic} disabled={update.isSubmitting} aria-busy={update.isSubmitting || undefined}>
+                                            {update.isSubmitting ? "Saving…" : "Save"}
+                                        </Button>
                                     </div>
                                 </div>
                             ) : (
@@ -294,7 +366,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                         </Section>
 
                         <Section
-                            title={<>Members <span className="font-normal text-ink-3">· {members.length}</span></>}
+                            title={<>Members{memberCount === undefined ? null : <> <span className="font-normal text-ink-3">· {memberCount}</span></>}</>}
                             action={(isAdmin || (isMember && !info?.ch_private)) && !archived ? (
                                 <Button variant="secondary" size="sm" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
                                     Add people
@@ -373,10 +445,23 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                     workspaceAdmin={!!selfProfile.data?.data?.user_is_admin}
                                     disabled={!info}
                                     busy={update.isSubmitting}
-                                    onChange={(makePrivate) => save({ channel_private: makePrivate })}
+                                    onChange={(makePrivate) => save(
+                                        { channel_private: makePrivate },
+                                        makePrivate
+                                            ? { failed: `Couldn't make #${name} private`, done: `#${name} is private now` }
+                                            : { failed: `Couldn't make #${name} public`, done: `#${name} is public now` },
+                                    )}
                                 />
                                 <Row icon={<Megaphone />} label="Announcement channel" description="Only admins post. Everyone can read, react and reply in threads." controlId="details-announcement">
-                                    <Switch id="details-announcement" checked={announcement} disabled={!info} onCheckedChange={(v) => save({ post_policy: v ? "admins_only" : "everyone" })} />
+                                    <Switch
+                                        id="details-announcement"
+                                        checked={announcement}
+                                        disabled={!info}
+                                        onCheckedChange={(v) => save(
+                                            { post_policy: v ? "admins_only" : "everyone" },
+                                            { failed: `Couldn't change who can post in #${name}`, done: v ? `Only admins post in #${name} now` : `Everyone can post in #${name} again` },
+                                        )}
+                                    />
                                 </Row>
                             </Section>
                         )}
@@ -385,8 +470,8 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                             <Section title="Danger zone" tone="danger">
                                 <InlineConfirm
                                     label="Leave channel"
-                                    description={creatorId === selfId ? "You made this channel, so you stay in it." : undefined}
-                                    disabled={creatorId === selfId}
+                                    description={creatorStays ? "You made this channel. Make someone else an admin to leave it." : undefined}
+                                    disabled={creatorStays}
                                     question={`Leave #${name}?`}
                                     warning={info?.ch_private ? "You'll need an invite to come back." : undefined}
                                     confirmLabel="Leave"
@@ -396,7 +481,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                 {isAdmin && !archived && (
                                     <InlineConfirm
                                         label="Archive channel"
-                                        description="Hides it and stops new messages. It can be restored."
+                                        description="Stops new messages and moves it to Archived; its members still find its history in search. Its admins and workspace admins can restore it."
                                         question={`Archive #${name}?`}
                                         warning="Nobody can post in it until it is restored."
                                         confirmLabel="Archive"

@@ -3,8 +3,8 @@ import { ChevronRight } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ThreadParticipants, ThreadParticipant } from "@/components/message/threadParticipants"
 import { RollingCount } from "@/components/message/rollingCount"
-import { chatClock } from "@/lib/chat/clock"
 import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
+import { clockTime } from "@/lib/utils/date/clock"
 
 interface MessageReplyCountProps {
     replyCount?: number
@@ -20,7 +20,7 @@ interface MessageReplyCountProps {
 function lastReplyLabel(at: string): string {
     const d = new Date(at)
     if (isNaN(d.getTime())) return ""
-    if (d.toDateString() === new Date().toDateString()) return chatClock(d)
+    if (d.toDateString() === new Date().toDateString()) return clockTime(d)
     const words = formatTimeForReplyCount(at)
     return words.startsWith("Yesterday") ? "yesterday" : words
 }

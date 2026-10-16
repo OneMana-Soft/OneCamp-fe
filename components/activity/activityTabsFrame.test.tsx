@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -95,12 +95,13 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
-  useAIAvailable: () => true,
+  useAIAvailable: () => false,
   useFeature: () => true,
 }))
+const replace = vi.fn()
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/activity",
-  useRouter: () => ({ replace: () => {} }),
+  usePathname: () => "/app/inbox",
+  useRouter: () => ({ replace }),
   useSearchParams: () => new URLSearchParams(search),
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
@@ -128,7 +129,7 @@ afterEach(() => {
   search = ""
 })
 
-const TABS = ["priority", "all", "mentions", "ai"] as const
+const TABS = ["priority", "all", "mentions"] as const
 
 function renderTab(tab: (typeof TABS)[number]) {
   search = `tab=${tab}`
@@ -181,6 +182,41 @@ describe("every Activity tab", () => {
     // The feed HubRow, led by a 32px mark with its kind badge.
     expect(row.getAttribute("data-density")).toBe("feed")
     expect(row.querySelector(".hub-row-lead [data-kind-badge]")).toBeTruthy()
+  })
+
+  // The page moved to /app/inbox and the address stopped following the tabs:
+  // a reload, Back or a copied link opened All whatever tab you were on.
+  it("keeps the tab in the address on the Inbox's own path", async () => {
+    const { INBOX_PATH } = await import("@/components/activity/activityListTabs")
+    expect(INBOX_PATH).toBe("/app/inbox")
+    replace.mockClear()
+    renderTab("mentions")
+    screen.getByRole("tab", { name: /^All/ }).click()
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/app/inbox?tab=all", { scroll: false }))
+  })
+})
+
+// The header is the same on every tab. QA F-24: a phone had no Unread only,
+// and no Mark all read.
+describe("the Inbox header's controls", () => {
+  it.each(TABS)("keep their place on %s", async (tab) => {
+    renderTab(tab)
+    const toggle = screen.getByRole("switch", { name: "Unread only" })
+    expect(toggle).not.toBeDisabled()
+    expect(screen.getByRole("link", { name: "Notification settings" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Inbox options" })).toBeTruthy()
+  })
+
+  it("are all in the options menu where the header has no room for them", () => {
+    renderTab("all")
+    fireEvent.keyDown(screen.getByRole("button", { name: "Inbox options" }), { key: "Enter" })
+    const unread = screen.getByRole("menuitemcheckbox", { name: "Unread only" })
+    expect(unread.getAttribute("aria-checked")).toBe("false")
+    expect(screen.getByRole("menuitem", { name: "Mark all read" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "Notification settings" }).getAttribute("href")).toBe("/app/settings/notifications")
+    // One setting: the menu's item and the header's switch move together.
+    fireEvent.click(unread)
+    expect(screen.getByRole("switch", { name: "Unread only" }).getAttribute("aria-checked")).toBe("true")
   })
 })
 

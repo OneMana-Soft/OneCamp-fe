@@ -45,6 +45,6 @@ export function useBotKind(userUUID: string | undefined, isBot: boolean | undefi
  * avatars, the channel list, search); undefined while it loads. The same read
  * as useBotKind, so it is usually in already.
  */
-export function useBotKindMap(): Record<string, string> | undefined {
-  return useBotKindsRequest(true).data?.data
+export function useBotKindMap(enabled = true): Record<string, string> | undefined {
+  return useBotKindsRequest(enabled).data?.data
 }

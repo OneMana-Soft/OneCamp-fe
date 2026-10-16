@@ -15,6 +15,7 @@ import {
   CLIP_BITRATES,
   CLIP_MAX_SECONDS,
   clipFileName,
+  clipStartProblem,
   pickMimeType,
   secondsLeft,
   stopReason,
@@ -43,20 +44,6 @@ async function streamFor(kind: ClipKind): Promise<MediaStream> {
     // No microphone, or it was refused: the screen on its own.
     return screen
   }
-}
-
-/** Why the browser said no, in words a person can act on. */
-function problemOf(e: unknown, kind: ClipKind): string {
-  const name = (e as { name?: string })?.name
-  if (name === "NotAllowedError" || name === "SecurityError") {
-    return kind === "screen"
-      ? "Sharing your screen was cancelled or isn't allowed. Try again and pick a screen, window or tab."
-      : `OneCamp needs your ${kind === "video" ? "camera and microphone" : "microphone"} to record. Allow them in your browser's site settings, then try again.`
-  }
-  if (name === "NotFoundError" || name === "OverconstrainedError") {
-    return kind === "video" ? "No camera was found. Connect one, or record a voice clip." : "No microphone was found. Connect one and try again."
-  }
-  return "Recording couldn't start in this browser."
 }
 
 export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; onOpenChange: (open: boolean) => void; onAttach: (file: File) => void }) {
@@ -132,8 +119,18 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
     setProblem("")
     setStopped(null)
     const mimeType = pickMimeType(kind, (t) => MediaRecorder.isTypeSupported(t))
+    let s: MediaStream
     try {
-      const s = await streamFor(kind)
+      s = await streamFor(kind)
+    } catch (e) {
+      // The browser refused the device: the app's one set of words for it.
+      // A closed screen picker is a choice, and says nothing.
+      const problem = clipStartProblem(kind, e)
+      setProblem(problem ?? "")
+      setPhase(problem ? "error" : "ready")
+      return
+    }
+    try {
       stream.current = s
       if (live.current && kind !== "voice") {
         live.current.srcObject = s
@@ -165,9 +162,10 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
       setBytes(0)
       r.start(1000)
       setPhase("recording")
-    } catch (e) {
+    } catch {
+      // The device started; recording it didn't.
       release()
-      setProblem(problemOf(e, kind))
+      setProblem("Recording couldn't start in this browser.")
       setPhase("error")
     }
   }
@@ -243,7 +241,18 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-clip-dialog="" className="bg-pop shadow-e4 sm:max-w-[520px]">
+      {/* Focus lands on the dialog itself, as for any dialog with nothing to
+          type in: Radix put it on the first radio, whose focus ring drew an
+          accent outline round "Voice" that read as a second kind of selected.
+          Tab reaches the choices from here. */}
+      <DialogContent
+        data-clip-dialog="" className="bg-pop shadow-e4 outline-none sm:max-w-[520px]"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          // Radix dispatches this on the content element itself.
+          if (e.target instanceof HTMLElement) e.target.focus({ preventScroll: true })
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-heading text-ink">Record a clip</DialogTitle>
           <DialogDescription className="text-ui-sm text-ink-2">

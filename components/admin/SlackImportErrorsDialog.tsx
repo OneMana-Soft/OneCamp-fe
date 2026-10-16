@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
 import { getSlackImportErrors, type SlackImportError } from "@/services/slackImportService"
 import { EmptyLog, ErrorRow, ErrorRowsSkeleton, LOG_LIST, SeverityFilter, type SeverityChoice } from "@/components/admin/ImportErrorsDialog"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface Props {
   jobId: string
@@ -97,7 +98,7 @@ export const SlackImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenCh
           )}
           {failed === "more" && (
             <p role="alert" className="mt-2 text-sm text-danger-ink">
-              Couldn&apos;t load more. Try again.
+              Couldn&apos;t load more. Try again.<SaysLoadFailure />
             </p>
           )}
         </div>

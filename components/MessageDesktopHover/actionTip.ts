@@ -24,3 +24,23 @@ export const ACTION_TIP = cn(
 
 /** The same, held to the button's right edge, for the toolbar's last button. */
 export const ACTION_TIP_END = cn(ACTION_TIP, "after:left-auto after:right-0 after:translate-x-0")
+
+/**
+ * The same label above its button, for a row at the foot of the screen (the
+ * composer's tools), and hidden while the button's own menu is open. Those
+ * tools wore the browser's title tooltip: an OS box a second late, unlike
+ * every other label in a conversation.
+ */
+export const ACTION_TIP_ABOVE = cn(ACTION_TIP, "after:top-auto after:bottom-full after:mt-0 after:mb-1.5 data-[state=open]:after:hidden")
+
+/** Above and held to the button's right edge: the composer's last control. */
+export const ACTION_TIP_ABOVE_END = cn(ACTION_TIP_ABOVE, "after:left-auto after:right-0 after:translate-x-0")
+
+/**
+ * A message's full date and time, drawn the same way under its clock (SD-11):
+ * after the tooltip delay under the pointer, and at once while the row's own
+ * keyboard stop has the focus: its author's name (a `group/name` name line)
+ * or, on a continued row, its gutter (`group/gutter`). It was the browser's
+ * title: an OS box a second late, and never on focus.
+ */
+export const TIME_TIP = cn(ACTION_TIP, "group-has-[:focus-visible]/name:after:opacity-100 group-focus-visible/gutter:after:opacity-100")

@@ -48,9 +48,11 @@ export interface TableDisplay {
   summary: Record<string, SummaryFn>
   /** Column widths this reader dragged, by field id (80–640 px). */
   widths: Record<string, number>
+  /** The select field the board groups by; null for the first. */
+  boardGroup: string | null
 }
 
-export const DEFAULT_DISPLAY: TableDisplay = { rowHeight: "medium", hidden: [], list: null, summary: {}, widths: {} }
+export const DEFAULT_DISPLAY: TableDisplay = { rowHeight: "medium", hidden: [], list: null, summary: {}, widths: {}, boardGroup: null }
 
 const key = (tableId: string) => `onecamp:tableDisplay:${tableId}`
 const HEIGHTS = new Set(ROW_HEIGHTS.map((r) => r.value))
@@ -68,6 +70,7 @@ export function loadDisplay(tableId: string): TableDisplay {
       widths: Object.fromEntries(
         Object.entries(raw.widths && typeof raw.widths === "object" ? raw.widths : {}).filter(([, w]) => typeof w === "number" && w >= 80 && w <= 640),
       ),
+      boardGroup: typeof raw.boardGroup === "string" ? raw.boardGroup : null,
     }
   } catch {
     return DEFAULT_DISPLAY

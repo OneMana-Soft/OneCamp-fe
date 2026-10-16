@@ -73,6 +73,13 @@ describe("goals", () => {
     expect(paceLine(-20)).toBe("20 points behind its time")
     expect(paceLine(12)).toBe("12 points ahead of its time")
     expect(paceLine(3)).toBe("On pace")
+    // The list's short words carry their unit (PTC-35), and one point is one.
+    expect(paceLine(23, { short: true })).toBe("23 points ahead")
+    expect(paceLine(-8, { short: true })).toBe("8 points behind")
+    expect(paceLine(3, { short: true })).toBe("On pace")
+    expect(paceLine(-1)).toBe("On pace")
+    // Past its target counts as its target.
+    expect(paceGap(goal("o", { progress: 1.4, expected: 0.9 }))).toBe(10)
     expect(paceGap(goal("b", { progress: null, expected: 0.6 }))).toBeUndefined()
     expect(paceGap(goal("c", { status: "achieved", expected: 0.6 }))).toBeUndefined()
   })

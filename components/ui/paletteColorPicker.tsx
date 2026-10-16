@@ -23,7 +23,8 @@ const HUE_NAME: Record<StatusHue, string> = {
 
 const ALL: StatusHue[] = ["neutral", "sky", "lake", "moss", "sun", "berry", "dusk"]
 
-export function ColorPicker({ value, onChange, disabled, hues = ALL }: { value: string; onChange: (c: string) => void; disabled?: boolean; hues?: StatusHue[] }) {
+/** `label` names what it colours ("Blog"), so a list of them reads apart. */
+export function ColorPicker({ value, onChange, disabled, hues = ALL, label }: { value: string; onChange: (c: string) => void; disabled?: boolean; hues?: StatusHue[]; label?: string }) {
   const [open, setOpen] = useState(false)
   const current = statusHueOf(value)
   return (
@@ -32,7 +33,7 @@ export function ColorPicker({ value, onChange, disabled, hues = ALL }: { value: 
         <button
           type="button"
           disabled={disabled}
-          aria-label={`Colour: ${HUE_NAME[current]}`}
+          aria-label={label ? `Colour of ${label}: ${HUE_NAME[current]}` : `Colour: ${HUE_NAME[current]}`}
           className="flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
           <span className={cn("size-3 rounded-full", colorDot(value))} />

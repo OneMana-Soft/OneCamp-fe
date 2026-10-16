@@ -32,8 +32,9 @@ describe("the block handle", () => {
   const handle = read("extensions/block-handle/block-handle.ts")
   const css = read("styles/index.css")
   it("offers + and a grip, and glides by transform", () => {
-    expect(handle).toMatch(/Add a block below/)
-    expect(handle).toMatch(/Drag to move/)
+    // Their names (content.md D10): "Add block", "Drag to move or click for options".
+    expect(handle).toMatch(/"Add block"/)
+    expect(handle).toMatch(/"Drag to move or click for options"/)
     expect(handle).toMatch(/translate3d\(/)
     expect(handle).not.toMatch(/handle\.style\.(left|top) =/)
   })

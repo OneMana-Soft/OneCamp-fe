@@ -30,7 +30,8 @@ describe("linking to a table's rows", () => {
     await waitFor(() => expect(screen.getByText("Globex")).toBeTruthy())
     expect(pick).toHaveBeenCalledWith("vendors", "")
     fireEvent.click(screen.getByText("Globex"))
-    expect(committed).toHaveBeenCalledWith([{ id: "globex", label: "Globex", type: "row", table_id: "vendors" }])
+    // A link is written as its id and type: the server names it for each reader.
+    expect(committed).toHaveBeenCalledWith([{ id: "globex", type: "row" }])
   })
 
   it("changes links one at a time, not as a whole cell", async () => {
@@ -87,5 +88,57 @@ describe("linking to a table's rows", () => {
   it("shows each linked row by name, opening it in its table", () => {
     render(<RelationCell value={[{ id: "acme", label: "Acme Inc", type: "row", table_id: "vendors" }]} target="table" tableId="vendors" onCommit={vi.fn()} />)
     expect(screen.getByRole("link", { name: "Acme Inc" }).getAttribute("href")).toBe("/app/tables/vendors?row=acme")
+  })
+})
+
+// TAB-BUG-5: an item the reader can't open comes without its name. It shows
+// as one chip that says so, never by its id, and a write keeps it linked.
+describe("links to items the reader can't open", () => {
+  const doc = (id: string, label?: string) => (label ? { id, label, type: "doc" } : { id, type: "doc", hidden: true })
+
+  it("shows them as one chip that says so, never by their ids", () => {
+    render(<RelationCell value={[doc("d1", "Launch plan"), doc("secret-1"), doc("secret-2")]} target="doc" onCommit={vi.fn()} />)
+    expect(screen.getByRole("link", { name: "Launch plan" })).toBeTruthy()
+    const hidden = document.querySelector("[data-relation-hidden]") as HTMLElement
+    expect(hidden.textContent).toBe("2 things you can't open")
+    expect(document.body.textContent).not.toMatch(/secret/)
+    // Nothing to open or unlink for what can't be seen.
+    expect(screen.queryByRole("button", { name: /Unlink.*secret/ })).toBeNull()
+  })
+
+  it("says one alone as \"Something you can't open\"", () => {
+    render(<RelationCell value={[doc("secret-1")]} target="doc" onCommit={vi.fn()} />)
+    expect(document.querySelector("[data-relation-hidden]")?.textContent).toBe("Something you can't open")
+  })
+
+  it("keeps them when the reader unlinks another, and writes ids and types alone", () => {
+    const committed = vi.fn()
+    render(<RelationCell value={[doc("d1", "Launch plan"), doc("secret-1")]} target="doc" onCommit={committed} />)
+    fireEvent.click(screen.getByRole("button", { name: "Unlink Launch plan" }))
+    expect(committed).toHaveBeenCalledWith([{ id: "secret-1", type: "doc" }])
+  })
+})
+
+// QA PTC-16 (14 Oct): a row's links wrapped onto a second line and stretched
+// a 40 px grid row to 57. A grid row holds a line of two, then "+N", as a
+// multi-select's cell does.
+describe("a relation cell's chips", () => {
+  const rows = ["Acme", "Globex", "Initech", "Umbrella"].map((label) => ({ id: label.toLowerCase(), label, type: "row", table_id: "vendors" }))
+
+  it("show two on one line in a grid row, and count the rest", () => {
+    render(<RelationCell value={rows} room={{ max: 2, wrap: false }} target="table" tableId="vendors" onCommit={vi.fn()} />)
+    expect(document.querySelectorAll("[data-relation-chip]")).toHaveLength(2)
+    const more = document.querySelector("[data-relation-more]") as HTMLElement
+    expect(more.textContent).toBe("+2")
+    expect(more.getAttribute("title")).toBe("Initech, Umbrella")
+    const line = more.parentElement as HTMLElement
+    expect(line.className).toMatch(/overflow-hidden/)
+    expect(line.className).not.toMatch(/flex-wrap/)
+  })
+
+  it("show every one, wrapping, where there's room (the record panel)", () => {
+    render(<RelationCell value={rows} target="table" tableId="vendors" onCommit={vi.fn()} />)
+    expect(document.querySelectorAll("[data-relation-chip]")).toHaveLength(4)
+    expect(document.querySelector("[data-relation-more]")).toBeNull()
   })
 })

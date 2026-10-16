@@ -129,7 +129,7 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                         // The author just sent a message — they're no longer
                         // typing, so drop the indicator immediately. Without
                         // this, the receiver would still see "user is typing"
-                        // for up to 4s after the message landed because the
+                        // for up to 6s after the message landed because the
                         // setTimeout cleanup waits for the natural TTL.
                         if (userUuid != mqttChatInfo.data.user_uuid) {
                             if (isGroupChat) {

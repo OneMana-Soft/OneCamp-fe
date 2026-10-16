@@ -8,15 +8,16 @@
 export function channelComposerPlaceholder(
   channelName: string,
   agentNames: string[] = [],
-  // A phone's header already names the channel, and its composer is about 35
-  // characters wide: the full form was cut off mid-way through the agent's name.
+  // A phone's composer has room for about 26 characters beside its +, emoji
+  // and microphone: "Message or ask @Release Captain" was cut at "@Release",
+  // a name broken in half. There it is the plain prompt; the phone's bar says
+  // "1 agent" and "+" offers "Ask Release Captain…".
   { compact = false }: { compact?: boolean } = {},
 ): string {
   const base = `Message #${channelName}`
   const agent = agentNames.find((n) => n.trim() !== "")?.trim()
-  if (!agent) return base
-  // No comma when short: "Message, or ask" read as a word dropped before it.
-  return compact ? `Message or ask @${agent}` : `${base}, or ask @${agent}`
+  if (!agent || compact) return base
+  return `${base}, or ask @${agent}`
 }
 
 // The other composers' placeholders, which every edition has, are in

@@ -70,7 +70,7 @@
 
 .theme-blue {
   --brand: oklch(0.55 0.15 250);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.53 0.15 250); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.02 250);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -90,7 +90,7 @@
 
 .theme-green {
   --brand: oklch(0.54 0.13 150);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.515 0.13 150); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.018 150);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -110,7 +110,7 @@
 
 .theme-amber {
   --brand: oklch(0.55 0.14 75);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.535 0.14 75); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.02 75);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -170,7 +170,7 @@
 
 .theme-teal {
   --brand: oklch(0.534 0.11 190);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.51 0.11 190); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.016 190);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -190,7 +190,7 @@
 
 .theme-orange {
   --brand: oklch(0.55 0.15 55);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.54 0.15 55); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.021 55);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -214,7 +214,7 @@
    that looked about right. */
 .theme-slate {
   --brand: oklch(0.55 0.035 250);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.53 0.035 250); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.008 250);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -234,7 +234,7 @@
 
 .theme-zinc {
   --brand: oklch(0.55 0.015 285);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.53 0.015 285); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.005 285);
   --progress-from: var(--brand);
   --progress-to: var(--brand);
@@ -254,7 +254,7 @@
 
 .theme-stone {
   --brand: oklch(0.55 0.02 60);
-  --brand-text: var(--brand);
+  --brand-text: oklch(0.53 0.02 60); /* a shade under the accent: AA on --brand-muted (brandTextOnMuted.test.ts) */
   --brand-muted: oklch(0.955 0.006 60);
   --progress-from: var(--brand);
   --progress-to: var(--brand);

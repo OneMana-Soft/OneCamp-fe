@@ -26,6 +26,7 @@ interface PostCardProps {
  */
 export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
     const totalReactions = post.post_reactions?.length || 0
+    const replies = post.post_comment_count || 0
     const { src: imageSrc } = useUserAvatar(post.post_by.user_profile_object_key)
     const { pressed, bind } = useTouchFlash()
 
@@ -97,18 +98,30 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
                     </div>
                 )}
 
-                <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        <span>{post.post_comment_count || 0}</span>
+                {/* Only what there is: every row said "0" beside a speech
+                    bubble (QA F-28), and a row with neither has no line. */}
+                {replies > 0 || totalReactions > 0 ? (
+                    <div data-post-counts="" className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
+                        {replies > 0 && (
+                            <div className="flex items-center gap-1">
+                                <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+                                <span>
+                                    {replies}
+                                    <span className="sr-only">{replies === 1 ? " reply" : " replies"}</span>
+                                </span>
+                            </div>
+                        )}
+                        {totalReactions > 0 && (
+                            <div className="flex items-center gap-1">
+                                <Smile className="h-3.5 w-3.5" aria-hidden />
+                                <span>
+                                    {totalReactions}
+                                    <span className="sr-only">{totalReactions === 1 ? " reaction" : " reactions"}</span>
+                                </span>
+                            </div>
+                        )}
                     </div>
-                    {totalReactions > 0 && (
-                        <div className="flex items-center gap-1">
-                            <Smile className="h-3.5 w-3.5" />
-                            <span>{totalReactions}</span>
-                        </div>
-                    )}
-                </div>
+                ) : null}
             </div>
         </div>
     )

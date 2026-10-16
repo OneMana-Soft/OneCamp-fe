@@ -14,6 +14,7 @@ const ROWS = [
 describe("a message's name line", () => {
   it.each(ROWS)("%s holds it at 20px", (f) => {
     const src = readFileSync(join(__dirname, "..", "..", f), "utf8")
-    expect(src).toMatch(/data-name-line="" className="flex h-5 (min-w-0 )?items-center gap-2"/)
+    // group/name: the line's author is the keyboard stop that shows its time's tip (TIME_TIP).
+    expect(src).toMatch(/data-name-line="" className="(group\/name )?flex h-5 (min-w-0 )?items-center gap-2"/)
   })
 })

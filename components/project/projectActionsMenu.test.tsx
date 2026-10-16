@@ -4,9 +4,12 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 // The desktop project header folds its tools into one "⋯" menu. Every action
 // it used to show as an icon must still be reachable, by name.
 
+const dispatched: Array<{ type: string; payload?: { key?: string; data?: { title?: string; description?: string; confirmText?: string; destructive?: boolean } } }> = []
+vi.mock("react-redux", () => ({ useDispatch: () => (a: (typeof dispatched)[number]) => void dispatched.push(a), useSelector: () => undefined }))
+vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(() => Promise.resolve({})), isSubmitting: false }) }))
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   usePathname: () => "/app/project/q4-1",
 }))
 const shown = (name: string) => ({ open }: { open: boolean }) => (open ? <div data-testid={name} /> : null)
@@ -53,6 +56,32 @@ describe("the project header's actions", () => {
     openMenu()
     fireEvent.click(screen.getByRole("menuitem", { name: "Edit project name" }))
     expect(onRename).toHaveBeenCalled()
+  })
+
+  it("archives the project from its own menu, last, after one question (PTC-13)", () => {
+    dispatched.length = 0
+    render(<ProjectActionsMenu projectId="q4-1" projectName="Q4 launch" isAdmin isMember onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    const items = screen.getAllByRole("menuitem").map((i) => i.textContent)
+    expect(items.at(-1)).toBe("Archive project…")
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive project…" }))
+    const asked = dispatched.find((a) => a.payload?.key === "confirmAlert")?.payload?.data
+    expect(asked).toMatchObject({ title: "Archive project", confirmText: "Archive project", destructive: true })
+    expect(asked?.description).toMatch(/^Archive Q4 launch\? Its members lose access until it is restored\./)
+  })
+
+  it("offers Restore project for an archived project, in sentence case (PTC-55)", () => {
+    dispatched.length = 0
+    render(<ProjectActionsMenu projectId="q4-1" projectName="Q4 launch" isAdmin isMember archived onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    expect(screen.queryByRole("menuitem", { name: "Archive project…" })).toBeNull()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Restore project" }))
+    expect(dispatched.find((a) => a.payload?.key === "confirmAlert")?.payload?.data).toMatchObject({ title: "Restore project", confirmText: "Restore project" })
+  })
+
+  it("offers no archive to a member who isn't an admin", () => {
+    render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
+    expect(screen.queryByRole("button", { name: "Project actions" })).toBeNull()
   })
 
   it("shows nothing to someone outside the project", () => {

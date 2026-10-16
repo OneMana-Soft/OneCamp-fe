@@ -17,13 +17,13 @@
 // read from the page's own address, never written down (a literal hostname is
 // always somebody else's server: app/noHardcodedDeployment.test.ts).
 
+import { personHue } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import { useState } from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { AlertCircle, AlertTriangle, ArrowBigUp, Check, Eye, EyeOff, Info, ShieldCheck } from "@/lib/icons"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { avatarHueClass } from "@/components/ui/graphics"
-import { hueFor } from "@/lib/campHue"
 import { CampBand, CampCanvas, GradientRing, useHost } from "@/components/auth/CampArt"
 
 /** The product's site (release notes, docs, privacy), when the install names one. */
@@ -69,7 +69,7 @@ export function TrustLine() {
       </span>
       </span>
       {site && (
-        <span className="inline-flex items-center gap-1.5 md:ml-auto">
+        <span className="inline-flex items-center gap-1.5 pl-5">
           <a href={`${site}/privacy`} target="_blank" rel="noopener noreferrer">
             Privacy
           </a>
@@ -445,7 +445,7 @@ export function AuthAvatar({ seed, size = 24, initials }: { seed: string; size?:
   const shown = (initials ?? initialsOf(seed)).slice(0, size >= 28 ? 2 : 1)
   return (
     <span
-      className={cn("auth-avatar", avatarHueClass(hueFor(seed)))}
+      className={cn("auth-avatar", avatarHueClass(personHue(seed.includes("@") ? { user_email_id: seed } : seed)))}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.375) }}
       aria-hidden="true"
     >

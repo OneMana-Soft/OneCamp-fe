@@ -1,5 +1,6 @@
 "use client"
 
+import type { DocAbilities } from "@/lib/docs/abilities"
 import * as React from 'react'
 import '@/components/minimal-tiptap/styles/index.css'
 
@@ -13,12 +14,12 @@ import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-me
 import { SelectionBar } from '@/components/docEditor/SelectionBar'
 import { DocAccessoryBar } from '@/components/docEditor/DocAccessoryBar'
 import { celebrate } from '@/lib/celebrate'
-import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
+import { DOC_EDITOR_CLASS, useDocEditor } from '@/components/docEditor/useDocEditor'
+import { ImageNotUploadable, type ImageUploadOptions } from '@/components/minimal-tiptap/extensions/image/uploads'
 import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
-import { createTable } from '@/services/tableService'
-import { DOC_EXTRA_EXTENSIONS } from '@/components/docEditor/docExtensions'
-import { DOC_SLASH_COMMANDS } from '@/components/minimal-tiptap/extensions/slash-command/slashCommand'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
+import { useDispatch, useSelector } from "react-redux"
+import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
@@ -26,11 +27,20 @@ import { useUploadFile } from '@/hooks/useUploadFile'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { SafeHtml } from '@/components/safeHtml/SafeHtml'
 import { snapshotHtml } from '@/components/docEditor/snapshotHtml'
+import type { TitleStore } from '@/components/docEditor/docTitleStore'
+import { DocTitle } from '@/components/docEditor/DocTitle'
+import { DocBodyLayer } from '@/components/docEditor/DocBodyLayer'
+import { useNewDocArrival } from '@/components/docEditor/newDocArrival'
+import { useInternalLinkRouter } from '@/lib/utils/useInternalLinkRouter'
+import { useEditionGate } from '@/components/docEditor/registry/gate'
+import { NO_BUS, bindEditorCommands, useDocBus, useDocCommand } from '@/components/docEditor/registry/commandBus'
+import { SlotOutlet } from '@/components/docEditor/registry/slots'
+import type { ActionContext } from '@/components/docEditor/registry/types'
+
+/** The phone's AI sheet: its code (and its animation library) loads when it first opens. */
 
 /** The live editor while the saved copy stands in for it: mounted, out of the layout. */
 const HIDDEN: React.CSSProperties = { display: 'none' }
-import { useDocCounts } from '@/components/docEditor/docCounts'
-import { useNewDocArrival } from '@/components/docEditor/newDocArrival'
 
 interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -40,7 +50,8 @@ interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate
     docId?: string
     provider?: HocuspocusProvider
     providerSynced?: boolean
-    title?: string
+    /** The doc's title, when the editor shows it (docTitleStore.ts). */
+    titleStore?: TitleStore
     onTitleChange?: (title: string) => void
     onTitleBlur?: () => void
     editableTitle?: boolean
@@ -54,34 +65,11 @@ interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate
     onEditor?: (editor: Editor | null) => void
     /** Comment, from the selection bar. */
     onComment?: () => void
+    /** What the person may do with the doc (lib/docs/abilities): a reader's bar offers by it. */
+    abilities?: DocAbilities
+    /** What shows under the title: what a reader may do (DocAccessNote). */
+    belowTitle?: React.ReactNode
 }
-
-/**
- * The line under the title (content.md D06): who wrote it, when it was last
- * edited and how long it takes to read: "Sam Rivera · Edited 2h ago · 4 min
- * read". It replaces the footer's reading line. It follows the editor's counts
- * itself (useDocCounts waits for a pause), so the frame doesn't render for it.
- */
-const DocMeta = React.memo(function DocMeta({ editor, authorName, lastEditedRelative, padded }: { editor: Editor; authorName?: string; lastEditedRelative?: string; padded: string }) {
-    const { minutes } = useDocCounts(editor)
-    const parts = [
-        authorName ? <span key="a" className="hover:text-ink-2">{authorName}</span> : null,
-        // Mid-sentence: "Edited yesterday", not "Edited Yesterday".
-        lastEditedRelative ? <span key="e">Edited {lastEditedRelative.replace(/^(Just|Yesterday)/, (w) => w.toLowerCase())}</span> : null,
-        minutes > 0 ? <span key="m">{minutes} min read</span> : null,
-    ].filter(Boolean)
-    if (!parts.length) return null
-    return (
-        <p data-doc-meta="" className={cn("mt-1 flex flex-wrap items-center gap-x-1.5 text-ui-sm text-ink-3 tabular-nums", padded)}>
-            {parts.map((p, i) => (
-                <React.Fragment key={i}>
-                    {i > 0 && <span aria-hidden="true">·</span>}
-                    {p}
-                </React.Fragment>
-            ))}
-        </p>
-    )
-})
 
 /**
  * Checking the last open item in a to-do list is a "list done" moment: one
@@ -110,7 +98,7 @@ function useChecklistDone(editor: Editor | null) {
 }
 
 const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
-    ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, title, onTitleChange, onTitleBlur, editableTitle = true, collaboration, lastEditedRelative, focusMode, fullWidth = false, authorName, onEditor, onComment, ...props }, ref) => {
+    ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, titleStore, onTitleChange, onTitleBlur, editableTitle = true, collaboration, lastEditedRelative, focusMode, fullWidth = false, authorName, onEditor, onComment, abilities, belowTitle, ...props }, ref) => {
         const { toast } = useToast()
         const uploadFile = useUploadFile()
         const clientConfig = useClientConfig()
@@ -131,14 +119,18 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         // So: check the size before spending a request, and on failure tell the
         // person and rethrow. A failed image the author can retry is a far better
         // outcome than a document that silently carries megabytes of binary.
-        const uploadFn = React.useCallback(async (file: File) => {
+        //
+        // While it uploads, the document holds only a placeholder (no address);
+        // the progress, and Retry or Remove on a failure, show on it in this tab
+        // (minimal-tiptap/extensions/image/uploads.ts).
+        const uploadFn = React.useCallback(async (file: File, options?: ImageUploadOptions) => {
             if (!docId) {
                 toast({
                     title: 'Couldn’t add the image',
                     description: 'This document isn’t ready yet. Try again in a moment.',
                     variant: 'destructive'
                 });
-                throw new Error('docId required for image upload')
+                throw new ImageNotUploadable('docId required for image upload')
             }
             // Refuse an oversized image up front: same cap the server enforces, but
             // with instant feedback and no wasted request or progress bar.
@@ -148,77 +140,50 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     description: uploadLimitMessage(file.size, clientConfig.upload_limit_mb, file.name),
                     variant: 'destructive'
                 });
-                throw new Error('image exceeds the workspace upload limit')
+                throw new ImageNotUploadable('image exceeds the workspace upload limit')
             }
-            try {
-                const res = await uploadFile.makeRequestToUploadToDoc([file], docId);
-                if (!res || res.length === 0) {
-                    throw new Error('Upload failed: no response data');
-                }
-                const data = res[0];
-                const objUuid = data.object_uuid;
-                const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || '';
-                const src = `${baseUrl}${GetEndpointUrl.GetDocAttachment}/${docId}/${objUuid}`;
-                return { id: objUuid, src }
-            } catch (error) {
-                console.error('Doc image upload failed', error);
-                toast({
-                    title: 'Couldn’t add the image',
-                    description: 'The upload didn’t go through. Check your connection and try again.',
-                    variant: 'destructive'
-                });
-                // Rethrow so the editor shows the image as failed. Returning a
-                // data URI here is what broke search.
-                throw error instanceof Error ? error : new Error('doc image upload failed')
-            }
+            // A failure is said on the image itself, with Retry and Remove.
+            // Never returning a data URI: that is what broke search.
+            const data = await uploadFile.uploadImageToDoc(file, docId, options);
+            const objUuid = data?.object_uuid;
+            if (!objUuid) throw new Error('Upload failed: no response data');
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || '';
+            const src = `${baseUrl}${GetEndpointUrl.GetDocAttachment}/${docId}/${objUuid}`;
+            return { id: objUuid, src }
         }, [docId, toast, uploadFile, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb]);
 
-        // Auto-resize title textarea
-        React.useEffect(() => {
-            if (titleRef.current) {
-                titleRef.current.style.height = 'auto'
-                titleRef.current.style.height = titleRef.current.scrollHeight + 'px'
-            }
-        }, [title])
+        // The title names the editable body for a screen reader.
+        const titleId = React.useId()
 
-        const extraExtensions = DOC_EXTRA_EXTENSIONS
-        // This edition has no AI, so the doc palette leaves out its AI section.
-        const slashCommands = React.useMemo(() => DOC_SLASH_COMMANDS.filter((c) => c.section !== "AI"), [])
-
-        const editor = useMinimalTiptapEditor({
+        // The doc's own editor (useDocEditor): the same blocks for every doc
+        // surface, and a frame that doesn't render again per keystroke. Null
+        // until the doc's own blocks have loaded (the saved copy shows).
+        const gate = useEditionGate()
+        const editor = useDocEditor({
+            gate,
+            docId,
             value,
             onUpdate: onChange,
             uploadFn,
             provider,
             providerSynced,
-            extraExtensions,
-            slashCommands,
-            showOnlyCurrentPlaceholder: true,
             collaboration,
+            labelledBy: titleStore ? titleId : undefined,
             ...props,
-            // The frame does not render again per keystroke: what it shows
-            // from the editor (toolbar state, the caret's block, the counts)
-            // each follows the editor on its own.
-            shouldRerenderOnTransaction: false,
         })
 
         // A doc made a moment ago: the title ready to type over, and a
         // template's body once the live copy has synced (newDocArrival.ts).
-        useNewDocArrival({ editor, synced: !!providerSynced || !collaboration, titleRef, canEditTitle: editableTitle && title !== undefined })
+        useNewDocArrival({ editor, synced: !!providerSynced || !collaboration, titleRef, canEditTitle: editableTitle && !!titleStore })
 
-        const handleTitleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-            if (e.key === 'Enter') {
-                e.preventDefault()
-                onTitleBlur?.()
-                editor?.commands.focus()
-            }
-        }, [editor, onTitleBlur])
-
-        const { isMobile } = useMedia()
-        const suppressOverlays = false
+        const dispatch = useDispatch()
+        const { isDesktop, isMobile } = useMedia()
+        const docAiOpen = useSelector((state: any) => state.rightPanel.rightPanelState.data.docAiOpen)
+        const suppressOverlays = docAiOpen
         const isFullWidth = fullWidth
-        // The saved text stands in until a collaborative editor's first sync.
-        const snapshot = !!provider && !providerSynced && typeof value === 'string' && value.trim() !== ''
+        // The saved text stands in until the editor exists (its blocks load
+        // once) and, for a collaborative one, until its first sync.
+        const snapshot = typeof value === 'string' && value.trim() !== '' && (!editor || (!!provider && !providerSynced))
 
         // The page reads the word count from the editor (More menu); hand it over once.
         React.useEffect(() => {
@@ -226,6 +191,66 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         }, [editor, onEditor])
 
         useChecklistDone(editor ?? null)
+
+        // The doc's command bus (the page's, DocBusContext): inserts and
+        // replacements from Doc AI land in this editor alone, never in another
+        // doc open beside it (they were window events every doc heard: N5).
+        const bus = useDocBus()
+        React.useEffect(() => {
+            if (!editor || bus === NO_BUS) return
+            return bindEditorCommands(editor, bus)
+        }, [editor, bus])
+
+        // Doc AI, on the selection (or around the caret, for "/" items with
+        // nothing selected): the panel beside the doc, or the phone's sheet.
+        const openAI = React.useCallback((action?: string, prompt?: string) => {
+            if (!editor) return
+            const { from, to } = editor.state.selection
+            const hasSelection = from !== to
+            // Asked with nothing selected and no action (a reader's Ask AI
+            // under the title): the whole doc is what it reads.
+            const text = hasSelection
+                ? editor.state.doc.textBetween(from, to, ' ')
+                : action
+                ? editor.state.doc.textBetween(Math.max(0, from - 200), Math.min(editor.state.doc.content.size, to + 200), ' ')
+                : editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ').slice(0, 20000)
+            const contextSize = 500
+            const contextBefore = editor.state.doc.textBetween(Math.max(0, from - contextSize), from, ' ')
+            const contextAfter = editor.state.doc.textBetween(to, Math.min(editor.state.doc.content.size, to + contextSize), ' ')
+            const surroundingContext = `[BEFORE]: ${contextBefore}\n[SELECTED]: ${text}\n[AFTER]: ${contextAfter}`
+            const asked = prompt?.trim() || undefined
+            if (isDesktop) {
+                dispatch(openRightPanel({
+                    docAiOpen: true,
+                    docAiData: {
+                        selectedText: text,
+                        docId: docId || '',
+                        surroundingContext,
+                        initialAction: action,
+                        initialPrompt: asked,
+                        level: abilities?.level,
+                    }
+                }))
+            }
+        }, [editor, isDesktop, dispatch, docId, abilities?.level])
+        useDocCommand(bus, 'aiRun', ({ action, prompt }) => openAI(action, prompt))
+        // The bars' Ask AI: through the bus, so a package listening hears it too.
+        const handleAIClick = React.useCallback(() => {
+            if (bus === NO_BUS) openAI()
+            else bus.emit('aiRun', {})
+        }, [bus, openAI])
+
+        // What the bars' actions run with: this doc, its editor and bus, the edition.
+        const canEditBody = props.editable !== false
+        const actionContext = React.useCallback(
+            (): ActionContext => ({ docId: docId ?? '', editor: editor ?? null, canEdit: canEditBody && !!editor?.isEditable, abilities, bus, gate }),
+            [docId, editor, canEditBody, abilities, bus, gate],
+        )
+
+        // A reader's click on one of the app's own links opens it in the app
+        // (external ones open in a new tab, link.ts). In the editable text a
+        // click edits, as everywhere.
+        const routeInApp = useInternalLinkRouter(props.editable === false)
 
         // Table embed picker — opened by the "/table" slash command. Only doc
         // editors can insert (the slash menu only shows in an editable editor,
@@ -235,14 +260,9 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         // table simply shows an "unavailable" placeholder to others, never leaks).
         const [embedTableOpen, setEmbedTableOpen] = React.useState(false)
         const [creatingTable, setCreatingTable] = React.useState(false)
-        React.useEffect(() => {
-            const onEmbedTable = () => {
-                if (!editor || !editor.isEditable) return
-                setEmbedTableOpen(true)
-            }
-            window.addEventListener('doc-embed-table', onEmbedTable)
-            return () => window.removeEventListener('doc-embed-table', onEmbedTable)
-        }, [editor])
+        useDocCommand(bus, 'openDialog', ({ id }) => {
+            if (id === 'doc.embedTable' && editor?.isEditable) setEmbedTableOpen(true)
+        })
 
         const handleEmbedExistingTable = React.useCallback((tableId: string) => {
             if (!editor || !editor.isEditable || !tableId) return
@@ -254,6 +274,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             if (!editor || !editor.isEditable || creatingTable) return
             setCreatingTable(true)
             try {
+                // Loaded here, not with the doc: only making a table needs it.
+                const { createTable } = await import('@/services/tableService')
                 const t = await createTable({ name: "Untitled table", visibility: "workspace" })
                 editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
                 setEmbedTableOpen(false)
@@ -264,11 +286,10 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             }
         }, [editor, creatingTable])
 
-        if (!editor) {
-            return null
-        }
-
         const canEdit = props.editable !== false
+        // A reader's selection gets a bar too, with only what they may do
+        // (Comment from comment up, Ask AI's reading actions from view).
+        const readerBar = !!abilities && (abilities.comment || (gate.ai && abilities.askRead))
 
         return (
             <MeasuredContainer
@@ -290,37 +311,29 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     // doc-scroll: the size container that wide blocks measure
                     // their breakout against (minimal-tiptap/styles/index.css).
                     className="doc-scroll w-full relative flex-1 min-h-0 overflow-y-auto overflow-x-clip cursor-text"
+                    onClickCapture={routeInApp}
                 >
                     <div 
                         className={cn("w-full min-h-full flex flex-col mx-auto", isFullWidth ? "doc-measure-full" : "doc-measure")}
                     >
-                        {title !== undefined && (
-                            <div className={cn("pt-6 pb-6 md:pt-14", focusMode && "md:pt-20")} data-doc-title-block="">
-                                <textarea
-                                    ref={titleRef}
-                                    value={title}
-                                    onChange={(e) => onTitleChange?.(e.target.value)}
-                                    onBlur={onTitleBlur}
-                                    onKeyDown={handleTitleKeyDown}
-                                    disabled={!editableTitle}
-                                    placeholder="Untitled"
-                                    aria-label="Title"
-                                    rows={1}
-                                    data-doc-title=""
-                                    className={cn(
-                                        "doc-title block w-full resize-none overflow-hidden border-none bg-transparent focus:outline-none focus:ring-0 disabled:opacity-100",
-                                        editableTitle ? "cursor-text" : "cursor-default",
-                                        isFullWidth ? "px-5 md:px-12" : "px-5 md:px-8",
-                                    )}
-                                />
-                                <DocMeta
-                                    editor={editor}
-                                    authorName={authorName}
-                                    lastEditedRelative={lastEditedRelative}
-                                    padded={isFullWidth ? "px-5 md:px-12" : "px-5 md:px-8"}
-                                />
-                            </div>
+                        {/* The title and the meta line (DocTitle.tsx), inside
+                            the scroller: [data-doc-title] stays in .doc-scroll. */}
+                        {titleStore && (
+                            <DocTitle
+                                store={titleStore}
+                                titleRef={titleRef}
+                                id={titleId}
+                                editor={editor ?? null}
+                                editable={editableTitle}
+                                onChange={onTitleChange}
+                                onBlur={onTitleBlur}
+                                authorName={authorName}
+                                lastEditedRelative={lastEditedRelative}
+                                focusMode={focusMode}
+                                fullWidth={isFullWidth}
+                            />
                         )}
+                        {belowTitle}
                         {/* Until the live copy arrives (the first sync over the
                             socket, two round trips after the page shows), the
                             doc's saved text shows, read-only and drawn as the
@@ -335,32 +348,45 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                             <div
                                 aria-busy="true"
                                 data-doc-snapshot=""
-                                className={cn('minimal-tiptap-editor doc-editor flex-1', isFullWidth && 'full-width', editorContentClassName)}
+                                className={cn(DOC_EDITOR_CLASS, 'flex-1', isFullWidth && 'full-width', editorContentClassName)}
                             >
                                 <SafeHtml html={value as string} sanitizer={snapshotHtml} className="ProseMirror" />
                             </div>
                         )}
-                        <EditorContent
-                            editor={editor}
-                            className={cn(
-                                'minimal-tiptap-editor doc-editor flex-1 cursor-text',
-                                isFullWidth && 'full-width',
-                                editorContentClassName
-                            )}
-                            // Inline, not the hidden class: .doc-editor's own
-                            // display: flex (minimal-tiptap/styles) is outside the
-                            // utility layer and beat it, so an empty editor sat
-                            // under the copy and jumped up when the copy went.
-                            style={snapshot ? HIDDEN : undefined}
-                        />
+                        {/* The gutter and the empty starter (DocBodyLayer.tsx):
+                            no height, over the top of the body. */}
+                        {editor && !snapshot && (
+                            <DocBodyLayer gate={gate} docId={docId ?? ''} editor={editor} canEdit={canEdit} padded={isFullWidth ? "px-5 md:px-12" : "px-5 md:px-8"} />
+                        )}
+                        {editor && (
+                            <EditorContent
+                                editor={editor}
+                                className={cn(
+                                    DOC_EDITOR_CLASS,
+                                    'flex-1 cursor-text',
+                                    isFullWidth && 'full-width',
+                                    editorContentClassName
+                                )}
+                                // Inline, not the hidden class: .doc-editor's own
+                                // display: flex (minimal-tiptap/styles) is outside the
+                                // utility layer and beat it, so an empty editor sat
+                                // under the copy and jumped up when the copy went.
+                                style={snapshot ? HIDDEN : undefined}
+                            />
+                        )}
                     </div>
                 </div>
 
-                <LinkBubbleMenu editor={editor} hide={suppressOverlays} />
-                {canEdit && !isMobile && (
-                    <SelectionBar editor={editor} onComment={onComment} hide={suppressOverlays} />
+                {editor && <LinkBubbleMenu editor={editor} hide={suppressOverlays} />}
+                {editor && (canEdit || readerBar) && !isMobile && (
+                    <SelectionBar editor={editor} context={actionContext} onAIClick={handleAIClick} onComment={bus === NO_BUS ? onComment : undefined} hide={suppressOverlays} />
                 )}
-                {canEdit && isMobile && !focusMode && <DocAccessoryBar editor={editor} />}
+                {editor && canEdit && isMobile && !focusMode && (
+                    <DocAccessoryBar editor={editor} context={actionContext} onAIClick={handleAIClick} onComment={bus === NO_BUS ? onComment : undefined} />
+                )}
+                {/* Over the editor, once per editor: a package's view of it
+                    (A9's review bar, A8's threads). Each sees what it may do. */}
+                {editor && <SlotOutlet slot="editorOverlay" gate={gate} docId={docId ?? ''} editor={editor} />}
 
                 <TableEmbedPickerDialog
                     open={embedTableOpen}
@@ -376,4 +402,6 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
 
 MinimalTiptapDocInput.displayName = 'MinimalTiptapDocInput'
 
-export default MinimalTiptapDocInput
+// Memoised: the doc page re-renders for presence, scrolling and its save dot,
+// none of which the editor shows (docRender.test.tsx counts).
+export default React.memo(MinimalTiptapDocInput)

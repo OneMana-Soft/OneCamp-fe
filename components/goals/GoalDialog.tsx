@@ -15,9 +15,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoal, useGoals } from "@/hooks/useGoals"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
-import { Check, ChevronsUpDown, Loader2, X } from "@/lib/icons"
+import { ChevronsUpDown, Loader2, X } from "@/lib/icons"
 import { MEASURES, parentChoices, quarterEnd, type GoalDetail, type GoalInput, type GoalSummary, type Measure } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
+import { dayDate, localDay } from "@/lib/utils/timeZone"
+import { DateField } from "@/components/task/taskDateField"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserListInterfaceResp, UserProfileInterface } from "@/types/user"
 
@@ -187,15 +189,17 @@ export function GoalDialog({
                 </PopoverContent>
               </Popover>
             </div>
+            {/* The app's own date picker, as on a task (PTC-37): a browser date
+                input wrote mm/dd/yyyy in a US browser, unlike every other date. */}
             <div className="grid gap-1.5">
-              <Label htmlFor="goal-due">Due</Label>
-              <Input id="goal-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-9" required />
+              <span className="text-sm font-medium">Due</span>
+              <DateField compact isAdmin label="Due" value={dayDate(due)} onSelect={(d) => d && setDue(localDay(d))} className="h-9 w-full justify-between" />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="goal-start">
+              <span className="text-sm font-medium">
                 Starts <span className="font-normal text-muted-foreground">(optional)</span>
-              </Label>
-              <Input id="goal-start" type="date" value={start} max={due || undefined} onChange={(e) => setStart(e.target.value)} className="h-9" />
+              </span>
+              <DateField compact isAdmin label="Starts" value={dayDate(start)} onSelect={(d) => setStart(d ? localDay(d) : "")} onClear={() => setStart("")} className="h-9 w-full justify-between" />
             </div>
           </div>
 
@@ -301,13 +305,13 @@ export function GoalDialog({
                           {(projects ?? []).map((p) => (
                             <CommandItem
                               key={p.project_uuid}
+                              checked={linked.includes(p.project_uuid)}
                               value={`${p.project_name} ${p.project_uuid}`}
                               onSelect={() => {
                                 setLinked(linked.includes(p.project_uuid) ? linked.filter((x) => x !== p.project_uuid) : [...linked, p.project_uuid])
                               }}
                             >
                               <span className="truncate">{p.project_name}</span>
-                              <Check className={cn("ml-auto h-4 w-4", linked.includes(p.project_uuid) ? "opacity-100" : "opacity-0")} />
                             </CommandItem>
                           ))}
                         </CommandGroup>

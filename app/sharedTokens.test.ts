@@ -21,7 +21,9 @@ const SHARED: Record<"light" | "dark", Record<string, string>> = {
     pop: "#FFFFFF",
     ink: "#16171B",
     "ink-2": "#5B5D65",
-    "ink-3": "#8A8C92",
+    // D-SD4 (13 Oct 2026) moved ink-3 in both modes so meta text reads at
+    // AA (was #8A8C92 / #72747B); the storefront's table follows.
+    "ink-3": "#67696F",
     "ink-4": "#B9BBC0",
     line: "rgba(20, 22, 30, 0.075)",
     "line-2": "rgba(20, 22, 30, 0.12)",
@@ -54,7 +56,7 @@ const SHARED: Record<"light" | "dark", Record<string, string>> = {
     pop: "#1F2024",
     ink: "#EEEEF0",
     "ink-2": "#A8ABB1",
-    "ink-3": "#72747B",
+    "ink-3": "#95979E",
     "ink-4": "#4A4C52",
     line: "rgba(255, 255, 255, 0.065)",
     "line-2": "rgba(255, 255, 255, 0.10)",

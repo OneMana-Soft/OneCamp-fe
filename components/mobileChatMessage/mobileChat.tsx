@@ -13,26 +13,26 @@ import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessage
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
 import {OWN_ERRORS} from "@/lib/axiosInstance";
-import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
+import {ChatInfoRes} from "@/types/chat";
 import type {RootState} from "@/store/store";
 import {
     addChatComments,
     createChatCommentReaction, removeChatComment,
-    removeChatCommentReaction, updateChatComment,
-    updateChatCommentReaction
+    removeChatCommentReaction, updateChatCommentReaction
 } from "@/store/slice/chatCommentSlice";
 import {
-    createChatReactionChatId, removeChatByChatId,
-    removeChatReactionByChatId, updateChatByChatId, updateChatMessageReplyDecrement,
-    updateChatReactionByChatId,
-    RemoveMessageFromChatList, UpdateMessageTextInChatList
+    createChatReactionChatId,
+    removeChatReactionByChatId, updateChatMessageReplyDecrement,
+    updateChatReactionByChatId
 } from "@/store/slice/chatSlice";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
+import { useDeleteMessage } from "@/hooks/useDeleteMessage";
+import { useRouter } from "next/navigation";
+import { app_chat_path } from "@/types/paths";
 import {UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
 
@@ -48,6 +48,9 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
     )
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
+    const deleteMessage = useDeleteMessage()
+    const router = useRouter()
     const chatMessageState = useSelector((state: RootState) => state.chat.chatMessages[chatId] || NO_ITEMS);
 
     const chatState = chatMessageState?.find(c => c.chat_uuid === chatMessageUUID);
@@ -130,64 +133,18 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
 
     }
 
+    // The thread's message leaves at once, and the page goes back to the
+    // conversation, which shows the delete or, if refused, the message put
+    // back (QA F-02). The page used to wait on a loading row for ever.
     const executeDeleteChat = (messageId: string) => {
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.DeleteChatMessage,
-            payload: {
-                chat_id: messageId
-            },
-            showToast: true
-        })
-            .then(() => {
-                dispatch(removeChatByChatId({chatId: chatId, messageId}))
-                // Sync sidebar preview
-                const selfUuid = selfProfile.data?.data?.user_uuid || ''
-                if (selfUuid) {
-                    dispatch(RemoveMessageFromChatList({
-                        grpId: getGroupingId(chatId, selfUuid),
-                        messageId,
-                        chatKey: chatId,
-                    }))
-                }
-            })
-
+        void deleteMessage({ kind: "dm", chatId, id: messageId })
+        router.replace(`${app_chat_path}/${chatId}`)
     }
 
-    const handleUpdateChat = ( messageId: string, postHTMLText: string) => {
-
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.UpdateChatMessage,
-            payload: {
-                chat_id: messageId,
-                text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChatByChatId({
-                        chatId: chatId,
-                        messageId,
-                        htmlText: trimmedHtml,
-                    }))
-                    // Sync sidebar preview
-                    const selfUuid = selfProfile.data?.data?.user_uuid || ''
-                    if (selfUuid) {
-                        dispatch(UpdateMessageTextInChatList({
-                            grpId: getGroupingId(chatId, selfUuid),
-                            messageId,
-                            htmlText: trimmedHtml,
-                        }))
-                    }
-                }
-
-            })
-    }
+    // A correction to the thread's message or a reply saves as in the list:
+    // at once, and back with the box open on what was typed when the save
+    // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
+    const handleUpdateChat = (id: string, html: string) => saveEdit({ kind: "dm", chatId, id }, html)
 
     const createOrUpdateCommentReaction = (emojiId:string, reactionId:string, commentId:string, commentIdx: number) => {
         post.makeRequest<CreateOrUpdateCommentReaction, CreateOrUpdateCommentReaction>({apiEndpoint: PostEndpointUrl.CreateOrUpdateChatCommentReaction,
@@ -222,32 +179,7 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
             })
     }
 
-    const handleUpdateChatComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
-
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface>({
-            apiEndpoint: PostEndpointUrl.UpdateChatComment,
-            payload: {
-                chat_id: chatMessageUUID,
-                comment_id: commentUUID,
-                comment_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChatComment({
-                        commentIndex: commentIndex,
-                        chatId: chatMessageUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
+    const handleUpdateChatComment = (id: string, html: string) => saveEdit({ kind: "chatReply", chatMessageId: chatMessageUUID, id }, html)
 
     const handleDeleteChatComment = (commentUUID: string, commentIndex: number) => {
 

@@ -16,7 +16,12 @@
  *
  * Design v3 (shell S5) takes this further: four rows stay (Home, Inbox, My
  * tasks, Later) and More is a popover holding every page that isn't daily,
- * Docs, Boards and Teams included, which are no longer sidebar sections.
+ * Boards and Teams included, which are no longer sidebar sections.
+ *
+ * Docs came back out of More (docs programme B5): they are a place people
+ * work in, as in Notion's sidebar, so the full sidebar gives them a section of
+ * their own (the page tree, its heading the docs home), and the rails, which
+ * have no sections, an item.
  */
 
 /** Title of the disclosure the folded destinations live behind. */
@@ -36,7 +41,6 @@ export const FOLDED_NAV_TITLES = [
     "Calendar",
     "Tables",
     "Templates",
-    "Docs",
     "Boards",
     "Mail",
     "Goals",
@@ -45,6 +49,23 @@ export const FOLDED_NAV_TITLES = [
     "Recordings",
     "Teams",
 ] as const
+
+/**
+ * Destinations the full sidebar shows as a section of their own rather than
+ * as a row, and the rails as an item: Docs (its section is the page tree).
+ */
+export const SECTION_NAV_TITLES = ["Docs"] as const
+
+/**
+ * The sidebar's three kinds of place, in order: the rows people live in, the
+ * places that are sections in the full sidebar (items in the rails), and what
+ * folds behind More. Pure.
+ */
+export function partitionNav<T extends { title: string }>(items: readonly T[]): { primary: T[]; sections: T[]; folded: T[] } {
+    const { kept, folded } = partitionByTitle(items, FOLDED_NAV_TITLES)
+    const { kept: primary, folded: sections } = partitionByTitle(kept, SECTION_NAV_TITLES)
+    return { primary, sections, folded }
+}
 
 /**
  * Split a nav list into what stays and what folds, preserving order in

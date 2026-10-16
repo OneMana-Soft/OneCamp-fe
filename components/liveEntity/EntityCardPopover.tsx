@@ -1,0 +1,56 @@
+"use client"
+
+import * as React from "react"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { hoverCardProps } from "@/lib/hub/hoverIntent"
+import { entityKind } from "@/lib/liveEntity"
+
+type Card = React.ComponentType<{ id: string; data: unknown }>
+
+// One lazy card per kind, made once: its code loads the first time a pointer
+// rests on a chip of that kind.
+const cards = new Map<string, React.LazyExoticComponent<Card>>()
+
+function cardOf(kind: string): React.LazyExoticComponent<Card> | null {
+  const load = entityKind(kind)?.card
+  if (!load) return null
+  let card = cards.get(kind)
+  if (!card) cards.set(kind, (card = React.lazy(load as () => Promise<{ default: Card }>)))
+  return card
+}
+
+/**
+ * The card a chip opens while the pointer rests on it (hub P1's hover intent:
+ * 450 ms to open, and moving into the card keeps it), or on Space from the
+ * keyboard (keyed): then the card takes the focus, so it is read out, and
+ * gives it back to the chip when it closes. Not on touch: a tap opens the
+ * thing itself.
+ */
+export default function EntityCardPopover({ kind, id, data, anchor, keyed = false, onClose }: { kind: string; id: string; data: unknown; anchor: HTMLElement; keyed?: boolean; onClose(): void }) {
+  const Card = cardOf(kind)
+  const at = React.useMemo(() => ({ current: anchor }), [anchor])
+  if (!Card) return null
+  return (
+    <Popover open onOpenChange={(open) => !open && onClose()}>
+      <PopoverAnchor virtualRef={at} />
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={6}
+        className="w-72 rounded-xl p-3 shadow-e3"
+        onOpenAutoFocus={(e) => {
+          if (!keyed) e.preventDefault()
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          if (keyed) anchor.focus()
+        }}
+        {...hoverCardProps}
+      >
+        <React.Suspense fallback={<div className="h-14" aria-hidden="true" />}>
+          <Card id={id} data={data} />
+        </React.Suspense>
+      </PopoverContent>
+    </Popover>
+  )
+}

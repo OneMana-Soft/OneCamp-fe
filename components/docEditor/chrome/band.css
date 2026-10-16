@@ -1,0 +1,18 @@
+/* The controls over the title band show while it is pointed at or focused,
+   and on a touch screen once the title is being edited. */
+.doc-band-ctl {
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out);
+}
+[data-doc-title-block]:hover .doc-band-ctl,
+[data-doc-title-block]:focus-within .doc-band-ctl,
+.doc-band-ctl:focus-visible,
+.doc-band-ctl[data-open] {
+  opacity: 1;
+}
+@media (hover: none) {
+  .doc-band-ctl { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-band-ctl { transition: none; }
+}

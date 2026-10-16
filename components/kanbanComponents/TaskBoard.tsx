@@ -64,6 +64,11 @@ import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
 import { useRowState } from "@/hooks/useListSelection"
 import { cellKey, intoCells, splitCell, type Lane, type LaneSpec } from "@/lib/board/lanes"
+import { feedback } from "@/lib/ui/feedback"
+import { usePhone } from "@/hooks/usePhone"
+import { useDispatch } from "react-redux"
+import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { CardSheet } from "@/components/kanbanComponents/CardSheet"
 
 /** Cards a column renders at first, and adds each time it is scrolled near its end. */
 export const CARDS_PER_PAGE = 30
@@ -71,6 +76,27 @@ export const CARDS_PER_PAGE = 30
 /** The server's closed-column page and ceiling (models/dgraph BoardClosedLimit, BoardClosedMax). */
 export const BOARD_CLOSED_STEP = 200
 export const BOARD_CLOSED_MAX = 2000
+
+/**
+ * The server's open-column page and ceiling (PROJ-BUG-8): each open column
+ * comes as its first 1,000 cards in board order, and openLimit asks for more,
+ * up to 5,000. Open columns had no page: Dgraph cut every sorted read at
+ * 1,000, so a column of 2,500 to-dos showed 1,000 cards and said nothing.
+ */
+export const BOARD_OPEN_STEP = 1000
+export const BOARD_OPEN_MAX = 5000
+
+/**
+ * How a column the server sent only part of goes on: done and cancelled
+ * newest first, 200 at a time; an open column in board order, 500 at a time.
+ */
+export function columnPaging(status: { value: string; category?: string }) {
+    const closed = isClosedStatus(status.category ?? status.value)
+    return closed
+        ? { closed, step: BOARD_CLOSED_STEP, max: BOARD_CLOSED_MAX }
+        : { closed, step: BOARD_OPEN_STEP, max: BOARD_OPEN_MAX }
+}
+type Paging = ReturnType<typeof columnPaging>
 
 type Columns = Record<string, TaskInfoInterface[]>
 type Target = { column: string; index: number }
@@ -128,13 +154,30 @@ const TOUCH = { activationConstraint: { delay: 180, tolerance: 8 } }
 // dnd-kit starts scrolling within 20% of the scroller's edge by default:
 // about 250px on a board, so a column near the edge of the window slid away
 // while the card was held over it and the card landed several columns on.
-// Scroll only at the very edge, and only the board and its columns.
+// Scroll only at the very edge, and only the board and its columns. A board
+// that snaps a column to the screen (a phone) is paged by the board itself
+// (useEdgePaging): dnd-kit's scroll is a few pixels a tick, and each tick
+// snapped on to the next column, so a card held at the edge of a phone flew
+// past every column to the last in about a second.
 const AUTO_SCROLL = {
-    canScroll: (element: Element) => element instanceof HTMLElement && element.dataset.boardScroll !== undefined,
+    canScroll: (element: Element) => element instanceof HTMLElement && element.dataset.boardScroll !== undefined && !isPaged(element),
     threshold: { x: 0.06, y: 0.1 },
     acceleration: 8,
 }
 
+/** The board snaps one column into view at a time (a phone, Container.tsx). */
+function isPaged(el: HTMLElement): boolean {
+    return el.dataset.board !== undefined && typeof getComputedStyle === "function" && /x/.test(getComputedStyle(el).scrollSnapType || "")
+}
+
+/**
+ * A held card at the left or right edge of a paged board, for this long,
+ * turns the board one column; held there, one more each PAGE_EVERY_MS.
+ * Trello's and Jira's apps page a list at a time the same way, so the column
+ * a card is over never slides away under the finger.
+ */
+const PAGE_DWELL_MS = 350
+const PAGE_EVERY_MS = 750
 
 function pointerOf(event: Event | null): { x: number; y: number } | null {
     if (!event) return null
@@ -158,6 +201,7 @@ export function TaskBoard({
     onShowMore,
     lanes,
     crossProject = false,
+    onOpen,
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
@@ -172,16 +216,18 @@ export function TaskBoard({
     boardKey?: string
     /** Make a task in a column (and lane) from its name; resolves whether it worked. */
     onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
-    /** A column's real total when the server sent only part of it (done, cancelled). */
+    /** A column's real total, for one the server sent only part of (any column since PROJ-BUG-8; lib/board/columnTotals). */
     totals?: Record<string, number | undefined>
     /** A word on each card the column does not already say (its status, on a board of people). */
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
-    /** Load more of a column the server sent only part of (see totals). */
+    /** Load more of a column the server sent only part of (see totals; columnPaging says how). */
     onShowMore?: (column: string) => void
     /** Swimlanes: rows cutting every column, by person or priority. Memoise it. */
     lanes?: LaneSpec
     /** Its cards come from many projects (My Tasks): each wears its project's edge and tile. */
     crossProject?: boolean
+    /** Open a card somewhere other than the panel beside the board (a phone has none: its page). */
+    onOpen?: (task: TaskInfoInterface) => void
 }) {
     const [collapsed, toggleCollapsed] = useCollapsedColumns(boardKey)
     const [foldedLanes, toggleLane] = useCollapsedColumns(boardKey ? `${boardKey}:lanes` : undefined)
@@ -207,7 +253,13 @@ export function TaskBoard({
     const columnsRef = useRef(board)
     columnsRef.current = board
     const targetRef = useRef<Target | null>(null)
-    const origin = useRef<{ x: number; y: number } | null>(null)
+    // Where the finger or mouse is, read from the events themselves. dnd-kit's
+    // delta also counts how far the board and the column scrolled under the
+    // card, so pointer = start + delta was off by every pixel the board moved:
+    // a card carried to the edge of a phone until the next column came in,
+    // and dropped there, landed back where it started (or several cards down,
+    // after the column scrolled).
+    const pointer = useRef<{ x: number; y: number } | null>(null)
     const boardRef = useRef<HTMLDivElement>(null)
     const dragging = activeTask !== null
     const tilted = useRef(false)
@@ -243,11 +295,31 @@ export function TaskBoard({
         setTarget(next)
     }
 
+    // Follow the pointer for as long as a card is held (passive: it never
+    // holds up a scroll or the drag itself).
+    useEffect(() => {
+        if (!dragging || byKeys) return
+        const follow = (e: Event) => {
+            const p = pointerOf(e)
+            if (p) pointer.current = p
+        }
+        window.addEventListener("touchmove", follow, { capture: true, passive: true })
+        window.addEventListener("mousemove", follow, { capture: true, passive: true })
+        return () => {
+            window.removeEventListener("touchmove", follow, { capture: true })
+            window.removeEventListener("mousemove", follow, { capture: true })
+        }
+    }, [dragging, byKeys])
+
     const onDragStart = ({ active, activatorEvent }: DragStartEvent) => {
         const task = active.data.current?.task as TaskInfoInterface | undefined
         if (!task || !canDragTask(task)) return
-        origin.current = pointerOf(activatorEvent)
-        tilted.current = activatorEvent ? "touches" in activatorEvent : true
+        pointer.current = pointerOf(activatorEvent)
+        const touch = activatorEvent ? "touches" in activatorEvent : false
+        tilted.current = activatorEvent ? touch : true
+        // A long press that picks a card up taps the hand where it can
+        // (Android), as a native board does (lib/ui/feedback: impact).
+        if (touch) feedback("impact")
         roomFor(task.task_uuid)
         setByKeys(false)
         setActiveTask(task)
@@ -258,24 +330,25 @@ export function TaskBoard({
     }
 
     const onDragMove = ({ active, delta }: DragMoveEvent) => {
-        const board = boardRef.current
-        if (!activeTask || !board) return
+        if (!activeTask || !boardRef.current) return
         // The lift's tilt leans the way the card first moves (pointer only).
         if (!tilted.current && Math.abs(delta.x) > 2) {
             tilted.current = true
             document.querySelector<HTMLElement>(".work-drag-overlay")?.style.setProperty("--tilt", delta.x < 0 ? "-1.5deg" : "1.5deg")
         }
-        // The pointer for a mouse or finger; the lifted card's centre for keys.
-        let x: number, y: number
-        if (origin.current) {
-            x = origin.current.x + delta.x
-            y = origin.current.y + delta.y
-        } else {
-            const r = active.rect.current.translated
-            if (!r) return
-            x = r.left + r.width / 2
-            y = r.top + r.height / 2
-        }
+        // The pointer for a mouse or finger; the lifted card's centre otherwise.
+        const p = pointer.current
+        if (p) return aimAt(p.x, p.y, String(active.id))
+        const r = active.rect.current.translated
+        if (r) aimAt(r.left + r.width / 2, r.top + r.height / 2, String(active.id))
+    }
+
+    // The list under (x, y) and the place in it, as the line shows it. Run on
+    // each move, and again when the board or a column scrolls under a card
+    // that is held still.
+    const aimAt = (x: number, y: number, heldId: string) => {
+        const board = boardRef.current
+        if (!board) return
         let columnEl: HTMLElement | null = null
         // Columns span the board's height, so the pointer's x picks one; cells
         // in lanes are stacked, so both x and y must fall inside.
@@ -291,15 +364,34 @@ export function TaskBoard({
         if (!columnEl) return
         const mids: number[] = []
         for (const card of columnEl.querySelectorAll<HTMLElement>("[data-task-id]")) {
-            if (card.dataset.taskId === String(active.id)) continue
+            if (card.dataset.taskId === heldId) continue
             const r = card.getBoundingClientRect()
             mids.push(r.top + r.height / 2)
         }
         aim({ column: columnEl.dataset.column!, index: insertionIndex(mids, y) })
     }
 
+    const aimRef = useRef(aimAt)
+    aimRef.current = aimAt
+    // The board or a column scrolled under a card held still (a page turned,
+    // a column scrolled at its foot): what is under the finger has changed.
+    useEffect(() => {
+        const board = boardRef.current
+        if (!dragging || byKeys || !board || !activeTask) return
+        const id = activeTask.task_uuid
+        const again = () => {
+            const p = pointer.current
+            if (p) aimRef.current(p.x, p.y, id)
+        }
+        board.addEventListener("scroll", again, { capture: true, passive: true })
+        return () => board.removeEventListener("scroll", again, { capture: true })
+    }, [dragging, byKeys, activeTask])
+
+    useEdgePaging(boardRef, pointer, dragging && !byKeys)
+    useBoardPlace(boardRef, boardKey)
+
     const finish = () => {
-        origin.current = null
+        pointer.current = null
         targetRef.current = null
         setTarget(null)
         setActiveTask(null)
@@ -434,15 +526,29 @@ export function TaskBoard({
         targetRef.current = null
         say(`Moved ${task.task_name} to ${visibleRef.current.find((v) => v.value === column)?.label ?? column}.`)
     }
+    const onOpenRef = useRef(onOpen)
+    onOpenRef.current = onOpen
+    const dispatch = useDispatch()
+    // On a phone a card's menu is one sheet for the whole board (CardSheet):
+    // the card it is for, kept while the sheet goes, and whether it is open.
+    const phone = usePhone()
+    const [menu, setMenu] = useState<{ task: TaskInfoInterface | null; open: boolean }>({ task: null, open: false })
     const actions = useMemo<BoardActions>(
         () => ({
             columns: () => visibleRef.current,
             moveTo: (task, column) => moveRef.current(task, column),
             canMove: (task) => canDragRef.current(task),
+            open: (task) => {
+                if (onOpenRef.current) return onOpenRef.current(task)
+                dispatch(openRightPanel({ chatMessageUUID: "", chatUUID: "", channelUUID: "", postUUID: "", taskUUID: task.task_uuid, groupUUID: "", docUUID: "" }))
+            },
+            openMenu: phone ? (task) => setMenu({ task, open: true }) : undefined,
             crossProject,
         }),
-        [crossProject],
+        [crossProject, phone, dispatch],
     )
+    // The column the sheet's card is in now, for its check.
+    const menuList = menu.task ? Object.keys(items).find((k) => items[k].some((t) => t.task_uuid === menu.task?.task_uuid)) : undefined
 
     // The line stays in view as the keys move it down a long column.
     useEffect(() => {
@@ -482,13 +588,16 @@ export function TaskBoard({
                     badgeFor={badgeFor}
                 />
             ) : (
-            // Columns 280px apart by 12 (8 on a phone, where each snaps and its
-            // neighbours peek); the last column keeps 20px of room after it, so
-            // nothing is clipped at the board's end.
+            // Columns 280px apart by 12 (8 on a phone, where each snaps to the
+            // screen's 16px margin and the next one peeks in at the right, so
+            // the board says it goes on); the last column keeps 20px of room
+            // after it, so nothing is clipped at the board's end. On a phone
+            // that room is 40px (16 + 8 + 16), what the last column needs to
+            // snap to the same 16px margin: with 28 it stopped 12px short.
             <div className="flex h-full min-h-0 flex-col">
             <div
                 ref={boardRef}
-                className="flex min-h-0 flex-1 gap-2 overflow-x-auto px-4 pb-4 snap-x snap-mandatory sm:gap-3 sm:px-0 sm:snap-none after:w-1 after:shrink-0 after:content-[''] sm:after:w-5"
+                className="flex min-h-0 flex-1 gap-2 overflow-x-auto px-4 pb-4 snap-x snap-mandatory scroll-px-4 sm:gap-3 sm:px-0 sm:snap-none sm:scroll-px-0 after:w-4 after:shrink-0 after:content-[''] sm:after:w-5"
                 data-board-scroll=""
                 data-board=""
             >
@@ -520,6 +629,18 @@ export function TaskBoard({
             )}
             </div>
             </BoardActionsContext.Provider>
+            {phone && (
+                <CardSheet
+                    task={menu.task}
+                    open={menu.open}
+                    onOpenChange={(open) => setMenu((m) => ({ ...m, open }))}
+                    columns={visible}
+                    current={menuList === undefined ? undefined : splitCell(menuList).column}
+                    canMove={menu.task ? canDragTask(menu.task) : false}
+                    onOpenTask={actions.open}
+                    onMove={actions.moveTo}
+                />
+            )}
             <p id={instructions} className="sr-only">
                 Press Space to pick the task up, the arrow keys to move it, and Space again to put it down. Escape puts it back.
             </p>
@@ -630,6 +751,7 @@ const BoardColumn = memo(function BoardColumn({
                 describedBy={describedBy}
                 lineAt={lineAt}
                 total={total}
+                paging={columnPaging(status)}
                 badgeFor={badgeFor}
                 onShowMore={onShowMore}
                 className="pb-4"
@@ -653,6 +775,7 @@ function CardStack({
     describedBy,
     lineAt,
     total,
+    paging,
     badgeFor,
     onShowMore,
     className,
@@ -668,6 +791,8 @@ function CardStack({
     describedBy: string
     lineAt: number | null
     total?: number
+    /** How the column goes on past what the server sent (columnPaging). */
+    paging?: Paging
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
     onShowMore?: (column: string) => void
     className?: string
@@ -734,14 +859,17 @@ function CardStack({
                 )}
                 {!more && total !== undefined && total > tasks.length && (
                     <div className="flex flex-col items-center gap-1 px-2 py-2 text-center text-xs text-muted-foreground">
-                        <span>The newest {tasks.length} of {total}.</span>
-                        {onShowMore && tasks.length < BOARD_CLOSED_MAX ? (
+                        <span>
+                            {paging?.closed === false ? "The first" : "The newest"} {tasks.length} of {total}.
+                        </span>
+                        {onShowMore && tasks.length < (paging?.max ?? BOARD_CLOSED_MAX) ? (
                             <button
                                 type="button"
                                 onClick={() => onShowMore(column)}
+                                data-touch-target=""
                                 className="rounded-md px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                             >
-                                Show {Math.min(BOARD_CLOSED_STEP, total - tasks.length)} more
+                                Show {Math.min(paging?.step ?? BOARD_CLOSED_STEP, total - tasks.length)} more
                             </button>
                         ) : (
                             <span>The list view has them all.</span>
@@ -800,23 +928,25 @@ function LaneGrid({
 }) {
     const inColumn = (status: string) => lanes.reduce((n, l) => n + (items[cellKey(l.id, status)]?.length ?? 0), 0)
     return (
-        <div ref={boardRef} className="h-full overflow-auto overscroll-contain pb-4" data-board-scroll="">
+        <div ref={boardRef} className="h-full overflow-auto overscroll-contain px-4 pb-4 sm:px-0" data-board-scroll="">
             <div className="w-max min-w-full">
                 <div className="sticky top-0 z-20 flex gap-3 bg-sheet pb-2 pl-1">
                     {visible.map((status) => {
                         const loaded = inColumn(status.value)
                         const total = totals?.[status.value]
                         const capped = total !== undefined && total > loaded
+                        const paging = columnPaging(status)
                         return (
                             <div key={status.value} className={cn(LANE_CELL, "flex h-10 items-center gap-2 rounded-lg bg-sunken px-3 dark:bg-white/[.02]")}>
                                 <TaskStatusCell status={status} label="tip" />
                                 <h2 className="truncate text-xs font-[510] text-foreground">{status.label}</h2>
                                 <span className="text-xs tabular-nums text-ink-3">{Math.max(total ?? 0, loaded)}</span>
-                                {capped && onShowMore && loaded < BOARD_CLOSED_MAX && (
+                                {capped && onShowMore && loaded < paging.max && (
                                     <button
                                         type="button"
                                         onClick={() => onShowMore(status.value)}
-                                        title={`The newest ${loaded} of ${total} are on the board`}
+                                        title={`The ${paging.closed ? "newest" : "first"} ${loaded} of ${total} are on the board`}
+                                        data-touch-target=""
                                         className="rounded-md px-1.5 py-0.5 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                     >
                                         Show more
@@ -837,6 +967,7 @@ function LaneGrid({
                                         type="button"
                                         onClick={() => onToggleLane(lane.id)}
                                         aria-expanded={!isFolded}
+                                        data-touch-target=""
                                         className="group/lane inline-flex items-center gap-2 rounded-md px-1.5 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                     >
                                         {isFolded ? (
@@ -1013,6 +1144,7 @@ function QuickAdd({
             <button
                 type="button"
                 onClick={() => setOpen(true)}
+                data-touch-target=""
                 className={cn(
                     "inline-flex items-center gap-1.5 rounded-md text-xs text-ink-3 transition-[color,background-color,opacity] duration-[140ms] hover:bg-hover hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:opacity-100",
                     // In a lane cell it waits for the pointer, so a board of
@@ -1061,6 +1193,120 @@ function QuickAdd({
             />
         </div>
     )
+}
+
+/**
+ * Turns a paged board (a phone) one column while a held card waits at its
+ * left or right edge: PAGE_DWELL_MS there, then one more each PAGE_EVERY_MS.
+ * The edge is the outer 10% of the board, at least 24px. Each turn ticks
+ * (lib/ui/feedback: selection). It reads the pointer from a ref on each
+ * frame, so a drag renders nothing for it.
+ */
+function useEdgePaging(boardRef: React.RefObject<HTMLDivElement | null>, pointer: React.RefObject<{ x: number; y: number } | null>, active: boolean) {
+    useEffect(() => {
+        const board = boardRef.current
+        if (!active || !board || !isPaged(board) || typeof requestAnimationFrame !== "function") return
+        let side = 0
+        let since = 0
+        let last = 0
+        let frame = 0
+        const tick = (now: number) => {
+            const p = pointer.current
+            const r = board.getBoundingClientRect()
+            const edge = Math.max(24, r.width * 0.1)
+            const at = !p || p.y < r.top || p.y > r.bottom ? 0 : p.x >= r.right - edge ? 1 : p.x <= r.left + edge ? -1 : 0
+            if (at !== side) {
+                side = at
+                since = now
+            } else if (at !== 0 && now - since >= PAGE_DWELL_MS && now - last >= PAGE_EVERY_MS) {
+                const max = board.scrollWidth - board.clientWidth
+                const can = at > 0 ? board.scrollLeft < max - 1 : board.scrollLeft > 1
+                if (can) {
+                    last = now
+                    const first = board.querySelector<HTMLElement>("[data-column]")
+                    const step = (first?.getBoundingClientRect().width ?? board.clientWidth) + 8
+                    board.scrollBy({ left: at * step, behavior: prefersReducedMotion() ? "auto" : "smooth" })
+                    feedback("selection")
+                }
+            }
+            frame = requestAnimationFrame(tick)
+        }
+        frame = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(frame)
+    }, [boardRef, pointer, active])
+}
+
+type Place = { column: string; top: number }
+const isPlace = (v: unknown): v is Place =>
+    typeof v === "object" && v !== null && typeof (v as Place).column === "string" && typeof (v as Place).top === "number"
+
+/**
+ * Where a paged board (a phone) was, put back when it is drawn again: the
+ * column at the margin and how far down its cards were scrolled, kept per
+ * board for this tab's session. A card opens on the task's own page, and a
+ * tab is drawn afresh when it is chosen again, so back from a task, or a
+ * return to the Board tab, showed the first column at its top every time.
+ */
+function useBoardPlace(boardRef: React.RefObject<HTMLDivElement | null>, boardKey: string | undefined) {
+    useLayoutEffect(() => {
+        const board = boardRef.current
+        if (!boardKey || !board || !isPaged(board)) return
+        const key = `oc_board_at:${boardKey}`
+        const columns = () => Array.from(board.querySelectorAll<HTMLElement>("[data-column]"))
+        // Where a column comes to rest: the board's edge and its 16px margin.
+        const pad = parseFloat(getComputedStyle(board).scrollPaddingLeft) || 0
+        const margin = () => board.getBoundingClientRect().left + pad
+        try {
+            const at: unknown = JSON.parse(sessionStorage.getItem(key) ?? "null")
+            const column = isPlace(at) ? columns().find((c) => c.dataset.column === at.column) : undefined
+            if (column && isPlace(at)) {
+                board.scrollLeft += column.getBoundingClientRect().left - margin()
+                const cards = column.querySelector<HTMLElement>("[data-board-scroll]")
+                if (cards) cards.scrollTop = at.top
+            }
+        } catch {
+            // Nothing kept, or no storage (a private window): the first column.
+        }
+        // Read on each scroll, while the board is this one: the column nearest
+        // the margin, and its cards' scroll. Written once the scroll has
+        // settled, and at once if the board goes before then (a card tapped as
+        // the board came to rest), from what was read, never from the page
+        // then, which may already be another board.
+        let place: Place | null = null
+        let timer = 0
+        const save = () => {
+            timer = 0
+            try {
+                if (place) sessionStorage.setItem(key, JSON.stringify(place))
+            } catch {
+                // No storage: the board starts at its first column.
+            }
+        }
+        const keep = () => {
+            const at = margin()
+            let near: HTMLElement | undefined
+            let off = Infinity
+            for (const c of columns()) {
+                const d = Math.abs(c.getBoundingClientRect().left - at)
+                if (d < off) {
+                    near = c
+                    off = d
+                }
+            }
+            if (!near?.dataset.column) return
+            place = { column: near.dataset.column, top: Math.round(near.querySelector<HTMLElement>("[data-board-scroll]")?.scrollTop ?? 0) }
+            window.clearTimeout(timer)
+            timer = window.setTimeout(save, 150)
+        }
+        board.addEventListener("scroll", keep, { capture: true, passive: true })
+        return () => {
+            board.removeEventListener("scroll", keep, { capture: true })
+            if (timer) {
+                window.clearTimeout(timer)
+                save()
+            }
+        }
+    }, [boardRef, boardKey])
 }
 
 /**

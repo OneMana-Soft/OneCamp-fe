@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown } from "@/lib/icons";
+import { ChevronsUpDown } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover"
 import {useState} from "react";
 import {appLangList, appLanguage} from "@/types/user";
+import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 interface AppLanguageComboboxProps {
     userLang?: string;
@@ -27,8 +28,9 @@ interface AppLanguageComboboxProps {
 
 /**
  * The language field. It sits in a grid of text inputs, so its trigger is
- * drawn as one of them: the same height (44px on a phone, 36px from md up),
- * hairline, padding and type, with the value in the field's normal weight.
+ * drawn as one of them: the same height (44px on a phone, 32px from md up),
+ * raised surface and ring, padding and type, with the value in the field's
+ * normal weight.
  */
 export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppLanguageComboboxProps) {
     const [open, setOpen] = useState(false)
@@ -43,7 +45,11 @@ export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppL
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="h-11 w-full justify-between rounded-md border-input bg-transparent px-3 text-base font-normal shadow-none hover:border-faint-foreground hover:bg-transparent md:h-9 md:text-sm"
+                    // The outline button's own raised surface and e1 ring,
+                    // which is the field's: transparent with no shadow, it
+                    // was bare text in a card of boxed fields, and 36px high
+                    // beside their 32 from md up.
+                    className="h-11 w-full justify-between rounded-md px-2.5 text-base font-normal md:h-8 md:text-sm"
                 >
                     <span className={cn("truncate", !current && "text-muted-foreground")}>
                         {current ? current.name : "Choose a language"}
@@ -67,15 +73,10 @@ export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppL
                                         onLangChange?.(e.code)
                                     }}
                                     className="cursor-pointer"
+                                    {...menuCheckState(current?.code === e.code)}
                                 >
                                     <span className="flex-1">{e.name}</span>
-                                    <Check
-                                        aria-hidden="true"
-                                        className={cn(
-                                            "ml-auto h-4 w-4 text-primary",
-                                            current?.code === e.code ? "opacity-100" : "opacity-0"
-                                        )}
-                                    />
+                                    <MenuCheck checked={current?.code === e.code} />
                                 </CommandItem>
                             ))}
                         </CommandGroup>

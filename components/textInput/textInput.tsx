@@ -22,12 +22,13 @@ import { tintMentions, type MentionContext } from "@/components/message/tintMent
 import { withEditedMark } from "@/lib/chat/editedMark";
 import { ChatComposerShell } from "@/components/textInput/chatComposerShell";
 import { PhoneComposerShell } from "@/components/textInput/phoneComposerShell";
-import type { ComposerAgent } from "@/components/textInput/composerTools";
+import { COMPOSER_TOOL, type ComposerAgent } from "@/components/textInput/composerTools";
 import { canRenderStatically, mentionUserUUID } from "@/lib/utils/staticRichText";
 import { useDispatch } from "react-redux";
 import { useProfileHoverWithin } from "@/hooks/useProfileHover";
 import { openUI } from "@/store/slice/uiSlice";
 import "@/components/minimal-tiptap/styles/index.css";
+import "@/components/message/chatBody.css";
 import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button";
 import {useMedia} from "@/context/MediaQueryContext";
 import { Paperclip, Type } from "@/lib/icons";
@@ -114,8 +115,11 @@ interface MinimalTiptapProps
    * "chat": the conversation's composer (design v3 chat, C38 to C46): the
    * floating card, five tools, the split Send. Channels, DMs, groups and
    * threads; every other editor keeps its own look.
+   * "edit": a message corrected in place (C29): only the words, at the
+   * message's own size, with the emoji button beside them. The caller draws
+   * the box and the "esc cancel · ⏎ save" row under it.
    */
-  variant?: "default" | "chat" | "phone"
+  variant?: "default" | "chat" | "phone" | "edit"
   /** The phone composer's sheet is the whole screen (C48). */
   expanded?: boolean
   onExpandedChange?: (expanded: boolean) => void
@@ -592,6 +596,16 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         }
       }, [editor, content, editable, contentRevision]);
 
+      // A message edited in place takes the caret at its end as the edit
+      // opens, so the keys typed go straight in: nothing focused it, and
+      // Enter did nothing until the box was clicked (F-04). After the effect
+      // above, which makes it editable. The row is where it was clicked, so
+      // nothing scrolls.
+      useEffect(() => {
+        if (variant !== "edit" || !editable || !editor || editor.isDestroyed) return;
+        editor.commands.focus("end", { scrollIntoView: false });
+      }, [variant, editable, editor]);
+
 
 
       if (!editor) {
@@ -617,6 +631,24 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
           >
             {children}
           </PhoneComposerShell>
+        );
+      }
+
+      if (variant === "edit" && canEdit && !isOutputText) {
+        // A one-line message stays one line while it is corrected: it used
+        // to become a 117px box, the editor's own 12px inset inside the edit
+        // box's 10px, over a row of formatting tools. The shortcuts still
+        // format (Ctrl+B and the rest).
+        return (
+          <div ref={ref} data-edit-box="" className={cn("flex w-full items-end gap-1", className)}>
+            <EditorContent
+                editor={editor}
+                className={cn("minimal-tiptap-editor chat-composer-editor max-h-[50vh] min-h-6 min-w-0 flex-1 overflow-y-auto outline-none", editorContentClassName)}
+                data-gramm="false"
+            />
+            <EmojiReactionPicker editor={editor} size="sm" className={cn(COMPOSER_TOOL, "-my-0.5 shrink-0")} />
+            <div className="contents"><MemoLinkBubbleMenu editor={editor} /></div>
+          </div>
         );
       }
 
@@ -742,6 +774,18 @@ StaticRichText.displayName = "StaticRichText";
 const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>((props, ref) => {
     if (props.isOutputText && !props.editable && canRenderStatically(props.content)) {
         return <StaticRichText ref={ref} html={props.content} className={props.className} contentClassName={props.editorContentClassName} mentionContext={props.mentionContext} editedTitle={props.editedTitle} />;
+    }
+    // A body only the editor can draw (code, images, tables, task lists, work
+    // chips) has its "(edited)" under it, as the static one has after a list
+    // or a code block (withEditedMark): it had none, so an edited message
+    // with code read as untouched (SD-BUG-2).
+    if (props.isOutputText && !props.editable && props.editedTitle) {
+        return (
+            <>
+                <LiveTextInput ref={ref} {...props} />
+                <p data-edited-after=""><span className="msg-edited" title={props.editedTitle}>(edited)</span></p>
+            </>
+        );
     }
     return <LiveTextInput ref={ref} {...props} />;
 });

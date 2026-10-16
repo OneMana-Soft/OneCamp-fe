@@ -1,14 +1,59 @@
 {
   "nodes": {
+    "blockMath": {
+      "attrs": [
+        "blockId",
+        "latex"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
     "blockquote": {
-      "attrs": [],
+      "attrs": [
+        "blockColor",
+        "blockId",
+        "dir",
+        "indent",
+        "quoteSize"
+      ],
       "group": "block",
       "content": "block+",
       "inline": false,
       "atom": false
     },
+    "boardEmbed": {
+      "attrs": [
+        "blockId",
+        "projectId"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "bookmark": {
+      "attrs": [
+        "blockId",
+        "description",
+        "href",
+        "icon",
+        "image",
+        "siteName",
+        "title"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
     "bulletList": {
-      "attrs": [],
+      "attrs": [
+        "blockId",
+        "dir",
+        "indent"
+      ],
       "group": "block list",
       "content": "listItem+",
       "inline": false,
@@ -16,8 +61,12 @@
     },
     "callout": {
       "attrs": [
+        "blockId",
         "color",
-        "emoji"
+        "dir",
+        "emoji",
+        "icon",
+        "indent"
       ],
       "group": "block",
       "content": "block+",
@@ -37,6 +86,8 @@
     },
     "chartEmbed": {
       "attrs": [
+        "blockId",
+        "indent",
         "spec"
       ],
       "group": "block",
@@ -46,7 +97,11 @@
     },
     "codeBlock": {
       "attrs": [
-        "language"
+        "blockId",
+        "caption",
+        "indent",
+        "language",
+        "wrap"
       ],
       "group": "block",
       "content": "text*",
@@ -55,17 +110,50 @@
     },
     "collapsible": {
       "attrs": [
-        "open",
-        "title"
+        "blockColor",
+        "blockId",
+        "dir",
+        "indent"
       ],
       "group": "block",
+      "content": "(paragraph | heading) block*",
+      "inline": false,
+      "atom": false
+    },
+    "column": {
+      "attrs": [
+        "blockId",
+        "width"
+      ],
+      "group": null,
       "content": "block+",
       "inline": false,
       "atom": false
     },
+    "columnList": {
+      "attrs": [
+        "blockId"
+      ],
+      "group": "block",
+      "content": "column+",
+      "inline": false,
+      "atom": false
+    },
+    "dateMention": {
+      "attrs": [
+        "date",
+        "reminder"
+      ],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
     "diffEmbed": {
       "attrs": [
-        "diff"
+        "blockId",
+        "diff",
+        "indent"
       ],
       "group": "block",
       "content": null,
@@ -90,6 +178,22 @@
       "inline": true,
       "atom": true
     },
+    "fileBlock": {
+      "attrs": [
+        "blockId",
+        "caption",
+        "id",
+        "kind",
+        "mime",
+        "name",
+        "size",
+        "src"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
     "hardBreak": {
       "attrs": [],
       "group": "inline",
@@ -99,6 +203,10 @@
     },
     "heading": {
       "attrs": [
+        "blockColor",
+        "blockId",
+        "dir",
+        "indent",
         "level"
       ],
       "group": "block",
@@ -107,7 +215,10 @@
       "atom": false
     },
     "horizontalRule": {
-      "attrs": [],
+      "attrs": [
+        "blockId",
+        "indent"
+      ],
       "group": "block",
       "content": null,
       "inline": false,
@@ -115,11 +226,16 @@
     },
     "image": {
       "attrs": [
+        "align",
         "alt",
+        "blockId",
         "caption",
+        "crop",
         "fileName",
         "height",
+        "href",
         "id",
+        "indent",
         "src",
         "title",
         "width"
@@ -129,8 +245,32 @@
       "inline": false,
       "atom": true
     },
+    "inlineMath": {
+      "attrs": [
+        "latex"
+      ],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
+    "linkMention": {
+      "attrs": [
+        "href",
+        "icon",
+        "siteName",
+        "title"
+      ],
+      "group": "inline",
+      "content": null,
+      "inline": true,
+      "atom": true
+    },
     "listItem": {
-      "attrs": [],
+      "attrs": [
+        "blockColor",
+        "blockId"
+      ],
       "group": null,
       "content": "paragraph block*",
       "inline": false,
@@ -149,6 +289,9 @@
     },
     "orderedList": {
       "attrs": [
+        "blockId",
+        "dir",
+        "indent",
         "start",
         "type"
       ],
@@ -158,7 +301,12 @@
       "atom": false
     },
     "paragraph": {
-      "attrs": [],
+      "attrs": [
+        "blockColor",
+        "blockId",
+        "dir",
+        "indent"
+      ],
       "group": "block",
       "content": "inline*",
       "inline": false,
@@ -166,7 +314,9 @@
     },
     "poll": {
       "attrs": [
-        "id"
+        "blockId",
+        "id",
+        "indent"
       ],
       "group": "block",
       "content": null,
@@ -175,7 +325,9 @@
     },
     "recordingEmbed": {
       "attrs": [
+        "blockId",
         "egress",
+        "indent",
         "kind",
         "sid",
         "u1",
@@ -186,8 +338,43 @@
       "inline": false,
       "atom": true
     },
+    "subpage": {
+      "attrs": [
+        "blockId",
+        "docId",
+        "title"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "table": {
+      "attrs": [
+        "blockId"
+      ],
+      "group": "block",
+      "content": "tableRow+",
+      "inline": false,
+      "atom": false
+    },
+    "tableCell": {
+      "attrs": [
+        "background",
+        "blockId",
+        "colspan",
+        "colwidth",
+        "rowspan"
+      ],
+      "group": null,
+      "content": "block+",
+      "inline": false,
+      "atom": false
+    },
     "tableEmbed": {
       "attrs": [
+        "blockId",
+        "indent",
         "tableId",
         "viewId"
       ],
@@ -196,9 +383,34 @@
       "inline": false,
       "atom": true
     },
+    "tableHeader": {
+      "attrs": [
+        "background",
+        "blockId",
+        "colspan",
+        "colwidth",
+        "rowspan"
+      ],
+      "group": null,
+      "content": "block+",
+      "inline": false,
+      "atom": false
+    },
+    "tableRow": {
+      "attrs": [
+        "blockId"
+      ],
+      "group": null,
+      "content": "(tableCell | tableHeader)*",
+      "inline": false,
+      "atom": false
+    },
     "taskItem": {
       "attrs": [
-        "checked"
+        "blockColor",
+        "blockId",
+        "checked",
+        "taskId"
       ],
       "group": null,
       "content": "paragraph block*",
@@ -206,17 +418,52 @@
       "atom": false
     },
     "taskList": {
-      "attrs": [],
+      "attrs": [
+        "blockId",
+        "dir",
+        "indent"
+      ],
       "group": "block list",
       "content": "taskItem+",
       "inline": false,
       "atom": false
+    },
+    "taskListEmbed": {
+      "attrs": [
+        "blockId",
+        "projectId",
+        "show"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
     },
     "text": {
       "attrs": [],
       "group": "inline",
       "content": null,
       "inline": true,
+      "atom": true
+    },
+    "toc": {
+      "attrs": [
+        "blockId"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
+    },
+    "webEmbed": {
+      "attrs": [
+        "blockId",
+        "height",
+        "src"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
       "atom": true
     }
   },
@@ -226,6 +473,11 @@
     },
     "code": {
       "attrs": []
+    },
+    "highlight": {
+      "attrs": [
+        "color"
+      ]
     },
     "italic": {
       "attrs": []

@@ -79,9 +79,9 @@ const TOOL_CATALOG: ToolCatalogGroup[] = [
       { name: "send_message", label: "Post in a channel", write: true },
       { name: "send_dm", label: "Send a direct message", write: true },
       { name: "send_group_chat", label: "Message a group chat", write: true },
-      { name: "summarize_channel", label: "Summarize a channel", write: false },
-      { name: "summarize_dm", label: "Summarize a DM", write: false },
-      { name: "summarize_group_chat", label: "Summarize a group chat", write: false },
+      { name: "summarize_channel", label: "Summarise a channel", write: false },
+      { name: "summarize_dm", label: "Summarise a DM", write: false },
+      { name: "summarize_group_chat", label: "Summarise a group chat", write: false },
     ],
   },
   {
@@ -97,8 +97,8 @@ const TOOL_CATALOG: ToolCatalogGroup[] = [
     tools: [
       { name: "list_tables", label: "List tables", write: false },
       { name: "read_table", label: "Read a table", write: false },
-      { name: "query_table", label: "Analyze a table (totals & charts)", write: false },
-      { name: "query_plan", label: "Analyze a table in several steps (top-N, %, having)", write: false },
+      { name: "query_table", label: "Analyse a table (totals & charts)", write: false },
+      { name: "query_plan", label: "Analyse a table in several steps (top-N, %, having)", write: false },
       { name: "create_table_row", label: "Add a table row", write: true },
       { name: "update_table_row", label: "Update a table row", write: true },
     ],
@@ -109,8 +109,8 @@ const TOOL_CATALOG: ToolCatalogGroup[] = [
     tools: [
       { name: "list_data_sources", label: "List data sources", write: false },
       { name: "read_data_source", label: "Read a data source's schema", write: false },
-      { name: "query_data_source", label: "Analyze a data source (totals & charts)", write: false },
-      { name: "query_data_source_plan", label: "Analyze a data source in several steps (top-N, %, having)", write: false },
+      { name: "query_data_source", label: "Analyse a data source (totals & charts)", write: false },
+      { name: "query_data_source_plan", label: "Analyse a data source in several steps (top-N, %, having)", write: false },
     ],
   },
   {
@@ -129,12 +129,12 @@ const TOOL_CATALOG: ToolCatalogGroup[] = [
     group: "Code (GitHub, read-only)",
     note: "Read + understand the workspace's connected GitHub repo. Read-only, so safe to grant broadly.",
     tools: [
-      { name: "repo_summary", label: "Summarize the repo", write: false },
+      { name: "repo_summary", label: "Summarise the repo", write: false },
       { name: "search_repo_code", label: "Search code", write: false },
       { name: "read_repo_file", label: "Read a file", write: false },
       { name: "list_commits", label: "List commits", write: false },
       { name: "list_recent_changes", label: "List merged PRs", write: false },
-      { name: "code_analyze", label: "Analyze a bug / propose a fix", write: false },
+      { name: "code_analyze", label: "Analyse a bug / propose a fix", write: false },
     ],
   },
   {

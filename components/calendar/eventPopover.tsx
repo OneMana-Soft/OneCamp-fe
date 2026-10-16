@@ -1,5 +1,6 @@
 "use client";
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import { useMemo } from "react";
 import { differenceInMinutes, format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
 import { Calendar as CalendarIcon, Ellipsis, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
@@ -9,13 +10,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { displayNameOf } from "@/lib/personName";
-import { shortTime } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import { CALENDAR_HUE, hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import type { CalendarEventInterface } from "@/types/calendar";
-import { dayAndTime } from "@/lib/utils/date/dayAndTime";
+import { clockRange, dayAndTime } from "@/lib/utils/date/clock";
 
 /**
  * Clicking an event opens this (content.md C12, owner decision 4): a 360 px
@@ -99,7 +99,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
       ? `${format(info.start, "EEE d MMM")} · All day`
       : `${format(info.start, "EEE d MMM")} – ${format(lastDay, "EEE d MMM")}`
     : sameDay
-      ? `${format(info.start, "EEE d MMM")} · ${shortTime(info.start)} – ${shortTime(info.end)}`
+      ? `${format(info.start, "EEE d MMM")} · ${clockRange(info.start, info.end)}`
       : dayAndTime(info.start, info.end);
 
   return (
@@ -193,7 +193,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
               <dd className="flex min-w-0 items-center gap-2 text-ui-sm text-ink">
                 <span className="flex shrink-0 -space-x-1.5">
                   {guests.slice(0, 3).map((g) => (
-                    <IdentityMark key={g.user_uuid} variant="avatar" size={22} id={g.user_uuid} label={displayNameOf(g) || "Someone"} className="ring-2 ring-pop" />
+                    <IdentityMark key={g.user_uuid} variant="avatar" size={22} id={avatarSeed(g)} label={displayNameOf(g) || "Someone"} className="ring-2 ring-pop" />
                   ))}
                 </span>
                 <span className="truncate">{guestLine(names)}</span>
@@ -211,7 +211,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
           {event.event_created_by ? (
             <div className="flex min-h-7 items-center gap-2.5">
               <dt className="sr-only">Created by</dt>
-              <IdentityMark variant="avatar" size={16} id={event.event_created_by.user_uuid} label={displayNameOf(event.event_created_by) || "Someone"} />
+              <IdentityMark variant="avatar" size={16} id={avatarSeed(event.event_created_by)} label={displayNameOf(event.event_created_by) || "Someone"} />
               <dd className="truncate text-ui-sm text-ink-2">Created by {displayNameOf(event.event_created_by) || "someone"}</dd>
             </div>
           ) : null}

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
@@ -90,6 +92,32 @@ describe("the phone shell", () => {
     expect(container.querySelector("[data-large-title]")).toBeNull()
     expect(container.querySelector("[data-app-scroller]")?.hasAttribute("data-glow")).toBe(false)
     expect(screen.getByTestId("top").hasAttribute("data-glow")).toBe(false)
+  })
+
+  // The Channels tabs and the Inbox header are the page's own strip under the
+  // large title. Solid from the start, they cut the theme's glow off in a hard
+  // line across the screen (live demo, 11 Oct, every theme, light and dark).
+  it("keeps the strip under a large title clear over the glow until the title has passed", () => {
+    pathname = "/app/channel"
+    const { container } = render(
+      <MobileNavigationBar>
+        <div data-testid="page"><div className="sticky top-0 bg-sheet" data-testid="strip" /></div>
+      </MobileNavigationBar>,
+    )
+    const scroller = container.querySelector("[data-app-scroller]") as HTMLElement
+    expect(scroller.getAttribute("data-large-passed")).toBe("false")
+    const css = readFileSync(join(__dirname, "..", "..", "..", "app", "phone.css"), "utf8")
+    const rule = /\[data-app-scroller\]\[data-glow="true"\]\[data-large-passed="false"\] > \[data-large-title\] \+ \* > \.sticky:first-child \{\s*background-color: transparent;/
+    expect(css, "the strip's clear rule").toMatch(rule)
+    // Unlayered, or the strip's own bg utility wins.
+    const before = css.slice(0, css.search(rule))
+    const opened = (before.match(/@layer[^{]*\{/g) || []).length
+    const depth = [...before].reduce((d, ch) => (ch === "{" ? d + 1 : ch === "}" ? d - 1 : d), 0)
+    expect(depth, `the rule sits inside a block (${opened} layers opened before it)`).toBe(0)
+    cleanup()
+    pathname = "/app/home"
+    const home = render(<MobileNavigationBar><div /></MobileNavigationBar>).container
+    expect(home.querySelector("[data-app-scroller]")?.hasAttribute("data-large-passed")).toBe(false)
   })
 
   it("is the card a large sheet pushes back", () => {

@@ -9,6 +9,8 @@ import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryP
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { projectGlance, type ProjectGlance } from "@/lib/utils/projectGlance"
 import { cn } from "@/lib/utils/helpers/cn"
+import { openTotal } from "@/lib/board/columnTotals"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 
 /**
  * Where a project stands, in one meta row (design v3, work.md W16): "6 open ·
@@ -24,6 +26,10 @@ export function ProjectGlanceLine({ projectId, className, onGlance, onPick }: { 
   const query = GetTaskStatusQueryParamByStatus({ assigneeFilter: [], priorityFilter: [] })
   const { data } = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}?${query}` : "")
   const p = data?.data
+  // The server's count of open tasks, column by column (PROJ-BUG-8), once the
+  // project's statuses say which columns are open.
+  const { options } = useProjectStatuses(projectId)
+  const open = openTotal(p?.project_column_counts, options)
   const g = p
     ? projectGlance(
         [
@@ -36,6 +42,7 @@ export function ProjectGlanceLine({ projectId, className, onGlance, onPick }: { 
         ],
         new Date(),
         p.project_tasks_done_count,
+        open,
       )
     : null
   const told = useRef("")
@@ -49,9 +56,11 @@ export function ProjectGlanceLine({ projectId, className, onGlance, onPick }: { 
   // Its line held while it loads, so what's under it doesn't move when it arrives.
   if (!g) return <p aria-hidden className={cn("h-[18px] text-ui-sm", className)} />
   if (g.open === 0 && g.done === 0) return <p className={cn("text-ui-sm text-ink-2", className)}>No tasks yet</p>
-  const parts: { n: number; word: string; kind: GlanceKind; late?: boolean }[] = [{ n: g.open, word: "open", kind: "open" }]
-  if (g.overdue > 0) parts.push({ n: g.overdue, word: "overdue", kind: "overdue", late: true })
-  if (g.dueSoon > 0) parts.push({ n: g.dueSoon, word: "due this week", kind: "week" })
+  // With open tasks beyond those loaded, the date counts are at least what they say.
+  const atLeast = (n: number) => (g.partial ? `${n}+` : n)
+  const parts: { n: number | string; word: string; kind: GlanceKind; late?: boolean }[] = [{ n: g.open, word: "open", kind: "open" }]
+  if (g.overdue > 0) parts.push({ n: atLeast(g.overdue), word: "overdue", kind: "overdue", late: true })
+  if (g.dueSoon > 0) parts.push({ n: atLeast(g.dueSoon), word: "due this week", kind: "week" })
   if (g.done > 0) parts.push({ n: g.done, word: "done", kind: "done" })
   return (
     <p data-glance="" className={cn("flex min-w-0 items-center gap-[14px] whitespace-nowrap text-ui-sm text-ink-2", className)}>

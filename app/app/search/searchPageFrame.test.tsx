@@ -17,6 +17,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useClientConfig", async (orig) => ({ ...(await orig<typeof import("@/hooks/useClientConfig")>()), useAIAvailable: () => true }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
+const toasted = vi.hoisted(() => vi.fn(() => ({ id: "t", dismiss: () => {}, update: () => {} })))
+vi.mock("@/hooks/use-toast", async (orig) => ({ ...(await orig<typeof import("@/hooks/use-toast")>()), toast: toasted }))
 
 const task = (n: number) => ({ type: "task", task: { task_id: `t${n}`, task_name: `Launch task ${n}`, task_status: "todo", task_project_id: "p1", task_project_name: "Q4 launch", created_date: 1791614952 } })
 const doc = { type: "doc", doc: { doc_uuid: "d1", doc_title: "Q4 launch plan", created_date: 1791614952 } }
@@ -27,9 +29,11 @@ vi.mock("@/hooks/useSearch", () => ({
     setInputValue: vi.fn(),
     debouncedValue: state.debounced,
     results: state.results,
+    resultsFor: state.results.length ? state.debounced : "",
     isLoading: state.isLoading,
     isRefreshing: false,
     isError: state.isError,
+    isRetrying: false,
     retry: vi.fn(),
     handleResultClick: vi.fn(),
     handlePreview: vi.fn(),
@@ -112,12 +116,36 @@ describe("the search page", () => {
     expect(screen.queryByRole("button", { name: /Ask OneCamp AI/ })).toBeNull()
   })
 
-  it("says search failed in a sunken card, never that nothing matches", () => {
+  it("says this query's search failed, in place of the results, never that nothing matches", () => {
     state.isError = true
     render(<SearchPage />)
-    expect(screen.getByText("Search isn’t answering right now.")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Couldn't load results for “launch”" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Try again/ })).toBeTruthy()
     expect(screen.queryByText(/Nothing matches/)).toBeNull()
+    expect(document.querySelector("[data-search-results]")).toBeNull()
+  })
+
+  // Design review PG1-03 (14 Oct 2026): a failed search drew its own card and,
+  // at the same time, the global toast "Something went wrong". Said once.
+  it("says a failed search once: in its card, with no toast over it", async () => {
+    const { tellReadFailure, READ_FAILURE_BEAT_MS } = await import("@/lib/http/loadFailure")
+    vi.useFakeTimers()
+    try {
+      // With nothing on screen to say it, a failed read is a toast.
+      toasted.mockClear()
+      tellReadFailure({ response: { status: 503, data: { msg: "The server is busy" } } })
+      await vi.advanceTimersByTimeAsync(READ_FAILURE_BEAT_MS + 50)
+      expect(toasted).toHaveBeenCalledTimes(1)
+      // The failed search's card says it, and the toast stays quiet.
+      state.isError = true
+      render(<SearchPage />)
+      toasted.mockClear()
+      tellReadFailure({ response: { status: 500, data: { msg: "Search is down" } } })
+      await vi.advanceTimersByTimeAsync(READ_FAILURE_BEAT_MS + 50)
+      expect(toasted).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("never centres an empty state on the screen", () => {

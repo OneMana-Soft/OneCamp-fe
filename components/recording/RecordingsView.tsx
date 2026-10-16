@@ -3,14 +3,13 @@
 import { useCallback, useEffect, useState } from "react"
 import { useDispatch } from "react-redux"
 import { DateRange } from "react-day-picker"
-import { subDays } from "date-fns"
+import { format, subDays } from "date-fns"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
 import { useMedia } from "@/context/MediaQueryContext"
 import { openUI } from "@/store/slice/uiSlice"
 import { DateRangeField } from "@/components/dateRangePicker/dateRangeField"
-import { ErrorState } from "@/components/ui/error-state"
-import { EmptyState } from "@/components/ui/empty-state"
+import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/pageHeader"
@@ -117,7 +116,7 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                     mediaGetUrl: media,
                     transcriptGetUrl: transcript,
                     fileSize: rec.recording_size,
-                    fileName: `Recording-${date.toLocaleDateString()}-${date.toLocaleTimeString()}.mp4`,
+                    fileName: `Recording ${Number.isNaN(date.getTime()) ? "" : format(date, "yyyy-MM-dd HH.mm")}`.trim() + ".mp4",
                     recordedAt: rec.recording_stared_at,
                 },
             }),
@@ -140,7 +139,10 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
 
     return (
         <div data-recordings-view="" className="flex h-full min-h-0 flex-col bg-background">
-            <PageContainer className="h-auto shrink-0 px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
+            {/* The header spans the sheet, so the range sits on its right edge
+                as the Inbox's controls do; in the lists' 880px column it
+                floated two thirds of the way across (QA F-30). */}
+            <PageContainer bounded={false} className="h-auto shrink-0 px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
                 {isDesktop ? (
                     <PageHeader title="Recordings" actions={rangeField}>
                         <p className="text-sm text-muted-foreground">{subtitle}</p>
@@ -183,9 +185,11 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                             // Ahead of the empty answer: "no recordings in this
                             // range" would send someone changing dates to fix a
                             // request that failed.
-                            <ErrorState subject="the recordings" onRetry={() => void mutate()} />
+                            <HubError text="The recordings aren't loading. Nothing has been lost." onRetry={() => void mutate()} />
                         ) : (
-                            <EmptyState
+                            // Start-aligned where the rows begin, as every hub
+                            // empty is (A9); it was centred in its own box.
+                            <HubEmpty
                                 illustration={<SpotRecording />}
                                 title="No recordings in this range"
                                 description={`${subtitle} Pick earlier dates to look further back.`}
@@ -194,7 +198,6 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                                         Show the last 90 days
                                     </Button>
                                 }
-                                className="py-6"
                             />
                         )}
                     </div>

@@ -1,12 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 const BUDGET = { id: "8d78abe2-ad66-493c-9fe0-85a27b66a8bc", name: "Launch budget", visibility: "workspace", created_by: "", created_at: "", updated_at: "" }
 let tables: (typeof BUDGET)[] = [BUDGET]
+// AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
+const ai = vi.hoisted(() => ({ on: true }))
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
+  useAIAvailable: () => ai.on,
+}))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: tables }, isLoading: false, isError: undefined, mutate: vi.fn() }) }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+const { updateTable } = vi.hoisted(() => ({ updateTable: vi.fn() }))
+vi.mock("@/services/tableService", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/tableService")>()), updateTable }))
 
 import TablesPage from "./page"
 
@@ -27,6 +36,9 @@ describe("the tables list", () => {
     render(<TablesPage />)
     expect(screen.getByRole("heading", { name: "Make your first table" })).toBeTruthy()
     expect(screen.getAllByRole("button", { name: /New table/ }).length).toBeGreaterThan(0)
+    // One primary on the page: the header's. The tray's own button is secondary.
+    const primaries = screen.getAllByRole("button").filter((b) => /\bbg-brand\b/.test(b.className))
+    expect(primaries).toHaveLength(1)
     const svg = document.querySelector("[data-empty-illustration] svg")
     expect(svg?.getAttribute("class")).toContain("hue-moss")
   })
@@ -40,13 +52,6 @@ describe("the tables list", () => {
     expect(screen.getByRole("button", { name: "More for Launch budget" })).toBeTruthy()
   })
 
-  it("offers the AI bar's suggestions as chips that fill it", () => {
-    render(<TablesPage />)
-    fireEvent.click(screen.getByRole("button", { name: /Vendor list/ }))
-    const input = screen.getByRole("textbox", { name: "Describe a table for AI to build" }) as HTMLInputElement
-    expect(input.value).toMatch(/vendor list/i)
-  })
-
   it("filters the list from the search pill", () => {
     tables = [BUDGET, { ...BUDGET, id: "v", name: "Vendors" }]
     render(<TablesPage />)
@@ -55,3 +60,43 @@ describe("the tables list", () => {
     expect(screen.getByRole("link", { name: /Vendors/ })).toBeTruthy()
   })
 })
+
+// TAB-BUG-12: a rename from the list sent the list's whole copy of the table,
+// so a copy from before the table was made private put it back on show.
+describe("renaming a table from the list", () => {
+  it("sends the name alone", async () => {
+    updateTable.mockResolvedValue(BUDGET)
+    render(<TablesPage />)
+    const more = screen.getByRole("button", { name: "More for Launch budget" })
+    fireEvent.pointerDown(more, { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.keyDown(more, { key: "Enter" })
+    const rename = screen.getByRole("menuitem", { name: "Rename" })
+    fireEvent.pointerDown(rename)
+    fireEvent.click(rename)
+    const input = await screen.findByRole("textbox", { name: "Table name" })
+    fireEvent.change(input, { target: { value: "Launch budget 2027" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    await waitFor(() => expect(updateTable).toHaveBeenCalledWith(BUDGET.id, { name: "Launch budget 2027" }))
+  })
+})
+
+// This edition never offers to build a table with AI: whatever the server's
+// config says, there is no bar, no Generate and no suggestions (the bar was
+// on this edition, ungated, until 16 Oct 2026; app/noAiOnV1.test.ts reads the
+// source for it too).
+describe("the tables list on this edition", () => {
+  it.each([false, true])("offers no AI table builder (server says AI on: %s)", (on) => {
+    ai.on = on
+    try {
+      render(<TablesPage />)
+      expect(screen.queryByRole("textbox", { name: "Describe a table for AI to build" })).toBeNull()
+      expect(screen.queryByRole("button", { name: "Generate" })).toBeNull()
+      expect(document.querySelector("[data-ai-bar]")).toBeNull()
+      expect(screen.queryByText(/AI builds/)).toBeNull()
+    } finally {
+      ai.on = true
+    }
+  })
+})
+
+

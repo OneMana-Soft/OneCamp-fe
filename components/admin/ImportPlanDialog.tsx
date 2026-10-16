@@ -149,6 +149,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
     if (plan.team_count) out.push({ label: "Teams", value: n(plan.team_count) })
     if (plan.project_count) out.push({ label: "Projects", value: n(plan.project_count) })
     if (plan.task_count) out.push({ label: "Tasks", value: n(plan.task_count) })
+    if (plan.page_count) out.push({ label: "Docs", value: n(plan.page_count) })
     if (plan.subtask_count) out.push({ label: "Subtasks", value: n(plan.subtask_count) })
     if (plan.comment_count) out.push({ label: "Comments", value: n(plan.comment_count) })
     if (plan.file_count) out.push({ label: "Files", value: `${n(plan.file_count)} (${readableBytes(plan.file_bytes)})` })

@@ -12,6 +12,7 @@ import {DynamicTopicManager, mqttConfigRes, MqttConnectionState, TopicSubscripti
 import {useDispatch, useSelector} from "react-redux";
 import {updateUserConnectedDeviceCount, UserEmojiInterface} from "@/store/slice/userSlice";
 import { pruneStaleTyping } from "@/store/slice/typingSlice";
+import { TYPING_EXPIRY_MS, TYPING_STALE_MS } from "@/lib/typingTiming";
 import type {RootState} from "@/store/store";
 
 interface MqttContextValue {
@@ -53,7 +54,7 @@ const MQTT_CONNECTION_CONFIG = {
     wsPort: process.env.NODE_ENV !== "development" ? 8084 : 8083,
     reconnectInterval: 1000,
     // Reconnecting never gives up (lib/mqtt/reconnectDelay).
-    typingTimeout: 4000,
+    typingTimeout: TYPING_EXPIRY_MS,
 }
 
 export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
@@ -337,12 +338,11 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
      * every visibility-change so a returning tab converges to a clean
      * state on its very next render.
      *
-     * TTL is 1.5x the configured typingTimeout so we don't prune entries
+     * TTL is TYPING_STALE_MS, past the expiry, so we don't prune entries
      * that the per-message timer is already about to clear naturally.
      */
     useEffect(() => {
-        const ttlMs = Math.round(MQTT_CONNECTION_CONFIG.typingTimeout * 1.5)
-        const prune = () => dispatch(pruneStaleTyping({ ttlMs }))
+        const prune = () => dispatch(pruneStaleTyping({ ttlMs: TYPING_STALE_MS }))
 
         const interval = setInterval(prune, 2000)
         const onVisibility = () => {

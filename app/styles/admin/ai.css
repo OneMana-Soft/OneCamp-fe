@@ -255,6 +255,15 @@
     gap: 4px;
     overflow-x: auto;
   }
+  /* On a phone the six tabs scroll sideways; their right edge fades so the
+     cut tab ("Usa") reads as more to scroll to, not as a clipped word, and
+     28px of room at the end lets the last tab scroll clear of the fade. */
+  @media (max-width: 639.98px) {
+    .ai-tabs-list {
+      padding-right: 28px;
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+  }
   .ai-tab {
     display: inline-flex;
     align-items: center;
@@ -376,6 +385,9 @@
     top: 0;
     height: 1px;
     background: var(--line);
+  }
+  .ai-live-row[data-blocked="true"] {
+    background: color-mix(in oklab, var(--warning) 5%, transparent);
   }
   .ai-live-bar {
     position: absolute;

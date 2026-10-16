@@ -5,7 +5,7 @@ import type { GoalDetail, GoalSummary } from "@/lib/goals"
 // The goals list and a goal's page, with the server's answers stood in.
 
 const pushed: string[] = []
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: (u: string) => pushed.push(u) }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: (u: string) => pushed.push(u) }), usePathname: () => "/app/goals/g1", useSearchParams: () => new URLSearchParams() }))
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>
@@ -23,6 +23,7 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/useClientConfig", () => ({ useFeature: () => false, FEATURE_AI: "ai" }))
 vi.mock("@/hooks/useProjectsOverview", () => ({ useProjectsOverview: () => ({ projects: [] }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
 const summary = (id: string, over: Partial<GoalSummary> = {}): GoalSummary => ({
   id,
@@ -70,6 +71,7 @@ vi.mock("@/hooks/useGoals", () => ({
 
 const { GoalsView } = await import("@/components/goals/GoalsView")
 const { GoalPage } = await import("@/components/goals/GoalPage")
+const { DocumentTitle } = await import("@/components/common/DocumentTitle")
 
 afterEach(() => {
   cleanup()
@@ -113,11 +115,17 @@ describe("the goals list", () => {
     expect(screen.getAllByRole("row")[1].querySelector("[data-status-glyph='cancelled']")).not.toBeNull()
   })
 
-  it("says how far ahead or behind a goal is, in words", () => {
+  it("says how far ahead or behind a goal is, in words with their unit, as its page does (PTC-35)", () => {
     list = [summary("Ahead", { progress: 0.73, expected: 0.5 }), summary("Behind", { progress: 0.42, expected: 0.5 })]
     render(<GoalsView compact={false} />)
-    expect(screen.getByText("23 ahead").className).toContain("text-camp-moss-ink")
-    expect(screen.getByText("8 behind").className).toContain("text-danger-ink")
+    expect(screen.getByText("23 points ahead").className).toContain("text-camp-moss-ink")
+    expect(screen.getByText("8 points behind").className).toContain("text-danger-ink")
+  })
+
+  it("says the health is from the last check-in, beside a pace that may differ (PTC-36)", () => {
+    list = [summary("Reach 500", { progress: 0.61, expected: 0.5, health: "at_risk", checked_in_at: new Date().toISOString() })]
+    const { container } = render(<GoalsView compact={false} />)
+    expect(container.querySelector("[data-health-from='check-in']")?.getAttribute("title")).toBe("Health is from the last check-in")
   })
 
   it("on a phone, shows each goal's card with how far it is as a ring", () => {
@@ -154,6 +162,17 @@ describe("a goal's page", () => {
     hidden_projects: 0,
     subgoal_list: [],
     checkins: [],
+  })
+
+  it("names the browser tab after the goal (PTC-38)", () => {
+    goalHook.goal = detail()
+    render(
+      <>
+        <DocumentTitle />
+        <GoalPage goalId="g1" />
+      </>,
+    )
+    expect(document.title).toBe("Reach 500 paying teams · OneCamp")
   })
 
   it("says how far it got against its time", () => {
@@ -226,7 +245,8 @@ describe("a number goal's check-in", () => {
       onDone: vi.fn(),
     }
     const { rerender } = render(<UpdateComposer {...props} number={{ current: 410, unit: "teams" }} />)
-    await waitFor(() => expect((screen.getByLabelText(/Drafted from what serves the goal/) as HTMLTextAreaElement).value).toBe("Now at 410 teams."))
+    // The draft opens under a line of its own for typing (PTC-23), as a project update's does.
+    await waitFor(() => expect((screen.getByLabelText(/Drafted from what serves the goal/) as HTMLTextAreaElement).value).toBe("\n\nNow at 410 teams."))
     // Someone else moved it to 450 while this was open; the field wasn't touched.
     rerender(<UpdateComposer {...props} number={{ current: 450, unit: "teams" }} />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check in" })))
@@ -254,5 +274,17 @@ describe("a goal's owner", () => {
     const initials = screen.getByText("MC")
     expect(initials.className).toContain(HUE_CLASS[hueFor("Maya Chen")])
     expect(initials.className).toContain("avatar-person")
+  })
+})
+
+// PTC-37: a new goal's dates were browser date inputs (mm/dd/yyyy in a US
+// browser), unlike every other date in the app.
+describe("a goal's dates", () => {
+  it("are picked with the app's date picker, named for what they are", async () => {
+    const { GoalDialog } = await import("@/components/goals/GoalDialog")
+    const { container } = render(<GoalDialog goals={[]} onClose={() => {}} onSaved={() => {}} />)
+    expect(container.ownerDocument.querySelector("input[type=date]")).toBeNull()
+    expect(screen.getByRole("button", { name: /^Due: / })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Starts: none" })).toBeTruthy()
   })
 })

@@ -10,23 +10,24 @@ import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
 import {FlatItem, RowMeta} from "@/types/virtual";
 import {useMedia} from "@/context/MediaQueryContext";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
+import { useDeleteMessage } from "@/hooks/useDeleteMessage";
+import { REACTION_NOT_ADDED, REACTION_NOT_REMOVED } from "@/lib/chat/reactionNotAdded";
 import {CreateOrUpdateChatReaction} from "@/types/reaction";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector, useStore} from "react-redux";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
-import {openUI} from "@/store/slice/uiSlice";
 import {MessageListVirtua} from "@/components/message/MessaageListVirtua";
 import { mentionsUser } from "@/components/message/tintMentions";
 import {VListHandle} from "virtua";
 import {RootState} from "@/store/store";
-import {ChatInfo, CreateOrUpdateChatsReq} from "@/types/chat";
+import {ChatInfo} from "@/types/chat";
 import {
-    createGroupChatReactionChatId, removeGroupChatByChatId,
-    removeGroupChatReactionByChatId, updateGroupChatByChatId,
-    updateGroupChatReactionByChatId, updateGroupChatScrollToBottom, updateGroupChatReactionId
+    createGroupChatReactionChatId,
+    removeGroupChatReactionByChatId, updateGroupChatReactionByChatId, updateGroupChatScrollToBottom, updateGroupChatReactionId
 } from "@/store/slice/groupChatSlice";
-import {updateChatScrollPosition, RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/slice/chatSlice";
+import {updateChatScrollPosition} from "@/store/slice/chatSlice";
 import {GroupChatMessage} from "@/components/groupChat/groupChatMessage";
 import {ScrollToBottom} from "@/store/slice/channelSlice";
 import {GroupChatMessageMobile} from "@/components/groupChat/groupChatMessageMobile";
@@ -35,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { GroupEmpty } from "@/components/message/emptyConversations";
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
 import { hueFor } from "@/lib/campHue";
+import { messageSummary } from "@/lib/chat/messageSummary";
 
 
 interface ChannelMessagesProps {
@@ -49,17 +51,20 @@ interface ChannelMessagesProps {
     clickedScrollToBottom: () => void;
     /** Unread when the conversation was opened: the "New" line goes above the first of them. */
     unreadOnOpen?: number;
-
+    /** Set when the older page failed: the list offers Try again (SD-BUG-1). */
+    retryOlder?: () => void
 }
 
 const EMPTY_SCROLL_TO_BOTTOM: ScrollToBottom = { shouldScrollToBottom: false }
 
-export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen }: ChannelMessagesProps) => {
+export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen, retryOlder }: ChannelMessagesProps) => {
     const { isMobile } = useMedia();
 
     const pendingReactionDeletes = useRef<Set<string>>(new Set())
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
+    const deleteMessage = useDeleteMessage()
 
     const { toast } = useToast()
     const dispatch = useDispatch();
@@ -110,12 +115,19 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                 chat_id: messageId,
                 reaction_emoji_id: emojiId,
                 reaction_dgraph_id: reactionId
-            }})
+            },
+            // A refusal says so in the error toast (QA F-14).
+            showErrorToast: true,
+            failureTitle: REACTION_NOT_ADDED.title,
+        })
             .then((res) => {
                 // An answer without the new reaction's id is a failure too: the
                 // pill goes back and a toast says so (design v3 chat, C21). It
                 // used to stay forever, or take the conversation down.
-                if (!reactionId && !res?.reaction_dgraph_id) throw new Error("no reaction id")
+                if (!reactionId && !res?.reaction_dgraph_id) {
+                    toast(REACTION_NOT_ADDED)
+                    throw new Error("no reaction id")
+                }
                 if(reactionId) {
                    // Success
                 } else if (res?.reaction_dgraph_id && selfProfile.data?.data){
@@ -136,7 +148,6 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                 }
             })
             .catch(() => {
-                toast({ title: "Couldn't add the reaction. Try again" })
                 // Revert
                 if (reactionId) {
                     if (oldEmojiId) {
@@ -167,7 +178,10 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
             payload :{
                 chat_id: messageId,
                 reaction_dgraph_id: reactionId
-            }})
+            },
+            showErrorToast: true,
+            failureTitle: REACTION_NOT_REMOVED,
+        })
             .then(()=>{
                // Success
             })
@@ -185,87 +199,21 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
             })
     })
 
+    // It leaves at once, with its sidebar preview; a refused delete puts both
+    // back, as in a channel or a DM (QA F-02).
     const executeDeleteChat = (messageId: string) => {
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.DeleteChatMessage,
-            payload: {
-               chat_id: messageId
-            },
-            showToast: true
-        })
-            .then(() => {
-                // Compute fallback before removal
-                const remaining = chats.filter(m => m.chat_uuid !== messageId);
-                const fallback = remaining.length > 0 ? remaining[remaining.length - 1] : null;
-
-                dispatch(removeGroupChatByChatId({grpId, messageId}))
-                // Sync sidebar preview
-                dispatch(RemoveMessageFromChatList({
-                    grpId: grpId,
-                    messageId,
-                    chatKey: grpId,
-                    fallbackMessage: fallback,
-                }))
-            })
-
+        void deleteMessage({ kind: "group", grpId, id: messageId })
     }
 
-    const handleUpdateChat = useStableCallback((postHTMLText: string, messageId: string) => {
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.UpdateGroupChatMessage,
-            payload: {
-                chat_id: messageId,
-                text_html: postHTMLText,
-                grp_id: grpId
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateGroupChatByChatId({
-                        grpId,
-                        messageId,
-                        htmlText: postHTMLText,
-                    }))
-                    // Sync sidebar preview
-                    dispatch(UpdateMessageTextInChatList({
-                        grpId: grpId,
-                        messageId,
-                        htmlText: postHTMLText,
-                    }))
-                }
-
-            })
-        
-    })
+    // A correction shows at once and, when its save fails, goes back with
+    // the box open on what was typed (hooks/useSaveEdit, F-06, F-07).
+    const handleUpdateChat = useStableCallback((html: string, messageId: string) => saveEdit({ kind: "group", grpId, id: messageId }, html))
 
 
-    // On a computer, deleting is confirmed in place, inside the message's
-    // More menu (MessageDesktopDropdown, C20); the phone keeps its dialog.
+    // Deleting is confirmed in place, where Delete was chosen: a computer's
+    // More menu (MessageDesktopDropdown, C20), a phone's sheet (SD-5).
     const deleteNow = useStableCallback((id: string) => {
         if (id) executeDeleteChat(id)
-    })
-
-    const handleDeleteChat = useStableCallback((messageId: string) => {
-
-        if(!messageId) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this message?",
-                    description: "It's removed from the conversation for everyone. This can't be undone.",
-                    confirmText: "Delete message",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChat(messageId)}
-                }
-            }));
-        }, 500);
-
     })
 
     const groupedChats = useMemo(() => {
@@ -304,10 +252,10 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                 <>
                     <GroupChatMessageMobile
                         chatInfo={chat}
-                        removeChat={()=>{handleDeleteChat(chat.chat_uuid)}}
+                        removeChat={() => { deleteNow(chat.chat_uuid) }}
                         addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                         removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
-                        updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
+                        updateChat={(body: string) => handleUpdateChat(body, chat.chat_uuid)}
                         priority={priority}
                         continued={continued}
                         arrived={arrived}
@@ -320,7 +268,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                     addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                     removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                     removePost={() => { deleteNow(chat.chat_uuid) }}
-                    updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
+                    updatePost={(body: string) => handleUpdateChat(body, chat.chat_uuid)}
                     grpId={grpId}
                     priority={priority}
                     continued={continued}
@@ -329,13 +277,16 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
             }
             {isLast && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    ), [isMobile, grpId, hasMoreNewMsg, receiptTarget, handleDeleteChat, deleteNow, createOrUpdateReaction, removeReaction, handleUpdateChat]);
+    ), [isMobile, grpId, hasMoreNewMsg, receiptTarget, deleteNow, createOrUpdateReaction, removeReaction, handleUpdateChat]);
 
     // The row that can't be drawn offers its words; the jump pill counts
     // what arrived for the reader.
     const rawText = useCallback((m: ChatInfo) => m.chat_body_text, [])
     const selfIdForPill = selfProfile.data?.data?.user_uuid
     const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill), [selfIdForPill])
+    // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
+    const rowLabel = useCallback((m: ChatInfo) => messageSummary({ from: m.chat_from, at: m.chat_created_at, html: m.chat_body_text, files: m.chat_attachments?.length }), [])
+    const isOwn = useCallback((m: ChatInfo) => !!selfIdForPill && m.chat_from?.user_uuid === selfIdForPill, [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null);
 
@@ -389,6 +340,10 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
         renderItem={renderItem}
         rawText={rawText}
         isForMe={isForMe}
+        label="Messages in this group chat"
+        rowLabel={rowLabel}
+        isOwn={isOwn}
+        retryOlder={retryOlder}
         getDateHeading={getGroupDateHeading}
         fetchOlderMessage={getOldMessages}
         fetchNewMessage={handleGetNewMessage}
@@ -404,6 +359,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
         empty={
             <GroupEmpty grpId={grpId} />
         }
+        start={<GroupEmpty grpId={grpId} start />}
         />
 
 

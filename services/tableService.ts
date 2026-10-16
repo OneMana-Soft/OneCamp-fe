@@ -1,6 +1,8 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { readPages } from "@/lib/http/readPages"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { numberSigns } from "@/lib/format/number"
 
 // Tables client: a first-class, Notion-style structured-data entity. A table
 // has fields (columns), rows, and saved views (grid/board/calendar). All
@@ -21,20 +23,38 @@ export type FieldType =
   | "formula"
   | "rollup"
 
-// A relation cell stores an array of these refs (id + cached label + entity
-// type) so the grid renders without resolving each entity on every load. A
-// link to a table's row is stored by id alone, and the server sends it with
-// the row's current name and its table.
+// A relation cell holds an array of these refs. A row keeps only {id, type};
+// the server reads each item's current name for each reader as it sends the
+// row, and an item the reader can't open comes without one, as hidden. A link
+// to a table's row comes with the row's current name and its table.
 export interface RelationRef {
   id: string
-  label: string
+  /** The item's name, when the reader may open it. */
+  label?: string
   type: string
   table_id?: string
+  /** The reader can't open the item: it shows as "Something you can't open", never by name or id. */
+  hidden?: boolean
 }
 
 /** Whether a relation cell's item counts the links past those shown ("50 more"), rather than being one. */
 export function isMoreRef(v: unknown): boolean {
   return !!v && typeof v === "object" && (v as { type?: unknown }).type === "more"
+}
+
+/** Whether a relation cell's item is one the reader can't open, which the server sends without its name. */
+export function isHiddenRef(v: unknown): boolean {
+  return !!v && typeof v === "object" && (v as { hidden?: unknown }).hidden === true
+}
+
+/**
+ * A relation cell as a write sends it: each item's id and type, the hidden
+ * ones too (a reader never unlinks what they can't see), and no names, which
+ * the server reads afresh for each reader. The count of links not shown isn't
+ * an item.
+ */
+export function relationWrite(refs: RelationRef[]): { id: string; type: string }[] {
+  return refs.filter((r) => !isMoreRef(r) && !!r.id).map((r) => ({ id: r.id, type: r.type }))
 }
 
 export type RelationTarget = "task" | "doc" | "board" | "user" | "project" | "any" | "table"
@@ -59,6 +79,8 @@ export interface TableRow {
   created_by?: string | null
   created_at: string
   updated_at: string
+  /** AI columns whose cell in this row a person wrote: a fill leaves them be until someone asks for it again. */
+  ai_kept?: string[]
 }
 
 export interface TableView {
@@ -90,12 +112,47 @@ export interface TableBundle {
   mqtt_topic: string
   /** The table has more rows than the bundle's first page carries. */
   rows_truncated?: boolean
+  /** How many rows the table has, all of them. */
+  row_count?: number
 }
 
-// Field select option, stored in field.config.options for select/multi_select.
+// A select option as field.config.options keeps it for select/multi_select.
+// Cells hold its label; it is known by its id, so a rename moves the cells
+// with it. One saved before options had ids has none (optionsOf).
 export interface SelectOption {
+  id?: string
   label: string
   color?: string
+}
+
+/** A select option with its id. */
+export type FieldOption = SelectOption & { id: string }
+
+/**
+ * The id an option saved without one goes by, here and on the server: its
+ * label, which is unique in its field. Saving the field keeps it as the id.
+ */
+export const legacyOptionId = (label: string) => `label:${label}`
+
+const optionsWithIds = new WeakMap<SelectOption[], FieldOption[]>()
+
+/** A select field's options, each with its id. */
+export function optionsOf(f: TableField): FieldOption[] {
+  const options = parseFieldConfig(f).options
+  if (!Array.isArray(options)) return []
+  let out = optionsWithIds.get(options)
+  if (!out) {
+    out = options.map((o) => ({ ...o, id: o.id || legacyOptionId(o.label) }))
+    optionsWithIds.set(options, out)
+  }
+  return out
+}
+
+/** An id for an option made here: "o_" and ten random characters. */
+export function newOptionId(): string {
+  const bytes = new Uint8Array(10)
+  crypto.getRandomValues(bytes)
+  return `o_${Array.from(bytes, (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("")}`
 }
 
 // A field's config, parsed once per field object and config text: every cell
@@ -198,6 +255,11 @@ export function computedOf(f: TableField): { result: FormulaResult; error?: stri
   return { result, error }
 }
 
+/** Whether a field holds numbers: a number column, or a formula or a rollup that gives one. */
+export function isNumeric(f: TableField): boolean {
+  return f.type === "number" || (isComputed(f) && computedOf(f).result === "number")
+}
+
 /** Why a field can't be worked out or link where it should, if it can't: a formula, a rollup or a relation to a table. */
 export function fieldProblem(f: TableField): string | undefined {
   if (isComputed(f)) return computedOf(f).error
@@ -213,11 +275,6 @@ function inZone(path: string): string {
 // The key a table's bundle is fetched and cached under.
 export function tableBundleKey(tableId: string): string {
   return inZone(`${GetEndpointUrl.GetTable}/${tableId}`)
-}
-
-/** Where a new row goes: after every row there is. */
-export function nextRowPosition(rows: TableRow[]): number {
-  return rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 0
 }
 
 export function parseRowValues(r: TableRow): Record<string, unknown> {
@@ -248,11 +305,17 @@ export async function createTable(input: {
   return res.data?.data as DataTable
 }
 
+/**
+ * Changes a table's own settings: only those given, at least one. The page
+ * and the list sent all four from their copy of the table, so a copy from
+ * before someone made it private put it back on show to the workspace with a
+ * rename (TAB-BUG-12).
+ */
 export async function updateTable(
   id: string,
-  input: { name: string; description?: string; icon?: string; visibility?: Visibility },
+  change: { name?: string; description?: string; icon?: string; visibility?: Visibility },
 ): Promise<DataTable> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateTable}/${id}/update`, input)
+  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateTable}/${id}/update`, change)
   return res.data?.data as DataTable
 }
 
@@ -260,38 +323,67 @@ export async function deleteTable(id: string): Promise<void> {
   await axiosInstance.post(`${PostEndpointUrl.DeleteTable}/${id}/delete`)
 }
 
-// generateTable builds a full table (typed columns + seed rows) from a
-// natural-language prompt, server-side via AI, and returns it.
-export async function generateTable(prompt: string): Promise<DataTable> {
-  const res = await axiosInstance.post(PostEndpointUrl.GenerateTable, { prompt })
-  return res.data?.data as DataTable
-}
-
 // ───────────── rows ─────────────
 
-export async function createRow(
-  tableId: string,
-  values: Record<string, unknown>,
-  position = 0,
-): Promise<TableRow> {
-  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.CreateTableRow}/${tableId}/rows`), {
-    values,
-    position,
-  })
+/**
+ * Adds a row. The server puts it after every row there is, wherever the
+ * reader's page has got to: a place worked out here came from the rows the
+ * page held, and a row placed after them was lost past the 500th. A table
+ * being made from rows sent at once (a doc's table turned into one) names
+ * each row's place, to keep their order.
+ */
+export async function createRow(tableId: string, values: Record<string, unknown>, position?: number): Promise<TableRow> {
+  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.CreateTableRow}/${tableId}/rows`), position === undefined ? { values } : { values, position })
   return res.data?.data as TableRow
 }
 
-export async function updateRow(
-  tableId: string,
-  rowId: string,
-  values: Record<string, unknown>,
-  position = 0,
-): Promise<TableRow> {
-  const res = await axiosInstance.post(
-    inZone(`${PostEndpointUrl.UpdateTableRow}/${tableId}/rows/${rowId}/update`),
-    { values, position },
-  )
+/**
+ * Sets the cells given, and only those: the row's other cells and its place
+ * stay as they are on the server, whatever this reader's copy says. A whole
+ * row sent back from a copy put back what someone else had written since.
+ */
+export async function patchRow(tableId: string, rowId: string, values: Record<string, unknown>): Promise<TableRow> {
+  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.PatchTableRow}/${tableId}/rows/${rowId}/patch`), { values })
   return res.data?.data as TableRow
+}
+
+/**
+ * A page of a table's rows, in the table's order: `limit` rows from the
+ * `offset`th (the server answers at most 1,000). Quiet when it fails: the
+ * page reading it says so where the rows would be.
+ */
+export async function listRows(tableId: string, offset: number, limit: number, signal?: AbortSignal): Promise<TableRow[]> {
+  const res = await axiosInstance.get(inZone(`${GetEndpointUrl.GetTableRows}/${tableId}/rows?limit=${limit}&offset=${offset}`), { ...OWN_ERRORS, signal })
+  return (res.data?.data as TableRow[] | null) ?? []
+}
+
+/** Rows each read of a whole table asks for: the most the server answers. */
+const EVERY_ROW_PAGE = 1000
+
+/**
+ * Every row of a table, read page by page from the first (Export CSV), each
+ * once. onProgress hears how many have been read.
+ */
+export async function readEveryRow(tableId: string, opts: { onProgress?: (read: number) => void; signal?: AbortSignal } = {}): Promise<TableRow[]> {
+  const { items } = await readPages((offset, limit) => listRows(tableId, offset, limit, opts.signal), {
+    pageSize: EVERY_ROW_PAGE,
+    concurrency: 2,
+    onProgress: opts.onProgress,
+    signal: opts.signal,
+  })
+  return eachRowOnce(items)
+}
+
+/** Rows in order, each once: a row read twice where a page met the next (the table changed between reads) keeps its first place. */
+export function eachRowOnce(rows: TableRow[]): TableRow[] {
+  const seen = new Set<string>()
+  const out: TableRow[] = []
+  for (const r of rows) {
+    if (seen.has(r.id)) continue
+    seen.add(r.id)
+    out.push(r)
+  }
+  return out.length === rows.length ? rows : out
 }
 
 export async function deleteRow(tableId: string, rowId: string): Promise<void> {
@@ -347,10 +439,13 @@ export interface AggregateResult {
 export async function aggregateTable(
   tableId: string,
   query: AggregateQuery,
+  /** OWN_ERRORS when the caller says a failure itself. */
+  config?: typeof OWN_ERRORS,
 ): Promise<AggregateResult> {
   const res = await axiosInstance.post(
     inZone(`${PostEndpointUrl.AggregateTable}/${tableId}/aggregate`),
     query,
+    config,
   )
   return res.data?.data as AggregateResult
 }
@@ -365,14 +460,33 @@ export async function createField(
   return res.data?.data as TableField
 }
 
-export async function updateField(
-  tableId: string,
-  fieldId: string,
-  input: { name: string; type: FieldType; config?: Record<string, unknown>; position?: number },
-): Promise<void> {
+/**
+ * A change to a field: only what it names. The server keeps the stored value
+ * of whatever a save leaves out, so a rename is `{name}`, a move
+ * `{position}`, a setting `{config}` (with `removed_options` to take options
+ * out) and a type change `{type, config}`, from the type picker. A save of
+ * the page's copy put back what had changed since it was read: a stale type
+ * turned a column changed meanwhile back (audit B1), a stale place undid a
+ * move, a stale name a rename.
+ */
+export interface FieldPatch {
+  name?: string
+  type?: FieldType
+  config?: Record<string, unknown>
+  position?: number
+}
+
+/**
+ * Saves a field's patch, sending only the keys it names; one naming nothing
+ * sends nothing. A type change carries the reader's number signs, so a column
+ * made numbers reads "1,5" as the reader writes it (audit B3).
+ */
+export async function updateField(tableId: string, fieldId: string, patch: FieldPatch): Promise<void> {
+  const body: Record<string, unknown> = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+  if (!Object.keys(body).length) return
   await axiosInstance.post(
     `${PostEndpointUrl.UpdateTableField}/${tableId}/fields/${fieldId}/update`,
-    input,
+    patch.type ? { ...body, ...numberSigns() } : body,
   )
 }
 
@@ -390,6 +504,23 @@ export async function previewFormula(tableId: string, formula: string, fieldId?:
     field_id: fieldId,
   })
   return res.data?.data as FormulaPreview
+}
+
+/** What changing a field's type would do to its cells: kept as they are, converted, and values cleared. */
+export interface ConvertCounts {
+  kept: number
+  converted: number
+  cleared: number
+}
+
+/**
+ * What changing a field's type would do to its cells, counted by the server
+ * over every row, without changing anything: what the column menu says
+ * before it asks. Quiet when it fails: the menu says so.
+ */
+export async function previewConversion(tableId: string, fieldId: string, type: FieldType): Promise<ConvertCounts> {
+  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateTableField}/${tableId}/fields/${fieldId}/convert-preview`, { type, ...numberSigns() }, OWN_ERRORS)
+  return res.data?.data as ConvertCounts
 }
 
 export async function deleteField(tableId: string, fieldId: string): Promise<void> {
@@ -426,15 +557,16 @@ export async function pickRows(tableId: string, q: string): Promise<{ id: string
 }
 
 /**
- * A row's values as a whole-row write sends them: without what the server
- * works out on each read (formulas, rollups) or keeps apart (links to tables'
- * rows, which change through changeLinks), so saving one cell never undoes
- * another's links.
+ * A row's values as a copy of it is written (Duplicate): without what the
+ * server works out on each read (formulas, rollups) or keeps apart (links to
+ * tables' rows, which change through changeLinks), and links to items as
+ * their ids alone.
  */
 export function writableValues(fields: TableField[], values: Record<string, unknown>): Record<string, unknown> {
   const out = { ...values }
   for (const f of fields) {
     if (isComputed(f) || (f.type === "relation" && relationOf(f).target === "table")) delete out[f.id]
+    else if (f.type === "relation" && Array.isArray(out[f.id])) out[f.id] = relationWrite(out[f.id] as RelationRef[])
   }
   return out
 }

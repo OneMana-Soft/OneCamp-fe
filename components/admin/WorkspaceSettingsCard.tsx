@@ -17,7 +17,6 @@ import { ChevronDown } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { updateWorkspaceSettings, useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { appMutate as globalMutate } from "@/lib/swrMutate"
-import { serverMessage } from "@/lib/http/serverMessage"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { AllowListChipInput } from "@/components/admin/AllowListChipInput"
 import { PUBLIC_DOMAIN_LINE, entryProblem, isPublicDomain } from "@/components/admin/allowListEntries"
@@ -104,7 +103,7 @@ export default function WorkspaceSettingsCard() {
                     const s = await updateWorkspaceSettings({ allowed_users: draft.allowedUsers }, { ownErrors: true })
                     if (s) await store(s)
                 } catch (err) {
-                    setAccessRefusal(serverMessage(err, "Couldn't save the allow-list. Try again."))
+                    setAccessRefusal(apiErrorMessage(err, "Couldn't save the allow-list. Try again."))
                     listRef.current?.focus()
                     return
                 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 let admin = true
 let caps: string[] = []
@@ -21,14 +21,19 @@ let pausedUntil: Date | null = null
 let themeSet: string[] = []
 const started: number[] = []
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil, focusUntil }) }))
-vi.mock("react-redux", () => ({ useSelector: () => undefined }))
+const dispatched: unknown[] = []
+vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => (a: unknown) => dispatched.push(a) }))
 vi.mock("@/hooks/useStartFocus", () => ({ useStartFocus: () => ({ startFocus: async () => (started.push(1), true), starting: false }) }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/components/navigationBar/mobile/phoneSelfAvatar", () => ({
     PhoneSelfAvatar: ({ focus, paused }: { focus?: boolean; paused?: boolean }) => <span data-avatar="" data-focus={focus || undefined} data-paused={paused || undefined} />,
 }))
+let pauseSheet: { open: boolean; onOpenChange: (o: boolean) => void } | null = null
 vi.mock("@/components/notifications/PauseNotificationsDialog", () => ({
-    PauseNotificationsDialog: () => null,
+    PauseNotificationsDialog: (p: { open: boolean; onOpenChange: (o: boolean) => void }) => {
+        pauseSheet = p
+        return p.open ? <div data-testid="pause-sheet" /> : null
+    },
     pauseMenuLabel: () => "Pause notifications…",
 }))
 
@@ -155,6 +160,31 @@ describe("the More sheet's You section", () => {
         const out = screen.getByRole("button", { name: "Sign out" })
         expect(out.className).toMatch(/text-danger-ink/)
         expect(out.className).not.toMatch(/bg-destructive/)
+    })
+
+    // A phone had no way to set a status short of Settings > Profile; the
+    // desktop's profile menu has it first.
+    it("sets your status from the sheet, as the profile menu does", () => {
+        const setOpen = vi.fn()
+        dispatched.length = 0
+        render(<UserProfileDrawer drawerOpenState={true} setOpenState={setOpen} />)
+        fireEvent.click(screen.getByRole("button", { name: "Set a status" }))
+        expect(dispatched).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ key: "userStatusUpdate" }) }))
+        expect(setOpen).toHaveBeenCalledWith(false)
+    })
+
+    // The sheet unmounts when it closes, and the pause sheet lived inside it:
+    // the row opened it and closed the sheet in one go, so on a phone
+    // "Pause notifications…" did nothing at all.
+    it("hands over to the pause sheet, and closes only once that is done", () => {
+        const setOpen = vi.fn()
+        render(<UserProfileDrawer drawerOpenState={true} setOpenState={setOpen} />)
+        fireEvent.click(screen.getByRole("button", { name: "Pause notifications…" }))
+        expect(screen.getByTestId("pause-sheet")).toBeTruthy()
+        expect(setOpen).not.toHaveBeenCalled()
+        act(() => pauseSheet!.onOpenChange(false))
+        expect(setOpen).toHaveBeenCalledWith(false)
+        expect(screen.queryByTestId("pause-sheet")).toBeNull()
     })
 })
 

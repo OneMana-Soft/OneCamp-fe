@@ -1,0 +1,41 @@
+/*
+ * A message body's own finishing (design v3 chat, §2.2), over the editor's
+ * stylesheet. Each selector carries .minimal-tiptap-editor and .chat-body, one
+ * class more than the editor's own rules, so it holds whatever order the two
+ * files load in. chatBodyCss.test.ts reads this file.
+ */
+
+/* Code in a message: mono 13/20 on the sunken surface, r8, a hairline drawn as
+   an inset ring and 10/12 of padding. The editor's code block added its own
+   1px border and 14px more padding inside ours, a boxed slab twice as roomy
+   as the spec's. */
+.chat-body .minimal-tiptap-editor .ProseMirror pre {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background-color: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13px;
+  line-height: 20px;
+}
+.chat-body .minimal-tiptap-editor .ProseMirror pre code {
+  padding: 0;
+  line-height: 20px;
+}
+
+/* Inline code: the press overlay at r4, no border. */
+.chat-body .minimal-tiptap-editor .ProseMirror :not(pre) > code {
+  border: 0;
+  border-radius: 4px;
+  background-color: var(--press);
+  padding: 1px 4px;
+}
+
+/* A mention of you, in the row that mentions you (C14): the row is already
+   on the accent's soft ground, so the chip's own brand-muted fill vanished
+   into it (1.04:1) and its padding read as two stray spaces around the name.
+   Inside that row the chip keeps its fill and its text, and gains a hairline
+   of the accent, so it reads as a chip again. */
+[data-for-me] .chat-body .minimal-tiptap-editor span[data-type="mention"].mention-me {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 24%, transparent);
+}

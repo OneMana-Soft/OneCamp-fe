@@ -1,9 +1,20 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import "@/components/docEditor/registry"
+import { actionGroupsFor } from "@/components/docEditor/registry/readers"
+import { createDocCommandBus } from "@/components/docEditor/registry/commandBus"
+import { MORE_GROUPS } from "@/components/docEditor/actions/doc"
 
 // The doc page's own chrome, read from its source: what a screen reader is
 // told, what floats, and where a dead end leads.
+// A7"s export items ask the API what this member may export; not here.
+vi.mock("@/lib/export/contentIO", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/export/contentIO")>()),
+  knownCapabilities: () => null,
+  loadCapabilities: async () => null,
+}))
+
 const src = readFileSync(join(__dirname, "DocView.tsx"), "utf8")
 const header = readFileSync(join(__dirname, "../docEditor/DocHeader.tsx"), "utf8")
 
@@ -15,8 +26,12 @@ describe("the doc page", () => {
   })
 
   it("keeps the occasional actions in More, and Share as the one secondary button", () => {
+    // More draws what is registered for it (components/docEditor/actions).
+    expect(header).toMatch(/actionGroupsFor\("more", actions\(\), MORE_GROUPS\)/)
+    const ctx = { docId: "d", editor: {} as never, canEdit: true, bus: createDocCommandBus("d"), gate: { ai: false }, state: { desktop: true } }
+    const more = actionGroupsFor("more", ctx, MORE_GROUPS).flatMap((g) => g.actions.map((a) => a.label))
     for (const item of ["Save for later", "Focus mode", "Full width", "Version history", "Viewed by", "Export as Markdown", "Keyboard shortcuts"]) {
-      expect(header).toContain(item)
+      expect(more).toContain(item)
     }
     expect(header).toMatch(/<Button variant="secondary" size="sm" onClick=\{onShare\}/)
   })
@@ -34,9 +49,9 @@ describe("the doc page", () => {
 
   it("offers a way back from a doc that isn't there, instead of a bare sentence", () => {
     expect(src).not.toMatch(/Document not found or access denied/)
-    const missing = src.slice(src.indexOf("if (!docInfo)"), src.indexOf("const editorCollaborationProp"))
-    expect(missing).toMatch(/<EmptyState/)
-    expect(missing).toMatch(/href="\/app\/doc"/)
+    const missing = src.slice(src.indexOf("if (!docInfo)"), src.indexOf('data-doc-view=""'))
+    expect(missing).toMatch(/<LoadFailureState kind="gone" noun="doc"/)
+    expect(missing).toMatch(/href: "\/app\/doc"/)
   })
 
   it("floats the focus-mode exit on e3, fading while the pointer rests", () => {

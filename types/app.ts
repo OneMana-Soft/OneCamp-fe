@@ -23,6 +23,10 @@ export interface AppView {
     has_signing_secret: boolean
     has_oauth_config: boolean
     has_api_key?: boolean
+    /** An OAuth app's saved settings, without the client secret: what its form edits. */
+    oauth?: AppOAuthSettings
+    /** A client secret is stored (never its value). */
+    has_client_secret?: boolean
     secret_keys?: string[]
     is_enabled: boolean
     is_connected: boolean
@@ -31,12 +35,16 @@ export interface AppView {
     updated_at?: string
 }
 
-export interface AppOAuthConfig {
+/** An OAuth app's configuration without its client secret, as the server keeps and shows it. */
+export interface AppOAuthSettings {
     client_id: string
-    client_secret?: string
     auth_url: string
     token_url: string
-    scopes?: string[]
+    scopes?: string[] | null
+}
+
+export interface AppOAuthConfig extends AppOAuthSettings {
+    client_secret?: string
 }
 
 export interface AppCommandInput {

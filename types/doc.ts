@@ -1,8 +1,9 @@
 import {UserProfileDataInterface} from "@/types/user";
 import {CommentInfoInterface} from "@/types/comment";
 import {AttachmentMediaReq} from "@/types/attachment";
+import type { DocPageFields } from "@/types/docChrome";
 
-export interface DocInfoInterface {
+export interface DocInfoInterface extends DocPageFields {
     doc_uuid: string,
     id?: string,
     doc_title: string,
@@ -11,6 +12,8 @@ export interface DocInfoInterface {
     doc_edit_access: number,
     doc_read_access: number,
     doc_comment_access: number,
+    /** Full access, by the Access Resolver (lib/docs/abilities docLevelOf). */
+    doc_full_access?: number,
     doc_editing_users: UserProfileDataInterface[],
     doc_reading_users: UserProfileDataInterface[],
     doc_public_comment: boolean,

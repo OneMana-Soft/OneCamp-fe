@@ -7,6 +7,8 @@ import {openUI} from "@/store/slice/uiSlice";
 import { ArrowLeft } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import { goBack } from "@/lib/navigation/back";
+import { Suspense } from "react";
+import { AdminPhoneLeading } from "@/components/admin/AdminPhoneBar";
 
 /**
  * Back, the same everywhere: the previous screen in the app, or the page's
@@ -33,7 +35,7 @@ function OrgButton() {
         <button
             type="button"
             onClick={() => dispatch(openUI({ key: 'orgProfileDrawer' }))}
-            aria-label="Open organization profile"
+            aria-label="Open organisation profile"
             className="h-11 w-11 flex items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
             <PhoneMark/>
@@ -45,6 +47,10 @@ export function MobileTopNavigationBarFirst() {
     const path = usePathname().split('/')
 
     const renderComponent = () => {
+        // OneCamp AI is a page you are sent to (Home's Ask, the You sheet),
+        // not a tab's top level: Back, never the mark. Its own tools sit at
+        // the bar's other end (PhoneBarActions), so the page has one bar.
+        if (path[2] === "ai") return <BackButton/>;
         switch (path[2]) {
             case "myTask":
             case "project":
@@ -54,7 +60,7 @@ export function MobileTopNavigationBarFirst() {
             case "meet":
             case "search":
             case "home":
-            case "admin":
+            case "ai":
             case "calendar":
             case "profile":
             case "mail":
@@ -67,6 +73,11 @@ export function MobileTopNavigationBarFirst() {
                 if(path.length < 6)
                     return <BackButton/>
                 break;
+            case "admin":
+                // The list of sections is a top level; a section goes back to it.
+                if (path.length < 4)
+                    return <Suspense fallback={<OrgButton/>}><AdminPhoneLeading mark={<OrgButton/>}/></Suspense>;
+                return <BackButton/>
             case "channel":
             case "chat":
                 // The list is a tab's top level; a channel, a DM, a group and
@@ -101,7 +112,9 @@ export function MobileTopNavigationBarFirst() {
                 return <BackButton/>
 
             default:
-                return <></>;
+                // An address no route answers (a 404): back, never a dead end.
+                // Every real place has its own case (mobileNavCoverage.test).
+                return <BackButton/>;
         }
     };
 

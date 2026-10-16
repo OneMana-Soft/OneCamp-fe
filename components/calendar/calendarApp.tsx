@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, addMonths, differenceInCalendarDays, endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfDay, startOfWeek } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, X } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
+import { FitLabel } from "@/components/common/FitLabel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DayCell } from "@/components/ui/calendar";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToastAction } from "@/components/ui/toast";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { usePost } from "@/hooks/usePost";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -18,7 +20,6 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import type { UserInfoRawInterface, UserProfileInterface } from "@/types/user";
 import type { CalendarEventInterface, CreateEventPayload, GetEventsResponse } from "@/types/calendar";
 import { cn } from "@/lib/utils/helpers/cn";
-import { shortTime } from "@/lib/utils/date/shortDate";
 import { useDispatch } from "react-redux";
 import { useRouter } from "next/navigation";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -37,7 +38,7 @@ import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgend
 import { allDayItem, dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
 import { placeAllByDates } from "@/lib/calendar/allDay";
 import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
-import { dayAndTime } from "@/lib/utils/date/dayAndTime";
+import { clockTime, dayAndTime } from "@/lib/utils/date/clock";
 
 export type CalendarView = "day" | "week" | "month" | "agenda";
 const VIEWS: { id: CalendarView; label: string; key: string }[] = [
@@ -71,15 +72,27 @@ function useWide(): boolean {
     return wide;
 }
 
-/** The period's title: "October 2026", "12 – 18 Oct 2026", "Thu 15 Oct". Pure. */
-export function periodTitle(view: CalendarView, anchor: Date): string {
-    if (view === "day") return format(anchor, "EEE d MMM");
+/**
+ * The period's title, said longest first: the header shows the first one
+ * that fits ("12 – 18 Oct 2026", then "12 – 18 Oct", then "12–18 Oct"), so
+ * it drops the year or tightens before it ever truncates. Pure.
+ */
+export function periodTitles(view: CalendarView, anchor: Date): string[] {
+    if (view === "day") return [format(anchor, "EEEE d MMMM yyyy"), format(anchor, "EEE d MMM yyyy"), format(anchor, "EEE d MMM"), format(anchor, "d MMM")];
     if (view === "week") {
         const s = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
         const e = endOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
-        return isSameMonth(s, e) ? `${format(s, "d")} – ${format(e, "d MMM yyyy")}` : `${format(s, "d MMM")} – ${format(e, "d MMM yyyy")}`;
+        if (isSameMonth(s, e)) return [`${format(s, "d")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d")} – ${format(e, "d MMM")}`, `${format(s, "d")}–${format(e, "d MMM")}`];
+        // A week across the new year names both years while there is room.
+        if (s.getFullYear() !== e.getFullYear()) return [`${format(s, "d MMM yyyy")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d MMM")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d MMM")} – ${format(e, "d MMM")}`, `${format(s, "d MMM")}–${format(e, "d MMM")}`];
+        return [`${format(s, "d MMM")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d MMM")} – ${format(e, "d MMM")}`, `${format(s, "d MMM")}–${format(e, "d MMM")}`];
     }
-    return format(anchor, "MMMM yyyy");
+    return [format(anchor, "MMMM yyyy"), format(anchor, "MMM yyyy"), format(anchor, "MMM")];
+}
+
+/** The period's title in full: "October 2026", "12 – 18 Oct 2026", "Thursday 15 October 2026". Pure. */
+export function periodTitle(view: CalendarView, anchor: Date): string {
+    return periodTitles(view, anchor)[0];
 }
 
 export function CalendarApp() {
@@ -147,11 +160,13 @@ export function CalendarApp() {
     const { start: gridStart, end: gridEnd } = useMemo(() => monthGridRange(anchor), [anchor]);
     const rangeQuery = `startDate=${gridStart.toISOString()}&endDate=${gridEnd.toISOString()}`;
     const keep = { keepPreviousData: true };
+    // The calendar says a failed load itself (over the grid, with Try
+    // again), so the global error toast stays quiet: it doubled the message.
     const { data: eventsRes, isLoading: isLoadingEvents, isError: eventsError, mutate: mutateEvents } = useFetch<GetEventsResponse>(
-        `${GetEndpointUrl.GoogleCalendarEvents}?${rangeQuery}`, undefined, keep
+        `${GetEndpointUrl.GoogleCalendarEvents}?${rangeQuery}`, undefined, keep, OWN_ERRORS
     );
     const { data: tasksRes, isLoading: isLoadingTasks, isError: tasksError, mutate: mutateTasks } = useFetch<UserInfoRawInterface>(
-        `${GetEndpointUrl.GetUserTaskList}?pageIndex=0&pageSize=100&${rangeQuery}`, undefined, keep
+        `${GetEndpointUrl.GetUserTaskList}?pageIndex=0&pageSize=100&${rangeQuery}`, undefined, keep, OWN_ERRORS
     );
     const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean; accountEmail?: string } }>(GetEndpointUrl.GoogleCalendarStatus);
     const { data: bookingRes } = useFetch<{ data: unknown[] }>(calendarsOpen || railShown ? GetEndpointUrl.GetBookingPages : "");
@@ -412,7 +427,7 @@ export function CalendarApp() {
 
     // ---- what the toolbar says ----------------------------------------------
 
-    const title = deskAgenda ? agendaTitles(agendaWindow)[0] : periodTitle(shownView, anchor);
+    const titles = deskAgenda ? agendaTitles(agendaWindow) : periodTitles(shownView, anchor);
     const unit = shownView === "day" ? "day" : shownView === "week" ? "week" : "month";
     const viewIndex = VIEWS.findIndex((v) => v.id === shownView);
     const periodKey = `${shownView}:${shownView === "day" ? dayKey(anchor) : shownView === "week" ? dayKey(weekStart) : deskAgenda ? dayKey(agendaWindow.from) : monthKey}`;
@@ -482,7 +497,7 @@ export function CalendarApp() {
                             <span className="min-w-0 flex-1 truncate">{it.event_title}</span>
                             {!it.isTask ? (
                                 <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">
-                                    {allDayItem(it, parseISO(it.event_start_time), parseISO(it.event_end_time)) ? "All day" : shortTime(parseISO(it.event_start_time))}
+                                    {allDayItem(it, parseISO(it.event_start_time), parseISO(it.event_end_time)) ? "All day" : clockTime(parseISO(it.event_start_time))}
                                 </span>
                             ) : null}
                         </HueBlock>
@@ -499,7 +514,7 @@ export function CalendarApp() {
                 <h1 className="sr-only">Calendar</h1>
                 {isMobile ? (
                     <PhoneBar
-                        title={title}
+                        titles={titles}
                         anchor={anchor}
                         view={shownView}
                         now={now}
@@ -512,15 +527,16 @@ export function CalendarApp() {
                         onView={pickView}
                         onNew={newEvent}
                         onStep={(s) => goTo(addDays(anchor, 7 * s))}
+                        onStepMonth={(s) => goTo(addMonths(anchor, s))}
                         loading={loading}
                     />
                 ) : (
-                    <header className="relative z-20 flex h-[52px] shrink-0 items-center gap-2 border-b border-line bg-sheet px-4" data-calendar-header="">
-                        {/* Where you are: the period, then back, forward and today. */}
-                        <div className="flex min-w-0 items-center gap-1.5">
-                            <span className="min-w-0 truncate font-display text-title-3 font-semibold tabular-nums text-ink" aria-live="polite">
-                                {title}
-                            </span>
+                    <header className="@container/calhead relative z-20 flex h-[52px] shrink-0 items-center gap-2 border-b border-line bg-sheet px-4" data-calendar-header="">
+                        {/* Where you are: the period, then back, forward and today. The
+                            group takes the room the actions leave, and the period says as
+                            much of itself as fits there (no "Oct 20…"). */}
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                            <FitLabel options={titles} className="font-display text-title-3 font-semibold tabular-nums text-ink" aria-live="polite" data-period-title="" />
                             {loading ? (
                                 <LoadingDot className="ml-0.5" />
                             ) : null}
@@ -576,9 +592,10 @@ export function CalendarApp() {
                             {!railShown ? (
                                 <Popover open={calendarsOpen} onOpenChange={setCalendarsOpen}>
                                     <PopoverTrigger asChild>
-                                        <Button variant="ghost" size="sm" data-calendars-trigger="">
+                                        <Button variant="ghost" size="sm" data-calendars-trigger="" aria-label="Calendars">
                                             <CalendarDays />
-                                            Calendars
+                                            {/* On a narrow sheet the icon and its colours carry it, so the period keeps its room. */}
+                                            <span className="hidden @[50rem]/calhead:inline">Calendars</span>
                                             {/* The calendars on show, as their colours. */}
                                             <span className="flex items-center gap-0.5" aria-hidden="true">
                                                 {showEvents ? <IdentityMark hue={CALENDAR_HUE.onecamp} variant="dot" size={6} className="!size-1.5" /> : null}
@@ -616,12 +633,25 @@ export function CalendarApp() {
                                     </button>
                                 ))}
                             </div>
-                            <Button size="sm" onClick={newEvent} title="New event · C">
+                            <Button
+                                size="sm"
+                                onClick={newEvent}
+                                title="New event · C"
+                                aria-label="New event"
+                                data-new-event=""
+                                className="@max-[46rem]/calhead:w-8 @max-[46rem]/calhead:px-0"
+                            >
                                 <Plus />
-                                New event
-                                <kbd className="kbd" aria-hidden="true">
-                                    C
-                                </kbd>
+                                {/* Under 46rem of header (a tablet's 768 beside the rail) the words go
+                                    and the plus stays, so the period's title keeps "12–18 Oct": it
+                                    was cut to "12–18 …" there. */}
+                                <span className="hidden @[46rem]/calhead:inline">New event</span>
+                                {/* The hint goes first when the sheet narrows (kbd sets its own display, so a wrapper hides it). */}
+                                <span className="hidden @[60rem]/calhead:contents">
+                                    <kbd className="kbd" aria-hidden="true">
+                                        C
+                                    </kbd>
+                                </span>
                             </Button>
                         </div>
                     </header>
@@ -650,7 +680,10 @@ export function CalendarApp() {
                                 />
                             )
                         ) : shownView === "week" || shownView === "day" ? (
-                            <div className={cn("h-full", shownView === "week" && "min-w-[760px]")}>
+                            // The week scrolls sideways only below its gutter and seven 90 px
+                            // days (686 px): at 760 a tablet's 712 px sheet hid Sunday,
+                            // today's column, off the right edge.
+                            <div className={cn("h-full", shownView === "week" && "min-w-[686px]")}>
                                 <WeekView
                                     weekStart={shownView === "day" ? startOfDay(anchor) : weekStart}
                                     dayCount={shownView === "day" ? 1 : 7}
@@ -745,7 +778,7 @@ export function CalendarApp() {
  * row. The agenda is the default; tapping a day opens its grid.
  */
 function PhoneBar({
-    title,
+    titles,
     anchor,
     view,
     now,
@@ -755,9 +788,10 @@ function PhoneBar({
     onView,
     onNew,
     onStep,
+    onStepMonth,
     loading,
 }: {
-    title: string;
+    titles: string[];
     anchor: Date;
     view: CalendarView;
     now: Date;
@@ -767,6 +801,8 @@ function PhoneBar({
     onView: (v: CalendarView) => void;
     onNew: () => void;
     onStep: (s: 1 | -1) => void;
+    /** The month view has no week strip, so the month's own arrows sit by its title. */
+    onStepMonth: (s: 1 | -1) => void;
     loading: boolean;
 }) {
     const start = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
@@ -775,11 +811,21 @@ function PhoneBar({
     return (
         <header className="shrink-0 border-b border-line bg-sheet" data-calendar-header="" data-phone-bar="">
             <div className="flex h-12 items-center gap-1.5 px-3">
-                <span className="min-w-0 flex-1 truncate font-display text-title-3 font-semibold tabular-nums text-ink" aria-live="polite">
-                    {title}
-                </span>
+                <FitLabel options={titles} className="mr-auto font-display text-title-3 font-semibold tabular-nums text-ink" aria-live="polite" data-period-title="" />
                 {loading ? (
                     <LoadingDot />
+                ) : null}
+                {view === "month" ? (
+                    // The week strip carries the arrows everywhere else; a month
+                    // had none, so it couldn't be left on a phone.
+                    <div className="flex shrink-0 items-center" data-month-step="">
+                        <Button variant="ghost" size="icon-sm" aria-label="Previous month" onClick={() => onStepMonth(-1)} className="extend-touch-target">
+                            <ChevronLeft />
+                        </Button>
+                        <Button variant="ghost" size="icon-sm" aria-label="Next month" onClick={() => onStepMonth(1)} className="extend-touch-target">
+                            <ChevronRight />
+                        </Button>
+                    </div>
                 ) : null}
                 <Button variant="secondary" size="sm" onClick={onToday} className="extend-touch-target">
                     Today

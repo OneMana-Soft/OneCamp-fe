@@ -4,6 +4,7 @@ import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/person
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { UserListResponseInterface, UserActivateOrDeactivateInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
@@ -64,8 +65,14 @@ const UserCard = () => {
     [adminList.data, madeAdmin],
   )
 
+  // The list says its own failure, in place (Couldn't load members, Try
+  // again), so the app's error toast stays quiet: it said the same thing a
+  // second time in the corner.
   const userList = useFetch<UserListResponseInterface>(
-    `${GetEndpointUrl.GetAdminUserList}?pageIndex=${pageIndex}&pageSize=${PAGE_SIZE}`
+    `${GetEndpointUrl.GetAdminUserList}?pageIndex=${pageIndex}&pageSize=${PAGE_SIZE}`,
+    undefined,
+    undefined,
+    OWN_ERRORS,
   )
   const post = usePost()
   const confirm = useConfirm()

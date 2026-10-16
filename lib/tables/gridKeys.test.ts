@@ -48,3 +48,20 @@ describe("moving around a table's grid", () => {
     expect(swallowsAtEdge({ key: "ArrowDown", altKey: true }, "select")).toBe(false)
   })
 })
+
+// TAB-BUG-7: a text cell is a text area, whose lines its keys move through.
+describe("moving around from a text area's lines", () => {
+  const lines = (first: boolean, last: boolean) => ({ kind: "text" as const, lines: { first, last } })
+
+  it("leaves up and down to the caret until it's on the first or last line", () => {
+    expect(nextCell({ key: "ArrowUp" }, mid, size, lines(false, true))).toBeNull()
+    expect(nextCell({ key: "ArrowDown" }, mid, size, lines(true, false))).toBeNull()
+    expect(nextCell({ key: "ArrowUp" }, mid, size, lines(true, false))).toEqual({ row: 1, col: 1 })
+    expect(nextCell({ key: "ArrowDown" }, mid, size, lines(false, true))).toEqual({ row: 3, col: 1 })
+  })
+
+  it("leaves Shift+Enter to the text area, for a line break, and still goes down on Enter", () => {
+    expect(nextCell({ key: "Enter", shiftKey: true }, mid, size, lines(true, true))).toBeNull()
+    expect(nextCell({ key: "Enter" }, mid, size, lines(true, true))).toEqual({ row: 3, col: 1 })
+  })
+})

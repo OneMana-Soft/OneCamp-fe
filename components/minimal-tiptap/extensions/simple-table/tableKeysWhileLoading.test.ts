@@ -1,0 +1,66 @@
+import { afterAll, describe, expect, it, vi } from "vitest"
+import type { Editor } from "@tiptap/core"
+import { blocksReady } from "@/components/docEditor/registry/factory"
+import { ALL_EDITIONS } from "@/components/docEditor/registry/manifest"
+import { docEditor, loadDocBlocks, press } from "../block-commands/blockTestKit"
+import { insertSimpleTable } from "./simpleTable"
+
+// Tab in a table, and table editing's chunk (tableEditing.ts). It came when
+// a doc first showed a table, and on a slow connection a new table's first
+// Tab came before it did: the key was swallowed, and what was typed next went
+// into the cell it left ("StepOwner"). Moving between cells needs only the
+// doc; and the doc's editor is made with table editing now, so it is never
+// on its way while a key can be pressed (registry/factory.ts). The chunk is
+// held here until the test lets it go.
+const held = vi.hoisted(() => {
+  let release = () => {}
+  const until = new Promise<void>((r) => (release = r))
+  return { until, release: () => release() }
+})
+vi.mock("./tableEditing", async (importOriginal) => {
+  await held.until
+  return importOriginal()
+})
+
+// Never left held: an import still waiting would outlive the file.
+afterAll(() => held.release())
+
+/** Each row's cells, by their text. */
+function cells(e: Editor): string[][] {
+  const rows: string[][] = []
+  e.state.doc.descendants((n) => {
+    if (n.type.name === "tableRow") rows.push([])
+    else if (n.type.name === "tableCell" || n.type.name === "tableHeader") {
+      rows[rows.length - 1].push(n.textContent)
+      return false
+    }
+    return true
+  })
+  return rows
+}
+
+describe("Tab in a table", () => {
+  it("is never pressed before table editing has come: the doc's editor waits for it, then Tab moves and adds the row after the last at once", async () => {
+    const loading = loadDocBlocks()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(blocksReady("doc", ALL_EDITIONS)).toBe(false)
+    held.release()
+    await loading
+    expect(blocksReady("doc", ALL_EDITIONS)).toBe(true)
+
+    const e = docEditor("<p></p>")
+    insertSimpleTable(e, { from: 1, to: 1 })
+    e.commands.insertContent("Step")
+    expect(press(e, "Tab").defaultPrevented).toBe(true)
+    e.commands.insertContent("Owner")
+    expect(cells(e)[0]).toEqual(["Step", "Owner", ""])
+    // ⇧Tab goes back, the cell's text chosen.
+    press(e, "Shift-Tab")
+    expect(e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)).toBe("Step")
+    // Eight cells on is the last; one more adds a row, there and then.
+    for (let i = 0; i < 9; i++) press(e, "Tab")
+    expect(cells(e)).toHaveLength(4)
+    e.commands.insertContent("next")
+    expect(cells(e)[3]).toEqual(["next", "", ""])
+  }, 30_000)
+})

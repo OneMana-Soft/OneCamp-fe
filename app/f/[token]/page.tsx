@@ -8,7 +8,9 @@
 // star), and a sent state whose moss badge springs in with one spark.
 
 import { use, useEffect, useRef, useState } from "react"
-import { AlertCircle, Check, Loader2 } from "@/lib/icons"
+import { Check, Loader2 } from "@/lib/icons"
+import { PublicGone } from "@/components/guest/publicStates"
+import { publicTrouble } from "@/services/publicApi"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { hueFor } from "@/lib/campHue"
 import { celebrateTask } from "@/lib/celebrate"
@@ -18,14 +20,16 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getForm, sendForm, type PublicForm } from "@/services/formService"
-import type { FormField } from "@/lib/forms/forms"
+import { numberProblem, type FormField } from "@/lib/forms/forms"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { SpamTrap } from "@/components/common/SpamTrap"
 
 export default function IntakeForm({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const [form, setForm] = useState<PublicForm | null>(null)
-  const [state, setState] = useState<"loading" | "ready" | "missing" | "sent">("loading")
+  const [state, setState] = useState<"loading" | "ready" | "missing" | "failed" | "sent">("loading")
+  // Bumped by Try again, to read the form again.
+  const [attempt, setAttempt] = useState(0)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [website, setWebsite] = useState("")
   const [busy, setBusy] = useState(false)
@@ -37,12 +41,21 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
         setForm(res.data)
         setState("ready")
         document.title = res.data.title
-      } else setState("missing")
+      } else {
+        // A busy or unreachable server isn't a closed form: it says so, with Try again.
+        setState(publicTrouble(res.status) === "gone" ? "missing" : "failed")
+      }
     })
-  }, [token])
+  }, [token, attempt])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    // A number in the sender's own signs, said before anything is sent.
+    const problem = form ? numberProblem(form.fields, answers) : ""
+    if (problem) {
+      setError(problem)
+      return
+    }
     setBusy(true)
     setError("")
     const res = await sendForm(token, answers, website)
@@ -52,14 +65,22 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
   }
 
   if (state === "loading") return <Centered><Loader2 className="size-7 animate-spin text-ink-3" aria-label="Opening the form" /></Centered>
-  if (state === "missing" || !form) {
+  if (state === "failed") {
     return (
-      <Centered>
-        <AlertCircle className="size-8 text-ink-3" />
-        <p className="text-heading font-semibold">This form isn&apos;t available</p>
-        <p className="max-w-sm text-sm text-ink-2">The link may be wrong, or the team has closed the form.</p>
-      </Centered>
+      <PublicGone
+        surface="form"
+        noun="form"
+        kind="failed"
+        onRetry={() => {
+          setState("loading")
+          setAttempt((n) => n + 1)
+        }}
+      />
     )
+  }
+  if (state === "missing" || !form) {
+    // As every public link says it (PublicGone): it was a lone grey ring with no frame (PTC-19).
+    return <PublicGone surface="form" noun="form" detail="The link may be wrong, or the team has closed the form." />
   }
   const hue = hueFor(form.title || token)
   if (state === "sent") {
@@ -154,7 +175,10 @@ function Question({ field, value, onChange }: { field: FormField; value: unknown
         </label>
       )
     default: {
-      const type = field.type === "email" ? "email" : field.type === "number" ? "number" : field.type === "date" ? "date" : "text"
+      // A number is typed as text in the person's own signs ("1,5" in de-DE),
+      // which the form reads and sends as typed: a browser number input
+      // rewrote it in the browser's locale, or emptied it.
+      const type = field.type === "email" ? "email" : field.type === "date" ? "date" : "text"
       return (
         <div className="grid gap-1.5">
           {label}

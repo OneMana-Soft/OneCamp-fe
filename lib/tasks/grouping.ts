@@ -2,9 +2,11 @@
  * The grouped task list's groups (design v3, work.md W14, W18). Pure, for its
  * test: tasks in, groups out, in the order a person reads them.
  *
- *   status    In progress, In review, To do, Backlog, Done; each built-in
- *             followed by the project's own statuses that count as it.
- *             Cancelled is left out.
+ *   status    Backlog, To do, In progress, In review, Done: the board's
+ *             columns, left to right, so a list and its board read in one
+ *             order (PTC-30: the list put In progress first and To do after
+ *             it). Each built-in is followed by the project's own statuses
+ *             that count as it, as on the board. Cancelled is left out.
  *   when      Overdue (only when there is one), Today, This week, Later, No
  *             date, Done (finished in the last 7 days). My Tasks' default.
  *   priority  Urgent, High, Medium, Low, No priority.
@@ -42,7 +44,7 @@ export interface TaskGroup {
   danger?: boolean
 }
 
-const STATUS_ORDER = ["inProgress", "inReview", "todo", "backlog", "done"] as const
+const STATUS_ORDER = ["backlog", "todo", "inProgress", "inReview", "done"] as const
 
 const DAY = 86_400_000
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -154,3 +156,42 @@ export function groupTasks(
 export const CLOSED_SHOWN = 5
 /** How many rows of an open group show before "Show N more", so no group draws hundreds of rows at once. */
 export const OPEN_SHOWN = 60
+
+/**
+ * A group's count, honest about a list that has loaded only part of its tasks
+ * (PROJ-BUG-2). The groups are made from what has arrived, and the server
+ * gives no count per group yet, so while more pages remain a group says what
+ * it holds so far with a "+" ("Urgent 100+" with 400 urgent tasks in the
+ * project); it read "Urgent 100", and on a phone the counts grew as the list
+ * scrolled. Once every page is in, the count is exact.
+ */
+export function groupCount(loaded: number, more: boolean): string {
+  return more ? `${loaded}+` : String(loaded)
+}
+
+/**
+ * The tasks a phone's list asks for a page at a time. It asked for 10, so on
+ * the demo a project of 17 tasks read "1+", "2+" and "5+" in its group
+ * headers until a scroll brought the rest (PROJ-BUG-2). Fifty holds most
+ * projects in one page, so their counts are exact at once; past it a header
+ * still says "N+" until the rest arrives. Exact counts at any size are the
+ * server's to give (the projects programme's A2).
+ */
+export const PHONE_PAGE_SIZE = 50
+
+/** A group's header as a row of its own, in a list that draws one row at a time (the phone's). */
+export interface GroupHeaderRow {
+  kind: "group"
+  key: string
+  label: string
+  /** groupCount: exact, or "N+" while more pages are to load. */
+  count: string
+  status?: StatusOption
+}
+
+/** The tasks grouped, each group led by its header row; empty groups left out. `more`: pages are still to load. */
+export function headedRows(tasks: TaskInfoInterface[], grouping: Grouping, options: StatusOption[], more: boolean): (TaskInfoInterface | GroupHeaderRow)[] {
+  return groupTasks(tasks, grouping, options)
+    .filter((g) => g.tasks.length > 0)
+    .flatMap((g) => [{ kind: "group" as const, key: `group:${g.key}`, label: g.label, count: groupCount(g.tasks.length, more), status: g.status }, ...g.tasks])
+}

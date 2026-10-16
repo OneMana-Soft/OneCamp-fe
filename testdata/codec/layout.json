@@ -1,0 +1,334 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Launch week",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "indent": 1
+      },
+      "content": [
+        {
+          "text": "Write the brief",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "indent": 2
+      },
+      "content": [
+        {
+          "text": "Ask Maya for the numbers",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "indent": 1
+      },
+      "content": [
+        {
+          "text": "Book the room",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "dir": "rtl",
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "תוכנית השקה",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "attrs": {
+        "dir": "rtl"
+      },
+      "content": [
+        {
+          "text": "המסמך נכתב מימין לשמאל.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "dir": "ltr",
+        "indent": 1
+      },
+      "content": [
+        {
+          "text": "This line reads left to right.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "indent": 1
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "First",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Second",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    },
+    {
+      "attrs": {
+        "dir": "rtl"
+      },
+      "content": [
+        {
+          "attrs": {
+            "checked": false
+          },
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "לשלוח",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "taskItem"
+        }
+      ],
+      "type": "taskList"
+    },
+    {
+      "attrs": {
+        "color": "blue",
+        "emoji": "💡",
+        "indent": 1
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A note under the list.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "content": [
+        {
+          "attrs": {
+            "width": 40
+          },
+          "content": [
+            {
+              "attrs": {
+                "level": 3
+              },
+              "content": [
+                {
+                  "text": "Before",
+                  "type": "text"
+                }
+              ],
+              "type": "heading"
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "content": [
+                        {
+                          "text": "Old flow",
+                          "type": "text"
+                        }
+                      ],
+                      "type": "paragraph"
+                    }
+                  ],
+                  "type": "listItem"
+                }
+              ],
+              "type": "bulletList"
+            }
+          ],
+          "type": "column"
+        },
+        {
+          "attrs": {
+            "width": 60
+          },
+          "content": [
+            {
+              "attrs": {
+                "level": 3
+              },
+              "content": [
+                {
+                  "text": "After",
+                  "type": "text"
+                }
+              ],
+              "type": "heading"
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "content": [
+                        {
+                          "text": "New flow",
+                          "type": "text"
+                        }
+                      ],
+                      "type": "paragraph"
+                    }
+                  ],
+                  "type": "listItem"
+                }
+              ],
+              "type": "bulletList"
+            }
+          ],
+          "type": "column"
+        }
+      ],
+      "type": "columnList"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Left",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "column"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Middle",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "column"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Right",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "column"
+        }
+      ],
+      "type": "columnList"
+    },
+    {
+      "attrs": {
+        "indent": 1,
+        "language": "go"
+      },
+      "content": [
+        {
+          "text": "fmt.Println(\"hi\")",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "attrs": {
+        "indent": 1
+      },
+      "type": "horizontalRule"
+    },
+    {
+      "attrs": {
+        "dir": "rtl"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "ציטוט",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "blockquote"
+    }
+  ],
+  "type": "doc"
+}

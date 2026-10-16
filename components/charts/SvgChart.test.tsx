@@ -275,3 +275,13 @@ describe("SvgChart, the v3 look (content.md T18)", () => {
         expect([...container.querySelectorAll("text")].some((t) => t.textContent === "6")).toBe(true)
     })
 })
+
+// content.md T18: a wide chart wrote "Launch fi…" with 200 px to spare.
+describe("category labels", () => {
+  it("say as much as their slot has room for, and never less than the old ten characters", async () => {
+    const { fitCategoryLabel } = await import("@/components/charts/SvgChart")
+    expect(fitCategoryLabel("Launch film edit", 200)).toBe("Launch film edit")
+    expect(fitCategoryLabel("Conference booth at the expo hall", 120)).toBe("Conference booth…")
+    expect(fitCategoryLabel("Launch film edit", 20)).toBe("Launch fi…")
+  })
+})

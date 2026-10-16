@@ -58,7 +58,7 @@ describe("joinState", () => {
 let answer: { data?: unknown; isLoading: boolean; isError?: unknown } = { isLoading: false }
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ ...answer, mutate: () => {} }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
-const { TodayAgenda } = await import("@/components/home/TodayAgenda")
+const { TodayAgenda, TodayStrip } = await import("@/components/home/TodayAgenda")
 
 afterEach(() => {
   cleanup()
@@ -81,6 +81,19 @@ describe("the agenda card", () => {
     const { container } = render(<TodayAgenda />)
     expect(container.querySelector("[data-agenda-card] [data-agenda-empty]")).not.toBeNull()
     expect(screen.getByText("Nothing on your calendar today")).toBeTruthy()
+  })
+
+  // QA SH-15 (14 Oct 2026): on a phone the strip's first card snapped to the
+  // screen's edge, x = 0, out of the 16px gutter.
+  it("snaps the phone's strip to the 16px gutter, not the screen's edge", () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(at(9, 0))
+    answer = { isLoading: false, data: { data: [ev("Launch sync", 10, 30, 11, 30)] } }
+    const { container } = render(<TodayStrip />)
+    const scroller = container.querySelector("[data-today-scroller]")!
+    expect(scroller.className).toMatch(/\bsnap-mandatory\b/)
+    expect(scroller.className).toMatch(/\bscroll-px-4\b/)
+    expect(scroller.className).toMatch(/\bpx-4\b/)
   })
 
   it("hides itself when the calendar is not there at all", () => {

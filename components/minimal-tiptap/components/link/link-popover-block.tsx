@@ -7,8 +7,12 @@ import { isSafeHref } from '@/lib/utils/safeHref'
 
 interface LinkPopoverBlockProps {
   url: string
-  onClear: () => void
-  onEdit: (e: React.MouseEvent<HTMLButtonElement>) => void
+  /** Absent for a reader: the bar opens and copies, and changes nothing. */
+  onClear?: () => void
+  onEdit?: () => void
+  onOpen: () => void
+  /** Escape: the bar goes, and the focus goes back to the text (N48). */
+  onEscape: () => void
 }
 
 /** "example.com/path", the link as a reader recognises it. */
@@ -23,49 +27,42 @@ function shortUrl(url: string): string {
 }
 
 /**
- * The link bubble (content.md D25): the area's FloatingBar with where the
- * link goes (opens it) and then edit, copy and remove.
+ * The link bar (content.md D25): the area's FloatingBar with where the link
+ * goes (opens it) and then edit, copy and remove for someone who can edit.
  */
-export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear, onEdit }) => {
+export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear, onEdit, onOpen, onEscape }) => {
   const [copied, setCopied] = React.useState(false)
 
-  const handleCopy = React.useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.preventDefault()
-      navigator.clipboard
-        .writeText(url)
-        .then(() => {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1200)
-        })
-        .catch(console.error)
-    },
-    [url]
-  )
-
-  // The href comes from the document, where a collaborator's edit can put one
-  // that was never parsed, so it's checked as the rendered link is.
-  const handleOpenLink = React.useCallback(() => {
-    if (!isSafeHref(url)) return
-    window.open(url, '_blank', 'noopener,noreferrer')
+  const handleCopy = React.useCallback(() => {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1200)
+      })
+      .catch(() => {})
   }, [url])
 
   return (
-    <FloatingBar label="Link" data-link-bubble="">
-      <FloatingBarButton label={`Open ${url}`} onClick={handleOpenLink} className="max-w-[240px] gap-1.5 px-2 font-[450] text-brand-text">
+    <FloatingBar label="Link" data-link-bubble="" onEscape={onEscape}>
+      <FloatingBarButton label={`Open ${url}`} onClick={onOpen} disabled={!isSafeHref(url)} className="max-w-[240px] gap-1.5 px-2 font-[450] text-brand-text">
         <ExternalLink />
         <span className="truncate">{shortUrl(url)}</span>
       </FloatingBarButton>
       <FloatingBarDivider />
-      <FloatingBarButton label="Edit link" onClick={onEdit}>
-        <Pencil />
-      </FloatingBarButton>
+      {onEdit ? (
+        <FloatingBarButton label="Edit link" onClick={onEdit}>
+          <Pencil />
+        </FloatingBarButton>
+      ) : null}
       <FloatingBarButton label={copied ? 'Copied' : 'Copy link'} onClick={handleCopy}>
         {copied ? <Check /> : <Copy />}
       </FloatingBarButton>
-      <FloatingBarButton label="Remove link" onClick={onClear}>
-        <Unlink />
-      </FloatingBarButton>
+      {onClear ? (
+        <FloatingBarButton label="Remove link" onClick={onClear}>
+          <Unlink />
+        </FloatingBarButton>
+      ) : null}
     </FloatingBar>
   )
 }

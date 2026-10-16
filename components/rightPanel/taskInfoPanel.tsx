@@ -9,6 +9,7 @@ import {priorities, type prioritiesInterface} from "@/types/table"
 import { statusOptionOf, statusPatch, type TaskStatusFields } from "@/lib/taskStatus"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch"
+import { usePageName } from "@/lib/utils/pageName"
 import {
     addTaskComments,
     createTaskCommentReaction,
@@ -56,6 +57,7 @@ import { TaskEstimateField } from "@/components/task/taskEstimateField"
 import { TaskFieldsSection } from "@/components/task/taskFieldsSection"
 import {TaskClientReview} from "@/components/task/taskClientReview"
 import { useSaveOnEdit } from "@/hooks/useSaveOnEdit"
+import { useEarlierHistory } from "@/hooks/useEarlierHistory"
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice"
 import {TaskStatusPriorityControl} from "@/components/task/taskStatusPriorityControl"
 import {TaskAssigneePicker} from "@/components/task/taskAssigneePicker"
@@ -68,14 +70,16 @@ import {TaskDescription} from "@/components/task/taskDescription"
 import {TaskPanelSkeleton} from "@/components/task/taskPanelSkeleton"
 import {TaskDependencies} from "@/components/task/TaskDependencies"
 import {useRouter} from "next/navigation"
-import {app_task_path} from "@/types/paths"
+import {app_my_task_path, app_task_path} from "@/types/paths"
 import {useMedia} from "@/context/MediaQueryContext"
 import {CreateOrUpdateCommentReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {EmptyState} from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state"
-import { appMutate as mutate } from "@/lib/swrMutate";
+import { LoadFailureState } from "@/components/ui/load-failure-state"
+import { appMutate as mutate, patchCached } from "@/lib/swrMutate";
+import { optimistic } from "@/lib/optimistic";
+import { useDeleteTasks } from "@/hooks/useDeleteTasks";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
@@ -85,7 +89,6 @@ import { DatesProperty, MoreFields, entranceStyle, usePanelEntrance } from "@/co
 import { propertyLabel, propertyRow, panelSection } from "@/lib/ui/propertyRow"
 import { useTaskTime } from "@/hooks/useTaskTime"
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
-import { SpotDocs } from "@/components/ui/graphics/spots"
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -114,13 +117,20 @@ type StreamFilter = "all" | "comments" | "history" | "github"
 
 
 
+/**
+ * A task's own page (W37): two columns, the work and the properties' sticky
+ * rail, centred. The composer under the page takes the same columns, so it
+ * sits under the work (TaskCommentComposer's frame).
+ */
+const PAGE_COLUMNS = "mx-auto w-full max-w-[1080px] lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-x-10 lg:px-8"
+
 export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPanelProps) {
     const dispatch = useDispatch()
     const post = usePost()
     const uploadFile = useUploadFile()
     const router = useRouter()
     const { isMobile, isDesktop } = useMedia();
-    const { optimisticUpdateTask, optimisticDeleteTask, revalidateTaskKeys } = useTaskUpdate();
+    const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
     const { connectionState: mqttState } = useMqtt();
     const isMqttHealthy = mqttState.isConnected;
 
@@ -169,7 +179,13 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         refreshWhenHidden: false,
         refreshWhenOffline: false,
     })
+    // On its own page the tab says the task's name ("Task · OneCamp" said
+    // which section, not which task: PTC-38); in a panel the page beside it
+    // keeps its own.
+    usePageName(onPage ? taskInfo.data?.data?.task_name : undefined)
     const { options: statusOpts } = useProjectStatuses(taskInfo.data?.data?.task_project?.project_uuid)
+    // The newest history lines come with the task; older ones on asking (PROJ-BUG-8).
+    const history = useEarlierHistory(taskUUID, taskInfo.data?.data?.task_activities, taskInfo.data?.data?.task_activity_has_more)
     const selectedStatus = useMemo(
         () => (statusFields.task_status ? statusOptionOf(statusFields, statusOpts) : undefined),
         [statusFields, statusOpts],
@@ -272,20 +288,21 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
 
     const updateTaskName = useCallback(
         (name: string, id: string) => {
-            if (!name?.trim() || !id || !taskInfo.data?.data.task_project.project_uuid) return
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
+            if (!name?.trim() || !id || !projectUUID) return Promise.resolve()
 
-            post
+            return post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskName,
                     payload: {
                         task_uuid: id,
                         task_name: name.trim(),
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
                     dispatch(updateTaskNameInTaskList({taskId: id, value: name.trim()}))
-                    optimisticUpdateTask({ task_uuid: id, task_name: name.trim() }, taskInfo.data!.data.task_project.project_uuid)
+                    optimisticUpdateTask({ task_uuid: id, task_name: name.trim() }, projectUUID)
                     // No list revalidation needed: name changes don't affect
                     // kanban columns or filter visibility.  Optimistic update
                     // is sufficient for all views.
@@ -296,48 +313,50 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
 
     const updateTaskStatus = useCallback(
         (status: string, id: string, patch: TaskStatusFields) => {
-            if (!status || !id || !taskInfo.data?.data.task_project.project_uuid) return
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
+            if (!status || !id || !projectUUID) return Promise.resolve()
 
-            post
+            return post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskStatus,
                     payload: {
                         task_status: status,
                         task_uuid: id,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
                     dispatch(updateTaskStatusInTaskList({taskId: id, value: status, patch}))
-                    optimisticUpdateTask({ task_uuid: id, ...patch }, taskInfo.data!.data.task_project.project_uuid)
+                    optimisticUpdateTask({ task_uuid: id, ...patch }, projectUUID)
                     // Status affects kanban columns — debounce so rapid clicks
                     // (e.g. todo → in_progress → done) batch into one sweep.
                     revalidateTaskListsDebounced(1500)
                 })
         },
-        [post, taskInfo, dispatch, optimisticUpdateTask, revalidateTaskListsDebounced],
+        [post, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask, revalidateTaskListsDebounced],
     )
 
     const updateTaskPriority = useCallback(
         (priority: string) => {
-            if (!priority || !taskInfo.data?.data.task_project.project_uuid) return
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
+            if (!priority || !projectUUID) return Promise.resolve()
 
-            post
+            return post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskPriority,
                     payload: {
                         task_priority: priority,
                         task_uuid: taskUUID,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
                     dispatch(updateTaskPriorityInTaskList({taskId: taskUUID, value: priority}))
-                    optimisticUpdateTask({ task_uuid: taskUUID, task_priority: priority }, taskInfo.data!.data.task_project.project_uuid)
+                    optimisticUpdateTask({ task_uuid: taskUUID, task_priority: priority }, projectUUID)
                     // No list revalidation: priority doesn't affect columns or filters.
                 })
         },
-        [post, taskUUID, taskInfo, dispatch, optimisticUpdateTask],
+        [post, taskUUID, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskLabel = useCallback(
@@ -346,9 +365,10 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
 
             // The label holds the task's tags ("frontend, needs review"); the
             // picker sends them joined the way the server keeps them.
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
             if (
                 !isAdmin ||
-                !taskInfo.data?.data ||
+                !projectUUID ||
                 trimmedLabel === CONSTANTS.LABEL_PLACEHOLDER
             ) {
                 return
@@ -361,37 +381,44 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                 return
             }
 
-            post
+            // A refused save puts back the tags the server has (PTC-2).
+            void optimistic({
+                key: `task:${taskUUID}:label`,
+                apply: () => {},
+                revert: () => setTaskLabel(savedLabel.current),
+                commit: () => post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskLabel,
                     payload: {
                         task_label: trimmedLabel,
                         task_uuid: taskUUID,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
                     savedLabel.current = trimmedLabel
                     dispatch(updateTaskLabelInTaskList({taskId: taskUUID, value: trimmedLabel}))
-                    optimisticUpdateTask({ task_uuid: taskUUID, task_label: trimmedLabel }, taskInfo.data!.data.task_project.project_uuid)
+                    optimisticUpdateTask({ task_uuid: taskUUID, task_label: trimmedLabel }, projectUUID)
                     // No list revalidation: label doesn't affect columns or filters.
-                })
+                }),
+            })
         },
-        [isAdmin, post, taskUUID, taskInfo.data, dispatch, optimisticUpdateTask],
+        [isAdmin, post, taskUUID, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskStartDate = useCallback(
         (date: Date | undefined, id: string) => {
-            if (!id || !taskInfo.data?.data.task_project.project_uuid) return
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
+            if (!id || !projectUUID) return Promise.resolve()
 
             const startDate = date ? date.toISOString() : ""
-            post
+            return post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskStartDate,
                     payload: {
                         task_uuid: id,
                         task_start_date: startDate,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
@@ -401,24 +428,25 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     }))
                     // The board, the list and the timeline show it at once; no
                     // refetch, as a start date moves no card between columns.
-                    optimisticUpdateTask({ task_uuid: id, task_start_date: startDate }, taskInfo.data!.data.task_project.project_uuid)
+                    optimisticUpdateTask({ task_uuid: id, task_start_date: startDate }, projectUUID)
                 })
         },
-        [post, taskInfo, dispatch, optimisticUpdateTask],
+        [post, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskDueDate = useCallback(
         (date: Date | undefined, id: string) => {
-            if (!id || !taskInfo.data?.data.task_project.project_uuid) return
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
+            if (!id || !projectUUID) return Promise.resolve()
 
             const dueDate =  date ? date.toISOString() : ""
-            post
+            return post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskDueDate,
                     payload: {
                         task_uuid: id,
                         task_due_date: dueDate,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
@@ -428,55 +456,55 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     }))
                     // The board, the list and the timeline show it at once; no
                     // refetch, as a due date moves no card between columns.
-                    optimisticUpdateTask({ task_uuid: id, task_due_date: dueDate }, taskInfo.data!.data.task_project.project_uuid)
+                    optimisticUpdateTask({ task_uuid: id, task_due_date: dueDate }, projectUUID)
                 })
         },
-        [post, taskInfo, dispatch, optimisticUpdateTask],
+        [post, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskAssignee = useCallback(
-        (userInfo: UserProfileDataInterface | undefined, id: string) => {
-            if (!id || !taskInfo.data?.data.task_project.project_uuid) return
+        (
+            userInfo: UserProfileDataInterface | undefined,
+            id: string,
+            before: UserProfileDataInterface | undefined,
+            /** Where else it shows: a subtask's row in this panel. */
+            alsoShow?: (who: UserProfileDataInterface | undefined) => void,
+        ) => {
+            const projectUUID = taskInfo.data?.data.task_project.project_uuid
+            if (!id || !projectUUID) return Promise.resolve()
 
-            // Optimistic update
-            dispatch(updateTaskAssigneeInTaskList({
-                assignee: userInfo,
-                taskId: id
-            }))
-            optimisticUpdateTask({ task_uuid: id, task_assignee: userInfo }, taskInfo.data!.data.task_project.project_uuid)
-
-            taskInfo.mutate((currentData) => {
-                if (!currentData) return currentData
-                return {
-                    ...currentData,
-                    data: {
-                        ...currentData.data,
-                        task_assignee: userInfo
-                    }
+            // Shown on every list, board and this panel at once; put back on
+            // all of them if the server refuses it (the lists kept the new
+            // assignee: PTC-2).
+            const show = (who: UserProfileDataInterface | undefined) => {
+                alsoShow?.(who)
+                dispatch(updateTaskAssigneeInTaskList({ assignee: who, taskId: id }))
+                optimisticUpdateTask({ task_uuid: id, task_assignee: who }, projectUUID)
+                if (id === taskUUID) {
+                    patchCached<TaskInfoRawInterface>(`${GetEndpointUrl.GetTaskInfo}/${taskUUID}`, (d) => ({ ...d, data: { ...d.data, task_assignee: who } }))
                 }
-            }, { revalidate: false })
-
-            post
+            }
+            return optimistic({
+                key: `task:${id}:assignee`,
+                apply: () => show(userInfo),
+                revert: () => show(before),
+                commit: () => post
                 .makeRequest<CreateTaskInterface>({
                     apiEndpoint: PostEndpointUrl.UpdateTaskAssignee,
                     payload: {
                         task_assignee_uuid: userInfo?.user_uuid,
                         task_uuid: id,
-                        task_project_uuid: taskInfo.data.data.task_project.project_uuid,
+                        task_project_uuid: projectUUID,
                     },
                 })
                 .then(() => {
-                    // Success already handled optimistically.
                     // Assignee affects "my tasks" views — debounce so rapid
                     // re-assignments batch into one sweep.
                     revalidateTaskListsDebounced(2000)
-                })
-                .catch(() => {
-                    // Revert: re-fetch task info to restore previous assignee.
-                    taskInfo.mutate()
-                })
+                }),
+            })
         },
-        [post, taskInfo, dispatch, optimisticUpdateTask, revalidateTaskListsDebounced],
+        [post, taskInfo.data?.data.task_project.project_uuid, taskUUID, dispatch, optimisticUpdateTask, revalidateTaskListsDebounced],
     )
 
     const handleUndeleteTask = useCallback(() => {
@@ -655,27 +683,68 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         },
         [saveLabel],
     )
+    // A refused rename puts the saved name back: the title shows the task's
+    // name as the server has it (a new key reads it afresh), a subtask its own.
+    const [titleKey, setTitleKey] = useState(0)
     const saveName = useSaveOnEdit(
-        (name: UpdateTaskName) => updateTaskName(name.taskName, name.taskUUID),
+        (name: UpdateTaskName) => {
+            if (name.taskUUID !== taskUUID) {
+                changeSubtask(name.taskUUID, "name", { task_name: name.taskName }, () => updateTaskName(name.taskName, name.taskUUID))
+                return
+            }
+            void optimistic({
+                key: `task:${taskUUID}:name`,
+                apply: () => {},
+                revert: () => setTitleKey((k) => k + 1),
+                commit: () => updateTaskName(name.taskName, name.taskUUID),
+            })
+        },
         { delay: CONSTANTS.DEBOUNCE_DELAY, key: taskUUID },
     )
 
+    // A status or priority shows at once and is taken back if the server
+    // refuses it: after a failed Mark complete the panel stayed Done while
+    // the list said In progress, and the page raised an error (PTC-2).
     const handleStatusSelect = useCallback(
         (value: string) => {
             const patch = statusPatch(value, statusOpts)
-            setStatusFields(patch)
-            updateTaskStatus(value, taskUUID, patch)
+            const before = statusFields
+            void optimistic({
+                key: `task:${taskUUID}:status`,
+                apply: () => setStatusFields(patch),
+                revert: () => setStatusFields(before),
+                commit: () => updateTaskStatus(value, taskUUID, patch),
+            })
         },
-        [taskUUID, updateTaskStatus, statusOpts],
+        [taskUUID, updateTaskStatus, statusOpts, statusFields],
     )
 
     const handlePrioritySelect = useCallback(
         (value: string) => {
             const priority = priorities.find((p) => p.value === value)
-            setSelectedPriority(priority)
-            updateTaskPriority(value)
+            const before = selectedPriority
+            void optimistic({
+                key: `task:${taskUUID}:priority`,
+                apply: () => setSelectedPriority(priority),
+                revert: () => setSelectedPriority(before),
+                commit: () => updateTaskPriority(value),
+            })
         },
-        [updateTaskPriority],
+        [taskUUID, updateTaskPriority, selectedPriority],
+    )
+
+    // A subtask's own change shows in the list of subtasks at once, and is
+    // taken back there if the server refuses it.
+    const changeSubtask = useCallback(
+        (id: string, field: string, patch: Partial<TaskInfoInterface>, commit: () => Promise<unknown>) => {
+            const before = taskSubTasks.find((t) => t.task_uuid === id)
+            if (!before) return
+            const was = Object.fromEntries(Object.keys(patch).map((k) => [k, before[k as keyof TaskInfoInterface]])) as Partial<TaskInfoInterface>
+            const set = (p: Partial<TaskInfoInterface>) =>
+                setTaskSubTasks((prev) => prev.map((t) => (t.task_uuid === id ? { ...t, ...p } : t)))
+            void optimistic({ key: `task:${id}:${field}`, apply: () => set(patch), revert: () => set(was), commit })
+        },
+        [taskSubTasks],
     )
 
 
@@ -775,23 +844,16 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             })
     }
 
-    const handleDeleteTask = useCallback(
-        () => {
-            post.makeRequest<CreateTaskInterface>({
-                apiEndpoint:PostEndpointUrl.ArchiveTask,
-                payload: {
-                    task_uuid: taskUUID,
-                }
-            }).then(() => {
-                setTaskIsDeleted(true)
-                optimisticDeleteTask(taskUUID, taskInfo.data?.data.task_project.project_uuid || "")
-                // Delete affects list visibility — debounce in case user
-                // deletes multiple tasks in rapid succession.
-                revalidateTaskListsDebounced(500)
-            })
-        },
-        [taskUUID, post, taskInfo.data?.data.task_project.project_uuid, optimisticDeleteTask, revalidateTaskListsDebounced],
-    )
+    // Deleted with Undo, as everywhere (hooks/useDeleteTasks); the banner
+    // under the header stays for whoever comes back to it.
+    const deleteTasks = useDeleteTasks(taskInfo.data?.data.task_project?.project_uuid)
+    const handleDeleteTask = useCallback(() => {
+        const task = taskInfo.data?.data
+        if (!task) return
+        void deleteTasks([task]).then((r) => {
+            if (r.done.length > 0) setTaskIsDeleted(true)
+        })
+    }, [taskInfo.data?.data, deleteTasks])
 
     // Opening a task paints its header and fields first; the description and
     // everything under it (two editors, comments, dependencies) follow a frame
@@ -831,26 +893,23 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // The panel's shape, not a spinner: it fills in place (taskPanelSkeleton).
     if(taskInfo.isLoading) return <TaskPanelSkeleton />
 
-    // A task that isn't there for this person (deleted for good, or in a
-    // project they aren't in) says so, rather than a blank panel or a retry.
-    const loadStatus = (taskInfo.isError as { response?: { status?: number } } | undefined)?.response?.status
-    if (!taskInfo.data?.data && (loadStatus === 403 || loadStatus === 404)) {
-        return (
-            <div className="flex h-full flex-col">
-                <EmptyState
-                    illustration={<SpotDocs hue="dusk" />}
-                    title="You can't see this task"
-                    description="It's in a project you're not in, or it's gone."
-                    action={isDesktop ? <Button variant="secondary" size="sm" onClick={() => dispatch(closeRightPanel())}>Close</Button> : undefined}
-                    className="m-auto"
-                />
-            </div>
-        )
-    }
+    // A task that isn't there for this person says so, with the way back:
+    // the server answers an id that names nothing, a task deleted for good
+    // and one in a project they aren't in alike (404). Only a read that
+    // failed offers Try again; it said "a connection problem" about a task
+    // that was never there (PTC-4).
     if (!taskInfo.data?.data && taskInfo.isError) {
         return (
             <div className="flex h-full flex-col">
-                <ErrorState subject="this task" onRetry={() => void taskInfo.mutate()} className="m-auto" />
+                <LoadFailureState
+                    error={taskInfo.isError}
+                    noun="task"
+                    onRetry={() => void taskInfo.mutate()}
+                    back={onPage ? { label: "Back to My Tasks", href: app_my_task_path } : isDesktop ? { label: "Close", onClick: () => dispatch(closeRightPanel()) } : undefined}
+                    goneDetail="If someone sent you the link, it may be in a project you're not in."
+                    noAccessDetail="It's in a project you're not in. Ask one of the project's admins to add you."
+                    className="m-auto pt-0"
+                />
             </div>
         )
     }
@@ -873,6 +932,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     projectUUID={projectUUID}
                     scrolled={scrolled}
                     onPage={onPage}
+                    deleted={taskIsDeleted}
                     hasGitHubLink={!!(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch)}
                 />
                 {taskIsDeleted && (
@@ -904,7 +964,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     data-task-body={onPage ? "page" : "panel"}
                     className={cn(
                         "px-6 pb-6 pt-[18px]",
-                        onPage && "mx-auto w-full max-w-[1080px] lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-x-12 lg:px-8 lg:pt-8 lg:[&>*]:col-start-1",
+                        onPage && cn(PAGE_COLUMNS, "lg:pt-8 lg:[&>*]:col-start-1"),
                     )}
                     style={entranceStyle(entrance, "body")}
                 >
@@ -922,6 +982,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     {/* The title: title-2, edited in place, a hover ground behind it (W29). */}
                     <div className="-mx-1 mb-4 rounded-md transition-colors hover:bg-hover focus-within:bg-transparent" style={entranceStyle(entrance, "title")}>
                         <ResizeableTextInput
+                            key={titleKey}
                             delay={3000}
                             content={taskInfo.data?.data.task_name || ""}
                             textUpdate={(s: string) => saveName({ taskName: s, taskUUID })}
@@ -957,7 +1018,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         label="Assignee"
                         members={projectMembers}
                         assignee={taskInfo.data?.data.task_assignee}
-                        onChange={(uid) => updateTaskAssignee(uid, taskUUID)}
+                        onChange={(uid) => void updateTaskAssignee(uid, taskUUID, taskInfo.data?.data.task_assignee)}
                         includeAITeammates
                     />
 
@@ -967,12 +1028,12 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         due={dueDate}
                         done={isDone}
                         onStart={(d) => {
-                            setStartDate(d)
-                            updateTaskStartDate(d, taskUUID)
+                            const before = startDate
+                            void optimistic({ key: `task:${taskUUID}:start`, apply: () => setStartDate(d), revert: () => setStartDate(before), commit: () => updateTaskStartDate(d, taskUUID) })
                         }}
                         onDue={(d) => {
-                            setDueDate(d)
-                            updateTaskDueDate(d, taskUUID)
+                            const before = dueDate
+                            void optimistic({ key: `task:${taskUUID}:due`, apply: () => setDueDate(d), revert: () => setDueDate(before), commit: () => updateTaskDueDate(d, taskUUID) })
                         }}
                     />
                     {projectUUID && (
@@ -1032,32 +1093,17 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         projectMembers={projectMembers}
                         onToggleStatus={(id, newStatus) => {
                                 const patch = statusPatch(newStatus, statusOpts)
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, ...patch } : subtask)),
-                                )
-                                updateTaskStatus(newStatus, id, patch)
+                                changeSubtask(id, "status", patch, () => updateTaskStatus(newStatus, id, patch))
                             }
                         }
                         onRename={(id, name) => saveName({ taskName: name, taskUUID: id })}
-                        onUpdateStart={(id, d) => {
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_start_date: d?.toISOString() || "" } : subtask)),
-                                )
-                                updateTaskStartDate(d, id)
-                            }
-                        }
-                        onUpdateDue={(id, d) => {
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_due_date: d?.toISOString() || "" } : subtask)),
-                                )
-                                updateTaskDueDate(d, id)
-                            }
-                        }
+                        onUpdateStart={(id, d) => changeSubtask(id, "start", { task_start_date: d?.toISOString() || "" }, () => updateTaskStartDate(d, id))}
+                        onUpdateDue={(id, d) => changeSubtask(id, "due", { task_due_date: d?.toISOString() || "" }, () => updateTaskDueDate(d, id))}
                         onUpdateAssignee={(id, userInfo) => {
-                                setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_assignee: userInfo } : subtask)),
+                                const before = taskSubTasks.find((t) => t.task_uuid === id)?.task_assignee
+                                void updateTaskAssignee(userInfo, id, before, (who) =>
+                                    setTaskSubTasks((prev) => prev.map((t) => (t.task_uuid === id ? { ...t, task_assignee: who } : t))),
                                 )
-                                updateTaskAssignee(userInfo, id)
                             }
                         }
                         onOpen={handleChangeTask}
@@ -1193,14 +1239,15 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         ) : streamFilter === "github" ? (
                             <GitHubActivityTab taskUUID={taskUUID} />
                         ) : streamFilter === "history" ? (
-                            <TaskActivitySection taskActivity={taskInfo.data?.data.task_activities} />
+                            <TaskActivitySection taskActivity={history.activities} earlier={history} />
                         ) : streamFilter === "comments" ? (
                             taskCommentState.length ? renderComments(0, taskCommentState.length) : (
                                 <p className="py-6 text-center text-ui-sm text-ink-3">No comments yet. Ask a question or share where it stands.</p>
                             )
                         ) : (
                             <TaskStream
-                                activities={taskInfo.data?.data.task_activities}
+                                activities={history.activities}
+                                earlier={history}
                                 comments={taskCommentState}
                                 renderComments={renderComments}
                             />
@@ -1215,6 +1262,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
 
             {settled ? <TaskCommentBox
                 taskUUID={taskUUID}
+                frame={onPage ? PAGE_COLUMNS : undefined}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
                 onAttachmentClick={openCommentFiles}
                 onActionFiles={async (files) => {

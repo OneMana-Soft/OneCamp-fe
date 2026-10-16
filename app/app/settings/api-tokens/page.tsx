@@ -22,7 +22,8 @@ export default function ApiTokensSettingsPage() {
         }
       >
         A token acts as you, limited to the scopes you grant, for scripts and outside tools. Send it as{" "}
-        <code className="rounded-sm bg-sunken px-1 font-mono text-xs" translate="no">Authorization: Bearer …</code>.
+        {/* nowrap: a phone broke the header in two at the space. */}
+        <code className="whitespace-nowrap rounded-sm bg-sunken px-1 font-mono text-xs" translate="no">Authorization: Bearer …</code>.
       </SectionHeader>
       <ApiTokensCard creating={creating} onCreatingChange={setCreating} />
     </div>

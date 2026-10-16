@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
@@ -84,6 +85,19 @@ describe("the invite dialog's chips", () => {
     expect(document.querySelectorAll("[data-invite-chip='ok']").length).toBe(2)
     expect(document.querySelector("[data-invite-chip='invalid']")?.textContent).toContain("nope")
     expect(screen.getByRole("button", { name: "Send 2 invitations" })).toBeTruthy()
+    // Said under the field, not only in a tooltip a phone can't hover (critic,
+    // 11 Oct), and tied to the field for a screen reader.
+    const line = document.querySelector("[data-invalid-line]") as HTMLElement
+    expect(line.textContent).toBe("“nope” isn't an email address, so it won't be sent. Fix it or remove it.")
+    expect(line.className).toContain("text-danger-ink")
+    expect(box.getAttribute("aria-describedby")).toContain(line.id)
+  })
+
+  it("tints a bad address's chip by the attribute the chip carries", () => {
+    // The rules named data-kind, which nothing set, so a bad chip looked good.
+    const css = readFileSync("app/styles/admin/people.css", "utf8")
+    expect(css).toMatch(/\.invite-chip\[data-invite-chip="invalid"\]\s*\{[^}]*--destructive/)
+    expect(css).not.toMatch(/\.invite-chip\[data-kind=/)
   })
 
   it("selects the last chip on the first Backspace and removes it on the second", () => {

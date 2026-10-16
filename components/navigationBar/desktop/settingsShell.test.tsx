@@ -19,17 +19,21 @@ vi.mock("next/link", () => ({
     <a href={href} {...rest}>{children}</a>
   ),
 }))
-vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => true, isLoading: false }) }))
+const caps = vi.hoisted(() => ({ granted: true }))
+vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => caps.granted, isLoading: false }) }))
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", FEATURE_CALLS: "calls", useFeatureState: () => "available" }))
 vi.mock("@/components/admin/adminPreload", () => ({ preloadAdminSection: vi.fn() }))
 
-const { SettingsNav, rememberAppRoute } = await import("./SettingsNav")
+const { SettingsNav, SettingsRailItems, rememberAppRoute } = await import("./SettingsNav")
+const { TooltipProvider } = await import("@/components/ui/tooltip")
+const { MediaQueryProvider } = await import("@/context/MediaQueryContext")
 const { inSettingsShell, searchSettings, SETTINGS_PLACES } = await import("@/lib/adminSections")
 
 beforeEach(() => {
   nav.pathname = "/app/admin"
   nav.params = new URLSearchParams("tab=settings")
   nav.push.mockClear()
+  caps.granted = true
   sessionStorage.clear()
 })
 afterEach(cleanup)
@@ -55,6 +59,39 @@ describe("the settings shell", () => {
     const current = within(main).getByRole("link", { name: "General" })
     expect(current.getAttribute("aria-current")).toBe("page")
     expect(within(main).getByRole("link", { name: "Members" }).getAttribute("aria-current")).toBeNull()
+  })
+
+  // Admin critic #16: under 1024 the sidebar starts as the rail, and in
+  // settings the rail held the app's places: no way to another section.
+  it("folds into the rail as the sections themselves, with Back to app first", () => {
+    nav.pathname = "/app/settings/notifications"
+    nav.params = new URLSearchParams()
+    render(<MediaQueryProvider><TooltipProvider><SettingsRailItems isAdmin={false} /></TooltipProvider></MediaQueryProvider>)
+    const links = screen.getAllByRole("link")
+    expect(links[0].getAttribute("aria-label")).toBe("Back to app")
+    expect(screen.getByRole("link", { name: "Notifications" }).getAttribute("aria-current")).toBe("page")
+    expect(screen.queryByRole("link", { name: "Members" })).toBeNull()
+    const src = readFileSync(join(process.cwd(), "components/navigationBar/desktop/desktopNavigationBar.tsx"), "utf8")
+    expect(src).toMatch(/<SidebarRail\s+body=\{settingsShell \? \([\s\S]{0,120}<SettingsRailItems isAdmin=\{isAdmin\} \/>/)
+  })
+
+  // QA SH-21 (14 Oct 2026): Workflows opened by its address without the
+  // right to it showed its locked card, and the nav marked nothing current.
+  it("keeps the page you opened in the nav, current and locked, when it isn't yours to use", () => {
+    caps.granted = false
+    nav.pathname = "/app/settings/workflows"
+    nav.params = new URLSearchParams()
+    render(<SettingsNav isAdmin={false} />)
+    const main = screen.getByRole("navigation", { name: "Settings" })
+    const row = within(main).getByRole("link", { name: /^Workflows\s*, locked$/ })
+    expect(row.getAttribute("aria-current")).toBe("page")
+    // Search never offers it, and anywhere else it stays out.
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "workflows" } })
+    expect(screen.queryByRole("link", { name: /Workflows/ })).toBeNull()
+    cleanup()
+    nav.pathname = "/app/settings/notifications"
+    render(<SettingsNav isAdmin={false} />)
+    expect(within(screen.getByRole("navigation", { name: "Settings" })).queryByRole("link", { name: /Workflows/ })).toBeNull()
   })
 
   it("shows a member only You", () => {

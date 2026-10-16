@@ -21,6 +21,7 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
+import { useSecretReentry } from "@/hooks/useSecretReentry"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Plus, Trash2, Check, X, Upload, Loader2, ImageIcon, Pencil } from "@/lib/icons"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -90,7 +91,7 @@ export default function AppsCard() {
         const params = new URLSearchParams(window.location.search)
         const oauth = params.get("oauth")
         if (oauth === "success") {
-            toast({ title: "App connected", description: "OAuth authorization completed." })
+            toast({ title: "App connected", description: "OAuth authorisation completed." })
             mutate()
         } else if (oauth === "error") {
             toast({ title: "Couldn't connect the app", description: "The provider didn't finish the sign-in. Press Connect to try again.", variant: "destructive" })
@@ -318,12 +319,22 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
     const [apiKey, setApiKey] = useState("")
     const [signingSecret, setSigningSecret] = useState("")
 
-    // OAuth fields
-    const [clientId, setClientId] = useState("")
+    // OAuth fields: the saved settings, so a save sends them back unchanged
+    // rather than the empty fields that used to replace them.
+    const [clientId, setClientId] = useState(app?.oauth?.client_id ?? "")
     const [clientSecret, setClientSecret] = useState("")
-    const [authUrl, setAuthUrl] = useState("")
-    const [tokenUrl, setTokenUrl] = useState("")
-    const [scopes, setScopes] = useState("")
+    const [authUrl, setAuthUrl] = useState(app?.oauth?.auth_url ?? "")
+    const [tokenUrl, setTokenUrl] = useState(app?.oauth?.token_url ?? "")
+    const [scopes, setScopes] = useState((app?.oauth?.scopes ?? []).join(", "))
+    // The saved client secret stays with the token address it was given for,
+    // as the server holds it: a new address needs it entered again.
+    const secretReentry = useSecretReentry({
+        stored: kind === "oauth" && !!app?.has_client_secret,
+        entered: clientSecret,
+        from: { url: app?.oauth?.token_url ?? "" },
+        to: { url: tokenUrl },
+        noun: "client secret",
+    })
 
     const [commands, setCommands] = useState<AppCommandInput[]>(
         (app?.commands || []).map((c) => ({
@@ -352,6 +363,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
             slugRef.current?.focus()
             return
         }
+        if (!secretReentry.check()) return
         setBusy(true)
         try {
             const oauthConfig = kind === "oauth" ? {
@@ -487,7 +499,19 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                         <section className="cx-app-panel space-y-3 p-3" aria-labelledby={`${kindLabelId}-oauth`}>
                             <h3 id={`${kindLabelId}-oauth`} className="text-sm font-medium">OAuth settings</h3>
                             <Field label="Client ID"><Input value={clientId} onChange={(e) => setClientId(e.target.value)} spellCheck={false} autoComplete="off" /></Field>
-                            <Field label="Client secret" help="Stored encrypted."><Input type="password" autoComplete="new-password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} /></Field>
+                            <div className="grid gap-2">
+                                <Field label="Client secret" help={app?.has_client_secret ? "A secret is saved. Leave this empty to keep it, or enter a new one to replace it." : "Stored encrypted."}>
+                                    <Input
+                                        {...secretReentry.inputProps}
+                                        type="password"
+                                        autoComplete="new-password"
+                                        value={clientSecret}
+                                        onChange={(e) => setClientSecret(e.target.value)}
+                                        placeholder={secretReentry.placeholder ?? (app?.has_client_secret ? "Saved" : "")}
+                                    />
+                                </Field>
+                                {secretReentry.note}
+                            </div>
                             <Field label="Sign-in address"><Input value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://provider.com/oauth/authorize…" type="url" spellCheck={false} autoComplete="off" /></Field>
                             <Field label="Token address"><Input value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://provider.com/oauth/token…" type="url" spellCheck={false} autoComplete="off" /></Field>
                             <Field label="Scopes" help="Separated by commas."><Input value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="read,write…" spellCheck={false} autoComplete="off" /></Field>

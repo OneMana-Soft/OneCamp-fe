@@ -28,6 +28,8 @@ import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { StateWord, type RowMenuItem } from "@/components/admin/connectParts"
 import { IMPORT_STATE, ImportJobFrame, useFinishCelebration } from "@/components/admin/importParts"
 import { importProviderLabel, type ImportJob } from "@/services/importService"
+import { format } from "date-fns"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /** A row's buttons: 44px touch targets on a phone, 28px from md up. */
 export const ROW_ACTION = "h-11 md:h-7"
@@ -105,7 +107,7 @@ export function pauseLine(j: Pick<ImportJob, "progress">, now: number = Date.now
   const until = typeof j.progress?.paused_until === "string" ? Date.parse(j.progress.paused_until) : NaN
   if (!Number.isFinite(until) || until <= now) return null
   const reason = typeof j.progress?.pause_reason === "string" ? j.progress.pause_reason : ""
-  const at = new Date(until).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+  const at = `${format(until, "EEE")} ${clockTime(until)}`
   return `Waiting${reason ? `: ${reason}` : ""}. It carries on by itself around ${at}.`
 }
 

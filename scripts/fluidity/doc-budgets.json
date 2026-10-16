@@ -1,0 +1,21 @@
+{
+  "about": [
+    "The doc fluidity budgets (docs programme A2, I20; G-PERF). scripts/fluidity/docs.mjs measures each metric on a production build against the fake server side (fakeApp.mjs, 150 ms a round trip, two more for a new socket's handshakes) and exits non-zero when an enforced value is over its max.",
+    "max is what a run must stay under now; target is where the metric must get to, and owner the package that gets it there. Where max is above target, max was measured on 12 Oct 2026 (with a margin for a shared machine) and only ever goes down.",
+    "enforce false: printed against its target, never failing the run, because on a shared machine the 2,000-block timings vary threefold with load. Enforce them on a quiet runner, or once their owner brings them under target.",
+    "Never raise a max to make a run pass. Lower it when a package brings a metric down."
+  ],
+  "network": { "rttMs": 150, "why": "The low end of the demo's time to first byte from here (155–814 ms, perf §1.1)." },
+  "budgets": {
+    "againEditableMs": { "owner": "A2", "source": "PROGRAM A2: a second in-app open is editable in 200 ms at 1×, 400 ms at 4×", "cpu1": { "max": 200, "target": 200 }, "cpu4": { "max": 400, "target": 400 } },
+    "firstEditableMs": { "owner": "A2", "source": "PROGRAM A2: a first in-app open is editable in 600 ms at 1×, 1,000 ms at 4×", "cpu1": { "max": 600, "target": 600 }, "cpu4": { "max": 1000, "target": 1000 } },
+    "firstEditableAfterBodyMs": { "owner": "A2", "source": "perf 1.2: editable within 400 ms of the body showing", "cpu1": { "max": 400, "target": 400 } },
+    "socketsPerTab": { "owner": "A2", "source": "perf 1.1: one socket across every open in a tab", "max": 1, "target": 1 },
+    "keyP95Ms": { "owner": "A2", "source": "I20: key p95 32 ms at 1×, 50 ms at 4× in a normal doc", "cpu1": { "max": 32, "target": 32 }, "cpu4": { "max": 50, "target": 50 } },
+    "readerSeesTypingMs": { "owner": "A2", "source": "PROGRAM A2: a viewer sees typing within 1 s", "max": 1000, "target": 1000 },
+    "routeKbOverHome": { "owner": "A1", "source": "I20: the doc route adds at most 300 KB gzip over Home (A1 makes doc-only blocks lazy); 445–449 KB on 12 Oct", "max": 460, "target": 300 },
+    "bigLayoutReadsPerKey": { "owner": "B1", "source": "I20: no layout read per key. 2 a key on 12 Oct, both the block handle's view update (getClientRects, getBoundingClientRect); 0 since B1 (14 Oct: the handle goes while you type and reads nothing). ProseMirror's own scroll of the caret into view is not counted", "max": 0, "target": 0 },
+    "bigDispatchMsPerKey": { "owner": "C11", "enforce": false, "source": "perf 2.2: dispatch 8 ms a key on 2,000 blocks at 4×. A2 removed the two whole-doc walks (placeholder 1.7 ms, image offload 1.9 ms); y-prosemirror's sync view, which diffs the whole top-level fragment on every transaction, is 5.4–6.5 ms of the rest", "cpu1": { "max": 8, "target": 8 }, "cpu4": { "max": 8, "target": 8 } },
+    "bigKeyP95Ms": { "owner": "C11", "enforce": false, "source": "perf 2.2 and C11: key p95 on 2,000 blocks 32 ms at 1×, 90 ms at 4×", "cpu1": { "max": 32, "target": 32 }, "cpu4": { "max": 90, "target": 90 } }
+  }
+}

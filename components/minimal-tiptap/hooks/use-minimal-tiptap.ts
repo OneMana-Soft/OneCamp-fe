@@ -1,86 +1,23 @@
 import * as React from 'react'
 import type { Editor } from '@tiptap/react'
 import type { Content, UseEditorOptions } from '@tiptap/react'
-import { EmojiSuggest } from '@/components/minimal-tiptap/extensions/emoji-suggest/emojiSuggest'
+import { useEditor } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
-import { useEditor, mergeAttributes, Extension } from '@tiptap/react'
-import { SlashCommand } from '../extensions/slash-command/slashCommandExtension'
-import { isSlashMenuOpen } from '../extensions/slash-command/slashCommand'
-import { DOMOutputSpec } from '@tiptap/pm/model'
-import { Typography } from '@tiptap/extension-typography'
-import { Placeholder } from '@tiptap/extension-placeholder'
-import { Underline } from '@tiptap/extension-underline'
-import { TextStyle } from '@tiptap/extension-text-style'
-import {
-  Link,
-  Image,
-  HorizontalRule,
-  CodeBlockLowlight,
-  Selection,
-  Color,
-  UnsetAllMarks,
-  ResetMarksOnEnter,
-  FileHandler,
-  mentionSuggestionOptions
-} from '../extensions'
-import { SlashCommandItem } from '../extensions/slash-command/slashCommand'
-import { OffloadEmbeddedImages } from '../extensions/offload-embedded-images/offloadEmbeddedImages'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
+import type { SlashCommandItem } from '../extensions/slash-command/slashCommand'
 import { cn } from '@/lib/utils/helpers/cn'
-import { getOutput, randomId } from '../utils'
+import { getOutput } from '../utils'
 import { useThrottle } from '../hooks/use-throttle'
-import { Toast, useToast } from "@/hooks/use-toast";
-import Collaboration from '@tiptap/extension-collaboration'
-import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
-import { HocuspocusProvider } from '@hocuspocus/provider'
-import { Poll } from "@/components/minimal-tiptap/extensions/poll/poll";
-import { Mention } from "@tiptap/extension-mention";
-import axiosInstance from "@/lib/axiosInstance";
-import { PostFileUploadURL, GetEndpointUrl } from "@/services/endPoints";
-import { UploadFileInterfaceRes } from "@/types/file";
+import { useToast } from '@/hooks/use-toast'
+import type { ImageUploadOptions } from '../extensions/image/uploads'
+import '@/components/docEditor/registry'
+import { extensionsFor, useBlocksReady } from '@/components/docEditor/registry/factory'
+import type { EditionGate } from '@/components/docEditor/registry/registry'
+import type { BlockContext, EditorKind } from '@/components/docEditor/registry/types'
 
-import { ReactNodeViewRenderer } from '@tiptap/react'
-import MentionNodeView from '../extensions/mention-list/MentionNodeView'
-import { PluginKey } from '@tiptap/pm/state'
-import ReferenceMentionNodeView from '../extensions/reference-mention/ReferenceMentionNodeView'
-import { makeReferenceSuggestion } from '../extensions/reference-mention/referenceMentionList'
-import { RecordingEmbed } from '../extensions/recording-embed/recording-embed'
-import { ChartEmbed } from '../extensions/chart-embed/chart-embed'
-import { DiffEmbed } from '../extensions/diff-embed/diff-embed'
-import { hueFor } from '@/lib/campHue'
-import { HUE_CLASS } from '@/components/ui/graphics/hues'
-
-/** A collaborator as their awareness state describes them (their colour is ignored). */
-type CollaboratorUser = { id?: string; name?: string; [field: string]: unknown }
-
-/**
- * Someone else's caret and name flag: their identity hue, by their id. The
- * flag says their first name (the whole name is its title); an agent's keeps
- * its name and gets a spark (data-agent). See index.css for the flag's look
- * and how it folds to a dot when they pause.
- */
-export function collaboratorCaret(user: CollaboratorUser): HTMLElement {
-  const caret = document.createElement('span')
-  caret.className = `collaboration-cursor__caret ${HUE_CLASS[hueFor(user.id || user.name)]}`
-  const name = (user.name || '').trim()
-  const agent = user.kind === 'agent' || user.isAgent === true || user.is_agent === true
-  if (agent) caret.dataset.agent = ''
-  caret.title = name
-  const label = document.createElement('div')
-  label.className = 'collaboration-cursor__label'
-  label.textContent = agent ? name : name.split(/\s+/)[0] || ''
-  caret.append(label)
-  return caret
-}
-
-/** Someone else's selection, washed in their identity hue. */
-export function collaboratorSelection(user: CollaboratorUser) {
-  return { class: `ProseMirror-yjs-selection ${HUE_CLASS[hueFor(user.id || user.name)]}`, style: '' }
-}
-
-// Distinct plugin keys so the #-channel and +-work-item suggestion plugins
-// don't collide with each other or with the @-user mention plugin.
-const ChannelMentionPluginKey = new PluginKey('channelMention')
-const EntityMentionPluginKey = new PluginKey('entityMention')
+// Where these live now, for what imports them from here.
+export { collaboratorCaret, collaboratorHueClass, collaboratorSelection } from '@/components/docEditor/registry/presence'
+export { TYPOGRAPHY } from '../blocks/behaviour'
 
 export interface ThrottleControls {
   flush: () => void
@@ -88,6 +25,23 @@ export interface ThrottleControls {
 }
 
 export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
+  /**
+   * Which editor this is: its blocks come from the block registry for its kind
+   * (components/docEditor/registry/factory.ts). The chat composer and
+   * comment boxes are 'chat' (the default), a task's description 'task', a
+   * doc's page 'doc' and the guest's shared page 'guest' (useDocEditor).
+   */
+  kind?: EditorKind
+  /**
+   * The edition gate its blocks are read through: AI items only where AI is
+   * on. A doc's page passes useEditionGate(); the rest have no AI items.
+   */
+  gate?: EditionGate
+  /**
+   * The doc the editor shows, on the doc's page: its plugins read what is
+   * kept per doc (B6's page facts, the AI bar's store) by it (BlockContext).
+   */
+  docId?: string
   value?: Content
   output?: 'html' | 'json' | 'text'
   placeholder?: string
@@ -110,6 +64,8 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
     username: string
     userId?: string
     color?: string
+    /** This person's identity hue (lib/identityHue), sent so every tab draws them in it. */
+    hue?: string
     profileKey?: string
     onAuthenticationFailed?: () => void
     onStatus?: (status: string) => void
@@ -117,13 +73,23 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   }
   provider?: HocuspocusProvider
   providerSynced?: boolean
-  uploadFn?: (file: File) => Promise<{ id: string, src: string }>
+  /** Uploads an image and returns its address; it is given progress and an abort signal. */
+  uploadFn?: (file: File, options?: ImageUploadOptions) => Promise<{ id: string, src: string }>
   onActionFiles?: (files: File[], pos?: number) => void
   allowedMimeTypes?: string[]
   onSubmit?: () => boolean
-  extraExtensions?: any[]
+  /** Escape, when the host gives it a meaning (cancelling an edit): true when it acted. A menu that is up takes Escape first. */
+  onCancel?: () => boolean
+  /** The "/" menu's items, when the host gives its own; else the registry's for its kind. */
   slashCommands?: SlashCommandItem[]
   showOnlyCurrentPlaceholder?: boolean
+  /**
+   * Attributes for the editable element itself, merged over the editor's own
+   * (autocomplete off, and the class from editorClassName): its role and
+   * accessible name, and how a phone's keyboard should treat the text. Kept
+   * across later changes to editorClassName, which used to replace them all.
+   */
+  editorAttributes?: Record<string, string>
   /**
    * Whether the component holding the editor renders again on every
    * transaction (every keystroke). Tiptap's default, kept for the composers
@@ -135,385 +101,37 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   shouldRerenderOnTransaction?: boolean
 }
 
-// Exported for the schema manifest test (schemaManifest.test.ts), which
-// builds the doc editor's schema from this same list.
-export const createExtensions = (
-    // A getter, so a placeholder that changes after the editor is created (a
-    // channel's agents load a moment later) is read at render time, not frozen.
-    placeholderOf: () => string, 
-    toast: (options: Toast) => void, 
-    collaboration?: UseMinimalTiptapEditorProps['collaboration'], 
-    provider?: HocuspocusProvider, 
-    customUploadFnRef?: React.RefObject<((file: File) => Promise<{ id: string, src: string }>) | undefined>,
-    onActionFilesRef?: React.RefObject<((files: File[], pos?: number) => void) | undefined>,
-    allowedMimeTypes: string[] = ['image/*'],
-    onSubmitRef?: React.RefObject<(() => boolean) | undefined>,
-    extraExtensions?: Extension[],
-    slashCommands?: SlashCommandItem[],
-    showOnlyCurrentPlaceholder?: boolean
-) => {
-  const extensions = [
-    StarterKit.configure({
-      horizontalRule: false,
-      codeBlock: false,
-      paragraph: { HTMLAttributes: { class: 'text-node' } },
-      heading: { HTMLAttributes: { class: 'heading-node' } },
-      blockquote: { HTMLAttributes: { class: 'block-node' } },
-      bulletList: { HTMLAttributes: { class: 'list-node' } },
-      orderedList: { HTMLAttributes: { class: 'list-node' } },
-      code: { HTMLAttributes: { class: 'inline', spellcheck: 'false' } },
-      dropcursor: { width: 2, class: 'ProseMirror-dropcursor border' },
-      history: false // Disable history in favor of Y.js history
-    }),
-    Link,
-    // ":" and two letters offers a row of emoji (design v3 chat, C43).
-    EmojiSuggest,
-    // Polls render in messages (read-only editors) and survive a re-edit.
-    Poll,
-    Mention.extend({
-      addNodeView() {
-        return ReactNodeViewRenderer(MentionNodeView)
-      },
-    }).configure({
-      suggestion: mentionSuggestionOptions,
-      HTMLAttributes: {
-        class: 'mention',
-      },
-      renderHTML: (prop): DOMOutputSpec => {
-        return['span', mergeAttributes({ class: 'mention hover:cursor-pointer' , 'data-id': prop.node.attrs.id, 'data-label': prop.node.attrs.label, 'data-type': "mention"}), `@${prop.node.attrs.label}`]
-      },
-    }),
-    // #-trigger: reference a channel. Renders a clickable chip in the composer
-    // and in displayed messages (read-only editor uses the same config).
-    Mention.extend({
-      name: 'channelMention',
-      addNodeView() {
-        return ReactNodeViewRenderer(ReferenceMentionNodeView)
-      },
-    }).configure({
-      suggestion: makeReferenceSuggestion({
-        char: '#',
-        types: ['channel'],
-        pluginKey: ChannelMentionPluginKey,
-        emptyHint: 'Type to search channels',
-      }),
-      HTMLAttributes: { class: 'channel-mention' },
-      renderHTML: (prop): DOMOutputSpec => {
-        return ['span', mergeAttributes({ class: 'channel-mention hover:cursor-pointer', 'data-id': prop.node.attrs.id, 'data-label': prop.node.attrs.label, 'data-type': 'channelMention' }), `#${prop.node.attrs.label}`]
-      },
-    }),
-    // +-trigger: reference a work item (doc / board / task / project).
-    Mention.extend({
-      name: 'entityMention',
-      addNodeView() {
-        return ReactNodeViewRenderer(ReferenceMentionNodeView)
-      },
-    }).configure({
-      suggestion: makeReferenceSuggestion({
-        char: '+',
-        types: ['doc', 'board', 'task', 'project'],
-        pluginKey: EntityMentionPluginKey,
-        emptyHint: 'Type to search docs, boards, tasks, projects',
-      }),
-      HTMLAttributes: { class: 'entity-mention' },
-      renderHTML: (prop): DOMOutputSpec => {
-        return ['span', mergeAttributes({ class: 'entity-mention hover:cursor-pointer', 'data-id': prop.node.attrs.id, 'data-label': prop.node.attrs.label, 'data-type': 'entityMention' }), `${prop.node.attrs.label}`]
-      },
-    }),
-    Underline,
-    Image.configure({
-      allowedMimeTypes: ['image/*'],
-      maxFileSize: 5 * 1024 * 1024,
-      allowBase64: true,
-      uploadFn: async file => {
-        if (customUploadFnRef?.current) {
-          return await customUploadFnRef.current(file)
-        }
-
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('jsonData', JSON.stringify({ src_key: 'public' }))
-
-        try {
-          const res = await axiosInstance.post<UploadFileInterfaceRes>(PostFileUploadURL.UploadFile, formData)
-          const objUuid = res.data.object_uuid
-          const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || ''
-          const src = `${baseUrl}${GetEndpointUrl.PublicAttachmentURL}/${objUuid}`
-          return { id: objUuid, src }
-        } catch (error) {
-          // NEVER fall back to embedding the image as a base64 data URI.
-          //
-          // This is the DEFAULT handler for every editor that does not pass its
-          // own — comments, chat composers, task descriptions — so the fallback
-          // that used to live here had a wider blast radius than the doc editor's.
-          // Embedding on failure inverts the control that refused the upload: the
-          // bytes end up inside the message or comment body, get stored, and are
-          // then indexed as analysed text. One such document exhausted the search
-          // node's heap and stopped the container.
-          //
-          // Reporting and rethrowing leaves the author with a failed image they
-          // can retry, which is a far better outcome than content that silently
-          // carries megabytes of binary.
-          console.error('Default image upload failed', error)
-          toast({
-            title: 'Couldn’t add the image',
-            description: 'The upload didn’t go through. Check your connection and try again.',
-            variant: 'destructive',
-          })
-          throw error instanceof Error ? error : new Error('image upload failed')
-        }
-      },
-      onToggle(editor, files, pos) {
-        editor.commands.insertContentAt(
-          pos,
-          files.map(image => {
-            const blobUrl = URL.createObjectURL(image)
-            const id = randomId()
-
-            return {
-              type: 'image',
-              attrs: {
-                id,
-                src: blobUrl,
-                alt: image.name,
-                title: image.name,
-                fileName: image.name
-              }
-            }
-          }), { updateSelection: false }
-        )
-      },
-      onImageRemoved({ id, src }) {
-        // Image was removed from the editor computationally or via user action
-      },
-      onValidationError(errors) {
-        errors.forEach(error => {
-          toast({
-            title: 'Image validation error',
-            description: error.reason,
-            variant: 'destructive'
-          });
-
-        })
-      },
-      onActionSuccess({ action }) {
-        const mapping = {
-          copyImage: 'Copy Image',
-          copyLink: 'Copy Link',
-          download: 'Download'
-        }
-
-        toast({
-          title: mapping[action],
-          description: 'Image action success',
-        });
-
-      },
-      onActionError(error, { action }) {
-        const mapping = {
-          copyImage: 'Copy Image',
-          copyLink: 'Copy Link',
-          download: 'Download'
-        }
-        toast({
-          title: `Failed to ${mapping[action]}`,
-          description: error.message,
-          variant: 'destructive'
-        });
-      }
-    }),
-    FileHandler.configure({
-      allowBase64: true,
-      allowedMimeTypes: allowedMimeTypes,
-      maxFileSize: 50 * 1024 * 1024,
-      onDrop: (editor, files, pos) => {
-        if (onActionFilesRef?.current) {
-          onActionFilesRef.current(files, pos);
-          return;
-        }
-        files.forEach(file => {
-          if (!file.type.startsWith('image/')) return;
-          const blobUrl = URL.createObjectURL(file)
-          editor.commands.insertContentAt(pos, {
-            type: 'image',
-            attrs: { src: blobUrl, fileName: file.name, id: randomId(), title: file.name, alt: file.name }
-          })
-        })
-      },
-      onPaste: (editor, files) => {
-        if (onActionFilesRef?.current) {
-          onActionFilesRef.current(files);
-          return;
-        }
-        files.forEach(file => {
-          if (!file.type.startsWith('image/')) return;
-          const blobUrl = URL.createObjectURL(file)
-          editor.commands.insertContent({
-            type: 'image',
-            attrs: { src: blobUrl, fileName: file.name, id: randomId(), title: file.name, alt: file.name }
-          })
-        })
-      },
-      onValidationError: errors => {
-        errors.forEach(error => {
-
-          toast({
-            title: 'Image validation error',
-            description: error.reason,
-            variant: 'destructive'
-          });
-        })
-      }
-    }),
-    Color,
-    TextStyle,
-    Selection,
-    Typography,
-    UnsetAllMarks,
-    HorizontalRule,
-    ResetMarksOnEnter,
-    CodeBlockLowlight,
-    // Read-only interactive block emitted by the meeting-recap agent; renders a
-    // "Play recording" button inside the recap message (channel/DM/group).
-    RecordingEmbed,
-    // Read-only block emitted by an AI agent's reply (```chart → chart div);
-    // renders a data chart inline in a channel/DM message or doc.
-    ChartEmbed,
-    DiffEmbed,
-    Placeholder.configure({
-      placeholder: ({ editor, node }) => {
-        const placeholder = placeholderOf()
-        if (placeholder?.trim()) {
-          // A message box's placeholder ("Message #design") speaks for the
-          // whole box: it showed again on every empty line of a draft, so a
-          // line break under what was typed read "Message #design" again.
-          if (!editor.isEmpty) return ''
-          if (node.type.name === 'paragraph') return placeholder
-          if (node.type.name === 'heading') return `Heading ${node.attrs.level}`
-          if (node.type.name === 'blockquote') return 'Empty quote'
-          return ''
-        }
-        if (node.type.name === 'heading') {
-          return `Heading ${node.attrs.level}`
-        }
-        if (node.type.name === 'paragraph') {
-          return "Type / for blocks, @ for people"
-        }
-        if (node.type.name === 'blockquote') {
-          return 'Empty quote'
-        }
-        return ''
-      },
-      showOnlyWhenEditable: true,
-      showOnlyCurrent: showOnlyCurrentPlaceholder ?? false,
-      includeChildren: false,
-    }),
-    slashCommands ? SlashCommand.configure({ commands: slashCommands }) : SlashCommand,
-    Extension.create({
-      name: 'submitShortcut',
-      addKeyboardShortcuts() {
-        return {
-          'Enter': () => {
-            // While the "/" command menu is open, Enter belongs to the menu
-            // (it selects the highlighted command). Return FALSE — NOT true —
-            // so this keymap is treated as "unhandled" and ProseMirror
-            // continues to the suggestion plugin's keydown handler, which
-            // performs the selection. Returning true would mark Enter handled
-            // and swallow it (menu never selects); returning the submit result
-            // would send the raw "/" as a message. False is the only correct
-            // choice here.
-            if (isSlashMenuOpen()) {
-              return false
-            }
-            if (onSubmitRef?.current) {
-              // In a composer (an editor that sends), Enter in a list makes the
-              // next item (and on an empty one leaves the list), and in a code
-              // block the next line: false lets the list's and the code block's
-              // own Enter run. Enter sent from anywhere, so a list never got a
-              // second item and a half-written code block was posted and pushed
-              // (MC-BUG-5). Ctrl or Cmd with Enter always sends.
-              if (this.editor.isActive('listItem') || this.editor.isActive('codeBlock')) {
-                return false
-              }
-              return onSubmitRef.current();
-            }
-            return false
-          },
-          'Mod-Enter': () => {
-            if (isSlashMenuOpen() || !onSubmitRef?.current) {
-              return false
-            }
-            return onSubmitRef.current()
-          },
-          'Shift-Enter': () => {
-             if (this.editor.isActive('codeBlock')) {
-                 return this.editor.commands.newlineInCode()
-             }
-             return this.editor.commands.setHardBreak()
-          }
-        };
-      }
-    }),
-    // Move images that arrived INSIDE the content out to object storage. Pasting
-    // from another application brings <img src="data:…base64,…"> along with the
-    // HTML and never touches the upload path, so without this those bytes live in
-    // the document body — stored, and indexed as analysed text, which is how one
-    // document exhausted the search node's heap.
-    //
-    // Registered here so every editor gets it: docs, comments, chat composers and
-    // task descriptions alike, with nothing to remember at the call sites. It
-    // reuses whatever upload the editor is already configured with, so an image
-    // pasted into a doc lands where a dragged one would.
-    OffloadEmbeddedImages.configure({
-      upload: async (file: File) => {
-        if (customUploadFnRef?.current) {
-          const res = await customUploadFnRef.current(file)
-          return res.src
-        }
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('jsonData', JSON.stringify({ src_key: 'public' }))
-        const res = await axiosInstance.post<UploadFileInterfaceRes>(PostFileUploadURL.UploadFile, formData)
-        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || ''
-        return `${baseUrl}${GetEndpointUrl.PublicAttachmentURL}/${res.data.object_uuid}`
-      },
-      onError: (message: string) => {
-        toast({ title: 'Image stayed embedded', description: message, variant: 'destructive' })
-      },
-    })
-  ]
-
-  if (collaboration && collaboration.enabled && provider) {
-    extensions.push(
-      Collaboration.configure({
-        document: provider.document,
-        field: 'default',
-      }),
-      CollaborationCursor.configure({
-        provider: provider,
-        user: {
-          name: collaboration.username,
-          color: collaboration.color || '#f783ac',
-          id: collaboration.userId || collaboration.documentId,
-          profileKey: collaboration.profileKey,
-        },
-        // Someone else's caret, name tag and selection, in their identity
-        // hue (lib/campHue), worked out here from their id so every screen
-        // shows them in the same colour as their avatar.
-        render: collaboratorCaret,
-        selectionRender: collaboratorSelection,
-      })
-    )
+/**
+ * The editable element's attributes: autocomplete off (no browser suggestions
+ * over the text), the caller's own (a doc's role and name, its keyboard
+ * hints), and the class. Pure.
+ *
+ * The keyboard's autocorrect and capitalisation are the browser's unless the
+ * caller says otherwise: they were "off" here, but every editor that passed a
+ * class lost them on its first update, so every composer and doc has run with
+ * the phone's defaults, and a doc now asks for them on purpose.
+ */
+export function editorDomAttributes(editorClassName?: string, extra?: Record<string, string>): Record<string, string> {
+  return {
+    autocomplete: 'off',
+    ...(extra ?? {}),
+    class: cn('focus:outline-none', editorClassName),
   }
-
-  if (extraExtensions && extraExtensions.length > 0) {
-    extensions.push(...extraExtensions)
-  }
-
-  return extensions
 }
 
+/**
+ * What a kind's editor is built with while its lazy blocks load: nothing it
+ * could write to a shared doc with (no collaboration), never editable, never
+ * shown (the hook answers null until the real one exists). y-prosemirror
+ * deletes from the shared doc whatever its editor's schema can't hold, so the
+ * real editor is never built without them.
+ */
+const WAITING = [StarterKit.configure({ history: false })]
+
 export const useMinimalTiptapEditor = ({
+  kind = 'chat',
+  gate: gateProp,
+  docId,
   value,
   output = 'html',
   placeholder = '',
@@ -528,11 +146,12 @@ export const useMinimalTiptapEditor = ({
   onActionFiles,
   allowedMimeTypes,
   onSubmit,
-  extraExtensions,
+  onCancel,
   slashCommands,
   showOnlyCurrentPlaceholder,
   throttleRef,
   shouldRerenderOnTransaction = true,
+  editorAttributes,
   ...props
 }: UseMinimalTiptapEditorProps) => {
   const onUpdateRef = React.useRef(onUpdate)
@@ -540,6 +159,7 @@ export const useMinimalTiptapEditor = ({
   const uploadFnRef = React.useRef(uploadFn)
   const onActionFilesRef = React.useRef(onActionFiles)
   const onSubmitRef = React.useRef(onSubmit)
+  const onCancelRef = React.useRef(onCancel)
   const placeholderRef = React.useRef(placeholder)
   const providerRef = React.useRef(externalProvider)
 
@@ -549,6 +169,7 @@ export const useMinimalTiptapEditor = ({
     uploadFnRef.current = uploadFn
     onActionFilesRef.current = onActionFiles
     onSubmitRef.current = onSubmit
+    onCancelRef.current = onCancel
     placeholderRef.current = placeholder
     providerRef.current = externalProvider
   })
@@ -560,7 +181,7 @@ export const useMinimalTiptapEditor = ({
   // milliseconds a key.
   const throttledSetValue = useThrottle((ed: Editor) => onUpdateRef.current?.(getOutput(ed, output)), throttleDelay)
   const { toast } = useToast()
-  
+
   const provider = externalProvider;
 
   // Expose throttle flush/cancel via the optional out-ref. The wrapper
@@ -612,39 +233,51 @@ export const useMinimalTiptapEditor = ({
 
   const handleBlur = React.useCallback((editor: Editor) => onBlurRef.current?.(getOutput(editor, output)), [output])
 
-  // Use a stable key for provider to avoid recreating extensions on every render.
-  // Build the extension list. With the upstream provider now created via state
-  // (stable identity for a document's lifetime) and the editor gated on the
-  // provider being ready before mount, this memo runs once per document — the
-  // editor is created already bound to Yjs rather than rebuilt mid-session.
-  // `activeUsers` is deliberately excluded so presence updates never rebuild.
+  // The kind's blocks, from the registry, once those that load lazily are
+  // here (a doc's own blocks are one chunk, fetched when its first editor is
+  // built). With the upstream provider created via state (stable identity for
+  // a document's lifetime) and the editor gated on the provider being ready
+  // before mount, this runs once per document: the editor is created already
+  // bound to Yjs rather than rebuilt mid-session. `activeUsers` is deliberately
+  // left out so presence updates never rebuild it.
+  const ai = !!gateProp?.ai
+  const gate = React.useMemo<EditionGate>(() => ({ ai }), [ai])
+  const ready = useBlocksReady(kind, gate)
   const extensions = React.useMemo(
-    () => createExtensions(
-      () => placeholderRef.current,
-      toast,
-      collaboration,
-      provider || undefined,
-      uploadFnRef,
-      onActionFilesRef,
-      allowedMimeTypes,
-      onSubmitRef,
-      extraExtensions,
-      slashCommands,
-      showOnlyCurrentPlaceholder
-    ),
+    () => {
+      if (!ready) return WAITING
+      const context: BlockContext = {
+        kind,
+        gate,
+        placeholderOf: () => placeholderRef.current,
+        showOnlyCurrentPlaceholder,
+        toast,
+        uploadFnRef,
+        onActionFilesRef,
+        allowedMimeTypes,
+        onSubmitRef,
+        onCancelRef,
+        slashCommands,
+        docId,
+        collaboration,
+        provider: provider || undefined,
+      }
+      return extensionsFor(context)
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
+      ready,
+      kind,
+      gate,
+      docId,
       toast,
       collaboration?.enabled,
       collaboration?.documentId,
       collaboration?.token,
       collaboration?.username,
       collaboration?.color,
-      // We intentionally do NOT include collaboration?.activeUsers to avoid recreating
-      // the editor every time user count changes.
       provider,
       allowedMimeTypes,
-      extraExtensions,
       slashCommands,
       showOnlyCurrentPlaceholder,
     ]
@@ -652,63 +285,66 @@ export const useMinimalTiptapEditor = ({
 
   const { editable = true } = props
 
+  // The editable element's attributes, all of them every time: ProseMirror
+  // replaces the whole map on setOptions, so an update that named only the
+  // class used to drop the rest (autocomplete, the role, the accessible name).
+  const attributesKey = JSON.stringify(editorAttributes ?? null)
+  const attributes = React.useMemo(
+    () => editorDomAttributes(editorClassName, editorAttributes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- by value, not identity
+    [editorClassName, attributesKey],
+  )
+
   const editor = useEditor({
     extensions,
     // Only a change to the document is an edit. Tiptap also emits "update"
     // from setEditable, with nothing changed; passed on, that read as an edit
     // and opening a task wrote its description back (POST /task/updateTaskDesc).
     onUpdate: ({ editor, transaction }) => {
-      if (!transaction.docChanged) return
+      if (!ready || !transaction.docChanged) return
       handleUpdate(editor)
     },
-    onCreate: ({ editor }) => handleCreate(editor),
-    onBlur: ({ editor }) => handleBlur(editor),
+    onCreate: ({ editor }) => {
+      if (ready) handleCreate(editor)
+    },
+    onBlur: ({ editor }) => {
+      if (ready) handleBlur(editor)
+    },
     immediatelyRender: false,
     shouldRerenderOnTransaction,
-    editable,
-    editorProps: {
-      attributes: {
-        autocomplete: 'off',
-        autocorrect: 'off',
-        autocapitalize: 'off',
-        class: cn('focus:outline-none', editorClassName)
-      }
-    }
-  }, [extensions, editable])
+    editable: ready ? editable : false,
+    editorProps: { attributes }
+  // Not on `editable`: who may edit changes with setEditable below, and the
+  // editor (its history, its place in the doc) stays (N29).
+  }, [extensions])
 
   // Update editor editable state dynamically
   React.useEffect(() => {
-    if (editor && !editor.isDestroyed && editable !== undefined) {
-      // false: changing who may edit is not an edit (setEditable emits
-      // "update" by default).
-      editor.setEditable(editable, false)
-    }
-  }, [editor, editable])
+    if (!ready || !editor || editor.isDestroyed || editable === undefined) return
+    // false: changing who may edit is not an edit (setEditable emits
+    // "update" by default).
+    if (editor.isEditable !== editable) editor.setEditable(editable, false)
+  }, [editor, editable, ready])
 
-  // Update editor attributes dynamically if editorClassName changes
+  // The attributes changed after the editor was made (a new class, a new
+  // name): the whole map again, so nothing set at creation is lost.
+  const appliedAttributes = React.useRef(attributes)
   React.useEffect(() => {
-    if (editor && editorClassName !== undefined) {
-      editor.setOptions({
-        editorProps: {
-          attributes: {
-            class: cn('focus:outline-none', editorClassName)
-          }
-        }
-      })
-    }
-  }, [editor, editorClassName])
-
-  // REMOVED: the early return that caused editor to vanish when provider was null.
-  // The parent component should handle loading states; the hook should return an
-  // editor whenever possible so that non-collaborative fallback works.
+    if (!editor || editor.isDestroyed) return
+    if (appliedAttributes.current === attributes) return
+    appliedAttributes.current = attributes
+    editor.setOptions({ editorProps: { attributes } })
+  }, [editor, attributes])
 
   // Placeholder decorations are only recomputed on a transaction, so a new
   // placeholder prop needs one to show. It changes nothing in the document.
   React.useEffect(() => {
-    if (!editor || editor.isDestroyed) return
+    if (!ready || !editor || editor.isDestroyed) return
     editor.view.dispatch(editor.state.tr.setMeta('placeholderRefresh', true))
-  }, [editor, placeholder])
+  }, [editor, placeholder, ready])
 
-  return editor
+  // The editor once its blocks are all here; until then, none (the hosts
+  // draw the doc's saved copy, or their own skeleton, meanwhile). The render
+  // that sees them arrive still holds the waiting editor: not that one either.
+  return ready && editor && editor.options.extensions !== WAITING ? editor : null
 }
-

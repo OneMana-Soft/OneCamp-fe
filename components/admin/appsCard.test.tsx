@@ -25,7 +25,7 @@ vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: (typeof confirmC
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }), toast: toastSpy }))
 
 import AppsCard from "@/components/admin/AppsCard"
-import { disconnectApp, listApps, listMarketplace } from "@/services/appService"
+import { disconnectApp, listApps, listMarketplace, updateApp } from "@/services/appService"
 
 const fresh = ({ children }: { children: ReactNode }) => (
   <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
@@ -63,6 +63,43 @@ describe("apps", () => {
     expect(await screen.findByRole("switch", { name: "Use Giphy" })).toBeTruthy()
     const edit = screen.getByRole("button", { name: "Edit Giphy" })
     expect(edit.querySelector(".lucide-refresh-cw")).toBeNull()
+  })
+
+  // The saved client secret stays with the token address it was given for, and
+  // the server won't keep it for a new one. The form asks for it under its field
+  // first, as every other settings form does, and edits the saved settings
+  // rather than empty fields that a save would send back over them.
+  it("shows an OAuth app's saved settings, and asks for its client secret again when the token address moves", async () => {
+    const zoom = {
+      ...giphy, id: "a2", slug: "zoom", name: "Zoom", has_client_secret: true,
+      oauth: { client_id: "client-1", auth_url: "https://zoom.example/oauth/authorize", token_url: "https://zoom.example/oauth/token", scopes: ["meeting:write"] },
+    }
+    vi.mocked(listApps).mockResolvedValue([zoom] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    vi.mocked(updateApp).mockResolvedValue(zoom as never)
+    render(<AppsCard />, { wrapper: fresh })
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Zoom" }))
+
+    const token = (await screen.findByLabelText("Token address")) as HTMLInputElement
+    expect(token.value).toBe("https://zoom.example/oauth/token")
+    expect((screen.getByLabelText("Client ID") as HTMLInputElement).value).toBe("client-1")
+    expect((screen.getByLabelText("Scopes") as HTMLInputElement).value).toBe("meeting:write")
+    expect(screen.queryByText("Enter the client secret again for the new address.")).toBeNull()
+
+    fireEvent.change(token, { target: { value: "https://elsewhere.example/oauth/token" } })
+    const secret = screen.getByLabelText("Client secret")
+    expect(secret.getAttribute("required")).not.toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+    expect(await screen.findByText("Enter the client secret again for the new address.")).toBeTruthy()
+    expect(document.activeElement).toBe(secret)
+    expect(updateApp).not.toHaveBeenCalled()
+
+    fireEvent.change(secret, { target: { value: "new-secret" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+    await waitFor(() => expect(updateApp).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(updateApp).mock.calls[0][1].oauth_config).toMatchObject({
+      client_id: "client-1", client_secret: "new-secret", token_url: "https://elsewhere.example/oauth/token", scopes: ["meeting:write"],
+    })
   })
 
   // Disconnecting ended the app's access on one click.

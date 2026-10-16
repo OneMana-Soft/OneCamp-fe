@@ -14,7 +14,7 @@ const BAR = "rounded-md bg-press [animation:skeleton-breathe_1.8s_ease-in-out_40
 export function DocBodySkeleton({ className }: { className?: string }) {
   return (
     <div data-doc-skeleton="" className={cn("doc-measure mx-auto w-full px-5 pt-6 md:px-8 md:pt-14", className)}>
-      <div className={cn(BAR, "h-8 w-[60%]")} />
+      <div className={cn(BAR, "h-12 w-[60%] max-md:h-9")} />
       <div className={cn(BAR, "mt-3 h-3 w-48")} />
       <div className="mt-8 space-y-[14px]">
         {[92, 100, 84, 96, 40].map((w) => (

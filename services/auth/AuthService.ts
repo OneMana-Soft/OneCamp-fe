@@ -1,4 +1,5 @@
 import { withCsrfHeader } from "@/lib/utils/csrf";
+import { refreshSession } from "@/lib/auth/sessionRefresh";
 
 /**
  * How long a signed-out page waits for the server to answer a question it asks
@@ -291,6 +292,32 @@ class AuthService {
     }
 
     /**
+     * Whether a mailed reset link can still be used, asked as its page opens
+     * (POST /auth/reset-password/check): "refused" for a made-up, used or
+     * expired one, so the page says so before a password is typed (QA SH-20).
+     * "unknown" when nothing answered in time: the form shows, and its submit
+     * says what the server says.
+     */
+    static async checkResetLink(token: string): Promise<"usable" | "refused" | "unknown"> {
+        try {
+            return await within(async (signal) => {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}auth/reset-password/check`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token }),
+                    signal,
+                });
+                if (res.ok) return "usable" as const;
+                const data = await res.json().catch(() => null);
+                return data?.code === "reset_link_invalid" ? ("refused" as const) : ("unknown" as const);
+            });
+        } catch {
+            return "unknown";
+        }
+    }
+
+    /**
      * Sets a new password from an emailed link.
      *
      * `link_refused` is a link that is old, already used or unknown: the server
@@ -470,19 +497,14 @@ class AuthService {
 
             let status = await probe();
             if (status === 401) {
-                // Access token likely expired; try one refresh, then re-probe.
+                // Access token likely expired: the session's one refresh,
+                // shared with the app and every tab (lib/auth/sessionRefresh;
+                // a refresh token used twice signs the device out), then re-probe.
                 try {
-                    const refresh = await fetch(`${base}refreshToken`, {
-                        method: 'GET',
-                        credentials: 'include',
-                        cache: 'no-store',
-                        signal,
-                    });
-                    if (refresh.ok) {
-                        status = await probe();
-                    }
+                    await refreshSession();
+                    status = await probe();
                 } catch {
-                    /* refresh unreachable → fall through as not logged in */
+                    /* refresh refused or unreachable → fall through as not logged in */
                 }
             }
             return status >= 200 && status < 300;

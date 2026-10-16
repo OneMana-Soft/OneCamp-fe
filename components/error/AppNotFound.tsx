@@ -1,12 +1,12 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { SpotOrbit } from "@/components/error/shellSpots"
+import { PublicGone } from "@/components/guest/publicStates"
 import { openPalette } from "@/lib/ui/palette"
 import { useModKey } from "@/hooks/useModKey"
 import { app_home_path } from "@/types/paths"
+import { useTabName } from "@/components/common/DocumentTitle"
 
 /** What a broken link was probably after: its last segment, de-slugged. "q4-launch-plan" is "q4 launch plan". */
 export function queryFromPath(path: string | null | undefined): string {
@@ -23,28 +23,29 @@ export function queryFromPath(path: string | null | undefined): string {
 }
 
 /**
- * A signed-in 404, inside the shell with the sidebar (design v3, shell §L4,
- * mock M6): the orbit spot, a light title (the person did nothing wrong),
- * what probably happened, and two ways on: Home, or ⌘K with the link's last
- * words already typed.
+ * A signed-in 404, inside the shell with the sidebar, drawn as every dead
+ * link is (PublicGone, without the public frame): "This page doesn't exist
+ * or was deleted", what probably happened, and two ways on: Home, or ⌘K with
+ * the link's last words already typed (PG2-01: four designs for one moment).
  */
 export function AppNotFound() {
   const mod = useModKey()
   const pathname = usePathname()
+  // The tab says so too (QA SH-11): it said "OneCamp".
+  useTabName("Page not found")
   return (
-    <main id="main-content" data-app-not-found="" className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-4 py-16 text-center">
-      <SpotOrbit />
-      <h1 className="mt-3 text-title-3 font-semibold text-foreground">This page wandered off</h1>
-      <p className="mt-1 max-w-[44ch] text-sm text-ink-2">The link may be old, or what it pointed to was deleted.</p>
-      <div className="mt-3.5 flex items-center gap-2">
-        <Button asChild size="sm">
-          <Link href={app_home_path}>Go home</Link>
-        </Button>
+    <PublicGone
+      frame={false}
+      surface="not-found"
+      noun="page"
+      detail="The link may be old, or what it pointed to was deleted."
+      back={{ label: "Go home", href: app_home_path }}
+      more={
         <Button size="sm" variant="secondary" onClick={() => openPalette({ query: queryFromPath(pathname) })}>
           Search
-          <kbd className="kbd ml-1">{mod === "⌘" ? "⌘K" : "Ctrl K"}</kbd>
+          <kbd data-kbd-hint="" className="kbd ml-1">{mod === "⌘" ? "⌘K" : "Ctrl K"}</kbd>
         </Button>
-      </div>
-    </main>
+      }
+    />
   )
 }

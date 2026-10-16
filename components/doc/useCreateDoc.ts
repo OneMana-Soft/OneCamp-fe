@@ -1,49 +1,102 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
+import { useDispatch } from "react-redux"
 
-import { usePost } from "@/hooks/usePost"
-import type { DocTemplate } from "@/lib/docTemplates"
-import { PostEndpointUrl } from "@/services/endPoints"
-import type { DocInfoInterface } from "@/types/doc"
+import { createDoc } from "@/services/docGraphService"
+import { docCreated } from "@/lib/docCache"
+import type { DocCreateRequest, DocSpace } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
 
-/** The title a doc starts with; the editor shows it as the placeholder to type over. */
-export const NEW_DOC_TITLE = "Untitled"
+/** How a new doc starts, and where it goes. */
+export interface CreateDocOptions {
+  /**
+   * A template's id. The server writes its body as it makes the doc (N37),
+   * so the doc opens with it already there, in every tab, once.
+   */
+  templateId?: string
+  /** The title it starts with. Left out, it has none: "Untitled" is only the placeholder (D-6). */
+  title?: string
+  /** The page it goes inside. */
+  parentId?: string
+  /** Where it goes at the top: private (the default), the workspace, or a project's or team's space. */
+  space?: DocSpace
+  /** Right after this page, among its siblings. */
+  afterId?: string
+  /** Open it once it's made (the default). */
+  open?: boolean
+  /** What `busy` names while it's being made: a template's row, a tree's row. A template's id, else "blank". */
+  busyKey?: string
+}
+
+// One doc is made at a time in the tab, whatever asked for it: N, the docs
+// page's button, a template's row and the sidebar's + each made one when
+// pressed together (N31: there was no busy guard across callers).
+let making: string | null = null
+const listeners = new Set<() => void>()
+function setMaking(key: string | null) {
+  making = key
+  for (const l of listeners) l()
+}
+function subscribe(l: () => void) {
+  listeners.add(l)
+  return () => {
+    listeners.delete(l)
+  }
+}
+const current = () => making
+
+/** The request a doc is made with. Pure. */
+export function createRequest(opts: CreateDocOptions): DocCreateRequest {
+  const req: DocCreateRequest = { doc_title: (opts.title ?? "").trim() }
+  if (opts.templateId) req.template_id = opts.templateId
+  if (opts.parentId) {
+    req.parent_uuid = opts.parentId
+  } else {
+    req.space = opts.space ?? "private"
+    // The first version's field, which a doc at the top still reads.
+    req.doc_private = req.space !== "workspace"
+  }
+  if (opts.afterId) req.after_uuid = opts.afterId
+  return req
+}
 
 /**
- * Makes a doc and opens it (content.md D27): no dialog. A blank doc is
- * "Untitled" and private (who can see it moves to Share), opened with the
- * title ready to type (?new=1). From a template it takes the template's name
- * and opens with ?template=<id> as well. `busy` names what is being made, so
- * the one row can show a spinner and the rest wait.
+ * Makes a doc and opens it (content.md D27): no dialog. A blank doc has no
+ * title and is private (who can see it moves to Share), and opens with the
+ * title ready to type (?new=1). From a template the server writes the body
+ * as it makes the doc, so nothing is laid in after the doc opens. `busy`
+ * names what is being made, so the one row can show a spinner and the rest
+ * wait; it is shared by every caller in the tab.
+ *
+ * Resolves to the new doc's id, or null when nothing was made: one was being
+ * made already, or the server said no (the app's error toast says why).
  */
 export function useCreateDoc() {
   const router = useRouter()
-  const { makeRequest } = usePost()
-  const [busy, setBusy] = useState<string | null>(null)
+  const dispatch = useDispatch()
+  const busy = useSyncExternalStore(subscribe, current, () => null)
 
   const create = useCallback(
-    async (template?: DocTemplate) => {
-      if (busy) return
-      const key = template?.id ?? "blank"
-      setBusy(key)
+    async (opts: CreateDocOptions = {}): Promise<string | null> => {
+      if (making) return null
+      setMaking(opts.busyKey ?? opts.templateId ?? "blank")
       try {
-        const res = await makeRequest<{ doc_title: string; doc_private: boolean }, DocInfoInterface>({
-          apiEndpoint: PostEndpointUrl.CreateDoc,
-          payload: { doc_title: template?.name ?? NEW_DOC_TITLE, doc_private: true },
-        })
-        if (res?.doc_uuid) {
-          const q = new URLSearchParams({ new: "1" })
-          if (template) q.set("template", template.id)
-          router.push(`${app_doc_path}/${res.doc_uuid}?${q.toString()}`)
-        }
+        const req = createRequest(opts)
+        const doc = await createDoc(req)
+        if (!doc?.doc_uuid) return null
+        docCreated(dispatch, { doc_uuid: doc.doc_uuid, doc_title: doc.doc_title ?? req.doc_title ?? "" })
+        if (opts.open !== false) router.push(`${app_doc_path}/${doc.doc_uuid}?new=1`)
+        return doc.doc_uuid
+      } catch {
+        // The app's error toast has said what went wrong; nothing was made.
+        return null
       } finally {
-        setBusy(null)
+        setMaking(null)
       }
     },
-    [busy, makeRequest, router],
+    [router, dispatch],
   )
 
   return { create, busy }

@@ -36,6 +36,10 @@ import { newLocalId } from "@/lib/chat/pendingSend";
 import { appMutate } from "@/lib/swrMutate";
 import { PendingSendContext } from "@/components/message/sendStatus";
 import { usePendingSend } from "@/components/views/usePendingSend";
+import { useConversationMissing } from "@/hooks/useConversationMissing";
+import { useInSplitPane } from "@/hooks/useLinkTarget";
+import { LoadFailureState } from "@/components/ui/load-failure-state";
+import { app_chat_path } from "@/types/paths";
 
 
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
@@ -52,6 +56,8 @@ export function GroupChatView({ grpId }: { grpId: string }) {
     const groupExists = !notYetOnServer
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const { missing, retry, retrying } = useConversationMissing("group", grpId)
+    const inPane = useInSplitPane()
 
     const { cache } = useSWRConfig()
     const latestKey = grpId ? GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId : ''
@@ -190,6 +196,21 @@ export function GroupChatView({ grpId }: { grpId: string }) {
     const schedule = useMemo(() => (groupExists ? { kind: "group" as const, target: grpId, schedule: handleSchedule } : null), [groupExists, grpId, handleSchedule])
 
     if(!grpId) return
+
+    // A group that isn't there, or that you're not in: one state on a
+    // computer and a phone (QA F-10, F-11).
+    if (missing) {
+        return (
+            <LoadFailureState
+                kind={missing}
+                noun="conversation"
+                onRetry={() => void retry()}
+                retrying={retrying}
+                back={inPane ? undefined : { label: "Back to messages", href: app_chat_path }}
+                noAccessDetail="You're not in this group. Ask someone in it to add you."
+            />
+        )
+    }
 
     return (
         <PendingSendContext.Provider value={actions}>

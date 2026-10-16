@@ -1,5 +1,6 @@
 import { hueFor, type CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { projectHue } from "@/lib/projectHue"
 
 /**
  * How a calendar item is coloured: by the calendar it is on, or for a task by
@@ -39,7 +40,7 @@ export function kindOf(item: CalendarItemLike): CalendarKind {
 
 /** The hue an item is drawn in: its project's for a task, its calendar's otherwise. */
 export function hueOf(item: CalendarItemLike): CampHue {
-  if (item.isTask) return hueFor(item.task_project?.project_uuid || item.event_uuid)
+  if (item.isTask) return item.task_project?.project_uuid ? projectHue(item.task_project.project_uuid) : hueFor(item.event_uuid)
   return item.event_uuid.startsWith("gcal-") ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp
 }
 

@@ -1,0 +1,86 @@
+/* A doc's look (docs programme B6; D-2, D-7): the room its cover takes, its
+   icon above the title, and the page's font and text size. Only what the
+   first paint needs is here: the cover's art is chrome/cover.css (with the
+   cover, when a doc has one) and the band's controls chrome/band.css (with
+   the band). DocTitle marks its block
+   ([data-doc-title-block] with data-doc-font, data-doc-small, data-has-cover,
+   data-has-icon); the body follows through :has(), so the editor and its
+   saved copy need no class of their own. Tokens only, in both themes. */
+
+[data-doc-title-block] {
+  --doc-cover-h: clamp(140px, 26vh, 280px);
+  --doc-icon-size: 72px;
+  position: relative;
+}
+@media (max-width: 639px) {
+  [data-doc-title-block] {
+    --doc-cover-h: clamp(120px, 22vh, 180px);
+    --doc-icon-size: 56px;
+  }
+}
+
+/* The cover runs edge to edge of the doc's pane (.doc-scroll is its size
+   container), above everything in the page. */
+.doc-cover {
+  position: relative;
+  width: 100cqi;
+  margin-inline: calc((100% - 100cqi) / 2);
+  height: var(--doc-cover-h);
+  overflow: hidden;
+  background: var(--sunken);
+}
+/* The icon: above the title, over the cover's foot when there is one. */
+.doc-page-icon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: var(--doc-icon-size);
+  height: var(--doc-icon-size);
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+[data-has-cover] .doc-page-icon {
+  margin-top: calc(var(--doc-icon-size) / -2);
+}
+/* DocIcon draws at the size it is given; the page's icon follows the band's. */
+.doc-page-icon > [data-doc-icon] {
+  width: calc(var(--doc-icon-size) - 8px) !important;
+  height: calc(var(--doc-icon-size) - 8px) !important;
+  font-size: calc(var(--doc-icon-size) * 0.8) !important;
+}
+
+/* The font: serif or mono, title and body alike (the code keeps its own). */
+.doc-measure:has(> [data-doc-font="serif"]) :is(.doc-title, .doc-editor .ProseMirror) {
+  font-family: ui-serif, "Iowan Old Style", Charter, Georgia, Cambria, "Times New Roman", serif;
+}
+.doc-measure:has(> [data-doc-font="mono"]) :is(.doc-title, .doc-editor .ProseMirror) {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Small text: everything a step down, keeping the scale's rhythm. */
+.doc-measure:has(> [data-doc-small]) .doc-title {
+  font-size: 2rem;
+  line-height: 2.5rem;
+}
+.doc-measure:has(> [data-doc-small]) .doc-editor .ProseMirror,
+.doc-measure:has(> [data-doc-small]) .doc-editor .ProseMirror p {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.doc-measure:has(> [data-doc-small]) .doc-editor .ProseMirror h1 {
+  font-size: 1.625rem;
+  line-height: 2.125rem;
+}
+.doc-measure:has(> [data-doc-small]) .doc-editor .ProseMirror h2 {
+  font-size: 1.3125rem;
+  line-height: 1.75rem;
+}
+.doc-measure:has(> [data-doc-small]) .doc-editor .ProseMirror h3 {
+  font-size: 1.0625rem;
+  line-height: 1.5rem;
+}
+.doc-measure:has(> [data-doc-small]) .doc-editor .ProseMirror :is(h4, h5, h6) {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}

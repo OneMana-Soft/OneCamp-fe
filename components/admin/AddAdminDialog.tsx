@@ -19,7 +19,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Check, Search, UserPlus, X } from "@/lib/icons";
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
@@ -112,8 +111,10 @@ function UserPickRow({ user, isSelected, onSelect }: UserPickRowProps) {
             </AvatarFallback>
           </Avatar>
           <span className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-sm font-medium">{seed}</span>
-            {line && <span className="truncate text-xs text-ink-2">{line}</span>}
+            {/* The name keeps its room and the line gives way first: shrinking
+                together, a phone cut "Tomás" to "To…" beside a whole email. */}
+            <span className="max-w-[60%] shrink-0 truncate text-sm font-medium">{seed}</span>
+            {line && <span className="min-w-0 truncate text-xs text-ink-2">{line}</span>}
           </span>
         </span>
         {isSelected && <Check className="size-4 shrink-0 text-brand" aria-hidden="true" />}
@@ -299,7 +300,10 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
             </span>
           )}
 
-          <ScrollArea className="h-[260px] pr-3">{body}</ScrollArea>
+          {/* A plain scroller: the scroll area's table-laid viewport sized
+              itself to the longest name and email, so on a phone the list and
+              the search above it ran past the dialog's right edge. */}
+          <div data-admin-candidates="" className="h-[260px] min-w-0 overflow-y-auto overscroll-contain">{body}</div>
 
           {refused && (
             <p role="alert" className="text-sm text-danger-ink">

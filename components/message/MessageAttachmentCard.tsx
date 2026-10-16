@@ -66,11 +66,14 @@ interface Props {
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect } from 'react'
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 
 export function MessageAttachmentCard({ mediaGetURL, attachment, autoplay, className, priority, onUrlLoaded }: Props) {
     const cover = attachmentShouldCover(attachment)
 
     const mediaReq = useMediaFetch<GetMediaURLRes>(attachment?.attachment_uuid ? mediaGetURL +'/'+attachment.attachment_uuid : '')
+    // Said in place ("Couldn't load this"); the request's toast stays quiet.
+    useSaysLoadFailure(!!mediaReq.isError)
 
     useEffect(() => {
         if (mediaReq.data?.url && onUrlLoaded) {

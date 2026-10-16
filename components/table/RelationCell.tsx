@@ -2,8 +2,9 @@
 
 // RelationCell links a table row to OneCamp entities (tasks, docs, boards,
 // users, projects), reusing the access-scoped unified search (req 4.2), or to
-// rows of a table, found by name (pickRows). Linked refs are stored on the row
-// as [{id,label,type}] so the grid renders without re-resolving each entity; a
+// rows of a table, found by name (pickRows). A row keeps each link as
+// {id, type}; the server names each item for each reader, and sends the ones
+// a reader can't open without a name, shown here as one "can't open" chip. A
 // link to a table's row is stored by id, and comes back with the row's name.
 
 import { displayNameOf } from "@/lib/personName"
@@ -13,10 +14,12 @@ import { LazyPopover } from "./LazyPopover"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useGlobalSearch, SearchResult } from "@/services/searchService"
 import Link from "next/link"
-import { Check, CircleDot, FileText, Folder, LayoutDashboard, Link2, Loader2, Search, User, X, Plus } from "@/lib/icons"
+import { Check, CircleDot, FileText, Folder, LayoutDashboard, Link2, Loader2, Lock, Search, User, X, Plus } from "@/lib/icons"
 import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { TableGlyph } from "@/components/table/TableGlyph"
-import { pickRows, RelationRef, RelationTarget } from "@/services/tableService"
+import { isHiddenRef, pickRows, relationWrite, RelationRef, RelationTarget } from "@/services/tableService"
+import { hiddenText } from "@/lib/tables/cellFormat"
+import { formatLocale } from "@/lib/tables/numberFormat"
 
 // Pull a {id,label,type} ref out of a unified-search result, scoped to the
 // allowed target type ("any" accepts the linkable kinds).
@@ -60,6 +63,7 @@ function hrefOf(r: RelationRef): string | null {
  */
 export function RelationCell({
   value,
+  room = { max: Infinity, wrap: true },
   target,
   tableId,
   tableName,
@@ -68,6 +72,8 @@ export function RelationCell({
   onCommit,
 }: {
   value: unknown
+  /** How many chips show before "+N", and whether they wrap (gridCells' chipRoom); all, wrapping, by default. */
+  room?: { max: number; wrap: boolean }
   target: RelationTarget
   /** For a link to a table's rows: the table. */
   tableId?: string
@@ -136,21 +142,27 @@ export function RelationCell({
     }, rowsOf && !q ? 0 : 180)
   }, [query, open, search, target, rowsOf])
 
+  // A cell's write keeps every link it holds, the ones this reader can't open too.
   const add = (ref: RelationRef) => {
     if (refs.some((x) => x.id === ref.id)) return
     if (onLink) onLink({ add: [ref.id] })
-    else onCommit([...refs, ref])
+    else onCommit(relationWrite([...refs, ref]))
   }
   const remove = (id: string) => {
     if (onLink) onLink({ remove: [id] })
-    else onCommit(refs.filter((x) => x.id !== id))
+    else onCommit(relationWrite(refs.filter((x) => x.id !== id)))
   }
   const toggle = (ref: RelationRef) => (refs.some((x) => x.id === ref.id) ? remove(ref.id) : add(ref))
+  // Items the reader can't open show as one chip, never by name or id.
+  const hidden = refs.filter((r) => r.type !== "more" && (isHiddenRef(r) || !r.label)).length
+  const named = refs.filter((r) => r.type !== "more" && !isHiddenRef(r) && r.label)
+  const shown = named.slice(0, room.max)
+  const more = refs.find((r) => r.type === "more")
 
   const listItems: CommandListItem[] = items.map((ref) => ({
     id: `${ref.type}-${ref.id}`,
-    label: ref.label,
-    text: ref.label,
+    label: ref.label ?? "",
+    text: ref.label ?? "",
     tile: (
       <span className="inline-flex size-6 items-center justify-center">
         <RefGlyph item={ref} />
@@ -172,21 +184,14 @@ export function RelationCell({
         : `Nothing matches “${query.trim()}”`
 
   return (
-    <div className="relative flex h-full min-h-8 flex-wrap content-center items-center gap-1 px-3 py-1">
-      {refs.map((ref) => {
-        if (ref.type === "more")
-          return (
-            // The links past those a cell shows, counted.
-            <span key="more" className="chip h-[22px] text-ink-2">
-              {ref.label}
-            </span>
-          )
+    <div className={cn("relative flex h-full min-h-8 items-center gap-1 px-3", room.wrap ? "flex-wrap content-center py-1" : "overflow-hidden")}>
+      {shown.map((ref) => {
         const href = !readOnly ? hrefOf(ref) : null
         return (
           <span
             key={ref.id}
             data-relation-chip=""
-            className="group/chip inline-flex h-[22px] max-w-full items-center gap-1 rounded-md bg-raised pl-1.5 pr-1.5 text-meta font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
+            className="group/chip inline-flex h-[22px] min-w-0 max-w-full items-center gap-1 rounded-md bg-raised pl-1.5 pr-1.5 text-meta font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
           >
             <RefGlyph item={ref} />
             {href ? (
@@ -210,6 +215,26 @@ export function RelationCell({
           </span>
         )
       })}
+      {named.length > shown.length ? (
+        // The named links past those a row has room for, counted.
+        <span className="chip h-[22px] shrink-0 text-ink-2" data-relation-more="" title={named.slice(shown.length).map((r) => r.label).join(", ")}>
+          +{formatLocale(named.length - shown.length, {})}
+        </span>
+      ) : null}
+      {more ? (
+        // The links past those the server sent, counted.
+        <span className="chip h-[22px] shrink-0 text-ink-2">{more.label}</span>
+      ) : null}
+      {hidden > 0 ? (
+        <span
+          data-relation-hidden=""
+          title="You don't have access to what's linked here"
+          className="inline-flex h-[22px] min-w-0 max-w-full items-center gap-1 rounded-md bg-hover px-1.5 text-meta text-ink-3 ring-1 ring-inset ring-line"
+        >
+          <Lock className="size-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{hiddenText(hidden)}</span>
+        </span>
+      ) : null}
       {readOnly ? null : (
         <LazyPopover
           open={open}

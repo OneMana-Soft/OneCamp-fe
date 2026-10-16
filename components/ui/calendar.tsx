@@ -23,8 +23,9 @@ type CalendarProps = React.ComponentProps<typeof DayPicker>
  * --hover at r8; today is a 1.5 px brand RING with the number in brand-text
  * (never a fill: the accent marks today, not a choice); selected is an ink
  * fill with sheet text, because selecting isn't an action; outside the month
- * is ink-4. react-day-picker takes these as classNames, and DayCell below is
- * the same cell for grids drawn by hand.
+ * is ink-3, a day you can still pick (D-SD4: ink-4 never carries text
+ * someone reads); disabled is ink-4. react-day-picker takes these as
+ * classNames, and DayCell below is the same cell for grids drawn by hand.
  */
 const DAY_CELL_BASE =
   "relative inline-flex size-8 items-center justify-center rounded-lg p-0 text-ui-sm font-[450] tabular-nums text-ink outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-pop aria-selected:opacity-100"
@@ -69,7 +70,7 @@ function Calendar({
         day_range_end: "day-range-end",
         day_selected: DAY_CELL_SELECTED,
         day_today: DAY_CELL_TODAY,
-        day_outside: "day-outside text-ink-4 aria-selected:text-sheet",
+        day_outside: "day-outside text-ink-3 aria-selected:text-sheet",
         day_disabled: "text-ink-4 pointer-events-none",
         day_range_middle: "aria-selected:bg-transparent aria-selected:text-ink",
         day_hidden: "invisible",
@@ -145,7 +146,7 @@ const DayCell = React.forwardRef<HTMLButtonElement, DayCellProps>(function DayCe
       className={cn(
         DAY_CELL_BASE,
         size === 40 && "size-10",
-        outside && "text-ink-4",
+        outside && "text-ink-3",
         disabled && "pointer-events-none text-ink-4",
         today && DAY_CELL_TODAY,
         selected && DAY_CELL_SELECTED,

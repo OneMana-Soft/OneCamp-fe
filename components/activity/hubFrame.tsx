@@ -99,6 +99,8 @@ export function HubTabs({ tabs, value, onChange, label }: { tabs: HubTab[]; valu
             type="button"
             role="tab"
             data-tab={t.value}
+            // A finger's 44px, wider than "All" is drawn (QA F-26, app/phone.css F3).
+            data-touch-target=""
             aria-selected={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(t.value)}
@@ -185,6 +187,8 @@ export function HubSegmented({ segments, value, onChange, label }: { segments: H
             key={s.value}
             type="button"
             data-segment={s.value}
+            // A finger's 44px, taller than the 24px chip is drawn (QA F-26).
+            data-touch-target=""
             aria-pressed={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(s.value)}

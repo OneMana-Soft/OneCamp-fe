@@ -142,7 +142,10 @@ export function MobileNavigationBar({
                 {/* overflow-x-hidden: overflow-y-auto alone makes x scroll too,
                     so a page drawn a few pixels too wide (the AI page was 406
                     in 390) made the whole screen pan sideways under the thumb. */}
-                <div ref={scrollerRef} data-app-scroller="" data-glow={tabRoot || undefined} className={cn(
+                {/* data-large-passed: the page's own strip under a large title
+                    stays clear over the glow until the title has gone up
+                    under the bar (app/phone.css). */}
+                <div ref={scrollerRef} data-app-scroller="" data-glow={tabRoot || undefined} data-large-passed={largeTitle ? (largePassed ? "true" : "false") : undefined} className={cn(
                     "flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
                     !noBottomBar && "pb-[calc(4rem+env(safe-area-inset-bottom))]"
                 )}>

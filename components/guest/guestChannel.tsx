@@ -19,6 +19,13 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { fullDateTime } from "@/lib/utils/date/shortDate"
 import { GUEST_NAME_MAX, guestWhen } from "@/components/guest/guestUi"
 
+/**
+ * A small control's touch target on a phone: an invisible box 8px taller on
+ * each side, so a 28px chip or an 18px "Reply" is a 44px target without
+ * moving anything. Off from sm up, where a pointer is precise.
+ */
+export const PHONE_HIT = "after:absolute after:-inset-y-2 after:-inset-x-1 after:content-[''] sm:after:hidden"
+
 /** A person's avatar v3: the gradient in their hue (hueFor(name)) with white initials. */
 export function GuestAvatar({ name, size = 36 }: { name: string; size?: 36 | 22 }) {
   return (
@@ -112,7 +119,7 @@ export function GuestChannelActions({ name, onRename }: { name: string; onRename
           type="button"
           onClick={onRename}
           title="Change name"
-          className="flex h-7 items-center gap-1.5 rounded-full bg-raised py-0.5 pl-0.5 pr-2.5 text-xs font-medium shadow-e1 hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          className={`relative flex h-7 items-center gap-1.5 rounded-full bg-raised py-0.5 pl-0.5 pr-2.5 text-xs font-medium shadow-e1 hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 ${PHONE_HIT}`}
         >
           <GuestAvatar name={name} size={22} />
           <span className="max-w-32 truncate">{name}</span>
@@ -206,7 +213,9 @@ export function GuestGateComposer({
             <label htmlFor={id} className="text-xs font-medium text-foreground">Your name, as the team will see it</label>
             <div className="flex gap-2">
               <Input ref={nameBox} id={id} name="name" value={draft} onChange={(e) => setDraft(e.target.value)} autoComplete="name" maxLength={GUEST_NAME_MAX} />
-              <Button type="submit" size="sm" className="h-8" disabled={!draft.trim()}>Continue</Button>
+              {/* The field's own height: 44px on a phone, 32 from md up. It was
+                  32 beside a 44px field, a small target next to a big one. */}
+              <Button type="submit" size="sm" className="h-11 md:h-8" disabled={!draft.trim()}>Continue</Button>
             </div>
           </form>
         )}
@@ -228,7 +237,7 @@ export function GuestGateComposer({
               maxLength={4000}
               className="text-body max-h-40 min-h-8 flex-1 resize-none bg-transparent px-2 py-1 text-foreground outline-none placeholder:text-faint-foreground [field-sizing:content]"
             />
-            <Button size="icon-sm" onClick={send} disabled={busy || !text.trim()} aria-label="Send" className="shrink-0">
+            <Button size="icon-sm" onClick={send} disabled={busy || !text.trim()} aria-label="Send" className="shrink-0 max-md:size-11">
               {busy ? <Loader2 className="animate-spin" /> : <Send />}
             </Button>
           </div>

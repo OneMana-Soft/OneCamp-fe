@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
-import { usePathname } from "next/navigation"
+import { useEffect, useMemo, useSyncExternalStore } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { pageTitle, type TitleLookups } from "@/lib/utils/pageTitle"
+import { usePageNameFor } from "@/lib/utils/pageName"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 const byId = <T,>(items: T[] | undefined, id: (t: T) => string | undefined, name: (t: T) => string | undefined) => {
@@ -17,9 +18,37 @@ const byId = <T,>(items: T[] | undefined, id: (t: T) => string | undefined, name
   return out
 }
 
-/** Keeps the tab title equal to the page and what is waiting; see pageTitle. */
+/** A name a page gives itself while it shows (the 404), over what its address says. */
+let named: string | null = null
+const listeners = new Set<() => void>()
+const tell = () => listeners.forEach((l) => l())
+const subscribe = (l: () => void) => {
+  listeners.add(l)
+  return () => listeners.delete(l)
+}
+
+/** Names the tab for as long as the calling page is on screen. */
+export function useTabName(label: string) {
+  useEffect(() => {
+    named = label
+    tell()
+    return () => {
+      if (named === label) {
+        named = null
+        tell()
+      }
+    }
+  }, [label])
+}
+
+/**
+ * Keeps the tab title equal to the page and what is waiting; see pageTitle.
+ * It reads the address's ?tab= (an admin section), so it sits under Suspense.
+ */
 export function DocumentTitle() {
   const pathname = usePathname()
+  const tab = useSearchParams()?.get("tab") ?? null
+  const label = useSyncExternalStore(subscribe, () => named, () => null)
   const sidebar = useSelector((s: RootState) => s.users.userSidebar)
 
   const lookups = useMemo<TitleLookups>(() => {
@@ -44,7 +73,9 @@ export function DocumentTitle() {
     (sidebar.totalUnreadActivityCount || 0) +
     (sidebar.userChats || []).reduce((n, c) => n + (c?.dm_unread || 0), 0)
 
-  const title = pageTitle(pathname || "", lookups, unread)
+  // A page the sidebar can't name names itself (a task, a goal).
+  const own = usePageNameFor(pathname || "")
+  const title = pageTitle(pathname || "", own ? { ...lookups, own } : lookups, unread, { tab, label })
 
   // Next applies the route's static metadata title after hydration, and on a
   // full page load streams that <title> into <body>, not <head>. So the title

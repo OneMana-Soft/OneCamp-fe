@@ -102,3 +102,544 @@
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* ==========================================================================
+   The doc's technical blocks (docs programme B3): the code block's bar and
+   caption, Mermaid diagrams, simple tables, equations, find's highlights and
+   bar, and the word count chip. Tokens only; both themes; a phone's touch
+   targets at 36–44 px; hover-only controls show to touch while in use.
+   ========================================================================== */
+
+/* ---- The code block (editor.md P1-8, spec D11) ---- */
+
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-code-box {
+  border-radius: 10px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+/* The box is the block now: the <pre> inside it is bare. */
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-code pre {
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-code pre code {
+  padding: 2px 16px 14px;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-code[data-wrap] pre,
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-code[data-wrap] pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.doc-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 6px 0 8px;
+  user-select: none;
+}
+.doc-code-spacer {
+  flex: 1;
+}
+.doc-code-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 510;
+  letter-spacing: 0.005em;
+  color: var(--ink-3);
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+button.doc-code-lang:hover,
+button.doc-code-lang[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--ink);
+}
+button.doc-code-lang svg {
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out);
+}
+.doc-code:hover button.doc-code-lang svg,
+button.doc-code-lang:focus-visible svg {
+  opacity: 1;
+}
+.doc-code-act {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out), background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.doc-code-act[hidden],
+.doc-code-lang[hidden],
+.doc-code-modes[hidden],
+.doc-code-caption[hidden] {
+  display: none;
+}
+.doc-code:hover .doc-code-act,
+.doc-code:focus-within .doc-code-act,
+.doc-code-act:focus-visible,
+.doc-code-act[data-copied] {
+  opacity: 1;
+}
+.doc-code-act:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.doc-code-act[aria-pressed="true"] {
+  background: var(--press);
+  color: var(--ink);
+}
+.doc-code-act[data-copied] {
+  color: var(--success-ink);
+}
+.doc-code-bar button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+@media (hover: none) {
+  .doc-code-act,
+  button.doc-code-lang svg {
+    opacity: 1;
+  }
+  .doc-code-act {
+    width: 36px;
+    height: 32px;
+  }
+}
+
+/* Mermaid: Code, Split or Preview, a segmented control. */
+.doc-code-modes {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 7px;
+  background: var(--hover);
+}
+.doc-code-mode {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 510;
+  color: var(--ink-3);
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.doc-code-mode:hover {
+  color: var(--ink);
+}
+.doc-code-mode[aria-pressed="true"] {
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: var(--e1);
+}
+.doc-code-diagram {
+  display: none;
+  min-height: 48px;
+  padding: 8px 16px 16px;
+  overflow-x: auto;
+  justify-content: center;
+  align-items: flex-start;
+}
+.doc-code-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.doc-code[data-mode="preview"] .doc-code-diagram,
+.doc-code[data-mode="split"] .doc-code-diagram {
+  display: flex;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror .doc-code[data-mode="preview"] pre {
+  display: none;
+}
+.doc-code[data-mode="split"] .doc-code-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.doc-code[data-mode="split"] .doc-code-diagram {
+  box-shadow: inset 1px 0 0 var(--line);
+}
+@media (max-width: 639px) {
+  .doc-code[data-mode="split"] .doc-code-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .doc-code[data-mode="split"] .doc-code-diagram {
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+}
+.doc-code-diagram-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-3);
+}
+.doc-code-diagram[data-error] .doc-code-diagram-note {
+  color: var(--danger-ink);
+}
+
+/* The caption, under the box. */
+.doc-code-caption {
+  margin-top: 6px;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-2);
+}
+.doc-code-caption-input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+.doc-code-caption-input::placeholder {
+  color: var(--ink-3);
+}
+/* A field under 16px makes a phone zoom the page as it takes focus. */
+@media (pointer: coarse) {
+  .doc-code-caption-input {
+    font-size: 1rem;
+  }
+}
+
+/* The code block breaks out of the reading column, as a <pre> does. */
+.doc-measure .doc-editor:not(.full-width) .ProseMirror > .doc-code {
+  --doc-wide: min(960px, 100cqi - 64px);
+  width: var(--doc-wide);
+  max-width: none;
+  margin-inline: calc((100% - var(--doc-wide)) / 2);
+}
+@media (max-width: 639px) {
+  .doc-measure .doc-editor:not(.full-width) .ProseMirror > .doc-code {
+    --doc-wide: calc(100cqi - 32px);
+  }
+}
+
+/* The saved copy, before the editor takes over: the bar's room, and the caption under the box. */
+.minimal-tiptap-editor.doc-editor[data-doc-snapshot] .ProseMirror pre code {
+  padding-top: 34px;
+}
+.minimal-tiptap-editor.doc-editor[data-doc-snapshot] .ProseMirror pre[data-caption] {
+  position: relative;
+  overflow: visible;
+  margin-bottom: 24px;
+}
+.minimal-tiptap-editor.doc-editor[data-doc-snapshot] .ProseMirror pre[data-caption]::after {
+  content: attr(data-caption);
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: calc(100% + 6px);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Simple tables (editor.md P1-3) ---- */
+
+.minimal-tiptap-editor .ProseMirror .tableWrapper {
+  margin-bottom: 26px;
+}
+.minimal-tiptap-editor .ProseMirror > table {
+  margin-bottom: 26px;
+}
+.doc-table-frame {
+  position: relative;
+  width: 100%;
+}
+.doc-table[data-fixed] .doc-table-frame {
+  width: fit-content;
+  max-width: 100%;
+}
+.doc-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.minimal-tiptap-editor .ProseMirror table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.minimal-tiptap-editor .ProseMirror :is(td, th) {
+  position: relative;
+  min-width: 1em;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  vertical-align: top;
+  box-sizing: border-box;
+  text-align: start;
+}
+.minimal-tiptap-editor .ProseMirror th {
+  background: var(--sunken);
+  font-weight: 510;
+}
+.minimal-tiptap-editor .ProseMirror :is(td, th) > :is(p, h1, h2, h3, h4, ul, ol, pre, blockquote) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.minimal-tiptap-editor .ProseMirror :is(td, th) > * + * {
+  margin-top: 4px;
+}
+/* A cell's colour, by name (N15): the doc colour grid's tints. */
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="gray"] { background: var(--press); }
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="sun"] { background: var(--camp-sun-tint); }
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="moss"] { background: var(--camp-moss-tint); }
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="lake"] { background: var(--camp-lake-tint); }
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="sky"] { background: var(--camp-sky-tint); }
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="dusk"] { background: var(--camp-dusk-tint); }
+.minimal-tiptap-editor .ProseMirror :is(td, th)[data-background="berry"] { background: var(--camp-berry-tint); }
+/* Cells selected together (prosemirror-tables' CellSelection). */
+.minimal-tiptap-editor .ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--brand) 14%, transparent);
+  pointer-events: none;
+}
+.minimal-tiptap-editor .ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: -1px;
+  z-index: 2;
+  width: 3px;
+  background: var(--brand);
+  pointer-events: none;
+}
+.minimal-tiptap-editor .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+/* + under the table and beside it: a row, a column. */
+.doc-table-add {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out), background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.doc-table-add-row {
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 18px;
+  margin-top: 4px;
+}
+.doc-table-add-column {
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 18px;
+  margin-left: 4px;
+}
+.doc-table:hover .doc-table-add,
+.doc-table:focus-within .doc-table-add,
+.doc-table-add:focus-visible {
+  opacity: 1;
+}
+.doc-table-add:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.doc-table-add:focus-visible,
+.doc-table-grip:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+/* The row's and the column's handles, over the table's edges. */
+.doc-table-grip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--pop);
+  color: var(--ink-3);
+  box-shadow: var(--e2);
+  transition: color 140ms var(--ease-out);
+}
+.doc-table-grip[hidden] {
+  display: none;
+}
+.doc-table-grip:hover {
+  color: var(--ink);
+}
+.doc-table-grip-row {
+  width: 18px;
+  height: 24px;
+}
+.doc-table-grip-column {
+  width: 24px;
+  height: 18px;
+}
+@media (hover: none) {
+  .doc-table-add {
+    opacity: 0.6;
+  }
+  .doc-table-add-row {
+    height: 32px;
+  }
+  .doc-table-add-column {
+    width: 28px;
+  }
+}
+
+/* ---- Equations (editor.md P1-9) ---- */
+
+.minimal-tiptap-editor .ProseMirror .doc-math {
+  border-radius: 4px;
+  padding: 0 1px;
+  transition: background-color 140ms var(--ease-out);
+}
+/* One box around what KaTeX draws, so a click anywhere on the equation is a
+   click on it (an inline box covers only its own line fragments). */
+.minimal-tiptap-editor .ProseMirror .doc-math:not(.doc-math-block) {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: bottom;
+}
+.minimal-tiptap-editor .ProseMirror[contenteditable="true"] .doc-math {
+  cursor: pointer;
+}
+.minimal-tiptap-editor .ProseMirror[contenteditable="true"] .doc-math:hover {
+  background: var(--hover);
+}
+.minimal-tiptap-editor .ProseMirror .doc-math.ProseMirror-selectednode {
+  outline: none;
+  background: color-mix(in oklab, var(--brand) 14%, transparent);
+}
+/* The equation editor's TeX. Not the font-mono utility: the theme's
+   --font-mono names itself, so only a var() with a fallback reaches a
+   monospace face. */
+.doc-math-field {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+/* Until KaTeX has drawn it: the TeX, quietly. */
+.minimal-tiptap-editor .ProseMirror .doc-math:not(:has(.katex)),
+.minimal-tiptap-editor .ProseMirror :is(span[data-type="inline-math"], div[data-type="block-math"]):not(.doc-math) {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  color: var(--ink-2);
+}
+.minimal-tiptap-editor .ProseMirror .doc-math[data-empty="true"] {
+  font-family: var(--font-sans);
+  font-style: italic;
+  color: var(--ink-3);
+  background: var(--hover);
+  padding: 0 4px;
+}
+.minimal-tiptap-editor .ProseMirror :is(.doc-math-block, div[data-type="block-math"]) {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.minimal-tiptap-editor .ProseMirror .doc-math-block .katex-display {
+  margin: 0;
+}
+.minimal-tiptap-editor .ProseMirror .doc-math .katex {
+  font-size: 1.1em;
+}
+
+/* ---- Find (editor.md P1-12) ---- */
+
+.minimal-tiptap-editor .ProseMirror .doc-find-match {
+  border-radius: 2px;
+  background: var(--camp-sun-tint);
+}
+.minimal-tiptap-editor .ProseMirror .doc-find-current {
+  background: color-mix(in oklab, var(--camp-sun) 38%, var(--sheet));
+  box-shadow: 0 0 0 1.5px var(--camp-sun);
+}
+.doc-find-host {
+  position: fixed;
+  z-index: var(--z-popover);
+}
+
+/* ---- The word count chip (editor.md P1-15) ---- */
+
+.doc-word-count {
+  position: fixed;
+  z-index: var(--z-sticky);
+  right: 16px;
+  bottom: calc(var(--mobile-drawer-h, 0px) + 16px);
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--pop);
+  box-shadow: var(--e2);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 510;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  animation: content-float-in var(--content-float-in-duration, 180ms) var(--ease-out) both;
+}
+.doc-word-count-label {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  color: inherit;
+}
+.doc-word-count-label:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.doc-word-count-off {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  color: var(--ink-3);
+}
+.doc-word-count-off[hidden] {
+  display: none;
+}
+.doc-word-count-off:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.doc-word-count button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+@media (max-width: 639px) {
+  .doc-word-count {
+    height: 32px;
+    bottom: calc(var(--mobile-drawer-h, 0px) + 12px);
+  }
+  .doc-word-count-label {
+    height: 28px;
+  }
+}

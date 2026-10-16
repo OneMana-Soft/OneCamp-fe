@@ -14,13 +14,24 @@ import React, { useEffect, useState, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
 import BlockKitCard from "./BlockKitCard"
 import { Button } from "@/components/ui/button"
-import { Bell, X } from "@/lib/icons"
+import { Bell, X, Zap } from "@/lib/icons"
 import type { CommandResponse } from "@/types/command"
 import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
 
 interface HostedCard {
     id: string
     response: CommandResponse
+}
+
+/**
+ * A late answer's toast title, from what the server says it is. Every one was
+ * titled "Reminder", an app's answer too (MC-BUG-8); one that doesn't say has
+ * no title.
+ */
+function lateAnswerTitle(kind: CommandResponse["kind"]): string | undefined {
+    if (kind === "reminder") return "Reminder"
+    if (kind === "app") return "Reply from an app"
+    return undefined
 }
 
 const GlobalCommandHost: React.FC = () => {
@@ -46,7 +57,7 @@ const GlobalCommandHost: React.FC = () => {
 
             // Toast for immediate awareness (especially reminders).
             if (resp.text) {
-                toast({ title: "Reminder", description: resp.text.replace(/^⏰\s*/, "") })
+                toast({ title: lateAnswerTitle(resp.kind), description: resp.text.replace(/^⏰\s*/, "") })
             }
 
             // Also keep a dismissible card so the user can act on blocks.
@@ -71,7 +82,8 @@ const GlobalCommandHost: React.FC = () => {
                         >
                             <div className="flex items-start gap-2">
                                 <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                                    <Bell className="h-3 w-3" />
+                                    {/* A bell for a reminder; anything else is a command's answer. */}
+                                    {card.response.kind === "reminder" ? <Bell className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     {card.response.blocks && card.response.blocks.length > 0 ? (

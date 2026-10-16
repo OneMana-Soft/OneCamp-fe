@@ -17,6 +17,7 @@ import { useThemeConfig, VALID_COLOR_THEMES } from "@/components/activeTheme/act
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection"
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection"
 import { PasskeySection } from "@/components/profile/PasskeySection"
+import { DEMO_ACCOUNTS_LINE, DEMO_SIGN_IN_LINE, useDemoVisitor } from "@/hooks/useDemoVisitor"
 import { crossfadeGlow } from "@/components/profile/glowCrossfade"
 import { SettingsCardError, SettingsList, SettingsRowsSkeleton, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { useSaveStatus } from "@/components/ui/saveStatus"
@@ -28,8 +29,23 @@ const THEMES = [
   { value: "system", label: "Device" },
 ] as const
 
-/** A 160×100 miniature of the app in a mode: the frame, a sheet, two rows and a primary bar. */
+/**
+ * A 160×100 miniature of the app in a mode: the frame, a sheet, two rows and a
+ * primary bar. The device's own is the light one with the dark one over its
+ * right half, the same drawing cut down the middle: each part split at its
+ * own 50 % before, so the halves met out of line and read as a glitch.
+ */
 function ThemeMiniature({ mode }: { mode: "light" | "dark" | "system" }) {
+  if (mode === "system") {
+    return (
+      <span aria-hidden="true" data-mode="system" className="you-mini-pair">
+        <ThemeMiniature mode="light" />
+        <span className="you-mini-half">
+          <ThemeMiniature mode="dark" />
+        </span>
+      </span>
+    )
+  }
   return (
     <span aria-hidden="true" data-mode={mode} className="you-mini">
       <span className="you-mini-side" />
@@ -140,6 +156,20 @@ type CalendarStatus = { isConnected: boolean; taskSyncEnabled: boolean }
  * that was already linked.
  */
 export function CalendarSection() {
+  // The demo connects nobody's own calendar (NoPersonalAccountsInDemo).
+  const demoVisitor = useDemoVisitor()
+  if (demoVisitor) {
+    return (
+      <SettingsSection title="Calendar" description="Your OneCamp tasks on your own calendar.">
+        <p data-demo-keeps="accounts" className="text-ui-sm text-ink-2 text-pretty">{DEMO_ACCOUNTS_LINE}</p>
+      </SettingsSection>
+    )
+  }
+  return <ConnectedCalendarSection />
+}
+
+/** Google Calendar's card, for anyone the server lets connect one. */
+function ConnectedCalendarSection() {
   const confirm = useConfirm()
   // null while it loads, "failed" when it couldn't be read.
   const [status, setStatus] = useState<CalendarStatus | null | "failed">(null)
@@ -158,7 +188,7 @@ export function CalendarSection() {
     load()
   }, [load])
 
-  const say = (what: string, e: unknown) => setProblem(`${what} ${apiErrorMessage(e, "Check your connection and try again.")}`)
+  const say = (what: string, e: unknown) => setProblem(`${what} ${apiErrorMessage(e, "Try again in a moment.")}`)
 
   const connect = async () => {
     setProblem("")
@@ -247,8 +277,20 @@ export function CalendarSection() {
   )
 }
 
-/** Password, two-step verification and passkeys: each saves when its own step is finished. */
+/**
+ * Password, two-step verification and passkeys: each saves when its own step
+ * is finished. The demo's shared visitor, refused all three, is told why
+ * instead (useDemoVisitor).
+ */
 export function SigningInSection() {
+  const demoVisitor = useDemoVisitor()
+  if (demoVisitor) {
+    return (
+      <SettingsSection title="Sign-in and security">
+        <p data-demo-keeps="sign-in" className="text-ui-sm text-ink-2 text-pretty">{DEMO_SIGN_IN_LINE}</p>
+      </SettingsSection>
+    )
+  }
   return (
     <SettingsSection title="Sign-in and security" description="Each of these saves as soon as you finish it.">
       <SettingsList>

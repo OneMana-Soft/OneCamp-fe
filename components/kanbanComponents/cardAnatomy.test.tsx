@@ -35,7 +35,7 @@ const task = (over: Partial<TaskInfoInterface> = {}) =>
 const card = (t: TaskInfoInterface, actions?: Partial<BoardActions>) =>
   render(
     actions ? (
-      <BoardActionsContext.Provider value={{ columns: () => [], moveTo: () => {}, canMove: () => true, crossProject: false, ...actions }}>
+      <BoardActionsContext.Provider value={{ columns: () => [], moveTo: () => {}, canMove: () => true, open: () => {}, crossProject: false, ...actions }}>
         <Item task={t} value={t.task_uuid} />
       </BoardActionsContext.Provider>
     ) : (

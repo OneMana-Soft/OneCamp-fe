@@ -16,8 +16,8 @@
  *
  * Behaviour:
  *   - Sends cookies (credentials: include) and the CSRF header.
- *   - On HTTP 401, performs a single GET {backend}refreshToken (cookie-based,
- *     same endpoint axios uses), then retries the original request once.
+ *   - On HTTP 401, refreshes the session once (the one refresh every path
+ *     shares, lib/auth/sessionRefresh), then retries the original request once.
  *   - Never loops: at most one refresh+retry per call.
  *
  * It intentionally does NOT trigger a global logout on a failed refresh — the
@@ -27,19 +27,21 @@
  */
 
 import { withCsrfHeader } from "@/lib/utils/csrf"
+import { refreshSession } from "@/lib/auth/sessionRefresh"
 
 function backendBase(): string {
   return (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "") + "/"
 }
 
-async function refreshAccessToken(signal?: AbortSignal): Promise<boolean> {
+/**
+ * The session's one refresh (lib/auth/sessionRefresh), shared with the API
+ * client and every tab: a refresh of its own here could run beside theirs,
+ * and a refresh token used twice signs the device out. True when it worked.
+ */
+async function refreshAccessToken(): Promise<boolean> {
   try {
-    const res = await fetch(`${backendBase()}refreshToken`, {
-      method: "GET",
-      credentials: "include",
-      signal,
-    })
-    return res.ok
+    await refreshSession()
+    return true
   } catch {
     return false
   }
@@ -88,7 +90,7 @@ export async function authedStreamFetch(
 
   // Access token likely expired — refresh once and retry, mirroring axios.
   if (resp.status === 401) {
-    const refreshed = await refreshAccessToken(init.signal)
+    const refreshed = await refreshAccessToken()
     if (refreshed) {
       resp = await fetch(url, buildRequest())
     }

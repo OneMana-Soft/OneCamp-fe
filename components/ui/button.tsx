@@ -4,24 +4,11 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils/helpers/cn"
 
-// Design v3 (§3.10). Six variants:
-//   default (primary)  the accent, with an inner highlight and a tinted drop
-//                      (shadow-primary: not a gradient); hover darkens it 8%
-//   secondary, outline the raised surface at e1, rising to e2 under the cursor
-//   ghost              ink-2, the hover overlay and ink under the cursor
-//   subtle             the hover overlay at rest, press under the cursor
-//   destructive        the raised surface at e1 with danger ink; danger at 8%
-//                      under the cursor (a red slab is for nothing but this)
-//   link               the accent as text, a 1px underline 3px off on hover
-// Sizes: xs 24 (r6, 12/510), sm 28, default 32 (md), lg 40 (r8; 13/510, then
-// 14/510 at lg), xl 46 (r10, 15/510, marketing only); icon 32, icon-sm 28,
-// icon-xs 24, with the icon in ink-3 going to ink.
-//
-// Press settles the button down half a pixel (90ms on the out-curve); hover
-// is 140ms. Keyboard focus is a 2px accent ring 2px off the surface, drawn as
-// an outline so forced-colours mode still draws it, and never removed.
-// aria-busy (a caller's loading state) dims the label and blocks a second
-// press while the request runs.
+// Design v3 (§3.10): default (the accent, an inner highlight, 8% darker on
+// hover), secondary and outline (raised, e1 to e2), ghost, subtle,
+// destructive (danger ink; danger 8% on hover), link. Sizes xs 24 to xl 46;
+// icon 32, 28, 24. Press settles half a pixel in 90ms; focus is a 2px accent
+// outline 2px off; aria-busy dims it and blocks a second press.
 const FOCUS =
   "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
@@ -82,6 +69,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         // The press on a touch screen (design v3, mobile F2, app/phone.css):
         // a control dips to .96, an icon button to .92 with the press overlay.
         data-press={size?.startsWith("icon") ? "icon" : "control"}
+        // A finger's target is 44px whatever the size (app/phone.css F3).
+        data-touch-target=""
         {...props}
       />
     )

@@ -30,7 +30,7 @@
  *     <SafeHtml html={x} as="div" sanitizer={sanitizeRichHtml} />
  */
 
-import React, { useLayoutEffect, useState } from "react"
+import React, { useLayoutEffect, useMemo, useState } from "react"
 
 type Sanitizer = (html: string) => string
 
@@ -72,13 +72,20 @@ export const SafeHtml: React.FC<SafeHtmlProps> = ({
         setSanitised(html ? sanitizer(html) : "")
     }, [html, sanitizer])
 
+    // One object per sanitised string. React 19 writes innerHTML again
+    // whenever this prop is a new object, the same text or not, so every
+    // render of the parent rebuilt the content: a selection in it was lost,
+    // and an element read a moment earlier was no longer in the page (the
+    // doc's saved copy, swapped while its editor loaded).
+    const inner = useMemo(() => ({ __html: sanitised }), [sanitised])
+
     // React complains if as is a custom element. Cast to a known
     // intrinsic to keep TypeScript happy without relaxing types
     // for the consumer.
     const Tag = as as unknown as keyof React.JSX.IntrinsicElements
     return React.createElement(Tag, {
         ...rest,
-        dangerouslySetInnerHTML: { __html: sanitised },
+        dangerouslySetInnerHTML: inner,
     })
 }
 

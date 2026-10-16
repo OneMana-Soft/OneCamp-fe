@@ -58,7 +58,6 @@ interface RootUIState {
   boardVersionHistory: SingleUIState<{ boardId: string }>;
   boardShare: SingleUIState<{ boardId: string }>;
   boardViewers: SingleUIState<{ boardId: string }>;
-  docVersionHistory: SingleUIState<{ docId: string }>;
   docViewers: SingleUIState<{ docId: string }>;
   extractTasks: SingleUIState<{ sourceType: "channel" | "dm" | "group" | "meeting" | "text"; sourceId?: string }>;
   
@@ -83,7 +82,6 @@ interface RootUIState {
   groupChatOptionsDrawer: SingleUIState;
   channelInfoSheet: SingleUIState;
   docOptionsDrawer: SingleUIState;
-  docFilterOptionsDrawer: SingleUIState;
   reactionPickerDrawer: SingleUIState;
   taskFilterDrawer: SingleUIState;
   projectTaskFilterDrawer: SingleUIState;
@@ -91,7 +89,6 @@ interface RootUIState {
   myTaskOptionsDrawer: SingleUIState;
   taskOptionDrawer: SingleUIState;
   teamOptionDrawer: SingleUIState;
-  projectOptionsDrawer: SingleUIState;
   calendarOptionsDrawer: SingleUIState;
 
   // Long press drawers (Mobile)
@@ -150,7 +147,6 @@ const initialState: RootUIState = {
   boardVersionHistory: { isOpen: false, data: { boardId: "" } },
   boardShare: { isOpen: false, data: { boardId: "" } },
   boardViewers: { isOpen: false, data: { boardId: "" } },
-  docVersionHistory: { isOpen: false, data: { docId: "" } },
   docViewers: { isOpen: false, data: { docId: "" } },
   extractTasks: { isOpen: false, data: { sourceType: "text" as const, sourceId: "" } },
 
@@ -175,7 +171,6 @@ const initialState: RootUIState = {
   groupChatOptionsDrawer: { isOpen: false, data: { grpId: "" } },
   channelInfoSheet: { isOpen: false, data: { channelUUID: "" } },
   docOptionsDrawer: { isOpen: false, data: { docId: "", isOwner: false, deleteDoc: () => {} } },
-  docFilterOptionsDrawer: { isOpen: false, data: null },
   teamOptionDrawer: { isOpen: false, data: {teamId: "", teamName: ""} },
   reactionPickerDrawer: { isOpen: false, data: null },
   taskFilterDrawer: { isOpen: false, data: null },
@@ -183,7 +178,6 @@ const initialState: RootUIState = {
   taskOptionsDrawer: { isOpen: false, data: null },
   myTaskOptionsDrawer: { isOpen: false, data: null },
   taskOptionDrawer: { isOpen: false, data: { taskId: "" } },
-  projectOptionsDrawer: { isOpen: false, data: { projectUUID: "" } },
   calendarOptionsDrawer: { isOpen: false, data: null },
 
   // Long press drawers

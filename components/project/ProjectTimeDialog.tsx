@@ -6,14 +6,14 @@
 // what the billable time comes to.
 
 import * as React from "react"
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { focusDialogItself } from "@/components/project/ProjectFormsDialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
-import { serverMessage } from "@/lib/http/serverMessage"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Download, FileText, Loader2 } from "@/lib/icons"
 import { ProjectRatesDialog } from "@/components/project/ProjectRatesDialog"
 import { ProjectInvoices } from "@/components/project/ProjectInvoices"
@@ -44,7 +44,8 @@ export function ProjectTimeDialog({
   const range = React.useMemo(() => presetRange(preset, new Date()), [preset])
   const query = `from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
   const base = `${GetEndpointUrl.ProjectTime}/${projectId}/time`
-  const { data, isLoading, isError: error, mutate } = useFetch<{ data: TimeReport }>(open ? `${base}?${query}` : "")
+  // Says its own failure, in the dialog; the toast stays quiet.
+  const { data, isLoading, isError: error, mutate } = useFetch<{ data: TimeReport }>(open ? `${base}?${query}` : "", undefined, undefined, OWN_ERRORS)
   const report = data?.data
   // Money, when the project has rates and the reader is one of its admins.
   const priced = report?.currency && report.amount_cents !== undefined ? (cents: number) => formatCents(cents, report.currency!) : undefined
@@ -62,7 +63,7 @@ export function ProjectTimeDialog({
       a.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch (e) {
-      toast({ title: "Couldn't download the report", description: serverMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't download the report", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setDownloading(false)
     }
@@ -107,7 +108,7 @@ export function ProjectTimeDialog({
         {isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-ink-2" /></div>
         ) : error ? (
-          <p className="py-6 text-center text-sm text-danger-ink">{serverMessage(error, "Couldn't load the report. Try again.")}</p>
+          <p className="py-6 text-center text-sm text-danger-ink">{apiErrorMessage(error, "Couldn't load the report. Try again.")}</p>
         ) : !report || report.entries === 0 ? (
           <p className="py-10 text-center text-sm text-ink-2">
             No time logged in this range. Start a timer or add time from any task in the project.

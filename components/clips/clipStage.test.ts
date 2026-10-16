@@ -38,3 +38,14 @@ describe("the clip recorder's v3 dress", () => {
     expect(src).toMatch(/data-clip-timer=""[^>]*tabular-nums/)
   })
 })
+
+// Opening the recorder puts focus on the dialog, not on its first radio, whose
+// focus ring outlined "Voice" in the accent as if it were a second selection.
+describe("the clip recorder opening", () => {
+  const src = readFileSync(join(__dirname, "ClipRecorder.tsx"), "utf8")
+  it("focuses the dialog itself", () => {
+    expect(src).toMatch(/onOpenAutoFocus=\{\(e\) => \{\s*e\.preventDefault\(\)/)
+    expect(src).toMatch(/e\.target\.focus\(/)
+  })
+})
+

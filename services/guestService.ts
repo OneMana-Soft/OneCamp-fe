@@ -18,7 +18,7 @@ export function guestMeetingLink(rawToken: string): string {
 //     server that didn't answer (publicTrouble). ---
 
 export const getGuestMeetingStatus = (token: string) =>
-    publicCall<{ available: boolean }>(`/guest/meet/${encodeURIComponent(token)}`)
+    publicCall<{ available: boolean; workspace_name?: string }>(`/guest/meet/${encodeURIComponent(token)}`)
 
 // --- Member: create a scoped, read-only external share link for a doc/board ---
 
@@ -90,6 +90,8 @@ export interface GuestCollabSession {
     capability?: "view" | "comment"
     /** The doc's or board's name, when it has one. */
     title?: string
+    /** The workspace's public name (backend round: on every guest answer). */
+    workspace_name?: string
 }
 
 export const getGuestCollabSession = (token: string, displayName?: string) =>
@@ -110,6 +112,10 @@ export interface GuestTableBundle {
     table: DataTable
     fields: TableField[]
     rows: TableRow[]
+    /** Every row of the table: a share carries its first page of them. */
+    row_count?: number
+    /** The workspace's public name (backend round: on every guest answer). */
+    workspace_name?: string
 }
 
 /** The guest's time zone goes along: it's where a table's formulas count TODAY(). */
@@ -180,6 +186,8 @@ export interface GuestChannelPage {
     can_post: boolean
     messages: GuestChannelMessage[]
     has_more: boolean
+    /** The workspace's public name (backend round: on every guest answer). */
+    workspace_name?: string
 }
 
 export const getGuestChannel = (token: string, before?: string) =>
@@ -218,6 +226,8 @@ export interface GuestTaskCard {
 
 export interface GuestProjectView {
     project: string
+    /** The project's id, so the client's tile is the project's own (servers before 12 Oct send none). */
+    project_uuid?: string
     can_comment: boolean
     columns: { status: string; label: string; tasks: GuestTaskCard[] }[]
     total_tasks: number

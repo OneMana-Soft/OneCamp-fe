@@ -15,7 +15,8 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
  */
 export type ChipTone = "sun" | "danger"
 
-const TONE: Record<ChipTone, string> = {
+/** A chip's tint, for any chip-shaped thing that means it (a due day, a live entity). */
+export const CHIP_TONE: Record<ChipTone, string> = {
   sun: "bg-camp-sun-tint text-camp-sun-ink shadow-none",
   danger: "bg-destructive/10 text-danger-ink shadow-none",
 }
@@ -38,7 +39,7 @@ export function Chip({
   title?: string
 }) {
   return (
-    <span data-chip="" title={title} className={cn("chip min-w-0", tone && TONE[tone], className)}>
+    <span data-chip="" title={title} className={cn("chip min-w-0", tone && CHIP_TONE[tone], className)}>
       {dot ? <span aria-hidden="true" data-chip-dot="" className={cn(HUE_CLASS[dot], "size-1.5 shrink-0 rounded-full bg-hue")} /> : null}
       <span className="truncate">{children}</span>
       {onRemove ? (

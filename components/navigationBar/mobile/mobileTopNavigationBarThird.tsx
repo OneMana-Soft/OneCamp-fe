@@ -1,6 +1,6 @@
 "use client"
 
-import { PhoneHuddleButton } from "@/components/navigationBar/mobile/phoneConversationTitle";
+import { PhoneHuddleButton, WhileConversationThere } from "@/components/navigationBar/mobile/phoneConversationTitle";
 import {usePathname, useRouter} from "next/navigation";
 import {useDispatch, useSelector} from "react-redux";
 import {Button} from "@/components/ui/button";
@@ -135,10 +135,10 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 4)
                     return <CreateButton label='New channel' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} />
                 if(path.length < 5)
-                    return <div className='flex items-center'>
+                    return <WhileConversationThere kind="channel" id={path[3]}><div className='flex items-center'>
                         <PhoneHuddleButton kind="channel" id={path[3]} />
                         <Button aria-label='Channel options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
-                        </div>
+                        </div></WhileConversationThere>
                 break
             case "board":
                 if(path.length < 4)
@@ -147,6 +147,9 @@ export function MobileTopNavigationBarThird() {
             case "doc":
                 if(path.length < 4)
                     return <CreateButton label='New doc' onClick={()=>{dispatch(openUI({ key: 'createDoc' }))}} />
+                // The docs' trash has no doc to act on.
+                if(path[3] === "trash")
+                    return null
                 if(path.length < 5)
                     return <MobileTopNavigationBarThirdDoc docId={path[3]} />
 
@@ -159,10 +162,12 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5) {
 
                     return (
+                        <WhileConversationThere kind="dm" id={path[3]}>
                         <div className='flex items-center'>
                             <PhoneHuddleButton kind="dm" id={path[3]} />
                             <Button aria-label='Chat options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'chatOptionsDrawer', data: {chatUUID: path[3]} }))}}><Ellipsis className='h-5'/></Button>
                         </div>
+                        </WhileConversationThere>
                     )
 
                 }
@@ -171,8 +176,9 @@ export function MobileTopNavigationBarThird() {
 
                     if (path.length < 6)
                         return (
+                            <WhileConversationThere kind="group" id={path[4]}>
                             <Button aria-label='Group chat options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'groupChatOptionsDrawer', data: {grpId: path[4]} }))}}><Ellipsis className='h-5'/></Button>
-
+                            </WhileConversationThere>
                         )
 
                 }

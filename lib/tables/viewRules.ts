@@ -2,7 +2,8 @@
 // board and calendar, kept in their browser for that table. Pure, so the views
 // and their tests share one reading of a cell.
 
-import { computedOf, isMoreRef, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { computedOf, isHiddenRef, isMoreRef, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { typedNumber } from "@/lib/format/number"
 
 export type SortRule = { field: string; dir: "asc" | "desc" }
 export type FilterOp =
@@ -106,6 +107,7 @@ function labels(v: unknown): string[] {
   return [String(v)]
 }
 
+/** A stored cell as a number (what a program wrote: 1200, "1200", "1,200"). */
 function asNumber(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null
   if (typeof v === "string" && v.trim() !== "") {
@@ -124,8 +126,8 @@ function asDay(v: unknown): string | null {
 const unnamed = (kind: FieldKind, v: unknown) =>
   kind === "checkbox" ? false : kind === "number" ? asNumber(v) === null : kind === "date" ? asDay(v) === null : labels(v).length === 0
 
-/** Whether a cell is empty: a link cell counting links it doesn't name has links. */
-const isBlank = (kind: FieldKind, v: unknown) => unnamed(kind, v) && !(Array.isArray(v) && v.some(isMoreRef))
+/** Whether a cell is empty: a link cell counting links it doesn't name, or holding ones the reader can't open, has links. */
+const isBlank = (kind: FieldKind, v: unknown) => unnamed(kind, v) && !(Array.isArray(v) && v.some((x) => isMoreRef(x) || isHiddenRef(x)))
 
 function passes(kind: FieldKind, v: unknown, rule: FilterRule): boolean {
   const want = (rule.value ?? "").trim()
@@ -142,7 +144,9 @@ function passes(kind: FieldKind, v: unknown, rule: FilterRule): boolean {
   if (want === "") return true // a filter not filled in yet hides nothing
   if (kind === "number") {
     const n = asNumber(v)
-    const w = asNumber(want)
+    // What the reader typed, read in their locale: "1,5" is 1.5 in de-DE,
+    // never 15 (TAB-BUG-8 in the filter box).
+    const w = typedNumber(want)
     if (w === null) return true
     if (n === null) return rule.op === "is_not"
     switch (rule.op) {
@@ -242,6 +246,39 @@ export function applyViewRules(rows: TableRow[], fields: TableField[], rules: Vi
       })
   }
   return out.map((x) => x.row)
+}
+
+/** The rows with the text in any cell, in any case; every row when it's blank. */
+export function searchRows(rows: TableRow[], query: string): TableRow[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return rows
+  return rows.filter((r) => JSON.stringify(Object.values(parseRowValues(r))).toLowerCase().includes(q))
+}
+
+/** Why a row kept in sight isn't where the view's rules would have it. */
+export const KEPT_NOTE = {
+  filter: "Hidden by the view's filter",
+  search: "Doesn't match the search",
+  sort: "Sorted elsewhere by the view",
+} as const
+
+/**
+ * The rows a view shows, with one row (just added) kept last, where it was
+ * added, whatever the view's filter, search or sort say, and why it's out of
+ * place (KEPT_NOTE's key). The rows as given when it's already last, or
+ * isn't held.
+ */
+export function keepInSight(
+  shown: TableRow[],
+  ruled: TableRow[],
+  held: TableRow[],
+  id: string | null,
+): { rows: TableRow[]; kept: keyof typeof KEPT_NOTE | null } {
+  const at = id ? shown.findIndex((r) => r.id === id) : -1
+  const row = at >= 0 ? shown[at] : id ? held.find((r) => r.id === id) : undefined
+  if (!row || (at >= 0 && at === shown.length - 1)) return { rows: shown, kept: null }
+  if (at >= 0) return { rows: [...shown.filter((r) => r.id !== id), row], kept: "sort" }
+  return { rows: [...shown, row], kept: ruled.some((r) => r.id === id) ? "search" : "filter" }
 }
 
 /** Whether a filter still fits its field: the field is there, and takes that condition (a field's type can change). */

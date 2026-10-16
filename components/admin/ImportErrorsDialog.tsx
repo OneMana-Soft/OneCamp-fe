@@ -31,6 +31,7 @@ import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { getImportErrors, type ImportError } from "@/services/importService"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface Props {
   jobId: string
@@ -210,7 +211,7 @@ export const ImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenChange 
           )}
           {failed === "more" && (
             <p role="alert" className="mt-2 text-sm text-danger-ink">
-              Couldn&apos;t load more. Try again.
+              Couldn&apos;t load more. Try again.<SaysLoadFailure />
             </p>
           )}
         </div>

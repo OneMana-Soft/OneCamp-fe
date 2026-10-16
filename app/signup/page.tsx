@@ -23,6 +23,7 @@ import Link from "next/link"
 import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, IdentityChip, PasswordField, StrengthMeter, authControl, authControlXl, initialsOf } from "@/components/auth/AuthShell"
 import { InviteHero } from "@/components/auth/CampArt"
 import { EnterpriseSSOButtons, OAuthButtons } from "@/components/auth/ProviderButtons"
+import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
 
 /** How long the page says who they are before opening the workspace. */
 const WELCOME_PAUSE_MS = 2500
@@ -167,8 +168,8 @@ function SignupForm() {
     />
   )
   const shell = (body: React.ReactNode) => <AuthShell side={hero}>{body}</AuthShell>
-  // The workspace's name when the install gives one, else its address.
-  const workspace = process.env.NEXT_PUBLIC_ORG_NAME?.trim() || invitedBy.workspace
+  // The workspace's name, the server's first (hooks/useWorkspaceName), else its address.
+  const workspace = useNamedWorkspace() || invitedBy.workspace
 
   if (isValidating) {
     return shell(<AuthPlaceholder label="Checking your invitation" fields={2} />)

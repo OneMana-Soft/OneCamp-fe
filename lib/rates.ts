@@ -4,6 +4,7 @@
  * unit (cents, paise). Pure helpers, for their test.
  */
 import { CURRENCIES, money } from "@/lib/invoice/invoice"
+import { numberSigns, typedNumber } from "@/lib/format/number"
 
 export interface ProjectRates {
   /** Whether the project is billed at all. */
@@ -20,23 +21,24 @@ export { CURRENCIES }
 const MAX_CENTS = 100_000_000
 
 /**
- * Minor units from a typed amount: "85", "85.5", "1,200.50", or with a decimal
- * comma, "85,50". A comma is a thousands separator only in groups of three;
- * anything else ambiguous is refused rather than guessed. Null when it isn't
- * an amount, is negative, or has more than two decimals. Pure.
+ * Minor units from a typed amount, read as every typed number is, in the
+ * reader's locale (lib/format/number): "85", "85.50", "1,200.50" and
+ * "1,00,000" in en-IN; "85,50" and "1.200,50" in de-DE; a currency sign may
+ * come with it. What reads two ways is refused, never guessed. Null when it
+ * isn't an amount, is negative, or has more than two decimals or an
+ * exponent. Pure.
  */
-export function centsOf(typed: string): number | null {
-  let s = typed.trim()
-  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(s)) s = s.replace(/,/g, "")
-  else if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(",", ".")
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null
-  const cents = Math.round(Number(s) * 100)
+export function centsOf(typed: string, locale?: string): number | null {
+  const n = typedNumber(typed, locale)
+  if (n === null || n < 0 || /e/i.test(typed)) return null
+  const cents = Math.round(n * 100)
+  if (Math.abs(n * 100 - cents) > 1e-6) return null
   return cents <= MAX_CENTS ? cents : null
 }
 
-/** A rate as the form shows it: "85", "85.50". Pure. */
-export function fromCents(cents: number): string {
-  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2)
+/** A rate as the form shows it, with the reader's decimal sign so it reads back: "85", "85.50" ("85,50" in de-DE). Pure. */
+export function fromCents(cents: number, locale?: string): string {
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2).replace(".", numberSigns(locale).decimal)
 }
 
 /** Minor units as money in the currency: 15000 USD is "$150.00". */

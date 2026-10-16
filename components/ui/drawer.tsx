@@ -108,6 +108,11 @@ const DrawerContent = React.forwardRef<
           // options drawer) sits where the system swipe wins and the tap opens the
           // app switcher instead. One line here covers all the drawers.
           "pb-[env(safe-area-inset-bottom)]",
+          // The sheet takes focus when it opens, to hold it inside; it is a
+          // surface, not a control, so it draws no ring. After a tap on a
+          // name, Chrome counted that focus as visible and outlined the whole
+          // profile sheet in the accent (critic integration, 12 Oct).
+          "outline-none",
           // A menu has no grabber; its first group starts 8px down.
           detent === "menu" && "pt-2",
           className

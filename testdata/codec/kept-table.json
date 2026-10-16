@@ -1,0 +1,47 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Imported from a wiki:",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "language": "markdown"
+      },
+      "content": [
+        {
+          "text": "| Name | Role | Since |\n| --- | --- | --- |\n| Sam | **Lead** | 2024 |\n| Ana \\| Bo | [site](https://x.example) | |",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "content": [
+        {
+          "text": "A table written by hand stays code:",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "language": "markdown"
+      },
+      "content": [
+        {
+          "text": "|a|b|\n|-|-|",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    }
+  ],
+  "type": "doc"
+}

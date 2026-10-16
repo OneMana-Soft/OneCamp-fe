@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { DataInventoryButton } from "@/components/admin/DataInventoryButton"
 import { useAdminScroller } from "@/components/admin/adminScroll"
 import { DotWord, PeopleRows, PersonRow, PersonTag, RowMenu, relativeShort } from "@/components/admin/PeopleFrame"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 /**
  * What a member row may carry beyond the profile. Neither field is sent by
@@ -109,7 +110,7 @@ export function RestLine({ loadFailed, totalLoaded, onRetry }: { loadFailed: boo
   }
   return (
     <div role="alert" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-3 text-xs text-muted-foreground">
-      <span>Couldn&apos;t load everyone. {totalLoaded} are shown.</span>
+      <span>Couldn&apos;t load everyone. {totalLoaded} are shown.<SaysLoadFailure /></span>
       <Button variant="secondary" size="sm" onClick={onRetry}>
         Try again
       </Button>

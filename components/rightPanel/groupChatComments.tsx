@@ -18,6 +18,7 @@ import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { SendHorizontal } from "@/lib/icons";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
 import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
@@ -35,16 +36,16 @@ import {
     clearChatCommentInputState,
     createChatComment, createChatCommentReaction, createOrUpdateChatCommentBody,
     removeChatComment, removeChatCommentReaction,
-    updateChatComment, updateChatCommentReaction, updateChatCommentReactionId
+    updateChatCommentReaction, updateChatCommentReactionId
 } from "@/store/slice/chatCommentSlice";
 import {
     
     
-    RemoveMessageFromChatList, UpdateMessageTextInChatList
+    RemoveMessageFromChatList
 } from "@/store/slice/chatSlice";
 import {
     createGroupChatReactionChatId, removeGroupChatByChatId,
-    removeGroupChatReactionByChatId, updateGroupChatByChatId, updateGroupChatMessageReplyIncrement,
+    removeGroupChatReactionByChatId, updateGroupChatMessageReplyIncrement,
     updateGroupChatMessageReplyDecrement,
     updateGroupChatReactionByChatId
 } from "@/store/slice/groupChatSlice";
@@ -80,6 +81,7 @@ export const GroupChatComments = () => {
     const dispatch = useDispatch()
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
 
     // The root from the conversation's loaded messages, live; else from the
     // thread's own answer. A link to an older message in a conversation already
@@ -114,24 +116,10 @@ export const GroupChatComments = () => {
     const replyMessageData = getReplyMessageData(chatInfoState)
 
 
+    // The message's own menu has asked already, in place (DeleteConfirm): no
+    // dialog half a second later, and no toast once it's gone (SD-5).
     const handleDeletePost = (postId: string) => {
-
-        if(!postId) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this message?",
-                    description: "It's removed from the conversation for everyone. This can't be undone.",
-                    confirmText: "Delete message",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChat(postId)}
-                }
-            }));
-        }, 500);
-
-
+        if (postId) executeDeleteChat(postId)
     }
 
     const executeDeleteChat = (messageId: string) => {
@@ -141,7 +129,7 @@ export const GroupChatComments = () => {
             payload: {
                 chat_id: messageId
             },
-            showToast: true
+            showErrorToast: true
         })
             .then(() => {
                 const remaining = groupChatState.filter(m => m.chat_uuid !== messageId);
@@ -160,23 +148,7 @@ export const GroupChatComments = () => {
     }
 
     const handleDeleteChatComment = (commentUUID: string, commentIndex: number) => {
-
-        if(!commentUUID) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this reply?",
-                    description: "It's removed from the thread for everyone. This can't be undone.",
-                    confirmText: "Delete reply",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
-                }
-            }));
-        }, 500);
-
-
+        if (commentUUID) executeDeleteChatComment(commentIndex, commentUUID)
     }
 
 
@@ -188,7 +160,7 @@ export const GroupChatComments = () => {
                 chat_id: rightPanelState.data.chatMessageUUID,
                 comment_id: commentUUID,
             },
-            showToast: true
+            showErrorToast: true
         })
             .then(() => {
                 dispatch(removeChatComment({chatId: rightPanelState.data.chatMessageUUID, commentIndex}))
@@ -198,65 +170,12 @@ export const GroupChatComments = () => {
 
     }
 
-    const handleUpdateChatComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
+    const handleUpdateChatComment = (id: string, html: string) => saveEdit({ kind: "chatReply", chatMessageId: rightPanelState.data.chatMessageUUID, id }, html)
 
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface>({
-            apiEndpoint: PostEndpointUrl.UpdateChatComment,
-            payload: {
-                chat_id: rightPanelState.data.chatMessageUUID,
-                comment_id: commentUUID,
-                comment_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChatComment({
-                        commentIndex: commentIndex,
-                        chatId: rightPanelState.data.chatMessageUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
-
-    const handleUpdateChat = (postHTMLText: string, messageId: string) => {
-
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.UpdateGroupChatMessage,
-            payload: {
-                chat_id: messageId,
-                text_html: trimmedHtml,
-                grp_id: rightPanelState.data.groupUUID
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateGroupChatByChatId({
-                        grpId: rightPanelState.data.groupUUID,
-                        messageId,
-                        htmlText: trimmedHtml,
-                    }))
-                    // Sync sidebar preview
-                    dispatch(UpdateMessageTextInChatList({
-                        grpId: rightPanelState.data.groupUUID,
-                        messageId,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
+    // A correction to the thread's message or a reply saves as in the list:
+    // at once, and back with the box open on what was typed when the save
+    // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
+    const handleUpdateChat = (id: string, html: string) => saveEdit({ kind: "group", grpId: rightPanelState.data.groupUUID, id }, html)
 
     const handleSend = (latestContent?: string) => {
         // The thread this reply was written in, whichever is open when it lands.
@@ -445,6 +364,7 @@ export const GroupChatComments = () => {
                 root
                 userInfo={mainMessageData.userInfo}
                 createdAt={mainMessageData.createdAt}
+                updatedAt={mainMessageData.updatedAt}
                 content={mainMessageData.content}
                 forwardedMessage={forwardedMessageData}
                 replyMessage={replyMessageData}

@@ -21,9 +21,8 @@ import { Camera, Smile } from "@/lib/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { getAvatarFallbackClass, personHue } from "@/lib/utils/getAvatarColor"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
-import { hueFor } from "@/lib/campHue"
 import { displayNameOf, handleOf } from "@/lib/personName"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { useClientConfig } from "@/hooks/useClientConfig"
@@ -71,7 +70,7 @@ export function ProfileIdentityBand() {
   }
 
   const name = displayNameOf(profile) || "You"
-  const hue = hueFor(name)
+  const hue = personHue(name)
   const handle = handleOf(profile)
   const contact = [handle && `@${handle}`, profile.user_email_id].filter(Boolean).join(" · ")
   const online = (live?.status || profile.user_status) === USER_STATUS_ONLINE
@@ -107,7 +106,7 @@ export function ProfileIdentityBand() {
       }
       setPreview(local)
     } catch (e) {
-      setProblem(`Couldn't upload your photo. ${apiErrorMessage(e, "Check your connection and try again.")}`)
+      setProblem(`Couldn't upload your photo. ${apiErrorMessage(e, "Try again in a moment.")}`)
     } finally {
       setProgress(null)
     }
@@ -220,6 +219,7 @@ export function ProfileIdentityBand() {
             <button
               type="button"
               data-status-chip=""
+              data-touch-target=""
               onClick={() => dispatch(openUI({ key: "userStatusUpdate", data: { userUUID: "" } }))}
               className="you-chip"
             >

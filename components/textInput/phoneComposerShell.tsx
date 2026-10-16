@@ -91,6 +91,7 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
                 {(lines > EXPAND_AFTER_LINES || expanded) && onExpandedChange && (
                     <button
                         type="button"
+                        data-touch-target=""
                         aria-label={expanded ? "Shrink the message box" : "Expand the message box"}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onExpandedChange(!expanded)}
@@ -102,40 +103,46 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
                 {focused && (
                     // The tools, revealed by clip-path inside the card when the
                     // field takes focus; the card grows without motion.
-                    <div data-phone-tools="" className="flex h-10 animate-[format-reveal_160ms_var(--ease-out)_both] items-center gap-1 border-b border-line px-1.5" onMouseDown={(e) => e.preventDefault()}>
-                        <button type="button" aria-label={formatOpen ? "Hide formatting" : "Show formatting"} aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)} className={STRIP_BUTTON}>
+                    // 8px apart on a touch screen, so each tool's 44px reach
+                    // ends where the next one's starts (app/phone.css F3).
+                    <div data-phone-tools="" className="flex h-10 animate-[format-reveal_160ms_var(--ease-out)_both] items-center gap-1 pointer-coarse:gap-2 border-b border-line px-1.5" onMouseDown={(e) => e.preventDefault()}>
+                        <button type="button" data-touch-target="" aria-label={formatOpen ? "Hide formatting" : "Show formatting"} aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)} className={STRIP_BUTTON}>
                             <Type aria-hidden="true" />
                         </button>
-                        <button type="button" aria-label="Mention someone" onClick={insertAt} className={STRIP_BUTTON}>
+                        <button type="button" data-touch-target="" aria-label="Mention someone" onClick={insertAt} className={STRIP_BUTTON}>
                             <AtSign aria-hidden="true" />
                         </button>
                         <EmojiReactionPicker editor={editor} size="sm" className={STRIP_BUTTON} />
                         {onUpload && (
-                            <button type="button" aria-label="Attach a file" onClick={onUpload} className={STRIP_BUTTON}>
+                            <button type="button" data-touch-target="" aria-label="Attach a file" onClick={onUpload} className={STRIP_BUTTON}>
                                 <Paperclip aria-hidden="true" />
                             </button>
                         )}
                         {onFiles && (
-                            <button type="button" aria-label="Record a clip" onClick={() => setClipOpen(true)} className={STRIP_BUTTON}>
+                            <button type="button" data-touch-target="" aria-label="Record a clip" onClick={() => setClipOpen(true)} className={STRIP_BUTTON}>
                                 <Video aria-hidden="true" />
                             </button>
                         )}
                         {onDraftWithAI && (
-                            <button type="button" aria-label="Draft with AI" onClick={onDraftWithAI} className={cn(STRIP_BUTTON, "text-agent")}>
+                            <button type="button" data-touch-target="" aria-label="Draft with AI" onClick={onDraftWithAI} className={cn(STRIP_BUTTON, "text-agent")}>
                                 <Sparkles aria-hidden="true" />
                             </button>
                         )}
                     </div>
                 )}
                 {focused && formatOpen && (
-                    <div className="flex h-9 animate-[format-reveal_160ms_var(--ease-out)_both] items-center gap-px overflow-x-auto border-b border-line px-1.5 [&_button]:size-9" onMouseDown={(e) => e.preventDefault()}>
+                    <div className="flex h-9 animate-[format-reveal_160ms_var(--ease-out)_both] items-center gap-px pointer-coarse:gap-2 overflow-x-auto border-b border-line px-1.5 [&_button]:size-9" onMouseDown={(e) => e.preventDefault()}>
                         <SectionTwo editor={editor} activeActions={["bold", "italic", "strikethrough", "code"]} mainActionCount={4} size="sm" />
                         <span aria-hidden="true" className="mx-1 h-4 w-px bg-line" />
                         <SectionFour editor={editor} activeActions={["bulletList", "orderedList"]} mainActionCount={2} size="sm" />
                     </div>
                 )}
                 {children}
-                <div className="flex items-end gap-1.5 p-1.5">
+                {/* 10px between the field and Send on a touch screen: the
+                    smile at the field's edge (32px) and Record (36px) reach
+                    6 and 4px past themselves, and at 6px apart Record took the
+                    smile's edge (the touch guard, e2e/touchTargets.spec). */}
+                <div className="flex items-end gap-1.5 pointer-coarse:gap-2.5 p-1.5">
                     <ComposerPlusMenu
                         editor={editor}
                         onUpload={onUpload}
@@ -171,6 +178,7 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
                         </span>
                         <button
                             type="button"
+                            data-touch-target=""
                             aria-label={buttonLabel}
                             tabIndex={ready ? 0 : -1}
                             aria-hidden={!ready || undefined}

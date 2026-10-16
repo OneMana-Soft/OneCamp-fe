@@ -68,6 +68,19 @@ export interface CommandListProps {
   onActiveIndexChange?: (index: number) => void
   /** Rows at 36 px instead of 32 (the AI panel, the relation picker). */
   roomy?: boolean
+  /**
+   * The element keeping focus while this list is up (an editor, with a "/"
+   * or "@" menu): it is told which list it controls and which option is
+   * highlighted (aria-controls, aria-activedescendant, aria-autocomplete), so
+   * a screen reader announces the highlight. Cleared when the list goes, or
+   * when this turns null.
+   */
+  comboboxFor?: HTMLElement | null
+  /**
+   * The list takes keyboard focus itself (a popover opened from a toolbar,
+   * where nothing forwards the keys): ↑ ↓ Home End move, Enter picks.
+   */
+  focusable?: boolean
 }
 
 /** Renders text with the query's characters (in order, a fuzzy match) at 590. */
@@ -112,6 +125,29 @@ export function fuzzyMatch(text: string, query: string): boolean {
   return qi === q.length
 }
 
+/**
+ * Points the element that keeps focus (an editor with a "/" or "@" menu up) at
+ * the list it controls and its highlighted option, so a screen reader
+ * announces the highlight: aria-controls, aria-activedescendant and
+ * aria-autocomplete="list". Cleared when the list goes or `el` turns null.
+ */
+export function useAnnounceList(el: HTMLElement | null | undefined, listboxId: string, activeId: string | undefined) {
+  React.useEffect(() => {
+    if (!el) return
+    el.setAttribute("aria-controls", listboxId)
+    el.setAttribute("aria-autocomplete", "list")
+    if (activeId) el.setAttribute("aria-activedescendant", activeId)
+    else el.removeAttribute("aria-activedescendant")
+    return () => {
+      // Only if it still points here: another list may have taken over.
+      if (el.getAttribute("aria-controls") !== listboxId) return
+      el.removeAttribute("aria-controls")
+      el.removeAttribute("aria-activedescendant")
+      el.removeAttribute("aria-autocomplete")
+    }
+  }, [el, listboxId, activeId])
+}
+
 export function Kbd({ children, className }: { children: React.ReactNode; className?: string }) {
   return <kbd className={cn("kbd", className)}>{children}</kbd>
 }
@@ -132,6 +168,8 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
     activeIndex,
     onActiveIndexChange,
     roomy,
+    comboboxFor,
+    focusable,
   },
   ref,
 ) {
@@ -170,31 +208,38 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
     [enabled, index, items.length, setIndex],
   )
 
-  React.useImperativeHandle(
-    ref,
-    () => ({
-      onKeyDown: (event) => {
-        if (event.key === "ArrowDown") {
-          move(1)
+  const onKeyDown = React.useCallback(
+    (event: KeyboardEvent | React.KeyboardEvent) => {
+      if (event.key === "ArrowDown") {
+        move(1)
+        return true
+      }
+      if (event.key === "ArrowUp") {
+        move(-1)
+        return true
+      }
+      if (focusable && (event.key === "Home" || event.key === "End")) {
+        const order = event.key === "Home" ? items.map((_, i) => i) : items.map((_, i) => items.length - 1 - i)
+        const at = order.find((i) => enabled(i))
+        if (at !== undefined) setIndex(at)
+        return true
+      }
+      // Tab picks in a menu that keeps focus in the text (as Notion's does);
+      // in a list holding focus itself, Tab moves on, as it does anywhere.
+      if (event.key === "Enter" || (!focusable && event.key === "Tab") || (focusable && event.key === " ")) {
+        const item = items[index]
+        if (item && !item.disabled) {
+          onSelect(item)
           return true
-        }
-        if (event.key === "ArrowUp") {
-          move(-1)
-          return true
-        }
-        if (event.key === "Enter" || event.key === "Tab") {
-          const item = items[index]
-          if (item && !item.disabled) {
-            onSelect(item)
-            return true
-          }
-          return false
         }
         return false
-      },
-    }),
-    [index, items, move, onSelect],
+      }
+      return false
+    },
+    [enabled, focusable, index, items, move, onSelect, setIndex],
   )
+
+  React.useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
 
   // The cursor pill follows the highlighted row (one element, translateY).
   React.useLayoutEffect(() => {
@@ -215,6 +260,11 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
   let lastGroup: string | undefined
   const active = items[index]
   const activeId = active ? `${listId}-${active.id}` : undefined
+  const listboxId = `${listId}-listbox`
+
+  // The element that keeps focus (an editor) points at this list and its
+  // highlighted option while the list is up.
+  useAnnounceList(comboboxFor, listboxId, activeId)
 
   return (
     <div
@@ -226,10 +276,20 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
       ) : null}
       <div
         ref={scrollRef}
+        id={listboxId}
         role="listbox"
         aria-label={label}
         aria-activedescendant={activeId}
-        className="relative overflow-y-auto overscroll-contain p-1"
+        tabIndex={focusable ? 0 : undefined}
+        onKeyDown={
+          focusable
+            ? (e) => {
+                if (onKeyDown(e)) e.preventDefault()
+              }
+            : undefined
+        }
+        data-command-listbox=""
+        className={cn("relative overflow-y-auto overscroll-contain p-1", focusable && "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand rounded-xl")}
         style={{ maxHeight }}
       >
         {cursor && items.length ? (

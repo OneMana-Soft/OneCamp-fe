@@ -27,7 +27,10 @@ export function typingCopy(names: string[]): string {
  */
 export function TypingIndicator({ users, className }: TypingIndicatorProps) {
     const kinds = useBotKindMap()
-    const agent = users.find((u) => u.is_bot && isAIBot(kinds?.[u.user_uuid]))
+    // Which kind of bot a typer is: the bot list says, or for an agent made
+    // since it was read, the typing message itself. A person is in neither,
+    // so only an AI teammate is ever "working".
+    const agent = users.find((u) => isAIBot(kinds?.[u.user_uuid] ?? u.user_bot_kind))
     const people = users.filter((u) => u !== agent)
     const text = agent ? `${displayNameOf(agent)} is working` : typingCopy(people.map((u) => displayNameOf(u)))
     const live = users.length > 0

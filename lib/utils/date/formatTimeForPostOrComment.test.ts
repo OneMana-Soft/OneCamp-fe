@@ -23,19 +23,19 @@ afterEach(() => vi.useRealTimers())
 
 describe("a message's time", () => {
   it("is the clock today, Yesterday and the clock, then the day and the clock", () => {
-    expect(formatTimeForPostOrComment(at(2026, 10, 10))).toBe("3:10 PM")
-    expect(formatTimeForPostOrComment(at(2026, 10, 9))).toBe("Yesterday 3:10 PM")
-    expect(formatTimeForPostOrComment(at(2026, 10, 7))).toBe("7 Oct, 3:10 PM")
-    expect(formatTimeForPostOrComment(at(2025, 12, 30))).toBe("30 Dec 2025, 3:10 PM")
+    expect(formatTimeForPostOrComment(at(2026, 10, 10))).toBe("3:10\u00a0PM")
+    expect(formatTimeForPostOrComment(at(2026, 10, 9))).toBe("Yesterday 3:10\u00a0PM")
+    expect(formatTimeForPostOrComment(at(2026, 10, 7))).toBe("7 Oct, 3:10\u00a0PM")
+    expect(formatTimeForPostOrComment(at(2025, 12, 30))).toBe("30 Dec 2025, 3:10\u00a0PM")
   })
 
   it("keeps its AM or PM beside a message that continues the one above", () => {
-    expect(formatGutterClock(at(2026, 10, 10))).toBe("3:10 PM")
-    expect(formatGutterClock(at(2026, 10, 10, 9, 5))).toBe("9:05 AM")
+    expect(formatGutterClock(at(2026, 10, 10))).toBe("3:10\u00a0PM")
+    expect(formatGutterClock(at(2026, 10, 10, 9, 5))).toBe("9:05\u00a0AM")
   })
 
   it("has the full date in its tooltip", () => {
-    expect(formatFullTimestamp(at(2026, 10, 9))).toBe("Friday 9 October 2026, 3:10 PM")
+    expect(formatFullTimestamp(at(2026, 10, 9))).toBe("Friday 9 October 2026, 3:10\u00a0PM")
   })
 
   it("is nothing for a date that can't be read", () => {
@@ -46,7 +46,7 @@ describe("a message's time", () => {
 
 describe("a list's time column (channels, DMs, activity)", () => {
   it("is the clock today, Yesterday, then the day", () => {
-    expect(formatListTimestamp(at(2026, 10, 10))).toBe("3:10 PM")
+    expect(formatListTimestamp(at(2026, 10, 10))).toBe("3:10\u00a0PM")
     expect(formatListTimestamp(at(2026, 10, 9))).toBe("Yesterday")
     expect(formatListTimestamp(at(2026, 10, 7))).toBe("7 Oct")
     expect(formatListTimestamp(at(2025, 12, 30))).toBe("30 Dec 2025")
@@ -67,6 +67,6 @@ describe("the rest of a conversation's dates", () => {
   it("dates an attachment and a thread's last reply the same way", () => {
     expect(formatDateForAttachment(at(2026, 10, 7))).toBe("7 Oct")
     expect(formatDateForAttachment(at(2025, 12, 30))).toBe("30 Dec 2025")
-    expect(formatTimeForReplyCount(at(2026, 10, 10))).toBe("Today at 3:10 PM")
+    expect(formatTimeForReplyCount(at(2026, 10, 10))).toBe("Today at 3:10\u00a0PM")
   })
 })

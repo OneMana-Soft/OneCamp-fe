@@ -36,8 +36,9 @@ function statusOf(answer: unknown): { status: number; json: unknown } {
 
 /**
  * Answers the app's API calls: `answers` by path prefix (the longest that
- * matches; withStatus for one that isn't a 200), the profile, and 404 for
- * everything else (never 401: that signs the browser out).
+ * matches; withStatus for one that isn't a 200; a function of the URL for one
+ * that depends on its query), the profile, and 404 for everything else (never
+ * 401: that signs the browser out).
  */
 export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answers = {}) {
   const app = new URL(String(testInfo.project.use.baseURL || "http://localhost:3001"))
@@ -60,7 +61,9 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
       const path = new URL(request.url()).pathname
       const hit = prefixes.find((p) => path.startsWith(p) || path.includes(p))
       if (hit) {
-        const { status, json } = statusOf(answers[hit])
+        const answer = answers[hit]
+        // An answer may depend on the query (a page, a page size): a function of the URL.
+        const { status, json } = statusOf(typeof answer === "function" ? (answer as (url: URL) => unknown)(new URL(request.url())) : answer)
         return status === 0 ? route.abort("failed") : route.fulfill({ status, headers, json })
       }
       if (/\/user\/profile$/.test(path)) return route.fulfill({ status: 200, headers, json: { msg: "ok", data: SAM } })
@@ -95,4 +98,23 @@ export function docInfo(doc: { doc_uuid: string; doc_title: string; doc_body?: s
       doc_deleted_at: "0001-01-01T00:00:00Z",
     },
   }
+}
+
+/**
+ * A reset link's check (POST /auth/reset-password/check) answered "usable",
+ * for a page that uses /reset-password with a made-up token: the page asks as
+ * it opens, and would ask the build's real backend.
+ */
+export async function usableResetLink(page: Page) {
+  await page.route(/\/auth\/reset-password\/check$/, async (route) => {
+    const request = route.request()
+    const headers = {
+      "access-control-allow-origin": request.headers()["origin"] || "*",
+      "access-control-allow-credentials": "true",
+      "access-control-allow-headers": request.headers()["access-control-request-headers"] || "*",
+      "access-control-allow-methods": "POST,OPTIONS",
+    }
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers })
+    return route.fulfill({ status: 200, headers, json: { msg: "ok", data: { valid: true } } })
+  })
 }

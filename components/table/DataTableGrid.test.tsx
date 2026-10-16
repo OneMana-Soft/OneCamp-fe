@@ -1,13 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-const updateRow = vi.fn()
+const patchRow = vi.fn()
+const updateField = vi.fn()
 const parsed = vi.fn()
+// AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
+const ai = vi.hoisted(() => ({ on: true }))
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
+  useAIAvailable: () => ai.on,
+}))
 vi.mock("@/services/tableService", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/services/tableService")>()
   return {
     ...real,
-    updateRow: (...args: unknown[]) => updateRow(...args),
+    patchRow: (...args: unknown[]) => patchRow(...args),
+    updateField: (...args: unknown[]) => updateField(...args),
     // Counted: a row that renders reads its values.
     parseRowValues: (r: Parameters<typeof real.parseRowValues>[0]) => {
       parsed(r.id)
@@ -39,8 +47,25 @@ function rowsOf(n: number): TableRow[] {
 
 afterEach(() => {
   cleanup()
-  updateRow.mockReset()
+  patchRow.mockReset()
   vi.useRealTimers()
+})
+
+// A fixed-layout table with every column a fixed width shares its spare
+// room across all of them: a new table's one column began a third of the
+// way across, behind a stretched row-number gutter. The last column (Add
+// column, or nothing for a reader) takes the room instead.
+describe("a narrow table's grid", () => {
+  it.each([true, false])("gives its spare room to the last column (editor: %s)", (canManage) => {
+    render(<DataTableGrid tableId="t" fields={fields.slice(0, 1)} rows={rowsOf(2)} canManage={canManage} onChange={() => {}} />)
+    const cols = Array.from(document.querySelectorAll("colgroup col")) as HTMLElement[]
+    expect(cols).toHaveLength(3)
+    expect(cols.slice(0, -1).every((c) => c.style.width !== "")).toBe(true)
+    expect(cols.at(-1)!.style.width).toBe("")
+    // Every row reaches the last column, so its hairline and hover run edge to edge.
+    for (const tr of Array.from(document.querySelectorAll("tbody tr:not([aria-hidden])"))) expect(tr.children).toHaveLength(3)
+    expect(document.querySelector("thead tr")!.children).toHaveLength(3)
+  })
 })
 
 describe("a big table's grid", () => {
@@ -77,30 +102,30 @@ describe("a big table's grid", () => {
     fireEvent.keyDown(cell, { key: "Escape" })
     expect(cell.value).toBe("Line 0")
     fireEvent.blur(cell)
-    expect(updateRow).not.toHaveBeenCalled()
+    expect(patchRow).not.toHaveBeenCalled()
   })
 
   it("ticks a checkbox when it is clicked, before the save comes back, and unticks it if the save fails", async () => {
     let fail: (e: Error) => void = () => {}
-    updateRow.mockImplementation(() => new Promise((_, reject) => (fail = reject)))
+    patchRow.mockImplementation(() => new Promise((_, reject) => (fail = reject)))
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
     const box = screen.getAllByRole("checkbox", { name: "Paid" })[1] as HTMLInputElement
     fireEvent.click(box)
     expect(box.checked).toBe(true)
-    expect(updateRow).toHaveBeenCalledWith("t", "r1", expect.objectContaining({ paid: true }), 1)
+    expect(patchRow).toHaveBeenCalledWith("t", "r1", { paid: true })
     await act(async () => fail(new Error("refused")))
     expect(box.checked).toBe(false)
   })
 
   it("saves what was typed in a cell whose row leaves the page while it has the focus", () => {
-    updateRow.mockResolvedValue({})
+    patchRow.mockResolvedValue({})
     const { rerender } = render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
     const cell = screen.getAllByRole("textbox", { name: "Item" })[2]
     cell.focus()
     fireEvent.change(cell, { target: { value: "Line 2, revised" } })
     // The row goes (filtered out, or scrolled out of the page) without a blur.
     rerender(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3).slice(0, 2)} canManage onChange={() => {}} />)
-    expect(updateRow).toHaveBeenCalledWith("t", "r2", expect.objectContaining({ item: "Line 2, revised" }), 2)
+    expect(patchRow).toHaveBeenCalledWith("t", "r2", { item: "Line 2, revised" })
   })
 
   it("renders a row again only when its values change", () => {
@@ -115,9 +140,11 @@ describe("a big table's grid", () => {
   })
 })
 
+// TAB-BUG-1: a save sends its cell alone. A whole row sent from this reader's
+// copy put back whatever another person had written in the row since.
 describe("two quick edits to one row", () => {
-  it("carries the first into the second's save, so it is not put back", async () => {
-    updateRow.mockResolvedValue({})
+  it("sends each cell alone, so neither save carries the other's copy of the row", async () => {
+    patchRow.mockResolvedValue({})
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
     const item = screen.getAllByRole("textbox", { name: "Item" })[0]
     const cost = screen.getAllByRole("textbox", { name: "Cost" })[0]
@@ -126,13 +153,30 @@ describe("two quick edits to one row", () => {
     // The table has not come back yet when the second edit is saved.
     fireEvent.change(cost, { target: { value: "900" } })
     await act(async () => fireEvent.blur(cost))
-    expect(updateRow).toHaveBeenLastCalledWith("t", "r0", expect.objectContaining({ item: "Booth", cost: 900 }), 0)
+    expect(patchRow).toHaveBeenNthCalledWith(1, "t", "r0", { item: "Booth" })
+    expect(patchRow).toHaveBeenNthCalledWith(2, "t", "r0", { cost: 900 })
+  })
+
+  it("sends a row's edits one after another, so the last one made is the one kept", async () => {
+    let first: (v: unknown) => void = () => {}
+    patchRow.mockImplementationOnce(() => new Promise((resolve) => (first = resolve))).mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    const item = screen.getAllByRole("textbox", { name: "Item" })[0]
+    fireEvent.change(item, { target: { value: "Booth" } })
+    await act(async () => fireEvent.blur(item))
+    fireEvent.change(item, { target: { value: "Stand" } })
+    await act(async () => fireEvent.blur(item))
+    // The second waits for the first to be answered.
+    expect(patchRow).toHaveBeenCalledTimes(1)
+    await act(async () => first({}))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+    expect(patchRow).toHaveBeenLastCalledWith("t", "r0", { item: "Stand" })
   })
 })
 
 describe("ticking a box in the grid", () => {
   it("springs the box that was ticked, and not one that was ticked when the table opened", () => {
-    updateRow.mockResolvedValue({})
+    patchRow.mockResolvedValue({})
     const rows = rowsOf(2)
     rows[0] = { ...rows[0], values: JSON.stringify({ item: "Line 0", cost: 1, paid: true }) }
     render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} />)
@@ -265,3 +309,147 @@ describe("the grid on the v3 sheet", () => {
   })
 })
 
+
+// TAB-BUG-8: a number cell saved what it couldn't read as nothing, wiping the
+// cell ("€12", "12 kg", "TBD"), and read "1,5" as 15.
+describe("typing into a number cell", () => {
+  it("refuses what isn't a number: nothing is saved, the cell says so, and Escape puts the number back", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    const cost = screen.getAllByRole("textbox", { name: "Cost" })[0] as HTMLInputElement
+    fireEvent.change(cost, { target: { value: "12 kg" } })
+    await act(async () => fireEvent.blur(cost))
+    expect(patchRow).not.toHaveBeenCalled()
+    expect(cost.getAttribute("aria-invalid")).toBe("true")
+    expect(cost.parentElement?.getAttribute("title")).toBe("Not a number")
+    fireEvent.keyDown(cost, { key: "Escape" })
+    expect(cost.value).toBe("100")
+    expect(cost.getAttribute("aria-invalid")).toBeNull()
+  })
+
+  it("reads a currency sign and digit groups", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    const cost = screen.getAllByRole("textbox", { name: "Cost" })[0]
+    fireEvent.change(cost, { target: { value: "€1,200" } })
+    await act(async () => fireEvent.blur(cost))
+    expect(patchRow).toHaveBeenCalledWith("t", "r0", { cost: 1200 })
+  })
+})
+
+// The W0 audit (39213924's row): a 1,200-row budget's summary bar summed its
+// first 500 rows, unmarked.
+describe("a summary of the rows loaded alone", () => {
+  it("says it's of those rows", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} summary={{}} onSummary={() => {}} loaded={500} />)
+    expect(screen.getByRole("button", { name: /^Cost summary: Sum of 500 loaded/ })).toBeTruthy()
+    cleanup()
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} summary={{}} onSummary={() => {}} />)
+    expect(screen.getByRole("button", { name: /^Cost summary: Sum 303/ })).toBeTruthy()
+  })
+})
+
+// A column's save sent the page copy's position, name and config: a stale
+// tab's rename put back a column someone had moved meanwhile.
+describe("a column's save", () => {
+  it("sends its name alone: it renames the column where it is now, as it is now", async () => {
+    updateField.mockResolvedValue(undefined)
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(1)} canManage onChange={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: /^Cost, Number column/ }))
+    const name = screen.getByRole("textbox", { name: "Column name" })
+    fireEvent.change(name, { target: { value: "Price" } })
+    await act(async () => fireEvent.blur(name))
+    expect(updateField).toHaveBeenCalledTimes(1)
+    expect(updateField.mock.calls[0][2]).toEqual({ name: "Price" })
+  })
+})
+
+// TAB-BUG-15 for checkboxes: every other cell took a click anywhere in it,
+// and a checkbox only one on its 16 px box.
+describe("a checkbox cell", () => {
+  it("ticks on a click anywhere in the cell, and saves it", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(1)} canManage onChange={() => {}} />)
+    const box = screen.getByRole("checkbox", { name: "Paid" }) as HTMLInputElement
+    const cell = box.closest("td")!.firstElementChild as HTMLElement
+    expect(cell).not.toBe(box)
+    await act(async () => fireEvent.click(cell))
+    expect(box.checked).toBe(true)
+    expect(patchRow).toHaveBeenCalledWith("t", "r0", { paid: true })
+  })
+})
+
+// TAB-BUG-7: a text cell was an input, which drops line breaks: a value with
+// lines showed them run together, and the first edit saved it that way.
+describe("a text cell's lines", () => {
+  const withText = (texts: string[]): TableRow[] =>
+    texts.map((item, i) => ({ id: `r${i}`, table_id: "t", position: i, created_at: "", updated_at: "", values: JSON.stringify({ item, cost: i, paid: false }) }))
+
+  it("keeps its line breaks through the focus, typing and a save", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={withText(["Para one\n\nPara two"])} canManage onChange={() => {}} />)
+    const cell = screen.getByRole("textbox", { name: "Item" }) as HTMLTextAreaElement
+    expect(cell.value).toBe("Para one\n\nPara two")
+    cell.focus()
+    fireEvent.change(cell, { target: { value: "Para one\n\nPara two (edited)" } })
+    await act(async () => fireEvent.blur(cell))
+    expect(patchRow).toHaveBeenCalledWith("t", "r0", { item: "Para one\n\nPara two (edited)" })
+  })
+
+  it("adds a line on Shift+Enter and on Alt+Enter, staying put, and saves on Enter", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={withText(["Above", "Notes"])} canManage onChange={() => {}} />)
+    const cell = screen.getAllByRole("textbox", { name: "Item" })[1] as HTMLTextAreaElement
+    cell.focus()
+    cell.setSelectionRange(5, 5)
+    fireEvent.keyDown(cell, { key: "Enter", shiftKey: true })
+    expect(cell.value).toBe("Notes\n")
+    expect(document.activeElement).toBe(cell)
+    fireEvent.keyDown(cell, { key: "Enter", altKey: true })
+    expect(cell.value).toBe("Notes\n\n")
+    // The last row: Enter saves where it is.
+    await act(async () => fireEvent.keyDown(cell, { key: "Enter" }))
+    expect(document.activeElement).not.toBe(cell)
+    expect(patchRow).toHaveBeenCalledWith("t", "r1", { item: "Notes\n\n" })
+  })
+
+  // Safari confirms an input method's word (Japanese, Chinese) with an Enter
+  // whose keyCode is 229 and isComposing false: it saved the cell mid-word.
+  it("leaves an input method's Enter to it: the cell neither saves nor moves", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={withText(["Above", "Notes", "Below"])} canManage onChange={() => {}} />)
+    const cell = screen.getAllByRole("textbox", { name: "Item" })[1] as HTMLTextAreaElement
+    cell.focus()
+    fireEvent.change(cell, { target: { value: "Notes にほんご" } })
+    await act(async () => fireEvent.keyDown(cell, { key: "Enter", keyCode: 229 }))
+    expect(document.activeElement).toBe(cell)
+    expect(patchRow).not.toHaveBeenCalled()
+    // An input cell's Enter goes to the grid's keys, which leave it too.
+    const cost = screen.getAllByRole("textbox", { name: "Cost" })[1]
+    cost.focus()
+    await act(async () => fireEvent.keyDown(cost, { key: "Enter", keyCode: 229 }))
+    expect(document.activeElement).toBe(cost)
+  })
+
+  it("moves up and down through its lines before it moves a row", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={withText(["Above", "One\nTwo", "Below"])} canManage onChange={() => {}} />)
+    const [above, cell] = screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    cell.focus()
+    cell.setSelectionRange(5, 5)
+    fireEvent.keyDown(cell, { key: "ArrowUp" })
+    expect(document.activeElement).toBe(cell)
+    cell.setSelectionRange(1, 1)
+    fireEvent.keyDown(cell, { key: "ArrowUp" })
+    expect(document.activeElement).toBe(above)
+  })
+
+  it("edits a URL holding a line break whole, saying Edit in full, rather than in an input that drops it", () => {
+    const withUrl: TableField[] = [fields[0], { id: "site", table_id: "t", name: "Site", type: "url", config: "{}", position: 1 }]
+    const rows: TableRow[] = [{ id: "r0", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "a", site: "https://a.example\nhttps://b.example" }) }]
+    render(<DataTableGrid tableId="t" fields={withUrl} rows={rows} canManage onChange={() => {}} />)
+    const site = screen.getByRole("textbox", { name: "Site" }) as HTMLTextAreaElement
+    expect(site.tagName).toBe("TEXTAREA")
+    expect(site.value).toBe("https://a.example\nhttps://b.example")
+    expect(site.parentElement?.textContent).toContain("Edit in full")
+  })
+})

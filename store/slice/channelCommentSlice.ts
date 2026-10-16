@@ -4,6 +4,7 @@ import {FilePreview} from "@/store/slice/channelSlice";
 import {CommentInfoInterface} from "@/types/comment";
 import {GroupedReaction} from "@/types/reaction";
 import {UserProfileDataInterface} from "@/types/user";
+import {applyReplyEdit} from "@/lib/chat/replyEdit";
 
 interface createOrUpdateCommentBody {
     body: string
@@ -99,16 +100,11 @@ interface UpdateChannelCommentReactionId {
     newReactionId: string
 }
 
-interface UpdateComment {
-    postId: string
-    commentIndex: number
-    htmlText: string
-}
-
 interface UpdateCommentByCommentUUID {
     postId: string
     commentUUID: string
     htmlText: string
+    updatedAt?: string | null
 }
 
 interface RemoveComment {
@@ -246,23 +242,14 @@ const channelCommentSlice = createSlice({
 
         },
 
-        updateChannelComment: (state, action: {payload: UpdateComment}) => {
-            const { postId, commentIndex, htmlText } = action.payload;
-            if (state.postComments[postId] && commentIndex > -1 && commentIndex < state.postComments[postId].length) {
-                state.postComments[postId][commentIndex].comment_text = htmlText
-            }
-
-        },
-
         updateChannelCommentByCommentUUID: (state, action: {payload: UpdateCommentByCommentUUID}) => {
-            const { postId, commentUUID, htmlText } = action.payload;
+            const { postId, commentUUID, htmlText, updatedAt } = action.payload;
             state.postComments[postId] = state.postComments[postId]?.map((comment)=> {
                 if(comment.comment_uuid == commentUUID) {
-                    comment.comment_text = htmlText
+                    applyReplyEdit(comment, htmlText, updatedAt)
                 }
                 return comment
             })
-
         },
 
         removeChannelComment: (state, action: {payload: RemoveComment}) => {
@@ -438,7 +425,6 @@ export const {
     setChannelCommentAlsoSend,
     updateChannelCommentMsgPreviewFiles,
     addChannelComments,
-    updateChannelComment,
     updateChannelCommentByCommentUUID,
     removeChannelComment,
     removeChannelCommentByCommentUUID,

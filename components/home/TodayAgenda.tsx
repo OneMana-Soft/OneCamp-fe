@@ -1,4 +1,5 @@
 "use client"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { displayNameOf } from "@/lib/personName"
 
 /**
@@ -30,8 +31,10 @@ import { Calendar, ChevronDown, Video } from "@/lib/icons"
 import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { CalendarEventInterface } from "@/types/calendar"
-import { callLinkOf, classifyEvent, eventProgress, hhmm, joinState, planAgenda, whenClause, type EventTime } from "@/components/home/homeTime"
+import { callLinkOf, classifyEvent, eventProgress, joinState, planAgenda, whenClause, type EventTime } from "@/components/home/homeTime"
+import { clockRange, clockTime } from "@/lib/utils/date/clock"
 import { useTodayEvents } from "@/components/home/useTodayEvents"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 function Bar({ ev, time, now }: { ev: CalendarEventInterface; time: EventTime; now: Date }) {
   const hue = ev.event_is_focus ? "dusk" : hueFor(ev.event_uuid)
@@ -53,10 +56,10 @@ function Bar({ ev, time, now }: { ev: CalendarEventInterface; time: EventTime; n
 function NowLine({ now }: { now: Date }) {
   return (
     <div className="relative h-0" data-now-line="" aria-hidden>
-      <div className="pointer-events-none absolute left-[66px] right-3.5 top-[-0.5px] z-[1] h-px bg-[color-mix(in_oklab,var(--brand)_45%,transparent)]">
+      <div className="pointer-events-none absolute left-[74px] right-3.5 top-[-0.5px] z-[1] h-px bg-[color-mix(in_oklab,var(--brand)_45%,transparent)]">
         <span className="absolute -left-[3px] -top-[2.5px] size-1.5 rounded-full bg-brand" />
         <span className="absolute -top-[15px] right-0 bg-sheet pl-1.5 text-micro font-semibold text-brand-text dark:bg-[#18191C]">
-          now {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+          now {clockTime(now)}
         </span>
       </div>
     </div>
@@ -75,14 +78,14 @@ function Row({ ev, time, now }: { ev: CalendarEventInterface; time: EventTime; n
     <div
       data-agenda-row={time}
       className={cn(
-        "relative grid min-h-[52px] grid-cols-[52px_3px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-3.5 py-2.5 last:border-b-0",
+        "relative grid min-h-[52px] grid-cols-[60px_3px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-3.5 py-2.5 last:border-b-0",
         time === "current" && "bg-[color-mix(in_oklab,var(--brand-muted)_55%,transparent)] transition-colors duration-[400ms] dark:bg-[color-mix(in_oklab,var(--brand)_7%,transparent)]",
       )}
     >
       <span className="text-meta leading-4 tabular-nums text-ink-3">
-        {hhmm(ev.event_start_time)}
+        {clockTime(ev.event_start_time)}
         <br />
-        {hhmm(ev.event_end_time)}
+        {clockTime(ev.event_end_time)}
       </span>
       <Bar ev={ev} time={time} now={now} />
       <span className="min-w-0">
@@ -102,7 +105,7 @@ function Row({ ev, time, now }: { ev: CalendarEventInterface; time: EventTime; n
         <span className="flex" aria-label={`${people.length} people`}>
           {people.slice(0, 3).map((p, i) => (
             <span key={p.user_uuid} className={cn("rounded-full ring-2 ring-sheet", i > 0 && "-ml-1.5")}>
-              <IdentityMark variant="avatar" size={18} id={p.user_uuid} label={displayNameOf(p)} />
+              <IdentityMark variant="avatar" size={18} id={avatarSeed(p)} label={displayNameOf(p)} />
             </span>
           ))}
         </span>
@@ -138,7 +141,7 @@ export function TodayAgenda({ className }: { className?: string }) {
       <div className="relative overflow-hidden rounded-lg bg-sheet shadow-e1 dark:bg-[#18191C]" data-agenda-card="">
         {loading ? (
           [0, 1].map((i) => (
-            <div key={i} className="grid min-h-[52px] grid-cols-[52px_3px_1fr] items-center gap-3 border-b border-line px-3.5 last:border-b-0" aria-hidden>
+            <div key={i} className="grid min-h-[52px] grid-cols-[60px_3px_1fr] items-center gap-3 border-b border-line px-3.5 last:border-b-0" aria-hidden>
               <span className="h-6 w-9 animate-shimmer rounded-sm bg-press" />
               <span className="h-8 w-[3px] rounded-[2px] bg-press" />
               <span className="h-3 w-3/5 animate-shimmer rounded-sm bg-press" />
@@ -146,7 +149,7 @@ export function TodayAgenda({ className }: { className?: string }) {
           ))
         ) : error ? (
           <div className="flex min-h-16 items-center justify-between gap-3 px-3.5 text-ui-sm text-ink-2">
-            Couldn&apos;t load today&apos;s events
+            Couldn&apos;t load today&apos;s events<SaysLoadFailure />
             <Button variant="ghost" size="xs" onClick={retry}>
               Try again
             </Button>
@@ -204,7 +207,9 @@ export function TodayStrip({ className }: { className?: string }) {
   return (
     <section aria-labelledby="today-strip-title" className={className} data-today-strip="">
       <HubSectionHeader id="today-strip-title" title="Today" action={<Link href="/app/calendar">Calendar</Link>} />
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+      {/* The cards snap to the 16px gutter, not the screen's edge (QA SH-15):
+          without scroll-padding the first card snapped to x = 0. */}
+      <div data-today-scroller="" className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {upcoming.map((ev) => {
           const time = classifyEvent(ev, now)
           const link = callLinkOf(ev.event_description)
@@ -223,7 +228,7 @@ export function TodayStrip({ className }: { className?: string }) {
               <span className="flex items-center gap-2">
                 <span className="h-4 w-[3px] rounded-[2px]" style={{ background: `var(--camp-${hue})` }} />
                 <span className="text-meta tabular-nums text-ink-3">
-                  {hhmm(ev.event_start_time)}–{hhmm(ev.event_end_time)}
+                  {clockRange(ev.event_start_time, ev.event_end_time)}
                 </span>
               </span>
               <span className="truncate text-ui font-medium">{ev.event_title}</span>

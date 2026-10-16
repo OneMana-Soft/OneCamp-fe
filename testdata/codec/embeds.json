@@ -1,0 +1,38 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "tableId": "tbl-1",
+        "viewId": "view-1"
+      },
+      "type": "tableEmbed"
+    },
+    {
+      "attrs": {
+        "id": "poll-1"
+      },
+      "type": "poll"
+    },
+    {
+      "attrs": {
+        "spec": "{\"type\":\"bar\",\"title\":\"Signups\",\"data\":[1,2,3]}"
+      },
+      "type": "chartEmbed"
+    },
+    {
+      "attrs": {
+        "diff": "--- a\n+++ b\n@@ -1 +1 @@\n-old <x>\n+new & \"quoted\""
+      },
+      "type": "diffEmbed"
+    },
+    {
+      "attrs": {
+        "egress": "eg-1",
+        "kind": "channel",
+        "sid": "c-1"
+      },
+      "type": "recordingEmbed"
+    }
+  ],
+  "type": "doc"
+}

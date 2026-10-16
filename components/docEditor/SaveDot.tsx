@@ -4,54 +4,60 @@ import * as React from "react"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils/helpers/cn"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /**
  * Where a doc, board or table stands with saving (content.md D12): one 6 px
  * dot beside the title instead of a footer that says "Saving…".
  *
- * - saved: moss. The tooltip says when (or "Saved to the live doc").
+ * - saved: moss. The tooltip says when it was stored. A live doc's dot turns
+ *   saved only once the database holds this tab's edits (docSaveState.ts), so
+ *   the time is the server's "stored at"; a live board without one says
+ *   "Saved to the live doc".
  * - saving: ink-4, breathing. Shown only once a save has been pending for
  *   700 ms, so fast saves never flicker it.
  * - connecting: an ink-4 ring. The live copy isn't joined yet and the reader
  *   is on the saved snapshot. Never the word "Saving".
- * - offline: a sun ring and "Offline".
+ * - offline: a sun ring and "Offline", with how many changes wait to sync.
  * - failed: a danger disc and "Not saved", a button that retries.
  */
 export type SaveState = "saved" | "saving" | "connecting" | "offline" | "failed"
 
 export interface SaveDotProps {
   state: SaveState
-  /** When the last save landed. */
+  /** When the last save landed: for a live doc, when the server stored it. */
   savedAt?: Date | null
-  /** A live, collaborative copy (the doc's Yjs): "Saved to the live doc". */
+  /** A live, collaborative copy (the doc's Yjs). */
   live?: boolean
+  /** How many changes wait to be stored (useSaveProgress), said when offline. */
+  waiting?: number
   onRetry?: () => void
   className?: string
 }
 
 const SAVING_DELAY_MS = 700
 
-function timeOf(d: Date): string {
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-}
+/** The time of day, as the reader writes it (lib/utils/date/clock: their locale and hour cycle). */
+const timeOf = (d: Date): string => clockTime(d)
 
-export function saveDotCopy(state: SaveState, savedAt?: Date | null, live?: boolean): string {
+export function saveDotCopy(state: SaveState, savedAt?: Date | null, live?: boolean, waiting = 0): string {
   switch (state) {
     case "saved":
-      if (live) return "Saved to the live doc"
-      return savedAt ? `Saved · ${timeOf(savedAt)}` : "Saved"
+      if (savedAt) return `Saved · ${timeOf(savedAt)}`
+      return live ? "Saved to the live doc" : "Saved"
     case "saving":
       return "Saving your changes"
     case "connecting":
       return "Connecting… you're reading the saved copy"
     case "offline":
+      if (waiting > 0) return `Offline. ${waiting} ${waiting === 1 ? "change" : "changes"} waiting to sync`
       return "Offline. Changes are kept and will sync"
     case "failed":
       return "Not saved. Select to try again"
   }
 }
 
-export function SaveDot({ state, savedAt, live, onRetry, className }: SaveDotProps) {
+export function SaveDot({ state, savedAt, live, waiting, onRetry, className }: SaveDotProps) {
   // "saving" shows only after it has lasted; until then the dot keeps what it
   // showed before (usually saved).
   const [shown, setShown] = React.useState<SaveState>(state === "saving" ? "saved" : state)
@@ -68,7 +74,7 @@ export function SaveDot({ state, savedAt, live, onRetry, className }: SaveDotPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
-  const copy = saveDotCopy(shown, savedAt, live)
+  const copy = saveDotCopy(shown, savedAt, live, waiting)
   const dot = (
     <span
       aria-hidden="true"

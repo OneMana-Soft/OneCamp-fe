@@ -61,9 +61,37 @@ describe("a public intake form (work.md W46)", () => {
     expect(celebrateTask).toHaveBeenCalledTimes(1)
   })
 
-  it("says so when the form is gone", async () => {
+  it("takes a number as typed, in the sender's signs, and says what isn't one before sending", async () => {
+    getForm.mockResolvedValue({ ok: true, data: { ...form, fields: [...form.fields, { id: "seats", label: "Seats", type: "number", required: false }] } })
+    await open()
+    const seats = screen.getByLabelText(/Seats/) as HTMLInputElement
+    // Text, not a browser number input, which rewrote "1,5" in its own locale or emptied it.
+    expect(seats.type).toBe("text")
+    expect(seats.inputMode).toBe("decimal")
+    fireEvent.change(screen.getByLabelText(/What should change/), { target: { value: "The pricing page" } })
+    fireEvent.change(seats, { target: { value: "12 kg" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Send" })))
+    expect(sendForm).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert").textContent).toBe("“Seats” needs a number.")
+    fireEvent.change(seats, { target: { value: "12" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Send" })))
+    expect(sendForm).toHaveBeenCalledWith("tok", { what: "The pricing page", seats: "12" }, "")
+  })
+
+  it("says so when the form is gone, as every public link does (PTC-19)", async () => {
     getForm.mockResolvedValue({ ok: false, status: 404, msg: "" })
     await open()
-    expect(screen.getByText("This form isn't available")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "This form doesn't exist or was deleted" })).toBeInTheDocument()
+    expect(document.querySelector("[data-public-gone]")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull()
+  })
+
+  it("says a server that didn't answer couldn't load the form, and Try again reads it again", async () => {
+    getForm.mockResolvedValueOnce({ ok: false, status: 503, msg: "" })
+    await open()
+    expect(screen.getByText("Couldn't load this form")).toBeInTheDocument()
+    getForm.mockResolvedValueOnce({ ok: true, status: 200, data: form })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Try again/ })))
+    expect(getForm).toHaveBeenCalledTimes(2)
   })
 })

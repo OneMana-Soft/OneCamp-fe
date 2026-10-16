@@ -1,0 +1,79 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Ask ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "u-1",
+            "label": "Sam Rivera",
+            "mentionSuggestionChar": "@"
+          },
+          "type": "mention"
+        },
+        {
+          "text": " in ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "c-1",
+            "label": "engineering",
+            "mentionSuggestionChar": "#"
+          },
+          "type": "channelMention"
+        },
+        {
+          "text": " about ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "doc:d-1",
+            "label": "Launch notes",
+            "mentionSuggestionChar": "+"
+          },
+          "type": "entityMention"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "A task: ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "task:t-9",
+            "label": "Ship it",
+            "mentionSuggestionChar": "+"
+          },
+          "type": "entityMention"
+        },
+        {
+          "text": " and a project: ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "project:p-2",
+            "label": "Roadmap",
+            "mentionSuggestionChar": "+"
+          },
+          "type": "entityMention"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

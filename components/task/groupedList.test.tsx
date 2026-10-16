@@ -5,7 +5,7 @@ import { configureStore } from "@reduxjs/toolkit"
 
 import desktopRightPanelSlice from "@/store/slice/desktopRightPanelSlice"
 import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
-import { groupTasks, whenOf } from "@/lib/tasks/grouping"
+import { groupTasks, headedRows, whenOf } from "@/lib/tasks/grouping"
 import type { TaskInfoInterface } from "@/types/task"
 
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => vi.fn(async () => ({ changed: 1, failed: 0, unchanged: 0 })) }))
@@ -21,9 +21,11 @@ const t = (id: string, status: string, extra: Partial<TaskInfoInterface> = {}) =
   ({ task_uuid: id, task_name: `Task ${id}`, task_status: status, task_priority: "medium", task_label: "", task_due_date: "", ...extra }) as TaskInfoInterface
 
 describe("grouping", () => {
-  it("orders status groups as work moves: in progress, in review, to do, backlog, done; cancelled left out", () => {
+  it("orders status groups as the board's columns: backlog, to do, in progress, in review, done; cancelled left out (PTC-30)", () => {
     const groups = groupTasks([t("1", "todo"), t("2", "done"), t("3", "inProgress"), t("4", "backlog"), t("5", "inReview"), t("6", "canceled")], "status", BUILT_IN_STATUSES)
-    expect(groups.map((g) => g.key)).toEqual(["inProgress", "inReview", "todo", "backlog", "done"])
+    expect(groups.map((g) => g.key)).toEqual(["backlog", "todo", "inProgress", "inReview", "done"])
+    // One order: the board's columns are the project's statuses in this order.
+    expect(BUILT_IN_STATUSES.filter((o) => o.value !== "canceled").map((o) => o.value)).toEqual(groups.map((g) => g.key))
   })
 
   it("groups My Tasks by when, with Overdue only when there is one and Today always", () => {
@@ -37,11 +39,11 @@ describe("grouping", () => {
   })
 })
 
-function renderList(tasks: TaskInfoInterface[], onAdd?: () => void) {
+function renderList(tasks: TaskInfoInterface[], onAdd?: () => void, partial?: boolean) {
   const store = configureStore({ reducer: { rightPanel: desktopRightPanelSlice.reducer } })
   return render(
     <Provider store={store}>
-      <GroupedTaskList tasks={tasks} options={BUILT_IN_STATUSES} grouping="status" props={PROJECT_PROPS} canEdit={() => true} projectId="p" onAdd={onAdd} />
+      <GroupedTaskList tasks={tasks} options={BUILT_IN_STATUSES} grouping="status" props={PROJECT_PROPS} canEdit={() => true} projectId="p" onAdd={onAdd} partial={partial} />
     </Provider>,
   )
 }
@@ -81,5 +83,29 @@ describe("the grouped list (work.md W18, W19)", () => {
     fireEvent.change(input, { target: { value: "Write the brief" } })
     fireEvent.submit(input.closest("form")!)
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ key: "inProgress" }), "Write the brief")
+  })
+})
+
+// PROJ-BUG-2: the groups are made from the tasks loaded so far, and the server
+// gives no count per group yet. "Urgent 100" with 400 urgent tasks read as the
+// whole; on a phone the counts grew as the list scrolled.
+describe("a group's count while the list has loaded only part of its tasks", () => {
+  const counts = (container: HTMLElement) => [...container.querySelectorAll("[data-group-count]")].map((c) => c.textContent)
+
+  it("says how many have loaded, with a +, while more pages are to come", () => {
+    const { container } = renderList([t("1", "todo"), t("2", "todo"), t("3", "inProgress")], undefined, true)
+    expect(counts(container)).toEqual(["2+", "1+"])
+  })
+
+  it("is the exact count once every task has loaded", () => {
+    const { container } = renderList([t("1", "todo"), t("2", "todo"), t("3", "inProgress")])
+    expect(counts(container)).toEqual(["2", "1"])
+  })
+
+  it("is the same on a phone's list, whose headers are rows of their own", () => {
+    const tasks = [t("1", "todo"), t("2", "todo"), t("3", "inProgress")]
+    const headers = (more: boolean) => headedRows(tasks, "status", BUILT_IN_STATUSES, more).flatMap((r) => ("kind" in r ? [`${r.label} ${r.count}`] : []))
+    expect(headers(true)).toEqual(["To do 2+", "In progress 1+"])
+    expect(headers(false)).toEqual(["To do 2", "In progress 1"])
   })
 })

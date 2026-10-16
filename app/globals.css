@@ -48,9 +48,11 @@
      text-body-lg (16/26, a doc), text-heading (15/20, a card or channel
      title), text-title-3 (17/24, a dialog title), text-title-2 (20/27, the
      task panel's title), text-title-1 (24/30, a page title), text-display
-     (30/36, the Home greeting) and text-doc-title (32/38). Weights: 400 text,
-     450 list titles (font-book), 510 emphasis and buttons (font-medium), 590
-     headings (font-semibold), 600 only from 28px (font-bold). Never 700. */
+     (30/36, the Home greeting) and text-doc-title (40/48 at 650, a doc's
+     title, docs PROGRAM D-1). Weights: 400 text, 450 list titles
+     (font-book), 510 emphasis and buttons (font-medium), 590 headings
+     (font-semibold), 600 only from 28px (font-bold), 650 a doc's title and
+     its H4. Never 700. */
   --text-3xs: 0.6875rem;
   --text-3xs--line-height: 0.875rem;
   --text-3xs--letter-spacing: 0.005em;
@@ -120,10 +122,10 @@
   --text-display--line-height: 2.25rem;
   --text-display--letter-spacing: -0.021em;
   --text-display--font-weight: 600;
-  --text-doc-title: 2rem;
-  --text-doc-title--line-height: 2.375rem;
-  --text-doc-title--letter-spacing: -0.021em;
-  --text-doc-title--font-weight: 600;
+  --text-doc-title: 2.5rem;
+  --text-doc-title--line-height: 3rem;
+  --text-doc-title--letter-spacing: -0.022em;
+  --text-doc-title--font-weight: 650;
   --font-weight-book: 450;
   --font-weight-medium: 510;
   --font-weight-semibold: 590;
@@ -343,19 +345,35 @@
      item's hover is press). An alpha, so it reads on the frame, the sheet and
      a popover alike. */
   --color-highlight: var(--sidebar-accent);
-  /* Z-Index Layer System — each layer must be higher than all UI below it */
+  /* THE LAYERS, bottom to top. Every z-index in the app is one of these
+     (z-[var(--z-…)]), never a raw number:
+       base      0     the page
+       sticky    100   sticky headers, section labels
+       fixed     200   the phone's tab bar and top bar, a conversation's
+                       composer, the shell's scrim; +1 for what the scrim
+                       covers for (the tablet list, the right panel over
+                       the page)
+       corner    300   the corner cards (CornerStack: the demo prompt, the
+                       timer, the keyboard tip, the install prompt, slash
+                       answers): over the page, under anything opened on
+                       top of it, so they never cover a menu's items
+       modal-backdrop 400  a dialog's, sheet's or drawer's scrim, which
+                       covers the corner cards too
+       modal     500   dialogs, sheets, drawers, the command palette
+       popover   600   popovers, also inside a dialog
+       dropdown  650   menus and selects, also inside a dialog or popover
+       tooltip   700
+       toast     800   toasts, the offline notice, the boot screens
+       devtools  9999  devtools only */
   --z-base: 0;
   --z-sticky: 100;
-  /* sticky headers, section labels */
   --z-fixed: 200;
-  /* fixed bottom nav, floating controls */
-  --z-dropdown: 650;
-  /* dropdowns, select menus — MUST be above modals/popovers */
+  --z-corner: 300;
   --z-modal-backdrop: 400;
   --z-modal: 500;
   --z-popover: 600;
+  --z-dropdown: 650;
   --z-tooltip: 700;
-  /* highest non-devtool layer */
   --z-toast: 800;
   --z-devtools: 9999;
 }
@@ -377,9 +395,10 @@
      (tiny) elevation scale, and the theme shown as light on the frame (the
      campfire glow), not as a tint.
 
-     EVERY VALUE BELOW IS DESIGN_V3.md §3 VERBATIM. sharedTokens.test.ts pins
-     them, and the storefront (onemana-frontend lib/appSystem.ts) pins the same
-     table: change both repos or neither.
+     EVERY VALUE BELOW IS DESIGN_V3.md §3 VERBATIM, but ink-3, which decision
+     D-SD4 (13 Oct 2026) moved so meta text reads at AA. sharedTokens.test.ts
+     pins them, and the storefront (onemana-frontend lib/appSystem.ts) pins
+     the same table: change both repos or neither.
 
      SURFACES. Five steps; every surface sits on one of them.
        frame   the sidebar, the gutter round the sheet, the phone status area
@@ -398,11 +417,18 @@
   --panel: #FFFFFF;
 
   /* INK TIERS. ink for text and titles; ink-2 for secondary text and nav
-     labels (AA everywhere); ink-3 for timestamps, IDs, placeholders and idle
-     icons, never sentences; ink-4 for empty bars, separator dots, disabled. */
+     labels; ink-3 for meta: timestamps, counts, IDs, the agent provenance
+     line, unfurl meta, placeholders and idle icons, never sentences; ink-4
+     for decoration only: empty bars, separator dots, disabled, placeholder
+     glyphs, never text anyone has to read.
+     ink, ink-2 and ink-3 read at AA, 4.5:1, on every surface they sit on,
+     at rest and under hover, press and sel (D-SD4, app/inkContrast.test.ts).
+     ink-3 was #8A8C92 (3.36:1 on the chat surface); it is the same cool grey
+     darkened only as far as its lowest pair needs: a pressed row on the
+     sunken ground, 4.52:1. */
   --ink: #16171B;
   --ink-2: #5B5D65;
-  --ink-3: #8A8C92;
+  --ink-3: #67696F;
   --ink-4: #B9BBC0;
 
   /* ALPHA OVER HEX FOR STRUCTURE. Hairlines, hovers and selection are ink at a
@@ -625,7 +651,9 @@
 
   --ink: #EEEEF0;
   --ink-2: #A8ABB1;
-  --ink-3: #72747B;
+  /* Lifted from #72747B (3.95:1 on the sheet) as far as its lowest pair
+     needs: a menu's highlighted row, --press on the pop surface, 4.52:1. */
+  --ink-3: #95979E;
   --ink-4: #4A4C52;
 
   --line: rgba(255, 255, 255, 0.065);
@@ -1971,7 +1999,7 @@ html[data-media-collapsed="true"] [data-message-media] {
   --sunken: #F8F9FA;
   --ink: #16171B;
   --ink-2: #5B5D65;
-  --ink-3: #8A8C92;
+  --ink-3: #67696F;
   --line: rgba(20, 22, 30, 0.075);
   --background: #FFFFFF;
   --foreground: #16171B;
@@ -2049,6 +2077,19 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     min-height: 0;
     padding: 10px 8px 8px 8px;
   }
+  /* What the sidebar and the tablet rail write in ink-3 (counts, section
+     headers, More, a muted channel, the foot's status, the rail's labels)
+     reads in ink-2 in light (D-SD4). The frame there is the darkest ground in
+     the app: the glow, the grain, and a row's hover or open state on top. A
+     count on a hovered row under the glow needs a grey within 1.1:1 of ink-2
+     to reach 4.5:1, so no ink-3 lighter than ink-2 can serve it. In dark the
+     frame is the darkest surface and ink-3 reads on it as it is
+     (app/inkContrast.test.ts measures both). */
+  :root:not(.dark) .shell-side,
+  :root:not(.dark) .tablet-rail {
+    --ink-3: var(--ink-2);
+    --faint-foreground: var(--ink-2);
+  }
   /* The rail: 36px items 6px in, so their icons stay on the 24px axis. */
   .shell-side[data-rail="true"] {
     flex: none;
@@ -2102,6 +2143,7 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(150, 40, 0, 0.25);
   }
   .shell-mark[data-size="24"] { width: 24px; height: 24px; border-radius: 7px; }
+  .shell-mark[data-size="32"] { width: 32px; height: 32px; border-radius: 10px; }
   .shell-mark[data-logo] {
     background: var(--raised);
     box-shadow: var(--e1);
@@ -2200,6 +2242,8 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     font-variant-numeric: tabular-nums;
   }
   .shell-count > span { display: inline-block; animation: shell-count-swap 160ms var(--ease-out) both; }
+  /* A folded section with something unread and nothing that needs you (D-S3). */
+  .shell-dot { margin-left: auto; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
   .shell-badge {
     position: relative;
     margin-left: auto;
@@ -2263,27 +2307,19 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   .shell-sect-rows > * { animation: shell-fade-in 120ms var(--ease-out) both; }
   .shell-sect-rows[data-instant="true"] > * { animation: none; }
 
-  /* A project's 16px tile: its hue's avatar cut, a white 10px glyph. */
-  .shell-ptile {
+  /* An empty section's invite (New project): a project tile's 16px place,
+     outlined. A project itself is components/ui/graphics/ProjectTile. */
+  .shell-invite-tile {
     width: 16px;
     height: 16px;
     border-radius: 5px;
     flex: none;
     display: grid;
     place-items: center;
-    color: #fff;
-    font-size: 9px;
-    font-weight: 600;
-    line-height: 1;
-    background-image: linear-gradient(140deg, var(--hue-a1), var(--hue-a2));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-  }
-  .shell-ptile > svg { width: 10px; height: 10px; }
-  .shell-ptile[data-invite] {
-    background: none;
     color: var(--ink-3);
     box-shadow: inset 0 0 0 1.25px var(--line-3);
   }
+  .shell-invite-tile > svg { width: 10px; height: 10px; }
 
   /* The split-view button that fades in at a row's right end on hover. */
   .shell-split-btn {
@@ -2304,7 +2340,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   }
   .group\/row:hover .shell-split-btn,
   .shell-split-btn:focus-visible { opacity: 1; }
-  @media (hover: none) { .shell-split-btn { opacity: 1; } }
+  /* Split view is a pointer's (mobile T3): under a finger the button went on
+     every row at once, a column of icons that covered an agent's tag. */
+  @media (hover: none) { .shell-split-btn { display: none; } }
 
   /* The middle of the sidebar scrolls, with a thin overlay thumb on hover and
      a 12px fade where there is more (S2). */
@@ -2528,7 +2566,11 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     box-shadow: 0 0 0 2px var(--frame);
   }
   .shell-rail-sep { width: 20px; height: 1px; margin: 6px 0; background: var(--line); flex: none; }
-  /* The hover peek (Arc): the full sidebar floats over the sheet at e3. */
+  /* The hover peek (Arc): the full sidebar floats over the sheet at e3, as
+     frame material (the element is also .app-frame: the frame's colour, its
+     glow and its grain), so it reads as the sidebar lifted out and its raised
+     chip still stands off it. On the pop white the chip was white on white
+     and the current place disappeared. */
   .shell-peek {
     position: fixed;
     left: 8px;
@@ -2536,8 +2578,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     bottom: 8px;
     width: 248px;
     z-index: var(--z-popover);
+    overflow: hidden;
     border-radius: var(--radius-lg);
-    background: var(--pop);
+    background: var(--frame);
     box-shadow: var(--e3);
     animation: shell-peek-in 200ms var(--ease-out) both;
   }
@@ -2576,8 +2619,218 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     letter-spacing: 0;
   }
 }
+/* THE TABLET SHELL (design v3, mobile T1 to T4; mock M7). A coarse pointer
+   from 640 to 1279 (lib/ui/shellBand): a 72px rail of labelled places on the
+   frame, the channel list as a sheet beside the page (wide) or over it
+   (compact), and the right panel as a sheet over the page. Every target is at
+   least 44x44. The overlays sit at the fixed layer: over the page and its
+   sticky headers, under dialogs, menus and popovers. */
+@layer components {
+  .tablet-rail {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    width: 72px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .tablet-rail::-webkit-scrollbar { display: none; }
+  .tablet-rail-mark,
+  .tablet-rail-self {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+  }
+  .tablet-rail-mark { margin-bottom: 6px; }
+  .tablet-rail-mark[data-state="open"],
+  .tablet-rail-self[data-state="open"] { background: var(--press); }
+  /* A cell: a 44x32 capsule with its 20px glyph, 3px, the 11/14 label. */
+  .tablet-cell {
+    position: relative;
+    flex: none;
+    width: 64px;
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 12px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tablet-cap {
+    position: relative;
+    width: 44px;
+    height: 32px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    transition: background-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+  }
+  .tablet-cap > svg.lucide { width: 20px; height: 20px; color: var(--ink-3); }
+  .tablet-label {
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 510;
+    letter-spacing: 0.005em;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  /* The current place: the desktop's raised chip, its glyph in the accent and
+     filled where the shape has an inside, its label in ink. */
+  .tablet-cell[aria-current="page"] .tablet-cap { background: var(--raised); box-shadow: var(--e-sel); }
+  .tablet-cell[aria-current="page"] .tablet-cap > svg.lucide { color: var(--brand); }
+  .tablet-cell[aria-current="page"] .tablet-cap > :is(svg.lucide-house, svg.lucide-inbox, svg.lucide-calendar, svg.lucide-message-circle) {
+    fill: color-mix(in oklab, var(--brand) 20%, transparent);
+  }
+  .tablet-cell[aria-current="page"] .tablet-label { color: var(--ink); }
+  .tablet-cell:not([aria-current="page"]):active .tablet-cap,
+  .tablet-cell[data-state="open"] .tablet-cap { background: var(--press); transition-duration: 0ms; }
+  @media (hover: hover) {
+    .tablet-cell:not([aria-current="page"]):hover .tablet-cap { background: var(--hover); transition-duration: 0ms; }
+  }
+  .tablet-cell:focus-visible,
+  .tablet-rail-mark:focus-visible,
+  .tablet-rail-self:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+  /* What is about you: the 18px brand pill on the capsule; the rest a 7px dot. */
+  .tablet-badge {
+    position: absolute;
+    top: -4px;
+    left: 28px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--brand);
+    color: var(--on-brand, var(--brand-foreground));
+    font: 590 11px/18px var(--font-sans);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--frame);
+  }
+  .tablet-dot {
+    position: absolute;
+    top: 2px;
+    left: 33px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-2);
+    box-shadow: 0 0 0 2px var(--frame);
+  }
+
+  /* The channel list (T3): 340px, its own sheet; the current channel takes a
+     list's selected look, brand-muted with a 2px accent edge. */
+  .tablet-list {
+    width: 340px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    outline: none;
+  }
+  .tablet-list-head {
+    height: 52px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 0 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tablet-list-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 8px 12px;
+  }
+  .tablet-list .nav-active {
+    background: color-mix(in oklab, var(--brand-muted) 75%, transparent);
+    box-shadow: inset 2px 0 0 var(--brand);
+    color: var(--ink);
+  }
+  .tablet-list .nav-active svg.lucide { color: var(--brand); }
+  .tablet-list[data-tablet-list="overlay"] {
+    position: fixed;
+    z-index: calc(var(--z-fixed) + 1);
+    left: 72px;
+    top: 8px;
+    bottom: 8px;
+    height: auto;
+    box-shadow: var(--e4);
+    animation: tablet-list-in 320ms var(--ease-push, cubic-bezier(.32, .72, 0, 1)) both;
+  }
+  .shell-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-fixed);
+    background: rgb(10 11 14 / 0.2);
+    animation: shell-fade-in 240ms var(--ease-out) both;
+  }
+  .dark .shell-scrim { background: rgb(0 0 0 / 0.4); }
+
+  /* The right panel over the page (T4, and a window under 1100px): a sheet
+     from the right, 452px or what the window leaves. */
+  .shell-panel-over {
+    position: fixed;
+    z-index: calc(var(--z-fixed) + 1);
+    top: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: min(452px, calc(100vw - 72px - 24px));
+    box-shadow: var(--e4);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tablet-list[data-tablet-list="overlay"] { animation-name: shell-fade-in; animation-duration: 120ms; }
+  }
+}
+@keyframes tablet-list-in { from { opacity: 0; transform: translateX(-24px); } }
+
+/* T1. TOUCH DENSITY. Under a finger the shell's targets are touch-sized
+   wherever it draws them (a tablet's list, a touch laptop's sidebar): rows 30
+   to 40px, icon buttons 28 to 40, menu items 30 to 44, the palette's rows 40
+   to 48. Unlayered, over the shell's own sizes. */
+@media (pointer: coarse) {
+  .shell-row { height: 40px; }
+  .shell-sect,
+  .shell-sect-btn { height: 36px; }
+  .shell-icon-btn { width: 40px; height: 40px; }
+  .shell-icon-btn[data-size="24"] { width: 36px; height: 36px; }
+  .shell-menu-item { height: 44px; }
+  .shell-ws { height: 48px; }
+  .shell-pill { height: 40px; }
+  .shell-ai { width: 40px; height: 40px; }
+  .shell-rail-item { width: 44px; height: 40px; }
+  .palette-row { height: 48px; }
+  /* The menu's Appearance: a 36px segmented control, and the six swatches as
+     24px circles 20px apart, each touched as 44px. */
+  [data-appearance] > [role="radiogroup"] { height: 36px; }
+  [data-appearance] [data-appearance-knob] { height: 32px; }
+  [data-appearance] [aria-label="Theme colour"] { gap: 20px; }
+  [data-appearance] [data-theme-swatch] { position: relative; width: 24px; height: 24px; }
+  [data-appearance] [data-theme-swatch]::after { content: ""; position: absolute; inset: -10px; }
+}
+
 :root { --tooltip-bg: #16171B; }
 .dark { --tooltip-bg: #2A2B30; }
+
+/* A key hint ("Ctrl K" on a button) means a keyboard. A touch screen with no
+   hover and a coarse pointer usually has none, so its hints go (mobile T5):
+   a phone's 404 offered "Search Ctrl K". A tablet with a keyboard and a
+   trackpad hovers, so it keeps them. Unlayered, over any display utility. */
+@media (hover: none) and (pointer: coarse) {
+  [data-kbd-hint] { display: none !important; }
+}
 
 @keyframes shell-fade-in { from { opacity: 0; } }
 @keyframes shell-fade-out { to { opacity: 0; } }
@@ -2820,6 +3073,10 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     line-height: 18px;
     animation: notice-in 180ms var(--ease-out) both;
   }
+  /* No word left alone on the last line ("key." under two full lines). */
+  .notice-text {
+    text-wrap: pretty;
+  }
   .notice-info {
     background: var(--sunken);
   }
@@ -2876,6 +3133,36 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     transform: translateY(-4px);
   }
 }
+/* A notice with an action, on a phone (mobile C10, the mobile banner): the
+   words take the row from the icon to the close, two lines for the demo's
+   note, and the action sits on its own row under them, 36px with a 44px
+   reach. Beside a 44px button the words had a third of the width and ran to
+   four lines. Unlayered, over the action's own touch height utility. */
+@media (max-width: 639.98px) {
+  .notice[data-has-action] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "lead text close" ". act close";
+    align-items: start;
+    row-gap: 6px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .notice[data-has-action] > .notice-lead { grid-area: lead; margin-top: 2px; }
+  .notice[data-has-action] > .notice-text { grid-area: text; padding: 0; }
+  .notice[data-has-action] > .notice-act { grid-area: act; }
+  .notice[data-has-action] > .notice-close { grid-area: close; margin: -10px -4px 0 0; }
+  .notice[data-has-action] .notice-act .notice-action {
+    position: relative;
+    height: 36px;
+    padding-inline: 14px;
+  }
+  .notice[data-has-action] .notice-act .notice-action::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
+}
 /* The corner stacks (shell T4, components/ui/CornerStack.tsx): 16px inside
    the sheet's edge (the shell sets --shell-left-inset and
    --shell-right-inset), 8px between cards, a composer's height up. */
@@ -2883,7 +3170,7 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   .corner-stack {
     --corner-lift: 136px;
     position: fixed;
-    z-index: var(--z-toast);
+    z-index: var(--z-corner);
     bottom: calc(24px + var(--corner-lift));
     display: flex;
     flex-direction: column-reverse;
@@ -2953,7 +3240,6 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     stroke-dasharray: 100;
     stroke-dashoffset: 0;
   }
-
   /* SKELETONS (L2): the press fill at r5, breathing as every skeleton does. */
   .sk {
     background: var(--press);
@@ -2986,11 +3272,7 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     opacity: 0.5;
   }
 
-  /* ERROR AND 404 SPOTS (L3, L4). */
-  .orbit-once {
-    transform-box: view-box;
-    transform-origin: 48px 48px;
-  }
+  /* ERROR SPOTS (L3). */
   .spark-in {
     transform-box: fill-box;
     transform-origin: center;
@@ -3016,6 +3298,15 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     .splash-line {
       animation: splash-line-in 300ms var(--ease-out) 350ms both;
     }
+    /* The app's splash taking over from the first paint's (lib/appBoot):
+       it is already on screen, ring drawn, so nothing enters or draws again. */
+    .splash[data-continued] > *,
+    .splash[data-continued].app-frame::before,
+    .splash[data-continued].app-frame::after,
+    .splash[data-continued] .splash-ring-draw,
+    .splash[data-continued] .splash-line {
+      animation: none;
+    }
     /* What follows the splash: the shell, fading up from nothing once. Only
        backwards fill, so the finished shell keeps no stacking context. */
     .shell-enter {
@@ -3030,13 +3321,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
       width: 40%;
       animation: sheet-progress-sweep 1.2s var(--ease-in-out) infinite;
     }
-    /* Fade in once; the 404's two hue dots orbit once and stop, and its spark
-       arrives at 400ms. Nothing loops. */
+    /* Fade in once; a spark arrives at 400ms. Nothing loops. */
     .spot-in {
       animation: spot-in 180ms var(--ease-out) both;
-    }
-    .orbit-once {
-      animation: orbit-once 2.4s var(--ease-in-out) both;
     }
     .spark-in {
       animation: spark-in 300ms var(--ease-spring) 400ms both;
@@ -3069,10 +3356,6 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
 }
 @keyframes spot-in {
   from { opacity: 0; }
-}
-@keyframes orbit-once {
-  from { transform: rotate(-200deg); }
-  to { transform: rotate(0deg); }
 }
 @keyframes spark-in {
   from { opacity: 0; transform: scale(0.8); }
@@ -3408,22 +3691,6 @@ padding: 0;
   padding: 0;
   border-radius: 0;
 }
-.palette-ptile {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background-image: linear-gradient(140deg, var(--hue-a1), var(--hue-a2));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
-}
-.palette-ptile svg.lucide {
-  width: 12px;
-  height: 12px;
-  color: #fff;
-}
-
 .palette-empty {
   display: flex;
   flex-direction: column;

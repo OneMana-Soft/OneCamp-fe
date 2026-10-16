@@ -1,0 +1,120 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "text": "Plan",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "type": "toc"
+    },
+    {
+      "type": "toc"
+    },
+    {
+      "content": [
+        {
+          "text": "[TOC] is text, as is [TOC] in a line.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "Some ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "sun"
+              },
+              "type": "highlight"
+            }
+          ],
+          "text": "highlighted",
+          "type": "text"
+        },
+        {
+          "text": " text.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "attrs": {
+            "level": 2
+          },
+          "content": [
+            {
+              "text": "A toggle ",
+              "type": "text"
+            },
+            {
+              "marks": [
+                {
+                  "type": "italic"
+                }
+              ],
+              "text": "heading",
+              "type": "text"
+            }
+          ],
+          "type": "heading"
+        },
+        {
+          "content": [
+            {
+              "text": "Folded.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Ask ",
+              "type": "text"
+            },
+            {
+              "marks": [
+                {
+                  "attrs": {
+                    "href": "https://example.com",
+                    "rel": "noopener noreferrer nofollow",
+                    "target": "_blank"
+                  },
+                  "type": "link"
+                }
+              ],
+              "text": "here",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    }
+  ],
+  "type": "doc"
+}

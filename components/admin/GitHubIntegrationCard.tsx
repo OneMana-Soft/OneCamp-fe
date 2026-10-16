@@ -48,6 +48,7 @@ import GitHubConfigDialog from "@/components/admin/GitHubConfigDialog"
 import { ConnectionBanner, ConnectionNote, ConnectionSkeleton, markConnecting, useConnectMorph } from "@/components/admin/integrationParts"
 import { ConnectionCard, LinkedRow, RowMenu, SourceMark, StateWord } from "@/components/admin/connectParts"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface AutomationRules {
   // Issue rules
@@ -557,7 +558,7 @@ const GitHubIntegrationCard = () => {
                 </div>
               ) : reposFailed ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-raised px-3 py-2.5 shadow-e1">
-                  <p className="text-sm text-muted-foreground">Couldn&apos;t load your repositories.</p>
+                  <p className="text-sm text-muted-foreground">Couldn&apos;t load your repositories.<SaysLoadFailure /></p>
                   <Button variant="outline" size="sm" className="h-8" onClick={() => void loadRepos()}>Try again</Button>
                 </div>
               ) : repos.length === 0 ? (

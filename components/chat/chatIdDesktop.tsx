@@ -1,5 +1,7 @@
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholders";
+import { PRESENCE_WORDS, presenceOf } from "@/lib/presence";
+import { searchWithinHref } from "@/lib/search/within";
 import { displayNameOf } from "@/lib/personName";
 import { useMedia } from "@/context/MediaQueryContext";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -29,7 +31,7 @@ import {openUI} from "@/store/slice/uiSlice";
 
 
 import {ChatMessageList} from "@/components/chat/chatMessageList";
-import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileInterface} from "@/types/user";
+import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
 import {ChatNotificationInterface} from "@/types/chat";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
 import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
@@ -97,11 +99,9 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
         if (res === undefined) setChatNotificationType(before)
     }
 
-    const isReduxLoaded = userStatusState && userStatusState.deviceConnected !== -1;
-    const currentStatus = isReduxLoaded && userStatusState.status ? userStatusState.status : (otherUserInfo.data?.data.user_status || 'offline');
-    const currentDeviceCount = isReduxLoaded ? userStatusState.deviceConnected : (otherUserInfo.data?.data.user_device_connected || 0);
-
-    const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
+    // One rule for where they are, as the phone's header says it (lib/presence, QA F-18).
+    const presence = presenceOf(userStatusState, otherUserInfo.data?.data);
+    const isOnline = presence === "active";
 
 
     return (
@@ -112,21 +112,23 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 status would be: "Acts for you · can do only what you can".
                 Huddle (not for an agent), search and More; every icon has a
                 tooltip. */}
-            <header className='sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
+            <header className='@container/chathead sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
                 <div className='relative shrink-0'>
                     <ChatFace name={userDisplayName(otherUserInfo.data?.data) || ""} profileKey={otherUserInfo.data?.data.user_profile_object_key} userUUID={chatId} isBot={isBotPeer} size={28} />
                     {!isBotPeer && (isOnline
                         ? <span aria-hidden className='presence-dot' />
                         : <span aria-hidden className='absolute -bottom-px -right-px size-2 rounded-full border-[1.5px] border-ink-4 bg-sheet ring-2 ring-sheet' />)}
                 </div>
-                <span data-header-title='' className='truncate text-heading text-ink'>{userDisplayName(otherUserInfo.data?.data)}</span>
+                {/* The name keeps its room; what follows it shrinks first, so
+                    a narrow header (a thread open beside it) still says who. */}
+                <span data-header-title='' className='min-w-[4ch] max-w-[60%] shrink-0 truncate text-heading text-ink'>{userDisplayName(otherUserInfo.data?.data)}</span>
                 {isBotPeer ? (
-                    <span data-header-meta='' className='inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-sm bg-agent-muted px-2 text-meta text-agent-ink'>
-                        <ShieldCheck className='size-3' aria-hidden='true' /> Acts for you · can do only what you can
+                    <span data-header-meta='' className='inline-flex h-[22px] min-w-0 items-center gap-1.5 rounded-sm bg-agent-muted px-2 text-meta text-agent-ink'>
+                        <ShieldCheck className='size-3 shrink-0' aria-hidden='true' /> <span className='truncate'>Acts for you · can do only what you can</span>
                     </span>
                 ) : (
                     <span data-header-meta='' className='flex min-w-0 items-center gap-1.5 truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3'>
-                        {isOnline ? 'Active' : currentStatus === 'away' ? 'Away' : 'Offline'}
+                        {PRESENCE_WORDS[presence]}
                         <ChatUserEmojiStatus userUUID={chatId}/>
                     </span>
                 )}
@@ -139,9 +141,10 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                             <HuddleButton href={chatCallHref} live={chatCallStatusActive} onOpen={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} />
                         </FeatureGate>
                     )}
-                    <WithTooltip label="Search">
+                    {/* Search in this conversation (QA F-15). */}
+                    <WithTooltip label="Search in this conversation">
                         <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
-                            <Link href='/app/search' aria-label='Search'><Search aria-hidden='true' /></Link>
+                            <Link href={searchWithinHref({ kind: "dm", id: chatId })} aria-label={`Search in your messages with ${userDisplayName(otherUserInfo.data?.data) || "them"}`}><Search aria-hidden='true' /></Link>
                         </Button>
                     </WithTooltip>
                     <DropdownMenu modal={false}>

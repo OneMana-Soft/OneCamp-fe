@@ -1,4 +1,5 @@
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
+import { type CampHue } from "@/lib/campHue"
 import { isAIBot } from "@/lib/botCopy"
 import { SPARK_PATH } from "@/components/ui/graphics/motifs"
 
@@ -9,7 +10,7 @@ import { SPARK_PATH } from "@/components/ui/graphics/motifs"
  * this moves with them.
  */
 export function mentionHue(label: string | null | undefined): CampHue {
-    return hueFor((label || "").replace(/^@/, ""))
+    return personHue((label || "").replace(/^@/, ""))
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'" }

@@ -1,0 +1,323 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "Launch plan",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "Bold",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "italic",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "strike"
+            }
+          ],
+          "text": "struck",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "code",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ],
+          "text": "under",
+          "type": "text"
+        },
+        {
+          "text": " red ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "class": "link",
+                "href": "https://onemana.dev/x",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "a link",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "text": "Ask ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "u-1",
+            "label": "Sam Rivera",
+            "mentionSuggestionChar": "@"
+          },
+          "type": "mention"
+        },
+        {
+          "text": " in ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "c-1",
+            "label": "engineering",
+            "mentionSuggestionChar": "#"
+          },
+          "type": "channelMention"
+        },
+        {
+          "text": " about ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "id": "doc:d-1",
+            "label": "Launch notes",
+            "mentionSuggestionChar": "+"
+          },
+          "type": "entityMention"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Quoted.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "blockquote"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "One",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    },
+    {
+      "attrs": {
+        "start": 3,
+        "type": "a"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Three",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "orderedList"
+    },
+    {
+      "content": [
+        {
+          "attrs": {
+            "checked": true
+          },
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Done",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "taskItem"
+        }
+      ],
+      "type": "taskList"
+    },
+    {
+      "type": "horizontalRule"
+    },
+    {
+      "attrs": {
+        "language": "go"
+      },
+      "content": [
+        {
+          "text": "fmt.Println(\"hi\")",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "attrs": {
+        "alt": "A chart",
+        "caption": "Revenue by month",
+        "fileName": "chart.png",
+        "height": 200,
+        "id": "img-1",
+        "src": "https://onemana.dev/a.png",
+        "title": "Chart",
+        "width": 300
+      },
+      "type": "image"
+    },
+    {
+      "attrs": {
+        "color": "green",
+        "emoji": "🚀"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Ship it.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Hidden.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "attrs": {
+        "tableId": "tbl-1",
+        "viewId": "view-1"
+      },
+      "type": "tableEmbed"
+    },
+    {
+      "attrs": {
+        "id": "poll-1"
+      },
+      "type": "poll"
+    },
+    {
+      "attrs": {
+        "spec": "{\"type\":\"bar\",\"data\":[1,2]}"
+      },
+      "type": "chartEmbed"
+    },
+    {
+      "attrs": {
+        "diff": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y"
+      },
+      "type": "diffEmbed"
+    },
+    {
+      "attrs": {
+        "egress": "eg-1",
+        "kind": "audio",
+        "sid": "room-1",
+        "u1": "https://x/1",
+        "u2": "https://x/2"
+      },
+      "type": "recordingEmbed"
+    }
+  ],
+  "type": "doc"
+}

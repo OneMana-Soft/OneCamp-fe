@@ -10,6 +10,7 @@ import { SpotPlug, SpotSearch } from "@/components/ui/graphics"
 import { Upload } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
 import { useUploadFile } from "@/hooks/useUploadFile"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -28,7 +29,8 @@ export function useProjectFiles(projectId: string) {
   const dispatch = useDispatch()
   const post = usePost()
   const uploadFile = useUploadFile()
-  const list = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectAttachments + "/" + projectId)
+  // Both Files tabs show a failed load themselves, with Try again: no toast on top.
+  const list = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectAttachments + "/" + projectId, undefined, undefined, OWN_ERRORS)
   const state = useSelector((s: RootState) => s.projectAttachment.projectAttachmentInputState[projectId])
   const uploading = React.useMemo(() => state?.filesPreview ?? [], [state])
 

@@ -10,6 +10,29 @@
   list-style: lower-roman;
 }
 
+/* Then round again: 1, a, i, 1, a, i (small-details V14). */
+.minimal-tiptap-editor .ProseMirror ol ol ol ol {
+  list-style: decimal;
+}
+
+.minimal-tiptap-editor .ProseMirror ol ol ol ol ol {
+  list-style: lower-alpha;
+}
+
+/* A list's own format (B2: the block menu's List format, or "a." and "i."
+   as typed) wins over its depth's. */
+.minimal-tiptap-editor .ProseMirror ol[type="1"] {
+  list-style-type: decimal;
+}
+
+.minimal-tiptap-editor .ProseMirror ol[type="a"] {
+  list-style-type: lower-alpha;
+}
+
+.minimal-tiptap-editor .ProseMirror ol[type="i"] {
+  list-style-type: lower-roman;
+}
+
 .minimal-tiptap-editor .ProseMirror ul {
   list-style: disc;
 }

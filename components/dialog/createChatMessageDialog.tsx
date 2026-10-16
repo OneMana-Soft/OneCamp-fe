@@ -95,13 +95,17 @@ const CreateChatMessageDialog: React.FC<updateUserStatusDialogProps> = ({
 
   }
 
+  // Sentence case, and what pressing it does: "Message Maya" for one person,
+  // "Create group" for several (it said "Send Message" and "Create Group").
   const renderButtonText = () => {
 
-    if(selectedUser.length > 2) return 'Create Group'
+    if(selectedUser.length > 2) return 'Create group'
 
-    if(selectedUser.length > 1 && !isSelfSelected.current)  return 'Create Group'
+    if(selectedUser.length > 1 && !isSelfSelected.current)  return 'Create group'
 
-    return 'Send Message'
+    const one = selectedUser.find((u) => u.user_uuid !== selfProfile.data?.data.user_uuid)
+    const first = (one?.user_full_name || one?.user_name || '').trim().split(/\s+/)[0]
+    return first ? `Message ${first}` : 'Message'
   }
 
   function closeModal() {
@@ -110,10 +114,14 @@ const CreateChatMessageDialog: React.FC<updateUserStatusDialogProps> = ({
 
   return (
       <Dialog open={dialogOpenState} onOpenChange={closeModal}  >
-        <DialogContent className="max-w-[95vw] md:max-w-[35vw] space-y-2.5">
+        {/* The shared dialog at its md width (520px): it was 35vw, 358px at
+            1024 and wider than the page on a phone at 95vw. "Find users" said
+            nothing of what the dialog is for. */}
+        <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>Find users</DialogTitle>
-            <DialogDescription >
+            <DialogTitle>New message</DialogTitle>
+            <DialogDescription>
+              Pick one person to message them, or several to start a group.
             </DialogDescription>
           </DialogHeader>
 

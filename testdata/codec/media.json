@@ -1,0 +1,123 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "description": "Six weeks of work <in one page>.",
+        "href": "https://onemana.dev/blog/launch",
+        "icon": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222",
+        "image": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333333",
+        "siteName": "OneMana",
+        "title": "Launch notes: \"what we shipped\" & why"
+      },
+      "type": "bookmark"
+    },
+    {
+      "attrs": {
+        "href": "https://example.com/a?b=1&c=2"
+      },
+      "type": "bookmark"
+    },
+    {
+      "attrs": {
+        "height": 480,
+        "src": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      },
+      "type": "webEmbed"
+    },
+    {
+      "attrs": {
+        "src": "https://www.figma.com/design/AbC123/Plan"
+      },
+      "type": "webEmbed"
+    },
+    {
+      "attrs": {
+        "caption": "The demo, start to end",
+        "kind": "video",
+        "mime": "video/mp4",
+        "name": "demo.mp4",
+        "size": 1048576,
+        "src": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444"
+      },
+      "type": "fileBlock"
+    },
+    {
+      "attrs": {
+        "kind": "pdf",
+        "mime": "application/pdf",
+        "name": "plan.pdf",
+        "size": 2048,
+        "src": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/55555555-5555-4555-8555-555555555555"
+      },
+      "type": "fileBlock"
+    },
+    {
+      "attrs": {
+        "kind": "file",
+        "mime": "text/csv",
+        "name": "rows [final].csv",
+        "size": 12,
+        "src": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/66666666-6666-4666-8666-666666666666"
+      },
+      "type": "fileBlock"
+    },
+    {
+      "attrs": {
+        "id": "up-mgx2k1-abc123def",
+        "kind": "audio",
+        "name": "call.m4a"
+      },
+      "type": "fileBlock"
+    },
+    {
+      "attrs": {
+        "kind": "file",
+        "name": "   "
+      },
+      "type": "fileBlock"
+    },
+    {
+      "content": [
+        {
+          "text": "Read ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "href": "https://github.com/OneMana-Soft/OneCamp/issues/412",
+            "icon": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/77777777-7777-4777-8777-777777777777",
+            "siteName": "GitHub",
+            "title": "Paste a link, get a menu"
+          },
+          "type": "linkMention"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "href": "https://example.com/"
+          },
+          "type": "linkMention"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "align": "left",
+        "alt": "A chart",
+        "crop": "0.1,0.05,0.8,0.9",
+        "href": "https://onemana.dev/",
+        "src": "https://api.example.test/doc/getDocAttachment/11111111-1111-4111-8111-111111111111/88888888-8888-4888-8888-888888888888"
+      },
+      "type": "image"
+    }
+  ],
+  "type": "doc"
+}

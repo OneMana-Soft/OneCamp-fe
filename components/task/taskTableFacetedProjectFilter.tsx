@@ -1,9 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { FilterChip } from "@/components/task/filterChip"
-import { CheckIcon, } from "@radix-ui/react-icons";
 import { Column } from "@tanstack/react-table";
 
-import { cn } from "@/lib/utils/helpers/cn";
 import {
     Command,
     CommandEmpty,
@@ -21,7 +19,7 @@ import {
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {ColorIcon} from "@/components/colorIcon/colorIcon";
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 
 interface DataTableFacetedFilterProps<TData, TValue> {
     column?: Column<TData, TValue>;
@@ -55,6 +53,7 @@ export function TaskTableFacetedProjectFilter<TData, TValue>({
                                 return (
                                     <CommandItem
                                         key={option.uid}
+                                        checked={isSelected}
                                         onSelect={() => {
                                             if (isSelected) {
                                                 selectedValues.delete(option.uid || "");
@@ -67,21 +66,11 @@ export function TaskTableFacetedProjectFilter<TData, TValue>({
                                             );
                                         }}
                                     >
-                                        <div
-                                            className={cn(
-                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                isSelected
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "opacity-50 [&_svg]:invisible"
-                                            )}
-                                        >
-                                            <CheckIcon className={cn("h-4 w-4")} />
-                                        </div>
                                         {/*{option.icon && (*/}
                                         {/*  <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />*/}
                                         {/*)}*/}
                                         <div className='flex justify-center items-center space-x-1'>
-                                            <ColorIcon name={option.project_uuid} size={'xs'}/>
+                                            <ProjectTile id={option.project_uuid} />
                                             <span>{option.project_name}</span>
 
                                         </div>

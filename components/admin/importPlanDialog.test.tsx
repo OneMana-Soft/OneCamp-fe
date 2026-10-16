@@ -90,6 +90,15 @@ describe("the plan's mappings and warnings", () => {
     expect(screen.getByText("Warning number 10")).toBeTruthy()
   })
 
+  // Docs programme C4: a Notion import with pages says how many docs it brings.
+  it("counts the pages that come across as docs", async () => {
+    answers = [planned({ page_count: 1204, task_count: 0, project_count: 0 })]
+    render(<ImportPlanDialog job={{ ...job, provider: "notion" }} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} />)
+    const label = await screen.findByText("Docs")
+    expect(label.parentElement?.textContent).toContain("1,204")
+    expect(screen.queryByText("Tasks")).toBeNull()
+  })
+
   it("stands rows of the plan's shape in while it plans", async () => {
     let finish: (v: unknown) => void = () => {}
     answers = [new Promise((r) => (finish = r))]

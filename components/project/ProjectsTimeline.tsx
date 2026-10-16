@@ -14,11 +14,11 @@ import { healthOf } from "@/lib/projectUpdates"
 import { progressOf, type ProjectOverview } from "@/lib/projectsOverview"
 import { DAY_WIDTH, ZOOMS, barBox, offsetOf, spanLabel, spanOf, timelineRange, type Zoom } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
-import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { app_project_path } from "@/types/paths"
 import { workToolbar } from "@/components/task/workFrame"
 import type { ReactNode } from "react"
+import { useProjectHues } from "@/lib/projectHue"
 
 const ROW_HEIGHT = 44
 const isZoom = (v: unknown): v is Zoom => ZOOMS.some((z) => z.value === v)
@@ -33,6 +33,7 @@ const timelineOf = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid
  */
 export function ProjectsTimeline({ projects, compact = false, tools }: { projects: ProjectOverview[]; compact?: boolean; tools?: ReactNode }) {
   const [zoom, setZoom, zoomReady] = useStoredState<Zoom>("oc_projects_timeline_zoom", "week", isZoom)
+  const projectHues = useProjectHues()
   const [today] = useState(() => startOfDay(new Date()))
   const nameWidth = compact ? 140 : 260
   const dayWidth = DAY_WIDTH[zoom]
@@ -49,14 +50,14 @@ export function ProjectsTimeline({ projects, compact = false, tools }: { project
     // The overview's frame (components/task/workFrame): its search, filter and
     // sort start this row, and the chart sits under it on the sheet, unboxed.
     <div data-timeline="" className="flex min-h-0 flex-1 flex-col">
-      <div data-work-toolbar="" className={cn(workToolbar, "h-11 gap-1.5")}>
+      <div data-work-toolbar="" className={cn(workToolbar, compact && "-mx-4")}>
         {tools}
         <Button variant="ghost" size="sm" className="h-7 px-2.5 text-ink-2 hover:text-foreground" onClick={goToday}>
           Today
         </Button>
         <ZoomSwitch value={zoom} onChange={setZoom} />
       </div>
-      <div className="relative min-h-[16rem] flex-1 overflow-hidden border-t border-line bg-sheet">
+      <div className="relative min-h-[16rem] flex-1 overflow-hidden bg-sheet">
         <div ref={scrollRef} role="region" aria-label="Projects on a timeline" className="h-full overflow-auto overscroll-x-contain" onScroll={onScroll}>
           <TimelineHeader range={range} zoom={zoom} dayWidth={dayWidth} today={today} nameWidth={nameWidth} nameLabel="Project" />
           <div className="relative" style={{ width: nameWidth + gridWidth, height: rows.length * ROW_HEIGHT }}>
@@ -74,7 +75,7 @@ export function ProjectsTimeline({ projects, compact = false, tools }: { project
               return (
                 <div
                   key={p.project_uuid}
-                  className={cn(HUE_CLASS[hueFor(p.project_uuid)], "group/prow absolute left-0 flex")}
+                  className={cn(HUE_CLASS[projectHues(p.project_uuid)], "group/prow absolute left-0 flex")}
                   style={{ top: i * ROW_HEIGHT, height: ROW_HEIGHT, width: nameWidth + gridWidth }}
                 >
                   <div className="sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r border-line bg-sheet px-5" style={{ width: nameWidth }}>

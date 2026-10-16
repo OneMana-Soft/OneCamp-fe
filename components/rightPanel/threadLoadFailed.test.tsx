@@ -94,6 +94,13 @@ describe.each(views)("$name", ({ view, panel }) => {
         expect(screen.getByRole("button", { name: /Retrying/ })).toBeDisabled()
     })
 
+    it("says a thread that is no longer the reader's the way it says gone", () => {
+        answers[A] = failed(403)
+        show()
+        expect(screen.getByText("This thread isn't available")).toBeInTheDocument()
+        expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull()
+    })
+
     it("says a thread that is gone is gone", () => {
         answers[A] = failed(404)
         show()

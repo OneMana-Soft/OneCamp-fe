@@ -9,6 +9,7 @@ import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
 import { TableBundle, tableBundleKey } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
+import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 
 // TableEmbedView renders a live, interactive view of a referenced table inside
 // a doc. It fetches the table bundle by id and renders the grid; edits go
@@ -16,8 +17,11 @@ import { TableGlyph } from "@/components/table/TableGlyph"
 // data shows everywhere the table is embedded or opened full-page.
 export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNode, selected }) => {
   const tableId = String(node.attrs.tableId || "")
+  // A guest reading a shared doc has no session, and the link shares the doc,
+  // not its tables: nothing is fetched for them (a 401 would sign the page out).
+  const guest = useGuestReader()
   const { data, isLoading, isError, mutate } = useFetch<{ data: TableBundle }>(
-    tableId ? tableBundleKey(tableId) : "",
+    tableId && !guest ? tableBundleKey(tableId) : "",
     undefined,
     undefined,
     // The referenced table may have been deleted or be inaccessible; render a
@@ -43,14 +47,24 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
     refreshTimer.current = setTimeout(() => mutate(), 300)
   }, [mutate])
-  useMqttTopic({ topic: gone ? "" : bundle?.mqtt_topic || "", onMessage: onMqtt })
+  useMqttTopic({ topic: gone || guest ? "" : bundle?.mqtt_topic || "", onMessage: onMqtt })
   React.useEffect(() => {
     return () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
     }
   }, [])
 
-  const rowCount = bundle?.rows?.length ?? 0
+  // Every row of the table: the embed shows its first page of them.
+  const rowCount = bundle?.row_count ?? bundle?.rows?.length ?? 0
+  if (guest) {
+    return (
+      <NodeViewWrapper className="table-embed my-3" data-type="table-embed" contentEditable={false}>
+        <EmbedCard kind="table" tile={<TableGlyph size="sm" icon={null} id={tableId} />} title="Table" bodyClassName="relative">
+          <EmbedGone message="This table isn't shared through this link." />
+        </EmbedCard>
+      </NodeViewWrapper>
+    )
+  }
   return (
     <NodeViewWrapper className="table-embed my-3" data-type="table-embed" contentEditable={false}>
       <EmbedCard

@@ -2,13 +2,13 @@
 
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
+import { TIME_TIP } from "@/components/MessageDesktopHover/actionTip"
 import { useBotKind, useBotKindMap } from "@/hooks/useBotKinds"
 import { isAIBot } from "@/lib/botCopy"
 import { agentIdsOf, mentionsUser } from "@/components/message/tintMentions"
 import { AgentProvenance, type AgentAsker } from "@/components/message/agentProvenance"
 import { ReplyLine } from "@/components/message/replyLine"
 import { scrollToMessage } from "@/lib/utils/scrollToMessage"
-import { chatClock } from "@/lib/chat/clock"
 import { Button } from "@/components/ui/button"
 import { formatFullTimestamp, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { ContinuedGutter } from "@/components/message/continuedGutter"
@@ -20,7 +20,9 @@ import { BotTag } from "@/components/ui/botTag"
 import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
 import {ForwardedMessageData} from "@/types/rightPanel";
 
-import {useCallback, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import { useEditInPlace } from "@/hooks/useEditInPlace";
+import { useStableCallback } from "@/hooks/useStableCallback";
 import {GroupedReaction} from "@/types/reaction";
 import {BottomMenu} from "@/components/message/bottomMenu";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -35,10 +37,15 @@ import { useTouchReveal } from "@/hooks/useTouchReveal";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
 import { RelayedAvatar } from "@/components/message/relayedAvatar";
+import { RelayedPersonCard } from "@/components/message/relayedPersonCard";
+import { editedTitle } from "@/lib/chat/editedMark";
+import { clockTime } from "@/lib/utils/date/clock"
 
 interface MessageContentProps {
     userInfo?: UserProfileDataInterface
     createdAt?: string
+    /** When it was last changed: an edited reply says "(edited)", as a message does (MC-25). */
+    updatedAt?: string
     content: string
     forwardedMessage?: ForwardedMessageData
     replyMessage?: ForwardedMessageData
@@ -51,7 +58,8 @@ interface MessageContentProps {
     attachments?: AttachmentMediaReq[]
     addReaction: (emojiId:string, reactionId: string) => void
     isAdmin?: boolean;
-    updateMessage: (id: string, body: string) => void;
+    /** Saves a correction; answers whether it saved (hooks/useSaveEdit). */
+    updateMessage: (id: string, body: string) => Promise<boolean> | boolean | void;
     deleteMessage: (id: string) => void;
     getMediaUrl: string
     /** Continues the reply above it (lib/messageGrouping): no avatar or name. */
@@ -65,6 +73,7 @@ interface MessageContentProps {
 export const MessageContent = ({
                                    userInfo,
                                    createdAt,
+                                   updatedAt,
                                    content,
                                    forwardedMessage,
     replyMessage,
@@ -96,9 +105,25 @@ export const MessageContent = ({
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
 
-    const[isMessageEditEnabled, setIsMessageEditEnabled] = useState(false);
-
-    const [updatedText, setUpdatedText] = useState<string>(content||'');
+    // A correction in place, as in the list: a save that fails opens the box
+    // again holding what was typed (hooks/useEditInPlace, F-06).
+    const edit = useEditInPlace(useStableCallback((body: string) => updateMessage(chatUUID || postUUID || commentUUID || '', body)))
+    const isMessageEditEnabled = edit.editing
+    // The box's words as typed, read by Save in the same tick (baseMessageCard).
+    const updatedTextRef = useRef<string>(content || '')
+    useEffect(() => {
+        if (edit.draft !== undefined) updatedTextRef.current = edit.draft
+    }, [edit.draft])
+    const saveEdit = () => {
+        edit.finish(updatedTextRef.current)
+        setIsDropdownOpen(false)
+    }
+    const cancelEdit = () => {
+        edit.cancel()
+        setIsDropdownOpen(false)
+        // The editor's Escape: handled (textInput's onCancel).
+        return true
+    }
 
     const userStatusState = useUserInfoState(userInfo?.user_uuid)
 
@@ -224,9 +249,10 @@ export const MessageContent = ({
             )}
             <div className="min-w-0">
                 {!(continued && !isMessageEditEnabled) && (
-                <div data-name-line="" className="flex h-5 items-center gap-2">
+                <div data-name-line="" className="group/name flex h-5 items-center gap-2">
                     {asGuest ? (
-                        <span className="truncate text-ui font-semibold text-ink">{guestDisplayName}</span>
+                        // No profile to open: the name opens a read-only card (F-42).
+                        <RelayedPersonCard name={guestDisplayName} kind={tagKind} />
                     ) : (
                         <button
                             type="button"
@@ -244,10 +270,10 @@ export const MessageContent = ({
                     )}
                     <time
                         dateTime={isoTimestamp(createdAt || '')}
-                        title={formatFullTimestamp(createdAt || '')}
-                        className={cn("shrink-0 text-meta tabular-nums", forMe && !root ? "text-brand-text" : "text-ink-3")}
+                        data-tip={formatFullTimestamp(createdAt || '')}
+                        className={cn("shrink-0 text-meta tabular-nums", TIME_TIP, forMe && !root ? "text-brand-text" : "text-ink-3")}
                     >
-                        {chatClock(createdAt || '')}
+                        {clockTime(createdAt || '')}
                     </time>
                 </div>
                 )}
@@ -263,28 +289,27 @@ export const MessageContent = ({
                         className={cn("max-w-full h-auto", isMessageEditEnabled && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
                         editorContentClassName="overflow-auto"
                         output="html"
-                        content={body}
+                        content={edit.draft ?? body}
                         placeholder="Edit message…"
                         editable={isMessageEditEnabled}
-                        noBorder={isMessageEditEnabled}
+                        // Corrected in place, as in the list (textInput's "edit", C29).
+                        variant={isMessageEditEnabled ? "edit" : undefined}
                         mentionContext={mentionContext}
+                        editedTitle={editedTitle(createdAt, updatedAt)}
                         editorClassName="focus:outline-none"
                         onChange={(content) => {
-                            setUpdatedText(content as string)
+                            updatedTextRef.current = content as string
                         }}
-                        buttonOnclick={()=>{
-                            updateMessage(chatUUID || postUUID || commentUUID || '', updatedText)
-                            setIsMessageEditEnabled(false)
-                            setIsDropdownOpen(false)
-                        }}
-                        toggleToolbar={true}
+                        buttonOnclick={saveEdit}
+                        // Escape cancels, after any menu inside the editor (F-05).
+                        onCancel={isMessageEditEnabled ? cancelEdit : undefined}
                     />
                     {isMessageEditEnabled && (
                         <div className="mb-1 mt-1.5 flex h-6 items-center gap-1.5 text-meta text-ink-3">
                             <kbd className="kbd">esc</kbd> cancel · <kbd className="kbd">⏎</kbd> save
                             <span className="ml-auto flex items-center gap-1.5">
-                                <Button type="button" size="xs" variant="ghost" onClick={() => { setIsMessageEditEnabled(false); setIsDropdownOpen(false) }}>Cancel</Button>
-                                <Button type="button" size="xs" onClick={() => { updateMessage(chatUUID || postUUID || commentUUID || '', updatedText); setIsMessageEditEnabled(false); setIsDropdownOpen(false) }}>Save</Button>
+                                <Button type="button" size="xs" variant="ghost" onClick={cancelEdit}>Cancel</Button>
+                                <Button type="button" size="xs" onClick={saveEdit}>Save</Button>
                             </span>
                         </div>
                     )}
@@ -336,7 +361,7 @@ export const MessageContent = ({
                         authorName={authorName}
                         setEmojiPopupState={setIsEmojiPickerOpen}
                         onReactionSelect={handleEmojiClick}
-                        editMessage={()=>{setIsMessageEditEnabled(true)}}
+                        editMessage={edit.open}
                         isOwner={selfProfile.data?.data.user_uuid == userInfo?.user_uuid}
                         isAdmin={isAdmin}
                         deleteMessage={()=>{deleteMessage(chatUUID || postUUID || commentUUID || '')}}

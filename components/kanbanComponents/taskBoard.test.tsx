@@ -7,7 +7,7 @@ vi.mock("@/components/task/PRStatusBadge", () => ({ GitHubBadgeGroup: () => null
 const celebrate = vi.fn()
 vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrate(el), prefersReducedMotion: () => true }))
 
-const { TaskBoard, CARDS_PER_PAGE } = await import("@/components/kanbanComponents/TaskBoard")
+const { TaskBoard, CARDS_PER_PAGE, columnPaging } = await import("@/components/kanbanComponents/TaskBoard")
 import type { StatusOption } from "@/lib/taskStatus"
 import { cellKey } from "@/lib/board/lanes"
 import type { TaskInfoInterface } from "@/types/task"
@@ -65,6 +65,24 @@ describe("a closed column the server sent only part of", () => {
     board({ totals: { done: 812 }, onShowMore })
     act(() => screen.getByRole("button", { name: "Show 200 more" }).click())
     expect(onShowMore).toHaveBeenCalledWith("done")
+  })
+})
+
+describe("an open column the server sent only part of (PROJ-BUG-8)", () => {
+  it("counts the real total, says which part is shown, and asks for the next 1,000 of that column", () => {
+    const onShowMore = vi.fn()
+    board({ columns: { todo: many(3), done: [] }, totals: { todo: 2500 }, onShowMore })
+    expect(screen.getByLabelText("2500 tasks")).toBeTruthy()
+    expect(screen.getByText("The first 3 of 2500.")).toBeTruthy()
+    act(() => screen.getByRole("button", { name: "Show 1000 more" }).click())
+    expect(onShowMore).toHaveBeenCalledWith("todo")
+  })
+
+  it("pages done newest first and open columns in board order", () => {
+    expect(columnPaging({ value: "done" })).toEqual({ closed: true, step: 200, max: 2000 })
+    expect(columnPaging({ value: "shipped-id", category: "done" }).closed).toBe(true)
+    expect(columnPaging({ value: "todo" })).toEqual({ closed: false, step: 1000, max: 5000 })
+    expect(columnPaging({ value: "ready-id", category: "todo" }).closed).toBe(false)
   })
 })
 
@@ -292,10 +310,12 @@ describe("a card under the pointer", () => {
 })
 
 describe("the v3 board (work.md W20, W22)", () => {
-  it("draws 280px columns on the sunken surface with no border", () => {
+  it("draws columns that share the board, 264 to 320px, on the sunken surface with no border", () => {
     const { container } = board()
     const column = container.querySelector<HTMLElement>('[data-column="todo"]')!
-    expect(column.className).toContain("sm:w-[280px]")
+    expect(column.className).toContain("sm:min-w-[264px]")
+    expect(column.className).toContain("sm:max-w-[320px]")
+    expect(column.className).toContain("sm:flex-1")
     expect(column.className).toContain("bg-sunken")
     expect(column.className).not.toMatch(/(^|\s)border(\s|$)|border-border/)
   })

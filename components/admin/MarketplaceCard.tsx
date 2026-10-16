@@ -161,7 +161,9 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
         <SettingsSection level={3} title="App directory" description="Install in one click. Apps that need a key are flagged so you can finish setup.">
             {/* One toolbar at one height: the search and the category filters,
                 44px on a phone, 32px from md up. */}
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            {/* The filters on their own line under the search: beside it the
+                seven of them wrapped, "Time tracking" alone on a second row. */}
+            <div className="flex flex-col gap-2">
                 <div className="relative md:w-64 md:shrink-0">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                     <Input
@@ -177,7 +179,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                 {/* Filters, so a pressed state rather than a selection in the
                     accent. A category is a neutral chip (§1.5): the chosen one
                     is raised at e1, the rest stay quiet. */}
-                <div className="flex flex-wrap gap-1" role="group" aria-label="Category">
+                <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Category">
                     {categories.map((cat) => (
                         <button
                             key={cat}
@@ -185,7 +187,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                             aria-pressed={activeCategory === cat}
                             onClick={() => setActiveCategory(cat)}
                             className={cn(
-                                "h-11 rounded-sm px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 md:h-8",
+                                "h-11 shrink-0 whitespace-nowrap rounded-sm px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70 md:h-8",
                                 activeCategory === cat
                                     ? "bg-raised text-foreground shadow-e1"
                                     : "text-muted-foreground hover:bg-hover hover:text-foreground",
@@ -319,7 +321,11 @@ export function InstallSlot({ item, busy, fresh, onInstall, onConfigure }: {
         <Button
             size="sm"
             variant={state === "idle" ? "secondary" : "ghost"}
-            className="cx-app-slot"
+            // inline-grid as a utility: the slot's own rule sits in the
+            // components layer, which the button's inline-flex outranks, so
+            // the three labels stood side by side and "Install" sat at the
+            // left of a 156px box that read as an empty field.
+            className="cx-app-slot inline-grid"
             data-install-state={state}
             onClick={state === "idle" ? onInstall : undefined}
             disabled={state !== "idle"}
@@ -357,7 +363,8 @@ function MarketplaceAppCard({ item, busy, fresh, onOpen, onInstall, onConfigure 
                         <span className="truncate text-sm font-medium text-foreground">{item.name}</span>
                         {item.featured && <span className="text-2xs text-ink-3">Popular</span>}
                     </div>
-                    <p className="mt-0.5 truncate text-2xs text-muted-foreground">{item.description}</p>
+                    {/* Two lines, so a description is read rather than cut at its fourth word. */}
+                    <p className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">{item.description}</p>
                 </div>
             </div>
             <div className="mt-3 flex items-center justify-between gap-2">

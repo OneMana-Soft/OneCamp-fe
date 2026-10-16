@@ -7,9 +7,10 @@ import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
 import { DocHeader, DocShortcutsDialog } from "@/components/docEditor/DocHeader";
 import { ConnectionPill } from "@/components/docEditor/ConnectionPill";
 import { RecoveredEditsBanner } from "@/components/docEditor/RecoveredEditsBanner";
-import { docSaveState, useSlowSave } from "@/components/docEditor/docSaveState";
+import { docSaveState, useSaveProgress, useSlowSave } from "@/components/docEditor/docSaveState";
+import { useLeaveGuard } from "@/components/docEditor/leaveGuard";
+import { hasPendingImageUploads } from "@/components/minimal-tiptap/extensions/image/uploads";
 import type { Editor } from "@tiptap/react";
-import {LinkedFromSection} from "@/components/entityLink/LinkedFromSection";
 import {cn} from "@/lib/utils/helpers/cn";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
@@ -17,7 +18,9 @@ import { UserProfileInterface } from "@/types/user";
 import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
 import {DocInfoResponse} from "@/types/doc";
-import { Minimize2 } from "@/lib/icons";
+import { Minimize2, RefreshCw } from "@/lib/icons";
+import { canRestoreDeleted, docLoadFailure } from "@/components/docEditor/docLoadFailure";
+import { LoadFailureState } from "@/components/ui/load-failure-state";
 import {Button} from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotError } from "@/components/ui/graphics";
@@ -25,38 +28,56 @@ import Link from "next/link";
 import {useDispatch, useSelector} from "react-redux";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {openUI} from "@/store/slice/uiSlice";
-import type {RootState} from "@/store/store";
+import {injectSlice, type RootState} from "@/store/store";
 import {useEffect} from "react";
-import {updateDocCommentCount} from "@/store/slice/createDocCommentSlice";
-import {updateUserDocTitle} from "@/store/slice/userSlice";
+import {createDocCommentSlice, updateDocCommentCount} from "@/store/slice/createDocCommentSlice";
+import { useDocFullWidth } from "@/components/docEditor/docFullWidth";
+import { useRouter } from "next/navigation";
+import { docRenamed } from "@/lib/docCache";
+import { identityHue } from "@/lib/identityHue";
+import { createTitleStore } from "@/components/docEditor/docTitleStore";
 import {useMqttTopic} from "@/hooks/useMqttTopic";
 import { DocBodySkeleton, DocPageSkeleton } from "@/components/doc/DocPageSkeleton";
-import { useDocMessageHandlers } from "@/hooks/useDocMessageHandlers";
 import { usePost } from "@/hooks/usePost";
-import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
+import { useDocSession, type DocAccessLevel } from "@/hooks/useDocSession";
+import { useDocAbilities } from "@/hooks/useDocAbilities";
+import { DocAccessNote } from "@/components/docEditor/DocAccessNote";
+import { DocAccessRequests } from "@/components/docEditor/DocAccessRequests";
 import { warmCollabToken } from "@/lib/collabToken";
-import { useDocAutoSave } from "@/hooks/useDocAutoSave";
 import { escapeBelongsToLayer } from "@/hooks/useEscapeClosesPanel";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { htmlToMarkdown, downloadMarkdown } from "@/lib/utils/exportToMarkdown";
-import { useToast } from "@/hooks/use-toast";
-import type { Content } from '@tiptap/react'
+import { useLaterActions, useSavedEntry } from "@/hooks/useLater";
+import "@/components/docEditor/registry";
+import { DocBusContext, provideActionContext, providePaletteEntries, useDocCommand, useDocCommandBus } from "@/components/docEditor/registry/commandBus";
+import { paletteEntriesFor } from "@/components/docEditor/registry/readers";
+import { MORE_GROUPS } from "@/components/docEditor/actions/doc";
+import { useEditionGate } from "@/components/docEditor/registry/gate";
+import { useActionKeys } from "@/components/docEditor/registry/actionKeys";
+import { DialogOutlet, rootClassesFor, SlotOutlet, useRegistryVersion } from "@/components/docEditor/registry/slots";
+import { dialogFor, panelFor } from "@/components/docEditor/registry/registry";
+import type { ActionContext } from "@/components/docEditor/registry/types";
+
+// B6's pages for a doc that can't open: they load when one is shown.
+const NoAccessPage = React.lazy(() => import("@/components/docEditor/NoAccessPage"));
+const TrashedBanner = React.lazy(() => import("@/components/docEditor/TrashedBanner"));
+
+// A doc's comments join the store with the doc's page (store/lazySlices.ts).
+injectSlice(createDocCommentSlice);
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 export function DocView({ docId }: { docId: string }) {
     const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
-    const { toast } = useToast();
+    const gate = useEditionGate();
 
     const dispatch = useDispatch();
-    const { handleDocCommentMessage, handleDocCommentReactionMessage } = useDocMessageHandlers({ userUuid: userProfile.data?.data?.user_uuid });
 
     // Fetch document info
     // A doc that's gone answers with an error: the page says so itself below,
     // so the server's words ("Failed to dgraph doc info from dgraph") don't
     // also pop up as a toast.
-    const { data: docInfoHelper, isLoading: isDocLoading, mutate: refreshDocInfo } = useFetch<DocInfoResponse>(
+    const { data: docInfoHelper, isLoading: isDocLoading, isError: docLoadError, mutate: refreshDocInfo } = useFetch<DocInfoResponse>(
         docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '',
         undefined,
         undefined,
@@ -68,17 +89,14 @@ export function DocView({ docId }: { docId: string }) {
     const editedAt = docInfo?.doc_updated_at && !docInfo.doc_updated_at.startsWith("0001") ? docInfo.doc_updated_at : docInfo?.doc_created_at;
     const lastEditedRelative = useRelativeTime(editedAt || null);
 
-    // Subscribe to document MQTT topic for real-time updates
-    useMqttTopic({
-        topic: docInfo?.doc_mqtt_topic || "",
-        onMessage: (message, topic) => {
-            const messageStr = message.toString();
-            handleDocCommentMessage(messageStr);
-            handleDocCommentReactionMessage(messageStr);
-        }
-    });
+    // The doc's live topic: subscribing brings its comment events in, and
+    // the global router handles each one, once (useMqttMessageHandler). This
+    // page handled every one again, so the comment count moved by two, and
+    // fed comment events to the reaction handler and the other way round.
+    useMqttTopic({ topic: docInfo?.doc_mqtt_topic || "" });
 
-    const docCommentCount = useSelector((state: RootState) => state.createDocComment.docCommentCount[docId]);
+    const docCommentCount = useSelector((state: RootState) => state.createDocComment?.docCommentCount[docId]);
+    const router = useRouter();
 
     const { isMobile, isDesktop } = useMedia();
     const { makeRequest: updateDoc } = usePost();
@@ -107,17 +125,16 @@ export function DocView({ docId }: { docId: string }) {
         }
     }, [docInfo, docId, dispatch])
 
-    // Determine edit access
-    const hasEditAccess = React.useMemo(() => {
-        if (!docInfo || !userProfile.data?.data) return false;
-        const userId = userProfile.data.data.user_uuid;
-        const isCreator = docInfo.doc_created_by?.user_uuid === userId;
-        return isCreator || (docInfo.doc_edit_access > 0);
-    }, [docInfo, userProfile.data?.data]);
+    // What this person may do, as the server decided it (lib/docs/abilities):
+    // every surface below asks it, never the counts or the sharing lists.
+    const abilities = useDocAbilities(docInfo);
+    const hasEditAccess = !!docInfo && abilities.edit;
 
+    // Its owner: whoever it was handed to last, or its maker.
     const isOwner = React.useMemo(() => {
         if (!docInfo || !userProfile.data?.data) return false;
-        return docInfo.doc_created_by?.user_uuid === userProfile.data.data.user_uuid;
+        const owner = docInfo.doc_owner?.user_uuid || docInfo.doc_created_by?.user_uuid;
+        return owner === userProfile.data.data.user_uuid;
     }, [docInfo, userProfile.data?.data]);
 
     // Collaboration configuration. The provider hook fetches and manages its
@@ -135,48 +152,59 @@ export function DocView({ docId }: { docId: string }) {
         if (!ed || ed.isDestroyed) return null;
         return { html: ed.getHTML(), text: ed.getText() };
     }, []);
+    // The doc's live session (hooks/useDocSession; A2 builds it out): it
+    // connects from the doc's id at once, before its details or the profile
+    // arrive, and says what the server decided. The level the details give is
+    // only for an older server.
+    const docLevel: DocAccessLevel = !docInfo ? 'none' : abilities.level;
+    const sessionUser = React.useMemo(() => {
+        const me = userProfile.data?.data;
+        return me ? { id: me.user_uuid, name: displayNameOf(me) || 'Anonymous', color: generateColorFromUUID(me.user_uuid || "default"), profileKey: me.user_profile_object_key } : undefined;
+    }, [userProfile.data?.data]);
+    const session = useDocSession({ docId, user: sessionUser, level: docLevel, keepEdits });
+    const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers, recovered, dismissRecovered, retry: retryCollab } = session;
+
+    // The editor's side of the live doc, for everyone the session connects (a
+    // reader too, once the session joins readers live): who this person is to
+    // everyone else, in their identity hue (lib/identityHue), the colour of
+    // their avatar, and what the tab keeps aside if its copy is replaced.
+    const live = hasEditAccess || !!provider;
     const collaborationConfig = React.useMemo(() => {
-        if (!hasEditAccess || !docId || !userProfile.data?.data) return undefined;
+        if (!live || !docId || !userProfile.data?.data) return undefined;
         return {
             enabled: true,
             documentId: docId,
             username: displayNameOf(userProfile.data.data) || 'Anonymous',
             userId: userProfile.data.data.user_uuid,
             color: generateColorFromUUID(userProfile.data?.data?.user_uuid || "default"),
+            // The hue every tab draws this person's caret and face in: their
+            // avatar's (lib/identityHue).
+            hue: identityHue({ name: displayNameOf(userProfile.data.data), id: userProfile.data.data.user_uuid }),
             profileKey: userProfile.data.data.user_profile_object_key,
             keepEdits,
         };
-    }, [docId, userProfile.data?.data, hasEditAccess, keepEdits]);
+    }, [live, docId, userProfile.data?.data, keepEdits]);
 
     // Ask for the collaboration token while the doc's details load, so the
     // websocket finds it ready instead of waiting another round trip.
     useEffect(() => { warmCollabToken() }, []);
 
-    // Collaboration provider
-    const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers, openError, readOnly: collabReadOnly, recovered, dismissRecovered, retry: retryCollab } = useCollaborationProvider(collaborationConfig);
+    const collabReadOnly = hasEditAccess && !session.access.canEdit;
+    const editorCollaborationProp = React.useMemo(
+        () => (collaborationConfig ? { ...collaborationConfig, activeUsers } : undefined),
+        [collaborationConfig, activeUsers],
+    );
 
     // ---------------------------------------------------------------------------
     // EDITOR MOUNT GATE
-    // When the user has edit access we want the TipTap editor to be created
-    // exactly once — already bound to the Yjs provider — rather than mounting in
-    // non-collaborative mode and being torn down/rebuilt a few seconds later when
-    // the WebSocket connects (the visible "re-render" flash). So we hold the
-    // editor behind a skeleton until the provider object exists.
-    //
-    // Resilience: if the collab server is unreachable, `provider` may never
-    // arrive. A fallback timer releases the gate after a short grace period so
-    // the editor still mounts (non-collaborative) instead of hanging on the
-    // skeleton forever.
-    const needsCollabBeforeMount = !!collaborationConfig?.enabled;
-    const [collabGraceElapsed, setCollabGraceElapsed] = React.useState(false);
-    React.useEffect(() => {
-        if (!needsCollabBeforeMount || provider) return;
-        setCollabGraceElapsed(false);
-        const t = setTimeout(() => setCollabGraceElapsed(true), 6000);
-        return () => clearTimeout(t);
-    }, [needsCollabBeforeMount, provider, docId]);
-
-    const editorReady = !needsCollabBeforeMount || !!provider || collabGraceElapsed;
+    // When the user has edit access the TipTap editor is created exactly once,
+    // already bound to the Yjs provider, rather than mounting non-collaborative
+    // and being rebuilt when the socket connects (the visible flash). The
+    // session makes its provider at once (a refused or failed load is said by
+    // the session, never shown as an empty doc), so the gate waits on nothing
+    // else.
+    const needsCollabBeforeMount = hasEditAccess;
+    const editorReady = !needsCollabBeforeMount || !!provider;
 
     // A connection lost, not one being made: on opening, the saved text shows
     // while the socket connects, and the save dot says "connecting" (a ring),
@@ -189,25 +217,10 @@ export function DocView({ docId }: { docId: string }) {
         if (collabSynced) setEverSynced(true);
     }, [collabSynced]);
 
-    // HTTP fallback auto-save. Only active when collaboration is NOT enabled
-    // (read-only viewers, or environments without the collab server). When
-    // collaboration is on, the Hocuspocus server is the single source of truth
-    // for the body and persists it server-side, so HTTP body writes would be
-    // redundant and could clobber concurrent Yjs state.
-    const httpAutoSaveEnabled = hasEditAccess && !collaborationConfig?.enabled;
-    const { saveStatus, lastSavedAt, scheduleSave } = useDocAutoSave({
-        docId,
-        enabled: httpAutoSaveEnabled,
-        initialBody: docInfo?.doc_body || '',
-        collaborationEnabled: collaborationConfig?.enabled,
-        providerSynced: collabSynced,
-        debounceMs: 4000,
-    });
-
     // Focus mode
     const [focusMode, setFocusMode] = React.useState(false);
-    // Full width (the More menu's toggle): the page at 1,040 px.
-    const [fullWidth, setFullWidth] = React.useState(false);
+    // Full width (the More menu's toggle): the page at 1,040 px, kept per doc.
+    const [fullWidth, toggleFullWidth] = useDocFullWidth(docId, docInfo?.doc_full_width);
     // The editor, for what the header shows from it (the word count in More).
     const [editor, setEditor] = React.useState<Editor | null>(null);
     // The header's hairline shows once the body has scrolled.
@@ -259,104 +272,100 @@ export function DocView({ docId }: { docId: string }) {
     // Keyboard shortcuts modal
     const [showShortcuts, setShowShortcuts] = React.useState(false);
 
-    // Keyboard shortcut listener
-    React.useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-            if (e.key === '?') setShowShortcuts((prev) => !prev);
-            else if (e.key === 'F' && e.shiftKey) setFocusMode((f) => !f);
-        }
-        document.addEventListener('keydown', handler);
-        return () => document.removeEventListener('keydown', handler);
-    }, []);
+    const rootRef = React.useRef<HTMLDivElement>(null);
 
-    const handleCommentClick = () => {
-        if(isDesktop) {
-            dispatch(openRightPanel({
-                docUUID: docId,
-                taskUUID: "",
-                chatMessageUUID: "",
-                chatUUID: "",
-                channelUUID: "",
-                postUUID: "",
-                groupUUID: ""
-            }))
-        }
-    }
+    // Save for later (L, and More's item): the doc in the member's Later list.
+    const saved = useSavedEntry("doc", docId);
+    const { save: saveLater, remove: removeLater } = useLaterActions();
 
-    // Notion-like title editing
-    const [docTitle, setDocTitle] = React.useState(docInfo?.doc_title || "Untitled");
-    const docTitleRef = React.useRef(docTitle);
+    // Stable, like every prop the editor gets: it's memoised, so the page's
+    // own changes (presence, scrolling, the save dot) don't render it again.
+    // The doc's comments: beside it, or on a phone their page. Comment on a
+    // selection starts an anchored thread instead (B7's CommentsOverlay claims
+    // the bus's 'comment'); this opens the comments as they are.
+    const handleCommentClick = React.useCallback(() => {
+        if (!isDesktop) {
+            // The phone and the tablet have no side panel: the comments page.
+            router.push(`/app/doc/${docId}/comment`);
+            return;
+        }
+        dispatch(openRightPanel({
+            docUUID: docId,
+            taskUUID: "",
+            chatMessageUUID: "",
+            chatUUID: "",
+            channelUUID: "",
+            postUUID: "",
+            groupUUID: ""
+        }))
+    }, [isDesktop, dispatch, docId, router])
+
+    // The title while it's typed: in a store only the title field and the
+    // breadcrumb subscribe to, so a key typed in it doesn't render this page
+    // and the editor again (docTitleStore.ts). A doc with no title starts
+    // empty: "Untitled" is only the placeholder (D-6).
+    const [titleStore] = React.useState(() => createTitleStore(docInfo?.doc_title ?? ""));
     const titleSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
     React.useEffect(() => {
-        docTitleRef.current = docTitle;
-    }, [docTitle]);
-
-    React.useEffect(() => {
         if (docInfo?.doc_title) {
-            setDocTitle(docInfo.doc_title);
+            titleStore.set(docInfo.doc_title);
         }
+    }, [docInfo?.doc_title, titleStore]);
+
+    // The title the server last has. Compared with the one the doc was
+    // opened with, a title typed, saved and then typed back was never saved
+    // again, and every blur sent the same title once more.
+    const savedTitleRef = React.useRef<string | null>(null);
+    React.useEffect(() => {
+        savedTitleRef.current = docInfo?.doc_title ?? null;
     }, [docInfo?.doc_title]);
 
+    const docLoaded = !!docInfo;
     const saveTitle = React.useCallback((newTitle: string) => {
-        if (!docId || !docInfo || newTitle.trim() === docInfo.doc_title) return;
-        const finalTitle = newTitle.trim() || "Untitled";
+        if (!docId || !docLoaded) return;
+        // A blank title is never saved, so "Untitled" is never stored (D-6).
+        const finalTitle = newTitle.trim();
+        if (!finalTitle || finalTitle === savedTitleRef.current) return;
+        const before = savedTitleRef.current;
+        savedTitleRef.current = finalTitle;
         updateDoc({
             apiEndpoint: PostEndpointUrl.UpdateDoc,
             payload: {
                 doc_uuid: docId,
                 doc_title: finalTitle,
             }
+        }).then(() => {
+            // The sidebar, the docs lists, the phone's bar and the comment page.
+            docRenamed(dispatch, docId, finalTitle);
+        }).catch(() => {
+            savedTitleRef.current = before;
         });
-        // Keep the sidebar recent-docs label in sync with the rename.
-        dispatch(updateUserDocTitle({ doc_uuid: docId, doc_title: finalTitle }));
-    }, [docId, docInfo, updateDoc, dispatch]);
+    }, [docId, docLoaded, updateDoc, dispatch]);
 
     const handleTitleChange = React.useCallback((val: string) => {
-        setDocTitle(val);
+        titleStore.set(val);
         if (titleSaveTimeoutRef.current) clearTimeout(titleSaveTimeoutRef.current);
         titleSaveTimeoutRef.current = setTimeout(() => saveTitle(val), 800);
-    }, [saveTitle]);
+    }, [saveTitle, titleStore]);
 
     const handleTitleBlur = React.useCallback(() => {
         if (titleSaveTimeoutRef.current) clearTimeout(titleSaveTimeoutRef.current);
-        saveTitle(docTitleRef.current);
-    }, [saveTitle]);
+        saveTitle(titleStore.get());
+    }, [saveTitle, titleStore]);
 
-    // Handle document body changes. In collaboration mode the Yjs provider
-    // streams and persists changes, so we skip the HTTP scheduleSave to avoid
-    // double-writes. The autosave path is the fallback for non-collab editing.
-    const handleBodyChange = React.useCallback((content: Content) => {
-        if (collaborationConfig?.enabled) return;
-        if (typeof content === 'string') {
-            scheduleSave(content)
-        }
-    }, [scheduleSave, collaborationConfig?.enabled]);
-
-    // Export to markdown
-    const handleExportMarkdown = React.useCallback(() => {
-        const html = docInfo?.doc_body || '';
-        if (!html.trim()) {
-            toast({ title: 'Nothing to export', description: 'Document is empty.' });
-            return;
-        }
-        const markdown = htmlToMarkdown(html);
-        downloadMarkdown(docTitle || 'document', markdown);
-        toast({ title: 'Exported', description: 'Document downloaded as Markdown.' });
-    }, [docInfo?.doc_body, docTitle, toast]);
-
-    // The save dot's state (D12): live docs from the socket, others from their autosave.
+    // The save dot's state (D12): a live doc's from its socket; a reader's
+    // copy has nothing to save.
     const slowSave = useSlowSave(collaborationConfig?.enabled ? provider : null);
+    // Where this tab's edits stand (A4): when the server last stored the doc,
+    // and how many changes wait, for the dot's words. The session's provider.
+    const progress = useSaveProgress(collaborationConfig?.enabled ? provider : null);
     const saveState = docSaveState({
         live: !!collaborationConfig?.enabled,
         collabStatus,
         synced: collabSynced,
         everSynced,
         slowSave,
-        saveStatus,
     });
     const connectionProblem = !collaborationConfig?.enabled
         ? null
@@ -366,17 +375,84 @@ export function DocView({ docId }: { docId: string }) {
         ? 'reconnecting' as const
         : null;
 
-    // Warn before leaving if there are pending saves
+    // Ask before the tab closes on work that would be lost: edits the
+    // collaboration server hasn't confirmed (typed offline, or while it is
+    // slow: a live doc keeps no local copy), an image still uploading (only
+    // this tab has the file), or an HTTP save still going. It used to watch
+    // the HTTP save alone, which a live doc never uses.
+    useLeaveGuard({
+        provider: collaborationConfig?.enabled ? provider : null,
+        pending: () => hasPendingImageUploads(editor),
+    });
+
+    // ---------------------------------------------------------------------------
+    // THE DOC'S SHELL: its command bus and what it answers (PROGRAM.md §4 #3).
+    // Every action (More, the phone's sheet, the bars, the page's keys, the
+    // palette) asks through the bus; the page keeps the state they show.
+    const bus = useDocCommandBus(docId, editor);
+    const toggleSaved = React.useCallback(() => {
+        if (saved) void removeLater(saved.id).catch(() => {});
+        else void saveLater({ item_type: "doc", item_id: docId, link: `/app/doc/${docId}`, title: titleStore.get() || "Untitled doc", remind_at: null }).catch(() => {});
+    }, [saved, removeLater, saveLater, docId, titleStore]);
+    // Who may open Share: the header's button and the phone's sheet ask this
+    // one rule (QA DSA-14: the sheet offered it to readers). B6: an editor
+    // opens Share too, to invite up to Can edit; full access changes
+    // everything else.
+    const canShare = abilities.edit;
+    const actionContext = React.useCallback((): ActionContext => ({
+        docId,
+        editor: editorRef.current,
+        canEdit: hasEditAccess && !collabReadOnly,
+        abilities,
+        bus,
+        gate,
+        state: { focusMode, fullWidth, saved: !!saved, desktop: isDesktop, owner: isOwner, canShare, title: titleStore.get() },
+    }), [docId, hasEditAccess, collabReadOnly, abilities, bus, gate, focusMode, fullWidth, saved, isDesktop, isOwner, canShare, titleStore]);
+    useActionKeys(rootRef, actionContext, gate);
+    // The palette offers this doc's actions while it is the one open (or used last).
+    React.useEffect(() => providePaletteEntries(bus, () => paletteEntriesFor(actionContext(), MORE_GROUPS)), [bus, actionContext]);
+    // And the phone's doc sheet draws them in this page's context, as More does.
+    React.useEffect(() => provideActionContext(bus, actionContext), [bus, actionContext]);
+
+    useDocCommand(bus, 'toggle', ({ what }) => {
+        if (what === 'focusMode') setFocusMode((f) => !f);
+        else if (what === 'fullWidth') toggleFullWidth();
+        else if (what === 'saved') toggleSaved();
+        else if (what === 'shortcuts') setShowShortcuts((prev) => !prev);
+    });
+    // Comment on the selection: the doc's comments, with it quoted, unless a
+    // listener claimed it as it heard it (A8's anchored threads will).
+    useDocCommand(bus, 'comment', (asked) => {
+        queueMicrotask(() => {
+            if (!asked.claimed) handleCommentClick();
+        });
+    });
+    useDocCommand(bus, 'openPanel', ({ kind }) => {
+        if (kind === 'comments') handleCommentClick();
+        else if (kind === 'viewers') dispatch(openUI({ key: "docViewers", data: { docId } }));
+        else if (panelFor(kind, gate)) dispatch(openRightPanel({ docPanel: { kind, docId } }));
+    });
+    // A dialog over this doc: the page's own, or one a package registered.
+    useRegistryVersion();
+    const [dialogId, setDialogId] = React.useState<string | null>(null);
+    const openDialog = React.useCallback((id: string) => {
+        if (id === 'doc.share') dispatch(openUI({ key: 'docShare', data: docId }));
+        else if (id === 'doc.rename') dispatch(openUI({ key: 'docUpdateTitle', data: { docId, title: titleStore.get() } }));
+        else if (dialogFor(id, gate)) setDialogId(id);
+    }, [dispatch, docId, titleStore, gate]);
+    useDocCommand(bus, 'openDialog', ({ id }) => openDialog(id));
+    // A package's dialog asked for by a window event naming this doc (A7's
+    // import, until it asks on the bus): this page claims it.
     React.useEffect(() => {
-        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            if (saveStatus === 'saving' || saveStatus === 'error') {
-                e.preventDefault();
-                e.returnValue = '';
-            }
+        const claim = (e: Event) => {
+            const detail = (e as CustomEvent<{ id?: string; docId?: string }>).detail;
+            if (!detail?.id || detail.docId !== docId || !dialogFor(detail.id, gate)) return;
+            e.preventDefault();
+            setDialogId(detail.id);
         };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [saveStatus]);
+        window.addEventListener('doc-open-dialog', claim);
+        return () => window.removeEventListener('doc-open-dialog', claim);
+    }, [docId, gate]);
 
     if(!docId) {
         return null;
@@ -386,58 +462,80 @@ export function DocView({ docId }: { docId: string }) {
         return <DocPageSkeleton />;
     }
 
-    if (!docInfo) {
-        // A doc that was deleted, or one this person can't open, is the same
-        // dead end from where they stand; it needs a way back, not a sentence
-        // floating in the middle of an empty page.
+    if (!docInfo && docLoadError && docLoadFailure(docLoadError) === "unreachable") {
+        // No answer, or the server failed: the doc may be fine, so the page
+        // says what's wrong and offers it again (it's also asked for again
+        // when the browser is back online).
+        const offline = typeof navigator !== "undefined" && navigator.onLine === false;
         return (
             <EmptyState
                 illustration={<SpotError />}
-                title="This doc isn't available"
-                description="It may have been deleted, or it hasn't been shared with you. Ask whoever sent the link to share it."
+                title={offline ? "You're offline" : "Can't reach the server"}
+                description={offline
+                    ? "This doc opens when you're back online. Nothing in it has been lost."
+                    : "Nothing in this doc has been lost. Try again in a moment."}
                 headingLevel={2}
-                // As a table that isn't there reads: near the top, with its drawing.
                 className="py-20"
                 action={
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/app/doc">Back to docs</Link>
+                    <Button variant="outline" size="sm" onClick={() => void refreshDocInfo()} className="gap-1.5">
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Try again
                     </Button>
                 }
             />
         );
     }
 
-    const editorCollaborationProp = collaborationConfig
-        ? { ...collaborationConfig, activeUsers }
-        : undefined;
+    if (!docInfo && docLoadError && docLoadFailure(docLoadError) === "deleted") {
+        // In the trash, and it was there for this person (410): say so, with
+        // Restore for whoever may. Anyone else is told nothing (404, below).
+        return (
+            <React.Suspense fallback={<DocPageSkeleton />}>
+                <TrashedBanner docId={docId} canRestore={canRestoreDeleted(docLoadError)} onRestored={() => void refreshDocInfo()} />
+            </React.Suspense>
+        );
+    }
+
+    if (!docInfo && (docLoadError as { response?: { status?: number } } | undefined)?.response?.status === 403) {
+        // There, but not shared with this person (A5): Request access (B6),
+        // only when the server says a request would reach someone who can
+        // answer it (can_request; docs incident, 14 Oct 2026, QA DSA-03).
+        const answer = (docLoadError as { response?: { data?: { can_request?: unknown } } }).response?.data;
+        return (
+            <React.Suspense fallback={<DocPageSkeleton />}>
+                <NoAccessPage docId={docId} canRequest={answer?.can_request === true} admin={!!userProfile.data?.data?.user_is_admin} onGranted={() => void refreshDocInfo()} />
+            </React.Suspense>
+        );
+    }
+
+    if (!docInfo) {
+        // Not there, or no longer (PTC-FIX's shared state, as projects and tasks say it).
+        return <LoadFailureState kind="gone" noun="doc" back={{ label: "Back to docs", href: "/app/doc" }} className="py-12" />;
+    }
+
+
 
     return (
-        <div className={cn('flex flex-col h-full bg-sheet', focusMode && 'doc-focus')}>
+        <DocBusContext.Provider value={bus}>
+        <div ref={rootRef} data-doc-view="" className={cn('flex flex-col h-full bg-sheet', focusMode && 'doc-focus', ...rootClassesFor(gate, docId))}>
             {/* The header (D05): hidden in focus mode and on phones, where
                 the app bar names the doc. */}
             {!focusMode && isDesktop && (
                 <DocHeader
                     doc={docInfo}
-                    title={docTitle}
                     canEdit={hasEditAccess}
-                    canShare={hasEditAccess}
+                    canShare={canShare}
                     scrolled={scrolled}
                     saveState={saveState}
-                    savedAt={lastSavedAt}
+                    savedAt={progress.persistedAt}
+                    waiting={progress.waiting}
                     live={!!collaborationConfig?.enabled}
                     users={awarenessUsers}
                     commentCount={docCommentCount || 0}
                     onComments={handleCommentClick}
-                    onRename={(t) => { setDocTitle(t); saveTitle(t); }}
                     onShare={() => dispatch(openUI({ key: 'docShare', data: docInfo.doc_uuid }))}
-                    focusMode={focusMode}
-                    onFocusMode={() => setFocusMode((f) => !f)}
-                    fullWidth={fullWidth}
-                    onFullWidth={() => setFullWidth((w) => !w)}
-                    onExport={handleExportMarkdown}
-                    onShortcuts={() => setShowShortcuts(true)}
-                    onViewers={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}
-                    onHistory={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}
+                    actions={actionContext}
+                    gate={gate}
                     editor={editor}
                 />
             )}
@@ -471,28 +569,25 @@ export function DocView({ docId }: { docId: string }) {
             <div ref={bodyRef} className="flex-1 w-full flex flex-col overflow-hidden relative">
                 {!focusMode && <ConnectionPill problem={connectionProblem} onRetry={retryCollab} />}
                 {recovered && <RecoveredEditsBanner recovered={recovered} onDismiss={dismissRecovered} className="shrink-0" />}
-                {!focusMode && (
-                    <LinkedFromSection refType="doc" refUUID={docId} className="shrink-0 px-5 py-2" />
-                )}
                 {editorReady ? (
                     <MinimalTiptapDocInput
                         throttleDelay={3000}
                         className='w-full h-full'
                         editorContentClassName="pb-8"
                         output="html"
-                        // A collaborative doc is saved through its socket, so
-                        // the editor need not turn it into HTML at all.
-                        onChange={collaborationConfig?.enabled ? undefined : handleBodyChange}
+                        // A live doc is saved through its socket, so the editor
+                        // never turns it into HTML here (a reader's never changes).
                         value={docInfo.doc_body}
-                        // Read-only while the server says so (this tab's editor is
-                        // older than the server's: the pill asks to reload).
-                        editable={hasEditAccess && !collabReadOnly}
+                        // What the server decided (the session): read-only for a
+                        // reader, a lock, or a tab older than the server's schema
+                        // (the pill asks to reload).
+                        editable={session.access.canEdit}
                         editorClassName="focus:outline-none"
                         collaboration={editorCollaborationProp}
                         provider={provider || undefined}
                         providerSynced={collabSynced}
                         docId={docId}
-                        title={docTitle}
+                        titleStore={titleStore}
                         onTitleChange={handleTitleChange}
                         onTitleBlur={handleTitleBlur}
                         editableTitle={hasEditAccess}
@@ -502,13 +597,37 @@ export function DocView({ docId }: { docId: string }) {
                         authorName={displayNameOf(docInfo.doc_created_by) || undefined}
                         onEditor={handleEditor}
                         onComment={handleCommentClick}
+                        abilities={abilities}
+                        belowTitle={abilities.share ? (
+                            // Requests for access, for whoever can answer them (QA DSA-03).
+                            <DocAccessRequests docId={docId} className="mt-1 mb-2" />
+                        ) : !abilities.edit && abilities.view ? (
+                            // A doc this person can't change says so, under its
+                            // title (docs incident, 14 Oct 2026, D3).
+                            <DocAccessNote
+                                docId={docId}
+                                level={abilities.level}
+                                want="edit"
+                                admin={!!userProfile.data?.data?.user_is_admin}
+                                className="mt-1 mb-2"
+                                action={abilities.askRead ? (
+                                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => bus.emit('aiRun', {})}>Ask AI</Button>
+                                ) : null}
+                            />
+                        ) : null}
                     />
                 ) : (
                     <DocBodySkeleton />
                 )}
             </div>
 
-            <DocShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+            <DocShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} gate={gate} />
+            {dialogId && <DialogOutlet id={dialogId} docId={docId} gate={gate} onClose={() => setDialogId(null)} />}
+            {/* Once per open doc, in every mode: what has no UI of its own
+                (A6's live meta events, so a rename, delete or access change
+                made elsewhere reaches this tab). */}
+            <SlotOutlet slot="session" gate={gate} docId={docId} />
         </div>
+        </DocBusContext.Provider>
     );
 }

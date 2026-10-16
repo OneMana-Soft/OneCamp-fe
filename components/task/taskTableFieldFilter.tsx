@@ -5,7 +5,6 @@
 // none. A field's filter is its column's, so it goes to the server with the
 // list's other filters and into saved views like them.
 
-import { CheckIcon, } from "@radix-ui/react-icons"
 import { FilterChip } from "@/components/task/filterChip"
 import type { Table } from "@tanstack/react-table"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
@@ -62,16 +61,7 @@ export function TaskTableFieldFilter<TData>({ table, fields, people, variant }: 
                   {filterChoices(f, people).map((c) => {
                     const on = chosen.has(c.value)
                     return (
-                      <CommandItem key={c.value} value={`${f.name} ${c.label}`} onSelect={() => toggle(f, c.value)}>
-                        <div
-                          className={cn(
-                            "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                            on ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible",
-                          )}
-                          aria-hidden
-                        >
-                          <CheckIcon className="h-4 w-4" />
-                        </div>
+                      <CommandItem key={c.value} checked={on} value={`${f.name} ${c.label}`} onSelect={() => toggle(f, c.value)}>
                         {c.color ? <OptionPill label={c.label} color={c.color} /> : <span className={cn(c.value === FILTER_ANY || c.value === FILTER_NONE ? "text-muted-foreground" : "")}>{c.label}</span>}
                       </CommandItem>
                     )

@@ -40,6 +40,17 @@ describe("the phone's top bar frame", () => {
     expect(bar).not.toMatch(/grid-cols-\[auto_1fr_auto\]/)
   })
 
+  // A side that could shrink below its buttons gave its room to a long
+  // title, which ran over the back button and a doc's Comments at 312px
+  // (e2e/docPhoneHeader.spec.ts measures it in a browser).
+  it("never lets a side shrink below its buttons; only the title gives way", () => {
+    const bar = here("mobileTopNavigationBar.tsx")
+    const sides = [...bar.matchAll(/<div data-phone-bar-side="" className='([^']*)'/g)].map((m) => m[1])
+    expect(sides).toHaveLength(2)
+    for (const cls of sides) expect(cls.split(/\s+/)).not.toContain("min-w-0")
+    expect(bar).toMatch(/className='min-w-0 flex items-center justify-center'><MobileTopNavigationBarSecond/)
+  })
+
   it.each([
     ["/app/channel", "New channel"],
     ["/app/chat", "New chat"],
@@ -94,7 +105,7 @@ describe("the phone's top bar frame", () => {
     for (const path of ["/app/doc", "/app/board", "/app/tables"]) {
       pathname = path
       render(<MobileTopNavigationBarFirst />)
-      expect(screen.getByRole("button", { name: "Open organization profile" }), path).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Open organisation profile" }), path).toBeTruthy()
       cleanup()
     }
     pathname = "/app/doc/d1"
@@ -138,6 +149,8 @@ describe("the phone's top bar frame", () => {
     expect(title).toMatch(/text-title-3 leading-\[22px\] font-\[590\]/)
     expect(title).toMatch(/data-conversation-subtitle="" className="[^"]*text-meta[^"]*text-ink-3/)
     expect(title).toMatch(/dispatch\(openChannelDetails\(id\)\)/)
+    // 38px drawn, a finger's 44px to tap (QA F-26, app/phone.css F3).
+    expect(title).toMatch(/data-conversation-title=""\s+data-touch-target=""/)
   })
 
   it("leaves a project's ⋯ to the project's header line: one menu, not two side by side", () => {

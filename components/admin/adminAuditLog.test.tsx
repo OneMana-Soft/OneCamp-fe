@@ -72,12 +72,17 @@ describe("the audit log", () => {
     getAdminAuditLog.mockResolvedValueOnce(page(first)).mockResolvedValueOnce(page([entry(50, { summary: "The oldest change" })]))
     render(<AdminAuditLog />)
     await screen.findByText("Change 0")
-    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Show older entries" })))
+    // Found by its words, not by role: with fifty rows on the page, each a
+    // button, a role query works out every button's name, and that took 2.7 s
+    // of the test's 5 on a busy machine.
+    const older = screen.getByText("Show older entries")
+    expect(older.tagName).toBe("BUTTON")
+    await act(async () => void fireEvent.click(older))
     expect(getAdminAuditLog.mock.calls.at(-1)?.[2]).toBe(50)
     expect(await screen.findByText("The oldest change")).toBeTruthy()
     expect(screen.getByText("Change 0")).toBeTruthy()
     // Fewer than fifty came back, so that was the end.
-    expect(screen.queryByRole("button", { name: "Show older entries" })).toBeNull()
+    expect(screen.queryByText("Show older entries")).toBeNull()
   })
 
   it("filters by category on the server, and marks the filters in use as neutral chips", async () => {
@@ -106,7 +111,7 @@ describe("the audit log", () => {
     const time = document.querySelector("time")
     expect(time?.getAttribute("dateTime")).toBe("2026-10-10T08:42:11Z")
     // The day is the sticky header's; the row's own column is the time of day.
-    expect(time?.textContent).toMatch(/^\d{1,2}:\d{2} (AM|PM)$/)
+    expect(time?.textContent).toMatch(/^\d{1,2}:\d{2}\u00a0(AM|PM)$/)
     expect(time?.getAttribute("title")).toMatch(/October 2026/)
   })
 })

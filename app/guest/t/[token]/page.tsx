@@ -3,12 +3,14 @@
 import { use } from "react";
 import { getGuestTable } from "@/services/guestService";
 import { GuestTableViewer } from "@/components/guest/GuestTableViewer";
-import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { PublicGone } from "@/components/guest/publicStates";
 import { Eye } from "@/lib/icons";
 import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame";
 import { TableGlyph } from "@/components/table/TableGlyph";
+import { formatLocale } from "@/lib/tables/numberFormat";
 
-const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
+const gone = <PublicGone surface="guest-table" noun="shared table" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />;
 
 /**
  * A table shared with someone outside the workspace (content.md T21): the
@@ -28,9 +30,12 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
 
     const name = bundle.table?.name || "Shared table";
     const rows = bundle.rows || [];
+    // A share carries the first rows; the count is every row.
+    const total = bundle.row_count ?? rows.length;
     return (
         <PublicFrame
             surface="guest-table"
+            workspaceName={bundle.workspace_name}
             // The page's heading; a long name truncates rather than pushing the tag off the bar.
             title={<span title={name}>{name}</span>}
             actions={
@@ -47,11 +52,11 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
                         <p className="truncate font-display text-title-1 text-ink">{name}</p>
                         <p className="mt-0.5 text-ui text-ink-2">
                             {bundle.table?.description ? `${bundle.table.description} · ` : ""}
-                            {rows.length} {rows.length === 1 ? "row" : "rows"}
+                            {formatLocale(total, {})} {total === 1 ? "row" : "rows"}
                         </p>
                     </div>
                 </div>
-                <GuestTableViewer fields={bundle.fields} rows={rows} />
+                <GuestTableViewer fields={bundle.fields} rows={rows} total={total} />
             </PaperCard>
         </PublicFrame>
     );

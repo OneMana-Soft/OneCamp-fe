@@ -40,7 +40,9 @@ describe("the admin gate", () => {
   it("tells someone who isn't an admin, and lets an admin in", () => {
     profile.value = { data: { data: { user_is_admin: false } }, isLoading: false, isError: undefined, mutate: vi.fn() }
     const { unmount } = render(<AdminGate><p>Members</p></AdminGate>)
-    expect(screen.getByText("Admins only")).toBeTruthy()
+    // Settings' locked card (QA SH-10), not a lone lock in an empty sheet.
+    expect(screen.getByRole("note").textContent).toContain("Only workspace admins can open Admin.")
+    expect(screen.queryByText("Members")).toBeNull()
     unmount()
     profile.value = { data: { data: { user_is_admin: true } }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<AdminGate><p>Members</p></AdminGate>)

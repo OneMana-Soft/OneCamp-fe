@@ -5,6 +5,29 @@ import { useDispatch } from "react-redux"
 import mqttService from "@/services/mqttService"
 import { addChannelTyping, RemoveChannelTyping, addChatTyping, RemoveChatTyping, addGroupChatTyping, RemoveGroupChatTyping } from "@/store/slice/typingSlice"
 import {ConnectionConfig, TypingTimeout} from "@/types/mqtt";
+import type { UserProfileDataInterface } from "@/types/user"
+
+interface TypingMessageSender {
+    user_uuid: string
+    user_name: string
+    user_profile: string
+    is_bot?: boolean
+    user_bot_kind?: string
+}
+
+/**
+ * Who a typing message is from, as the typing line shows them. A bot's message
+ * says so, and which kind, so an AI teammate's line reads "is working"; a
+ * person's says neither.
+ */
+function typerOf(sender: TypingMessageSender): UserProfileDataInterface {
+    return {
+        user_uuid: sender.user_uuid,
+        user_name: sender.user_name,
+        user_profile_object_key: sender.user_profile,
+        ...(sender.is_bot ? { is_bot: true, user_bot_kind: sender.user_bot_kind } : {}),
+    }
+}
 
 interface UseTypingHandlersProps {
     connectionConfig: ConnectionConfig
@@ -58,12 +81,7 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
 
                 dispatch(
                     addChannelTyping({
-                        user: {
-                            user_uuid: mqttChannelTyping.data.user_uuid,
-                            user_name: mqttChannelTyping.data.user_name,
-                            user_profile_object_key: mqttChannelTyping.data.user_profile,
-
-                        },
+                        user: typerOf(mqttChannelTyping.data),
                         channelId: mqttChannelTyping.data.channel_uuid,
                     }),
                 )
@@ -83,7 +101,8 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
                     return
                 }
 
-                const { user_uuid, user_name, user_profile, chat_grp_id } = mqttChatTyping.data;
+                const { user_uuid, chat_grp_id } = mqttChatTyping.data;
+                const typer = typerOf(mqttChatTyping.data)
                 const isGroupChat = !chat_grp_id.includes(" ");
 
                 if (isGroupChat) {
@@ -100,11 +119,7 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
 
                     dispatch(
                         addGroupChatTyping({
-                            user: {
-                                user_uuid: user_uuid,
-                                user_name: user_name,
-                                user_profile_object_key: user_profile,
-                            },
+                            user: typer,
                             grpId: chat_grp_id,
                         }),
                     )
@@ -122,11 +137,7 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
 
                     dispatch(
                         addChatTyping({
-                            user: {
-                                user_uuid: user_uuid,
-                                user_name: user_name,
-                                user_profile_object_key: user_profile,
-                            },
+                            user: typer,
                             chatId: user_uuid,
                         }),
                     )

@@ -4,7 +4,6 @@ import { useLongPress } from "@/hooks/useLongPress";
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar";
 import { ReplyLine } from "@/components/message/replyLine";
 import { scrollToMessage } from "@/lib/utils/scrollToMessage";
-import { chatClock } from "@/lib/chat/clock";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
@@ -23,13 +22,17 @@ import { GroupedReaction, StandardReaction, SyncCustomReaction } from "@/types/r
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { useEditInPlace } from "@/hooks/useEditInPlace";
+import { useStableCallback } from "@/hooks/useStableCallback";
 import { app_user } from "@/types/paths";
 import { useRouter } from "next/navigation";
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
 import { RelayedAvatar } from "@/components/message/relayedAvatar";
+import { RelayedPersonCard } from "@/components/message/relayedPersonCard";
 import { PrincipalTag } from "@/components/ui/principalTag";
+import { clockTime } from "@/lib/utils/date/clock";
 
 interface mobileMessageProps {
     userInfo: UserProfileDataInterface
@@ -49,7 +52,7 @@ interface mobileMessageProps {
     attachments?: AttachmentMediaReq[]
     addReaction: (emojiId:string, reactionId: string) => void
     isAdmin?: boolean;
-    updateMessage: (id: string, body: string) => void;
+    updateMessage: (id: string, body: string) => Promise<boolean> | boolean | void;
     deleteMessage: (id: string) => void;
     getMediaUrl: string
     /** Continues the reply above it (lib/messageGrouping): no avatar or name. */
@@ -61,7 +64,11 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
     const dispatch = useDispatch();
 
-    const[isMessageEditEnabled, setIsMessageEditEnabled] = useState(false);
+    // A correction in place: a save that fails opens the box again holding
+    // what was typed (hooks/useEditInPlace, F-06).
+    const edit = useEditInPlace(useStableCallback((body: string) => updateMessage(commentUUID || postUUID || chatMessageUUID || '', body)))
+    const isMessageEditEnabled = edit.editing
+    const { open: openEdit } = edit
 
     // Route internal /app deep links through client navigation; off while editing.
     const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
@@ -74,8 +81,10 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     const authorName = relayed ? relayed.name : displayNameOf(userInfo)
     const body = relayed ? relayed.body : content
 
-    const [updatedText, setUpdatedText] = useState<string>(content);
     const updatedTextRef = useRef<string>(content);
+    useEffect(() => {
+        if (edit.draft !== undefined) updatedTextRef.current = edit.draft
+    }, [edit.draft])
 
     const router = useRouter()
 
@@ -145,7 +154,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     postUUID: postUUID,
                     channelUUID: channelUUID,
                     editMessage: () => {
-                        setIsMessageEditEnabled(true)
+                        openEdit()
                     },
                     deleteMessage: () => {
                         deleteMessage(postUUID)
@@ -171,7 +180,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         deleteMessage(commentUUID)
                     },
                     editMessage: () => {
-                        setIsMessageEditEnabled(true)
+                        openEdit()
                     },
                     handleEmojiClick: handleEmojiClick,
                     onAddReaction: () => addEmojiReaction('postCommentLongPress'),
@@ -191,7 +200,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         deleteMessage(chatMessageUUID)
                     },
                     editMessage: () => {
-                        setIsMessageEditEnabled(true)
+                        openEdit()
                     },
                     handleEmojiClick: handleEmojiClick,
                     chatUUID: chatUUID,
@@ -216,7 +225,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         deleteMessage(commentUUID)
                     },
                     editMessage: () => {
-                        setIsMessageEditEnabled(true)
+                        openEdit()
                     },
                     handleEmojiClick: handleEmojiClick,
 
@@ -236,7 +245,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         deleteMessage(chatMessageUUID)
                     },
                     editMessage: () => {
-                        setIsMessageEditEnabled(true)
+                        openEdit()
                     },
                     handleEmojiClick: handleEmojiClick,
                     grpId: grpId,
@@ -261,7 +270,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         deleteMessage(commentUUID)
                     },
                     editMessage: () => {
-                        setIsMessageEditEnabled(true)
+                        openEdit()
                     },
                     handleEmojiClick: handleEmojiClick,
 
@@ -271,7 +280,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
             }))
         }
 
-    }, [postUUID, channelUUID, commentUUID, chatMessageUUID, chatUUID, grpId, docId, dispatch, addEmojiReaction, setIsMessageEditEnabled, deleteMessage, selfProfile.data?.data?.user_uuid, userInfo.user_uuid, isAdmin, handleEmojiClick, copyText, body, authorName]);
+    }, [postUUID, channelUUID, commentUUID, chatMessageUUID, chatUUID, grpId, docId, dispatch, addEmojiReaction, openEdit, deleteMessage, selfProfile.data?.data?.user_uuid, userInfo.user_uuid, isAdmin, handleEmojiClick, copyText, body, authorName]);
 
     const longPressEvent = useLongPress(handleLongPressPostComment, {
         threshold: 500, // Reduced from 800ms to 500ms for quicker long press
@@ -326,12 +335,17 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                 <div className='w-full min-w-0'>
                     {!(continued && !isMessageEditEnabled) && (
                     <div data-name-line="" className='flex h-5 min-w-0 items-center gap-2'>
-                        <span className='truncate text-ui font-semibold text-ink' onClick={handleUserClick}>
-                            {authorName}
-                        </span>
+                        {relayed ? (
+                            // No profile to open: the name opens a read-only card (F-42).
+                            <RelayedPersonCard name={authorName} kind={relayed.kind} />
+                        ) : (
+                            <span className='truncate text-ui font-semibold text-ink' onClick={handleUserClick}>
+                                {authorName}
+                            </span>
+                        )}
                         {relayed && <PrincipalTag kind={relayed.kind} />}
                         <time className='shrink-0 text-meta tabular-nums text-ink-3'>
-                            {chatClock(createdAt)}
+                            {clockTime(createdAt)}
                         </time>
                     </div>
                     )}
@@ -343,29 +357,23 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
 
                         <MinimalTiptapTextInput
-                            throttleDelay={300}
+                            // Editing hands every keystroke over at once, so Save never misses the last one.
+                            throttleDelay={isMessageEditEnabled ? 0 : 300}
                             isOutputText={true}
                             className={cn("w-full rounded-xl h-auto", isMessageEditEnabled ? "p-2" : "border-none")}
                             editorContentClassName="overflow-auto "
                             output="html"
-                            content={body}
+                            content={edit.draft ?? body}
                             placeholder={"Edit message…"}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
-                            buttonOnclick={()=>{
-                                updateMessage( commentUUID || postUUID || chatMessageUUID || '', updatedTextRef.current)
-                                setIsMessageEditEnabled(false)
-
-                            }}
+                            buttonOnclick={() => edit.finish(updatedTextRef.current)}
                             SecondaryButtonIcon={X}
-                            secondaryButtonOnclick={()=>{
-                                setIsMessageEditEnabled(false)
-                            }}
+                            secondaryButtonOnclick={edit.cancel}
                             editorClassName="focus:outline-none"
                             onChange={(content) => {
                                 const s = content as string
                                 updatedTextRef.current = s
-                                setUpdatedText(s)
 
                             }}
                         >

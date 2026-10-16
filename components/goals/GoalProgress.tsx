@@ -7,26 +7,25 @@ import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { Bar } from "@/components/ui/progress"
 import { prefersReducedMotion } from "@/lib/celebrate"
 import { cn } from "@/lib/utils/helpers/cn"
-import { percent, type GoalSummary } from "@/lib/goals"
-
-/** Points ahead of (positive) or behind (negative) where an open goal would be by now; none when it can't be said. */
-export function paceOf(goal: Pick<GoalSummary, "progress" | "expected" | "status">): number | null {
-  if (goal.status !== "open" || goal.progress === null || goal.expected === undefined) return null
-  return Math.round((Math.min(1, Math.max(0, goal.progress)) - goal.expected) * 100)
-}
+import { paceGap, paceLine, percent, type GoalSummary } from "@/lib/goals"
 
 /**
- * Ahead or behind, in words, never colour alone (work.md W08): "23 ahead" in
- * moss ink, "8 behind" in danger ink, "on pace" in ink-2. `long` says it the
- * goal page's way: "23 points ahead of its time".
+ * Ahead or behind, in words, never colour alone (work.md W08): "23 points
+ * ahead" in moss ink, "8 points behind" in danger ink, "On pace" in ink-2;
+ * `long` says it the goal page's way, "23 points ahead of its time". The
+ * words and the threshold are lib/goals paceLine's, the goal page's too.
  */
 export function PaceWords({ goal, long = false, className }: { goal: Pick<GoalSummary, "progress" | "expected" | "status">; long?: boolean; className?: string }) {
-  const pace = paceOf(goal)
-  if (pace === null) return null
-  const n = Math.abs(pace)
-  const text = pace === 0 ? (long ? "On pace with its time" : "on pace") : long ? `${n} ${n === 1 ? "point" : "points"} ${pace > 0 ? "ahead of" : "behind"} its time` : `${n} ${pace > 0 ? "ahead" : "behind"}`
+  const gap = paceGap(goal)
+  const text = paceLine(gap, { short: !long })
+  if (gap === undefined || !text) return null
+  const tone = text === "On pace" ? "even" : gap > 0 ? "ahead" : "behind"
   return (
-    <span data-pace={pace > 0 ? "ahead" : pace < 0 ? "behind" : "even"} className={cn("whitespace-nowrap text-xs font-[510]", pace > 0 ? "text-camp-moss-ink" : pace < 0 ? "text-danger-ink" : "text-ink-2", className)}>
+    <span
+      data-pace={tone}
+      title="How far it has got, against how much of its time has gone"
+      className={cn("whitespace-nowrap text-xs font-[510]", tone === "ahead" ? "text-camp-moss-ink" : tone === "behind" ? "text-danger-ink" : "text-ink-2", className)}
+    >
       {text}
     </span>
   )

@@ -31,6 +31,33 @@ describe("sharing a project with a client", () => {
     expect(createGuestLink).toHaveBeenCalledWith("project", "p1", 24 * 14, "comment", false)
   })
 
+  // PTC-60: the share dialog's preview lists what a client sees; a paragraph
+  // under it said it all again.
+  it("says nothing the share dialog's preview says already, while a channel's link still explains itself", () => {
+    const { unmount } = render(<GuestLinkSection resourceType="project" resourceId="p1" canShare embedded />)
+    expect(screen.queryByText(/A client follows this project/)).toBeNull()
+    unmount()
+    render(<GuestLinkSection resourceType="channel" resourceId="c1" canShare embedded />)
+    expect(screen.getByText(/Invite someone from another company/)).toBeInTheDocument()
+  })
+
+  // Integration review, 12 Oct: on a phone the two menus kept their words'
+  // width side by side and pushed Create link out past the share sheet's edge
+  // (shot at 390 once the sheet opened at all, work P0).
+  it("on a phone gives Create link a row of its own under the menus, which shrink before they push it out", () => {
+    render(<GuestLinkSection resourceType="project" resourceId="p1" canShare embedded />)
+    const row = document.querySelector("[data-link-options]")!
+    expect(row.className).toMatch(/(^| )flex-wrap( |$)/)
+    expect(row.className).toMatch(/(^| )sm:flex-nowrap( |$)/)
+    for (const name of ["Link expires", "Permission"]) {
+      const field = screen.getByRole("combobox", { name }).parentElement!
+      expect(field.className).toMatch(/(^| )min-w-0( |$)/)
+    }
+    const create = screen.getByRole("button", { name: "Create link" })
+    expect(create.className).toMatch(/(^| )max-sm:w-full( |$)/)
+    expect(create.className).toMatch(/(^| )max-sm:h-11( |$)/)
+  })
+
   it("still starts a doc's link read only", async () => {
     createGuestLink.mockReset().mockResolvedValue({ token: "tok" })
     render(<GuestLinkSection resourceType="doc" resourceId="d1" canShare embedded />)

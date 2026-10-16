@@ -93,7 +93,9 @@ describe("failed list fetches are not shown as empty", () => {
   it.each(SURFACES)("%s reports the failure and offers a retry", (rel) => {
     const src = readFileSync(resolve(root, rel), "utf8")
     expect(src, "must read isError from the fetch hook").toMatch(/isError/)
-    expect(src, "must render the shared ErrorState").toMatch(/<ErrorState/)
+    // ErrorState, or on the hub's lists HubError (hub.md A9): the same claim
+    // and retry, said where the hub's empty states sit.
+    expect(src, "must render the shared ErrorState").toMatch(/<(ErrorState|HubError)\b/)
     // The retry must go through SWR's mutate for the key the surface is already
     // bound to — a retry built any other way could disagree with the cache. The
     // identifier is what is checked, not the call shape, because aliasing it

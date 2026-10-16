@@ -32,7 +32,8 @@ const EditProjectMemberDialog: React.FC<EditTeamDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="max-w-[95vw] md:max-w-[35vw] h-[80vh] flex flex-col p-0 overflow-hidden">
+            {/* As tall as its people, up to 80% of the window: it was 720px for three (PTC-18). */}
+            <DialogContent className="max-w-[95vw] md:max-w-[35vw] max-h-[80vh] flex flex-col p-0 overflow-hidden">
                 <DialogHeader className="p-5 pb-3 border-b border-border/60 space-y-1">
                     <DialogTitle className="text-start text-base font-semibold">Project members</DialogTitle>
                     <DialogDescription className="sr-only">

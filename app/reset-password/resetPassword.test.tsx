@@ -15,13 +15,20 @@ import ResetPasswordPage from "./page"
 
 type Answer = { status: number; body: unknown } | "unreachable"
 let answer: Answer
+// What the link check answers as the page opens; unanswered by default.
+let check: Answer
 const sent: unknown[] = []
 
 beforeEach(() => {
   sent.length = 0
   answer = { status: 200, body: { msg: "password reset", status: "success" } }
+  check = "unreachable"
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input).split("?")[0]
+    if (path.endsWith("auth/reset-password/check")) {
+      if (check === "unreachable") throw new TypeError("Failed to fetch")
+      return { ok: check.status >= 200 && check.status < 300, status: check.status, json: async () => (check as { body: unknown }).body } as Response
+    }
     if (!path.endsWith("auth/reset-password")) throw new Error(`no route for ${path}`)
     sent.push(init?.body ? JSON.parse(String(init.body)) : undefined)
     if (answer === "unreachable") throw new TypeError("Failed to fetch")
@@ -105,5 +112,26 @@ describe("choosing the new password", () => {
     expect(screen.getByLabelText("Type it again").getAttribute("aria-invalid")).toBe("true")
     fireEvent.change(screen.getByLabelText("Type it again"), { target: { value: "a-new-password" } })
     expect(container.querySelector("[data-match-check]")).not.toBeNull()
+  })
+})
+
+// QA SH-20 (14 Oct 2026): a made-up, used or expired link showed the form,
+// and said it was no good only after a new password was typed twice.
+describe("a link checked as the page opens", () => {
+  it("says at once that it has expired, with no form", async () => {
+    check = { status: 400, body: { code: "reset_link_invalid", msg: "This reset link is missing or used. Ask for a new one." } }
+    render(<ResetPasswordPage />)
+    expect(await screen.findByRole("heading", { name: "This link has expired" })).toBeTruthy()
+    expect(screen.queryByLabelText("New password")).toBeNull()
+  })
+
+  it("shows the form for a link that can be used, or when nothing answered", async () => {
+    check = { status: 200, body: { msg: "ok", data: { valid: true } } }
+    render(<ResetPasswordPage />)
+    expect(await screen.findByLabelText("New password")).toBeTruthy()
+    cleanup()
+    check = "unreachable"
+    render(<ResetPasswordPage />)
+    expect(await screen.findByLabelText("New password")).toBeTruthy()
   })
 })

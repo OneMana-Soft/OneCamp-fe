@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { GuestComposer, GuestLinkGone, GuestMessageView, GuestNameForm } from "./guestUi"
+import { GuestComposer, GuestMessageView, GuestNameForm } from "./guestUi"
+import { PublicGone } from "./publicStates"
 
 const pointer = (fine: boolean) => {
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -44,9 +45,9 @@ describe("the pieces every guest page shares", () => {
   })
 
   it("keeps the dead link's icon from screen readers", () => {
-    render(<GuestLinkGone />)
-    const heading = screen.getByRole("heading", { name: "This link is no longer available" })
-    const icon = heading.parentElement!.querySelector("svg")!
-    expect(icon).toHaveAttribute("aria-hidden", "true")
+    render(<PublicGone surface="guest-channel" noun="shared channel" />)
+    screen.getByRole("heading", { name: "This shared channel doesn't exist or was deleted" })
+    const spot = document.querySelector("[data-empty-illustration]")!
+    expect(spot).toHaveAttribute("aria-hidden", "true")
   })
 })

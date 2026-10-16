@@ -5,6 +5,7 @@ import {ExtendedComments} from "@/store/slice/channelCommentSlice";
 import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
+import {applyReplyEdit} from "@/lib/chat/replyEdit";
 
 
 interface ChatCommentInputState {
@@ -28,16 +29,11 @@ interface RemoveCommentByCommentID {
     commentId: string
 }
 
-interface UpdateComment {
-    chatId: string
-    commentIndex: number
-    htmlText: string
-}
-
 interface UpdateCommentByCommentID {
     chatId: string
     commentId: string
     htmlText: string
+    updatedAt?: string | null
 }
 
 interface CreateComment {
@@ -236,7 +232,7 @@ export const chatCommentSlice = createSlice({
 
         removeChatComment: (state, action: {payload: RemoveComment}) => {
             const { chatId, commentIndex } = action.payload;
-            if (commentIndex > -1 && commentIndex < state.chatComments[chatId].length) {
+            if (state.chatComments[chatId] && commentIndex > -1 && commentIndex < state.chatComments[chatId].length) {
                 state.chatComments[chatId].splice(commentIndex, 1);
             }
         },
@@ -250,21 +246,12 @@ export const chatCommentSlice = createSlice({
             }
         },
 
-        updateChatComment: (state, action: {payload: UpdateComment}) => {
-            const { chatId, commentIndex, htmlText } = action.payload;
-            if (commentIndex > -1 && commentIndex < state.chatComments[chatId].length) {
-                state.chatComments[chatId][commentIndex].comment_text = htmlText
-            }
-
-        },
-
         updateChatCommentByCommentId: (state, action: {payload: UpdateCommentByCommentID}) => {
-            const { chatId, commentId, htmlText } = action.payload;
-
+            const { chatId, commentId, htmlText, updatedAt } = action.payload;
             if (state.chatComments[chatId]) {
                 state.chatComments[chatId] = state.chatComments[chatId].map((comment) => {
                     if(comment.comment_uuid == commentId){
-                        comment.comment_text = htmlText
+                        applyReplyEdit(comment, htmlText, updatedAt)
                     }
                     return comment
                 })
@@ -428,7 +415,6 @@ export const {
     clearChatCommentInputState,
     addChatComments,
     removeChatComment,
-    updateChatComment,
     createChatComment,
     updateChatCommentReaction,
     updateChatCommentReactionByCommentId,

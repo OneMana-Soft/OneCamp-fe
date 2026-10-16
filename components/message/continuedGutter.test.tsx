@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { render } from "@testing-library/react"
 import { ContinuedGutter } from "./continuedGutter"
-import { chatClock } from "@/lib/chat/clock"
+import { clockTime } from "@/lib/utils/date/clock"
 
 // Design v3 chat, C08: the gutter time of a continued message is the reader's
 // own clock at 11px tabular, right-aligned to the 36px column, shown with the
@@ -11,7 +11,7 @@ describe("ContinuedGutter", () => {
   it("shows the reader's clock on hover and keeps the author and full time for a screen reader", () => {
     const { container } = render(<ContinuedGutter createdAt="2026-10-10T15:04:00" authorName="Maya Chen" />)
     const time = container.querySelector("time")!
-    expect(time.textContent).toBe(chatClock("2026-10-10T15:04:00"))
+    expect(time.textContent).toBe(clockTime("2026-10-10T15:04:00"))
     expect(time.className).toContain("opacity-0")
     expect(time.className).toContain("group-hover/row:opacity-100")
     expect(time.className).toContain("tabular-nums")
@@ -20,8 +20,10 @@ describe("ContinuedGutter", () => {
     expect(time.className).toContain("whitespace-nowrap")
     expect(time.className).toContain("absolute right-0")
     expect(time.parentElement!.className).toContain("w-9")
-    expect(time.getAttribute("title")).toBe("Saturday 10 October 2026, 3:04 PM")
-    expect(container.querySelector(".sr-only")?.textContent).toBe("Maya Chen, Saturday 10 October 2026, 3:04 PM")
+    // The full time is a tip (SD-11, timeTip.test.tsx), never a title as well.
+    expect(time.dataset.tip).toBe("Saturday 10 October 2026, 3:04\u00a0PM")
+    expect(time.hasAttribute("title")).toBe(false)
+    expect(container.querySelector(".sr-only")?.textContent).toBe("Maya Chen, Saturday 10 October 2026, 3:04\u00a0PM")
   })
 
   it("shows the pending clock while sending and the alert when not sent", () => {

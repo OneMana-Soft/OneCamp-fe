@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 // What sits under a message: work cards, agent results, files and the faces of
@@ -21,7 +21,8 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/lib/utils/file/downloadFile", () => ({ downloadFile: vi.fn() }))
 // The emoji data loads late and set state after the test had ended.
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
-vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
+let onPhone = false
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: onPhone, isDesktop: !onPhone }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => <a href={href} {...rest}>{children}</a> }))
 
@@ -54,18 +55,74 @@ describe("cards under a message", () => {
         attachmentSelected={() => {}}
       />,
     )
-    const button = screen.getByRole("button", { name: `Download ${LONG}` })
-    expect(button.getAttribute("data-file-card")).toBe("")
+    const button = screen.getByRole("button", { name: `Open ${LONG}` })
+    const card = container.querySelector("[data-file-card]")!
+    expect(card.contains(button)).toBe(true)
     expect(button.querySelector("[data-file-name] .truncate")).toBeTruthy()
     expect(button.querySelector("[data-file-name] .shrink-0")!.textContent).toBe("ency.pdf")
     // C24: the tile is in the kind's hue (a PDF is berry), and the name is cut in its middle.
-    expect(button.getAttribute("data-file-kind")).toBe("pdf")
+    expect(card.getAttribute("data-file-kind")).toBe("pdf")
     expect(button.querySelector("[data-card-tile]")!.className).toContain("hue-berry")
     expect(button.textContent).toContain(LONG)
     const box = container.querySelector("[data-message-attachments]")!
     expect(box.className).toContain("max-w-[520px]")
     expect(box.className).not.toContain("md:w-1/3")
     expect(box.className).not.toMatch(/\bmb-4\b/)
+  })
+
+  // MC-50: every shared PDF was a download. A file the viewer can show opens
+  // there, as a picture does, and keeps a Download of its own.
+  it("open a PDF, a Word or an Excel file in the viewer, with Download beside", async () => {
+    const { downloadFile } = await import("@/lib/utils/file/downloadFile")
+    for (const [name, raw] of [["brief.pdf", "application/pdf"], ["plan.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["budget.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], ["notes.txt", "text/plain"]]) {
+      vi.mocked(downloadFile).mockClear()
+      const opened = vi.fn()
+      const file = { attachment_uuid: name, attachment_file_name: name, attachment_type: "document" as const, attachment_size: 1000, attachment_created_at: "", attachment_raw_type: raw }
+      render(<MessageAttachments attachments={[file]} mediaGetUrl="/ch/getFile/c1" attachmentSelected={opened} />)
+      fireEvent.click(screen.getByRole("button", { name: `Open ${name}` }))
+      expect(opened).toHaveBeenCalledWith(file)
+      expect(downloadFile).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole("button", { name: `Download ${name}` }))
+      expect(downloadFile).toHaveBeenCalledWith("https://files.example/x", name)
+      expect(opened).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+  })
+
+  it("download a PDF on a phone, whose browser can't show one in the page", async () => {
+    onPhone = true
+    try {
+      render(
+        <MessageAttachments
+          attachments={[{ attachment_uuid: "p", attachment_file_name: "brief.pdf", attachment_type: "document", attachment_size: 1000, attachment_created_at: "", attachment_raw_type: "application/pdf" }]}
+          mediaGetUrl="/ch/getFile/c1"
+          attachmentSelected={() => {}}
+        />,
+      )
+      expect(screen.queryByRole("button", { name: "Open brief.pdf" })).toBeNull()
+      expect(screen.getByRole("button", { name: "Download brief.pdf" }).getAttribute("data-file-card")).toBe("")
+    } finally {
+      onPhone = false
+    }
+  })
+
+  it("download a file the viewer can't show, in one button", async () => {
+    const { downloadFile } = await import("@/lib/utils/file/downloadFile")
+    vi.mocked(downloadFile).mockClear()
+    const opened = vi.fn()
+    render(
+      <MessageAttachments
+        attachments={[{ attachment_uuid: "z", attachment_file_name: "assets.zip", attachment_type: "other", attachment_size: 1000, attachment_created_at: "", attachment_raw_type: "application/zip" }]}
+        mediaGetUrl="/ch/getFile/c1"
+        attachmentSelected={opened}
+      />,
+    )
+    expect(screen.queryByRole("button", { name: /^Open / })).toBeNull()
+    const card = screen.getByRole("button", { name: "Download assets.zip" })
+    expect(card.getAttribute("data-file-card")).toBe("")
+    fireEvent.click(card)
+    expect(downloadFile).toHaveBeenCalledWith("https://files.example/x", "assets.zip")
+    expect(opened).not.toHaveBeenCalled()
   })
 
   it("tint a doc card's tile in the doc's own hue", () => {

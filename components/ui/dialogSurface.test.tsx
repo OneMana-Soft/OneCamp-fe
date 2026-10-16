@@ -79,6 +79,23 @@ describe("dialog surface", () => {
     expect(rule).toMatch(/min-height:\s*60px/)
   })
 
+  it("stretches the footer's buttons to the dialog's width and 44px on a phone", () => {
+    // Critic, 11 Oct: the footer centred its items, so on a phone's stacked
+    // footer each button shrank to its label ("Send invitation" a 32px pill,
+    // Cancel bare text), while a confirm's already ran the full width.
+    const css = readFileSync(resolve(__dirname, "../../app/styles/admin/feedback.css"), "utf8")
+    const phone = css.slice(css.indexOf("@media (max-width: 639.98px)"), css.indexOf("@media (max-width: 639.98px)") + 600)
+    expect(phone).toMatch(/:is\(\.v3-dialog, \.v3-sheet\) > \.v3-dlg-footer[\s\S]*?align-items:\s*stretch/)
+    expect(phone).toMatch(/\.v3-alert-footer > :is\(button, a\)[\s\S]*?min-height:\s*44px/)
+    const alert = readFileSync(resolve(__dirname, "alert-dialog.tsx"), "utf8")
+    expect(alert).toMatch(/"v3-alert-footer /)
+  })
+
+  it("keeps the content to the dialog's width: one column, never wider", () => {
+    render(<Rename />)
+    expect(tokens(screen.getByRole("dialog"))).toContain("grid-cols-[minmax(0,1fr)]")
+  })
+
   it("closes from a 28px ghost button", () => {
     render(<Rename />)
     expect(tokens(screen.getByRole("button", { name: "Close" }))).toEqual(expect.arrayContaining(["h-7", "w-7"]))

@@ -27,6 +27,7 @@
 
 import { mediaOriginFromEnv } from "./mediaOrigin"
 import { parseOrigin } from "./origin"
+import { EMBED_FRAME_ORIGINS } from "../embeds/origins"
 
 /** The env values the policy is derived from. Passed in so the builder is pure. */
 interface CspOrigins {
@@ -157,8 +158,10 @@ export function buildCsp(origins: CspOrigins): string {
         "worker-src": ["'self'", "blob:"],
 
         // The document preview (PDF / DOCX) renders in a same-origin iframe, and
-        // the board UI studio uses a sandboxed blob iframe.
-        "frame-src": ["'self'", "blob:", "data:"],
+        // the board UI studio uses a sandboxed blob iframe. A doc's embeds are
+        // framed from their providers' own origins (lib/embeds/origins.ts),
+        // and from nowhere else.
+        "frame-src": ["'self'", "blob:", "data:", ...EMBED_FRAME_ORIGINS],
 
         // Nothing embeds OneCamp. This is the header version of X-Frame-Options,
         // which is also set for browsers that predate CSP support here.

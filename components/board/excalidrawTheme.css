@@ -47,7 +47,7 @@
   --button-active-border: transparent;
   --icon-fill-color: var(--ink-2);
   --text-primary-color: var(--ink);
-  --keybinding-color: var(--ink-4);
+  --keybinding-color: var(--ink-3);
   --input-bg-color: var(--raised);
   --input-border-color: var(--line-2);
   --input-hover-bg-color: var(--hover);
@@ -87,7 +87,7 @@
   --button-active-bg: var(--press);
   --icon-fill-color: var(--ink-2);
   --text-primary-color: var(--ink);
-  --keybinding-color: var(--ink-4);
+  --keybinding-color: var(--ink-3);
   --input-bg-color: var(--raised);
   --input-border-color: var(--line-2);
   --input-hover-bg-color: var(--hover);

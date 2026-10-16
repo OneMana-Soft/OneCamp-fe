@@ -25,10 +25,10 @@ import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
+import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
 import { FALLBACK_EVENT_TYPES, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { StateWord } from "@/components/admin/connectParts"
 import { PlayCircle } from "lucide-react"
@@ -164,10 +164,9 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
   const { data: eventTypesData } = useFetch<{ event_types: string[] }>(GetEndpointUrl.GetWebhookEventTypes)
   const EVENT_TYPES = eventTypesData?.event_types || FALLBACK_EVENT_TYPES
 
-  const { data: channelsData, isLoading: channelsLoading, isError: channelsError } = useFetch<ChannelInfoListInterfaceResp>(
-    GetEndpointUrl.GetAllActiveChannelList
-  )
-  const channels: ChannelInfoInterface[] = channelsData?.channels_list || []
+  // Every channel, page by page (the list answers 20 at a time); its failure
+  // is said in the picker, and the toast stays quiet.
+  const { channels, isLoading: channelsLoading, isError: channelsError } = useEveryChannel(open, OWN_ERRORS)
 
   useEffect(() => {
     if (open && webhook) {

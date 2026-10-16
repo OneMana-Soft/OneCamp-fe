@@ -20,6 +20,8 @@ export interface FieldInput {
   name: string
   type: FieldType
   options?: Partial<FieldOption>[]
+  /** Saved options taken out, by id. The server keeps an option a save doesn't list; only these go. */
+  removed_options?: string[]
   currency?: string
   on_card?: boolean
 }

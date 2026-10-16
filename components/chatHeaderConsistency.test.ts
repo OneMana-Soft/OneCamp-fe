@@ -36,7 +36,24 @@ describe("chat headers stay consistent", () => {
   })
 
   it("draws every title at the heading role (15/590)", () => {
-    for (const src of [channel, dm, group]) expect(headerOf(src)).toMatch(/data-header-title='' className='truncate text-heading text-ink/)
+    for (const src of [channel, dm, group]) expect(headerOf(src)).toMatch(/data-header-title='' className='[^']*\btruncate text-heading text-ink/)
+  })
+
+  it("keeps the name when the header is narrow: what follows it shrinks and goes first", () => {
+    // With a thread open beside it at 1024 the channel header was 360px wide,
+    // and its name truncated to nothing while "Add a topic" kept its width.
+    for (const src of [channel, dm]) {
+      const h = headerOf(src)
+      expect(h).toMatch(/<header className='@container\/chathead /)
+      expect(h).toMatch(/data-header-title='' className='[^']*min-w-\[4ch\]/)
+    }
+    const topics = [...headerOf(channel).matchAll(/data-header-topic='' className='([^']*)'/g)].map((m) => m[1])
+    expect(topics).toHaveLength(2)
+    for (const t of topics) {
+      expect(t).toContain("shrink-[8]")
+      expect(t).not.toContain("shrink-0")
+      expect(t).toContain("@[38rem]/chathead:block")
+    }
   })
 
   it("gives a channel no hue: a monochrome # (a lock when private), no hued tile", () => {
@@ -52,9 +69,26 @@ describe("chat headers stay consistent", () => {
 
   it("keeps at most three trailing controls beside who is here", () => {
     const right = headerOf(channel).split("<MemberStack")[1] ?? ""
-    const controls = (right.match(/<HuddleButton|aria-label='Search'|aria-label="More channel actions"/g) || []).length
+    const controls = (right.match(/<HuddleButton|aria-label=\{`Search in|aria-label="More channel actions"/g) || []).length
     expect(controls).toBe(3)
     expect(headerOf(channel)).not.toContain("<NotificationBell")
+  })
+
+  // Search opened the whole workspace's search, with the conversation lost (QA F-15).
+  it("searches in the conversation, from each header", () => {
+    expect(headerOf(channel)).toContain('href={searchWithinHref({ kind: "channel", id: channelId })}')
+    expect(headerOf(dm)).toContain('href={searchWithinHref({ kind: "dm", id: chatId })}')
+    expect(headerOf(group)).toContain('href={searchWithinHref({ kind: "group", id: grpId })}')
+    for (const src of [channel, dm, group]) expect(headerOf(src)).not.toContain("href='/app/search'")
+  })
+
+  // "Offline" on a computer, "Away" on a phone, for the same person (QA F-18).
+  it("says where a DM's person is by one rule, on a computer and a phone", () => {
+    expect(dm).toContain("presenceOf(userStatusState, otherUserInfo.data?.data)")
+    expect(dm).toContain("{PRESENCE_WORDS[presence]}")
+    const phone = readFileSync("components/navigationBar/mobile/phoneConversationTitle.tsx", "utf8")
+    expect(phone).toContain("PRESENCE_WORDS[presenceOf(state, person)]")
+    expect(phone).not.toContain('"Active now"')
   })
 
   it("never cycles notifications on a click: a radio menu", () => {

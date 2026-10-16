@@ -1,5 +1,5 @@
 import type { SearchResult } from "@/services/searchService"
-import { chatPath } from "@/lib/chat/chatPath"
+import { chatPath } from "@/lib/routes/conversationRoute"
 
 /**
  * Where a search result opens, as an app path, or null for a result that

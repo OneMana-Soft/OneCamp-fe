@@ -12,6 +12,7 @@ import { changedAtStart } from "@/components/message/listShift";
 import { rowMeta } from "@/components/message/rowMeta";
 import { followAfterScroll, READER_INPUT_MS } from "@/components/message/followEnd";
 import { prefersReducedMotion } from "@/lib/celebrate";
+import { ErrorState } from "@/components/ui/error-state";
 
 interface MessageRowProps<T> extends RowMeta {
     data: T
@@ -32,6 +33,48 @@ function MessageRowImpl<T>({ data, priority, isLast, continued, arrived, renderI
 const MemoizedMessageItem = React.memo(MessageRowImpl) as typeof MessageRowImpl
 
 
+/** The room the list leaves under its last message for a phone's floating composer (its pb-[150px]). */
+const PHONE_COMPOSER_ROOM = 150
+/** The gap between the pill and the composer on a phone (the pill's bottom-3 elsewhere). */
+const PILL_GAP = 12
+
+/**
+ * Where a phone's "Jump to latest" hangs: PILL_GAP above the composer's card,
+ * as an offset from the list's padding edge. Below md the composer floats over
+ * the list's last 150px, and a sticky offset counts from above that padding,
+ * so the pill hung about 100px over the conversation, across the author's name
+ * of a message (QA F-27). Measured while it shows, as the card grows with the
+ * tools and the formatting row. Undefined at md and up, or with no composer.
+ * Wherever the card is, the pill's foot lands PILL_GAP above its top.
+ */
+function usePillAboveComposer(scroller: React.RefObject<HTMLElement | null>, shown: boolean): number | undefined {
+    const [offset, setOffset] = useState<number>()
+    useEffect(() => {
+        const list = scroller.current
+        const phone = typeof window !== "undefined" && window.matchMedia?.("(max-width: 767.98px)").matches
+        // The phone's floating card, or (640 to 767px wide) the computer's
+        // composer under the list, which the 150px still pads.
+        const card =
+            document.querySelector<HTMLElement>("[data-phone-composer]") ??
+            document.querySelector<HTMLElement>("[data-composer-sheet]") ??
+            document.querySelector<HTMLElement>("[data-composer]")
+        if (!shown || !phone || !list || !card) {
+            setOffset(undefined)
+            return
+        }
+        const measure = () => {
+            const above = list.getBoundingClientRect().bottom - card.getBoundingClientRect().top
+            setOffset(Math.round(above + PILL_GAP - PHONE_COMPOSER_ROOM))
+        }
+        measure()
+        if (typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(measure)
+        observer.observe(card)
+        return () => observer.disconnect()
+    }, [scroller, shown])
+    return offset
+}
+
 export const MessageListVirtua = <T,>({
                                           items,
                                           renderItem,
@@ -51,6 +94,11 @@ export const MessageListVirtua = <T,>({
                                           empty,
                                           rawText,
                                           isForMe,
+                                          start,
+                                          label,
+                                          rowLabel,
+                                          isOwn,
+                                          retryOlder,
                                       }: Omit<VirtualizedListProps<T>, 'onScroll'> & {
                                           initialTopMostItemIndex?: number,
                                           initialScrollOffsetFromTop?: number,
@@ -61,11 +109,34 @@ export const MessageListVirtua = <T,>({
                                           rawText?: (item: T) => string | undefined,
                                           /** Whether a message is for the reader (mentions them): the jump pill says so. */
                                           isForMe?: (item: T) => boolean,
+                                          /**
+                                           * Where the conversation begins (ConversationEmpty, placement "start"):
+                                           * drawn above the first message once the whole history is here, as
+                                           * Slack and Discord open every history, so reaching the top says so.
+                                           */
+                                          start?: React.ReactNode,
+                                          /**
+                                           * What a screen reader calls the list: "Messages in #engineering" (SD-53).
+                                           */
+                                          label?: string,
+                                          /**
+                                           * A message's summary (lib/chat/messageSummary): its row's label, and what
+                                           * is announced when it arrives live (SD-53, SD-54).
+                                           */
+                                          rowLabel?: (item: T) => string,
+                                          /** Whether the reader sent it: their own sends are never announced. */
+                                          isOwn?: (item: T) => boolean,
+                                          /**
+                                           * Set when the older page failed: the list says so with Try again where the
+                                           * conversation's start would be, and asks for no more (SD-BUG-1).
+                                           */
+                                          retryOlder?: () => void,
                                       }) => {
     const scrollerRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const [visibleDateIndex, setVisibleDateIndex] = useState<number>(-1)
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(true)
+    const pillOffset = usePillAboveComposer(scrollerRef, !isScrolledToBottom)
 
     // STAYING AT THE BOTTOM. A reader at the bottom of a conversation stays
     // there as it grows: a new message, their own send, an image or a code
@@ -93,10 +164,32 @@ export const MessageListVirtua = <T,>({
     // The rows that arrived while the reader followed the end (C18), from the
     // same comparison: they rise into place once; anything loaded stands still.
     const [arrived, setArrived] = useState<ReadonlySet<string>>(() => new Set())
+    // Each message's summary, worked out once per message (an edited one is
+    // a new object): the list renders on every scroll.
+    const labels = useMemo(() => new WeakMap<object, string>(), [rowLabel])
+    const labelOf = (data: T | undefined): string | undefined => {
+        if (!rowLabel || data === undefined) return undefined
+        const key = data as unknown as object
+        let said = labels.get(key)
+        if (said === undefined) {
+            said = rowLabel(data)
+            labels.set(key, said)
+        }
+        return said
+    }
+    // What a screen reader is told of messages arriving live, wherever the
+    // reader is in the list (SD-54): a backlog, a page and your own sends say
+    // nothing (arrivedKeys). The zero-width mark makes a repeat a change.
+    const [spoken, setSpoken] = useState("")
     if (items !== prevItems) {
         setPrevItems(items)
         setShift(changedAtStart(prevItems, items))
         setArrived(arrivedKeys(prevItems, items, atBottomRef.current))
+        const live = rowLabel ? arrivedKeys(prevItems, items, true) : undefined
+        const said = live?.size
+            ? items.filter((i) => live.has(i.key) && i.data !== undefined && !isOwn?.(i.data)).map((i) => labelOf(i.data)!)
+            : []
+        if (said.length) setSpoken((was) => said.join(". ") + (was.endsWith("\u200b") ? "" : "\u200b"))
     }
     // An empty conversation getting its first message keeps its empty block a
     // moment longer, to leave rather than vanish.
@@ -135,6 +228,14 @@ export const MessageListVirtua = <T,>({
     // The floating day shows while the reader scrolls back through history,
     // and settles away 1.2 s after they stop at the end.
     const showDay = visibleDateIndex > -1 && items.length > 2 && (scrolling || !isScrolledToBottom)
+    // The conversation's beginning heads it once nothing older is left to load;
+    // an older page that failed says so in its place, with Try again, never
+    // that the conversation begins there (SD-BUG-1).
+    const startNode = retryOlder && !olderMessageLoading && items.length > 0
+        ? <div data-older-failed=""><ErrorState compact subject="older messages" onRetry={retryOlder} /></div>
+        : start && !hasOldMessage && !olderMessageLoading && items.length > 0
+            ? <div data-conversation-start="">{start}</div>
+            : null
 
     const toBottom = useCallback(() => {
         if (!ref.current || items.length === 0) return
@@ -246,13 +347,19 @@ export const MessageListVirtua = <T,>({
 
     // Anything that grows the conversation while the reader is at the bottom
     // (an image loading, a code block laying out, a reaction) keeps them there.
+    // So does anything that shortens the list itself: a long draft growing the
+    // composer, the formatting row or a reply opening on it, a huddle banner
+    // above, the phone's keyboard. The last messages used to slide under the
+    // composer while you wrote your answer to them.
     useLayoutEffect(() => {
         const content = contentRef.current
+        const scroller = scrollerRef.current
         if (!content || typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(() => {
             if (atBottomRef.current) toBottom()
         })
         observer.observe(content)
+        if (scroller) observer.observe(scroller)
         return () => observer.disconnect()
     }, [toBottom])
 
@@ -276,7 +383,10 @@ export const MessageListVirtua = <T,>({
     return (
         <div
             ref={scrollerRef}
-            className={cn(containerClassName, "touch-pan-y w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[150px]")}
+            // A column, so a conversation shorter than the screen sits at its
+            // end, just above the composer, as chat reads (the content's
+            // mt-auto); a longer one scrolls as before.
+            className={cn(containerClassName, "flex touch-pan-y flex-col w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[150px]")}
             style={{
                 overflowY: "auto", overflowX: "hidden", overflowAnchor: "none", WebkitOverflowScrolling: "touch", touchAction: "pan-y"
             }}
@@ -324,7 +434,8 @@ export const MessageListVirtua = <T,>({
                     </div>
                 )
             )}
-            <div ref={contentRef}>
+            {/* A labelled list of labelled rows (SD-53), busy while an older page loads. */}
+            <div ref={contentRef} data-list-content="" className="mt-auto" role="list" aria-label={label} aria-busy={olderMessageLoading || undefined}>
             <Virtualizer
                 ref={ref}
                 scrollRef={scrollerRef}
@@ -376,56 +487,74 @@ export const MessageListVirtua = <T,>({
                     window.clearTimeout(scrollIdle.current)
                     scrollIdle.current = window.setTimeout(() => setScrolling(false), 1200)
 
-                    if (offset < 200 && !olderMessageLoading && hasOldMessage) fetchOlderMessage()
+                    if (offset < 200 && !olderMessageLoading && hasOldMessage && !retryOlder) fetchOlderMessage()
                     if (fromBottom <= 200 && hasNewMessage && !newMessageLoading) fetchNewMessage()
                 }}
             >
                 {items.map((item, index) => {
+                    // The beginning rides on the first row (a virtual item of its
+                    // own would shift every index the list scrolls by).
+                    // Each row is a list item; the beginning (or the failed page)
+                    // is one of its own above the first.
+                    const head = index === 0 && startNode ? <div role="listitem">{startNode}</div> : null
                     if (item.type === "separator") {
                         return (
                             <div key={item.key}>
-                                <SeparatorPill>{getDateHeading(item.date!)}</SeparatorPill>
+                                {head}
+                                <div role="listitem"><SeparatorPill>{getDateHeading(item.date!)}</SeparatorPill></div>
                             </div>
                         )
                     }
                     if (item.type === "unread") {
                         return (
                             <div key={item.key}>
-                                <UnreadDivider count={unreadCount} seen={isScrolledToBottom && !scrolling} />
+                                {head}
+                                <div role="listitem"><UnreadDivider count={unreadCount} seen={isScrolledToBottom && !scrolling} /></div>
                             </div>
                         )
                     }
                     const meta = rowMeta(index, items.length, item.continued, arrived.has(item.key))
                     return (
                         <div key={item.key}>
-                            <MemoizedMessageItem
-                                data={item.data!}
-                                priority={meta.priority}
-                                isLast={meta.isLast}
-                                continued={meta.continued}
-                                arrived={meta.arrived}
-                                renderItem={renderItem}
-                                raw={rawText?.(item.data!)}
-                            />
+                            {head}
+                            <div role="listitem" aria-label={labelOf(item.data)}>
+                                <MemoizedMessageItem
+                                    data={item.data!}
+                                    priority={meta.priority}
+                                    isLast={meta.isLast}
+                                    continued={meta.continued}
+                                    arrived={meta.arrived}
+                                    renderItem={renderItem}
+                                    raw={rawText?.(item.data!)}
+                                />
+                            </div>
                         </div>
                     )
                 })}
             </Virtualizer>
             </div>
 
+            <p className="sr-only" aria-live="polite" data-announcer="">{spoken}</p>
+
             {!isScrolledToBottom && (
-                // Back to the newest message (C17): a centred pill 16px above
-                // the composer, on the pop surface at e3. With messages waiting
-                // its arrow turns the accent, which is "for you"; one that
-                // mentions you says so. It takes no room: a zero-height sticky
-                // row it hangs above.
-                <div className="pointer-events-none sticky bottom-4 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible pointer-coarse:bottom-3">
+                // Back to the newest message (C17): a pill 16px above the
+                // composer, centred over it (the composer is the 800px column
+                // 20px in, so on a wide sheet the pill keeps to that column's
+                // middle, not the sheet's), on the pop surface at e3. With
+                // messages waiting its arrow turns the accent, which is "for
+                // you"; one that mentions you says so. It takes no room: a
+                // zero-height sticky row it hangs above.
+                <div
+                    data-jump-row=""
+                    className="pointer-events-none sticky bottom-4 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible pointer-coarse:bottom-3"
+                    style={pillOffset === undefined ? undefined : { bottom: pillOffset }}
+                >
                     <button
                         type="button"
                         onClick={jumpToLatest}
                         data-jump-pill=""
                         className={cn(
-                            "pointer-events-auto absolute bottom-0 left-1/2 flex h-[30px] -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-[15px] pl-1.5 pr-3 text-ui-sm font-medium text-ink",
+                            "pointer-events-auto absolute bottom-0 left-[min(50%,420px)] flex h-[30px] -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-[15px] pl-1.5 pr-3 text-ui-sm font-medium text-ink",
                             "pop-surface animate-pill-in transition-[translate,scale] duration-[140ms] ease-out hover:-translate-y-px active:scale-[0.97]",
                             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                         )}
@@ -440,7 +569,7 @@ export const MessageListVirtua = <T,>({
                                     <>
                                         <span aria-hidden="true" className="text-ink-3">·</span>
                                         <span aria-hidden="true" className="size-1.5 rounded-full bg-brand" />
-                                        <span>{unseenForMe} mentions you</span>
+                                        <span>{unseenForMe} {unseenForMe === 1 ? "mentions" : "mention"} you</span>
                                     </>
                                 )}
                             </span>

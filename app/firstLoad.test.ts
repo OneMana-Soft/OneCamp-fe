@@ -89,6 +89,15 @@ const PROJECT_LAZY = [
   "components/task/cycleBurndownDialog.tsx",
   "components/charts/SvgChart.tsx",
   "components/task/taskCreateForm.tsx",
+  // The timeline's layout and the workload's sums: a list's writes need only
+  // a date reader and the workload's address (lib/tasks/taskDate,
+  // lib/workloadKey), and the two came in whole, 37 KB, through useTaskUpdate.
+  "lib/timeline.ts",
+  "lib/workload.ts",
+  // The number reader: a field's value is read where it is typed, in the task
+  // panel (lib/tasks/fieldInput), never where a list shows it (17d, 16 Oct:
+  // through lib/tasks/fields it took the route 1,160 B over its ceiling).
+  "lib/format/number.ts",
 ]
 /** Bytes of source the project route reaches by static import: 1.61 MB before the split, 0.95 MB after. */
 const PROJECT_ROUTE_SOURCE_CEILING = 980_000

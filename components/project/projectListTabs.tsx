@@ -9,10 +9,10 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
-import { getNextNotification } from "@/lib/utils/getNextNotification"
+import { optimistic } from "@/lib/optimistic"
 import { NotificationType } from "@/types/channel"
 import type { ProjectNotificationInterface } from "@/types/project"
-import { Bell, Pencil, Users } from "@/lib/icons"
+import { Pencil, Users } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
@@ -20,11 +20,14 @@ import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
 import dynamic from "next/dynamic"
 import { TabLoading } from "@/components/task/TabLoading"
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 
 // Each tab past Tasks is its own chunk, loaded when it is opened.
 const ProjectTaskKanban = dynamic(() => import("@/components/project/projectTaskKanban").then((m) => m.ProjectTaskKanban), { loading: () => <TabLoading kind="board" /> })
 const ProjectTimeline = dynamic(() => import("@/components/project/timeline/ProjectTimeline").then((m) => m.ProjectTimeline), { loading: () => <TabLoading kind="timeline" /> })
 const ProjectUpdates = dynamic(() => import("@/components/projectUpdates/ProjectUpdates").then((m) => m.ProjectUpdates), { loading: () => <TabLoading kind="list" /> })
+// The project's docs (docs programme B5): the pages made in its space.
+const SpaceDocs = dynamic(() => import("@/components/docTree/SpaceDocs"), { loading: () => <TabLoading kind="list" /> })
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTabInAddress } from "@/components/task/keptTabs"
 import { app_task_path } from "@/types/paths"
@@ -36,7 +39,7 @@ import { app_task_path } from "@/types/paths"
  * `SectionTabs` primitive (Notion-style underline) so the look matches
  * channel / chat / activity tabs.
  */
-type Tab = "task" | "board" | "timeline" | "updates" | "attachment"
+type Tab = "task" | "board" | "timeline" | "updates" | "attachment" | "docs"
 
 // ?tab= names the desktop's tabs (list, kanban, attachments) or the phone's
 // own; a link to a project's board opens its board on a phone too. The
@@ -50,8 +53,9 @@ const FROM_ADDRESS: Record<string, Tab> = {
     updates: "updates",
     attachments: "attachment",
     attachment: "attachment",
+    docs: "docs",
 }
-const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", timeline: "timeline", updates: "updates", attachment: "attachments" }
+const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", timeline: "timeline", updates: "updates", attachment: "attachments", docs: "docs" }
 
 export function ProjectListTabs({ projectId }: { projectId: string }) {
     const params = useSearchParams()
@@ -72,20 +76,18 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
     useEffect(() => {
         if (info?.notification_type) setNotification(info.notification_type)
     }, [info?.notification_type])
-    const notificationLabel = notification === NotificationType.NotificationAll ? "All messages" : notification === NotificationType.NotificationMention ? "Mentions only" : "Muted"
+    // A level is chosen from the menu's Notifications, shown at once and taken
+    // back if the server refuses it (PTC-26: one tap cycled it).
+    const chooseNotification = (level: string) => {
+        const before = notification
+        void optimistic({
+            key: `project:${projectId}:notify`,
+            apply: () => setNotification(level),
+            revert: () => setNotification(before),
+            commit: () => postNotification.makeRequest<ProjectNotificationInterface>({ payload: { project_id: projectId, notification_type: level }, apiEndpoint: PostEndpointUrl.UpdateProjectNotification }),
+        })
+    }
     const extra: ProjectMenuExtra[] = [
-        {
-            key: "notifications",
-            label: "Notifications",
-            detail: notificationLabel,
-            Icon: Bell,
-            onSelect: () => {
-                const next = getNextNotification(notification)
-                void postNotification
-                    .makeRequest<ProjectNotificationInterface>({ payload: { project_id: projectId, notification_type: next }, apiEndpoint: PostEndpointUrl.UpdateProjectNotification })
-                    .then(() => setNotification(next), () => undefined)
-            },
-        },
         ...(info?.project_is_admin
             ? [{ key: "rename", label: "Edit project name", Icon: Pencil, onSelect: () => dispatch(openUI({ key: "editProjectName", data: { projectUUID: projectId } })) }]
             : []),
@@ -101,14 +103,15 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             <div className="grid shrink-0 grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
                 <div className="flex items-center gap-1">
                     <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 overflow-hidden" />
-                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} extra={extra} />
+                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} archived={!isZeroEpoch(info?.project_deleted_at || "")} notifications={{ level: notification, onChoose: chooseNotification }} extra={extra} />
                 </div>
                 {/* Each piece loads on its own, so each has its place from the
-                    first paint: the chips in a row of their own that scrolls
-                    sideways rather than wrapping. */}
-                <div className="flex h-8 items-center gap-2 overflow-x-auto no-scrollbar [&>*]:shrink-0">
-                    <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} />
-                    <ProjectGoalChip projectId={projectId} />
+                    first paint: the chips in a row of their own. The goal's name
+                    gives way with an ellipsis, as on a computer, rather than the
+                    row running off the screen mid-word (PTC-43). */}
+                <div data-project-chips="" className="flex h-8 min-w-0 items-center gap-2">
+                    <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} className="shrink-0" />
+                    <ProjectGoalChip projectId={projectId} className="min-w-0 shrink overflow-hidden" />
                 </div>
             </div>
         <SectionTabs
@@ -118,6 +121,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 { value: "timeline", label: "Timeline" },
                 { value: "updates", label: "Updates" },
                 { value: "attachment", label: "Files" },
+                { value: "docs", label: "Docs" },
             ]}
             value={selectedTab}
             onValueChange={(v) => setSelectedTab(v as Tab)}
@@ -127,22 +131,27 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 <ProjectListTabContent selectedTab="task" projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="board" className="flex-1 min-h-0 outline-none">
-                <ProjectTaskKanban projectId={projectId} className="px-4 pt-3" />
+                {/* No side padding: the board runs to the screen's edges and keeps its
+                    own 16px margin, so the next column can peek in at the right. */}
+                <ProjectTaskKanban projectId={projectId} className="pt-3" />
             </SectionTabsContent>
             <SectionTabsContent value="timeline" className="flex-1 min-h-0 outline-none">
                 <ProjectTimeline
                     key={projectId}
                     compact
                     projectId={projectId}
-                    className="px-4 pt-3 pb-3"
+                    className="pb-3"
                     onOpenTask={(taskUUID) => router.push(`${app_task_path}/${taskUUID}`)}
                 />
             </SectionTabsContent>
-            <SectionTabsContent value="updates" className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 outline-none">
+            <SectionTabsContent value="updates" className="flex-1 min-h-0 overflow-y-auto outline-none">
                 <ProjectUpdates projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="attachment" className="flex-1 min-h-0 outline-none">
                 <ProjectListTabContent selectedTab="attachment" projectId={projectId} />
+            </SectionTabsContent>
+            <SectionTabsContent value="docs" className="flex-1 min-h-0 overflow-y-auto outline-none">
+                <SpaceDocs space={`project:${projectId}` as const} name={info?.project_name} />
             </SectionTabsContent>
         </SectionTabs>
         </div>

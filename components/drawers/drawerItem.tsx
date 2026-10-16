@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Tile } from "@/components/ui/graphics/Tile"
 import type { CampHue } from "@/lib/campHue"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 interface DrawerItemProps {
     icon?: LucideIcon
@@ -13,6 +14,10 @@ interface DrawerItemProps {
     onClick: () => void
     destructive?: boolean
     trailing?: React.ReactNode
+    /** Drawn in the icon's 32px slot when the row's mark is not an icon (a status glyph, an avatar). */
+    leading?: React.ReactNode
+    /** The choice in force, of a group of choices (the column a card is in): a check, and said as current. */
+    current?: boolean
     disabled?: boolean
     /** Sets the icon on a tint tile in this hue: a place's colour (lib/destinationHue). */
     hue?: CampHue
@@ -36,6 +41,8 @@ export function DrawerItem({
     onClick,
     destructive,
     trailing,
+    leading,
+    current,
     disabled,
     hue,
     neutralTile,
@@ -47,6 +54,7 @@ export function DrawerItem({
             disabled={disabled}
             // The row press (design v3, mobile F2, app/phone.css).
             data-press="row"
+            aria-current={current || undefined}
             data-tone={destructive ? "danger" : undefined}
             className={cn(
                 // 44px (design v3, Ph3), r10 inside the r20 sheet; the alpha
@@ -81,6 +89,10 @@ export function DrawerItem({
                         strokeWidth={1.75}
                     />
                 </span>
+            ) : leading ? (
+                <span data-drawer-icon="" className="flex size-8 shrink-0 items-center justify-center">
+                    {leading}
+                </span>
             ) : null}
             <span className="flex-1 min-w-0">
                 <span
@@ -98,6 +110,7 @@ export function DrawerItem({
                 )}
             </span>
             {trailing}
+            {current !== undefined && <MenuCheck checked={current} className="text-brand" />}
         </button>
     )
 }

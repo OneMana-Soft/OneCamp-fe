@@ -1,0 +1,25 @@
+/* The history sheet (docs programme B8): loaded with the sheet, never with
+   the doc. The preview is the doc's own type (the editor's classes on a
+   read-only copy: snapshotHtml dresses each block), so a version reads as
+   the doc reads. */
+
+/* A long version stays light: the browser lays out and paints only the
+   blocks near the screen (5,000 blocks: the first screen in 17 ms, the rest
+   in slices, and no frame over 50 ms at 1x CPU). The size a block last had
+   stands in while it is off screen. */
+.history-preview > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1.625rem;
+}
+
+/* Read, not edited: the arrow, not the text caret. Text still selects, so
+   a block can be copied out of an old version. */
+.minimal-tiptap-editor.doc-editor .ProseMirror.history-preview {
+  cursor: auto;
+  min-height: 0;
+}
+
+/* A checklist's box in a version is drawn, never a control. */
+.history-preview input[type="checkbox"] {
+  pointer-events: none;
+}

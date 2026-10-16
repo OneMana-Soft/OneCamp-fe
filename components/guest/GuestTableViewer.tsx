@@ -11,17 +11,20 @@
 
 import * as React from "react"
 import "@/components/table/table.css"
-import { TableField, TableRow, RelationRef, SelectOption, parseFieldConfig, parseRowValues, computedOf } from "@/services/tableService"
-import { Check } from "@/lib/icons"
+import { TableField, TableRow, RelationRef, isHiddenRef, isNumeric, optionsOf, parseRowValues, computedOf } from "@/services/tableService"
+import { Check, Lock } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
 import { OptionChip, chipsTinted } from "@/components/table/optionChip"
-import { FIELD_GLYPH, dayOf, isNumeric } from "@/components/table/gridCells"
-import { formatNumber, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
+import { FIELD_GLYPH, dayOf } from "@/components/table/gridCells"
+import { formatNumber, hiddenText, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
+import { formatLocale } from "@/lib/tables/numberFormat"
 import { cn } from "@/lib/utils/helpers/cn"
 
 interface GuestTableViewerProps {
   fields: TableField[]
   rows: TableRow[]
+  /** Every row of the table, when the share shows only its first rows. */
+  total?: number
 }
 
 function CellValue({ field, value }: { field: TableField; value: unknown }) {
@@ -60,7 +63,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
 
     case "select":
     case "multi_select": {
-      const opts = (parseFieldConfig(field).options as SelectOption[] | undefined) || []
+      const opts = optionsOf(field)
       const arr = Array.isArray(value) ? value : [value]
       return (
         <span className="flex flex-wrap gap-1">
@@ -73,15 +76,24 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
     }
 
     case "relation": {
+      // By name; what the guest can't see as one chip, never by its id.
       const refs = Array.isArray(value) ? (value as RelationRef[]) : []
+      const named = refs.filter((r) => r && !isHiddenRef(r) && r.label)
+      const hidden = refs.length - named.length
       if (refs.length === 0) return <span className="sr-only">Empty</span>
       return (
         <span className="flex flex-wrap gap-1">
-          {refs.map((r, i) => (
-            <span key={r?.id || i} className="inline-flex h-[22px] items-center rounded-md bg-raised px-1.5 text-meta font-medium text-ink shadow-e1">
-              {r?.label || String(r?.id || "")}
+          {named.map((r, i) => (
+            <span key={r.id || i} className="inline-flex h-[22px] items-center rounded-md bg-raised px-1.5 text-meta font-medium text-ink shadow-e1">
+              {r.label}
             </span>
           ))}
+          {hidden > 0 ? (
+            <span className="inline-flex h-[22px] items-center gap-1 rounded-md bg-hover px-1.5 text-meta text-ink-3 ring-1 ring-inset ring-line">
+              <Lock className="size-3 shrink-0" aria-hidden="true" />
+              {hiddenText(hidden)}
+            </span>
+          ) : null}
         </span>
       )
     }
@@ -114,7 +126,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
   }
 }
 
-export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
+export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps) {
   const sortedFields = React.useMemo(() => [...fields].sort((a, b) => a.position - b.position), [fields])
   const sortedRows = React.useMemo(() => [...rows].sort((a, b) => a.position - b.position), [rows])
 
@@ -180,6 +192,12 @@ export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
           )}
         </tbody>
       </table>
+      {/* A share shows the table's first rows; past them, it says so. */}
+      {total !== undefined && total > rows.length ? (
+        <p className="px-5 pt-3 text-meta text-ink-3 sm:px-8" data-guest-rows-more="">
+          Showing the first {formatLocale(rows.length, {})} of {formatLocale(total, {})} rows.
+        </p>
+      ) : null}
     </div>
   )
 }

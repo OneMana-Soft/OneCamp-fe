@@ -18,9 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PriorityGlyph, StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { statusKindOf } from "@/components/task/taskStatusCell"
 import { CyclesButton } from "@/components/task/cyclesButton"
 import { TaskTableFieldFilter } from "@/components/task/taskTableFieldFilter"
@@ -29,7 +31,7 @@ import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useTaskViews } from "@/hooks/useTaskViews"
 import { useToast } from "@/hooks/use-toast"
-import { Bookmark, Filter, Plus, Search, SlidersHorizontal, Users } from "@/lib/icons"
+import { ArrowDown, ArrowUp, Bookmark, Filter, Plus, Search, SlidersHorizontal, Users } from "@/lib/icons"
 import { cycleFilter } from "@/lib/tasks/cycles"
 import { GROUPINGS, type Grouping } from "@/lib/tasks/grouping"
 import { DUE_WEEK } from "@/lib/tasks/listAddress"
@@ -42,6 +44,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import type { UserProfileInterface } from "@/types/user"
 import type { RowProp } from "@/components/task/GroupedTaskList"
+import { WorkSegmented } from "@/components/task/WorkTabs"
 
 /** The toolbar's height (work.md W10, §1.6.6). */
 export const TOOLBAR_H = "h-11"
@@ -72,28 +75,8 @@ const ORDERINGS = [
   { value: "task_created_at", label: "Created" },
 ]
 
-/**
- * The list's one toolbar (design v3, work.md W10): 44 px, ghost Filter with
- * the active filters as chips after it, then search as an icon that opens in
- * place, Display, and the one primary, New task. It replaced nine bordered
- * buttons of equal weight in one or two rows.
- */
-export function WorkToolbar<TData>({
-  table,
-  projectId,
-  grouping,
-  onGrouping,
-  props,
-  allProps,
-  onProps,
-  showCompleted,
-  onShowCompleted,
-  layout,
-  onLayout,
-  onReset,
-}: {
-  table: Table<TData>
-  projectId?: string
+/** What a list's Display offers (DisplayMenu). */
+interface ListDisplay {
   grouping: Grouping
   onGrouping: (g: Grouping) => void
   props: RowProp[]
@@ -104,7 +87,25 @@ export function WorkToolbar<TData>({
   layout?: Layout
   onLayout?: (l: Layout) => void
   onReset: () => void
-}) {
+}
+
+type WorkToolbarProps<TData> = {
+  table: Table<TData>
+  projectId?: string
+  /** The screen's own controls after the filter chips: a board's tags, the columns it hides. */
+  extra?: React.ReactNode
+} & ({ display: React.ReactElement } | ({ display?: undefined } & ListDisplay))
+
+/**
+ * The work area's one toolbar (design v3, work.md W10): 44 px, ghost Filter
+ * with the active filters as chips after it, then search as an icon that
+ * opens in place, Display, and the one primary, New task. It replaced nine
+ * bordered buttons of equal weight in one or two rows. A project's list and
+ * its board share it (PTC-6: the board drew its own chips, with no Filter,
+ * Search or Cycle); the board brings its own Display.
+ */
+export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
+  const { table, projectId, extra } = toolbar
   const dispatch = useDispatch()
   const { t } = useTranslation()
   const { options: statusOpts } = useProjectStatuses(projectId)
@@ -197,7 +198,10 @@ export function WorkToolbar<TData>({
   }
 
   return (
-    <div ref={bar} data-work-toolbar="" className={cn(TOOLBAR_H, "flex items-center gap-1.5 border-b border-line pl-4 pr-4")}>
+    // A container: with a side panel open the list can be 300 px wide, and the
+    // band's words give way (Display and New task to their icons) before
+    // New task is pushed out of sight.
+    <div ref={bar} data-work-toolbar="" className={cn(TOOLBAR_H, "@container flex items-center gap-1.5 border-b border-line pl-4 pr-4")}>
       <DropdownMenu open={filterOpen} onOpenChange={setFilterOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="shrink-0 text-ui-sm" title="Filter (F)">
@@ -226,7 +230,7 @@ export function WorkToolbar<TData>({
             <FacetSub label="Assignee" glyph={<Users className="size-3.5 text-ink-3" />}>
               {people2.map((p) => (
                 <DropdownMenuCheckboxItem key={p.uid} checked={who.includes(p.uid || "")} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggle("task_assignee_name", p.uid || "")} className="h-[30px] gap-2 text-sm">
-                  <IdentityMark variant="avatar" id={p.user_uuid} label={displayNameOf(p)} size={18} />
+                  <IdentityMark variant="avatar" id={avatarSeed(p)} label={displayNameOf(p)} size={18} />
                   <span className="truncate">{displayNameOf(p)}</span>
                 </DropdownMenuCheckboxItem>
               ))}
@@ -259,6 +263,7 @@ export function WorkToolbar<TData>({
         ))}
         {projectId && fields.length > 0 && <TaskTableFieldFilter table={table} fields={fields} people={people} variant="ghost" />}
         {projectId && <CyclesButton projectId={projectId} activeCycleId={activeCycleId} onShow={showCycle} />}
+        {extra}
         {chips.length >= 2 && (
           <Button variant="ghost" size="xs" onClick={clearAll} className="shrink-0">
             Clear
@@ -292,24 +297,11 @@ export function WorkToolbar<TData>({
             <Search className="size-3.5" />
           </Button>
         )}
-        <DisplayMenu
-          projectId={projectId}
-          table={table}
-          grouping={grouping}
-          onGrouping={onGrouping}
-          props={props}
-          allProps={allProps}
-          onProps={onProps}
-          showCompleted={showCompleted}
-          onShowCompleted={onShowCompleted}
-          layout={layout}
-          onLayout={onLayout}
-          onReset={onReset}
-        />
-        <Button size="sm" className="ml-1 text-ui-sm" onClick={newTask}>
+        {toolbar.display !== undefined ? toolbar.display : <DisplayMenu {...toolbar} />}
+        <Button size="sm" className="ml-1 text-ui-sm" onClick={newTask} aria-label="New task">
           <Plus className="size-3.5" />
-          New task
-          <span className="kbd" aria-hidden="true">C</span>
+          <span className="@max-[520px]:hidden">New task</span>
+          <span className="kbd @max-[520px]:hidden" aria-hidden="true">C</span>
         </Button>
       </div>
     </div>
@@ -330,53 +322,8 @@ function FacetSub({ label, glyph, children }: { label: string; glyph: React.Reac
   )
 }
 
-/**
- * A v3 segmented control (work.md W11): a 28 px r8 track on --press, the
- * chosen segment raised (--raised, e-sel) on a thumb that slides on transform.
- */
-export function WorkSegmented<T extends string>({
-  value,
-  options,
-  onChange,
-  label,
-  className,
-}: {
-  value: T
-  options: { value: T; label: React.ReactNode; icon?: React.ReactNode; disabled?: boolean; title?: string }[]
-  onChange: (v: T) => void
-  label: string
-  className?: string
-}) {
-  const i = Math.max(0, options.findIndex((o) => o.value === value))
-  return (
-    <div role="radiogroup" aria-label={label} className={cn("relative grid h-7 rounded-md bg-press p-0.5", className)} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
-      <span
-        aria-hidden="true"
-        className="absolute bottom-0.5 left-0.5 top-0.5 rounded-[6px] bg-raised shadow-sel transition-transform duration-[180ms] ease-out"
-        style={{ width: `calc((100% - 4px) / ${options.length})`, transform: `translateX(${i * 100}%)` }}
-      />
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={o.value === value}
-          disabled={o.disabled}
-          title={o.title}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            "relative z-[1] inline-flex items-center justify-center gap-1.5 rounded-[6px] px-2 text-ui-sm font-[510] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-            o.value === value ? "text-foreground" : "text-ink-2 hover:text-foreground",
-            o.disabled && "text-ink-4",
-          )}
-        >
-          {o.icon}
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
-}
+/** The work area's one segmented control (components/task/WorkTabs). */
+export { WorkSegmented }
 
 /** Display (work.md W11): saved views, layout, grouping, ordering, completed, properties. */
 function DisplayMenu<TData>({
@@ -429,7 +376,7 @@ function DisplayMenu<TData>({
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className="text-ui-sm">
           <SlidersHorizontal className="size-3.5" />
-          Display
+          <span className="@max-[520px]:sr-only">Display</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-3" data-display-menu="">
@@ -455,6 +402,7 @@ function DisplayMenu<TData>({
               label="Layout"
               value={layout}
               onChange={onLayout}
+              className="flex w-full"
               options={[
                 { value: "list", label: "List" },
                 { value: "kanban", label: "Board" },
@@ -465,14 +413,14 @@ function DisplayMenu<TData>({
         )}
         <Section title="Arrange">
           <Row label="Grouping">
-            <NativeSelect value={grouping} onChange={(v) => onGrouping(v as Grouping)} options={groupings} label="Grouping" />
+            <MenuSelect value={grouping} onChange={(v) => onGrouping(v as Grouping)} options={groupings} label="Grouping" />
           </Row>
           <Row label="Ordering">
             <span className="flex items-center gap-1">
-              <NativeSelect value={sort?.id ?? ""} onChange={(v) => table.setSorting(v ? [{ id: v, desc: !!sort?.desc }] : [])} options={ORDERINGS} label="Ordering" />
+              <MenuSelect value={sort?.id ?? ""} onChange={(v) => table.setSorting(v ? [{ id: v, desc: !!sort?.desc }] : [])} options={ORDERINGS} label="Ordering" />
               {sort && (
-                <button type="button" aria-label={sort.desc ? "Descending" : "Ascending"} onClick={() => table.setSorting([{ id: sort.id, desc: !sort.desc }])} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-2 shadow-e1 hover:bg-hover">
-                  {sort.desc ? "↓" : "↑"}
+                <button type="button" aria-label={sort.desc ? "Descending" : "Ascending"} title={sort.desc ? "Descending" : "Ascending"} onClick={() => table.setSorting([{ id: sort.id, desc: !sort.desc }])} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-raised text-ink-2 shadow-e1 hover:text-foreground">
+                  {sort.desc ? <ArrowDown className="size-3.5" aria-hidden="true" /> : <ArrowUp className="size-3.5" aria-hidden="true" />}
                 </button>
               )}
             </span>
@@ -482,7 +430,6 @@ function DisplayMenu<TData>({
               label="Show completed"
               value={showCompleted}
               onChange={onShowCompleted}
-              className="w-44"
               options={[
                 { value: "all", label: "All" },
                 { value: "week", label: "7 days" },
@@ -561,20 +508,26 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-function NativeSelect({ value, onChange, options, label }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; label: string }) {
+/**
+ * A choice inside the Display menu: the app's own select (a native one drew
+ * the system's chevron and list), 28 px to match the rows' controls. Radix
+ * takes no empty value, so "none" stands in for the option whose value is "".
+ */
+const NONE = "__none"
+function MenuSelect({ value, onChange, options, label }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; label: string }) {
   return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-7 rounded-md bg-raised px-2 text-ui-sm font-[510] text-foreground shadow-e1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+      <SelectTrigger dense aria-label={label} className="h-7 w-[128px] bg-raised text-ui-sm font-[510] text-foreground shadow-e1">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="end">
+        {options.map((o) => (
+          <SelectItem key={o.value || NONE} value={o.value || NONE}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

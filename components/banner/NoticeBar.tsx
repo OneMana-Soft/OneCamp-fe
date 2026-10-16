@@ -159,24 +159,30 @@ export function NoticeBar({
   return (
     <div
       data-notice={tone}
+      data-has-action={action ? "" : undefined}
       role={role}
       style={stack ? { order: stack.order(id) } : undefined}
       className={cn("notice flex min-h-10 items-center gap-2.5 border-b border-line py-1.5 pl-4 text-xs text-ink-2", onDismiss || action ? "pr-4 sm:pr-2" : "pr-4", t.cls)}
     >
-      {icon ?? (Icon ? <Icon className="notice-icon size-3.5 shrink-0" aria-hidden="true" /> : <NoticeMark />)}
-      <div className="min-w-0 flex-1 py-0.5">
+      <span className="notice-lead flex shrink-0">
+        {icon ?? (Icon ? <Icon className="notice-icon size-3.5 shrink-0" aria-hidden="true" /> : <NoticeMark />)}
+      </span>
+      <div className="notice-text min-w-0 flex-1 py-0.5">
         {lead && <b className="font-semibold text-ink">{lead}</b>}
         {lead && children ? " " : null}
         {children}
       </div>
-      {action}
+      {/* On a phone the action takes its own row under the words (globals.css),
+          so the words get the width: beside a 44px button they ran to four
+          lines at 390. */}
+      {action ? <span className="notice-act flex shrink-0">{action}</span> : null}
       {onDismiss && (
         <button
           type="button"
           onClick={onDismiss}
           aria-label={dismissLabel}
           className={cn(
-            "inline-flex size-[26px] shrink-0 items-center justify-center rounded-[7px] text-ink-3 transition-colors hover:bg-hover hover:text-ink [@media(pointer:coarse)]:size-11",
+            "notice-close inline-flex size-[26px] shrink-0 items-center justify-center rounded-[7px] text-ink-3 transition-colors hover:bg-hover hover:text-ink [@media(pointer:coarse)]:size-11",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
           )}
         >

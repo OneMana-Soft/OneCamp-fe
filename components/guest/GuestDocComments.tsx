@@ -19,6 +19,7 @@
  * back and nothing else.
  */
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { PrincipalTag } from "@/components/ui/principalTag"
@@ -123,7 +124,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
           <ul className="mt-3 grid gap-4">
             {comments.map((c) => (
               <li key={c.id} className={cn("flex gap-3", posted.some((p) => p.id === c.id) && "content-row-in")}>
-                <IdentityMark variant="avatar" size={28} id={c.guest_name} label={c.guest_name || "Guest"} />
+                <IdentityMark variant="avatar" size={28} id={avatarSeed(c.guest_name)} label={c.guest_name || "Guest"} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="text-ui font-medium text-ink">{c.guest_name}</span>

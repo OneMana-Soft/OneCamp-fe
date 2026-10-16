@@ -76,6 +76,12 @@ const isEnding = (h: string) => ENDINGS.some((e) => e.value === h)
  * check-in can move its number, or close it as achieved, missed or dropped.
  * Either can be posted in a channel too.
  */
+/**
+ * A draft with an empty line above it, where the cursor waits: typing there
+ * ran into the draft's first line ("…on track.Since Wed 7 Oct: …", PTC-23).
+ */
+const roomAbove = (text: string) => (text ? `\n\n${text}` : "")
+
 export function UpdateComposer({
   editing,
   hasAI,
@@ -143,7 +149,7 @@ export function UpdateComposer({
     draft()
       .then((d) => {
         if (!live) return
-        setBody(d.text)
+        setBody(roomAbove(d.text))
         if (!initialHealth) setHealth(d.health)
         setSuggested(d.health)
         setSince(d.since ?? null)
@@ -163,7 +169,8 @@ export function UpdateComposer({
     el.style.height = `${Math.min(el.scrollHeight + 2, window.innerHeight * 0.6)}px`
   }, [body])
 
-  // Once drafted, the cursor waits at the top, where the summary is.
+  // Once drafted, the cursor waits at the top, on a line of its own above the
+  // draft, where the summary goes.
   useEffect(() => {
     const el = area.current
     if (busy !== null || !el) return
@@ -192,7 +199,8 @@ export function UpdateComposer({
   const submit = async () => {
     if (!canPost || busy) return
     setBusy("post")
-    const input: UpdateInput = clientShare ? { health, body, shared_with_client: shared } : { health, body }
+    const text = body.trim()
+    const input: UpdateInput = clientShare ? { health, body: text, shared_with_client: shared } : { health, body: text }
     try {
       if (editing) {
         await edit(editing.id, input)

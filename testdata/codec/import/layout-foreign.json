@@ -1,0 +1,48 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Another tool's indent is not ours.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "A line a word processor marked left to right.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "dir": "rtl"
+      },
+      "content": [
+        {
+          "text": "שורה מימין לשמאל",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "dir": "rtl",
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "כותרת",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    }
+  ],
+  "type": "doc"
+}

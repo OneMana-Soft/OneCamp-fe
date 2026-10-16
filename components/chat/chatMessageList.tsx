@@ -13,10 +13,12 @@ import {updateChats, updateChatScrollToBottom, mergeChats} from "@/store/slice/c
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {ChatTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
+import { ConversationLoadError } from "@/components/message/conversationError";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
 import { pageEdgeQuery } from "@/lib/chat/pageEdge";
+import { useOlderPages } from "@/hooks/useOlderPages";
 
 // Stable empty array reference to prevent unnecessary re-renders
 const EMPTY_CHAT_MESSAGES: ChatInfo[] = [];
@@ -159,6 +161,13 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
     }, [ newMsg.data?.data, safeChatMessageState]);
 
 
+    const retryOlder = useOlderPages({
+        latestHasMore: latestMsg.data?.data?.has_more,
+        setHasMore: setHasMoreChat,
+        asking: oldChatTime != 0,
+        older: oldMsg,
+    })
+
     const leaveLink = useLeaveLink('messageId')
     const handleClickedScrollToBottom = useCallback(() => {
         // In link mode the latest page isn't loaded: leave the link, and it is (FE-BUG-9).
@@ -177,7 +186,6 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
         setOldEdge(pageEdgeQuery(lastTimeString, safeChatMessageState[0].chat_uuid))
         setOldChatTime(epochTime)
-        setHasMoreChat(false)
     }, [safeChatMessageState])
 
     const getNewMessages = useCallback(() => {
@@ -234,6 +242,11 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         )
     }
 
+    // Failed, with nothing to show: say so, never "This is the start of your conversation".
+    if (latestMsg.isError && !latestMsg.data && safeChatMessageState.length === 0) {
+        return <ConversationLoadError subject="this conversation" retry={() => latestMsg.mutate()} />
+    }
+
     return (
         <div className='flex flex-col h-full gap-y-2 '>
             <ChatMessages
@@ -247,6 +260,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
                 isOLdMsgLoading={oldMsg.isLoading}
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 unreadOnOpen={unreadOnOpen}
+                retryOlder={retryOlder}
             />
             {/*
               Typing indicator. On desktop it sits inline at the bottom of

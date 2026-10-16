@@ -113,14 +113,15 @@
   /* The source picker: a 4-column grid of 72px cards (2 on a phone), Slack
      first and two columns wide. Raised at e1; hover e2 and a 1px lift. The
      picked one wears the accent ring, so the choice is plain at a glance. */
+  /* Four across only where the column has room for them: by the column's
+     width, not the window's, as a tablet's settings column is a phone's. */
+  .cx-imp-sources-wrap { container-type: inline-size; }
   .cx-imp-sources {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
-  @media (min-width: 640px) {
-    .cx-imp-sources { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  }
+  @container (min-width: 600px) { .cx-imp-sources { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   .cx-imp-source {
     position: relative;
     display: flex;

@@ -18,6 +18,18 @@ import { useRouter } from "next/navigation"
 //   - while disabled (e.g. the message is being edited).
 //
 // Attach via onClickCapture so it runs before the editor's own click handling.
+/** The in-app path an href opens, or null for one that leaves the app. Pure for a given origin. */
+export function inAppPath(href: string, origin: string = typeof window !== "undefined" ? window.location.origin : ""): string | null {
+    if (href.startsWith("/app")) return href
+    if (!/^https?:\/\//i.test(href)) return null
+    try {
+        const url = new URL(href)
+        return url.origin === origin && url.pathname.startsWith("/app") ? url.pathname + url.search + url.hash : null
+    } catch {
+        return null
+    }
+}
+
 export function useInternalLinkRouter(enabled: boolean = true) {
     const router = useRouter()
 
@@ -32,13 +44,14 @@ export function useInternalLinkRouter(enabled: boolean = true) {
             const anchor = target?.closest("a") as HTMLAnchorElement | null
             if (!anchor) return
 
-            // Use the raw attribute (not anchor.href, which the browser resolves
-            // to an absolute URL) so we only act on genuinely internal paths.
+            // The raw attribute: the app's own paths ("/app/…"), or an address
+            // on this origin someone pasted whole ("https://<this app>/app/…").
             const href = anchor.getAttribute("href") || ""
-            if (!href.startsWith("/app")) return
+            const path = inAppPath(href)
+            if (!path) return
 
             e.preventDefault()
-            router.push(href)
+            router.push(path)
         },
         [enabled, router],
     )

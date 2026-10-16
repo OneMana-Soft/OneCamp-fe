@@ -78,7 +78,7 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
   })
 
   const handleReactionSelect = (reaction: Parameters<DesktopReactionPickerProps['onReactionSelect']>[number]) => {
-    addReactionIdToFrequents({ id: reaction.id })
+    addReactionIdToFrequents(reaction)
     onReactionSelect(reaction)
   }
 
@@ -105,7 +105,8 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
       return { id: categoryId, reactions }
     })
       .filter(notEmpty)
-      .filter(({ id, reactions }) => id === 'search' || reactions.length > 0)
+      // A search that finds nothing has no heading either: it says so instead (SD-BUG-4).
+      .filter(({ reactions }) => reactions.length > 0)
 
     const rows = categories.reduce<RowType[]>((acc, { id, reactions }) => {
       acc.push({ type: 'header', id, size: HEADER_HEIGHT })
@@ -192,7 +193,8 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
 
       const row = rows[activePositionRef.current.row]
 
-      if (row.type === 'header') return
+      // Nothing to pick: a search that found nothing has no rows.
+      if (!row || row.type === 'header') return
 
       handleReactionSelect(row.reactions[activePositionRef.current.column])
       return
@@ -295,6 +297,9 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
       </div>
 
       <div ref={scrollAreaRef} className='flex-1 overflow-y-auto px-2 focus:outline-0' >
+        {query.trim() && rows.length === 0 && (
+          <p role='status' className='px-1.5 pt-6 text-center text-ui text-ink-2'>No emoji called “{query.trim()}”</p>
+        )}
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,

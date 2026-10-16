@@ -45,11 +45,14 @@ export function MobileTopNavigationBar({
                 left, it sat 48px left of centre on Home, 6px on Channels, on it
                 on DMs and 22px right on Activity: a 70px jump between tabs. A
                 title too long for the middle still takes what the sides don't
-                need, and truncates. */}
+                need, and truncates. The sides never shrink below their buttons
+                (no min-w-0): when they could, a long title took their room and
+                ran over the back button and the doc's Comments (312px). */}
             <div data-phone-bar="" className='grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center h-13 w-full px-1.5 gap-2'>
-                <div className='flex min-w-0 items-center justify-start'><MobileTopNavigationBarFirst/></div>
+                <div data-phone-bar-side="" className='flex items-center justify-start'><MobileTopNavigationBarFirst/></div>
                 <div className='min-w-0 flex items-center justify-center'><MobileTopNavigationBarSecond/></div>
-                <div className='flex min-w-0 items-center justify-end'><MobileTopNavigationBarThird/></div>
+                {/* data-phone-bar-end: where a page's own tools go (PhoneBarActions). */}
+                <div data-phone-bar-side="" className='flex items-center justify-end' data-phone-bar-end=""><MobileTopNavigationBarThird/></div>
             </div>
         </div>
 

@@ -13,6 +13,7 @@ describe("list keys", () => {
     expect(listKey(k("x"))).toEqual({ type: "toggle" })
     expect(listKey(k("s"))).toEqual({ type: "edit", field: "status" })
     expect(listKey(k("l"))).toEqual({ type: "edit", field: "tags" })
+    expect(listKey(k("d"))).toEqual({ type: "edit", field: "due" })
     expect(listKey(k("ArrowRight"))).toEqual({ type: "column", by: 1 })
   })
   it("leave modified keys to others", () => {

@@ -31,6 +31,7 @@ import { Database, Download, Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { csvLine } from "@/lib/csv"
 import {
     getPersonalDataInventory,
     type PersonalDataInventory,
@@ -38,11 +39,7 @@ import {
 
 /** The counts as a CSV an admin can keep with the request it answers. */
 export function inventoryCsv(inv: PersonalDataInventory): string {
-    const q = (v: string | number) => {
-        const t = String(v)
-        return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
-    }
-    return ["table,column,rows", ...inv.locations.map((l) => [q(l.table), q(l.column), q(l.rows)].join(","))].join("\n") + "\n"
+    return ["table,column,rows", ...inv.locations.map((l) => csvLine([l.table, l.column, l.rows]))].join("\n") + "\n"
 }
 
 /**

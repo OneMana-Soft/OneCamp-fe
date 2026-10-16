@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { PRESENCE_WORDS, presenceOf } from "@/lib/presence"
 import { useDispatch, useSelector } from "react-redux"
 
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -16,7 +17,10 @@ import { openUI } from "@/store/slice/uiSlice"
 import type { RootState } from "@/store/store"
 import type { ChannelInfoInterfaceResp } from "@/types/channel"
 import { app_channel_call, app_chat_call } from "@/types/paths"
-import { USER_STATUS_ONLINE, type RawUserDMInterface, type UserProfileInterface } from "@/types/user"
+import { type RawUserDMInterface, type UserProfileInterface } from "@/types/user"
+import { ChannelGuestTag } from "@/components/channel/channelGuestTag"
+import { useConversationMissing } from "@/hooks/useConversationMissing"
+import type { ConversationKind } from "@/lib/mqtt/conversationAccess"
 
 /**
  * The phone's conversation bar title (design v3 chat, C62), one component for
@@ -26,7 +30,6 @@ import { USER_STATUS_ONLINE, type RawUserDMInterface, type UserProfileInterface 
  * Tapping it opens the conversation's details. The bar itself is the shell's
  * (52px on the sheet, its hairline once the list scrolls).
  */
-export type ConversationKind = "channel" | "dm" | "group"
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
@@ -35,6 +38,7 @@ function TitleButton({ title, subtitle, onClick, label }: { title: React.ReactNo
         <button
             type="button"
             data-conversation-title=""
+            data-touch-target=""
             onClick={onClick}
             aria-label={label}
             className="flex min-w-0 max-w-full flex-col items-center rounded-md px-2 focus-visible:outline-2 focus-visible:outline-ring"
@@ -61,6 +65,7 @@ function ChannelTitle({ id }: { id: string }) {
                 <>
                     <span aria-hidden="true" className="text-ink-3">#</span>
                     <span className="truncate">{name}</span>
+                    {ch?.has_guest_access && <ChannelGuestTag />}
                 </>
             }
             subtitle={subtitle}
@@ -74,12 +79,10 @@ function DmTitle({ id }: { id: string }) {
     const state = useUserInfoState(id)
     const person = other.data?.data
     const loaded = state && state.deviceConnected !== -1
-    const status = loaded && state.status ? state.status : person?.user_status || "offline"
-    const devices = loaded ? state.deviceConnected : person?.user_device_connected || 0
-    const online = status === USER_STATUS_ONLINE && devices > 0
     const name = state.userName || userDisplayName(person)
     const said = state.emojiStatus?.status_user_emoji_desc
-    const subtitle = said || (person || loaded ? (online ? "Active now" : "Away") : undefined)
+    // Where they are, as a computer's header says it (lib/presence, QA F-18).
+    const subtitle = said || (person || loaded ? PRESENCE_WORDS[presenceOf(state, person)] : undefined)
     return (
         <TitleButton
             label={`${name || "Person"}, profile`}
@@ -114,6 +117,9 @@ function GroupTitle({ id }: { id: string }) {
 }
 
 export function PhoneConversationTitle({ kind, id }: { kind: ConversationKind; id: string }) {
+    // A conversation that isn't there has no title: the page says why (QA F-08).
+    const { missing } = useConversationMissing(kind, id)
+    if (missing) return null
     if (kind === "channel") return <ChannelTitle id={id} />
     if (kind === "dm") return <DmTitle id={id} />
     return <GroupTitle id={id} />
@@ -128,6 +134,9 @@ export function PhoneHuddleButton({ kind, id }: { kind: "channel" | "dm"; id: st
     const live = useSelector((s: RootState) =>
         kind === "channel" ? !!s.channel.channelCallStatus[id]?.active : !!s.chat.chatCallStatus?.[id]?.active,
     )
+    // No huddle in a conversation that isn't there (QA F-08).
+    const { missing } = useConversationMissing(kind, id)
+    if (missing) return null
     const href = `${kind === "channel" ? app_channel_call : app_chat_call}/${id}`
     return (
         <Link
@@ -148,4 +157,10 @@ export function PhoneHuddleButton({ kind, id }: { kind: "channel" | "dm"; id: st
             </span>
         </Link>
     )
+}
+
+/** What the phone's bar offers for a conversation, only while it is there (QA F-08). */
+export function WhileConversationThere({ kind, id, children }: { kind: ConversationKind; id: string; children: React.ReactNode }) {
+    const { missing } = useConversationMissing(kind, id)
+    return missing ? null : <>{children}</>
 }

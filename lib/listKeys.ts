@@ -4,7 +4,7 @@
  * a field of what is selected. Pure, for its test.
  */
 
-export type ListField = "status" | "assignee" | "tags" | "priority"
+export type ListField = "status" | "assignee" | "tags" | "priority" | "due"
 
 export type ListAction =
   | { type: "move"; by: 1 | -1; extend: boolean }
@@ -55,6 +55,8 @@ export function listKey(e: Keys): ListAction | null {
       return { type: "edit", field: "tags" }
     case "p":
       return { type: "edit", field: "priority" }
+    case "d":
+      return { type: "edit", field: "due" }
   }
   return null
 }
@@ -100,5 +102,6 @@ export const LIST_SHORTCUTS: { keys: string; does: string }[] = [
   { keys: "A", does: "Assign it to someone" },
   { keys: "T (or L)", does: "Its tags" },
   { keys: "P", does: "Its priority" },
+  { keys: "D", does: "Its due date" },
   { keys: "Esc", does: "Clear the selection" },
 ]

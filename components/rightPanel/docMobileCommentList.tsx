@@ -1,288 +1,105 @@
 "use client"
 
-import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
-import type { CreateDocCommentInterface, DocInfoResponse } from "@/types/doc"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { useDispatch, useSelector } from "react-redux"
-import { useCallback, useEffect, useState } from "react"
-import type { UserProfileInterface } from "@/types/user"
-import type { RootState } from "@/store/store"
-import type { CreateCommentResInterface } from "@/types/comment"
+import { DocAccessNote } from "@/components/docEditor/DocAccessNote"
+import { useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
-import { MessageSquare } from "@/lib/icons"
 import { ErrorState } from "@/components/ui/error-state"
+import { Button } from "@/components/ui/button"
+import { MessageSquare } from "@/lib/icons"
+import { CommentComposer } from "@/components/docComments/CommentComposer"
+import { ThreadRow } from "@/components/docComments/ThreadRow"
+import { ThreadsSkeleton, ThreadsToolbar, useThreadList } from "@/components/docComments/ThreadsPanelParts"
+import { useDocThreads } from "@/components/docComments/useDocThreads"
 
-import {
-    addDocComments,
-    clearDocCommentInputState,
-    createDocCommentReaction,
-    createNewDocComment,
-    createOrUpdateDocCommentBody,
-    removeDocComment,
-    removeDocCommentReaction,
-    updateDocComment,
-    updateDocCommentReaction,
-} from "@/store/slice/createDocCommentSlice"
-import {
-    selectDocCommentInputState,
-    selectDocComments,
-} from "@/store/selectors/createDocCommentSelectors"
-import MinimalTiptapTextInput from "@/components/textInput/textInput"
-import { openUI } from "@/store/slice/uiSlice"
-import { SendHorizontal } from "@/lib/icons";
-import { cn } from "@/lib/utils/helpers/cn"
-import { DocCommentFileUpload } from "@/components/fileUpload/docCommentFileUpload"
-import type { Content } from "@tiptap/core"
-import { usePost } from "@/hooks/usePost"
-import type { CreateOrUpdateCommentReaction } from "@/types/reaction"
-import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
-import {useUploadFile} from "@/hooks/useUploadFile";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-
+/**
+ * A doc's comments on a phone (docs programme B7): its threads, Open and
+ * Resolved, from anyone or one person, each opening its own live page, and
+ * the page's composer at the foot. Live where the doc's page isn't mounted:
+ * the doc's topic is subscribed here (N33). A failed read is an error with Try
+ * again, never "No comments yet" (I19, N46).
+ */
 export const DocMobileCommentList = ({ docId }: { docId: string }) => {
-    const dispatch = useDispatch()
-    const post = usePost()
-    const docCommentList = useFetch<DocInfoResponse>(docId ? GetEndpointUrl.GetAllCommentOfDoc + "/" + docId : "")
-    const [allowedToComment, setAllowedToComment] = useState<boolean>(false)
-    const uploadFile = useUploadFile()
+    const t = useDocThreads(docId)
+    const view = useThreadList(docId, t)
 
-
-    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-
-    const commentState = useSelector((state: RootState) =>
-        selectDocCommentInputState(state, docId),
-    )
-
-    const docCommentState = useSelector((state: RootState) =>
-        selectDocComments(state, docId),
-    )
-
+    // A notice names one comment (?comment=): its thread's own page, once it is here.
+    const router = useRouter()
+    const named = useSearchParams()?.get("comment")
+    const holder = named ? t.threads.find((x) => x.comments.some((c) => c.comment_uuid === named))?.id : undefined
     useEffect(() => {
-        if (docCommentList.data?.data && selfProfile.data?.data) {
-            dispatch(addDocComments({ docId: docId, comments: docCommentList.data?.data.doc_comments || [] }))
-
-            if (
-                docCommentList.data?.data.doc_comment_access ||
-                docCommentList.data?.data.doc_edit_access ||
-                docCommentList.data?.data.doc_public_comment ||
-                selfProfile.data?.data.user_uuid == docCommentList.data?.data.doc_created_by.user_uuid
-            ) {
-                setAllowedToComment(true)
-            }
-        }
-    }, [docCommentList.data?.data, selfProfile.data?.data])
-
-    const handleCommentBodyChange = useCallback(
-        (content: Content) => {
-            dispatch(
-                createOrUpdateDocCommentBody({
-                    body: content?.toString() || "",
-                    docUUID: docId,
-                }),
-            )
-        },
-        [dispatch, docId],
-    )
-
-    const removeCommentReaction = (reactionId: string, commentId: string, commentIdx: number) => {
-        post
-            .makeRequest<CreateOrUpdateCommentReaction>({
-                apiEndpoint: PostEndpointUrl.RemoveDocCommentReaction,
-                payload: {
-                    comment_id: commentId,
-                    reaction_dgraph_id: reactionId,
-                },
-            })
-            .then(() => {
-                dispatch(removeDocCommentReaction({ commentIndex: commentIdx, reactionId, docId: docId }))
-            })
-    }
-
-    const executeDeleteDocComment = (commentIndex: number, commentUUID: string) => {
-        post
-            .makeRequest<CreateDocCommentInterface>({
-                apiEndpoint: PostEndpointUrl.RemoveDocComment,
-                payload: {
-                    doc_uuid: docId,
-                    doc_comment_uuid: commentUUID,
-                },
-                showToast: true,
-            })
-            .then(() => {
-                dispatch(removeDocComment({ docId: docId, commentIndex }))
-                // dispatch(updateTaskMessageReplyDecrement({messageId: rightPanelState.data.chatMessageUUID, chatId: rightPanelState.data.chatUUID, comment: {comment_uuid: commentUUID, comment_text: ''}}))
-            })
-    }
-
-    const handleUpdateDocComment = (commentUUID: string, commentHTMLText: string, commentIndex: number) => {
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post
-            .makeRequest<CreateDocCommentInterface>({
-                apiEndpoint: PostEndpointUrl.UpdateDocComment,
-                payload: {
-                    doc_comment_uuid: commentUUID,
-                    doc_comment_body: trimmedHtml,
-                },
-                showToast: true,
-            })
-            .then((res) => {
-                if (res) {
-                    dispatch(
-                        updateDocComment({
-                            commentIndex: commentIndex,
-                            docId: docId,
-                            htmlText: trimmedHtml,
-                        }),
-                    )
-                }
-            })
-    }
-
-    const handleDeleteDocComment = (commentUUID: string, commentIndex: number) => {
-        if (!commentUUID) return
-
-        setTimeout(() => {
-            dispatch(
-                openUI({
-                    key: "confirmAlert",
-                    data: {
-                        title: "Delete this comment?",
-                        description: "It's removed from the doc for everyone. This can't be undone.",
-                        confirmText: "Delete comment",
-                        destructive: true,
-                        onConfirm: () => {
-                            executeDeleteDocComment(commentIndex, commentUUID)
-                        },
-                    },
-                }),
-            )
-        }, 500)
-    }
-
-    const createOrUpdateCommentReaction = (
-        emojiId: string,
-        reactionId: string,
-        commentId: string,
-        commentIdx: number,
-    ) => {
-        post
-            .makeRequest<CreateOrUpdateCommentReaction, CreateOrUpdateCommentReaction>({
-                apiEndpoint: PostEndpointUrl.CreateOrUpdateDocCommentReaction,
-                payload: {
-                    comment_id: commentId,
-                    reaction_emoji_id: emojiId,
-                    reaction_dgraph_id: reactionId,
-                },
-            })
-            .then((res) => {
-                if (reactionId) {
-                    dispatch(updateDocCommentReaction({ commentIndex: commentIdx, reactionId, emojiId, docId: docId }))
-                } else if (res?.reaction_dgraph_id && selfProfile.data?.data) {
-                    dispatch(
-                        createDocCommentReaction({
-                            docId: docId,
-                            commentIndex: commentIdx,
-                            reactionId: res?.reaction_dgraph_id,
-                            emojiId,
-                            addedBy: selfProfile.data?.data,
-                        }),
-                    )
-                }
-            })
-    }
-
-    const createComment = useCallback((latestContent?: string) => {
-        const rawBody = latestContent ?? commentState?.commentBody
-        const trimmedBody = removeEmptyPTags(rawBody)
-        const hasAttachments = (commentState?.filesUploaded?.length || 0) > 0
-        if ((!trimmedBody && !hasAttachments) || post.isSubmitting) return
-
-        post
-            .makeRequest<CreateDocCommentInterface, CreateCommentResInterface>({
-                apiEndpoint: PostEndpointUrl.CreateDocComment,
-                payload: {
-                    doc_comment_body: trimmedBody,
-                    doc_uuid: docId,
-                    doc_comment_attachments: commentState?.filesUploaded || [],
-                },
-            })
-            .then((res) => {
-                if (res && selfProfile.data?.data) {
-                    dispatch(
-                        createNewDocComment({
-                            commentBy: selfProfile.data?.data,
-                            docId: docId,
-                            commentText: trimmedBody,
-                            attachments: commentState?.filesUploaded || [],
-                            commentId: res?.comment_id,
-                            commentCreatedAt: res?.comment_created_at,
-                        }),
-                    )
-                }
-
-                dispatch(clearDocCommentInputState({ docUUID: docId }))
-            })
-    }, [commentState, docId, post, dispatch])
+        if (holder) router.replace(`/app/doc/${docId}/comment/${encodeURIComponent(holder)}`)
+    }, [holder, docId, router])
 
     return (
-        <div className="flex flex-col h-full ">
-
-            <div className="flex-1 overflow-y-auto">
-                {docCommentList.isError ? (
-                    <ErrorState
-                        subject="the comments"
-                        onRetry={() => void docCommentList.mutate()}
+        <div data-doc-comments="" className="flex h-full flex-col">
+            {!t.isError && t.threads.length > 0 && (
+                <ThreadsToolbar
+                    tab={view.tab}
+                    onTab={view.setTab}
+                    counts={view.counts}
+                    people={view.people}
+                    person={view.person}
+                    onPerson={view.setPerson}
+                    me={t.me?.user_uuid}
+                />
+            )}
+            <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3 pt-2" aria-busy={t.status === "loading"}>
+                {t.isError ? (
+                    // In the trash (410): nothing to try again, and nothing to add.
+                    t.isDeleted ? (
+                        <EmptyState icon={MessageSquare} title="This doc was deleted" description="Its comments come back if the doc is restored." className="py-8" />
+                    ) : (
+                        <ErrorState subject="the comments" detail={t.errorDetail} onRetry={() => void t.mutate()} className="py-8" />
+                    )
+                ) : t.status === "loading" && t.threads.length === 0 ? (
+                    <ThreadsSkeleton />
+                ) : view.list.length === 0 && view.person ? (
+                    <EmptyState
+                        icon={MessageSquare}
+                        title={view.tab === "open" ? `No open threads from ${view.personName}` : `Nothing resolved from ${view.personName}`}
+                        className="py-8"
+                        action={
+                            <Button variant="outline" size="sm" onClick={() => view.setPerson("")}>
+                                Show everyone&apos;s
+                            </Button>
+                        }
+                    />
+                ) : view.list.length === 0 && view.tab === "resolved" ? (
+                    <EmptyState
+                        icon={MessageSquare}
+                        title="Nothing resolved yet"
+                        description="Resolve a thread when it's settled. It's kept here, and can be reopened."
                         className="py-8"
                     />
-                ) : docCommentState.length === 0 ? (
+                ) : view.list.length === 0 ? (
                     <EmptyState
                         icon={MessageSquare}
                         title="No comments yet"
-                        description="Select any text in the doc and choose Comment, or write one below."
-                        // As a task's comments say it: an icon, then the words,
-                        // near the top. It was words alone in the panel's middle.
+                        description={
+                            t.canComment
+                                ? "Select text in the doc and tap Comment, or comment on the page below."
+                                : "No one has commented on this doc yet."
+                        }
                         className="py-8"
                     />
                 ) : (
-                    <MobileMessageCommentList
-                        comments={docCommentState}
-                        getMediaURL={`${GetEndpointUrl.GetDocMedia}/${docId}`}
-                        addReaction={createOrUpdateCommentReaction}
-                        removeReaction={removeCommentReaction}
-                        updateMessage={handleUpdateDocComment}
-                        deleteMessage={handleDeleteDocComment}
-                        docId={docId}
-                    />
-
+                    view.list.map((th) => <ThreadRow key={th.id} docId={docId} thread={th} />)
                 )}
             </div>
-
-            {allowedToComment && (
-                <div className="flex-shrink-0 p-3">
-                    <MinimalTiptapTextInput
-                        throttleDelay={300}
-                        attachmentOnclick={() => dispatch(openUI({ key: 'docCommentFileUpload' }))}
-                        onActionFiles={async (files) => {
-                            if (!files?.length) return;
-                            await uploadFile.makeRequestToUploadToDocComment(files as unknown as FileList, docId);
-                        }}
-                        ButtonIcon={SendHorizontal}
-                        hasAttachments={(commentState?.filesUploaded?.length ?? 0) > 0}
-                        buttonOnclick={createComment}
-                        className={cn("max-w-full h-auto rounded-xl bg-raised p-2 shadow-e2")}
-                        editorContentClassName="overflow-auto"
-                        output="html"
-                        placeholder="Add a comment…"
-                        editable={true}
-                        toggleToolbar={true}
-                        editorClassName="focus:outline-none"
-                        onChange={handleCommentBodyChange}
-                        content={commentState?.commentBody}
-                    >
-                        <DocCommentFileUpload docUUID={docId} />
-                    </MinimalTiptapTextInput>
+            {!t.canComment && !t.isDeleted && t.level !== "none" && (
+                // Said, never a box that silently isn't there (docs incident, 14 Oct 2026).
+                <DocAccessNote docId={docId} level={t.level} want="comment" suffix=", so you can't comment on it" className="shrink-0 border-t border-line px-4 py-3" />
+            )}
+            {t.canComment && !t.isDeleted && (
+                <div className="shrink-0 border-t border-line px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+                    <CommentComposer
+                        docId={docId}
+                        placeholder="Comment on this page…"
+                        label="Comment on the page"
+                        sendLabel="Comment"
+                        onSend={(b) => t.start({ kind: "none" }, b)}
+                    />
                 </div>
             )}
         </div>

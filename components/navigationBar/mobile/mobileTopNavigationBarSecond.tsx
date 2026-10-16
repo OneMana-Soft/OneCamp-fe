@@ -8,10 +8,13 @@ import {
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondProject";
 import {MobileTopNavigationBarSecondDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondDoc";
 import {MobileTopNavigationBarSecondBoard} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondBoard";
-import { settingsSection } from "@/lib/settingsSections";
+import { Suspense } from "react";
+import { phoneSettingsTitle } from "@/lib/adminSections";
+import { AdminPhoneTitle } from "@/components/admin/AdminPhoneBar";
 
 export function MobileTopNavigationBarSecond() {
-    const path = usePathname().split('/');
+    const pathname = usePathname();
+    const path = pathname.split('/');
 
 
     const renderPageName = () => {
@@ -20,13 +23,20 @@ export function MobileTopNavigationBarSecond() {
                 return "Home";
                 break;
             case "admin":
-                return "Admin"
+                // The section that is open, by its own name (lib/adminSections).
+                return <Suspense fallback="Admin"><AdminPhoneTitle/></Suspense>
             case "team":
                 if (path.length < 4)
                     return "Teams";
                 if (path.length < 5)
                     return <MobileTopNavigationBarSecondTeam teamId={path[3]}/>
                 break;
+            case "ai":
+                if (path[3] === "memory")
+                    return "Memory";
+                // Its name everywhere else: the top bar's button, the panel,
+                // Home's "Ask OneCamp AI".
+                return "OneCamp AI"
             case "calendar":
                 if (path.length < 4)
                     return "Calendar";
@@ -66,8 +76,10 @@ export function MobileTopNavigationBarSecond() {
             case "settings":
                 // Each section by the name its page and the list of sections
                 // give it (lib/settingsSections), so the bar can't drift from
-                // them: a section with no case of its own said "Settings".
-                return (path[3] && settingsSection(`/app/settings/${path[3]}`)?.label) || "Settings";
+                // them: it said "Agents & skills" over "Agents and skills", and
+                // "Settings" over "Your AI assistants", which had no case.
+                // Profile included: it said "Settings" over the profile page.
+                return phoneSettingsTitle(pathname, null);
 
             case "tables":
                 if (path.length < 4)
@@ -121,11 +133,17 @@ export function MobileTopNavigationBarSecond() {
             case "doc":
                 if (path.length < 4)
                     return "Docs";
+                // The docs' trash is a page of its own, not a doc.
+                if (path[3] === "trash")
+                    return "Trash";
                 if (path.length < 5)
                     return <MobileTopNavigationBarSecondDoc docId={path[3]}/>;
                 if (path.length < 6)
-                    // A doc's comments page lists all of them.
-                    return "Comments";
+                    // A doc's comments page lists all of them, and names the doc.
+                    return <MobileTopNavigationBarSecondDoc docId={path[3]} page="Comments"/>;
+                if (path.length < 7)
+                    // One thread of them, or a new one (B7).
+                    return path[5] === "new" ? "New comment" : "Thread";
                 break;
             case "board":
                 if (path.length < 4)

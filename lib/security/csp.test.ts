@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildCsp, originsFrom, cspReportEndpoint, CSP_REPORT_GROUP } from "./csp"
+import { EMBED_FRAME_ORIGINS } from "../embeds/origins"
 
 /**
  * The failure mode worth testing is not "the header is wrong", it is "the header
@@ -181,5 +182,19 @@ describe("violation reporting", () => {
         const group = csp.match(/report-to ([^;]+)/)?.[1].trim()
         expect(group).toBeTruthy()
         expect(header.startsWith(`${group}=`)).toBe(true)
+    })
+})
+
+// A doc's embeds (Docs B4) are framed from their providers' origins, each of
+// them, and frame-src lets in nothing else from outside.
+describe("frame-src", () => {
+    const frameSrc = (buildCsp({ backendUrl: "https://api.example.com" }).split(";").map((d) => d.trim()).find((d) => d.startsWith("frame-src ")) ?? "").split(/\s+/).slice(1)
+
+    it.each([...EMBED_FRAME_ORIGINS])("frames %s", (origin) => {
+        expect(frameSrc).toContain(origin)
+    })
+
+    it("frames no origin but its own, blobs, data and the embeds'", () => {
+        expect(frameSrc.sort()).toEqual(["'self'", "blob:", "data:", ...EMBED_FRAME_ORIGINS].sort())
     })
 })

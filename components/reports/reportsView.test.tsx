@@ -49,6 +49,19 @@ afterEach(() => {
 })
 
 describe("ReportsView", () => {
+  it("draws its controls in the overview's band, flush under the tabs at 28 px, and the report inset under it (PTC-7)", () => {
+    const { container } = render(<ReportsView />)
+    const frame = container.querySelector("[data-reports]")!
+    const band = frame.firstElementChild as HTMLElement
+    expect(band.hasAttribute("data-work-toolbar")).toBe(true)
+    expect(band.className).not.toMatch(/\bpx-6\b/)
+    for (const control of [screen.getByRole("combobox", { name: "Weeks" }), screen.getByRole("button", { name: /Download CSV/ })]) {
+      expect(control.className).not.toMatch(/\bh-8\b/)
+    }
+    expect(screen.getByRole("combobox", { name: "Weeks" }).className).toMatch(/\bh-7\b/)
+    expect((band.nextElementSibling as HTMLElement).className).toMatch(/\bpx-6\b/)
+  })
+
   it("answers the weekly review: what's open and overdue, what got done and on time, the hours", () => {
     render(<ReportsView />)
     expect(screen.getByText("2 overdue")).toBeTruthy()

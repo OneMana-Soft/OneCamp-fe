@@ -13,17 +13,44 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, Users } from "@/lib/icons"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Archive, Bell, ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, Users } from "@/lib/icons"
+import { useArchiveProject } from "@/hooks/useArchiveProject"
+import { appMutate } from "@/lib/swrMutate"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { app_project_path } from "@/types/paths"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { NotificationLevelItems, notificationLevelLabel } from "@/components/Notification/notificationLevels"
 import dynamic from "next/dynamic"
 
 // The project's tools are dialogs nobody needs until they are asked for, so
 // each is its own chunk, fetched on first open (the project route's script
-// grew 80 KB with them in it, 11 Oct).
-const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFormsDialog").then((m) => m.ProjectFormsDialog))
-const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog))
-const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog))
-const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog))
+// grew 80 KB with them in it, 11 Oct). Each waits for its chunk in a Suspense
+// boundary of its own (`loading`): without one, the chunk suspended the whole
+// page into the route's loading skeleton, and the list behind came back empty
+// (components/task/lazyBoundary.test.ts). They start loading as soon as the
+// menu's button or the time button is pointed at, so they open at once.
+const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFormsDialog").then((m) => m.ProjectFormsDialog), { loading: () => null })
+const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog), { loading: () => null })
+const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog), { loading: () => null })
+const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog), { loading: () => null })
+
+/** Starts the menu's dialogs loading, so the one chosen opens without a wait. */
+function warmTools() {
+  void import("@/components/project/ProjectFormsDialog")
+  void import("@/components/project/ProjectShareDialog")
+  void import("@/components/projectTemplates/SaveAsTemplateDialog")
+}
+const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
 type ToolKey = "time" | "forms" | "share" | "template"
 export interface ProjectTool {
@@ -125,6 +152,8 @@ export function ProjectActionsMenu({
   onMembers,
   compact = false,
   extra,
+  archived = false,
+  notifications,
 }: {
   projectId: string
   projectName?: string
@@ -132,6 +161,10 @@ export function ProjectActionsMenu({
   isMember: boolean
   onRename?: () => void
   onMembers?: () => void
+  /** Archived: its admins see Restore project in place of Archive project. */
+  archived?: boolean
+  /** The person's notification level and how to change it: a Notifications item whose levels are picked, not cycled. */
+  notifications?: { level: string; onChoose: (level: string) => void }
   /** The phone: every tool in the one menu (work.md W53), none as a bare icon. */
   compact?: boolean
   /**
@@ -142,6 +175,20 @@ export function ProjectActionsMenu({
 }) {
   const { allowed, tools: allTools, dialogs } = useProjectTools({ projectId, projectName, isAdmin, isMember })
   const tools = allowed ? allTools : []
+  // Archive from the project itself (PTC-13); it was only on the team's page
+  // and the phone's long press. An archived project leaves the person's
+  // projects, so they go back to them.
+  const router = useRouter()
+  const { archive, restore } = useArchiveProject()
+  const archiveIt = () =>
+    archive(projectId, {
+      name: projectName,
+      done: () => {
+        void appMutate(GetEndpointUrl.SelfProfile)
+        router.push(app_project_path)
+      },
+    })
+  const restoreIt = () => restore(projectId, { name: projectName, done: () => void appMutate(GetEndpointUrl.SelfProfile) })
   if (!allowed && !extra?.length) return null
   // Sharing with a client is a word in the header bar (design v3, work.md
   // W16); the time button is the clock beside it; the rest is one menu.
@@ -158,16 +205,16 @@ export function ProjectActionsMenu({
         </Button>
       )}
       {first && (
-        <Button size="icon-sm" variant="ghost" aria-label={first.label} title={first.label} onClick={first.open}>
+        <Button size="icon-sm" variant="ghost" aria-label={first.label} title={first.label} onClick={first.open} onPointerEnter={warmTime} onFocus={warmTime}>
           <first.Icon className="size-4" />
         </Button>
       )}
-      {(rest.length > 0 || (isAdmin && onRename) || !!extra?.length) && (<>
+      {(rest.length > 0 || isAdmin || !!extra?.length || !!notifications) && (<>
       {/* Not modal: an item opens a dialog, and a modal menu closing over it
           can leave the page unclickable. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button size="icon-sm" variant="ghost" aria-label="Project actions" title="Project actions">
+          <Button size="icon-sm" variant="ghost" aria-label="Project actions" title="Project actions" onPointerEnter={warmTools} onFocus={warmTools}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -191,9 +238,26 @@ export function ProjectActionsMenu({
               </DropdownMenuItem>
             </>
           )}
-          {extra?.length ? (
+          {notifications && (
             <>
               {rest.length > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">Notifications</span>
+                  <span className="shrink-0 text-meta text-ink-3">{notificationLevelLabel(notifications.level)}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent className="w-64">
+                    <NotificationLevelItems level={notifications.level} onChoose={notifications.onChoose} />
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            </>
+          )}
+          {extra?.length ? (
+            <>
+              {(rest.length > 0 || !!notifications) && <DropdownMenuSeparator />}
               {extra.map(({ key, label, detail, Icon, onSelect }) => (
                 <DropdownMenuItem key={key} onSelect={onSelect}>
                   <Icon className="h-4 w-4 text-muted-foreground" />
@@ -203,6 +267,23 @@ export function ProjectActionsMenu({
               ))}
             </>
           ) : null}
+          {/* What takes the project away is alone, and last (design v3, mobile C7). */}
+          {isAdmin && (
+            <>
+              <DropdownMenuSeparator />
+              {archived ? (
+                <DropdownMenuItem onSelect={restoreIt}>
+                  <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                  Restore project
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={archiveIt} className="text-danger-ink focus:bg-destructive/10 focus:text-danger-ink">
+                  <Archive className="h-4 w-4" />
+                  Archive project…
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       </>)}

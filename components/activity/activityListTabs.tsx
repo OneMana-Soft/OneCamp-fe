@@ -15,19 +15,37 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useReadState, isUnread } from "@/lib/activity/readState"
-import { activityKey, collapseEchoes, hasSubject } from "@/lib/activity/feedPages"
+import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE } from "@/lib/activity/feedPages"
+import { isMention } from "@/lib/activity/notice"
 
 // Comments and Reactions were tabs of their own. Everything in them is in All,
 // in order. Old links to them open All.
 const VALID_TABS = ["priority", "all", "mentions"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
+/** Where the Inbox lives (/app/activity redirects here, next.config). */
+export const INBOX_PATH = "/app/inbox"
+
+
 /**
  * Activity (hub.md A1, A2): one 52px header with the tabs inline, an
  * "Unread only" switch, "Mark all read" while anything is unread, and the
  * notification settings as an icon button. Every tab draws in the one frame
  * underneath (activityFeedFrame).
+ *
+ * The header's controls are the same on every tab, so nothing in it moves
+ * when the tab changes. Below md there is room
+ * for the tabs and one button, so the three controls are in its menu: a phone
+ * had no Unread only and no Mark all read at all (QA F-24).
  */
 export function ActivityListTabs() {
     const pathname = usePathname()
@@ -45,14 +63,14 @@ export function ActivityListTabs() {
 
     // The SAME SWR key the list fetches for its first page, so the counts share
     // the cache (no extra request) and follow the server's read-state demotion.
-    const { data: firstPage } = useFetch<UnifiedActivityPaginationRes>(`${GetEndpointUrl.GetUnifiedActivity}?limit=20`)
+    const { data: firstPage } = useFetch<UnifiedActivityPaginationRes>(inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, INBOX_PAGE_SIZE))
     const counts = useMemo(() => {
         const items: UnifiedActivityItem[] = collapseEchoes((firstPage?.data?.activities ?? []).filter(hasSubject))
         const unread = items.filter((a) => isUnread(a, activityKey(a), read))
         return {
             priority: unread.filter((a) => a.priority === "high").length,
             all: unread.length,
-            mentions: unread.filter((a) => a.activity_type === "MENTION").length,
+            mentions: unread.filter(isMention).length,
         }
     }, [firstPage, read])
 
@@ -75,8 +93,11 @@ export function ActivityListTabs() {
     }, [])
     const viewAll = useCallback(() => setSelectedTab("all"), [])
 
+    // The tab lives in the address, so a reload, Back or a copied link opens it.
+    // This checked /app/activity after the page moved to /app/inbox, and the
+    // address stopped following the tabs.
     useEffect(() => {
-        if (pathname === "/app/activity" && searchParams.get("tab") !== selectedTab) {
+        if (pathname === INBOX_PATH && searchParams.get("tab") !== selectedTab) {
             const params = new URLSearchParams(searchParams.toString())
             params.set("tab", selectedTab)
             router.replace(`${pathname}?${params.toString()}`, { scroll: false })
@@ -119,7 +140,7 @@ export function ActivityListTabs() {
             tabs={<HubTabs label="Inbox" tabs={tabs} value={effectiveTab} onChange={handleChangeTab} />}
             controls={
                 <>
-                    <label className="hidden items-center gap-2 text-xs text-ink-2 sm:flex">
+                    <label className="hidden items-center gap-2 text-xs text-ink-2 md:flex">
                         Unread only
                         <Switch checked={unreadOnly} onCheckedChange={setUnreadOnly} aria-label="Unread only" />
                     </label>
@@ -133,10 +154,34 @@ export function ActivityListTabs() {
                         href="/app/settings/notifications"
                         aria-label="Notification settings"
                         title="Notification settings"
-                        className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-4"
+                        className="hidden size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand md:grid [&_svg]:size-4"
                     >
                         <SlidersHorizontal aria-hidden="true" />
                     </Link>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label="Inbox options"
+                                data-touch-target=""
+                                className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand md:hidden [&_svg]:size-4"
+                            >
+                                <SlidersHorizontal aria-hidden="true" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuCheckboxItem checked={unreadOnly} onCheckedChange={(on) => setUnreadOnly(on === true)}>
+                                Unread only
+                            </DropdownMenuCheckboxItem>
+                            {unreadKeys.length > 0 ? (
+                                <DropdownMenuItem onSelect={() => mark(unreadKeys, true)}>Mark all read</DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem asChild>
+                                <Link href="/app/settings/notifications">Notification settings</Link>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </>
             }
         >

@@ -291,7 +291,7 @@ export function AppearOnlineCard() {
       <SwitchRow
         id="appear-online"
         label="Appear online"
-        description="Off, others see you as offline even while you're here."
+        description="When off, others see you as offline even while you're here."
         checked={online}
         status={status}
         onChange={(v) => void change(v)}

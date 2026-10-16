@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { ErrorState } from "@/components/ui/error-state"
@@ -45,6 +44,7 @@ import {
 } from "@/lib/workload"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { app_task_path } from "@/types/paths"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 
 const STATUSES = statusOptions(null)
 const isMeasure = (v: unknown): v is Measure => v === "tasks" || v === "hours"
@@ -178,17 +178,19 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
     }
   }
 
-  // The overview's frame (components/task/workFrame): the tools row stays
-  // through loading and failing, and the state sits where every view's does.
+  // The overview's frame (components/task/workFrame): the tools band stays
+  // through loading and failing, flush under the tabs as on Projects, and the
+  // state sits where every view's does, in from the sheet's edge.
+  const frame = cn("flex min-h-0 flex-1 flex-col gap-4", !compact && "[&>*:not([data-work-toolbar])]:mx-6")
   const toolsRow = (extra?: ReactNode) => (
-    <div data-work-toolbar="" className={workToolbar}>
+    <div data-work-toolbar="" className={cn(workToolbar, compact && "-mx-4")}>
       {tools}
       {extra}
     </div>
   )
   if (isError && !data)
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className={frame}>
         {toolsRow()}
         <WorkState>
           <ErrorState subject="the workload" onRetry={() => void mutate()} />
@@ -197,7 +199,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
     )
   if (!grid) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className={frame}>
         {toolsRow()}
         <div className="grid gap-2" aria-busy={isLoading}>
           {Array.from({ length: 6 }, (_, i) => (
@@ -239,7 +241,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
 
   if (rows.length === 0) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className={frame}>
         {toolsRow()}
         <WorkState>
           <EmptyState illustration={<SpotWelcome hue="sky" />} title="No one is in these projects yet" description="Add people to a project and their weeks show here." />
@@ -249,7 +251,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className={frame}>
       {/* One row, where Table's and Timeline's are: the overview's tools, what
           the weeks say, the count and the key. */}
       {toolsRow(
@@ -761,7 +763,7 @@ function TaskLine({
         </button>
         <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           {/* The project in its own colour, as everywhere it shows. */}
-          <IdentityMark id={t.project_uuid} variant="square" size={8} />
+          <ProjectTile id={t.project_uuid} size={14} />
           <span className="truncate">
             {t.project_name}
             {t.parent_name && ` · in ${t.parent_name}`}

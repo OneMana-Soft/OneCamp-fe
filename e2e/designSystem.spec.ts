@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { usableResetLink } from "./stubbedApp"
+
 /**
  * Design-system verification in a real browser.
  *
@@ -19,6 +21,12 @@ import { expect, test, type Page } from "@playwright/test"
 
 /** Renders real Button + Input primitives, unauthenticated. */
 const PRIMITIVES_PAGE = "/reset-password?token=design-system-probe"
+
+// The page checks its made-up link as it opens; answer here so no run asks a
+// real backend, and the form stays up.
+test.beforeEach(async ({ page }) => {
+  await usableResetLink(page)
+})
 
 /** iPhone 14-ish. 360 is checked separately as the narrow Android floor. */
 const MOBILE = { width: 390, height: 844 }

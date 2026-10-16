@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { toastDuration, useToastState, TOAST_LIMIT } from "@/hooks/use-toast"
+import { usePhone } from "@/hooks/usePhone"
 import {
   Toast,
   ToastCard,
@@ -21,19 +22,6 @@ const EXPANDED_GAP = 10
  * (shell T1), at .9 and then .7; past the third it is not drawn.
  */
 const BEHIND_OPACITY = [1, 0.9, 0.7]
-
-function usePhone(): boolean {
-  const [phone, setPhone] = React.useState(false)
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return
-    const mq = window.matchMedia("(max-width: 639.98px)")
-    const update = () => setPhone(mq.matches)
-    update()
-    mq.addEventListener?.("change", update)
-    return () => mq.removeEventListener?.("change", update)
-  }, [])
-  return phone
-}
 
 /**
  * Whether the toasts' clocks are stopped: the stack is hovered or holds

@@ -213,11 +213,23 @@ describe("CALL-BUG-17 and 9: an instant meeting's own page", () => {
   })
 
   it("says when the meeting is over, and offers a new one", () => {
-    reads["/meet/instant/m3"] = { isError: { response: { status: 404, data: {} } } }
+    reads["/meet/instant/m3"] = { isError: { response: { status: 404, data: { code: "ended" } } } }
     render(<InstantMeetingView meetingId="m3" />)
     expect(screen.getByRole("heading", { name: "This meeting has ended" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Start a new meeting" }))
     expect(router.push).toHaveBeenCalledWith("/app/meet/instant")
+  })
+
+  // F-54: an id that never had a meeting said it had ended, on a page that
+  // was dark whatever the theme.
+  it("says it couldn't find a meeting that never was, in the app's own theme", () => {
+    reads["/meet/instant/m5"] = { isError: { response: { status: 404, data: { code: "no_meeting" } } } }
+    render(<InstantMeetingView meetingId="m5" />)
+    expect(screen.getByRole("heading", { name: "We couldn't find this meeting" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "This meeting has ended" })).toBeNull()
+    const notice = document.querySelector('[data-call-notice="unavailable"]')!
+    expect(notice.className).not.toMatch(/(^|\s)dark(\s|$)/)
+    expect(notice.className).toContain("bg-sheet")
   })
 
   it("moves a new meeting to its own page, handing it the first token and the guest link", async () => {

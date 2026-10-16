@@ -18,8 +18,50 @@
  */
 import * as React from "react"
 
+import { MoreHorizontal } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { ResolvePhase } from "@/lib/hub/motion"
+
+/** Where a tool's own menu or dialog opens: a tap there keeps the tools out. */
+const TOOL_LAYERS = "[data-radix-popper-content-wrapper], [role='menu'], [role='dialog'], [role='listbox']"
+
+/** Whether focus came from the keyboard (a tap or a click focuses without it). */
+function isKeyboardFocus(el: EventTarget): boolean {
+  try {
+    return el instanceof Element && el.matches(":focus-visible")
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A screen that can't hover reaches a row's toolbar through its Actions
+ * button (app/hub.css): it shows the tools, and a tap anywhere else, or
+ * Escape, puts them away. The row says so with data-revealed.
+ */
+function useRevealedTools(on: boolean) {
+  const [revealed, setRevealed] = React.useState(false)
+  const row = React.useRef<HTMLElement | null>(null)
+  React.useEffect(() => {
+    if (!revealed) return
+    const away = (e: PointerEvent) => {
+      const at = e.target as Element | null
+      if (row.current?.contains(at) || at?.closest?.(TOOL_LAYERS)) return
+      setRevealed(false)
+    }
+    // Escape in a tool's own menu closes that menu, not the tools.
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !(e.target as Element | null)?.closest?.(TOOL_LAYERS)) setRevealed(false)
+    }
+    document.addEventListener("pointerdown", away, true)
+    document.addEventListener("keydown", escape)
+    return () => {
+      document.removeEventListener("pointerdown", away, true)
+      document.removeEventListener("keydown", escape)
+    }
+  }, [revealed])
+  return { revealed: on && revealed, setRevealed, row }
+}
 
 export type HubRowDensity = "compact" | "two-line" | "feed"
 
@@ -69,15 +111,26 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
     as = "div",
     className,
     onClick,
+    onFocus,
+    onBlur,
     ...rest
   },
   ref,
 ) {
   const Tag = as as React.ElementType
   const interactive = Boolean(onClick || as === "a" || as === "button" || rest.href)
+  const reveal = useRevealedTools(Boolean(tools))
+  const setRef = React.useCallback(
+    (el: HTMLElement | null) => {
+      reveal.row.current = el
+      if (typeof ref === "function") ref(el)
+      else if (ref) ref.current = el
+    },
+    [ref, reveal.row],
+  )
   return (
     <Tag
-      ref={ref}
+      ref={setRef}
       data-hub-row=""
       data-density={density}
       data-lead={leadSize && leadSize !== 24 && leadSize !== 32 ? String(leadSize) : undefined}
@@ -85,11 +138,26 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
       data-selected={selected ? "" : undefined}
       data-disabled={disabled ? "" : undefined}
       data-has-tools={tools ? "" : undefined}
+      data-reveal={tools ? "tap" : undefined}
+      data-revealed={reveal.revealed ? "" : undefined}
       data-unread={unread ? "" : undefined}
       data-resolve={resolve}
       data-flip-key={flipKey}
       aria-disabled={disabled || undefined}
       onClick={onClick}
+      onFocus={(e: React.FocusEvent<HTMLElement>) => {
+        // Keyboard focus in the row shows its tools on a touch screen too, and
+        // keeps them while Tab walks through them (a style that followed
+        // focus alone dropped it on the way in).
+        if (tools && isKeyboardFocus(e.target)) reveal.setRevealed(true)
+        onFocus?.(e)
+      }}
+      onBlur={(e: React.FocusEvent<HTMLElement>) => {
+        // Gone from the row, and not into a tool's own menu or dialog.
+        const to = e.relatedTarget as Element | null
+        if (tools && to && !e.currentTarget.contains(to) && !to.closest(TOOL_LAYERS)) reveal.setRevealed(false)
+        onBlur?.(e)
+      }}
       className={cn("hub-row group/hubrow", resolve === "leaving" && "hub-resolve-out", className)}
       {...rest}
     >
@@ -103,7 +171,10 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
             "block min-w-0 truncate",
             density === "compact" && "text-ui font-book",
             density === "two-line" && "text-ui font-medium",
-            density === "feed" && "text-ui text-ink-2",
+            // A phone's feed row may take two lines (A4): on one, "Jonas
+            // Weber mentioned you in #acme" lost the place, and an agent's
+            // entry its Refused or Drill tag.
+            density === "feed" && "text-ui text-ink-2 max-sm:line-clamp-2 max-sm:whitespace-normal",
           )}
         >
           {title}
@@ -122,6 +193,24 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
         {children}
       </span>
       {meta !== undefined && meta !== null ? <span className="hub-row-meta">{meta}</span> : <span />}
+      {tools ? (
+        // Shown only where nothing can hover (app/hub.css): the way to the
+        // tools under a finger. Never the row's own tap, which opens the row.
+        <button
+          type="button"
+          className="hub-row-more"
+          data-touch-target=""
+          aria-label="Actions"
+          aria-expanded={reveal.revealed}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            reveal.setRevealed((open) => !open)
+          }}
+        >
+          <MoreHorizontal aria-hidden />
+        </button>
+      ) : null}
       {tools ? (
         <span className="hub-row-tools" onClick={(e) => e.stopPropagation()}>
           {tools}
@@ -144,6 +233,7 @@ export function HubToolButton({
       type="button"
       aria-label={label}
       title={shortcut ? `${label} (${shortcut})` : label}
+      data-touch-target=""
       className={cn(
         "grid size-6 place-items-center rounded-sm text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand [&_svg]:size-3.5",
         className,
@@ -173,6 +263,12 @@ export function HubRowSkeleton({ density, tile = false }: { density: HubRowDensi
   )
 }
 
+/** An action a finger can take: the base touch rule's 44px (app/phone.css F3) on its own element. */
+function touchTarget(action: React.ReactNode): React.ReactNode {
+  if (!React.isValidElement(action) || action.type === React.Fragment) return action
+  return React.cloneElement(action as React.ReactElement<Record<string, unknown>>, { "data-touch-target": "" })
+}
+
 /** The hub's section header (H21): a 13/590 h2, a count, an action with no arrow. */
 export function HubSectionHeader({
   title,
@@ -193,7 +289,7 @@ export function HubSectionHeader({
         {title}
       </h2>
       {count !== undefined && count !== null ? <span className="text-meta font-book text-ink-3 tabular-nums">{count}</span> : null}
-      {action ? <span className="ml-auto text-meta font-book text-ink-3 [&_a:hover]:text-foreground [&_button:hover]:text-foreground">{action}</span> : null}
+      {action ? <span className="ml-auto text-meta font-book text-ink-3 [&_a:hover]:text-foreground [&_button:hover]:text-foreground">{touchTarget(action)}</span> : null}
     </div>
   )
 }

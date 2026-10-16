@@ -24,7 +24,7 @@ import { ListSelectionContext, useRowState, useSelectedIds } from "@/hooks/useLi
 import { ChevronDown, GitBranch, MessageSquare, Plus, Sun } from "@/lib/icons"
 import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
 import { prefersReducedMotion } from "@/lib/celebrate"
-import { CLOSED_SHOWN, OPEN_SHOWN, groupTasks, type Grouping, type TaskGroup } from "@/lib/tasks/grouping"
+import { CLOSED_SHOWN, OPEN_SHOWN, groupCount, groupTasks, type Grouping, type TaskGroup } from "@/lib/tasks/grouping"
 import { isClosedStatus, statusOptionOf, statusValueOf, type StatusOption } from "@/lib/taskStatus"
 import { splitTags } from "@/lib/tags"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -73,6 +73,7 @@ export function GroupedTaskList({
   sortedBy,
   fields = NO_FIELDS,
   nameOf,
+  partial = false,
 }: {
   /** The project's custom fields; the ones Display shows get a cell (work.md W35). */
   fields?: TaskField[]
@@ -94,6 +95,8 @@ export function GroupedTaskList({
   empty?: React.ReactNode
   /** The property the list is sorted by: its values go ink. */
   sortedBy?: RowProp
+  /** Only some of the list's tasks have loaded (more pages to come): a group's count is of those, and says so (lib/tasks/grouping groupCount). */
+  partial?: boolean
 }) {
   const box = React.useRef<HTMLDivElement>(null)
   const store = React.useContext(ListSelectionContext)
@@ -149,7 +152,7 @@ export function GroupedTaskList({
       const key = groupKeyOf(task)
       if (key) setPinned((p) => new Map(p).set(task.task_uuid, key))
       void update([task], { field: "status", value, options }).then((r) => {
-        if (r.failed) toast({ title: "Couldn't change the status", description: "It's back where it was." })
+        if (r.failed) toast({ title: "Couldn't change the status", description: "It's back where it was.", tone: "error" })
       })
       settle(task.task_uuid, hold)
     },
@@ -222,6 +225,7 @@ export function GroupedTaskList({
           <section key={g.key} data-group={g.key} aria-label={g.label}>
             <GroupHeader
               group={g}
+              partial={partial}
               collapsed={isCollapsed}
               onToggle={() => toggleGroup(g.key)}
               onAdd={onAdd && !g.closed && g.key !== "overdue" ? () => setAdding(g.key) : undefined}
@@ -282,7 +286,7 @@ export function GroupedTaskList({
 }
 
 /** A group's 36 px header (work.md W18): chevron, glyph, name, count that ticks, and "+" on hover. */
-function GroupHeader({ group, collapsed, onToggle, onAdd }: { group: TaskGroup; collapsed: boolean; onToggle: () => void; onAdd?: () => void }) {
+function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: TaskGroup; partial: boolean; collapsed: boolean; onToggle: () => void; onAdd?: () => void }) {
   return (
     <div
       data-group-header=""
@@ -309,7 +313,9 @@ function GroupHeader({ group, collapsed, onToggle, onAdd }: { group: TaskGroup; 
           </span>
         ) : null}
         <span className={cn("truncate text-ui-sm font-[510]", group.danger ? "text-danger-ink" : "text-foreground")}>{group.label}</span>
-        <CountTick value={group.tasks.length} className="text-ui-sm text-ink-3" />
+        <span title={partial ? "Counts the tasks loaded so far" : undefined} data-group-count="">
+          <CountTick value={groupCount(group.tasks.length, partial)} className="text-ui-sm text-ink-3" />
+        </span>
       </button>
       <span className="flex-1" />
       {onAdd && (

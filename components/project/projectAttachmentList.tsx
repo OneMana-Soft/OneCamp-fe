@@ -3,6 +3,8 @@
 import * as React from "react"
 
 import { ErrorState } from "@/components/ui/error-state"
+import { Button } from "@/components/ui/button"
+import { Upload } from "@/lib/icons"
 import { FileRow, UploadingFileCard } from "@/components/project/fileCard"
 import { ProjectFilesEmpty, ProjectFilesNoMatch, ProjectFilesSkeleton, shownFiles, useProjectFiles } from "@/components/project/projectFiles"
 
@@ -39,6 +41,20 @@ export function ProjectAttachmentList({ projectId, searchQuery }: ProjectAttachm
                 <ProjectFilesEmpty onAdd={p.isAdmin ? pickFiles : undefined} className="min-h-[40vh]" />
             ) : (
                 <div className="grid">
+                    {/* Upload, where the list starts: a phone had no way to add a
+                        file once the project had one (the empty state's button
+                        was the only one). */}
+                    {p.isAdmin ? (
+                        <div className="flex items-center justify-between pb-1" data-files-phone-bar="">
+                            <span className="text-meta text-ink-3 tabular-nums">
+                                {shown.length === 1 ? "1 file" : `${shown.length} files`}
+                            </span>
+                            <Button variant="secondary" size="sm" onClick={pickFiles} className="extend-touch-target">
+                                <Upload aria-hidden="true" />
+                                Upload
+                            </Button>
+                        </div>
+                    ) : null}
                     {p.uploading.map((u) => (
                         <UploadingFileCard
                             key={u.key}

@@ -10,7 +10,8 @@ let projects: ProjectOverview[] = []
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => <a href={href} {...rest}>{children}</a> }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), useSearchParams: () => new URLSearchParams() }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
-vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
+const media = vi.hoisted(() => ({ desktop: true }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: media.desktop, isMobile: !media.desktop }) }))
 vi.mock("@/hooks/useProjectsOverview", () => ({ useProjectsOverview: () => ({ projects, isLoading: false, isError: false, mutate: vi.fn() }) }))
 vi.mock("@/components/goals/GoalsView", () => ({ GoalsView: () => null }))
 vi.mock("@/components/reports/ReportsView", () => ({ ReportsView: () => null }))
@@ -35,7 +36,10 @@ beforeEach(() => {
   window.localStorage.clear()
   resetGrowForTests()
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  media.desktop = true
+})
 
 /** The projects table (design v3, work.md W39). */
 describe("the projects table", () => {
@@ -87,5 +91,18 @@ describe("the projects table", () => {
     projects = [project("a"), project("b")]
     const flat = render(<ProjectsOverview />)
     expect(flat.container.querySelector("[data-group-header]")).toBeNull()
+  })
+})
+
+describe("the projects overview on a phone (PTC-42)", () => {
+  it("leaves the page's name to the top bar, and puts New project at the end of the views' row", () => {
+    media.desktop = false
+    projects = [project("q4")]
+    render(<ProjectsOverview />)
+    const title = screen.getByRole("heading", { level: 1, name: "Projects" })
+    expect(title.className).toContain("sr-only")
+    const row = screen.getByRole("tablist", { name: "Projects views" }).parentElement!
+    expect(row.hasAttribute("data-overview-tabs-row")).toBe(true)
+    expect(within(row).getByRole("button", { name: "New project" })).toBeInTheDocument()
   })
 })

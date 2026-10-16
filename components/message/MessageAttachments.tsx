@@ -14,6 +14,8 @@ import { Download } from "@/lib/icons";
 import { LinkCardBody, NEUTRAL_TILE, hueTileClass, linkCardClass } from "@/components/message/LinkCard";
 import { fileKind, fileTypeHue, splitForMiddle } from "@/lib/utils/file/fileTypeHue";
 import { VoiceClipCard, isVoiceClip } from "@/components/clips/VoiceClipCard";
+import { viewableDocumentType } from "@/lib/utils/file/getAttachmentType";
+import { useMedia } from "@/context/MediaQueryContext";
 
 interface MessageAttachmentProps {
     attachments:  AttachmentMediaReq[];
@@ -63,6 +65,8 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
             {shown.length > 0 && (
                 <div
                     data-media-grid={shown.length}
+                    // /collapse hides it (app/globals.css), as Slack hides inline media.
+                    data-message-media=""
                     className={cn(
                         only ? "flex w-fit max-w-full" : "grid w-full max-w-[480px] grid-cols-2 gap-1",
                         three && "grid-rows-2",
@@ -122,7 +126,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                     {nonRenderables.map((attachment) => isVoiceClip(attachment) ? (
                         <VoiceClipCard key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl}/>
                     ) : (
-                        <NonRenderableAttachment key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl}/>
+                        <NonRenderableAttachment key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl} onOpen={attachmentSelected}/>
                     ))}
                 </div>
             )}
@@ -133,20 +137,30 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
 interface NonRenderableAttachmentProps {
     attachment: AttachmentMediaReq
     mediaGetUrl: string
+    /** Opens the file in the viewer (the lightbox). */
+    onOpen: (at: AttachmentMediaReq) => void
 }
 
 /**
  * A file that is not a picture or a video (C24): the card material, a tile
  * in its kind's hue with its type's icon, its name cut in the middle so the
  * start and the extension both stay, "PDF · 2.4 MB", and a download button
- * that shows with the pointer (always, on a touch screen). The card itself
- * downloads too, so the keyboard reaches it in one stop.
+ * that shows with the pointer (always, on a touch screen).
+ *
+ * A file the viewer can show (a PDF, a Word or Excel file, text) opens there,
+ * as a picture does, and keeps its own Download button: every shared PDF was
+ * a download (MC-50). A phone's browser can't show a PDF inside the page, so
+ * there a PDF downloads. Any other file is one button that downloads, so the
+ * keyboard reaches it in one stop.
  */
-function NonRenderableAttachment({ attachment, mediaGetUrl }: NonRenderableAttachmentProps) {
+function NonRenderableAttachment({ attachment, mediaGetUrl, onOpen }: NonRenderableAttachmentProps) {
     const mediaReq = useMediaFetch<GetMediaURLRes>(attachment?.attachment_uuid ? mediaGetUrl +'/'+attachment.attachment_uuid : '')
+    const { isMobile } = useMedia()
     const name = attachment.attachment_file_name
     const hue = fileTypeHue(name, attachment.attachment_raw_type)
     const [head, tail] = splitForMiddle(name)
+    const viewable = viewableDocumentType(name)
+    const opens = !!viewable && !(viewable === "pdf" && isMobile)
 
     const download = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -155,28 +169,69 @@ function NonRenderableAttachment({ attachment, mediaGetUrl }: NonRenderableAttac
         }
     }
 
+    const body = (trailing: React.ReactNode) => (
+        <LinkCardBody
+            icon={<FileTypeIcon name={name} fileType={attachment.attachment_raw_type} size={18}/>}
+            iconClassName={hue ? hueTileClass(hue) : NEUTRAL_TILE}
+            title={<span data-file-name="" className="flex min-w-0"><span className="truncate">{head}</span><span className="shrink-0 whitespace-pre">{tail}</span></span>}
+            detail={`${getFriendlyFileExtension(attachment.attachment_raw_type, name)} · ${formatFileSizeForAttachment(attachment.attachment_size || 0)}`}
+            trailing={trailing}
+        />
+    )
+    // Shown with the pointer (always on a touch screen), and taking clicks only then.
+    const downloadGlyph = "flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 opacity-0 pointer-events-none transition-opacity duration-[140ms] group-hover:opacity-100 group-hover:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+
+    if (!opens) {
+        return (
+            <button
+                type="button"
+                onClick={download}
+                data-no-ripple="true"
+                data-file-card=""
+                data-file-kind={fileKind(name, attachment.attachment_raw_type)}
+                aria-label={`Download ${name}`}
+                title={name}
+                className={cn(linkCardClass, "group max-w-none")}
+            >
+                {body(
+                    <span aria-hidden="true" className={cn(downloadGlyph, "group-hover:bg-hover group-hover:text-ink group-focus-visible:opacity-100")}>
+                        <Download className="size-4"/>
+                    </span>,
+                )}
+            </button>
+        )
+    }
+
+    // The card opens the file; its Download is a button of its own beside
+    // the name (never inside the open button: a button can't hold another).
     return (
-        <button
-            type="button"
-            onClick={download}
-            data-no-ripple="true"
+        <div
             data-file-card=""
             data-file-kind={fileKind(name, attachment.attachment_raw_type)}
-            aria-label={`Download ${name}`}
             title={name}
             className={cn(linkCardClass, "group max-w-none")}
         >
-            <LinkCardBody
-                icon={<FileTypeIcon name={name} fileType={attachment.attachment_raw_type} size={18}/>}
-                iconClassName={hue ? hueTileClass(hue) : NEUTRAL_TILE}
-                title={<span data-file-name="" className="flex min-w-0"><span className="truncate">{head}</span><span className="shrink-0 whitespace-pre">{tail}</span></span>}
-                detail={`${getFriendlyFileExtension(attachment.attachment_raw_type, name)} · ${formatFileSizeForAttachment(attachment.attachment_size || 0)}`}
-                trailing={
-                    <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md pointer-events-none text-ink-3 opacity-0 transition-opacity duration-[140ms] group-hover:bg-hover group-hover:text-ink group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100">
-                        <Download className="size-4"/>
-                    </span>
-                }
-            />
-        </button>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen(attachment)
+                }}
+                data-no-ripple="true"
+                aria-label={`Open ${name}`}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
+            >
+                {body(null)}
+            </button>
+            <button
+                type="button"
+                onClick={download}
+                data-no-ripple="true"
+                aria-label={`Download ${name}`}
+                className={cn(downloadGlyph, "relative z-[1] hover:bg-hover hover:text-ink focus-visible:opacity-100")}
+            >
+                <Download className="size-4"/>
+            </button>
+        </div>
     )
 }

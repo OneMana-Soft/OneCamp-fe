@@ -9,6 +9,8 @@ import { GlobalErrorBoundary } from "@/components/error/GlobalErrorBoundary";
 import "@/lib/env"; // Validate environment variables early
 import { FCMHandler } from "@/components/fcm/FCMHandler";
 import { DocumentTitle } from "@/components/common/DocumentTitle";
+import { Suspense } from "react";
+import { FaviconBadge } from "@/components/common/FaviconBadge";
 
 export default function AppLayout({
   children,
@@ -28,7 +30,11 @@ export default function AppLayout({
           <UnifiedUIManager />
           <CommandPaletteLoader />
           <FCMHandler />
-          <DocumentTitle />
+          {/* It reads the address's ?tab=, which a prerender can't know. */}
+          <Suspense fallback={null}>
+            <DocumentTitle />
+          </Suspense>
+          <FaviconBadge />
         </AppProtectedRoute>
       </GlobalErrorBoundary>
     </ClientProviders>

@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next"
 import { useCallback, useMemo, useState } from "react"
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -10,31 +9,34 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Plus, SlidersHorizontal } from "@/lib/icons"
-import { useDispatch } from "react-redux"
-import { TaskKanbanColumnPriorityFilter } from "@/components/task/taskKanbanColumnPriorityFilter"
+import { SlidersHorizontal } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryParamByStatus"
+import { boardQuery } from "@/lib/board/boardQuery"
 import type { TaskInfoInterface } from "@/types/task"
-import { openUI } from "@/store/slice/uiSlice"
-import { ProjectTaskKanbanAssigneeFilter } from "@/components/project/projectTaskKanbanAssigneeFilter"
 import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
-import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
+import { columnsByStatus, statusPatch, type StatusOption } from "@/lib/taskStatus"
+import { getCoreRowModel, useReactTable, type ColumnFiltersState } from "@tanstack/react-table"
+import { WorkToolbar } from "@/components/task/WorkToolbar"
+import { HiddenColumnsHint } from "@/components/task/HiddenColumnsHint"
+import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
+import { useDebounce } from "@/hooks/useDebounce"
 import dynamic from "next/dynamic"
 
-const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog))
-const ProjectFieldsDialog = dynamic(() => import("@/components/project/ProjectFieldsDialog").then((m) => m.ProjectFieldsDialog))
+const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog), { loading: () => null })
+const ProjectFieldsDialog = dynamic(() => import("@/components/project/ProjectFieldsDialog").then((m) => m.ProjectFieldsDialog), { loading: () => null })
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
-import { CardFieldsContext } from "@/components/task/fieldValue"
+import { CardFieldsContext } from "@/components/task/cardFields"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { KeyboardList } from "@/components/task/KeyboardList"
 import { usePost } from "@/hooks/usePost"
 import { useTaskFields } from "@/hooks/useTaskFields"
-import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
+import { useClosedLimit, useOpenLimit, withQuery } from "@/hooks/useClosedLimit"
+import { columnPaging } from "@/components/kanbanComponents/TaskBoard"
+import { columnTotals } from "@/lib/board/columnTotals"
 import { useStoredState } from "@/hooks/useStoredState"
 import { NO_ASSIGNEE, groupByAssignee, type BoardGrouping } from "@/lib/board/groupBy"
 import { assigneeLanes, priorityLanes, type BoardLanes } from "@/lib/board/lanes"
@@ -45,12 +47,15 @@ import { TagFilter } from "@/components/tags/TagFilter"
 import { hasTag } from "@/lib/tags"
 import { taskStatusLabel } from "@/types/task"
 import { PostEndpointUrl } from "@/services/endPoints"
-import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { WorkState } from "@/components/task/workFrame"
 import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
-import { hueFor } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
+import { useRouter } from "next/navigation"
+import { useMedia } from "@/context/MediaQueryContext"
+import { app_task_path } from "@/types/paths"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -66,8 +71,7 @@ function PriorityMark({ value }: { value: string }) {
 }
 
 export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: string; className?: string }) => {
-    const { t } = useTranslation()
-    const dispatch = useDispatch()
+    const projectHue = useProjectHue(projectId)
     const moveTask = useMoveTask()
     const { reassign, setPriority } = useTaskFields()
     // Status columns, or one column per person (Linear's "group by assignee").
@@ -83,8 +87,12 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         (v): v is BoardLanes => v === "none" || v === "assignee" || v === "priority",
     )
 
-    const [assigneeFilter, setAssigneeFilter] = useState<string[]>([])
-    const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+    // The toolbar a project's list and board share (WorkToolbar, PTC-6): its
+    // filters and its search, kept as the list keeps them, and sent the same
+    // way. The board drew chips of its own, with no Filter, Search or Cycle.
+    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+    const [globalFilter, setGlobalFilter] = useState("")
+    const search = useDebounce(globalFilter, 300)
     const [tagFilter, setTagFilter] = useState<string[]>([])
     const [viewableStatus, setColumnShown] = useBoardColumns({
         backlog: false,
@@ -95,10 +103,12 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         canceled: false,
     })
 
-    const urlParam = GetTaskStatusQueryParamByStatus({ assigneeFilter, priorityFilter })
+    const urlParam = boardQuery(columnFilters, search)
     const closed = useClosedLimit()
+    // Open columns page too (PROJ-BUG-8): their totals, and Show more.
+    const open = useOpenLimit()
     const projectInfo = useFetch<ProjectInfoRawInterface>(
-        projectId ? withQuery(`${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}`, urlParam, closed.param) : "",
+        projectId ? withQuery(`${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}`, urlParam, closed.param, open.param) : "",
     )
     const p = projectInfo.data?.data
     const post = usePost()
@@ -127,6 +137,13 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     }
     // Unknown until the project loads; the server checks again on every move.
     const isAdmin = p?.project_is_admin !== undefined ? Boolean(p.project_is_admin) : false
+    // A phone has no panel beside the board: a card opens the task's page,
+    // as a row of the Tasks tab does. It dispatched the panel there, which a
+    // phone never draws, so a tapped card only took on the opened ring.
+    const router = useRouter()
+    const { isMobile } = useMedia()
+    const openOnPhone = useCallback((task: TaskInfoInterface) => router.push(`${app_task_path}/${task.task_uuid}`), [router])
+    const onOpen = isMobile ? openOnPhone : undefined
 
     // One column per status: the built-in ones, each followed by the project's
     // own that count as it (the server groups tasks by category only).
@@ -137,6 +154,18 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     const { fields } = useProjectFields(projectId)
     const { nameOf } = usePeople(projectId, fields)
     const cardFields = useMemo(() => ({ fields: fields.filter((f) => f.on_card), nameOf }), [fields, nameOf])
+    // The toolbar's filters live in a table of the board's tasks, with the
+    // list's columns, so its field filters find their columns.
+    const { columns: taskColumns } = useProjectTaskColumn(statusOpts, fields, nameOf)
+    const table = useReactTable({
+        data: EMPTY,
+        columns: taskColumns,
+        state: { columnFilters, globalFilter },
+        onColumnFiltersChange: setColumnFilters,
+        onGlobalFilterChange: setGlobalFilter,
+        getCoreRowModel: getCoreRowModel(),
+        manualFiltering: true,
+    })
     const allColumns = useMemo(
         () =>
             columnsByStatus(
@@ -179,12 +208,27 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     }, [grouping, laneBy, columns, members, hideEmpty])
     const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
     const canEdit = useCallback(() => isAdmin, [isAdmin])
+    // Each column's total, and which page a column's Show more asks for:
+    // done and cancelled the closed page, every other status the open one.
+    const totals = useMemo(
+        () => columnTotals(p?.project_column_counts, { done: p?.project_tasks_done_count, canceled: p?.project_tasks_canceled_count }),
+        [p?.project_column_counts, p?.project_tasks_done_count, p?.project_tasks_canceled_count],
+    )
+    const showMore = useCallback(
+        (column: string) => (columnPaging(statusOpts.find((o) => o.value === column) ?? { value: column }).closed ? closed.showMore() : open.showMore()),
+        [statusOpts, closed, open],
+    )
     // The states, where every tab of a project draws them
     // (components/task/workFrame): the board's columns while it loads, a
     // failed load said as such, and a project with no tasks its spot.
     const loading = projectInfo.isLoading && !p
     const failed = !!projectInfo.isError && !p
-    const filtering = assigneeFilter.length > 0 || priorityFilter.length > 0 || tagFilter.length > 0
+    const filtering = columnFilters.length > 0 || !!search.trim() || tagFilter.length > 0
+    // The statuses the board hides, said beside its filters (PTC-5).
+    const hidden = useMemo(
+        () => statusOpts.filter((o) => !isShown(viewableStatus, o.value)).map((o) => ({ value: o.value, label: o.label, count: totals[o.value] ?? allColumns[o.value]?.length })),
+        [statusOpts, viewableStatus, totals, allColumns],
+    )
     const noTasks =
         !!p &&
         !filtering &&
@@ -193,95 +237,51 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         !p.project_tasks_canceled_count
 
     return (
-        <div className={cn("flex flex-col h-full p-4 overflow-hidden", className)}>
-            {/* The tab frame's toolbar row (components/task/workFrame). Wraps
-                when narrow (side by side, or a side panel open) instead of
-                pushing its last buttons out of sight. */}
-            <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
-                <div className="flex flex-wrap items-center gap-2">
-                    <ProjectTaskKanbanAssigneeFilter activeList={assigneeFilter} updateList={setAssigneeFilter} members={p?.project_members} />
-                    <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
-                    <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
-                </div>
-                {/* Create task and View at every width, as on the List; below sm
-                    they keep their icons and drop their words. They were hidden
-                    below 1024px, so a narrow window or a phone had no View. */}
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" className="text-ui-sm" aria-label="New task" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
-                        <Plus className="size-3.5" />
-                        <span className="hidden sm:inline">New task</span>
-                        <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
-                    </Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-ui-sm" aria-label="Display">
-                                <SlidersHorizontal className="size-3.5" />
-                                <span className="hidden sm:inline">Display</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[200px]">
-                            <DropdownMenuLabel>Group by</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {(["status", "assignee"] as const).map((g) => (
-                                <DropdownMenuCheckboxItem key={g} checked={grouping === g} onCheckedChange={() => setGrouping(g)}>
-                                    {g === "status" ? "Status" : "Assignee"}
-                                </DropdownMenuCheckboxItem>
-                            ))}
-                            {grouping === "status" && (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuLabel>Rows</DropdownMenuLabel>
-                                    {(["none", "assignee", "priority"] as const).map((l) => (
-                                        <DropdownMenuCheckboxItem key={l} checked={laneBy === l} onCheckedChange={() => setLaneBy(l)}>
-                                            {l === "none" ? "None" : l === "assignee" ? "Assignee" : "Priority"}
-                                        </DropdownMenuCheckboxItem>
-                                    ))}
-                                </>
-                            )}
-                            {(grouping === "assignee" || laneBy !== "none") && (
-                                <DropdownMenuCheckboxItem checked={hideEmpty} onCheckedChange={(v) => setHideEmpty(Boolean(v))}>
-                                    {grouping === "assignee" || laneBy === "assignee" ? "Hide people with no tasks" : "Hide empty rows"}
-                                </DropdownMenuCheckboxItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {statusOpts.map((column) => (
-                                <DropdownMenuCheckboxItem
-                                    key={column.value}
-                                    className={column.custom ? "pl-10" : undefined}
-                                    checked={isShown(viewableStatus, column.value)}
-                                    onCheckedChange={(value) => setColumnShown(column.value, value)}
-                                >
-                                    {column.label}
-                                </DropdownMenuCheckboxItem>
-                            ))}
-                            {isAdmin && (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onSelect={() => setManaging(true)}>Manage statuses…</DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => setManagingFields(true)}>Manage fields…</DropdownMenuItem>
-                                </>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-            </div>
+        <div className="flex h-full flex-col overflow-hidden">
+            {/* The toolbar the project's list has (PTC-6): Filter with its
+                chips, the fields and the cycle, the board's tags and the
+                statuses it hides, search, the board's own Display, New task. */}
+            <WorkToolbar
+                table={table}
+                projectId={projectId}
+                extra={
+                    <>
+                        <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
+                        {grouping === "status" && <HiddenColumnsHint hidden={hidden} onShow={() => hidden.forEach((c) => setColumnShown(c.value, true))} />}
+                    </>
+                }
+                display={
+                    <BoardDisplayMenu
+                        grouping={grouping}
+                        onGrouping={setGrouping}
+                        laneBy={laneBy}
+                        onLaneBy={setLaneBy}
+                        hideEmpty={hideEmpty}
+                        onHideEmpty={setHideEmpty}
+                        statusOptions={statusOpts}
+                        shown={viewableStatus}
+                        onShown={setColumnShown}
+                        onManageStatuses={isAdmin ? () => setManaging(true) : undefined}
+                        onManageFields={isAdmin ? () => setManagingFields(true) : undefined}
+                    />
+                }
+            />
 
+            <div className={cn("flex min-h-0 flex-1 flex-col pb-4", className)}>
             {loading ? (
-                <div className={cn(workBody, "min-h-0 flex-1")}>
+                <div className="min-h-0 flex-1">
                     <BoardSkeleton />
                 </div>
             ) : failed ? (
-                <WorkState className={workBody}>
+                <WorkState className="px-4 sm:px-0">
                     <ErrorState subject="this project's board" onRetry={() => void projectInfo.mutate()} />
                 </WorkState>
             ) : noTasks ? (
-                <WorkState className={workBody}>
-                    <EmptyState illustration={<SpotTasks hue={hueFor(projectId)} />} title="No tasks yet" description="Create one and it shows here." />
+                <WorkState className="px-4 sm:px-0">
+                    <EmptyState illustration={<SpotTasks hue={projectHue} />} title="No tasks yet" description="Create one and it shows here." />
                 </WorkState>
             ) : (
-            <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className={cn(workBody, "flex-1 overflow-hidden")}>
+            <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className="flex-1 overflow-hidden">
                 <CardFieldsContext.Provider value={cardFields}>
                     <div className="h-full">
                         {byPerson ? (
@@ -297,6 +297,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                 boardKey={`project:${projectId}:assignee`}
                                 onQuickAdd={isAdmin ? quickAdd : undefined}
                                 badgeFor={(task) => task.task_custom_status_name || taskStatusLabel(task.task_status)}
+                                onOpen={onOpen}
                             />
                         ) : (
                             <TaskBoard
@@ -312,17 +313,102 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                 }}
                                 lanes={lanes}
                                 boardKey={`project:${projectId}`}
-                                totals={{ done: p?.project_tasks_done_count, canceled: p?.project_tasks_canceled_count }}
-                                onShowMore={closed.showMore}
+                                totals={totals}
+                                onShowMore={showMore}
                                 onQuickAdd={isAdmin ? quickAdd : undefined}
+                                onOpen={onOpen}
                             />
                         )}
                     </div>
                 </CardFieldsContext.Provider>
             </KeyboardList>
             )}
+            </div>
             {isAdmin && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
             {isAdmin && managingFields && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
         </div>
+    )
+}
+
+/** The board's Display: how it groups, its rows, the columns it shows, and its admins' statuses and fields. */
+function BoardDisplayMenu({
+    grouping,
+    onGrouping,
+    laneBy,
+    onLaneBy,
+    hideEmpty,
+    onHideEmpty,
+    statusOptions,
+    shown,
+    onShown,
+    onManageStatuses,
+    onManageFields,
+}: {
+    grouping: BoardGrouping
+    onGrouping: (g: BoardGrouping) => void
+    laneBy: BoardLanes
+    onLaneBy: (l: BoardLanes) => void
+    hideEmpty: boolean
+    onHideEmpty: (v: boolean) => void
+    statusOptions: StatusOption[]
+    shown: Record<string, boolean>
+    onShown: (column: string, shown: boolean) => void
+    onManageStatuses?: () => void
+    onManageFields?: () => void
+}) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="extend-touch-target text-ui-sm" aria-label="Display">
+                    <SlidersHorizontal className="size-3.5" />
+                    <span className="hidden sm:inline">Display</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+                <DropdownMenuLabel>Group by</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {(["status", "assignee"] as const).map((g) => (
+                    <DropdownMenuCheckboxItem key={g} checked={grouping === g} onCheckedChange={() => onGrouping(g)}>
+                        {g === "status" ? "Status" : "Assignee"}
+                    </DropdownMenuCheckboxItem>
+                ))}
+                {grouping === "status" && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Rows</DropdownMenuLabel>
+                        {(["none", "assignee", "priority"] as const).map((l) => (
+                            <DropdownMenuCheckboxItem key={l} checked={laneBy === l} onCheckedChange={() => onLaneBy(l)}>
+                                {l === "none" ? "None" : l === "assignee" ? "Assignee" : "Priority"}
+                            </DropdownMenuCheckboxItem>
+                        ))}
+                    </>
+                )}
+                {(grouping === "assignee" || laneBy !== "none") && (
+                    <DropdownMenuCheckboxItem checked={hideEmpty} onCheckedChange={(v) => onHideEmpty(Boolean(v))}>
+                        {grouping === "assignee" || laneBy === "assignee" ? "Hide people with no tasks" : "Hide empty rows"}
+                    </DropdownMenuCheckboxItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {statusOptions.map((column) => (
+                    <DropdownMenuCheckboxItem
+                        key={column.value}
+                        className={column.custom ? "pl-10" : undefined}
+                        checked={isShown(shown, column.value)}
+                        onCheckedChange={(value) => onShown(column.value, value)}
+                    >
+                        {column.label}
+                    </DropdownMenuCheckboxItem>
+                ))}
+                {onManageStatuses && onManageFields && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={onManageStatuses}>Manage statuses…</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={onManageFields}>Manage fields…</DropdownMenuItem>
+                    </>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }

@@ -3,11 +3,12 @@
 import { use, useCallback } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestBoardViewer } from "@/components/guest/GuestBoardViewer";
-import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { PublicGone } from "@/components/guest/publicStates";
 import { PublicFrame } from "@/components/guest/PublicFrame";
 import { Eye } from "@/lib/icons";
 
-const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
+const gone = <PublicGone surface="guest-board" noun="shared board" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />;
 
 export default function GuestBoardPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
@@ -31,6 +32,7 @@ export default function GuestBoardPage({ params }: { params: Promise<{ token: st
         // the band, the mark, the header and the credit; the canvas fills it.
         <PublicFrame
             surface="guest-board"
+            workspaceName={session.workspace_name}
             fill
             title={session.title || "Shared board"}
             actions={

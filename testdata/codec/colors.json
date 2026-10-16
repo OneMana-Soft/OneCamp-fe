@@ -1,0 +1,42 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "sky"
+              },
+              "type": "textStyle"
+            }
+          ],
+          "text": "Blue",
+          "type": "text"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "berry"
+              },
+              "type": "textStyle"
+            }
+          ],
+          "text": "red",
+          "type": "text"
+        },
+        {
+          "text": " text.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

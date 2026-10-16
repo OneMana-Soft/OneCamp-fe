@@ -1,36 +1,40 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 
 interface UseMqttTopicOptions {
     topic: string
+    /**
+     * Called for each message on the topic, for what only this page does with
+     * it. Most pages pass none: subscribing is what brings a topic's messages
+     * in, and the global router (useMqttMessageHandler) handles each one
+     * once. A page that handled them as well handled every event twice (a
+     * doc's comment count moved by two).
+     */
     onMessage?: (message: string, topic: string) => void
     autoSubscribe?: boolean
 }
 
+/**
+ * Subscribes to an MQTT topic while mounted (and connected). It keeps no
+ * list of the messages: it used to, in state, so every message on a doc's or
+ * a table's topic rendered the whole page again, and the list only grew.
+ */
 export const useMqttTopic = ({ topic, onMessage, autoSubscribe = true }: UseMqttTopicOptions) => {
     const { subscribeToTopic, unsubscribeFromTopic, connectionState } = useMqtt()
-    const [messages, setMessages] = useState<Array<{ message: string; timestamp: number }>>([])
     const subscriptionIdRef = useRef<string | null>(null)
-
-    const handleMessage = (message: string, receivedTopic: string) => {
-        if (receivedTopic === topic) {
-            setMessages((prev) => [...prev, { message, timestamp: Date.now() }])
-            onMessage?.(message, receivedTopic)
-        }
-    }
+    // The latest handler, so a new one each render needs no resubscribe.
+    const onMessageRef = useRef(onMessage)
+    useEffect(() => {
+        onMessageRef.current = onMessage
+    })
 
     useEffect(() => {
-        // Only subscribe if:
-        // 1. Topic is available
-        // 2. Auto-subscribe is enabled
-        // 3. Not already subscribed
-        // 4. MQTT client is connected
-        if (topic && autoSubscribe && !subscriptionIdRef.current && connectionState.isConnected) {
-            subscriptionIdRef.current = subscribeToTopic(topic, handleMessage)
-        }
-
+        if (!topic || !autoSubscribe || subscriptionIdRef.current || !connectionState.isConnected) return
+        subscriptionIdRef.current = subscribeToTopic(topic, (message: string, receivedTopic: string) => {
+            if (receivedTopic === topic) onMessageRef.current?.(message, receivedTopic)
+        })
         return () => {
             if (subscriptionIdRef.current) {
                 unsubscribeFromTopic(subscriptionIdRef.current)
@@ -39,29 +43,5 @@ export const useMqttTopic = ({ topic, onMessage, autoSubscribe = true }: UseMqtt
         }
     }, [topic, autoSubscribe, subscribeToTopic, unsubscribeFromTopic, connectionState.isConnected])
 
-    const subscribe = () => {
-        if (topic && !subscriptionIdRef.current) {
-            subscriptionIdRef.current = subscribeToTopic(topic, handleMessage)
-        }
-    }
-
-    const unsubscribe = () => {
-        if (subscriptionIdRef.current) {
-            unsubscribeFromTopic(subscriptionIdRef.current)
-            subscriptionIdRef.current = null
-        }
-    }
-
-    const clearMessages = () => {
-        setMessages([])
-    }
-
-    return {
-        messages,
-        subscribe,
-        unsubscribe,
-        clearMessages,
-        isSubscribed: !!subscriptionIdRef.current,
-        isConnected: connectionState.isConnected,
-    }
+    return { isConnected: connectionState.isConnected }
 }

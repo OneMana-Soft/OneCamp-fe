@@ -11,11 +11,10 @@ import {
     DrawerTitle,
 } from "@/components/ui/drawer"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { ProjectAddOrRemoveInterface } from "@/types/project"
-import { usePost } from "@/hooks/usePost"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { openUI } from "@/store/slice/uiSlice"
 import { useDispatch } from "react-redux"
+import { useArchiveProject } from "@/hooks/useArchiveProject"
 import { TeamInfoRawInterface } from "@/types/team"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 
@@ -43,63 +42,11 @@ export function ProjectLongPressDrawer({
     )
 
     const dispatch = useDispatch()
-    const post = usePost()
 
-    const execDelete = () => {
-        post.makeRequest<ProjectAddOrRemoveInterface>({
-            apiEndpoint: PostEndpointUrl.DeleteProject,
-            payload: { project_uuid: projectId },
-        }).then(() => {
-            teamProjectList.mutate()
-        })
-    }
-
-    const handleDelete = () => {
-        setTimeout(() => {
-            dispatch(
-                openUI({
-                    key: "confirmAlert",
-                    data: {
-                        title: "Archive project",
-                        description:
-                            "Are you sure you want to archive this project? Members will lose access until it is restored.",
-                        confirmText: "Archive project",
-                        onConfirm: () => {
-                            execDelete()
-                        },
-                    },
-                }),
-            )
-        }, 500)
-    }
-
-    const execUndelete = () => {
-        post.makeRequest<ProjectAddOrRemoveInterface>({
-            apiEndpoint: PostEndpointUrl.UndeleteProject,
-            payload: { project_uuid: projectId },
-        }).then(() => {
-            teamProjectList.mutate()
-        })
-    }
-
-    const handleUnDelete = async () => {
-        if (!projectId) return
-        setTimeout(() => {
-            dispatch(
-                openUI({
-                    key: "confirmAlert",
-                    data: {
-                        title: "Unarchive project",
-                        description: "Are you sure you want to unarchive this project?",
-                        confirmText: "Unarchive project",
-                        onConfirm: () => {
-                            execUndelete()
-                        },
-                    },
-                }),
-            )
-        }, 500)
-    }
+    // One question, then the server (hooks/useArchiveProject).
+    const { archive, restore } = useArchiveProject()
+    const name = teamProjectList.data?.data.team_projects?.find((p) => p.project_uuid === projectId)?.project_name
+    const done = () => void teamProjectList.mutate()
 
     const handleProjectMembers = () => {
         closeDrawer()
@@ -109,8 +56,11 @@ export function ProjectLongPressDrawer({
     const closeDrawer = () => setOpenState(false)
 
     const handleArchiveAction = () => {
-        if (isDeleted) handleUnDelete()
-        else handleDelete()
+        closeDrawer()
+        if (!projectId) return
+        // The question opens once the sheet has gone, so the two never hold
+        // the page's focus at once (as it always waited here).
+        setTimeout(() => (isDeleted ? restore(projectId, { name, done }) : archive(projectId, { name, done })), 500)
     }
 
     if (!projectId) return null
@@ -134,7 +84,7 @@ export function ProjectLongPressDrawer({
                     {isAdmin && isDeleted && (
                         <DrawerItem
                             icon={RotateCcw}
-                            label="Unarchive project"
+                            label="Restore project"
                             onClick={handleArchiveAction}
                         />
                     )}

@@ -62,18 +62,43 @@ export enum MqttMessageType {
     // Chat_Seen mirrors backend MESSAGE_CHAT_SEEN: someone has seen a DM or
     // group chat up to a time; its read receipts show it.
     Chat_Seen,
+    // Content_IO_Job mirrors backend MESSAGE_CONTENT_IO_JOB: an import or
+    // export the person started got further; an open import dialog shows it.
+    Content_IO_Job,
+    // Doc_Meta mirrors backend MESSAGE_DOC_META, on a doc's topic: it was
+    // renamed, deleted, restored, moved, or its access or lock changed
+    // (lib/docMeta, hooks/useDocMetaEvents).
+    Doc_Meta,
+    // Notice mirrors backend MESSAGE_NOTICE, on a member's own topic: an inbox
+    // item of a kind the feed has no other type for (types/activity NoticeItem).
+    Notice,
     // Conversation_Access mirrors backend MESSAGE_CONVERSATION_ACCESS, on the
     // member's own topic: a conversation became theirs (a DM or group started,
     // a channel made, joined or added to; a group's new id when it took
     // someone in) or stopped being theirs (removed from a channel, or left
     // it). The app fetches its topics again (lib/mqtt/conversationAccess).
-    // 35 to 37 are message types this edition doesn't use; the backend keeps
-    // their numbers.
     Conversation_Access = 38,
     // Desktop_Notice mirrors backend MESSAGE_DESKTOP_NOTICE, on the member's
     // own topic: a notification for the desktop app to raise, sent beside
     // every push (lib/desktopNotices). A browser tab ignores it: it has push.
     Desktop_Notice,
+    // Task_Changed mirrors backend MESSAGE_TASK_CHANGED, on a task's project's
+    // topic: its name, status or assignee changed, or it was made, deleted
+    // or restored. Live task chips and a doc's task lists read it again
+    // (lib/liveEntity).
+    Task_Changed,
+}
+
+/** MESSAGE_DOC_META's data: what happened to a doc, for the tabs that have it open. */
+export interface msgDocMetaInterface {
+    /** The event's kind: "doc.renamed", "doc.deleted", "doc.access_changed", … */
+    kind: string
+    doc_uuid: string
+    actor_uuid?: string
+    agent_uuid?: string
+    at: string
+    /** What a tab acts on: the new title, the new parent, whether it's private now. */
+    data?: Record<string, string>
 }
 
 /** MESSAGE_TASK_FIELD's data: a task's value of a field now (null once taken off), and who set it. */
@@ -172,6 +197,9 @@ interface msgTaskCommentInterface {
 interface msgDocCommentInterface {
     type: MqttActionType
     comment_uuid: string
+    /** The doc, as every doc payload names it. */
+    doc_uuid?: string
+    /** The same, by its old name: older servers send only this one. */
     doc_id: string
     user_uuid: string
     user_profile_object_key: string
@@ -254,6 +282,9 @@ interface msgChannelTypingInterface {
     user_profile: string
     user_name: string
     channel_uuid: string
+    /** Set only when a bot is typing, with its kind (lib/botCopy), so an AI's line says "is working". */
+    is_bot?: boolean
+    user_bot_kind?: string
 }
 
 interface msgChannelUpdateInterface {
@@ -299,6 +330,9 @@ interface msgDmTypingInterface {
     user_profile: string
     user_name: string
     chat_grp_id: string
+    /** As on msgChannelTypingInterface. */
+    is_bot?: boolean
+    user_bot_kind?: string
 }
 interface rawMsgPostReactionInterface {
     type: number
@@ -465,6 +499,8 @@ class MqttService {
     parseDocCommentMsg(messageStr: string) {
 
         const rawPost: rawMsgDocCommentInterface = JSON.parse(messageStr)
+        // doc_uuid is the name; doc_id is kept for a server a release older.
+        if (rawPost?.data) rawPost.data.doc_id = rawPost.data.doc_uuid || rawPost.data.doc_id
         return rawPost
 
     }

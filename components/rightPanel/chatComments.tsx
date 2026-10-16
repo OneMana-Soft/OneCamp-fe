@@ -21,6 +21,7 @@ import {
 } from "@/store/slice/uiSlice";
 import { SendHorizontal } from "@/lib/icons";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
 import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
@@ -37,13 +38,13 @@ import {
     clearChatCommentInputState,
     createChatComment, createChatCommentReaction, createOrUpdateChatCommentBody,
     removeChatComment, removeChatCommentReaction,
-    updateChatComment, updateChatCommentReaction, updateChatCommentReactionId
+    updateChatCommentReaction, updateChatCommentReactionId
 } from "@/store/slice/chatCommentSlice";
 import {
     createChatReactionChatId,
     removeChatByChatId, removeChatReactionByChatId,
-    updateChatByChatId, updateChatMessageReplyDecrement, updateChatMessageReplyIncrement, updateChatReactionByChatId,
-    RemoveMessageFromChatList, UpdateMessageTextInChatList
+    updateChatMessageReplyDecrement, updateChatMessageReplyIncrement, updateChatReactionByChatId,
+    RemoveMessageFromChatList
 } from "@/store/slice/chatSlice";
 import {ChatCommentFileUpload} from "@/components/fileUpload/chatCommentFileUpload";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
@@ -79,6 +80,7 @@ export const ChatComments = () => {
     const dispatch = useDispatch()
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
 
     // The root from the conversation's loaded messages, live; else from the
     // thread's own answer. A link to an older message in a conversation already
@@ -112,24 +114,10 @@ export const ChatComments = () => {
     const replyMessageData = getReplyMessageData(chatInfoState)
 
 
+    // The message's own menu has asked already, in place (DeleteConfirm): no
+    // dialog half a second later, and no toast once it's gone (SD-5).
     const handleDeletePost = (postId: string) => {
-
-        if(!postId) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this message?",
-                    description: "It's removed from the conversation for everyone. This can't be undone.",
-                    confirmText: "Delete message",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChat(postId)}
-                }
-            }));
-        }, 500);
-
-
+        if (postId) executeDeleteChat(postId)
     }
 
     const executeDeleteChat = (messageId: string) => {
@@ -139,7 +127,7 @@ export const ChatComments = () => {
             payload: {
                 chat_id: messageId
             },
-            showToast: true
+            showErrorToast: true
         })
             .then(() => {
                 dispatch(removeChatByChatId({chatId: rightPanelState.data.chatUUID, messageId}))
@@ -157,23 +145,7 @@ export const ChatComments = () => {
     }
 
     const handleDeleteChatComment = (commentUUID: string, commentIndex: number) => {
-
-        if(!commentUUID) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this reply?",
-                    description: "It's removed from the thread for everyone. This can't be undone.",
-                    confirmText: "Delete reply",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
-                }
-            }));
-        }, 500);
-
-
+        if (commentUUID) executeDeleteChatComment(commentIndex, commentUUID)
     }
 
 
@@ -185,7 +157,7 @@ export const ChatComments = () => {
                 chat_id: rightPanelState.data.chatMessageUUID,
                 comment_id: commentUUID,
             },
-            showToast: true
+            showErrorToast: true
         })
             .then(() => {
                 dispatch(removeChatComment({chatId: rightPanelState.data.chatMessageUUID, commentIndex}))
@@ -195,67 +167,12 @@ export const ChatComments = () => {
 
     }
 
-    const handleUpdateChatComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
+    const handleUpdateChatComment = (id: string, html: string) => saveEdit({ kind: "chatReply", chatMessageId: rightPanelState.data.chatMessageUUID, id }, html)
 
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface>({
-            apiEndpoint: PostEndpointUrl.UpdateChatComment,
-            payload: {
-                chat_id: rightPanelState.data.chatMessageUUID,
-                comment_id: commentUUID,
-                comment_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChatComment({
-                        commentIndex: commentIndex,
-                        chatId: rightPanelState.data.chatMessageUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
-
-    const handleUpdateChat = (postHTMLText: string, messageId: string) => {
-
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.UpdateChatMessage,
-            payload: {
-                chat_id: messageId,
-                text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChatByChatId({
-                        chatId: rightPanelState.data.chatUUID,
-                        messageId,
-                        htmlText: trimmedHtml,
-                    }))
-                    // Sync sidebar preview
-                    const selfUuid = selfProfile.data?.data?.user_uuid || ''
-                    if (selfUuid) {
-                        dispatch(UpdateMessageTextInChatList({
-                            grpId: getGroupingId(rightPanelState.data.chatUUID, selfUuid),
-                            messageId,
-                            htmlText: trimmedHtml,
-                        }))
-                    }
-                }
-
-            })
-    }
+    // A correction to the thread's message or a reply saves as in the list:
+    // at once, and back with the box open on what was typed when the save
+    // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
+    const handleUpdateChat = (id: string, html: string) => saveEdit({ kind: "dm", chatId: rightPanelState.data.chatUUID, id }, html)
 
     const handleSend = (latestContent?: string) => {
         // The thread this reply was written in, whichever is open when it lands.
@@ -444,6 +361,7 @@ export const ChatComments = () => {
                 root
                 userInfo={mainMessageData.userInfo}
                 createdAt={mainMessageData.createdAt}
+                updatedAt={mainMessageData.updatedAt}
                 content={mainMessageData.content}
                 forwardedMessage={forwardedMessageData}
                 replyMessage={replyMessageData}

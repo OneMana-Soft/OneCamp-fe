@@ -169,13 +169,14 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                     size="icon"
                                     className="h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
                                     onClick={handleLogOutClick}
-                                    aria-label="Remove member"
+                                    // One's own row leaves; anyone else's takes them off.
+                                    aria-label={isSelf ? "Leave" : "Remove member"}
                                 >
                                     <LogOut className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">
-                                Remove member
+                                {isSelf ? "Leave" : "Remove member"}
                             </TooltipContent>
                         </Tooltip>
                     )}

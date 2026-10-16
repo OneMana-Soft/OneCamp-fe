@@ -4,7 +4,7 @@ import { Trash, Users, RotateCcw } from "@/lib/icons";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import Link from "next/link";
 import { app_project_path } from "@/types/paths";
-import { ColorIcon } from "@/components/colorIcon/colorIcon";
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { cn } from "@/lib/utils/helpers/cn";
 
 interface ProjectsInfoInterface {
@@ -32,7 +32,7 @@ export const TeamProjectInfo = ({
     return (
         <div className="group flex items-center justify-between gap-3 px-3 py-2.5 rounded-md hover:bg-accent/40 transition-colors">
             <div className="flex items-center gap-3 min-w-0">
-                <ColorIcon name={projectInfo.project_uuid} size="sm" />
+                <ProjectTile id={projectInfo.project_uuid} size={32} />
                 <div className="flex flex-col min-w-0">
                     {projectInfo.project_is_member ? (
                         <Link

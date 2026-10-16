@@ -16,6 +16,8 @@
  * Shared code: it draws rows and calls back. Where the rows come from (the
  * AI's attention list, or mentions and tasks without it) is the caller's.
  */
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
+import { ChatFace } from "@/components/message/chatFace"
 import Link from "next/link"
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 
@@ -31,7 +33,9 @@ import { ArrowUpRight, Check, Loader2, Send, Shield } from "@/lib/icons"
 import { celebrateOnce } from "@/lib/celebrate"
 import { useResolve } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
-import { groupNeeds, type NeedsItem } from "@/components/home/needsMe"
+import { groupNeeds, NEEDS_CAP, type NeedsItem } from "@/components/home/needsMe"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 
 
 /**
@@ -63,8 +67,6 @@ export interface NeedsMeSectionProps extends NeedsActions {
   noChannels?: ReactNode
   className?: string
 }
-
-const SEE_ALL = "/app/inbox?tab=priority"
 
 /** The 48px mini spot of the empty and cleared states: a moss disc, a check on a raised tile, one brand spark. */
 function ClearSpot({ springRef }: { springRef?: React.Ref<SVGSVGElement> }) {
@@ -123,7 +125,11 @@ export function NeedsMeSection({
   const spotRef = useRef<SVGSVGElement>(null)
 
   const live = items.filter((i) => !gone.has(i.id))
-  const { groups, more, total } = groupNeeds(live)
+  // Six rows, then the rest open in place. They used to link to Inbox >
+  // Priority, which lists mentions and requests but never a task that is due,
+  // so a queue of one due task linked to "You're all caught up".
+  const [all, setAll] = useState(false)
+  const { groups, more, total } = groupNeeds(live, all ? Number.POSITIVE_INFINITY : undefined)
 
   useEffect(() => {
     if (total === 0 && resolvedHere.current && !cleared) {
@@ -195,12 +201,23 @@ export function NeedsMeSection({
     e.preventDefault()
   }
 
+  // "See all" only when rows are hidden, and it opens them here.
   const header = (
     <HubSectionHeader
       id="needs-me-title"
       title="What needs me now"
       count={total > 0 ? <CountTick value={total} /> : undefined}
-      action={<Link href={SEE_ALL}>See all</Link>}
+      action={
+        more > 0 ? (
+          <button type="button" onClick={() => setAll(true)} aria-controls="needs-me-rows">
+            See all
+          </button>
+        ) : all && total > NEEDS_CAP ? (
+          <button type="button" onClick={() => setAll(false)} aria-controls="needs-me-rows">
+            Show fewer
+          </button>
+        ) : undefined
+      }
     />
   )
 
@@ -222,7 +239,7 @@ export function NeedsMeSection({
       <section aria-labelledby="needs-me-title" className={cn(NEEDS_MIN_H, className)} data-needs-me="">
         {header}
         <div className="flex items-center justify-between gap-3 rounded-lg bg-sunken px-4 py-3 text-ui-sm text-ink-2">
-          Couldn&apos;t load what needs you
+          Couldn&apos;t load what needs you<SaysLoadFailure />
           {onRetry ? (
             <Button variant="ghost" size="xs" onClick={onRetry}>
               Try again
@@ -243,7 +260,10 @@ export function NeedsMeSection({
     }
     if (item.kind === "agent") return <span className="block size-6"><AgentAvatar /></span>
     if (item.kind === "due") return <StatusGlyph status={item.status ?? "todo"} />
-    if (item.person) return <IdentityMark variant="avatar" size={24} id={item.person.id} label={item.person.name} />
+    // An agent or a bot is its square, never a person's disc (design v3 §3.9),
+    // as on the greeting's orbit: OneCamp AI's unread DM drew an "OA" disc.
+    if (item.person?.bot) return <ChatFace name={item.person.name} userUUID={item.person.id} isBot size={24} />
+    if (item.person) return <IdentityMark variant="avatar" size={24} id={avatarSeed(item.person.name)} label={item.person.name} />
     return <StatusGlyph status="todo" />
   }
 
@@ -268,7 +288,7 @@ export function NeedsMeSection({
           ) : null}
           {item.project ? (
             <>
-              <IdentityMark variant="square" size={12} id={item.project.id} />
+              <ProjectTile id={item.project.id} size={14} />
               <span className="truncate">{item.project.name}</span>
             </>
           ) : null}
@@ -298,13 +318,16 @@ export function NeedsMeSection({
     }
     if (item.kind === "due") {
       return (
-        <span className="flex items-center gap-px">
+        // On a touch screen the two sit 20px apart (44 less their 24), so
+        // neither takes the other's taps.
+        <span className="flex items-center gap-px pointer-coarse:gap-5">
           <span className="flex gap-px opacity-0 transition-opacity group-hover/hubrow:opacity-100 group-focus-within/hubrow:opacity-100 [@media(hover:none)]:opacity-100">
             {item.href ? (
               <Link
                 href={item.href}
                 aria-label="Open"
                 title="Open"
+                data-touch-target=""
                 className="grid size-6 place-items-center rounded-sm text-ink-3 hover:bg-hover hover:text-foreground [&_svg]:size-3.5"
               >
                 <ArrowUpRight />
@@ -325,7 +348,7 @@ export function NeedsMeSection({
       )
     }
     return item.href ? (
-      <Link href={item.href} className="text-meta text-ink-3 hover:text-foreground">
+      <Link href={item.href} data-touch-target="" className="text-meta text-ink-3 hover:text-foreground">
         Open
       </Link>
     ) : null
@@ -349,7 +372,7 @@ export function NeedsMeSection({
           </div>
         )
       ) : (
-        <div ref={listRef} className="-mx-2.5" data-needs-list="">
+        <div ref={listRef} id="needs-me-rows" className="-mx-2.5" data-needs-list="">
           {groups.map((g) => (
             <div key={g.kind} data-flip-key={`g:${g.kind}`} data-needs-group={g.kind} id={`needs-${g.kind}`}>
               {showLabels ? <p className="flex h-7 items-center pl-[22px] text-meta font-medium text-ink-3">{g.label}</p> : null}
@@ -425,12 +448,20 @@ export function NeedsMeSection({
             </div>
           ))}
           {more > 0 ? (
-            <Link href={SEE_ALL} data-flip-key="more" className="hub-row" data-density="compact" data-interactive="">
+            <button
+              type="button"
+              onClick={() => setAll(true)}
+              aria-controls="needs-me-rows"
+              data-flip-key="more"
+              className="hub-row w-full text-left"
+              data-density="compact"
+              data-interactive=""
+            >
               <span />
               <span className="hub-row-lead" />
-              <span className="text-ui text-ink-2">{more} more</span>
+              <span className="text-ui text-ink-2">Show {more} more</span>
               <span />
-            </Link>
+            </button>
           ) : null}
         </div>
       )}

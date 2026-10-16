@@ -1,26 +1,9 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import type { Editor } from "@tiptap/react"
 
-import {
-  Bookmark,
-  BookmarkCheck,
-  Check,
-  ChevronRight,
-  Download,
-  Ellipsis,
-  Eye,
-  Globe,
-  History,
-  Keyboard,
-  Link2,
-  Lock,
-  Maximize2,
-  MessageCircle,
-  Minimize,
-} from "@/lib/icons"
+import { Check, Ellipsis, Globe, Lock, MessageCircle } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/CommandList"
 import {
@@ -35,49 +18,53 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ActiveUsersBar, type ActiveUser } from "@/components/docEditor/ActiveUsersBar"
 import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
 import { readingLine, useDocCounts } from "@/components/docEditor/docCounts"
-import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
-import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { keyLabel } from "@/components/docEditor/shortcuts"
+import { useModKey } from "@/hooks/useModKey"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { DocInfoInterface } from "@/types/doc"
+import { MORE_GROUPS } from "./actions/doc"
+import { actionGroupsFor } from "./registry/readers"
+import { chordGlyphs, shortcutDialogGroups, shortcutRowsFor } from "./registry/shortcuts"
+import { SlotOutlet } from "./registry/slots"
+import type { EditionGate } from "./registry/registry"
+import type { ActionContext } from "./registry/types"
 
 /**
  * The doc's header (content.md D05): 52 px, quiet. On the left the
- * breadcrumb ("Docs › title") with the save dot after the title; on the
+ * breadcrumb (B6's, the whole path, in the crumbs slot) with the save dot
+ * after it; on the
  * right the presence stack, comments, More, a hairline divider and Share as
  * the one secondary button, its icon saying who can see the doc. Everything
- * occasional (save for later, focus, full width, export, shortcuts, viewed
- * by, version history, the word count) is in More. The bottom hairline
- * appears only once the body has scrolled.
+ * occasional is in More: the actions registered for it (actions/doc.ts: save
+ * for later, focus, full width, version history, viewed by, export, copy
+ * link, shortcuts; and what packages add), in their groups, with the word
+ * count. Packages' pieces go in its slots (crumbs, titleChips, modes,
+ * rightCluster, more). The bottom hairline appears only once the body has
+ * scrolled.
  */
 export interface DocHeaderProps {
   doc: DocInfoInterface
-  title: string
   canEdit: boolean
   canShare: boolean
   scrolled: boolean
   saveState: SaveState
   savedAt?: Date | null
+  /** How many of this tab's changes wait to be stored (A4's useSaveProgress), said when offline. */
+  waiting?: number
   live: boolean
   onRetrySave?: () => void
   users: ActiveUser[]
   commentCount: number
   onComments: () => void
-  onRename: (title: string) => void
   onShare: () => void
-  focusMode: boolean
-  onFocusMode: () => void
-  fullWidth: boolean
-  onFullWidth: () => void
-  onExport: () => void
-  onShortcuts: () => void
-  onViewers: () => void
-  onHistory: () => void
+  /** The context the doc's actions run in, read as More opens (the page's state, its bus). */
+  actions: () => ActionContext
+  gate: EditionGate
   editor: Editor | null
 }
 
 export function DocHeader(props: DocHeaderProps) {
-  const { doc, title, canEdit, canShare, scrolled, saveState, savedAt, live, onRetrySave, users, commentCount, onComments, onShare } = props
+  const { doc, canEdit, canShare, scrolled, saveState, savedAt, waiting, live, onRetrySave, users, commentCount, onComments, onShare } = props
   return (
     <header
       data-doc-header=""
@@ -88,14 +75,17 @@ export function DocHeader(props: DocHeaderProps) {
         scrolled && "after:opacity-100",
       )}
     >
-      <DocBreadcrumb title={title} canEdit={canEdit} onRename={props.onRename} />
-      <SaveDot state={saveState} savedAt={savedAt} live={live} onRetry={onRetrySave} />
+      <SlotOutlet slot="crumbs" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
+      <SaveDot state={saveState} savedAt={savedAt} live={live} waiting={waiting} onRetry={onRetrySave} />
       {!canEdit && (
         <span className="tag ml-1 bg-hover text-ink-2" data-read-only="">
           Read only
         </span>
       )}
+      <SlotOutlet slot="titleChips" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
       <div className="flex-1" />
+      <SlotOutlet slot="modes" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
+      <SlotOutlet slot="rightCluster" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
       <ActiveUsersBar users={users} maxShown={4} />
       <Tooltip>
         <TooltipTrigger asChild>
@@ -125,98 +115,23 @@ export function DocHeader(props: DocHeaderProps) {
   )
 }
 
-/** "Docs › title". The title renames in place: Enter or blur saves, Escape reverts. */
-function DocBreadcrumb({ title, canEdit, onRename }: { title: string; canEdit: boolean; onRename: (t: string) => void }) {
-  const [editing, setEditing] = React.useState(false)
-  const [draft, setDraft] = React.useState(title)
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  React.useEffect(() => {
-    if (!editing) setDraft(title)
-  }, [title, editing])
-  React.useEffect(() => {
-    if (editing) inputRef.current?.select()
-  }, [editing])
-  const save = () => {
-    setEditing(false)
-    const next = draft.trim() || "Untitled"
-    if (next !== title) onRename(next)
-  }
-  return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-ui">
-      <Link href="/app/doc" className="rounded-md px-1 text-ink-2 outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand">
-        Docs
-      </Link>
-      <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-ink-4" />
-      {editing ? (
-        <input
-          ref={inputRef}
-          value={draft}
-          aria-label="Doc title"
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={save}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              save()
-            } else if (e.key === "Escape") {
-              // Handled here: the doc's comments panel stays open.
-              e.preventDefault()
-              e.stopPropagation()
-              setDraft(title)
-              setEditing(false)
-            }
-          }}
-          className="field-surface h-7 w-[360px] max-w-full rounded-lg px-2 text-ui font-medium text-ink outline-none"
-        />
-      ) : (
-        <button
-          type="button"
-          disabled={!canEdit}
-          onClick={() => setEditing(true)}
-          title={canEdit ? "Rename" : undefined}
-          aria-current="page"
-          className={cn(
-            "max-w-[360px] truncate rounded-md px-1 py-0.5 text-left font-medium text-ink outline-none disabled:cursor-default disabled:opacity-100",
-            canEdit && "cursor-text hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand",
-          )}
-        >
-          <span key={title} className="content-rise inline-block align-bottom">
-            {title || "Untitled"}
-          </span>
-        </button>
-      )}
-    </nav>
-  )
-}
-
 /** "412 words · 2 min read", counted only while the menu is open. */
 function WordCountRow({ editor }: { editor: Editor }) {
   const counts = useDocCounts(editor)
   return <span className="tabular-nums">{readingLine(counts).replace(", ", " · ")}</span>
 }
 
-function DocMoreMenu({
-  doc,
-  title,
-  canEdit,
-  focusMode,
-  onFocusMode,
-  fullWidth,
-  onFullWidth,
-  onExport,
-  onShortcuts,
-  onViewers,
-  onHistory,
-  editor,
-}: DocHeaderProps) {
+/** An action's key as this computer's keyboard says it: "⌘L" on a Mac, "Ctrl L" elsewhere. */
+function shortcutLabel(chord: string, mac: boolean): string {
+  return chordGlyphs(chord).map((k) => keyLabel(k, mac)).join(mac ? "" : " ")
+}
+
+function DocMoreMenu({ doc, editor, actions, gate }: DocHeaderProps) {
   const [open, setOpen] = React.useState(false)
-  const saved = useSavedEntry("doc", doc.doc_uuid)
-  const { save, remove } = useLaterActions()
-  const copyLink = () => {
-    const url = `${window.location.origin}/app/doc/${doc.doc_uuid}`
-    void navigator.clipboard?.writeText(url).catch(() => {})
-  }
+  const mac = useModKey() === "⌘"
   const item = "h-[30px] gap-2.5 rounded-lg text-ui-sm [&_svg]:size-4 [&_svg]:text-ink-3"
+  // Read as it opens: what is on (focus mode, saved), what this person may do.
+  const groups = open ? actionGroupsFor("more", actions(), MORE_GROUPS) : []
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <Tooltip>
@@ -234,109 +149,53 @@ function DocMoreMenu({
         <TooltipContent>More</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" sideOffset={6} className="content-float w-60 rounded-xl p-1 shadow-e3" data-doc-more-menu="">
-        <DropdownMenuItem
-          className={item}
-          onSelect={() =>
-            saved
-              ? void remove(saved.id).catch(() => {})
-              : void save({ item_type: "doc", item_id: doc.doc_uuid, link: `/app/doc/${doc.doc_uuid}`, title: title || "Untitled doc", remind_at: null }).catch(() => {})
-          }
-        >
-          {saved ? <BookmarkCheck /> : <Bookmark />}
-          <span className="flex-1">{saved ? "Saved for later" : "Save for later"}</span>
-          <Kbd>L</Kbd>
-        </DropdownMenuItem>
-        <DropdownMenuItem className={item} onSelect={onFocusMode}>
-          <Minimize />
-          <span className="flex-1">{focusMode ? "Leave focus mode" : "Focus mode"}</span>
-          <Kbd>⇧F</Kbd>
-        </DropdownMenuItem>
-        <DropdownMenuItem className={cn(item, "hidden md:flex")} onSelect={onFullWidth} role="menuitemcheckbox" aria-checked={fullWidth}>
-          <Maximize2 />
-          <span className="flex-1">Full width</span>
-          {fullWidth && <Check className="!text-ink" />}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="mx-1 bg-line" />
-        {canEdit && (
-          <>
-            <DropdownMenuItem className={item} onSelect={onHistory}>
-              <History />
-              <span className="flex-1">Version history</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className={item} onSelect={onViewers}>
-              <Eye />
-              <span className="flex-1">Viewed by</span>
-            </DropdownMenuItem>
-          </>
-        )}
-        {editor && (
-          <div className="flex h-[30px] items-center gap-2.5 px-2 text-ui-sm text-ink-3" data-doc-word-count="">
-            <span aria-hidden="true" className="size-4" />
-            {open && <WordCountRow editor={editor} />}
-          </div>
-        )}
-        <DropdownMenuSeparator className="mx-1 bg-line" />
-        <DropdownMenuItem className={item} onSelect={onExport}>
-          <Download />
-          <span className="flex-1">Export as Markdown</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className={item} onSelect={copyLink}>
-          <Link2 />
-          <span className="flex-1">Copy link</span>
-          <Kbd>⌘L</Kbd>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="mx-1 bg-line" />
-        <DropdownMenuItem className={item} onSelect={onShortcuts}>
-          <Keyboard />
-          <span className="flex-1">Keyboard shortcuts</span>
-          <Kbd>?</Kbd>
-        </DropdownMenuItem>
+        {groups.map((g, i) => (
+          <React.Fragment key={g.group}>
+            {i > 0 && <DropdownMenuSeparator className="mx-1 bg-line" />}
+            {g.actions.map((a) => {
+              const Icon = a.icon
+              return (
+                <DropdownMenuItem
+                  key={a.action.id}
+                  className={item}
+                  onSelect={() => void a.run()}
+                  data-action={a.action.id}
+                  {...(a.checked !== undefined && a.action.isChecked && !a.action.shortcut ? { role: "menuitemcheckbox", "aria-checked": a.checked } : {})}
+                >
+                  {Icon ? <Icon /> : <span aria-hidden="true" className="size-4" />}
+                  <span className="flex-1">{a.label}</span>
+                  {a.checked && !a.action.shortcut && <Check className="!text-ink" />}
+                  {a.action.shortcut && <Kbd>{shortcutLabel(a.action.shortcut, mac)}</Kbd>}
+                </DropdownMenuItem>
+              )
+            })}
+            {/* The word count, with the doc's own items, counted only while the menu is open. */}
+            {g.group === "doc" && editor && (
+              <div className="flex h-[30px] items-center gap-2.5 px-2 text-ui-sm text-ink-3" data-doc-word-count="">
+                <span aria-hidden="true" className="size-4" />
+                <WordCountRow editor={editor} />
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+        {open && <SlotOutlet slot="more" gate={gate} docId={doc.doc_uuid} editor={editor} />}
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-/** The doc's shortcuts (D29): a 560 px dialog in two columns, grouped. */
-const SHORTCUT_GROUPS: Array<{ title: string; rows: Array<{ label: string; keys: string[] }> }> = [
-  {
-    title: "Text",
-    rows: [
-      { label: "Bold", keys: ["⌘", "B"] },
-      { label: "Italic", keys: ["⌘", "I"] },
-      { label: "Underline", keys: ["⌘", "U"] },
-      { label: "Strikethrough", keys: ["⌘", "⇧", "X"] },
-      { label: "Inline code", keys: ["⌘", "E"] },
-      { label: "Link", keys: ["⌘", "K"] },
-    ],
-  },
-  {
-    title: "Blocks",
-    rows: [
-      { label: "Insert a block", keys: ["/"] },
-      { label: "Heading 1, 2, 3", keys: ["#", "##", "###"] },
-      { label: "Bulleted list", keys: ["-"] },
-      { label: "To-do list", keys: ["[]"] },
-      { label: "Quote", keys: [">"] },
-      { label: "Code block", keys: ["```"] },
-    ],
-  },
-  {
-    title: "Doc",
-    rows: [
-      { label: "Formatting bar", keys: ["⌥", "F10"] },
-      { label: "Undo", keys: ["⌘", "Z"] },
-      { label: "Redo", keys: ["⌘", "⇧", "Z"] },
-      { label: "Line break", keys: ["⇧", "⏎"] },
-      { label: "Mention someone", keys: ["@"] },
-      { label: "These shortcuts", keys: ["?"] },
-    ],
-  },
-]
-
-export function DocShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * The doc's shortcuts (D29): a 560 px dialog in two columns, grouped, from
+ * the one table the registry makes (registry/shortcuts.ts: the blocks' keys
+ * and the actions'), which shortcuts.test.tsx fires row by row. Keys read as
+ * this computer's keyboard does (⌘ on a Mac, Ctrl elsewhere).
+ */
+export function DocShortcutsDialog({ open, onClose, gate = { ai: false } }: { open: boolean; onClose: () => void; gate?: EditionGate }) {
+  const mac = useModKey() === "⌘"
+  const SHORTCUT_GROUPS = React.useMemo(() => shortcutDialogGroups(shortcutRowsFor("doc", gate)), [gate])
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription className="sr-only">The doc editor&apos;s shortcuts. Press Escape to close.</DialogDescription>
@@ -346,11 +205,16 @@ export function DocShortcutsDialog({ open, onClose }: { open: boolean; onClose: 
             <section key={g.title} className={g.title === "Doc" ? "sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-x-8" : undefined}>
               <h3 className="mb-1 text-meta font-medium text-ink-2 sm:col-span-2">{g.title}</h3>
               {g.rows.map((r) => (
-                <div key={r.label} className="flex h-8 items-center justify-between gap-3">
+                <div key={r.label} className="flex min-h-8 items-center justify-between gap-3" data-shortcut-row={r.label}>
                   <span className="text-ui-sm text-ink-2">{r.label}</span>
-                  <span className="flex gap-1">
-                    {r.keys.map((k) => (
-                      <Kbd key={k}>{k}</Kbd>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {r.ways.map((way, i) => (
+                      <React.Fragment key={way.join("+")}>
+                        {i > 0 && <span className="px-0.5 text-meta text-ink-3">{r.sequence ? "then" : "or"}</span>}
+                        {way.map((k) => (
+                          <Kbd key={k}>{keyLabel(k, mac)}</Kbd>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </span>
                 </div>
@@ -360,15 +224,5 @@ export function DocShortcutsDialog({ open, onClose }: { open: boolean; onClose: 
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/** Renames the doc (PostEndpointUrl.UpdateDoc); for the breadcrumb. */
-export function useDocRename(docId: string) {
-  const { makeRequest } = usePost()
-  return React.useCallback(
-    (title: string) =>
-      makeRequest({ apiEndpoint: PostEndpointUrl.UpdateDoc, payload: { doc_uuid: docId, doc_title: title } }),
-    [docId, makeRequest],
   )
 }

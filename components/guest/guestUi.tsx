@@ -7,7 +7,7 @@
 // browser, per link.
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
-import { AlertCircle, Loader2, Send } from "@/lib/icons"
+import { Loader2, Send } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -18,8 +18,9 @@ import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { GuestChannelMessage } from "@/services/guestService"
 import { format } from "date-fns"
-import { fullDateTime, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
+import { fullDateTime, shortDateTime } from "@/lib/utils/date/shortDate"
 import { publicTrouble, retryDelayMs, retryingText, type PublicResult, type PublicTrouble } from "@/services/publicApi"
+import { clockTime } from "@/lib/utils/date/clock"
 
 export const GUEST_POLL_MS = 5000
 
@@ -132,7 +133,7 @@ const WEEK_MS = 6 * 24 * 60 * 60 * 1000
 export function guestWhen(iso: string, now: Date = new Date()): string {
   const d = new Date(iso)
   const age = now.getTime() - d.getTime()
-  if (age >= 0 && age < WEEK_MS) return `${format(d, "EEE")} ${shortTime(d)}`
+  if (age >= 0 && age < WEEK_MS) return `${format(d, "EEE")} ${clockTime(d)}`
   return shortDateTime(d, now)
 }
 
@@ -339,16 +340,6 @@ export function GuestLoading() {
   return <GuestPageSkeleton label="Opening the link…" />
 }
 
-export function GuestLinkGone({ detail = "It may have expired or been turned off. Ask the person who invited you for a new one." }: { detail?: string }) {
-  return (
-    <GuestCentered>
-      <AlertCircle className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-      <h1 className="text-base font-semibold">This link is no longer available</h1>
-      <p className="max-w-sm text-sm text-muted-foreground">{detail}</p>
-    </GuestCentered>
-  )
-}
-
 /**
  * What a guest page shows before its first answer: the page's shape while it
  * loads (saying what it is opening), the same shape saying why it is still
@@ -359,13 +350,14 @@ export function GuestNotYet({
   shape = "page",
   label = "Opening the link…",
   loading,
-  gone = <GuestLinkGone />,
+  gone,
 }: {
   trouble: PublicTrouble | null
   shape?: GuestPageShape
   label?: string
   loading?: React.ReactNode
-  gone?: React.ReactNode
+  /** The page's dead link: PublicGone, naming what the link opened. */
+  gone: React.ReactNode
 }) {
   if (trouble === "gone") return <>{gone}</>
   if (trouble) return <GuestPageSkeleton label={retryingText[trouble]} shape={shape} />

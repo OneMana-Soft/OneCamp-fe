@@ -31,6 +31,12 @@ interface ConversationEmptyProps {
     chips?: StarterChip[]
     /** @deprecated a conversation has no hue of its own any more (C58). */
     hue?: CampHue
+    /**
+     * "fill" (the default): the whole empty list, sat just above the composer.
+     * "start": the head of a history that has messages, above the first of
+     * them, once nothing older is left to load (MessageListVirtua's start).
+     */
+    placement?: "fill" | "start"
 }
 
 // Where the orbit's faces rest (degrees, 0 = right), and its two hue dots.
@@ -87,9 +93,13 @@ function Orbit({ faces, size = 120 }: { faces: EmptyFace[]; size?: number }) {
  * group its three faces. Then the starter chips, so the first move is one
  * click. No hue from the conversation's id: a channel has no hue.
  */
-export function ConversationEmpty({ kind = "channel", title, description, faces = [], chips = [] }: ConversationEmptyProps) {
+export function ConversationEmpty({ kind = "channel", title, description, faces = [], chips = [], placement = "fill" }: ConversationEmptyProps) {
     return (
-        <div className="flex h-full flex-col justify-end px-5 pb-6" data-conversation-empty="" data-empty-kind={kind}>
+        <div
+            className={cn("flex flex-col px-5", placement === "fill" ? "h-full justify-end pb-6" : "pb-3 pt-10")}
+            data-conversation-empty={placement === "fill" ? "" : undefined}
+            data-empty-kind={kind}
+        >
             {kind === "channel" ? (
                 faces.length > 0 ? <Orbit faces={faces} /> : <SpotWelcome size={96} className="-ml-1" />
             ) : kind === "group" ? (

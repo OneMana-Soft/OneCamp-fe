@@ -9,6 +9,7 @@ import { MoreHorizontal, Plus } from "@/lib/icons"
 import { CountTick } from "@/components/ui/CountTick"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { isBuiltInStatus, type StatusOption } from "@/lib/taskStatus"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
@@ -46,9 +47,9 @@ interface Props {
 /**
  * The column's mark: its status glyph (in a project's own hue for its own
  * status), a person's avatar on a board of people, or a dashed ring for "No
- * assignee".
+ * assignee". Its header's, and its row's in a card's sheet (CardSheet).
  */
-function ColumnMark({ status, label }: { status?: StatusOption; label?: string }) {
+export function ColumnMark({ status, label }: { status?: StatusOption; label?: string }) {
     if (status && (status.custom || isBuiltInStatus(status.value))) return <TaskStatusCell status={status} label="tip" />
     if (!status) {
         const builtIn = taskStatuses.find((s) => s.value === label)
@@ -57,7 +58,7 @@ function ColumnMark({ status, label }: { status?: StatusOption; label?: string }
     if (status.label === "No assignee") {
         return <span aria-hidden="true" data-column-mark="none" className="size-4 shrink-0 rounded-full border border-dashed border-line-3" />
     }
-    return <IdentityMark variant="avatar" id={status.value} label={status.label} size={18} />
+    return <IdentityMark variant="avatar" id={avatarSeed(status.label)} label={status.label} size={18} />
 }
 
 /** A 16px fade at the card list's cut edges, set on scroll with no render (a mask, not a shadow). */
@@ -72,6 +73,10 @@ function useEdgeFade() {
 }
 
 const DRAG_OVER = "bg-[color-mix(in_oklab,var(--brand-muted)_45%,var(--sunken))] ring-1 ring-inset ring-brand/35 dark:bg-[color-mix(in_oklab,var(--brand-muted)_45%,var(--sunken))]"
+
+/** The header's "+" and "⋯": 24px, which a finger takes 44px wide (data-touch-target, app/phone.css). */
+const HEAD_BUTTON =
+    "inline-flex size-6 items-center justify-center rounded-sm text-ink-3 hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 /**
  * A board column (design v3, work.md W20): 280px fixed, on the sunken
@@ -124,7 +129,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                     ref={ref}
                     data-collapsed=""
                     className={cn(
-                        "flex h-full w-10 shrink-0 snap-center rounded-lg bg-sunken transition-colors duration-[140ms] dark:bg-white/[.02] [animation:work-fade-in_140ms_var(--ease-out)]",
+                        "flex h-full w-10 shrink-0 snap-start rounded-lg bg-sunken transition-colors duration-[140ms] dark:bg-white/[.02] [animation:work-fade-in_140ms_var(--ease-out)]",
                         hover && DRAG_OVER,
                     )}
                 >
@@ -155,9 +160,17 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                     scrollable && styles.scrollable,
                     unstyled && styles.unstyled,
                     !unstyled && [
-                        // 280px on a desktop; on a phone one column fills the
-                        // screen less 32px, and the board snaps to each.
-                        "group/column w-[calc(100vw-32px)] shrink-0 snap-center sm:w-[280px]",
+                        // On a desktop the columns share the board's width, 264 to
+                        // 320px each, and scroll past that: at a fixed 280px the
+                        // fourth column was cut by 12px at 1440 (work.md W20,
+                        // "nothing is clipped"). On a phone a column is the screen
+                        // less 56px: the board snaps each to its 16px margin and the
+                        // next one shows 32px at the right, as Trello's lists do, so
+                        // the board says it goes on (it filled the screen less 32px,
+                        // and only the pager's dots said there was more). A swipe
+                        // stops at the next column (snap-always): a quick one flew
+                        // past it, from To do to Done.
+                        "group/column w-[calc(100vw-56px)] shrink-0 snap-start snap-always sm:w-auto sm:min-w-[264px] sm:max-w-[320px] sm:flex-1 sm:basis-0",
                         // A column's layout is its own: when a card moves in or
                         // out, the browser re-lays out this column and not the
                         // whole page, which is most of the cost of a crossing.
@@ -190,7 +203,8 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                                     type="button"
                                     onClick={onAdd}
                                     aria-label={`New task in ${name}`}
-                                    className="inline-flex size-6 items-center justify-center rounded-sm text-ink-3 hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className={HEAD_BUTTON}
+                                    data-touch-target=""
                                 >
                                     <Plus className="size-3.5" />
                                 </button>
@@ -201,7 +215,8 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                                         <button
                                             type="button"
                                             aria-label={`${name} column actions`}
-                                            className="inline-flex size-6 items-center justify-center rounded-sm text-ink-3 hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            className={HEAD_BUTTON}
+                                            data-touch-target=""
                                         >
                                             <MoreHorizontal className="size-3.5" />
                                         </button>

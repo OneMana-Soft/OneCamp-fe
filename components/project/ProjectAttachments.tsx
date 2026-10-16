@@ -5,15 +5,16 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ErrorState } from "@/components/ui/error-state"
-import { Check, ChevronDown, LayoutGrid, List, Search, Upload, X } from "@/lib/icons"
+import { ChevronDown, LayoutGrid, List, Search, Upload, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { sectionTitle } from "@/lib/ui/fieldRow"
 import { isTyping } from "@/lib/goKeys"
 import { useEntityLinks } from "@/services/entityLinkService"
 import { EntityLinkPicker } from "@/components/entityLink/EntityLinkPicker"
 import { LinkedItemsList } from "@/components/entityLink/LinkedItemsSection"
-import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { FileCard, FileRow, UploadingFileCard } from "@/components/project/fileCard"
+import { MenuCheck } from "@/components/ui/menuCheck"
 import {
     ProjectFilesEmpty,
     ProjectFilesNoMatch,
@@ -124,16 +125,16 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
     const menu = <T extends string>(label: string, value: T, options: { value: T; label: string }[], onPick: (v: T) => void) => (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 text-ui-sm font-medium text-ink-2" aria-label={`${label}: ${options.find((o) => o.value === value)?.label}`}>
+                <Button variant="ghost" size="sm" className="gap-1 px-2 text-ui-sm font-[510] text-ink-2" aria-label={`${label}: ${options.find((o) => o.value === value)?.label}`}>
                     {value === options[0].value && label === "Type" ? "Type" : options.find((o) => o.value === value)?.label}
                     <ChevronDown className="size-3.5" aria-hidden="true" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-40">
                 {options.map((o) => (
-                    <DropdownMenuItem key={o.value} onSelect={() => onPick(o.value)} className="justify-between gap-4">
+                    <DropdownMenuItem key={o.value} onSelect={() => onPick(o.value)} aria-current={o.value === value || undefined} className="justify-between gap-4">
                         {o.label}
-                        {o.value === value ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                        <MenuCheck checked={o.value === value} />
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>
@@ -142,12 +143,14 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
 
     return (
         <div {...dropProps} data-dragging={dragging} data-files-tab="" className="group/files relative flex flex-col pb-4">
-            <div data-work-toolbar="" className={cn(workToolbar, "min-h-11")}>
+            {/* The tab frame's band (components/task/workFrame), flush under
+                the tabs with 28 px controls, as on every other tab. */}
+            <div data-work-toolbar="" className={workToolbar}>
                 {menu("Type", type, TYPE_FILTERS, setType)}
                 {menu("Sort", sort, SORTS, setSort)}
                 <div className="ml-auto flex items-center gap-1">
                     {searching ? (
-                        <label className="flex h-8 w-56 items-center gap-1.5 rounded-lg bg-raised px-2 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+                        <label className="flex h-7 w-56 items-center gap-1.5 rounded-md bg-raised px-2 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
                             <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
                             <input
                                 autoFocus
@@ -163,11 +166,11 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                             </button>
                         </label>
                     ) : (
-                        <Button variant="ghost" size="icon" className="size-8 text-ink-2" aria-label="Search files" onClick={() => setSearching(true)}>
-                            <Search className="size-4" />
+                        <Button variant="ghost" size="icon-sm" className="text-ink-2" aria-label="Search files" onClick={() => setSearching(true)}>
+                            <Search className="size-3.5" />
                         </Button>
                     )}
-                    <div role="radiogroup" aria-label="View" className="inline-flex h-7 items-center rounded-md bg-sunken p-0.5">
+                    <div role="radiogroup" aria-label="View" className="inline-flex h-7 items-center rounded-md bg-press p-0.5">
                         {([["grid", LayoutGrid, "Grid"], ["list", List, "List"]] as const).map(([v, Icon, name]) => (
                             <button
                                 key={v}
@@ -187,11 +190,11 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                             onPick={(refType, refUUID) => links.addLink(refType, refUUID)}
                             isLinked={links.hasLink}
                             disabled={links.mutating}
-                            triggerClassName="h-8 gap-1.5 text-ink-2 hover:text-ink"
+                            triggerClassName="h-7 gap-1.5 text-ink-2 hover:text-ink"
                         />
                     )}
                     {p.isAdmin && (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={pickFiles} aria-keyshortcuts="U">
+                        <Button size="sm" className="gap-1.5" onClick={pickFiles} aria-keyshortcuts="U">
                             <Upload className="size-3.5" aria-hidden="true" />
                             Upload
                             <kbd className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-xs bg-white/20 px-1 text-micro font-medium" aria-hidden="true">U</kbd>
@@ -199,7 +202,7 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                     )}
                 </div>
             </div>
-            <div className={workBody}>
+            <div className="px-6 pt-5">
                 {loading ? (
                     <ProjectFilesSkeleton view={view} />
                 ) : failed ? (

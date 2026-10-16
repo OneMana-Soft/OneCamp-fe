@@ -12,6 +12,7 @@ import {useTaskMessageHandlers} from "@/hooks/useTaskMessageHandlers";
 import {useDocMessageHandlers} from "@/hooks/useDocMessageHandlers";
 import {useActivityMessageHandlers} from "@/hooks/useActivityMessageHandlers";
 import mqttService from "@/services/mqttService";
+import { CONTENT_IO_JOB_EVENT } from "@/lib/export/contentIO";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import { appMutate as mutate } from "@/lib/swrMutate";
@@ -32,8 +33,10 @@ import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingA
 import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
 import { statusFieldsFromMessage } from "@/lib/taskStatus";
 import { importProgressStale } from "@/lib/importLive";
+import { emitDocMeta } from "@/lib/docMeta/bus";
 import { applyConversationAccess, readConversationAccess } from "@/lib/mqtt/conversationAccess";
 import { isDesktopApp } from "@/lib/desktopApp";
+import { noteUnhandledMqttType } from "@/lib/mqtt/unhandledType";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -59,7 +62,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
     })
 
     const taskHandler = useTaskMessageHandlers({ userUuid })
-    const docHandler = useDocMessageHandlers({ userUuid })
+    const docHandler = useDocMessageHandlers()
     const activityHandler = useActivityMessageHandlers({ userUuid })
 
     const handleMessage = useCallback(
@@ -147,6 +150,19 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
 
                     case MqttMessageType.Activity:
                         activityHandler.handleActivityMessage(messageStr)
+                        break
+
+                    case MqttMessageType.Notice:
+                        activityHandler.handleNoticeMessage(messageStr)
+                        break
+
+                    case MqttMessageType.Doc_Meta:
+                        // To the open doc it is about (hooks/useDocMetaEvents).
+                        try {
+                            emitDocMeta(JSON.parse(messageStr)?.data)
+                        } catch (error) {
+                            console.error("[MQTT] Doc meta message handling error:", error)
+                        }
                         break
 
                     case MqttMessageType.GitHub_Sync:
@@ -375,6 +391,11 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         taskHandler.handleTaskFieldMessage(messageStr)
                         break
 
+                    case MqttMessageType.Task_Changed:
+                        // For the chips and task lists that watch the topic
+                        // themselves (lib/liveEntity): they read the task again.
+                        break
+
                     case MqttMessageType.Chat_Seen:
                         // A read receipt: someone has seen a conversation up to a time.
                         try {
@@ -385,6 +406,12 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         } catch {
                             // Not a receipt we can read: the next open fetches them.
                         }
+                        break
+
+                    case MqttMessageType.Content_IO_Job:
+                        // An import got further (business/ContentIO's Job);
+                        // the import dialog listens (lib/export/contentIO).
+                        window.dispatchEvent(new CustomEvent(CONTENT_IO_JOB_EVENT, { detail: JSON.parse(messageStr)?.data }))
                         break
 
                     case MqttMessageType.Desktop_Notice:
@@ -466,7 +493,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                     }
 
                     default:
-                        console.warn("[MQTT] Unknown message type:", parsedMessage.type)
+                        noteUnhandledMqttType(parsedMessage.type)
 
                 }
             } catch (error) {

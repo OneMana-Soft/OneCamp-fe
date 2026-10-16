@@ -11,11 +11,18 @@ vi.mock("@/components/projectUpdates/ProjectUpdates", () => ({ ProjectUpdates: (
 vi.mock("@/components/project/ProjectGlanceLine", () => ({ ProjectGlanceLine: () => <p data-testid="glance" /> }))
 // The phone's one "⋯": the tools, then notifications, the name and the members.
 let menuExtra: string[] = []
-vi.mock("@/components/project/ProjectToolButtons", () => ({ ProjectActionsMenu: ({ extra }: { extra?: { label: string }[] }) => { menuExtra = (extra ?? []).map((e) => e.label); return null } }))
+let menuNotifications: { level: string; onChoose: (level: string) => void } | undefined
+vi.mock("@/components/project/ProjectToolButtons", () => ({
+  ProjectActionsMenu: ({ extra, notifications }: { extra?: { label: string }[]; notifications?: typeof menuNotifications }) => {
+    menuExtra = (extra ?? []).map((e) => e.label)
+    menuNotifications = notifications
+    return null
+  },
+}))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => ({})) }) }))
-vi.mock("@/components/projectUpdates/ProjectHealthChip", () => ({ ProjectHealthChip: () => null }))
-vi.mock("@/components/goals/ProjectGoalChip", () => ({ ProjectGoalChip: () => null }))
+vi.mock("@/components/projectUpdates/ProjectHealthChip", () => ({ ProjectHealthChip: ({ className }: { className?: string }) => <span data-testid="health-chip" className={className} /> }))
+vi.mock("@/components/goals/ProjectGoalChip", () => ({ ProjectGoalChip: ({ className }: { className?: string }) => <a data-testid="goal-chip" className={className} /> }))
 
 const { ProjectListTabs } = await import("@/components/project/projectListTabs")
 
@@ -25,6 +32,12 @@ afterEach(() => {
 })
 
 describe("a project's tabs on a phone", () => {
+  it("are the computer's six, Docs among them (PTC-12)", () => {
+    render(<ProjectListTabs projectId="p" />)
+    const names = screen.getAllByRole("tab").map((t) => t.textContent)
+    expect(names).toEqual(["Tasks", "Board", "Timeline", "Updates", "Files", "Docs"])
+  })
+
   it("keep the project's line above the tabs, so no tab jumps when chosen", () => {
     render(<ProjectListTabs projectId="p" />)
     const glance = screen.getByTestId("glance")
@@ -43,9 +56,24 @@ describe("a project's tabs on a phone", () => {
   })
 })
 
+describe("the phone project's chips (PTC-43)", () => {
+  it("keep to the screen, the goal's name giving way, where the row ran off it mid-word", () => {
+    render(<ProjectListTabs projectId="p" />)
+    const goal = screen.getByTestId("goal-chip")
+    const row = goal.parentElement!
+    expect(row.className).not.toMatch(/overflow-x-auto/)
+    expect(goal.className).toMatch(/\bmin-w-0\b/)
+    expect(goal.className).toMatch(/\bshrink\b/)
+    expect(screen.getByTestId("health-chip").className).toContain("shrink-0")
+  })
+})
+
 describe("the phone project's one menu", () => {
   it("carries notifications and the members, which the top bar's second ⋯ held", () => {
     render(<ProjectListTabs projectId="p1" />)
-    expect(menuExtra).toEqual(expect.arrayContaining(["Notifications", "Project members"]))
+    expect(menuExtra).toEqual(expect.arrayContaining(["Project members"]))
+    // Notifications is the menu's own item, whose levels are picked, not cycled (PTC-26).
+    expect(menuNotifications?.level).toBe("all")
+    expect(typeof menuNotifications?.onChoose).toBe("function")
   })
 })

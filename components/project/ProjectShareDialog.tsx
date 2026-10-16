@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
 import { Check, Eye, Lock } from "@/lib/icons"
+import { useProjectHue } from "@/lib/projectHue"
 
 /**
  * What the client will see (design v3, work.md W50): their page in miniature,
@@ -17,9 +17,10 @@ import { Check, Eye, Lock } from "@/lib/icons"
  * and can't do, in words.
  */
 export function ClientPreview({ projectId }: { projectId: string }) {
+  const hue = useProjectHue(projectId)
   return (
     <div data-client-preview="" className="grid gap-3 sm:grid-cols-[minmax(0,11rem)_1fr]">
-      <div aria-hidden="true" className={`${HUE_CLASS[hueFor(projectId)]} relative overflow-hidden rounded-lg bg-frame p-2`}>
+      <div aria-hidden="true" className={`${HUE_CLASS[hue]} relative overflow-hidden rounded-lg bg-frame p-2`}>
         <div className="absolute inset-x-0 top-0 h-12 [background:radial-gradient(160px_48px_at_30px_0px,color-mix(in_oklab,var(--hue)_14%,transparent),transparent)]" />
         <div className="relative grid gap-2 rounded-md bg-sheet p-2 shadow-e1">
           <div className="flex items-center gap-1.5">

@@ -18,6 +18,7 @@ import {
     updateChannelCommentByCommentUUID, updateChannelCommentReactionByCommentId
 } from "@/store/slice/channelCommentSlice";
 import {incrementUserChannelUnread} from "@/store/slice/userSlice";
+import { mentionsUser } from "@/components/message/tintMentions";
 import { RemoveChannelTyping } from "@/store/slice/typingSlice";
 interface UsePostMessageHandlersProps {
     userUuid?: string
@@ -66,7 +67,7 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                         )
                         // Author just posted — drop the typing indicator
                         // immediately so the receiver doesn't see "still
-                        // typing" lingering for ~4s after the post lands.
+                        // typing" lingering for ~6s after the post lands.
                         dispatch(RemoveChannelTyping({
                             userId: mqttPostInfo.data.user_uuid,
                             channelId: mqttPostInfo.data.post_channel_uuid,
@@ -80,7 +81,10 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                             userUuid !== mqttPostInfo.data.user_uuid &&
                             path3 !== mqttPostInfo.data.post_channel_uuid
                         ) {
-                            dispatch(incrementUserChannelUnread({ch_uuid: mqttPostInfo.data.post_channel_uuid}))
+                            dispatch(incrementUserChannelUnread({
+                                ch_uuid: mqttPostInfo.data.post_channel_uuid,
+                                mentionsMe: mentionsUser(mqttPostInfo.data.post_html_text, userUuid),
+                            }))
                         }
                         break
 

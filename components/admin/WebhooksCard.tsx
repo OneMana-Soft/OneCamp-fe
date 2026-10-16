@@ -37,6 +37,7 @@ import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { NeutralChip, RowMenu, StateWord } from "@/components/admin/connectParts"
 import { deliveryState, eventChips, parseEvents, shortUrl } from "@/components/admin/webhookParts"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface WebhookItem {
   id: string
@@ -244,7 +245,7 @@ const WebhooksCard = () => {
       setLogsPage(page)
     } catch (e) {
       if (replace) setLogs([])
-      setLogsError(apiErrorMessage(e, "Check your connection and try again."))
+      setLogsError(apiErrorMessage(e, "Try again in a moment."))
     } finally {
       setLogsLoading(false)
     }
@@ -510,7 +511,7 @@ const WebhooksCard = () => {
                     ) : logsError && logs.length === 0 ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <p role="alert" className="text-xs text-danger-ink">
-                          Couldn&apos;t load the deliveries. {logsError}
+                          Couldn&apos;t load the deliveries. {logsError}<SaysLoadFailure />
                         </p>
                         <Button variant="secondary" size="sm" onClick={() => fetchLogs(webhook.id, 1, true)}>
                           Try again
@@ -538,7 +539,7 @@ const WebhooksCard = () => {
                       </div>
                     )}
                     {logsError && logs.length > 0 && (
-                      <p role="alert" className="mt-2 text-xs text-danger-ink">Couldn&apos;t load more deliveries. {logsError}</p>
+                      <p role="alert" className="mt-2 text-xs text-danger-ink">Couldn&apos;t load more deliveries. {logsError}<SaysLoadFailure /></p>
                     )}
                     {logsHasMore && (
                       <Button variant="ghost" size="sm" className="mt-2 h-8 w-full text-xs" onClick={handleLoadMore} disabled={logsLoading}>

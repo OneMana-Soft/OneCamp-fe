@@ -147,7 +147,7 @@ describe("dense type scale", () => {
     }
     // Size/line-height in px, the spec's app scale.
     const ROLES: Record<string, [number, number]> = {
-      display: [30, 36], "doc-title": [32, 38], "title-1": [24, 30], "title-2": [20, 27], "title-3": [17, 24],
+      display: [30, 36], "doc-title": [40, 48], "title-1": [24, 30], "title-2": [20, 27], "title-3": [17, 24],
       heading: [15, 20], "body-lg": [16, 26], body: [15, 23], ui: [14, 20], "ui-sm": [13, 18], meta: [12, 16], micro: [11, 14],
     }
     for (const [role, want] of Object.entries(ROLES)) expect(step(role), `text-${role}`).toEqual(want)

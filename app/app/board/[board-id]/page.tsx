@@ -14,6 +14,8 @@ import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
 import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, LayoutGrid, Search, HelpCircle, ImageIcon, Library } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
+import { LoadFailureState } from "@/components/ui/load-failure-state";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ActiveUsersBar } from "@/components/docEditor/ActiveUsersBar";
 import {
   DropdownMenu,
@@ -50,8 +52,12 @@ export default function BoardPage() {
   const { resolvedTheme } = useTheme();
 
   const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
-  const { data: boardInfoHelper, isLoading: isBoardLoading } = useFetch<BoardInfoResponse>(
+  // The page says what went wrong itself (gone, or Try again), so no toast.
+  const { data: boardInfoHelper, isLoading: isBoardLoading, isError: boardError, mutate: reloadBoard } = useFetch<BoardInfoResponse>(
     boardId ? `${GetEndpointUrl.GetBoardInfo}/${boardId}` : "",
+    undefined,
+    undefined,
+    OWN_ERRORS,
   );
   const boardInfo = boardInfoHelper?.data;
   const { makeRequest: updateBoard } = usePost();
@@ -177,19 +183,30 @@ export default function BoardPage() {
 
   if (!boardId) return null;
 
+  // Opening (content.md B11): the dot-grid canvas with a quiet line, the
+  // same ground the board then draws on, not a lone spinner.
   if (isBoardLoading || userProfile.isLoading) {
     return (
-      <div className="flex h-full w-full items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="dot-ground flex h-full w-full items-center justify-center" data-board-opening="">
+        <div className="flex items-center gap-2 text-ui-sm text-ink-3" role="status">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          <span>Opening the board…</span>
+        </div>
       </div>
     );
   }
 
+  // Not yours, gone, or not loaded, said as every screen says it
+  // (LoadFailureState): a way back, and Try again only for a failed load.
   if (!boardInfo) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Board not found or access denied.
-      </div>
+      <LoadFailureState
+        error={boardError}
+        noun="board"
+        onRetry={() => void reloadBoard()}
+        back={{ label: "Back to boards", href: app_board_path }}
+        className="pt-20"
+      />
     );
   }
 
@@ -229,10 +246,13 @@ export default function BoardPage() {
             <DropdownMenuCheckboxItem checked={showResolved} onCheckedChange={setShowResolved}>
               Show resolved comments
             </DropdownMenuCheckboxItem>
-            <DropdownMenuItem onClick={() => excalApi.updateScene({ appState: { openDialog: { name: "help" } } as never })}>
-              <HelpCircle className="mr-2 size-4" />
-              Keyboard shortcuts
-            </DropdownMenuItem>
+            {/* A phone has no keys to learn. */}
+            {!isMobile ? (
+              <DropdownMenuItem onClick={() => excalApi.updateScene({ appState: { openDialog: { name: "help" } } as never })}>
+                <HelpCircle className="mr-2 size-4" />
+                Keyboard shortcuts
+              </DropdownMenuItem>
+            ) : null}
           </>
         )}
         {hasEditAccess && (
@@ -294,7 +314,7 @@ export default function BoardPage() {
         )}
 
         {/* The empty-canvas templates, and sticky notes into tasks. */}
-        <BoardTools api={excalApi} editable={hasEditAccess} boardId={boardId} />
+        <BoardTools api={excalApi} editable={hasEditAccess} boardId={boardId} synced={synced} />
 
         {/* Timer, dot voting and follow-the-presenter */}
         {provider && excalApi && userProfile.data?.data && (

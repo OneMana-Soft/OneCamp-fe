@@ -10,10 +10,10 @@ import { useDispatch } from "react-redux"
 import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
-import { app_channel_path, app_user } from "@/types/paths"
+import { app_channel_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { useCallback, useMemo, useState, memo } from "react"
+import { useCallback, useMemo, memo } from "react"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import type { AttachmentMediaReq } from "@/types/attachment"
@@ -22,6 +22,7 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { useUserInfoState } from "@/hooks/useUserInfoState";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
+import { useEditInPlace } from "@/hooks/useEditInPlace";
 
 interface ChannelMessageProps {
     postInfo: PostsRes
@@ -30,7 +31,8 @@ interface ChannelMessageProps {
     removeReaction: (reactionId: string) => void
     channelId: string
     removePost: () => void
-    updatePost: (body: string) => void
+    /** Saves an edit: answers whether it saved, so a failure opens the box again with the words typed (F-06). */
+    updatePost: (body: string) => Promise<boolean> | void
     priority?: boolean
     /** Continues the message above it (lib/messageGrouping). */
     continued?: boolean
@@ -56,7 +58,8 @@ const ChannelMessageMobileComponent = ({
 
     const copyToClipboard = useCopyToClipboard()
 
-    const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
+    // An edit in place, opened again with what was typed when its save fails (F-06).
+    const edit = useEditInPlace(updatePost)
 
     const userInfoState = useUserInfoState(postInfo.post_by.user_uuid)
     // A channel guest's or Slack person's message is drawn as theirs (see lib/relayedAuthor).
@@ -72,9 +75,11 @@ const ChannelMessageMobileComponent = ({
         e.stopPropagation()
         // A guest or Slack person has no profile: the relaying bot's would stand in.
         if (relayed) return
-        router.push(`${app_user}/${postInfo.post_by.user_uuid}`);
+        // The profile sheet, as a desktop opens it (chanelMessage). It went to
+        // the member page, a whole screen away from the conversation.
+        dispatch(openUI({ key: "otherUserProfile", data: { userUUID: postInfo.post_by.user_uuid } }))
 
-    },[postInfo.post_by.user_uuid, relayed])
+    },[postInfo.post_by.user_uuid, relayed, dispatch])
 
     // The reader's reaction, for the sheet's emoji row (one per person).
     const mine = postInfo.post_reactions?.find((r) => r?.reaction_added_by?.user_uuid === selfProfile.data?.data?.user_uuid)
@@ -132,9 +137,7 @@ const ChannelMessageMobileComponent = ({
                 onAddReaction: addEmojiReaction,
                 channelUUID: channelId,
                 postUUID: postInfo.post_uuid,
-                editMessage: () => { // Changed to match original `editMessage` behavior
-                    setIsMessageEditEnabled(true)
-                },
+                editMessage: edit.open,
                 deleteMessage: () => {
                     removePost()
                 },
@@ -155,7 +158,7 @@ const ChannelMessageMobileComponent = ({
                 },
             }
         }))
-    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by, message, authorName])
+    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, edit.open, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by, message, authorName])
 
     const longPressEvent = useLongPress(onLongPress, {
         threshold: 500,
@@ -186,9 +189,9 @@ const ChannelMessageMobileComponent = ({
     // Not yet on the server: no thread to open and no actions, only its status.
     const pending = !!postInfo.post_send_state
 
-    const handleOnClick = useCallback((e: React.MouseEvent) => {
-        // Prevent navigation if clicking on interactive elements
-        if (pending || (e.target as HTMLElement).closest('button, a, .interactive')) return;
+    // Its thread; the row decides which taps open it (opensThread).
+    const handleOnClick = useCallback(() => {
+        if (pending) return;
         router.push(postHref);
     }, [router, postHref, pending]);
 
@@ -198,12 +201,10 @@ const ChannelMessageMobileComponent = ({
             continued={continued}
             arrived={arrived}
             priority={priority}
-            editing={isMessageEditEnabled}
-            onEditSave={(body) => {
-                updatePost(body)
-                setIsMessageEditEnabled(false)
-            }}
-            onEditCancel={() => setIsMessageEditEnabled(false)}
+            editing={edit.editing}
+            editDraft={edit.draft}
+            onEditSave={edit.finish}
+            onEditCancel={edit.cancel}
             onOpen={handleOnClick}
             onUserClick={handleUserClick}
             longPress={pending ? {} : longPressEvent}

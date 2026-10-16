@@ -4,8 +4,10 @@
 // ...). One row per distinct viewer with their most recent view time (Google
 // Docs viewer-list model), paginated with a "Load more" so the list scales to
 // large workspaces. Restricted to owner/editors server-side; the affordance is
-// only shown to them. Board/doc dialogs are thin wrappers around this.
+// only shown to them. Board/doc dialogs are thin wrappers around this. A read
+// that fails says so, with Try again, never "No views yet" (N46).
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import axiosInstance from "@/lib/axiosInstance"
@@ -22,6 +24,8 @@ import {
 } from "@/components/ui/dialog"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { RESOURCE_ROW, ResourceListEmpty, ResourceListSkeleton } from "@/components/dialog/resourceListParts"
+import { ErrorState } from "@/components/ui/error-state"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { Button } from "@/components/ui/button"
 import { Eye, Loader2 } from "@/lib/icons"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
@@ -52,8 +56,12 @@ function ResourceViewersDialog({
   const [viewers, setViewers] = React.useState<ResourceViewer[]>([])
   const [total, setTotal] = React.useState(0)
   const [hasMore, setHasMore] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
+  // A failed read is said as one (N46): it used to leave the list empty, and
+  // the dialog said "No views yet" about a doc read by twelve people.
+  const [load, setLoad] = React.useState<Load>({ state: "loading" })
   const pageIndexRef = React.useRef(0)
+  // Only the newest read counts: a slow first page never lands over a resource opened since.
+  const readRef = React.useRef(0)
 
   const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const currentUserUuid = selfProfile?.data?.user_uuid
@@ -61,20 +69,23 @@ function ResourceViewersDialog({
   const fetchPage = React.useCallback(
     async (index: number) => {
       if (!resourceId) return
-      setLoading(true)
+      const read = ++readRef.current
+      setLoad({ state: "loading" })
       try {
         const url = `${viewersEndpoint}?${idParam}=${resourceId}&pageIndex=${index}&pageSize=${PAGE_SIZE}`
-        const res = await axiosInstance.get(url)
+        // The dialog says a failure itself, in place.
+        const res = await axiosInstance.get(url, { suppressErrorToast: true })
+        if (read !== readRef.current) return
         const body = res.data ?? {}
         const list = (body.data ?? []) as ResourceViewer[]
         setViewers((prev) => (index === 0 ? list : [...prev, ...list]))
         setTotal(typeof body.count === "number" ? body.count : list.length)
         setHasMore(!!body.has_more)
         pageIndexRef.current = index
-      } catch {
-        // Best-effort: leave whatever is already loaded.
-      } finally {
-        setLoading(false)
+        setLoad({ state: "ready" })
+      } catch (error) {
+        if (read !== readRef.current) return
+        setLoad({ state: "failed", error, page: index })
       }
     },
     [viewersEndpoint, idParam, resourceId],
@@ -90,6 +101,9 @@ function ResourceViewersDialog({
     void fetchPage(0)
   }, [open, resourceId, fetchPage])
 
+  const failedFirst = load.state === "failed" && load.page === 0
+  const failedMore = load.state === "failed" && load.page > 0
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -102,7 +116,9 @@ function ResourceViewersDialog({
         </DialogHeader>
 
         <div className="max-h-[60vh] overflow-y-auto">
-          {loading && viewers.length === 0 ? (
+          {failedFirst ? (
+            <ErrorState compact subject={`who viewed this ${noun}`} detail={refusalOf(load.error)} onRetry={() => void fetchPage(0)} />
+          ) : load.state === "loading" && viewers.length === 0 ? (
             <ResourceListSkeleton label="Loading viewers" />
           ) : viewers.length === 0 ? (
             <ResourceListEmpty icon={Eye} title="No views yet" description={`People who open this ${noun} show here, most recent first.`} />
@@ -111,16 +127,24 @@ function ResourceViewersDialog({
               {viewers.map((v) => (
                 <ViewerRow key={v.user_uuid} viewer={v} isSelf={v.user_uuid === currentUserUuid} />
               ))}
-              {hasMore && (
+              {failedMore && (
+                <div role="alert" className="flex items-center justify-between gap-2 px-2 pt-2 text-xs text-muted-foreground">
+                  <span>{refusalOf(load.error) ?? "Couldn't load more viewers. Nothing has been lost."}</span>
+                  <Button variant="ghost" size="sm" onClick={() => void fetchPage(pageIndexRef.current + 1)}>
+                    Try again
+                  </Button>
+                </div>
+              )}
+              {hasMore && !failedMore && (
                 <div className="pt-1">
                   <Button
                     variant="ghost"
                     size="sm"
                     className="w-full"
-                    disabled={loading}
+                    disabled={load.state === "loading"}
                     onClick={() => fetchPage(pageIndexRef.current + 1)}
                   >
-                    {loading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    {load.state === "loading" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                     Load more
                   </Button>
                 </div>
@@ -133,6 +157,14 @@ function ResourceViewersDialog({
   )
 }
 
+type Load = { state: "loading" } | { state: "ready" } | { state: "failed"; error: unknown; page: number }
+
+/** The server's own reason for a refusal (no access, the doc gone), said in place of a guess about the connection. */
+function refusalOf(error: unknown): string | undefined {
+  const status = apiErrorStatus(error)
+  return status && status < 500 ? apiErrorMessage(error) || undefined : undefined
+}
+
 function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean }) {
   const relative = useRelativeTime(viewer.last_viewed_at)
   const { src } = useUserAvatar(viewer.user_profile_object_key)
@@ -140,7 +172,7 @@ function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean
 
   return (
     <div className={RESOURCE_ROW}>
-      <IdentityMark variant="avatar" size={28} id={viewer.user_uuid} label={name} src={src} />
+      <IdentityMark variant="avatar" size={28} id={avatarSeed(viewer)} label={name} src={src} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">
           {name}

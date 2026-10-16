@@ -28,8 +28,9 @@ export const FilterChip = React.forwardRef<
       className={cn(
         // Design v3 (work.md W10): a quiet ghost while it filters nothing, a
         // chip on the hover ground inside a hairline once it does; never a
-        // bordered button in a toolbar.
-        "h-7 max-w-[18rem] gap-1.5 px-2.5 text-xs font-[510]",
+        // bordered button in a toolbar. 28px tall, it takes a touch 44px tall
+        // (extend-touch-target): a phone's board had three of them under 44.
+        "extend-touch-target h-7 max-w-[18rem] gap-1.5 px-2.5 text-xs font-[510]",
         n > 0 ? "bg-hover text-foreground ring-line" : "text-ink-2 hover:text-foreground",
         className,
       )}

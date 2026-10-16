@@ -1,0 +1,140 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "color": "blue",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A note.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "attrs": {
+        "color": "green",
+        "emoji": "🚀"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Done, or a tip.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "attrs": {
+        "color": "purple",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "An idea.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "attrs": {
+        "color": "yellow",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A warning.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "attrs": {
+        "color": "red",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A risk.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "attrs": {
+        "color": "gray",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A remark.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "attrs": {
+        "color": "agent",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "From AI.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Two paragraphs.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    }
+  ],
+  "type": "doc"
+}

@@ -1,126 +1,45 @@
 "use client"
 
 import * as React from 'react'
-import type { ShouldShowProps } from '../../types'
 import type { Editor } from '@tiptap/react'
-import { BubbleMenu } from '@tiptap/react'
-import { LinkEditBlock } from '../link/link-edit-block'
-import { LinkPopoverBlock } from '../link/link-popover-block'
-import { isSafeHref } from '@/lib/utils/safeHref'
+import { docKeymapOf } from '../../extensions/doc-keymap/storage'
 
-interface LinkBubbleMenuProps {
-  editor: Editor
-  hide?: boolean
-}
+const LinkBar = React.lazy(() => import('../link/link-bar'))
 
-interface LinkAttributes {
-  href: string
-  target: string
-}
+/**
+ * The link bar's place in an editor. The bar (link-bar.tsx) loads the first
+ * time a link is met: the caret in one, a pointer over one, or ⌘K on one.
+ */
+export const LinkBubbleMenu: React.FC<{ editor: Editor; hide?: boolean }> = ({ editor, hide }) => {
+  const [met, setMet] = React.useState(false)
+  const openEdit = React.useRef(false)
 
-export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor, hide }) => {
-  const [showEdit, setShowEdit] = React.useState(false)
-  const [linkAttrs, setLinkAttrs] = React.useState<LinkAttributes>({ href: '', target: '' })
-  const [selectedText, setSelectedText] = React.useState('')
+  React.useEffect(() => {
+    if (met) return
+    const meet = () => setMet(true)
+    const onCaret = () => editor.isActive('link') && meet()
+    const onOver = (e: MouseEvent) => (e.target as Element | null)?.closest?.('a[href]') && meet()
+    const dom = editor.view.dom
+    editor.on('selectionUpdate', onCaret)
+    dom.addEventListener('mouseover', onOver)
+    const keys = docKeymapOf(editor)
+    const edit = () => {
+      if (hide || !editor.isEditable || !editor.view.hasFocus() || !editor.isActive('link')) return false
+      openEdit.current = true
+      meet()
+      return true
+    }
+    if (keys) keys.editLink = edit
+    return () => {
+      editor.off('selectionUpdate', onCaret)
+      dom.removeEventListener('mouseover', onOver)
+      if (keys?.editLink === edit) keys.editLink = null
+    }
+  }, [editor, hide, met])
 
-  const updateLinkState = React.useCallback(() => {
-    const { from, to } = editor.state.selection
-    const { href, target } = editor.getAttributes('link')
-    const text = editor.state.doc.textBetween(from, to, ' ')
-
-    setLinkAttrs({ href, target })
-    setSelectedText(text)
-  }, [editor])
-
-  const shouldShow = React.useCallback(
-    ({ editor, from, to }: ShouldShowProps) => {
-      // Logic-level suppression
-      if (hide) {
-        return false
-      }
-
-      if (from === to) {
-        return false
-      }
-      const { href } = editor.getAttributes('link')
-
-      if (!editor.isActive('link') || !editor.isEditable) {
-        return false
-      }
-
-      if (href) {
-        updateLinkState()
-        return true
-      }
-      return false
-    },
-    [hide, updateLinkState]
-  )
-
-  const handleEdit = React.useCallback(() => {
-    setShowEdit(true)
-  }, [])
-
-  const onSetLink = React.useCallback(
-    (url: string, text?: string, openInNewTab?: boolean) => {
-      // insertContent below doesn't ask the link extension, so an unsafe href
-      // would reach the document as a mark. LinkEditBlock says why it can't.
-      if (!isSafeHref(url)) return
-      editor
-        .chain()
-        .focus()
-        .extendMarkRange('link')
-        .insertContent({
-          type: 'text',
-          text: text || url,
-          marks: [
-            {
-              type: 'link',
-              attrs: {
-                href: url,
-                target: openInNewTab ? '_blank' : ''
-              }
-            }
-          ]
-        })
-        .setLink({ href: url, target: openInNewTab ? '_blank' : '' })
-        .run()
-      setShowEdit(false)
-      updateLinkState()
-    },
-    [editor, updateLinkState]
-  )
-
-  const onUnsetLink = React.useCallback(() => {
-    editor.chain().focus().extendMarkRange('link').unsetLink().run()
-    setShowEdit(false)
-    updateLinkState()
-  }, [editor, updateLinkState])
-
-  return (
-    <BubbleMenu
-      editor={editor}
-      shouldShow={shouldShow}
-      tippyOptions={{
-        placement: 'bottom-start',
-        offset: [0, 8],
-        duration: 0,
-        maxWidth: 'none',
-        onHidden: () => setShowEdit(false),
-        zIndex: 50,
-      }}
-    >
-      {showEdit ? (
-        <LinkEditBlock
-          defaultUrl={linkAttrs.href}
-          defaultText={selectedText}
-          defaultIsNewTab={linkAttrs.target === '_blank'}
-          onSave={onSetLink}
-          className="content-float w-80 rounded-xl bg-pop p-3 text-ink shadow-e3 outline-none"
-        />
-      ) : (
-        <LinkPopoverBlock onClear={onUnsetLink} url={linkAttrs.href} onEdit={handleEdit} />
-      )}
-    </BubbleMenu>
-  )
+  return met ? (
+    <React.Suspense fallback={null}>
+      <LinkBar editor={editor} hide={hide} openEdit={openEdit} />
+    </React.Suspense>
+  ) : null
 }

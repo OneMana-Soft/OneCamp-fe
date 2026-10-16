@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { FOLDED_NAV_TITLES, partitionByTitle } from "@/lib/nav/focusMode"
+import { FOLDED_NAV_TITLES, SECTION_NAV_TITLES, partitionByTitle, partitionNav } from "@/lib/nav/focusMode"
 import { buildPrimaryNavLinks, inboxBadgeCount } from "@/lib/nav/primaryNavLinks"
 
 const at = (segment: string) => `/app/${segment}`.split("/")
@@ -11,21 +11,30 @@ describe("the desktop sidebar's primary rows (design v3, shell S5)", () => {
     // and the page quietly returns to the top level.
     it("folds only titles the sidebar actually has", () => {
         const titles = buildPrimaryNavLinks(at("home"), quiet, true).map((l) => l.title)
-        for (const folded of FOLDED_NAV_TITLES) {
+        for (const folded of [...FOLDED_NAV_TITLES, ...SECTION_NAV_TITLES]) {
             expect(titles, `${folded} is folded but no longer listed`).toContain(folded)
         }
     })
 
     it("keeps four rows people live in", () => {
-        const { kept } = partitionByTitle(buildPrimaryNavLinks(at("home"), quiet, true), FOLDED_NAV_TITLES)
-        expect(kept.map((l) => l.title)).toEqual(["Home", "Inbox", "My tasks", "Later"])
+        const { primary } = partitionNav(buildPrimaryNavLinks(at("home"), quiet, true))
+        expect(primary.map((l) => l.title)).toEqual(["Home", "Inbox", "My tasks", "Later"])
     })
 
     it("puts every page that isn't daily behind More", () => {
-        const { folded } = partitionByTitle(buildPrimaryNavLinks(at("home"), quiet, true), FOLDED_NAV_TITLES)
+        const { folded } = partitionNav(buildPrimaryNavLinks(at("home"), quiet, true))
         expect(folded.map((l) => l.title)).toEqual([
-            "Calendar", "Tables", "Templates", "Docs", "Boards", "Mail", "Goals", "Reports", "Workload", "Recordings", "Teams",
+            "Calendar", "Tables", "Templates", "Boards", "Mail", "Goals", "Reports", "Workload", "Recordings", "Teams",
         ])
+    })
+
+    // Docs B5: the docs are a section of the full sidebar (the page tree) and
+    // an item in the rails, never a row beside Home and never behind More.
+    it("gives Docs a place of its own, neither a row nor folded behind More", () => {
+        const { primary, sections, folded } = partitionNav(buildPrimaryNavLinks(at("doc"), quiet, true))
+        expect(sections.map((l) => l.title)).toEqual(["Docs"])
+        expect(sections[0].variant).toBe("sidebarActive")
+        expect([...primary, ...folded].map((l) => l.title)).not.toContain("Docs")
     })
 
     it("lists Channels, DMs and Admin nowhere in the rows: sections and the workspace menu hold them", () => {

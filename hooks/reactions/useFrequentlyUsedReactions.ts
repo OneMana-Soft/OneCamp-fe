@@ -9,6 +9,7 @@ import {notEmpty} from "@/lib/utils/validation/notEmpty";
 import {DEFAULT_FREQUENT_REACTIONS, MAX_FREQUENT_RESULTS} from "@/types/reaction";
 import {formatReactionData} from "@/lib/utils/reaction/formatReaction";
 import {isStandardReaction} from "@/lib/utils/reaction/checker";
+import {noteReaction} from "@/lib/chat/recentReactions";
 
 export function useAddFrequentlyUsedReaction() {
     const dispatch = useDispatch()
@@ -16,8 +17,12 @@ export function useAddFrequentlyUsedReaction() {
         state.reaction.frequentReactionIdsMap
     )
 
+    // Given the whole reaction where it is known, it is also one of the
+    // recent ones a message's quick reactions offer (lib/chat/recentReactions).
     const addReactionIdToFrequents = useCallback(
-        ({ id }: { id: string }) => {
+        (reaction: { id: string; native?: string; name?: string }) => {
+            const { id } = reaction
+            noteReaction(reaction)
             const newFrequentIds = frequentReactionIdsMap ? { ...frequentReactionIdsMap } : {}
             newFrequentIds[id] = newFrequentIds[id] ? newFrequentIds[id] + 1 : 1
 

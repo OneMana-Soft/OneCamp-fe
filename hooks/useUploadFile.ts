@@ -1,6 +1,6 @@
 import React from "react";
 import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
-import axiosInstance from "@/lib/axiosInstance";
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
 import {useDispatch, useStore} from "react-redux";
 import type {RootState} from "@/store/store";
 import {
@@ -66,11 +66,6 @@ import {
     updateGroupChatPreviewFiles,
     updateGroupChatPreviewFilesUUID
 } from "@/store/slice/groupChatSlice";
-import {
-    addDocCommentPreviewFiles, addDocCommentUploadedFiles, deleteDocCommentPreviewFiles,
-    updateDocCommentPreviewFiles,
-    updateDocCommentPreviewFilesUUID
-} from "@/store/slice/createDocCommentSlice";
 
 
 interface UploadJson {
@@ -681,114 +676,6 @@ export const useUploadFile = () => {
         return
     }
 
-    const makeRequestToUploadToDocComment = async (files: FileList, docId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-         for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addDocCommentPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    docUUID: docId
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateDocCommentPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            docUUID: docId
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToDoc(
-                file,
-                docId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateDocCommentPreviewFilesUUID({
-                        docId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addDocCommentUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            docUUID: docId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteDocCommentPreviewFiles({
-                            key: uniqueNum,
-                            docUUID: docId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
     const makeRequestToUploadToChannelComment = async (files: FileList, channelId: string, threadId: string) => {
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
@@ -1604,6 +1491,26 @@ export const useUploadFile = () => {
         return successfulResponses; // Return array of UploadFileInterfaceRes
     };
 
+    /**
+     * One image for a doc, with its progress and a way to abandon it: the
+     * editor's image placeholder shows the progress, and Retry runs it again.
+     * Throws when it fails, so the placeholder can say so.
+     */
+    const uploadImageToDoc = React.useCallback(
+        async (file: File, docUUID: string, options: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {}) => {
+            const res = await uploadFileToDoc(file, docUUID, {
+                // The picture or file says it failed, with Try again: no toast as well.
+                ...OWN_ERRORS,
+                signal: options.signal,
+                onUploadProgress: (e) => {
+                    if (e.total) options.onProgress?.(e.loaded / e.total)
+                },
+            })
+            return res.data as UploadFileInterfaceRes
+        },
+        [],
+    )
+
     const makeRequestToUploadToDoc = async (files: FileList | File[], docUUID: string) => {
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
         const fileList = Array.isArray(files) ? files : Array.from(files);
@@ -1636,7 +1543,7 @@ export const useUploadFile = () => {
     return React.useMemo(() => ({
         makeRequestToUploadToChannel,
         makeRequestToUploadToDoc,
-        makeRequestToUploadToDocComment,
+        uploadImageToDoc,
         makeRequestToUploadToGroupChatComment,
         makeRequestToUploadToGroupChat,
         makeRequestToUploadToPublic,
@@ -1651,5 +1558,5 @@ export const useUploadFile = () => {
         validateFiles,
         uploadLimitMB: clientConfig.upload_limit_mb,
         isSubmitting
-    }), [isSubmitting, validateFiles, clientConfig.upload_limit_mb]);
+    }), [isSubmitting, validateFiles, clientConfig.upload_limit_mb, uploadImageToDoc]);
 }

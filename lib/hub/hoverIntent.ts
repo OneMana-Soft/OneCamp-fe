@@ -5,7 +5,8 @@
  * what it is about, and closes 150ms after the pointer leaves both the trigger
  * and the card, so moving from a name into its card does not drop it. Never
  * on touch (a tap is a click there). The caller still opens it at once on a
- * click, and on Enter from the keyboard.
+ * click, and from the keyboard on Enter (or the key a trigger that opens on
+ * Enter gives it: a task's chip shows its card on Space).
  */
 import { useEffect, useMemo, useRef } from "react"
 
@@ -91,9 +92,11 @@ export interface HoverIntentProps {
 /**
  * `open(el)` shows the card against `el`; `close()` puts it away. Returns the
  * handlers to spread on the trigger. With `enabled` false it returns handlers
- * that do nothing, so a caller can spread them unconditionally.
+ * that do nothing, so a caller can spread them unconditionally. `key` is the
+ * key that opens it from the keyboard: Enter, unless Enter does something else
+ * there.
  */
-export function useHoverIntent({ open, close, enabled = true }: { open: (el: HTMLElement) => void; close: () => void; enabled?: boolean }): HoverIntentProps {
+export function useHoverIntent({ open, close, enabled = true, key = "Enter" }: { open: (el: HTMLElement) => void; close: () => void; enabled?: boolean; key?: string }): HoverIntentProps {
   const latest = useRef({ open, close })
   latest.current = { open, close }
   const mine = useRef<HTMLElement | null>(null)
@@ -114,13 +117,13 @@ export function useHoverIntent({ open, close, enabled = true }: { open: (el: HTM
         hoverLeave()
       },
       onKeyDown: (e) => {
-        if (!enabled || e.key !== "Enter") return
+        if (!enabled || e.key !== key) return
         hoverLeave()
         // Opened on purpose: leaving it does not close it.
         forgetHoverCard()
         latest.current.open(e.currentTarget)
       },
     }),
-    [enabled],
+    [enabled, key],
   )
 }

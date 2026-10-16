@@ -34,8 +34,11 @@ export interface NeedsItem {
   kind: NeedsKind
   title: string
   href?: string
-  /** The person behind it: a mention's author, a DM partner, an email sender. */
-  person?: { id: string; name: string }
+  /**
+   * The person behind it: a mention's author, a DM partner, an email sender.
+   * bot: an agent or a bot (is_bot), drawn as its square, never a person's disc.
+   */
+  person?: { id: string; name: string; bot?: boolean }
   /** A mention's words, one line, with the reader's own mention as "@You". */
   quote?: string
   /** For a task: its status glyph, due phrase and whether it is late. */
@@ -124,7 +127,7 @@ export function mentionsToNeeds(items: UnifiedActivityItem[], selfId: string | u
       id: `mention:${post?.post_uuid ?? chat?.chat_uuid ?? a.time}`,
       kind: "reply",
       title: `${first} mentioned you${place}`,
-      person: { id: by.user_uuid, name },
+      person: { id: by.user_uuid, name, bot: !!by.is_bot },
       quote: quoteOf(post?.post_text ?? chat?.chat_body_text ?? "", selfId),
       href: post?.post_channel?.ch_uuid ? `/app/channel/${post.post_channel.ch_uuid}/${post.post_uuid}` : undefined,
       postUuid: post?.post_uuid,
@@ -148,7 +151,7 @@ export function dmsToNeeds(chats: UserDMInterface[], selfId: string | undefined)
       id: `dm:${c.dm_grouping_id}`,
       kind: "reply",
       title: others.length > 1 ? `${name.split(/\s+/)[0]} and ${others.length - 1} more wrote to you` : `${name} wrote to you`,
-      person: { id: who.user_uuid, name },
+      person: { id: who.user_uuid, name, bot: !!who.is_bot },
       quote: `${n} unread message${n === 1 ? "" : "s"}`,
       href: others.length > 1 ? `/app/chat/group/${c.dm_grouping_id}` : `/app/chat/${who.user_uuid}`,
     })

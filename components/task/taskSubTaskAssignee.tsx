@@ -4,12 +4,12 @@ import { useState } from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Check } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import { cn } from "@/lib/utils/helpers/cn"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {UserProfileDataInterface} from "@/types/user";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
+import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 interface SubTaskAssigneeProps {
     userProfile?: UserProfileDataInterface
@@ -38,7 +38,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                             className="size-6 rounded-full !p-0"
                         >
                             {userProfile ? (
-                                <IdentityMark variant="avatar" id={userProfile.user_uuid} label={displayNameOf(userProfile)} src={imageSrc} size={18} />
+                                <IdentityMark variant="avatar" id={avatarSeed(userProfile)} label={displayNameOf(userProfile)} src={imageSrc} size={18} />
                             ) : (
                                 // Nobody yet: an 18px dashed circle (W19's unassigned ghost).
                                 <span aria-hidden className="size-[18px] rounded-full border border-dashed border-line-3" />
@@ -69,14 +69,10 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                         assigneeUpdate(selectedTaskAssignee)
                                         setAssigneePopoverOpen(false)
                                     }}
+                                    {...menuCheckState(userProfile?.user_uuid === member.user_uuid)}
                                 >
                                     <span>{displayNameOf(member)}</span>
-                                    <Check
-                                        className={cn(
-                                            "ml-auto",
-                                            userProfile?.user_uuid === member.user_uuid ? "opacity-100" : "opacity-0"
-                                        )}
-                                    />
+                                    <MenuCheck checked={userProfile?.user_uuid === member.user_uuid} className="ml-auto" />
                                 </CommandItem>
                             ))}
                         </CommandGroup>

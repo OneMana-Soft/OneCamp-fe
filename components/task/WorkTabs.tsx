@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react"
+import { createElement, isValidElement, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react"
 
 import * as React from "react"
 
@@ -105,9 +105,15 @@ export function WorkTabs<T extends string>({
 }
 
 /**
- * The work area's segmented control (W11, W41): 28 px, an r8 track on --press,
- * the chosen segment raised (--raised and e-sel), its thumb sliding on
- * transform (180 ms). Radio semantics, so arrows move the choice.
+ * The work area's segmented control (W11, W41), the one every work view uses:
+ * 28 px, an r8 track on --press, the chosen segment raised (--raised and
+ * e-sel), its thumb sliding on transform (180 ms). Radio semantics, so arrows
+ * move the choice. Segments keep to one line ("7 days" wrapped in a fixed
+ * grid of thirds) and share any width the control is given.
+ *
+ * The thumb is sized, not scaled: a 1 px thumb scaled to a segment's width
+ * stretched its radius and its shadow with it, and the shadow drew a grey bar
+ * out past the control, over whatever was beside it.
  */
 export function WorkSegmented<T extends string>({
   options,
@@ -119,7 +125,8 @@ export function WorkSegmented<T extends string>({
   options: readonly {
     value: T
     label: ReactNode
-    icon?: ComponentType<{ className?: string }>
+    /** A component, given size-3.5, or an element as is. */
+    icon?: ComponentType<{ className?: string }> | ReactNode
     disabled?: boolean
     title?: string
   }[]
@@ -131,8 +138,17 @@ export function WorkSegmented<T extends string>({
   const row = useRef<HTMLDivElement>(null)
   const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null)
   useLayoutEffect(() => {
-    const el = row.current?.querySelector<HTMLElement>(`[data-seg="${CSS.escape(value)}"]`)
-    if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth })
+    const el = row.current
+    if (!el) return
+    const measure = () => {
+      const on = el.querySelector<HTMLElement>(`[data-seg="${CSS.escape(value)}"]`)
+      if (on) setThumb((t) => (t && t.x === on.offsetLeft && t.w === on.offsetWidth ? t : { x: on.offsetLeft, w: on.offsetWidth }))
+    }
+    measure()
+    // A web font arriving, or the control given room, moves the segments.
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    ro?.observe(el)
+    return () => ro?.disconnect()
   }, [value, options])
   const move = (e: KeyboardEvent<HTMLDivElement>) => {
     const live = options.filter((o) => !o.disabled)
@@ -156,13 +172,14 @@ export function WorkSegmented<T extends string>({
       {thumb && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-0.5 left-0 top-0.5 w-px origin-left rounded-[6px] bg-raised shadow-sel transition-transform duration-[180ms] ease-out"
-          style={{ transform: `translateX(${thumb.x}px) scaleX(${thumb.w})` }}
+          data-seg-thumb=""
+          className="pointer-events-none absolute bottom-0.5 left-0 top-0.5 rounded-[6px] bg-raised shadow-sel transition-transform duration-[180ms] ease-out"
+          style={{ width: thumb.w, transform: `translateX(${thumb.x}px)` }}
         />
       )}
       {options.map((o) => {
         const on = o.value === value
-        const Icon = o.icon
+        const icon = isValidElement(o.icon) ? o.icon : o.icon ? createElement(o.icon as ComponentType<{ className?: string }>, { className: "size-3.5" }) : null
         return (
           <button
             key={o.value}
@@ -175,12 +192,12 @@ export function WorkSegmented<T extends string>({
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(o.value)}
             className={cn(
-              "relative z-[1] inline-flex items-center gap-1.5 whitespace-nowrap rounded-[6px] px-2.5 text-xs font-[510] outline-none transition-colors",
+              "relative z-[1] inline-flex flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] px-2.5 text-xs font-[510] outline-none transition-colors",
               "focus-visible:ring-2 focus-visible:ring-ring disabled:text-ink-4",
               on ? "text-foreground" : "text-ink-2 hover:text-foreground",
             )}
           >
-            {Icon && <Icon className="size-3.5" />}
+            {icon}
             {o.label}
           </button>
         )

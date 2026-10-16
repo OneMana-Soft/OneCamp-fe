@@ -9,11 +9,11 @@ import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activ
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useFetch } from "@/hooks/useFetch"
 import { Button } from "@/components/ui/button"
-import { HubEmpty } from "@/components/activity/hubEmpty"
-import { ErrorState } from "@/components/ui/error-state"
+import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
 import { HubSegmented } from "@/components/activity/hubFrame"
 import { actorFilters, matchesActor, parseActorFilter, type ActorFilter } from "@/lib/activity/actor"
-import { activityKey, collapseEchoes, hasSubject, mergeActivityPages, olderPageCursor } from "@/lib/activity/feedPages"
+import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE, mergeActivityPages, olderPageCursor } from "@/lib/activity/feedPages"
+import { isMention } from "@/lib/activity/notice"
 import { aggregate, dayGroupOf, priorityGroupOf, PRIORITY_GROUP_ORDER, type FeedEntry } from "@/lib/activity/notification"
 import { isUnread } from "@/lib/activity/readState"
 
@@ -31,7 +31,7 @@ const WHO_GLYPH: Record<ActorFilter, ReactNode> = {
 /** The Activity tabs that are views of one feed. */
 export type FeedView = "priority" | "all" | "mentions"
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = INBOX_PAGE_SIZE
 /** Pages a filtered view pulls on its own, per ask, before it stops and offers more. */
 const MAX_AUTO_PAGES = 5
 
@@ -40,7 +40,7 @@ const inView: Record<FeedView, (a: UnifiedActivityItem) => boolean> = {
     // comments) and demotes what you have already seen.
     priority: (a) => a.priority === "high",
     all: () => true,
-    mentions: (a) => a.activity_type === "MENTION",
+    mentions: isMention,
 }
 
 /**
@@ -101,7 +101,7 @@ export function ActivityFeedList({
     const [pages, setPages] = useState<{ cursor: string; items: UnifiedActivityItem[] }[]>([])
     const [storedHasMore, setStoredHasMore] = useState(true)
 
-    const endpoint = `${GetEndpointUrl.GetUnifiedActivity}?limit=${PAGE_SIZE}${cursor ? `&beforeTime=${encodeURIComponent(cursor)}` : ""}`
+    const endpoint = inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, PAGE_SIZE, cursor)
     const { data: pageData, isLoading, isError, mutate } = useFetch<UnifiedActivityPaginationRes>(endpoint)
     const current = pageData?.data?.activities
 
@@ -219,7 +219,10 @@ export function ActivityFeedList({
             // needs them, the one conclusion a failed request must not reach.
             state={
                 isError && visible.length === 0 ? (
-                    <ErrorState compact subject={view === "mentions" ? "your mentions" : "your activity"} onRetry={() => void mutate()} />
+                    // The hub's failed state (A9), where its empty states sit: a
+                    // sunken card with Try again, as Later, Search and the agents
+                    // record say it, not a centred ring that reads as loading.
+                    <HubError text="Your inbox isn't loading. Nothing has been lost." onRetry={() => void mutate()} />
                 ) : visible.length === 0 && unreadOnly && inScope.length > 0 ? (
                     <HubEmpty
                         spot="check"
@@ -259,6 +262,7 @@ export function ActivityFeedList({
                             activity={row.entry.item}
                             entry={row.entry}
                             separated={!row.first}
+                            underDay={view !== "priority"}
                             unread={read ? [row.entry.item, ...row.entry.others].some(unreadOf) : undefined}
                             onToggleRead={onToggleRead}
                         />

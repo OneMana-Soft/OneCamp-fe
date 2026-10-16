@@ -124,7 +124,7 @@ describe("pressing Create with something missing", () => {
     projects = { data: [project("p1", "Launch"), project("p2", "Roadmap")] }
     render(form())
     await create()
-    expect(screen.getByText("Task name must be at least 4 characters")).toBeTruthy()
+    expect(screen.getByText("Task name can't be empty")).toBeTruthy()
     expect(screen.getByText("Pick a project for the task.")).toBeTruthy()
     expect(pickerOpen()).toBe(false)
     expect(document.activeElement).toBe(screen.getByLabelText("Task title"))

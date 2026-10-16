@@ -37,13 +37,7 @@ async function show() {
 
 describe("a booking's own page", () => {
   it("names the meeting once, says who it is with on its own line, and shows the ticket in the public frame", async () => {
-    await act(async () => {
-      render(
-        <Suspense fallback={null}>
-          <ManageBooking params={Promise.resolve({ token: "t" })} />
-        </Suspense>,
-      )
-    })
+    await show()
     const title = await screen.findByRole("heading", { name: "Intro call with Sam" })
     expect(title).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/with Sam with/)

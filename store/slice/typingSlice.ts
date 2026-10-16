@@ -40,7 +40,7 @@ interface userTypingInfoInterface {
      *
      * Why this matters: setTimeout is suspended when a PWA / mobile tab
      * is backgrounded (especially on iOS Safari). The cleanup timer that
-     * normally clears typing state after 4s never fires while the tab
+     * normally clears typing state after 6s never fires while the tab
      * sleeps, so the indicator stays "stuck" when the tab wakes up.
      * The wall-clock filter recovers the right state on the next render.
      */

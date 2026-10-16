@@ -1,5 +1,6 @@
 "use client"
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { useState } from "react"
 import type { GuestUpdate } from "@/services/guestService"
 import { daysAgo } from "@/lib/utils/relativeTime"
@@ -27,7 +28,7 @@ export function GuestUpdates({ updates }: { updates: GuestUpdate[] }) {
           <header className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <HealthWord health={u.health} />
             <p className="flex items-center gap-2 text-xs text-ink-3">
-              <IdentityMark variant="avatar" id={u.author} label={u.author} size={24} />
+              <IdentityMark variant="avatar" id={avatarSeed(u.author)} label={u.author} size={24} />
               <span className="font-medium text-foreground">{u.author}</span> · {daysAgo(u.created_at, now)}
             </p>
           </header>

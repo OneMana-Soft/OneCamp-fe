@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback } from "react";
+import { use, useCallback, useId } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestDocViewer } from "@/components/guest/GuestDocViewer";
 import { GuestDocComments } from "@/components/guest/GuestDocComments";
@@ -10,8 +10,6 @@ import { PublicGone, PublicPaperSkeleton } from "@/components/guest/publicStates
 import { retryingText } from "@/services/publicApi";
 import { Eye, MessageSquare } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
-
-const WORKSPACE = process.env.NEXT_PUBLIC_ORG_NAME || undefined
 
 /**
  * A doc shared with someone outside the workspace (content.md D20): the
@@ -32,13 +30,15 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
     // (re)connect; the backend re-validates the grant each time, so a revoked
     // or expired link stops working at once.
     const tokenFetcher = useCallback(() => guestCollabToken(token), [token]);
+    // The title names the doc's text for a screen reader.
+    const titleId = useId();
 
     if (trouble === "gone" || (session && (session.resource_type !== "doc" || !session.document_name))) {
-        return <PublicGone surface="guest-doc" />
+        return <PublicGone surface="guest-doc" noun="shared doc" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />
     }
     if (!session) {
         return (
-            <PublicFrame surface="guest-doc" workspaceName={WORKSPACE} mainClassName="sm:px-6 sm:pt-12">
+            <PublicFrame surface="guest-doc" mainClassName="sm:px-6 sm:pt-12">
                 <PublicPaperSkeleton label={trouble ? retryingText[trouble] : "Opening the shared document…"} />
             </PublicFrame>
         )
@@ -49,15 +49,15 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
     return (
         <PublicFrame
             surface="guest-doc"
-            workspaceName={WORKSPACE}
+            workspaceName={session.workspace_name}
             title={<span className="max-sm:hidden">{title}</span>}
             actions={<PermissionTag canComment={canComment} />}
             mainClassName="gap-4 sm:gap-6 sm:px-6 sm:pt-12"
         >
             <PaperCard elevation="sheet" className="max-w-[816px] px-5 pb-10 pt-6 sm:px-12 sm:pb-14 sm:pt-14" data-guest-doc-paper="">
                 <div className="mx-auto w-full max-w-[var(--doc-measure)]" data-doc-measure="">
-                    <h1 className="text-doc-title text-ink [text-wrap:balance] max-sm:text-title-1">{title}</h1>
-                    <GuestDocViewer documentName={session.document_name} tokenFetcher={tokenFetcher} />
+                    <h1 id={titleId} className="text-doc-title text-ink [text-wrap:balance] max-sm:text-title-1">{title}</h1>
+                    <GuestDocViewer documentName={session.document_name} tokenFetcher={tokenFetcher} labelledBy={titleId} />
                 </div>
             </PaperCard>
             <GuestDocComments token={token} />

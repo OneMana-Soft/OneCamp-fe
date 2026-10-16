@@ -80,5 +80,19 @@ describe("app cards", () => {
     expect(done.textContent).toContain("Installed")
     // One slot class throughout: the width comes from the slot, not the label.
     expect(slot).toContain("cx-app-slot")
+    // Stacked, as a utility (critic, 11 Oct): the slot's components-layer
+    // grid lost to the button's inline-flex, so the three labels stood side
+    // by side and "Install" sat at the left of a box that read as a field.
+    expect(slot.split(/\s+/)).toContain("inline-grid")
+    expect(slot.split(/\s+/)).not.toContain("inline-flex")
+  })
+
+  it("keeps its category filters on one line of their own, under the search", async () => {
+    vi.mocked(listMarketplace).mockResolvedValue([zoom] as never)
+    render(<MarketplaceCard onConfigure={() => {}} />, { wrapper: fresh })
+    await screen.findByRole("button", { name: "Install Zoom" })
+    const group = screen.getByRole("group", { name: "Category" })
+    expect(group.className).not.toMatch(/flex-wrap/)
+    expect(group.className).toContain("overflow-x-auto")
   })
 })

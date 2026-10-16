@@ -24,6 +24,8 @@ const Switch = React.forwardRef<
       "peer relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors after:absolute after:-inset-y-1.5 after:-inset-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-faint-foreground",
       className
     )}
+    // A finger's target is 44px (app/phone.css F3); the ::after is a mouse's.
+    data-touch-target=""
     {...props}
     ref={ref}
   >

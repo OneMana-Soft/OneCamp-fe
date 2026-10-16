@@ -14,6 +14,7 @@ import {useMessageResync} from "@/hooks/useMessageResync";
 import {GroupChatTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {RawUserDMInterface} from "@/types/user";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
+import { ConversationLoadError } from "@/components/message/conversationError";
 import {
     updateGroupChats,
     updateGroupChatScrollToBottom,
@@ -24,6 +25,7 @@ import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
 import { pageEdgeQuery } from "@/lib/chat/pageEdge";
+import { useOlderPages } from "@/hooks/useOlderPages";
 
 interface ChatMessageListProps {
     grpId: string;
@@ -144,6 +146,13 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
     }, [ newMsg.data?.data]);
 
 
+    const retryOlder = useOlderPages({
+        latestHasMore: latestMsg.data?.data?.has_more,
+        setHasMore: setHasMoreChat,
+        asking: oldChatTime != 0,
+        older: oldMsg,
+    })
+
     const leaveLink = useLeaveLink('messageId')
     const handleClickedScrollToBottom = () => {
         // In link mode the latest page isn't loaded: leave the link, and it is (FE-BUG-9).
@@ -166,7 +175,6 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
         setOldEdge(pageEdgeQuery(lastTimeString, chatMessageState[0].chat_uuid))
         setOldChatTime(epochTime)
-        setHasMoreChat(false)
     }
 
     const getNewMessages = () => {
@@ -219,6 +227,14 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
         )
     }
 
+    // Failed, with nothing to show: say so, never "This is the start of your
+    // group". A group asks who is in it before its messages, so either answer
+    // failing is the conversation failing to load.
+    const peopleFailed = !!dmParticipantsInfo.isError && !dmParticipantsInfo.data
+    if (chatMessageState.length === 0 && (peopleFailed || (latestMsg.isError && !latestMsg.data))) {
+        return <ConversationLoadError subject="this conversation" retry={() => (peopleFailed ? dmParticipantsInfo.mutate() : latestMsg.mutate())} />
+    }
+
 
     return (
         <div className='flex flex-col h-full gap-y-2 '>
@@ -233,6 +249,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 grpId={grpId}
                 unreadOnOpen={unreadOnOpen}
+                retryOlder={retryOlder}
             />
             <GroupChatTypingBar grpId={grpId} />
         </div>

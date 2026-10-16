@@ -36,6 +36,15 @@ interface BoardToolsProps {
   editable: boolean
   /** The board (kept for callers; the empty card no longer wears its hue). */
   boardId?: string
+  /**
+   * Whether the board's shared drawing has arrived. Until it has, the canvas
+   * is empty because nothing has loaded, not because nothing is drawn: a
+   * full board opened on "Start with a template" for as long as the sync
+   * took. Defaults to true for callers without a sync to wait for.
+   */
+  synced?: boolean
+  /** Another card is open over the canvas (the AI composer): the empty card steps aside. */
+  quiet?: boolean
 }
 
 /**
@@ -55,7 +64,7 @@ export async function insertBoardTemplate(api: ExcalidrawImperativeAPI, t: Board
   api.scrollToContent(generated as never, { fitToContent: true, animate: !prefersReducedMotion() })
 }
 
-export default function BoardTools({ api, editable }: BoardToolsProps) {
+export default function BoardTools({ api, editable, synced = true, quiet = false }: BoardToolsProps) {
   const [empty, setEmpty] = React.useState(false)
   const [notes, setNotes] = React.useState<SelectedNote[]>([])
   const [tasksOpen, setTasksOpen] = React.useState(false)
@@ -86,16 +95,15 @@ export default function BoardTools({ api, editable }: BoardToolsProps) {
   }, [api])
 
   // The empty-canvas card leaves on the first shape: a 160 ms fade and a
-  // small scale, then it unmounts.
+  // small scale, then it unmounts. It comes a beat after the sync, since the
+  // shared shapes land on the scene a tick after it, so a full board never
+  // flashes it.
+  const offer = empty && synced && !quiet
   const [cardShown, setCardShown] = React.useState(false)
   React.useEffect(() => {
-    if (empty) {
-      setCardShown(true)
-      return
-    }
-    const t = setTimeout(() => setCardShown(false), 160)
+    const t = setTimeout(() => setCardShown(offer), offer ? 250 : 160)
     return () => clearTimeout(t)
-  }, [empty])
+  }, [offer])
 
   if (!editable || !api) return null
   const fresh = notes.filter((n) => !n.taskUuid)
@@ -124,12 +132,14 @@ export default function BoardTools({ api, editable }: BoardToolsProps) {
           <div
             data-empty-canvas=""
             className={cn(
-              "content-float pointer-events-auto w-[min(92vw,420px)] rounded-[16px] bg-pop p-5 shadow-e3 transition-[opacity,transform] duration-[160ms] ease-[var(--ease-out)]",
-              !empty && "scale-[0.98] opacity-0",
+              // 500 px gives each of the five a name's width: at 420 they read
+              // "Retrosp…" and "User jou…". A phone lays them three to a row.
+              "content-float pointer-events-auto w-[min(92vw,500px)] rounded-[16px] bg-pop p-5 shadow-e3 transition-[opacity,transform] duration-[160ms] ease-[var(--ease-out)]",
+              !offer && "scale-[0.98] opacity-0",
             )}
           >
             <p className="text-heading text-ink">Start with a template</p>
-            <ul className="mt-3 grid grid-cols-5 gap-2" aria-label="Templates">
+            <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5" aria-label="Templates">
               {BOARD_TEMPLATES.map((t) => (
                 <li key={t.id}>
                   <button

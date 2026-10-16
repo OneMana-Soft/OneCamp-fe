@@ -68,16 +68,20 @@ export function PageFrameHeader({
         <Tile hue={hue} size="header" data-page-tile="" className="max-sm:hidden">
           <Icon />
         </Tile>
-        <div className="min-w-0 flex-1">
-          <div data-page-title-row="" className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {/* On a phone the top bar names the page and the h1 is for screen
+            readers only, so the title row has nothing visible in it but the
+            actions: it no longer holds a 36px empty band above the line, and
+            the actions come after the line, which they answer. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div data-page-title-row="" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 max-sm:order-2 sm:min-h-9">
             <h1 className="min-w-0 flex-1 text-title-1 text-foreground text-balance max-sm:sr-only">{title}</h1>
             {actions && (
-              <div data-page-actions="" className="flex shrink-0 flex-wrap items-center gap-2">
+              <div data-page-actions="" className="flex shrink-0 flex-wrap items-center gap-2 max-sm:mt-3">
                 {actions}
               </div>
             )}
           </div>
-          {description && <p className="mt-0.5 max-w-[60ch] text-sm text-muted-foreground text-pretty">{description}</p>}
+          {description && <p className="max-w-[60ch] text-sm text-muted-foreground text-pretty max-sm:order-1 sm:mt-0.5">{description}</p>}
         </div>
       </div>
     </header>

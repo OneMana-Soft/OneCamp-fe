@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
 import {
   GUEST_POLL_MS as POLL_MS,
-  GuestLinkGone,
   GuestNotYet,
   GuestPanelPending,
   GuestTroubleNote,
@@ -21,8 +20,10 @@ import {
   useGuestPoll,
 } from "@/components/guest/guestUi"
 import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
-import { GuestChannelActions, GuestChannelRow, GuestDayDivider, GuestGateComposer } from "@/components/guest/guestChannel"
+import { GuestChannelActions, GuestChannelRow, GuestDayDivider, GuestGateComposer, PHONE_HIT } from "@/components/guest/guestChannel"
 import { PublicFrame } from "@/components/guest/PublicFrame"
+import { PublicGone } from "@/components/guest/publicStates"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 /** A message the guest sent that the server hasn't confirmed yet, or refused. */
 type Outgoing = { id: string; text: string; created_at: string; failed: boolean }
@@ -43,6 +44,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
   // Why the page can't refresh just now; it keeps trying.
   const [trouble, setTrouble] = useState<PublicTrouble | null>(null)
   const [channel, setChannel] = useState("")
+  const [workspace, setWorkspace] = useState<string | undefined>(undefined)
   const [canPost, setCanPost] = useState(false)
   const [messages, setMessages] = useState<GuestChannelMessage[]>([]) // oldest first
   const [hasMore, setHasMore] = useState(false)
@@ -71,6 +73,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     }
     setTrouble(null)
     setChannel(res.data.channel)
+    setWorkspace(res.data.workspace_name)
     setCanPost(res.data.can_post)
     const page = [...res.data.messages].reverse()
     setMessages((prev) => {
@@ -119,12 +122,14 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     return null
   }
 
-  if (state === "loading") return <GuestNotYet trouble={trouble} shape="chat" label="Opening the channel…" />
-  if (state === "missing") return <GuestLinkGone />
+  const gone = <PublicGone surface="guest-channel" noun="shared channel" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />
+  if (state === "loading") return <GuestNotYet trouble={trouble} gone={gone} shape="chat" label="Opening the channel…" />
+  if (state === "missing") return gone
 
   return (
     <PublicFrame
       surface="guest-channel"
+      workspaceName={workspace}
       fill
       title={
         <span className="flex min-w-0 items-center gap-1">
@@ -142,11 +147,11 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
               {hasMore && (
                 <div className="mb-4 text-center">
                   {/* A 28px ghost pill, centred. */}
-                  <Button variant="ghost" size="sm" className="rounded-[14px] px-3" onClick={loadOlder} disabled={loadingMore}>
+                  <Button variant="ghost" size="sm" className={`relative rounded-[14px] px-3 ${PHONE_HIT}`} onClick={loadOlder} disabled={loadingMore}>
                     {loadingMore ? "Loading…" : "Load earlier"}
                   </Button>
                   {olderFailed && (
-                    <p role="alert" className="mt-1 text-xs text-danger-ink">Couldn&apos;t load earlier messages. Try again.</p>
+                    <p role="alert" className="mt-1 text-xs text-danger-ink">Couldn&apos;t load earlier messages. Try again.<SaysLoadFailure /></p>
                   )}
                 </div>
               )}
@@ -155,7 +160,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
                 {byDay(messages, (m) => (
                   <li key={m.id}>
                     <GuestChannelRow author={m.author} text={m.text} createdAt={m.created_at} own={!!name && m.author === name}>
-                      <button type="button" onClick={() => setThread(m.id)} className="mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
+                      <button type="button" onClick={() => setThread(m.id)} className={`relative mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-[''] sm:after:hidden`}>
                         <MessageSquare className="h-3 w-3" aria-hidden />
                         {m.reply_count > 0 ? `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}` : canPost ? "Reply" : "Open"}
                       </button>

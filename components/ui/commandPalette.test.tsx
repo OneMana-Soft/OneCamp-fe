@@ -33,10 +33,12 @@ vi.mock("react-redux", () => ({
 }))
 
 let answer: SearchResult[] = []
+let searchFails = false
 const asked: string[] = []
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     if (url) asked.push(url)
+    if (url.startsWith("/search/unifiedSearch/") && searchFails) return { data: undefined, isError: Object.assign(new Error("Request failed with status code 500"), { response: { status: 500 } }), isLoading: false }
     if (url.startsWith("/search/unifiedSearch/")) return { data: { data: { page: answer } }, isLoading: false }
     return { data: { data: { user_uuid: "me", user_is_admin: false } }, isLoading: false }
   },
@@ -61,13 +63,15 @@ vi.mock("@/components/shortcuts/ShortcutsDialog", () => ({ openShortcuts: () => 
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => ({}) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
-import { CommandPalette, closestName, commandKeys, pauseChoices } from "@/components/ui/CommandPalette"
+import { CommandPalette, closestName, commandKeys } from "@/components/ui/CommandPalette"
+import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
 import { openPalette, onPaletteState } from "@/lib/ui/palette"
 import { FEATURE_AI } from "@/hooks/useClientConfig"
 import { GO_KEYS } from "@/lib/goKeys"
 
 beforeEach(() => {
   answer = []
+  searchFails = false
   features = {}
   state.recentItems.items = []
   asked.length = 0
@@ -113,6 +117,32 @@ describe("the command palette", () => {
     expect(within(hits!).getAllByRole("option")).toHaveLength(3)
   })
 
+  // Only projects (their tile) and people (their face) carry hue (DESIGN_V3
+  // §3.5). Hits came on the search page's hue tiles: a task sat on a sun
+  // square under the ink-3 docs and boards of Jump to.
+  it("marks a message, chat or task hit with its kind's ink-3 glyph, never a hue tile", () => {
+    answer = [
+      { type: "post", post: { post_id: "a", post_body: "Lunch at noon", post_ch_name: "design", post_by_user_full_name: "Zed" } },
+      { type: "task", task: { task_id: "c", task_name: "Book the room", task_project_name: "Q4 launch" } },
+    ] as SearchResult[]
+    const input = open()
+    type(input, "zed")
+    for (const option of within(group("Messages, docs and tasks")!).getAllByRole("option")) {
+      const mark = option.querySelector(".palette-mark")!
+      expect(mark.querySelector("[data-hue]")).toBeNull()
+      expect(mark.querySelector("svg")?.getAttribute("class")).toMatch(/text-ink-3/)
+    }
+  })
+
+  // A touch screen with no keyboard hides what the keys do (mobile T5).
+  it("marks its key hints so a touch screen with no keyboard drops them", () => {
+    const input = open()
+    type(input, "launch")
+    const footer = document.querySelector(".palette-footer")
+    expect(footer?.hasAttribute("data-kbd-hint")).toBe(true)
+    for (const enter of document.querySelectorAll(".palette-enter")) expect(enter.hasAttribute("data-kbd-hint")).toBe(true)
+  })
+
   it("finds a channel from the sidebar on the first keys, before any answer", () => {
     const input = open()
     type(input, "en")
@@ -136,6 +166,16 @@ describe("the command palette", () => {
     expect(screen.getByText("Nothing called “qz plan”")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Search messages" }))
     expect(push).toHaveBeenCalledWith("/app/search?query=qz%20plan")
+  })
+
+  // QA DSA-04 (14 Oct 2026): a failed search must not read as "nothing called".
+  it("says a failed search failed, with Try again, never that nothing is called that", () => {
+    searchFails = true
+    const input = open()
+    type(input, "qz plan")
+    expect(screen.queryByText("Nothing called “qz plan”")).toBeNull()
+    expect(screen.getByText("Couldn't search just now")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
   })
 
   it("takes Home to Home, once typed", () => {
@@ -318,6 +358,21 @@ describe("the palette, as design v3 draws it (shell P1)", () => {
     expect(group("Suggested")).toBeTruthy()
   })
 
+  // QA SH-14 (14 Oct 2026): "dark" and "theme" found only messages; Change
+  // theme… sat in Suggested and no word reached it.
+  it("finds Change theme… and Pause notifications… by the words people type, and opens their pages", () => {
+    for (const [word, label, crumb] of [["dark", "Change theme…", "Theme"], ["theme", "Change theme…", "Theme"], ["colour", "Change theme…", "Theme"], ["snooze", "Pause notifications…", "Pause notifications"]]) {
+      const input = open()
+      type(input, word)
+      const found = row(group("Commands"), label)
+      expect(found, word).toBeTruthy()
+      fireEvent.click(found!)
+      expect(document.querySelector(".palette-crumb")?.textContent).toBe(crumb)
+      expect(document.querySelector("[cmdk-input]")).toBeTruthy()
+      cleanup()
+    }
+  })
+
   it("opens from elsewhere with a query, and says it is open", () => {
     render(<CommandPalette />)
     const seen: boolean[] = []
@@ -334,12 +389,17 @@ describe("the palette, as design v3 draws it (shell P1)", () => {
     expect(closestName("zzzzzz", ["Q4 launch"])).toBeNull()
   })
 
-  it("pauses for the Slack set, ending tomorrow at 9", () => {
+  // One set for the palette, the profile menu and the pause dialog: the
+  // palette and the menu had copies of their own that drifted.
+  it("pauses for the pause dialog's own set, each saying when it ends", () => {
     const now = new Date(2026, 9, 11, 15, 0)
-    const choices = pauseChoices(now)
-    expect(choices.map((c) => c.label)).toEqual(["30 minutes", "1 hour", "2 hours", "Until tomorrow at 9:00"])
-    expect(choices[3].until.getDate()).toBe(12)
-    expect(choices[3].until.getHours()).toBe(9)
+    const choices = pausePresets(now)
+    expect(choices.slice(0, 4).map((c) => c.label)).toEqual(["For 30 minutes", "For 1 hour", "For 2 hours", "Until tomorrow, 9:00\u00a0AM"])
+    const clock = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`
+    expect(pauseEndsLine(choices[0], clock)).toBe("until 15:30")
+    expect(pauseEndsLine(choices[3], clock)).toBe("")
+    const src = readFileSync(resolve(__dirname, "CommandPalette.tsx"), "utf8")
+    expect(src).toMatch(/filterChoices\(pausePresets\(new Date\(\)\), query\)/)
   })
 })
 

@@ -44,7 +44,7 @@ describe("a project's rates", () => {
     expect((screen.getByLabelText("Maya Chen") as HTMLInputElement).value).toBe("120")
     // Someone who left keeps their rate: it still prices the time they logged.
     expect((screen.getByLabelText("Someone no longer on the project") as HTMLInputElement).value).toBe("70")
-    fireEvent.change(screen.getByLabelText("Everyone, per hour"), { target: { value: "90,50" } })
+    fireEvent.change(screen.getByLabelText("Everyone, per hour"), { target: { value: "90.50" } })
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save rates" })))
     expect(posted[0]).toEqual({
       url: "/project/p1/rates",

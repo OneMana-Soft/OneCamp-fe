@@ -1,49 +1,41 @@
 "use client"
 
-import {useMedia} from "@/context/MediaQueryContext";
-import {useEffect, useRef} from "react";
-import {app_doc_path} from "@/types/paths";
-import {useParams, useRouter} from "next/navigation";
-import {useDispatch} from "react-redux";
-import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
+import { useEffect, useRef } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useDispatch } from "react-redux"
+import { useMedia } from "@/context/MediaQueryContext"
+import { app_doc_path } from "@/types/paths"
+import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { revealThread } from "@/components/docComments/commentsUi"
 
 /**
- * Layout for /app/doc/[doc-id]/comment.
+ * /app/doc/[doc-id]/comment, its threads (/comment/[thread-id]) and a new
+ * thread (/comment/new): a doc's comments, where a notice or a link opens them.
  *
- * Mobile renders the children. Desktop normalises to /app/doc/[doc-id]
- * with the comments right panel open. `replace` keeps Back from bouncing
- * through the un-normalised URL.
+ * A phone shows the pages here. A wider screen opens the doc with its comments
+ * panel, at the thread named (by its id, or by a comment in it: ?comment=),
+ * and `replace`s the address, so Back doesn't bounce through this one.
  */
-export default function DocCommentLayout({
-                                       children,
-                                   }: Readonly<{
-    children: React.ReactNode;
-}>) {
+export default function DocCommentLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+    const params = useParams()
+    const search = useSearchParams()
+    const { isMobile, isDesktop } = useMedia()
+    const router = useRouter()
+    const dispatch = useDispatch()
+    const handled = useRef(false)
 
-    const params = useParams();
-
-    const {isMobile, isDesktop} = useMedia()
-    const router = useRouter();
-    const dispatch = useDispatch();
-    const handledRef = useRef(false)
-
-    const docId = params?.['doc-id'] as string;
-
+    const docId = params?.["doc-id"] as string
+    const threadId = params?.["thread-id"] as string | undefined
+    const commentId = search?.get("comment") ?? undefined
 
     useEffect(() => {
-        if (isDesktop && !handledRef.current && docId) {
-            handledRef.current = true
-            dispatch(openRightPanel({chatMessageUUID: '', chatUUID: '', channelUUID: '', postUUID: '', taskUUID: '', groupUUID: '', docUUID: docId}))
-            router.replace(app_doc_path + '/' + docId);
-        }
-    }, [isDesktop, docId, router, dispatch]);
+        if (!isDesktop || handled.current || !docId) return
+        handled.current = true
+        const thread = threadId && threadId !== "new" ? decodeURIComponent(threadId) : undefined
+        if (thread || commentId) revealThread(docId, { thread, comment: commentId })
+        dispatch(openRightPanel({ docUUID: docId }))
+        router.replace(`${app_doc_path}/${docId}`)
+    }, [isDesktop, docId, threadId, commentId, router, dispatch])
 
-    return (
-        <>
-            {
-                isMobile && <>{children}</>
-            }
-        </>
-    )
-
+    return <>{isMobile && children}</>
 }

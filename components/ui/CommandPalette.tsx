@@ -1,10 +1,12 @@
 "use client"
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
-import { Home, CheckSquare, Calendar, Bell, Inbox, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, BarChart3, Target, TrendingUp, Lock, LayoutDashboard } from "@/lib/icons";
+import { usePhone } from "@/hooks/usePhone"
+import { Home, CheckSquare, Calendar, Bell, Inbox, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp, Lock, LayoutDashboard } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -13,8 +15,7 @@ import { useTheme } from "next-themes"
 import { CommandGroup, CommandItem } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GO_KEYS } from "@/lib/goKeys"
 import { paneFromHref } from "@/lib/split"
@@ -30,6 +31,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { useDebounce } from "@/hooks/useDebounce"
 import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
 import { resultPath } from "@/lib/search/resultPath"
@@ -67,9 +69,13 @@ import {
 import { SearchResult } from "@/services/searchService"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
-import { BellOff, ChevronRight, Columns2, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun } from "@/lib/icons"
+import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
+import { BellOff, ChevronRight, Columns2, Keyboard, Maximize2, MessageSquare, MessageSquarePlus, Moon, Paperclip, Sun } from "@/lib/icons"
 import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 import { projectAt } from "@/lib/task/startingProject"
+import { clockTime } from "@/lib/utils/date/clock"
+import { paletteEntries } from "@/components/docEditor/registry/commandBus"
+import { isComposingKey } from "@/lib/keys/ime"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -93,6 +99,10 @@ interface PaletteCommand {
   // stack does not include — in both cases the command would open a page that cannot
   // work, so it should not be offered.
   featureKey?: string
+  /** Its keys, when it isn't a "go" command (an open doc's ⌘L). */
+  keys?: string
+  /** A page of choices it opens in the palette (the theme, a pause), in place of an action. */
+  page?: PalettePage
 }
 
 /* ------------------------------------------------------------------ */
@@ -165,7 +175,7 @@ export function CommandPalette() {
   // Space previews only once the keyboard is walking the rows, or with an
   // empty field, so a space typed into a query stays a space.
   const navigatedByArrows = React.useRef(false)
-  const isPhone = useIsPhone()
+  const isPhone = usePhone()
   const modKey = useModKey()
   const router = useRouter()
   const pathname = usePathname()
@@ -190,6 +200,9 @@ export function CommandPalette() {
     results: searchResults,
     isLoading: isSearching,
     isRefreshing,
+    isError: searchFailed,
+    isRetrying: searchRetrying,
+    retry: retrySearch,
     handleResultClick,
   } = useSearch({ debounceMs: 150 })
 
@@ -242,7 +255,11 @@ export function CommandPalette() {
   // opens on Search.
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+      // Taken already: a doc's ⌘K with text selected adds a link (its keymap
+      // marks the key handled), as in Notion. With nothing selected it's ours.
+      if (e.defaultPrevented) return
+      // ⌘P too, as in Notion (small-details P10): it printed the app.
+      if ((e.key === "k" || e.key === "p") && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         e.preventDefault()
         setOpen((o) => !o)
       }
@@ -801,6 +818,26 @@ export function CommandPalette() {
         group: "View",
         action: () => openShortcuts(),
       },
+      // Found by what people type (QA SH-14): "dark" or "theme" found only
+      // messages, while Change theme… sat in Suggested, out of reach.
+      {
+        id: "page-theme",
+        label: "Change theme…",
+        keywords: ["theme", "dark", "light", "dark mode", "light mode", "colour", "color", "appearance", "night"],
+        icon: <Moon className="h-4 w-4" />,
+        group: "Settings",
+        action: () => {},
+        page: "theme",
+      },
+      {
+        id: "page-pause",
+        label: "Pause notifications…",
+        keywords: ["pause", "snooze", "do not disturb", "dnd", "quiet", "mute notifications"],
+        icon: <BellOff className="h-4 w-4" />,
+        group: "Settings",
+        action: () => {},
+        page: "pause",
+      },
     ]
 
     return base.filter((cmd) => {
@@ -812,6 +849,16 @@ export function CommandPalette() {
       return true
     })
   }, [router, dispatch, isAdmin, can, features, pathname, splitRun])
+
+  // The open doc's own actions (its page lists them: Version history, Full
+  // width, Export…), asked for as the palette opens, found by typing.
+  const docCommands: PaletteCommand[] = React.useMemo(() => {
+    if (!open) return []
+    return paletteEntries().map((entry) => {
+      const Icon = entry.icon ?? FileText
+      return { id: `doc:${entry.id}`, label: entry.label, keywords: entry.keywords, icon: <Icon className="h-4 w-4" />, group: "This doc", action: entry.run, keys: entry.keys }
+    })
+  }, [open])
 
   const query = inputValue.trim()
   const hasSearchQuery = query.length > 0
@@ -829,13 +876,13 @@ export function CommandPalette() {
   // While typing, the commands that match, best first.
   const { matchedCommands, commandScore } = React.useMemo(() => {
     if (!hasSearchQuery) return { matchedCommands: [] as PaletteCommand[], commandScore: 0 }
-    const ranked = commands
+    const ranked = [...docCommands, ...commands]
       .map((cmd, i) => ({ cmd, i, score: matchScore(query, cmd.label, cmd.keywords) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.i - b.i)
       .slice(0, 6)
     return { matchedCommands: ranked.map((x) => x.cmd), commandScore: ranked[0]?.score ?? 0 }
-  }, [commands, query, hasSearchQuery])
+  }, [commands, docCommands, query, hasSearchQuery])
   // What the query names goes above what the search found in the text. Typed
   // whole, "Docs" sat under two tasks that only mention docs, and the row the
   // keyboard was on was halfway down the list. Places always lead (they match
@@ -865,7 +912,7 @@ export function CommandPalette() {
   }, [commands, runCommand, pushPage])
 
   // A closest name, for "Did you mean …?" when nothing matched.
-  const didYouMean = React.useMemo(() => (nothingYet ? closestName(query, [...targets.map((t) => t.label), ...commands.map((c) => c.label)]) : null), [nothingYet, query, targets, commands])
+  const didYouMean = React.useMemo(() => (nothingYet ? closestName(query, [...targets.map((t) => t.label), ...docCommands.map((c) => c.label), ...commands.map((c) => c.label)]) : null), [nothingYet, query, targets, docCommands, commands])
 
   const commandsGroup = hasSearchQuery && matchedCommands.length > 0 && (
     <CommandGroup heading="Commands">
@@ -873,11 +920,11 @@ export function CommandPalette() {
         <PaletteRow
           key={cmd.id}
           value={`cmd-${cmd.id}`}
-          onSelect={() => runCommand(cmd.action)}
+          onSelect={() => (cmd.page ? pushPage(cmd.page) : runCommand(cmd.action))}
           icon={cmd.icon}
           label={highlight(cmd.label, query)}
           meta={cmd.group}
-          keys={commandKeys(cmd.id)}
+          keys={cmd.keys ?? commandKeys(cmd.id)}
           peek={{ title: cmd.label, kind: cmd.group }}
         />
       ))}
@@ -925,7 +972,7 @@ export function CommandPalette() {
                 key={`hit-${hitKeys[idx]}`}
                 value={`hit-${hitKeys[idx]}`}
                 onSelect={() => handleSearchSelect(result)}
-                icon={getIcon(result)}
+                icon={hitMark(result)}
                 label={getHighlightedTitle(result)}
                 meta={getContext(result)}
                 href={href}
@@ -970,13 +1017,16 @@ export function CommandPalette() {
         </CommandGroup>
       )}
 
-      {/* Nothing matched, and the search has answered: say so, kindly. */}
+      {/* Nothing matched, and the search has answered: say so, kindly. A
+          search that failed says that instead: "nothing called" would be
+          untrue (QA DSA-04). */}
       {nothingYet && !isSearching && (
         <PaletteEmpty
           query={query}
           didYouMean={didYouMean}
           onDidYouMean={(name) => setInputValue(name)}
           onSearch={searchEverything}
+          failed={searchFailed ? { onRetry: retrySearch, retrying: searchRetrying } : undefined}
         />
       )}
 
@@ -1135,7 +1185,7 @@ export function CommandPalette() {
                 searchBody
               )}
             </CommandPrimitive.List>
-            {!isPhone && <div className="palette-footer">{footer}</div>}
+            {!isPhone && <div data-kbd-hint="" className="palette-footer">{footer}</div>}
           </CommandPrimitive>
         </DialogPrimitive.Content>
         {peek && !isPhone && open && (
@@ -1198,20 +1248,38 @@ const TARGET_GLYPH: Record<PaletteTarget["kind"], typeof Hash> = {
  * ink-3 glyph. A channel and a doc have no hue (DESIGN.md, "Colour is a noun").
  */
 function targetIcon(t: PaletteTarget) {
-  if (t.kind === "chat") return <IdentityMark variant="avatar" size={20} id={t.hueId ?? t.id} label={t.label} />
-  if (t.kind === "project") return <ProjectTile id={t.hueId ?? t.id} />
+  if (t.kind === "chat") return <IdentityMark variant="avatar" size={20} id={avatarSeed(t.label)} label={t.label} />
+  if (t.kind === "project") return <ProjectTile id={t.hueId ?? t.id} size={20} />
   const Glyph = t.kind === "channel" && t.isPrivate ? Lock : TARGET_GLYPH[t.kind]
   return <Glyph className="h-4 w-4 text-ink-3" aria-hidden="true" />
 }
 
-/** A project's 20px gradient tile, a1 to a2 in its own hue, with a white glyph. */
-function ProjectTile({ id }: { id: string }) {
-  const hue = hueFor(id)
-  return (
-    <span className={cn(HUE_CLASS[hue], "palette-ptile")} data-hue={hue} aria-hidden="true">
-      <FolderKanban />
-    </span>
-  )
+
+/** A message, doc or task hit's glyph, by its kind. */
+const HIT_GLYPH: Partial<Record<SearchResult["type"], typeof Hash>> = {
+  post: MessageSquare,
+  chat: MessageCircle,
+  comment: MessageCircle,
+  doc: FileText,
+  board: LayoutDashboard,
+  task: CheckSquare,
+  attachment: Paperclip,
+  project: FolderKanban,
+  channel: Hash,
+  team: Users,
+}
+
+/**
+ * A hit's mark, drawn as the places are (design v3, P1): a person's face, a
+ * project's tile, anything else its kind's ink-3 glyph. The search page's
+ * marks put every hit on its identity hue, so a task in the palette sat on a
+ * sun square beside the ink-3 docs and boards above it.
+ */
+function hitMark(result: SearchResult) {
+  if (result.type === "user") return getIcon(result)
+  if (result.type === "project" && result.project?.project_id) return <ProjectTile id={result.project.project_id} size={20} />
+  const Glyph = HIT_GLYPH[result.type] ?? Search
+  return <Glyph className="h-4 w-4 text-ink-3" aria-hidden="true" />
 }
 
 /**
@@ -1219,8 +1287,8 @@ function ProjectTile({ id }: { id: string }) {
  * face, any other kind its ink-3 glyph.
  */
 function recentItemMark(item: Pick<RecentItem, "id" | "type" | "title">) {
-  if (item.type === "user") return <IdentityMark variant="avatar" size={20} id={item.id} label={item.title} />
-  if (item.type === "project") return <ProjectTile id={item.id} />
+  if (item.type === "user") return <IdentityMark variant="avatar" size={20} id={avatarSeed(item.title)} label={item.title} />
+  if (item.type === "project") return <ProjectTile id={item.id} size={20} />
   const Glyph = RECENT_GLYPH[item.type] ?? Clock
   return <Glyph className="h-4 w-4 text-ink-3" aria-hidden="true" />
 }
@@ -1360,7 +1428,7 @@ function PaletteRow({
       {meta ? <span className="palette-meta">{meta}</span> : null}
       {trailing}
       {keys && <Keys keys={keys} />}
-      <kbd className="kbd palette-enter" aria-hidden="true">⏎</kbd>
+      <kbd data-kbd-hint="" className="kbd palette-enter" aria-hidden="true">⏎</kbd>
     </CommandItem>
   )
 }
@@ -1370,7 +1438,7 @@ function Keys({ keys }: { keys: string }) {
   const parts = keys.split(" ")
   if (parts.length === 2 && parts[0] === "G") {
     return (
-      <span className="palette-keys" aria-label={`G then ${parts[1]}`}>
+      <span data-kbd-hint="" className="palette-keys" aria-label={`G then ${parts[1]}`}>
         <kbd className="kbd">G</kbd>
         <span className="text-3xs text-ink-3">then</span>
         <kbd className="kbd">{parts[1]}</kbd>
@@ -1378,26 +1446,46 @@ function Keys({ keys }: { keys: string }) {
     )
   }
   return (
-    <span className="palette-keys">
+    <span data-kbd-hint="" className="palette-keys">
       <kbd className="kbd">{keys}</kbd>
     </span>
   )
 }
 
-/** Nothing matched (design v3, P1 "Empty"): the spot, the words, two ways on. */
+/**
+ * Nothing matched (design v3, P1 "Empty"): the spot, the words, two ways on.
+ * When the search itself failed, it says so, with Try again.
+ */
 function PaletteEmpty({
   query,
   didYouMean,
   onDidYouMean,
   onSearch,
   onAsk,
+  failed,
 }: {
   query: string
   didYouMean: string | null
   onDidYouMean: (name: string) => void
   onSearch: () => void
   onAsk?: () => void
+  failed?: { onRetry: () => void; retrying?: boolean }
 }) {
+  if (failed) {
+    return (
+      <div className="palette-empty" role="status" data-palette-search-failed="">
+        {/* Said here, so the read's toast stays quiet. */}
+        <SaysLoadFailure />
+        <div className="text-heading text-ink">Couldn&apos;t search just now</div>
+        <div className="mt-1 text-sm text-ink-2">Nothing has been lost. Try again in a moment.</div>
+        <div className="mt-3 flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={failed.onRetry} disabled={failed.retrying}>
+            {failed.retrying ? "Trying again…" : "Try again"}
+          </Button>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="palette-empty" role="status">
       <svg width="72" height="72" viewBox="0 0 96 96" aria-hidden="true" data-spot="">
@@ -1490,7 +1578,8 @@ function ThemeRows({ query, onDone }: { query: string; onDone: () => void }) {
 
 function PauseRows({ query, onDone }: { query: string; onDone: () => void }) {
   const { pause } = usePauseNotifications()
-  const choices = filterChoices(pauseChoices(new Date()), query)
+  // The pause dialog's own presets, each saying when it ends.
+  const choices = filterChoices(pausePresets(new Date()), query)
   return (
     <>
       {choices.map((c, i) => (
@@ -1498,44 +1587,17 @@ function PauseRows({ query, onDone }: { query: string; onDone: () => void }) {
           key={c.label}
           value={`pause-${c.label}`}
           onSelect={() => {
-            void pause(c.until)
+            void pause(c.at)
             onDone()
           }}
           icon={<BellOff className="h-4 w-4" />}
           label={c.label}
+          meta={pauseEndsLine(c, clockTime) || undefined}
           keys={String(i + 1)}
         />
       ))}
     </>
   )
-}
-
-/** The Slack set of pauses, from now. Pure. */
-export function pauseChoices(now: Date): { label: string; until: Date }[] {
-  const mins = (m: number) => new Date(now.getTime() + m * 60_000)
-  const tomorrow = new Date(now)
-  tomorrow.setDate(now.getDate() + 1)
-  tomorrow.setHours(9, 0, 0, 0)
-  return [
-    { label: "30 minutes", until: mins(30) },
-    { label: "1 hour", until: mins(60) },
-    { label: "2 hours", until: mins(120) },
-    { label: "Until tomorrow at 9:00", until: tomorrow },
-  ]
-}
-
-/** Below Tailwind's sm, as the app's own phone shell (MediaQueryContext). Read after mount. */
-function useIsPhone(): boolean {
-  const [phone, setPhone] = React.useState(false)
-  React.useEffect(() => {
-    if (typeof window.matchMedia !== "function") return
-    const mq = window.matchMedia("(max-width: 639.98px)")
-    const update = () => setPhone(mq.matches)
-    update()
-    mq.addEventListener?.("change", update)
-    return () => mq.removeEventListener?.("change", update)
-  }, [])
-  return phone
 }
 
 /** ⌘ on a Mac, Ctrl elsewhere, for the footer's chips. Read after mount so the server and the first client render agree. */

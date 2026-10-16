@@ -2,6 +2,7 @@
 
 import { AlertCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface ErrorStateProps {
     onRetry?: () => void
@@ -10,6 +11,8 @@ interface ErrorStateProps {
 }
 
 export const ErrorState = ({ onRetry, errorMessage, errorTitle }: ErrorStateProps) => {
+    // Said here, so the request's toast stays quiet (lib/http/loadFailure).
+    useSaysLoadFailure()
     return (
         <div className="h-full w-full flex flex-col items-center justify-center space-y-4">
             <AlertCircle className="h-12 w-12 text-danger-ink" />

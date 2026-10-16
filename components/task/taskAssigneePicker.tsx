@@ -5,7 +5,7 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ChevronsUpDown, Check } from "@/lib/icons";
+import { ChevronsUpDown } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
@@ -14,6 +14,7 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import { inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { BotTag } from "@/components/ui/botTag"
+import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 
 type AssigneePickerProps = {
@@ -85,15 +86,11 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                             keywords={personKeywords(member)}
                                             onSelect={handleSelect}
                                             className="cursor-pointer gap-2"
+                                            {...menuCheckState(assignee?.user_uuid === member.user_uuid)}
                                         >
                                             <DesktopNavigationChatAvatar userInfo={member}/>
                                             <span className="flex-1 truncate">{displayNameOf(member)}</span>
-                                            <Check
-                                                className={cn(
-                                                    "ml-auto h-4 w-4 text-primary",
-                                                    assignee?.user_uuid === member.user_uuid ? "opacity-100" : "opacity-0",
-                                                )}
-                                            />
+                                            <MenuCheck checked={assignee?.user_uuid === member.user_uuid} />
                                         </CommandItem>
                                     ))}
                                 </CommandGroup>
@@ -106,16 +103,12 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                                 keywords={personKeywords(member, ["ai"])}
                                                 onSelect={handleSelect}
                                                 className="cursor-pointer gap-2"
+                                                {...menuCheckState(assignee?.user_uuid === member.user_uuid)}
                                             >
                                                 <DesktopNavigationChatAvatar userInfo={member}/>
                                                 <span className="flex-1 truncate">{displayNameOf(member)}</span>
                                                 <BotTag userUUID={member.user_uuid} />
-                                                <Check
-                                                    className={cn(
-                                                        "ml-1 h-4 w-4 text-primary",
-                                                        assignee?.user_uuid === member.user_uuid ? "opacity-100" : "opacity-0",
-                                                    )}
-                                                />
+                                                <MenuCheck checked={assignee?.user_uuid === member.user_uuid} />
                                             </CommandItem>
                                         ))}
                                     </CommandGroup>

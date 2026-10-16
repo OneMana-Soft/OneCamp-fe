@@ -14,6 +14,8 @@ import {Separator} from "@/components/ui/separator";
 import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiConst";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
+import { useParams } from "next/navigation";
+import { isPhoneModerator } from "@/components/docComments/phoneModeration";
 
 interface docCommentOptionsDrawerProps {
     drawerOpenState: boolean
@@ -23,13 +25,20 @@ interface docCommentOptionsDrawerProps {
     deleteMessage: () => void
     copyTextToClipboard: () => void
     handleEmojiClick: (emojiId: string) => void
+    /** The comment is theirs. */
     isOwner?: boolean
 }
 
-
-
+/**
+ * A doc comment's long-press sheet on a phone (docs programme B7): react,
+ * copy, and for its author edit; delete for its author, and for whoever may
+ * remove anyone's comment on the doc (its owner, full access, an admin: N45).
+ * Edit showed for everyone, and failed for all but the author.
+ */
 export function DocCommentMessageLongPressDrawer({ drawerOpenState, deleteMessage, setOpenState, onAddEmoji, copyTextToClipboard, editMessage, handleEmojiClick, isOwner }: docCommentOptionsDrawerProps) {
-
+    // The doc in the address: the thread page it was opened from.
+    const params = useParams<{ "doc-id"?: string }>()
+    const canDelete = !!isOwner || isPhoneModerator(params?.["doc-id"])
 
     function closeDrawer() {
         setOpenState(false)
@@ -40,7 +49,7 @@ export function DocCommentMessageLongPressDrawer({ drawerOpenState, deleteMessag
         closeDrawer()
     }
 
-
+    // After the sheet has closed, so the question that follows takes focus.
     const handleDeleteClick = () => {
         setTimeout(() => {
             deleteMessage()
@@ -65,8 +74,8 @@ export function DocCommentMessageLongPressDrawer({ drawerOpenState, deleteMessag
             <DrawerContent>
                 <div className="w-full mb-6 relative">
                     <DrawerHeader className="hidden">
-                        <DrawerTitle></DrawerTitle>
-                        <DrawerDescription></DrawerDescription>
+                        <DrawerTitle>Comment</DrawerTitle>
+                        <DrawerDescription>React to the comment, copy it, or change it.</DrawerDescription>
                     </DrawerHeader>
 
                     <div className="flex-col p-4 pb-6 space-y-4">
@@ -100,27 +109,28 @@ export function DocCommentMessageLongPressDrawer({ drawerOpenState, deleteMessag
 
                             <DrawerActionLink
                                 onLinkClick={handleCopyClick}
-                                linkText={'Copy all text'}
+                                linkText={'Copy text'}
                                 Icon={Type}
                             />
 
-
-                            <DrawerActionLink
-                                onLinkClick={handleEditClick}
-                                linkText={'Edit message'}
-                                Icon={Pencil}
-                            />
+                            {isOwner && (
+                                <DrawerActionLink
+                                    onLinkClick={handleEditClick}
+                                    linkText={'Edit comment'}
+                                    Icon={Pencil}
+                                />
+                            )}
 
                         </div>
 
-                        {( isOwner)  && <>
+                        {canDelete && <>
                             <Separator orientation="horizontal" className='my-2'/>
 
                             <div className="flex flex-col items-center justify-start">
 
                                 <DrawerDestructiveActionLink
                                     onLinkClick={handleDeleteClick}
-                                    linkText={'Delete message'}
+                                    linkText={'Delete comment'}
                                     Icon={Trash2}
                                 />
 

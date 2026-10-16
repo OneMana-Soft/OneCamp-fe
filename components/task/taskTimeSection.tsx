@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import { serverMessage } from "@/lib/http/serverMessage"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { ChevronDown, Pencil, Play, Plus, Square, Trash2 } from "@/lib/icons"
 import { formatClock, formatDuration, parseDuration, type TimeEntryView } from "@/lib/tasks/time"
 import { startTimer, stopTimer, useElapsed, useRunningTimer, useTaskTime, type SpanInput } from "@/hooks/useTaskTime"
@@ -41,11 +41,15 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
     try {
       await fn()
     } catch (e) {
-      toast({ title: failed, description: serverMessage(e), variant: "destructive" })
+      toast({ title: failed, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }
   }
+
+  // The row's controls in one style, the panel's quiet action (PTC-45: Start
+  // was a filled button beside Log time's text).
+  const action = "h-7 gap-1 px-2 font-normal text-ink-2 hover:text-foreground"
 
   const startOrStop = runningHere ? (
     // The live chip (W34): brand-muted, a breathing dot, the clock, and stop.
@@ -59,8 +63,8 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
   ) : (
     <Button
       size="sm"
-      variant="secondary"
-      className="h-7 gap-1.5 px-2.5"
+      variant="ghost"
+      className={action}
       disabled={busy}
       title={running ? `Stops the timer on "${running.task_name}"` : undefined}
       onClick={() => act(() => startTimer(taskUUID, running?.entry.task_uuid), "Couldn't start the timer")}
@@ -76,9 +80,11 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
         <span className={propertyLabel}>Time</span>
       </div>
       <div className="min-w-0 grid gap-1 py-0.5">
-        <div className="flex flex-wrap items-center gap-1">
+        {/* -ml-2: each line's first control starts where every other value
+            does, at the label column's edge (PTC-45: 8 px further in). */}
+        <div data-time-actions="" className="-ml-2 flex flex-wrap items-center gap-1">
           {startOrStop}
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 font-normal text-ink-2 hover:text-foreground" onClick={() => { setOpen(true); setEditing("new") }}>
+          <Button size="sm" variant="ghost" className={action} onClick={() => { setOpen(true); setEditing("new") }}>
             <Plus className="size-3.5" />
             Log time
           </Button>

@@ -111,6 +111,14 @@ interface VideoConferenceProps {
  */
 export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px]"
 
+/**
+ * The app's face on the stage. LiveKit's theme sets the system UI font on
+ * everything under data-lk-theme, so names, the place pill, the dock and the
+ * in-call AI panel were drawn in the system face, the only place in the app
+ * that is not Inter (V3 3.6). Its own variable takes ours.
+ */
+export const STAGE_TYPE = "[--lk-font-family:var(--font-sans)]"
+
 /** How long a disconnect before connecting waits for the connect's error, which says why. */
 const FAILURE_WAIT_MS = 400
 
@@ -194,7 +202,7 @@ export function VideoConference({
 
   return (
     <div
-      className={`dark @container relative w-full overflow-hidden bg-[#0B0C0E] text-foreground before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.10),transparent_68%)] ${embedded ? "h-full" : "h-full md:h-dvh"}`}
+      className={`dark @container relative w-full overflow-hidden bg-[#0B0C0E] text-foreground before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.10),transparent_68%)] ${STAGE_TYPE} ${embedded ? "h-full" : "h-full md:h-dvh"}`}
       data-lk-theme="default"
       data-call-stage=""
     >

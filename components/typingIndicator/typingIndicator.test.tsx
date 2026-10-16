@@ -24,6 +24,16 @@ describe("who is typing", () => {
     const { container } = render(<TypingIndicator users={[{ user_uuid: "rc", user_name: "Release Captain", is_bot: true } as never]} />)
     expect(container.textContent).toContain("Release Captain is working")
   })
+  it("says an agent the bot list hasn't heard of yet is working, from its typing message", () => {
+    const { container } = render(<TypingIndicator users={[{ user_uuid: "new", user_name: "Triage", is_bot: true, user_bot_kind: "agent" } as never]} />)
+    expect(container.textContent).toContain("Triage is working")
+  })
+  it("says a bot with no AI behind it, and a person, are typing", () => {
+    const checkIn = render(<TypingIndicator users={[{ user_uuid: "ci", user_name: "Check-in", is_bot: true, user_bot_kind: "checkin" } as never]} />)
+    expect(checkIn.container.textContent).toContain("Check-in is typing")
+    const person = render(<TypingIndicator users={[{ user_uuid: "maya", user_name: "Maya Chen" } as never]} />)
+    expect(person.container.textContent).toContain("Maya Chen is typing")
+  })
   it("never bounces", () => {
     expect(readFileSync("components/typingIndicator/typyingIndicaator.tsx", "utf8")).not.toMatch(/animate-bounce/)
   })
