@@ -260,13 +260,6 @@ export async function deleteTable(id: string): Promise<void> {
   await axiosInstance.post(`${PostEndpointUrl.DeleteTable}/${id}/delete`)
 }
 
-// generateTable builds a full table (typed columns + seed rows) from a
-// natural-language prompt, server-side via AI, and returns it.
-export async function generateTable(prompt: string): Promise<DataTable> {
-  const res = await axiosInstance.post(PostEndpointUrl.GenerateTable, { prompt })
-  return res.data?.data as DataTable
-}
-
 // ───────────── rows ─────────────
 
 export async function createRow(

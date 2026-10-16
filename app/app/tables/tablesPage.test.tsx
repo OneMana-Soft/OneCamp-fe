@@ -40,11 +40,23 @@ describe("the tables list", () => {
     expect(screen.getByRole("button", { name: "More for Launch budget" })).toBeTruthy()
   })
 
-  it("offers the AI bar's suggestions as chips that fill it", () => {
+  // This edition never offers to build a table with AI: there is no bar, no
+  // Generate and no suggestions (the bar was on this edition, ungated, until
+  // 16 Oct 2026; app/noAiOnV1.test.ts reads the source for it too). The title
+  // row keeps its heading and its actions, and the list follows it.
+  it("offers no AI table builder, and keeps its title row", () => {
     render(<TablesPage />)
-    fireEvent.click(screen.getByRole("button", { name: /Vendor list/ }))
-    const input = screen.getByRole("textbox", { name: "Describe a table for AI to build" }) as HTMLInputElement
-    expect(input.value).toMatch(/vendor list/i)
+    expect(screen.queryByRole("textbox", { name: "Describe a table for AI to build" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Generate" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /Vendor list/ })).toBeNull()
+    expect(document.querySelector("[data-ai-bar]")).toBeNull()
+    expect(screen.queryByText(/AI builds/)).toBeNull()
+    expect(screen.getByRole("heading", { name: "Tables" })).toBeTruthy()
+    expect(screen.getByRole("textbox", { name: "Search tables" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /New table/ })).toBeTruthy()
+    const page = document.querySelector("[data-tables-page]")!
+    // The title row, then the list: nothing between them.
+    expect(page.children[1]?.matches("[data-tables-list]")).toBe(true)
   })
 
   it("filters the list from the search pill", () => {

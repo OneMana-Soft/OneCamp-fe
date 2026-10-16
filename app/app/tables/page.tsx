@@ -8,23 +8,16 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight } from "@/lib/icons"
-import { DataTable, createTable, deleteTable, generateTable, updateTable } from "@/services/tableService"
+import { DataTable, createTable, deleteTable, updateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableGlyph } from "@/components/table/TableGlyph"
-import { Spark, SpotImported, SpotSearch } from "@/components/ui/graphics"
+import { SpotImported, SpotSearch } from "@/components/ui/graphics"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { cn } from "@/lib/utils/helpers/cn"
-
-/** What the AI bar suggests: a click fills the input. */
-const SUGGESTIONS = [
-  { label: "Content calendar", prompt: "A content calendar with publish dates, channels, owners and a status" },
-  { label: "Vendor list", prompt: "A vendor list with contacts, what each supplies, contract value and renewal date" },
-  { label: "Bug triage", prompt: "A bug triage table with severity, area, owner, status and the day it was reported" },
-]
 
 /** A key on the page that isn't typed into a field. */
 function pageKey(e: KeyboardEvent): boolean {
@@ -35,10 +28,9 @@ function pageKey(e: KeyboardEvent): boolean {
 
 /**
  * The tables page (content.md T01): a title row with the count, a search pill
- * and the one primary, "New table"; an AI bar as a floating composer card;
- * then the tables as rows on the sheet, with no box around them and their
- * actions in a "More" menu that shows on hover (a trash can on every row read
- * as the page's main action).
+ * and the one primary, "New table"; then the tables as rows on the sheet, with
+ * no box around them and their actions in a "More" menu that shows on hover (a
+ * trash can on every row read as the page's main action).
  */
 export default function TablesPage() {
   const router = useRouter()
@@ -46,12 +38,9 @@ export default function TablesPage() {
   const confirm = useConfirm()
   const { data, isLoading, isError, mutate } = useFetch<{ data: DataTable[] }>(GetEndpointUrl.GetTables)
   const [creating, setCreating] = React.useState(false)
-  const [prompt, setPrompt] = React.useState("")
-  const [generating, setGenerating] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState("")
   const [renaming, setRenaming] = React.useState<string | null>(null)
   const searchRef = React.useRef<HTMLInputElement>(null)
-  const promptRef = React.useRef<HTMLInputElement>(null)
 
   const tables = React.useMemo(() => data?.data || [], [data])
   const shown = React.useMemo(() => {
@@ -87,21 +76,6 @@ export default function TablesPage() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [creating, handleCreate])
-
-  const handleGenerate = async () => {
-    const p = prompt.trim()
-    if (!p) return
-    setGenerating(p)
-    try {
-      const t = await generateTable(p)
-      toast({ title: `Created "${t.name}"` })
-      router.push(`/app/tables/${t.id}`)
-    } catch {
-      // surfaced by interceptor
-    } finally {
-      setGenerating(null)
-    }
-  }
 
   const handleDelete = (t: DataTable) => {
     confirm({
@@ -170,45 +144,6 @@ export default function TablesPage() {
         </Button>
       </div>
 
-      {/* The AI bar: a floating composer card, not a search field. */}
-      <div
-        data-ai-bar=""
-        className="mb-2 flex h-11 items-center gap-2.5 rounded-xl bg-raised pl-3.5 pr-1.5 shadow-e2 outline-0 outline-brand/15 transition-[outline-width] focus-within:outline-[3px] focus-within:ring-1 focus-within:ring-brand/50"
-      >
-        <Spark size={16} className="shrink-0 text-agent" />
-        <input
-          ref={promptRef}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
-          aria-label="Describe a table for AI to build"
-          placeholder="Describe a table and AI builds it: a hiring pipeline with stages and owners"
-          className="min-w-0 flex-1 truncate bg-transparent text-ui text-ink outline-none placeholder:text-ink-3"
-          maxLength={2000}
-          disabled={!!generating}
-        />
-        <Button size="sm" variant="secondary" onClick={handleGenerate} disabled={!!generating || !prompt.trim()} className="gap-1.5">
-          {generating && <Loader2 className="size-3.5 animate-spin" />}
-          Generate
-        </Button>
-      </div>
-      <div className="mb-6 flex flex-wrap gap-1.5">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => {
-              setPrompt(s.prompt)
-              promptRef.current?.focus()
-            }}
-            className="chip h-6 cursor-pointer gap-1.5 text-ink-2 transition-colors hover:bg-press hover:text-ink"
-          >
-            <span aria-hidden="true" className="size-1.5 rounded-[3px] bg-ink-3" />
-            {s.label}
-          </button>
-        ))}
-      </div>
-
       {isLoading ? (
         <div role="status" aria-label="Loading tables">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -224,7 +159,7 @@ export default function TablesPage() {
       ) : isError ? (
         // Before the empty check: a failed request also leaves the list empty.
         <ErrorState subject="your tables" onRetry={() => void mutate()} className="rounded-xl bg-sunken px-6 py-16" />
-      ) : tables.length === 0 && !generating ? (
+      ) : tables.length === 0 ? (
         <EmptyState
           tone="accent"
           illustration={<SpotImported hue="moss" />}
@@ -237,7 +172,7 @@ export default function TablesPage() {
             </Button>
           }
         />
-      ) : shown.length === 0 && !generating ? (
+      ) : shown.length === 0 ? (
         <EmptyState
           illustration={<SpotSearch />}
           title={`No tables match “${query.trim()}”`}
@@ -250,12 +185,6 @@ export default function TablesPage() {
         />
       ) : (
         <ul className="-mx-3" data-tables-list="">
-          {generating ? (
-            <li className="hue-dusk content-row-in flex h-14 items-center gap-3 rounded-lg px-3" aria-live="polite">
-              <span className="size-8 shrink-0 animate-shimmer rounded-[9px] bg-agent-muted" aria-hidden="true" />
-              <span className="truncate text-ui text-ink-2">Building “{generating.slice(0, 60)}”…</span>
-            </li>
-          ) : null}
           {shown.map((t, i) => (
             <li
               key={t.id}
