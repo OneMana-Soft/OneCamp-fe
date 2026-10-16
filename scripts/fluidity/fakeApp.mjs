@@ -4,23 +4,15 @@
 // in one run edit the same doc live. Nothing leaves the machine.
 //
 // Used by the doc fluidity budgets (docs.mjs) and the two-client e2e
-// (e2e/docSession.spec.ts). A production build bakes the API and collaboration
-// hosts in (.env.production); this routes exactly those hosts.
+// (e2e/docSession.spec.ts). A production build bakes its servers' addresses
+// in (.env.production); this routes every request that leaves the build's own
+// origin, whatever domain it was made for, by the rule e2e/stubbedApp.ts
+// routes by too (appServers.mjs).
 //
 //   const collab = createFakeCollab({ docs, policy })
-//   await fakeApp(context, { user: USERS.sam, docs: DOCS, collab, rtt: 150 })
+//   await fakeApp(context, { app: "http://localhost:3000", user: USERS.sam, docs: DOCS, collab, rtt: 150 })
+import { leavesApp, serverOf } from "./appServers.mjs"
 import { createFakeCollab } from "./fakeCollab.mjs"
-
-// The app's servers by their names, on whatever domain the build was made for:
-// the demo's build reaches onecamp-backend.onemana.dev, the public repository's
-// the placeholder onecamp-backend.your-domain.com (.env.production), and each
-// service has its own subdomain of the one parent domain. Matched on the
-// domain alone, the public build's every call went past the fakes, and the
-// doc session's tests never got past "Couldn't load your workspace".
-export const API_HOST = /\/\/onecamp-backend\.[^/:?#]+/
-export const COLLAB_HOST = /\/\/onecamp-collab\.[^/:?#]+/
-// The realtime broker and the storefront's funnel: never reached.
-const QUIET_HOSTS = /\/\/onecamp-emqx\.[^/:?#]+|(^|\/\/)backend\.onemana\.dev/
 
 export const USERS = {
   sam: { user_uuid: "5a7a1c11-0000-4000-8000-00000000000a", user_name: "sam", user_full_name: "Sam Rivera", user_email_id: "sam@example.test", token: "sam" },
@@ -82,7 +74,8 @@ const SHELL_FIXTURES = [
 /**
  * Installs the fake server side on a Playwright browser context.
  * @param {import('@playwright/test').BrowserContext} context
- * @param {{ user: object, docs: object[], collab: ReturnType<typeof createFakeCollab>, rtt?: number, handshakeMs?: number, delays?: Record<string, number>, fixtures?: Array<[RegExp, unknown]>, log?: string[] }} o
+ * @param {{ app: string, user: object, docs: object[], collab: ReturnType<typeof createFakeCollab>, rtt?: number, handshakeMs?: number, delays?: Record<string, number>, fixtures?: Array<[RegExp, unknown]>, log?: string[] }} o
+ *   app: the build's address (its origin is the app's own; every other one is faked).
  *   rtt: ms per round trip, for the API and the socket alike (half each way on the socket).
  *   handshakeMs: what opening a socket costs before it carries anything (default 2 × rtt).
  *   delays: extra ms for API paths matching a key (a regexp source).
@@ -93,11 +86,13 @@ export async function fakeApp(context, o) {
   const sockets = []
   context.__collabSockets = sockets
 
-  await context.route(QUIET_HOSTS, (route) => route.abort("blockedbyclient").catch(() => {}))
-
-  await context.route(API_HOST, async (route) => {
+  const offApp = leavesApp(o.app)
+  await context.route(offApp, async (route) => {
     const req = route.request()
     const url = new URL(req.url())
+    // Only the API is answered: the realtime broker and the storefront's
+    // funnel are never reached.
+    if (serverOf(url) !== "backend") return route.abort("blockedbyclient").catch(() => {})
     const origin = req.headers()["origin"] || "*"
     const cors = {
       "access-control-allow-origin": origin,
@@ -133,7 +128,10 @@ export async function fakeApp(context, o) {
   const handshakeMs = o.handshakeMs ?? rtt * 2
   const net = { offline: false, losing: false }
   context.__collabNet = net
-  await context.routeWebSocket(COLLAB_HOST, (ws) => {
+  await context.routeWebSocket(offApp, (ws) => {
+    // The collaboration server's sockets are answered here; any other (the
+    // realtime broker's) is taken and stays silent.
+    if (serverOf(new URL(ws.url())) !== "collab") return
     // Offline (setOffline below): the connection fails, as a real one would.
     if (net.offline) {
       ws.close().catch?.(() => {})

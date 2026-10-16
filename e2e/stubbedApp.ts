@@ -1,5 +1,7 @@
 import type { Page, TestInfo } from "@playwright/test"
 
+import { leavesApp } from "../scripts/fluidity/appServers.mjs"
+
 /**
  * The signed-in app in a real browser, with no backend: every request that
  * leaves the app's own origin is answered here, and no websocket reaches
@@ -61,7 +63,7 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
   })
   const prefixes = Object.keys(answers).sort((a, b) => b.length - a.length)
   await page.route(
-    (url) => url.origin !== app.origin,
+    leavesApp(app),
     async (route) => {
       const request = route.request()
       const origin = request.headers()["origin"] || app.origin
