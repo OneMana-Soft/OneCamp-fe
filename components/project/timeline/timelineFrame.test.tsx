@@ -1,11 +1,15 @@
 import "./timelineTestKit"
 import { afterEach, describe, expect, it } from "vitest"
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react"
+import { vi } from "vitest"
 import { startOfDay } from "date-fns"
 
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { TimelineHeader } from "@/components/project/timeline/TimelineHeader"
 import { timelineRange, zoomStep } from "@/lib/timeline"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+pinTestClock()
 
 afterEach(() => {
   cleanup()
@@ -49,10 +53,54 @@ describe("the timeline's frame", () => {
     expect(container.querySelector("[data-timeline-group] [data-status-glyph]")).not.toBeNull()
   })
 
+  it("makes a task with C, as the List and the Board do, and says so on New task (PTC-6)", () => {
+    const create = vi.fn()
+    render(<ProjectTimeline projectId="p" tasks={tasks} onOpenTask={() => {}} onCreateTask={create} />)
+    const button = screen.getByRole("button", { name: "New task" })
+    expect(button.getAttribute("aria-keyshortcuts")).toBe("C")
+    expect(button.querySelector(".kbd")?.textContent).toBe("C")
+    // The keys answer only while the timeline is on screen (offsetParent),
+    // which jsdom, with no layout, never says.
+    const was = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetParent")
+    Object.defineProperty(HTMLElement.prototype, "offsetParent", { configurable: true, get: () => document.body })
+    try {
+      fireEvent.keyDown(window, { key: "c" })
+    } finally {
+      if (was) Object.defineProperty(HTMLElement.prototype, "offsetParent", was)
+    }
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
   it("steps the zoom in and out, Days to Quarters", () => {
     expect(zoomStep("week", 1)).toBe("month")
     expect(zoomStep("month", 1)).toBe("quarter")
     expect(zoomStep("quarter", 1)).toBe("quarter")
     expect(zoomStep("day", -1)).toBe("day")
+  })
+})
+
+// PTC-29: a month's name stuck at the grid's left edge slid under the names
+// column as its month scrolled away ("ptember 2026"), and so did a bar's.
+describe("names stuck at the timeline's left edge", () => {
+  it("narrow to what is left of their month or bar in view", async () => {
+    const { stuckRoom, SCROLL_X } = await import("@/hooks/useTimelineView")
+    expect(stuckRoom(400)).toBe(`max(0px, calc(400px - var(${SCROLL_X}, 0px)))`)
+    expect(stuckRoom(400, 4)).toBe(`max(0px, calc(396px - var(${SCROLL_X}, 0px)))`)
+    const range = timelineRange(tasks as never, startOfDay(new Date(2026, 9, 12)), "week")
+    const { container } = render(<TimelineHeader range={range} zoom="week" dayWidth={12} today={startOfDay(new Date(2026, 9, 12))} nameWidth={260} />)
+    const label = container.querySelector<HTMLElement>("[data-timeline-header] .sticky.inline-block")!
+    expect(label.style.maxWidth).toContain(`var(${SCROLL_X}`)
+  })
+
+  it("keep the scroll in one CSS variable as the grid scrolls", async () => {
+    const { useTimelineView, SCROLL_X } = await vi.importActual<typeof import("@/hooks/useTimelineView")>("@/hooks/useTimelineView")
+    const el = document.createElement("div")
+    const range = timelineRange(tasks as never, startOfDay(new Date(2026, 9, 12)), "week")
+    const { result } = renderHook(() =>
+      useTimelineView({ scrollRef: { current: el }, range, dayWidth: 12, nameWidth: 260, spans: [] as never, today: new Date(2026, 9, 12), ready: false }),
+    )
+    el.scrollLeft = 120
+    result.current.onScroll()
+    expect(el.style.getPropertyValue(SCROLL_X)).toBe("120px")
   })
 })

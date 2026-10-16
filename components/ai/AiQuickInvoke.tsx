@@ -52,6 +52,10 @@ function AiQuickInvoke() {
       // a precise, predictable shortcut.
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
       if (e.key.toLowerCase() !== "j") return
+      // Left alone when something under the focus already used the key (the
+      // reaction picker walks its grid with Ctrl J), as the sidebar's own
+      // listener leaves it.
+      if (e.defaultPrevented) return
       e.preventDefault()
       if (isAiOpen) {
         dispatch(closeRightPanel())

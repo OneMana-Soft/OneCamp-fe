@@ -22,8 +22,10 @@ export interface DesktopChildrenNavType {
     isPrivate?: boolean
     /** Muted: the label in ink-3, a bell-off at the right, never bold. */
     muted?: boolean
-    /** Unread that should show as a brand badge (a DM, a mention), not a plain count. */
+    /** A DM: its unread shows as its count on the brand badge (lib/nav/sidebarSignal). */
     badge?: boolean
+    /** A channel's unread mentions of you: "@2" on the brand badge (lib/nav/sidebarSignal). */
+    mentions?: number
 }
 
 export interface DesktopNavType {

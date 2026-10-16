@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest"
-import { hueFor } from "@/lib/campHue"
+import { identityHue } from "@/lib/identityHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { collaboratorCaret, collaboratorSelection } from "./use-minimal-tiptap"
 
-// Someone else's caret and selection in a doc carry their identity hue, from
-// their id, like their avatar; not the colour their own browser picked.
+// Someone else's caret and selection in a doc carry their identity hue, the
+// one their avatar wears everywhere (identityHue, by display name); not the colour their
+// own browser picked.
 describe("a collaborator in a doc", () => {
   const sam = { id: "289b6b5d-c30c-427a-bcec-634cb294f285", name: "Sam Rivera", color: "#ff00ff" }
 
   it("has a caret and name flag in their hue, with no colour of its own: first name on the flag, the whole name as its title", () => {
     const caret = collaboratorCaret(sam)
-    expect(caret.classList.contains(HUE_CLASS[hueFor(sam.id)])).toBe(true)
+    expect(caret.classList.contains(HUE_CLASS[identityHue({ name: sam.name })])).toBe(true)
     expect(caret.getAttribute("style")).toBeNull()
     expect(caret.textContent).toBe("Sam")
     expect(caret.title).toBe("Sam Rivera")
@@ -32,7 +33,7 @@ describe("a collaborator in a doc", () => {
   })
 
   it("has a selection washed in the same hue", () => {
-    expect(collaboratorSelection(sam).class).toContain(HUE_CLASS[hueFor(sam.id)])
+    expect(collaboratorSelection(sam).class).toContain(HUE_CLASS[identityHue({ name: sam.name })])
     expect(collaboratorSelection(sam).style).toBe("")
   })
 })

@@ -20,6 +20,8 @@ import { AuthDivider, AuthField, AuthHeading, AuthNotice, AuthPlaceholder, AuthS
 import { SpotPlug } from "@/components/ui/graphics/spots"
 import { SignInSide } from "@/components/auth/SignInSide"
 import { landingPath } from "@/lib/landing"
+import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
+
 
 // Build-time defaults. These are fallbacks ONLY — the runtime
 // /auth/providers endpoint is the source of truth, so admins can flip a
@@ -96,6 +98,9 @@ export default function SignInPage() {
   const [demoError, setDemoError] = useState("");
   const [isChecking, setIsChecking] = useState(true);
   const [providers, setProviders] = useState(buildTimeDefaults);
+  // The workspace's name, the server's first (hooks/useWorkspaceName); "Sign
+  // in" alone when nobody has named it.
+  const workspace = useNamedWorkspace();
   // The two-step email (owner decision D3, Linear's and Clerk's): the address
   // first, then the password slides in with the address as an identity chip.
   // `back` plays the slide the other way when the person changes the address.
@@ -199,6 +204,27 @@ export default function SignInPage() {
         assertUnreachable(result, "login outcome");
     }
   };
+
+  // The demo button: a server in demo mode signs the visitor in to the shared
+  // demo account (anywhere else /demo-login refuses, and this says so).
+  const handleDemoLogin = useCallback(async () => {
+    setIsDemoLoading(true);
+    setDemoError("");
+    try {
+      const result = await authService.loginAsDemo();
+      if (result.ok) {
+        router.push(app_home_path);
+        // Still loading until the app's page replaces this one: clearing it here
+        // drew the sign-in page under a visitor already on their way in.
+        return;
+      }
+      setDemoError(result.msg || "The demo isn't available right now. Try again in a few minutes.");
+    } catch (error) {
+      console.error('Demo login error:', error);
+      setDemoError("The demo didn't start. Try again.");
+    }
+    setIsDemoLoading(false);
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -364,24 +390,6 @@ export default function SignInPage() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setIsDemoLoading(true);
-    setDemoError("");
-    try {
-      const result = await authService.loginAsDemo();
-      if (result.ok) {
-        router.push(app_home_path);
-      } else {
-        setDemoError(result.msg || "The demo isn't available right now. Try again in a few minutes.");
-      }
-    } catch (error) {
-      console.error('Demo login error:', error);
-      setDemoError("The demo didn't start. Try again.");
-    } finally {
-      setIsDemoLoading(false);
-    }
-  };
-
   if (isChecking) {
     return <SignInChecking />;
   }
@@ -399,8 +407,6 @@ export default function SignInPage() {
   // The address this page is on, so somebody with two workspaces can tell
   // which one is asking. Only ever drawn in the browser (see isChecking).
   const workspaceHost = typeof window !== "undefined" ? window.location.host : "";
-  // The workspace's name, when the install gives it one; "Sign in" alone when not.
-  const workspaceName = process.env.NEXT_PUBLIC_ORG_NAME?.trim() || "";
   const hasProviderButtons = hasOAuthProviders || hasEnterpriseSSO || canUsePasskey;
   const busy = isLoading || isDemoLoading;
 
@@ -436,7 +442,7 @@ export default function SignInPage() {
             />
           ) : (
           <>
-          <AuthHeading display title={workspaceName ? <>Sign in to <span translate="no">{workspaceName}</span></> : "Sign in"}>
+          <AuthHeading display title={workspace ? <>Sign in to <span translate="no">{workspace}</span></> : "Sign in"}>
             {workspaceHost && (
               <span className="inline-flex items-center gap-1.5 text-sm">
                 <Lock className="h-3.5 w-3.5 text-faint-foreground" aria-hidden="true" />

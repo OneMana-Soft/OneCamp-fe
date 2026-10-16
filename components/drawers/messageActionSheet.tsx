@@ -26,9 +26,12 @@ import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
 import { reminderChoices } from "@/lib/utils/later"
 import type { LaterTarget } from "@/components/later/SaveForLater"
 import { ChatFace } from "@/components/message/chatFace"
-import { chatClock } from "@/lib/chat/clock"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { feedback } from "@/lib/ui/feedback"
+import { clockTime } from "@/lib/utils/date/clock"
+import { noteReaction, quickReactions, readRecentReactions, type QuickReaction } from "@/lib/chat/recentReactions"
+import { Button } from "@/components/ui/button"
+import { DeleteConfirm } from "@/components/message/deleteConfirm"
 
 /** The message the sheet acts on, drawn lifted above it (C61). */
 export interface MessageSheetPreview {
@@ -40,14 +43,17 @@ export interface MessageSheetPreview {
     createdAt: string
 }
 
-/** The phone's six recent reactions, as the desktop toolbar's three and three more. */
-export const SHEET_EMOJIS: { id: string; native: string; name: string }[] = [
-    { id: "white_check_mark", native: "✅", name: "done" },
-    { id: "eyes", native: "👀", name: "looking" },
-    { id: "raised_hands", native: "🙌", name: "nice work" },
-    { id: "rocket", native: "🚀", name: "rocket" },
-    { id: "tada", native: "🎉", name: "celebrate" },
-    { id: "+1", native: "👍", name: "thumbs up" },
+/**
+ * The phone's six quick reactions until you have used six of your own: your
+ * six most recent, as the desktop toolbar's three (lib/chat/recentReactions).
+ */
+export const SHEET_EMOJIS: readonly QuickReaction[] = [
+    { id: "white_check_mark", native: "✅", label: "done" },
+    { id: "eyes", native: "👀", label: "looking" },
+    { id: "raised_hands", native: "🙌", label: "nice work" },
+    { id: "rocket", native: "🚀", label: "rocket" },
+    { id: "tada", native: "🎉", label: "celebrate" },
+    { id: "+1", native: "👍", label: "thumbs up" },
 ]
 
 export interface MessageActionSheetProps {
@@ -135,14 +141,22 @@ export function MessageActionSheet({
     const copyToClipboard = useCopyToClipboard()
     const { translateText, isSubmitting: translating } = useTranslateText()
     const [translation, setTranslation] = React.useState<string | null>(null)
+    // Delete asks here, in the sheet, as a computer's More menu does (SD-5).
+    const [confirmingDelete, setConfirmingDelete] = React.useState(false)
     const saved = useSavedEntry(laterTarget?.itemType ?? "post", laterTarget?.itemId ?? "")
     const { save, remove } = useLaterActions()
 
     React.useEffect(() => {
         // The long press that opened the sheet (mobile F3: impact).
         if (open) feedback("impact")
-        if (!open) setTranslation(null)
+        if (!open) {
+            setTranslation(null)
+            setConfirmingDelete(false)
+        }
     }, [open])
+
+    // Read as the sheet opens: the reaction you used last is first.
+    const emojis = React.useMemo(() => (open ? quickReactions(readRecentReactions(), SHEET_EMOJIS, SHEET_EMOJIS.length) : SHEET_EMOJIS), [open])
 
     const close = () => onOpenChange(false)
     const then = (fn: () => void, delay = 0) => () => {
@@ -192,7 +206,7 @@ export function MessageActionSheet({
                                 <div className="min-w-0 flex-1">
                                     <div className="flex h-5 items-center gap-2">
                                         <span className="truncate text-ui font-semibold text-ink">{preview.name}</span>
-                                        <span className="shrink-0 text-meta tabular-nums text-ink-3">{chatClock(preview.createdAt)}</span>
+                                        <span className="shrink-0 text-meta tabular-nums text-ink-3">{clockTime(preview.createdAt)}</span>
                                     </div>
                                     <p className="line-clamp-4 whitespace-pre-line text-body text-ink">{htmlToPreviewText(preview.html)}</p>
                                 </div>
@@ -202,12 +216,15 @@ export function MessageActionSheet({
                     <div aria-hidden="true" className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-line-3" />
                     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-3">
                         <div className="flex items-center justify-between">
-                            {SHEET_EMOJIS.map((e) => (
+                            {emojis.map((e) => (
                                 <button
                                     key={e.id}
                                     type="button"
-                                    aria-label={`React with ${e.name}`}
-                                    onClick={then(() => handleEmojiClick(e.id))}
+                                    aria-label={`React with ${e.label}`}
+                                    onClick={then(() => {
+                                        noteReaction(e)
+                                        handleEmojiClick(e.id)
+                                    })}
                                     className="flex size-11 items-center justify-center rounded-xl text-2xl transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-ring"
                                 >
                                     {e.native}
@@ -243,7 +260,19 @@ export function MessageActionSheet({
                                 <Row icon={Languages} label={translating ? "Translating…" : translation ? "Translate again" : "Translate"} busy={translating} onClick={translate} />
                             )}
                             {isOwner && <Row icon={Pencil} label="Edit message" onClick={then(editMessage)} />}
-                            {(isOwner || isAdmin) && <Row icon={Trash2} label="Delete message" danger onClick={then(deleteMessage, 100)} />}
+                            {(isOwner || isAdmin) &&
+                                (confirmingDelete ? (
+                                    <DeleteConfirm className="py-3">
+                                        <Button size="lg" variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                                            Cancel
+                                        </Button>
+                                        <Button size="lg" variant="destructive" onClick={then(deleteMessage, 100)}>
+                                            Delete
+                                        </Button>
+                                    </DeleteConfirm>
+                                ) : (
+                                    <Row icon={Trash2} label="Delete message" danger onClick={() => setConfirmingDelete(true)} />
+                                ))}
                         </div>
 
                         {translation && (

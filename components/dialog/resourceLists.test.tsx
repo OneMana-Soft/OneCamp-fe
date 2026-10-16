@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
-// A doc's or a board's Viewed by and Version history read as one family: rows
-// on the dialog's ground with faces in their hues, the list's own shape while
-// it loads, and an empty list said the same way.
+// A doc's or a board's Viewed by: rows on the dialog's ground with faces in
+// their hues, the list's own shape while it loads, and an empty list said the
+// same way. (B8's history dialog has tests of its own.)
 
 let fetched: { data?: unknown; isLoading: boolean } = { isLoading: false }
 vi.mock("@/hooks/useFetch", () => ({
@@ -15,39 +15,12 @@ const get = vi.fn()
 vi.mock("@/lib/axiosInstance", () => ({ default: { get: (...a: unknown[]) => get(...a) } }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
-import { DocVersionHistoryDialog } from "./docVersionHistoryDialog"
 import ResourceViewersDialog from "./resourceViewersDialog"
 
 afterEach(() => {
   cleanup()
   fetched = { isLoading: false }
   get.mockReset()
-})
-
-describe("a doc's version history", () => {
-  it("lists versions as rows, why each was kept as dot and word, and faces in their hues", () => {
-    fetched = {
-      isLoading: false,
-      data: { data: [{ id: "s1", body_bytes: 10, reason: "manual", created_at: new Date().toISOString(), contributors: [{ user_uuid: "u1", user_full_name: "Maya Chen" }] }] },
-    }
-    render(<DocVersionHistoryDialog open onOpenChange={() => {}} docId="d" />)
-    const dialog = screen.getByRole("dialog")
-    expect(dialog.querySelector(".border.bg-card\\/50")).toBeNull()
-    const reason = screen.getByText("Before a restore")
-    expect(reason.className).not.toMatch(/text-primary|rounded-full/)
-    expect(dialog.querySelector("[data-hue]")).toBeTruthy()
-  })
-
-  it("loads as its rows and says an empty history as the viewers list says an empty one", () => {
-    fetched = { isLoading: true }
-    render(<DocVersionHistoryDialog open onOpenChange={() => {}} docId="d" />)
-    expect(screen.getByRole("status", { name: "Loading versions" })).toBeTruthy()
-    expect(document.querySelector(".animate-spin")).toBeNull()
-    cleanup()
-    fetched = { isLoading: false, data: { data: [] } }
-    render(<DocVersionHistoryDialog open onOpenChange={() => {}} docId="d" />)
-    expect(screen.getByRole("heading", { name: "No versions yet" })).toBeTruthy()
-  })
 })
 
 describe("a doc's viewers", () => {

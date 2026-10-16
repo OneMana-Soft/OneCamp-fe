@@ -13,6 +13,7 @@ import {
   previewParts,
   priorityGroupOf,
   sentenceOf,
+  timeUnderDay,
 } from "@/lib/activity/notification"
 import { KIND_BADGE_TONE } from "@/components/ui/kindBadge"
 
@@ -118,6 +119,15 @@ describe("groups (A7, A8)", () => {
     expect(dayGroupOf(new Date(2026, 9, 10, 23).toISOString(), now)).toBe("Yesterday")
     expect(dayGroupOf(new Date(2026, 9, 7, 9).toISOString(), now)).toBe("Earlier this week")
     expect(dayGroupOf(new Date(2026, 8, 1).toISOString(), now)).toBe("Older")
+  })
+
+  // Under "Yesterday" every row said "Yesterday" again.
+  it("gives a row under its day header only what the header has not said", () => {
+    expect(timeUnderDay(new Date(2026, 9, 11, 8, 5).toISOString(), now)).toBe("8:05\u00a0AM")
+    expect(timeUnderDay(new Date(2026, 9, 10, 16, 12).toISOString(), now)).toBe("4:12\u00a0PM")
+    expect(timeUnderDay(new Date(2026, 9, 7, 9).toISOString(), now)).toBe("Wed")
+    expect(timeUnderDay(new Date(2026, 8, 1).toISOString(), now)).toBe("1 Sep")
+    expect(timeUnderDay("not a date", now)).toBe("")
   })
 
   it("puts agents' requests under From agents on Priority", () => {

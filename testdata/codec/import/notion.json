@@ -1,0 +1,137 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "text": "Project kickoff",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "attrs": {
+        "color": "blue",
+        "emoji": "💡"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "💡 Notion exports a callout as an aside.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    },
+    {
+      "content": [
+        {
+          "text": "Owner: @Sam Rivera Date: October 11, 2026",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "Links",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "text": "See ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "Design%20doc%20a1b2c3d4e5f6.md",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Design doc",
+          "type": "text"
+        },
+        {
+          "text": " and",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "alt": "Untitled",
+        "src": "Project%20kickoff%20f00d/Untitled.png"
+      },
+      "type": "image"
+    },
+    {
+      "content": [
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Toggle-like bullet",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "content": [
+                        {
+                          "text": "Indented four spaces",
+                          "type": "text"
+                        }
+                      ],
+                      "type": "paragraph"
+                    }
+                  ],
+                  "type": "listItem"
+                }
+              ],
+              "type": "bulletList"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    }
+  ],
+  "type": "doc"
+}

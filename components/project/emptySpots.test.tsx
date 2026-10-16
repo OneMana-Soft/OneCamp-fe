@@ -16,6 +16,17 @@ describe("the goal a project serves", () => {
     expect(screen.getByRole("progressbar", { name: "Launch the Business tier: 65%" })).toBeTruthy()
     expect(screen.getByText("· 65%")).toBeTruthy()
   })
+
+  it("lets its name give way with an ellipsis, keeping the figure whole (PTC-43)", () => {
+    render(<ProjectGoalChip projectId="p" />)
+    expect(screen.getByText("Launch the Business tier").className).toContain("truncate")
+    expect(screen.getByText("· 65%").className).toContain("shrink-0")
+  })
+
+  it("takes a finger's 44px, as a 24px chip in the header (PG2-19)", () => {
+    render(<ProjectGoalChip projectId="p" />)
+    expect(screen.getByRole("link").hasAttribute("data-touch-target")).toBe(true)
+  })
 })
 
 // The list empties live in tables and pages that need a server to render;
@@ -24,7 +35,7 @@ describe("the goal a project serves", () => {
 const read = (f: string) => readFileSync(join(__dirname, "../..", f), "utf8")
 describe("empty lists have their spot", () => {
   it.each([
-    ["components/project/projectTaskTable.tsx", /illustration=\{<SpotTasks hue=\{hueFor\(projectId\)\} \/>\}/],
+    ["components/project/projectTaskTable.tsx", /illustration=\{<SpotTasks hue=\{projectHue\} \/>\}/],
     ["components/myTask/myTaskTable.tsx", /illustration=\{<SpotTasks \/>\}/],
     ["components/myTask/myTaskList.tsx", /illustration=\{isFiltered \? undefined : <SpotTasks \/>\}/],
     ["components/project/ProjectsOverview.tsx", /illustration=\{<SpotWelcome hue="sky" \/>\}/],

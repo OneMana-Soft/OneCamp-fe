@@ -78,8 +78,12 @@ describe("every composer with a Send button and a paperclip", () => {
     return /ButtonIcon=\{SendHorizontal\}/.test(src) && /attachmentOnclick/.test(src)
   })
 
+  // 13 since B7: the doc's comment list and the phone's no longer hold a
+  // composer of their own (rightPanel/docCommentList, docMobileCommentList);
+  // a doc's comments are written in docComments/CommentComposer, which counts
+  // its own files (its tests hold Send ready with only a file).
   it("were found", () => {
-    expect(composers.length).toBeGreaterThanOrEqual(15)
+    expect(composers.length).toBeGreaterThanOrEqual(13)
   })
 
   it.each(composers.map((f) => [f.slice(ROOT.length + 1)]))("%s passes hasAttachments", (f) => {

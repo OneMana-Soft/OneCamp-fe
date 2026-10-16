@@ -24,7 +24,8 @@ import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
+import { useEveryChannel } from "@/components/admin/useEveryChannel"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { groupEvents } from "@/components/admin/webhookParts"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
@@ -35,7 +36,13 @@ export const FALLBACK_EVENT_TYPES = [
   "task.created", "task.deleted", "task.status_changed", "task.restored",
   "channel.created", "channel.archived",
   "user.joined", "user.left",
+  "doc.created", "doc.updated", "doc.deleted", "doc.shared", "doc.comment.created",
 ]
+
+/** What a group of events needs said about who it reaches. */
+const GROUP_NOTE: Record<string, string> = {
+  doc: "Sent only for docs whoever sets up the webhook can open. A private doc's title is never sent, and doc.updated is at most once a minute per doc.",
+}
 
 /**
  * The events an outgoing webhook is sent, as a list of checkboxes.
@@ -65,10 +72,20 @@ export function WebhookEventChoice({
           sunken surface: a long flat list of dotted names was hard to scan. */}
       <div data-event-picker="" className="cx-wh-picker max-h-56 space-y-3 overflow-y-auto p-3">
         {groupEvents(events).map((g) => (
-          <div key={g.resource} role="group" aria-labelledby={`${idPrefix}-g-${g.resource}`}>
+          <div
+            key={g.resource}
+            role="group"
+            aria-labelledby={`${idPrefix}-g-${g.resource}`}
+            aria-describedby={GROUP_NOTE[g.resource] ? `${idPrefix}-n-${g.resource}` : undefined}
+          >
             <p id={`${idPrefix}-g-${g.resource}`} className="mb-1.5 text-2xs font-medium text-muted-foreground first-letter:uppercase">
               {g.resource}
             </p>
+            {GROUP_NOTE[g.resource] && (
+              <p id={`${idPrefix}-n-${g.resource}`} className="mb-2 text-xs text-muted-foreground">
+                {GROUP_NOTE[g.resource]}
+              </p>
+            )}
             <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
               {g.events.map((ev) => {
                 const id = `${idPrefix}-${ev}`
@@ -136,10 +153,9 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
   const { data: eventTypesData } = useFetch<{ event_types: string[] }>(GetEndpointUrl.GetWebhookEventTypes)
   const EVENT_TYPES = eventTypesData?.event_types || FALLBACK_EVENT_TYPES
 
-  const { data: channelsData, isLoading: channelsLoading, isError: channelsError } = useFetch<ChannelInfoListInterfaceResp>(
-    GetEndpointUrl.GetAllActiveChannelList
-  )
-  const channels: ChannelInfoInterface[] = channelsData?.channels_list || []
+  // Every channel, page by page (the list answers 20 at a time); its failure
+  // is said in the picker, and the toast stays quiet.
+  const { channels, isLoading: channelsLoading, isError: channelsError } = useEveryChannel(open, OWN_ERRORS)
 
   const handleClose = () => {
     setForm({ ...blankForm })

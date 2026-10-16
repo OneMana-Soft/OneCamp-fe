@@ -4,9 +4,12 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 /** "What needs me now" (hub.md H8–H10): one queue, grouped, acting in place. */
 const celebrateOnce = vi.fn(() => 1)
 vi.mock("@/lib/celebrate", async (orig) => ({ ...(await orig<typeof import("@/lib/celebrate")>()), celebrateOnce, prefersReducedMotion: () => true }))
+// A DM partner who is a bot: OneCamp AI is an AI bot, the check-in bot is not.
+vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: (id?: string, isBot?: boolean) => (isBot ? (id === "u-ai" ? "assistant" : "checkin") : undefined) }))
+vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
 const { NeedsMeSection } = await import("@/components/home/NeedsMeSection")
-const { groupNeeds, tasksToNeeds, mentionsToNeeds } = await import("@/components/home/needsMe")
+const { groupNeeds, tasksToNeeds, mentionsToNeeds, dmsToNeeds } = await import("@/components/home/needsMe")
 import type { NeedsItem } from "@/components/home/needsMe"
 
 afterEach(() => {
@@ -26,9 +29,25 @@ describe("grouping", () => {
     expect(groups.reduce((n, g) => n + g.items.length, 0)).toBe(6)
     expect(more).toBe(2)
     render(<NeedsMeSection items={items} />)
-    expect(screen.getByText("2 more")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Show 2 more" })).toBeTruthy()
     // Labels only with two groups or more.
     expect(screen.getByText("Agent requests")).toBeTruthy()
+  })
+
+  // "See all" and "N more" linked to Inbox > Priority, which never lists a
+  // task that is due: a queue of one due task linked to "You're all caught up".
+  it("opens the rest in place, and offers See all only while rows are hidden", () => {
+    const items = [task("1"), task("2"), mention, agent, task("3"), task("4"), task("5"), task("6")]
+    const { container } = render(<NeedsMeSection items={items} />)
+    expect(container.querySelector("a[href*='/app/inbox']")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "See all" }))
+    expect(container.querySelectorAll("[data-needs-kind]")).toHaveLength(8)
+    expect(screen.queryByRole("button", { name: /Show \d+ more/ })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }))
+    expect(container.querySelectorAll("[data-needs-kind]")).toHaveLength(6)
+    cleanup()
+    render(<NeedsMeSection items={[task("1")]} />)
+    expect(screen.queryByRole("button", { name: "See all" })).toBeNull()
   })
 
   it("is no card: no ai-panel or bordered wrapper", () => {
@@ -46,6 +65,20 @@ describe("grouping", () => {
     expect(container.querySelector('[data-needs-kind="due"] svg')).not.toBeNull()
     // "@You" is the brand-muted mention chip.
     expect(screen.getByText("@You").className).toContain("hub-me")
+  })
+
+  // OneCamp AI's unread DM led its row with an "OA" person disc on the
+  // demo's Home (critic integration, 12 Oct): an agent is its square, and
+  // a bot that isn't AI its neutral square, as everywhere else.
+  it("leads a bot's row with its square, never a person's disc", () => {
+    const dm = (id: string, name: string) => ({ dm_grouping_id: `me ${id}`, dm_unread: 1, dm_participants: [{ user_uuid: "me", user_name: "Sam" }, { user_uuid: id, user_name: name, is_bot: true }] })
+    const items = dmsToNeeds([dm("u-ai", "OneCamp AI"), dm("u-checkin", "Check-in")] as never, "me")
+    expect(items.map((i) => i.person?.bot)).toEqual([true, true])
+    const { container } = render(<NeedsMeSection items={items} />)
+    const rows = container.querySelectorAll('[data-needs-kind="reply"]')
+    expect(rows[0].querySelector("[data-agent-avatar]")).not.toBeNull()
+    expect(rows[1].querySelector("[data-bot-avatar]")).not.toBeNull()
+    expect(container.querySelector('[data-needs-kind="reply"] [data-hue]')).toBeNull()
   })
 })
 

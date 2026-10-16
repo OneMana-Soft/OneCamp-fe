@@ -19,12 +19,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoals } from "@/hooks/useGoals"
 import { useStoredState } from "@/hooks/useStoredState"
-import { Check, ChevronDown, Filter, Plus } from "@/lib/icons"
+import { ChevronDown, Filter, Plus } from "@/lib/icons"
 import { checkInDue, dueLabel, filterGoals, goalTree, measureLine, overdue, type GoalSummary } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
 import { localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 /** The goals table's columns (work.md W42): ring, title and line, owner, pace, health. */
 const GOAL_COLUMNS = "grid grid-cols-[28px_minmax(0,1fr)_150px_230px_130px] items-center gap-x-3 pr-6"
@@ -39,7 +40,14 @@ function Standing({ goal, now }: { goal: GoalSummary; now: number }) {
     return <span className="whitespace-nowrap text-xs font-[510] text-warning-ink">{goal.health ? "Check-in due" : "No check-in yet"}</span>
   }
   if (!goal.health) return <span className="whitespace-nowrap text-xs text-ink-3">No check-in yet</span>
-  return <HealthWord health={goal.health} />
+  // The owner's word at the last check-in, which may differ from the pace the
+  // bar measures ("11 points ahead" beside "At risk"): the title says which
+  // is which (PTC-36).
+  return (
+    <span title="Health is from the last check-in" data-health-from="check-in">
+      <HealthWord health={goal.health} />
+    </span>
+  )
 }
 
 /** "410 of 500 teams · due 31 Dec", the date in red once it has passed. */
@@ -220,7 +228,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
   const menuRow = (on: boolean, label: ReactNode, onClick: () => void, role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio") => (
     <button type="button" role={role} aria-checked={on} onClick={onClick} className="flex h-[30px] w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-press focus-visible:bg-press">
       <span className="flex items-center gap-1.5">{label}</span>
-      {on && <Check className="size-3.5 text-ink-2" />}
+      <MenuCheck checked={on} className="text-ink-2" />
     </button>
   )
 
@@ -228,7 +236,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
     <div className="flex h-full min-h-0 flex-col">
       {/* One toolbar language (W10, W42): Filter with Status and Owner, the
           chips of what is chosen, search, and New goal as the one primary. */}
-      <div data-work-toolbar="" className={cn(workToolbar, "h-11 flex-nowrap gap-1.5")}>
+      <div data-work-toolbar="" className={cn(workToolbar, "h-11 flex-nowrap gap-1.5", compact && "-mx-4")}>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size={compact ? "icon-sm" : "sm"} aria-label={compact ? "Filter" : undefined}>

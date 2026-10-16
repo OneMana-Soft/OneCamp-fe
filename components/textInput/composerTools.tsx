@@ -20,9 +20,11 @@ import { AtSign, ArrowUp, BarChart3, ChevronDown, Clock, ListTodo, Loader2, Mic,
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { useVoiceDictation, dictationLabel } from "@/hooks/useVoiceDictation"
-import { chatClock } from "@/lib/chat/clock"
 import { prefersReducedMotion } from "@/lib/celebrate"
-import { toLocalInputValue } from "@/lib/messages/schedulePresets"
+import { formatSendAt, toLocalInputValue } from "@/lib/messages/schedulePresets"
+import { useModKey } from "@/hooks/useModKey"
+import { ACTION_TIP_ABOVE, ACTION_TIP_ABOVE_END } from "@/components/MessageDesktopHover/actionTip"
+import { clockTime } from "@/lib/utils/date/clock"
 
 const ClipRecorder = dynamic(() => import("@/components/clips/ClipRecorder"), { ssr: false })
 
@@ -77,10 +79,12 @@ export const ComposerPlusMenu = React.memo(function ComposerPlusMenu({
     triggerClassName?: string
 }) {
     const dispatch = useDispatch()
+    // "⌘J" on a Mac, "Ctrl+J" elsewhere, as the search pill says Ctrl K there.
+    const mod = useModKey()
     return (
         <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label="Add to the message" title="Add to the message" className={cn(COMPOSER_TOOL, triggerClassName)}>
+                <Button type="button" variant="ghost" size="icon" aria-label="Add to the message" data-tip="Add to the message" className={cn(COMPOSER_TOOL, ACTION_TIP_ABOVE, triggerClassName)}>
                     <Plus aria-hidden="true" />
                 </Button>
             </DropdownMenuTrigger>
@@ -104,7 +108,7 @@ export const ComposerPlusMenu = React.memo(function ComposerPlusMenu({
                 <DropdownMenuItem onSelect={() => dispatch(openUI({ key: "createTask", data: {} }))}>
                     <MenuTile hue="moss"><ListTodo /></MenuTile> Create a task
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => editor.chain().focus().clearContent().insertContent("/poll ").run()}>
+                <DropdownMenuItem onSelect={() => editor.chain().focus().clearContent().insertContent(pollStarter(editor.getText())).run()}>
                     <MenuTile hue="sun"><BarChart3 /></MenuTile> Create a poll
                 </DropdownMenuItem>
                 {((agents && agents.length > 0) || onDraftWithAI) && <DropdownMenuSeparator />}
@@ -116,13 +120,29 @@ export const ComposerPlusMenu = React.memo(function ComposerPlusMenu({
                 {onDraftWithAI && (
                     <DropdownMenuItem onSelect={onDraftWithAI}>
                         <MenuTile agent><Spark size={14} /></MenuTile> Draft with AI
-                        <DropdownMenuShortcut>⌘J</DropdownMenuShortcut>
+                        <DropdownMenuShortcut>{mod === "⌘" ? "⌘J" : "Ctrl+J"}</DropdownMenuShortcut>
                     </DropdownMenuItem>
                 )}
             </DropdownMenuContent>
         </DropdownMenu>
     )
 })
+
+/**
+ * What "+ › Create a poll" leaves in the message box. An empty box gets
+ * "/poll ". A box with a message keeps its words as the poll's question,
+ * quoted, so the options can follow: it was cleared, and with no undo in the
+ * box the message was gone (MC-BUG-6). A poll is a message of its own, and
+ * its question is usually what was being typed. A double quote inside it
+ * would end the question early (/poll splits on them), so it becomes a single
+ * one; a poll already being written is left as it is. Pure.
+ */
+function pollStarter(text: string): string {
+    const draft = text.replace(/\s+/g, " ").trim()
+    if (!draft) return "/poll "
+    if (/^\/poll(\s|$)/i.test(draft)) return `${draft} `
+    return `/poll "${draft.replace(/["\u201C\u201D\u201E]/g, "'")}" `
+}
 
 function MenuTile({ hue, agent, children }: { hue?: "berry" | "lake" | "moss" | "sun"; agent?: boolean; children: React.ReactNode }) {
     if (hue) return <Tile hue={hue} size="sm" className="!size-7 rounded-md">{children}</Tile>
@@ -143,8 +163,8 @@ export const MentionTool = React.memo(function MentionTool({ editor }: { editor:
             variant="ghost"
             size="icon"
             aria-label="Mention someone"
-            title="Mention someone"
-            className={COMPOSER_TOOL}
+            data-tip="Mention someone"
+            className={cn(COMPOSER_TOOL, ACTION_TIP_ABOVE)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
                 const { from } = editor.state.selection
@@ -166,9 +186,9 @@ export const FormatToggle = React.memo(function FormatToggle({ open, onToggle }:
             variant="ghost"
             size="icon"
             aria-label={open ? "Hide formatting" : "Show formatting"}
-            title="Formatting"
+            data-tip={open ? "Hide formatting" : "Formatting"}
             aria-pressed={open}
-            className={COMPOSER_TOOL}
+            className={cn(COMPOSER_TOOL, ACTION_TIP_ABOVE)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={onToggle}
         >
@@ -249,9 +269,9 @@ export const RecordTool = React.memo(function RecordTool({ onRecordClip, dictati
                     variant="ghost"
                     size="icon"
                     aria-label="Record"
-                    title={canDictate ? "Record a clip or dictate (hold to dictate)" : "Record a clip"}
+                    data-tip={canDictate ? "Record · hold to dictate" : "Record a clip"}
                     data-icon="mic"
-                    className={cn(COMPOSER_TOOL, triggerClassName)}
+                    className={cn(COMPOSER_TOOL, ACTION_TIP_ABOVE, triggerClassName)}
                     onPointerDown={(e) => {
                         if (!canDictate || e.button !== 0) return
                         held.current = false
@@ -385,14 +405,24 @@ export function sendLaterChoices(now: Date): LaterChoice[] {
     return out
 }
 
-/** "Tomorrow · 09:00", "Mon · 09:00": a preset's time, on its right. */
+/**
+ * A preset's time, on its right: only the time when the preset's own words
+ * already name the day ("Tomorrow morning" 9:00 AM, "Monday" 9:00 AM). It
+ * said "Tomorrow morning · Tomorrow · 9:00 AM", which wrapped the row onto two
+ * lines. "In 1 hour" says the day only when that hour is tomorrow. Pure.
+ */
+export function laterTimeLabel(choice: Pick<LaterChoice, "key" | "at">, now: Date): string {
+    return choice.key === "hour" ? whenLabel(choice.at, now) : clockTime(choice.at)
+}
+
+/** "Tomorrow · 09:00", "Mon · 09:00": a time with its day when that is not today. */
 function whenLabel(at: Date, now: Date): string {
     const sameDay = at.toDateString() === now.toDateString()
-    if (sameDay) return chatClock(at)
+    if (sameDay) return clockTime(at)
     const tomorrow = new Date(now)
     tomorrow.setDate(now.getDate() + 1)
     const day = at.toDateString() === tomorrow.toDateString() ? "Tomorrow" : at.toLocaleDateString(undefined, { weekday: "short" })
-    return `${day} · ${chatClock(at)}`
+    return `${day} · ${clockTime(at)}`
 }
 
 /**
@@ -433,10 +463,11 @@ export const SendSplit = React.memo(function SendSplit({
             <button
                 type="button"
                 aria-label={label}
-                title={`${label} (Enter)`}
+                data-tip={label}
                 disabled={disabled}
                 onClick={send}
                 className={cn(
+                    onSchedule && ready ? ACTION_TIP_ABOVE : ACTION_TIP_ABOVE_END,
                     "relative z-[1] flex size-7 items-center justify-center rounded-md transition-[background-color,color,scale] duration-[160ms] ease-spring active:scale-90 active:duration-[90ms] active:ease-out",
                     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed",
                     ready ? "bg-brand text-brand-foreground shadow-primary hover:bg-[color-mix(in_oklab,var(--brand)_92%,black)]" : "bg-press text-ink-3",
@@ -451,10 +482,11 @@ export const SendSplit = React.memo(function SendSplit({
                         <button
                             type="button"
                             aria-label="Send later"
-                            title="Send later"
+                            data-tip="Send later"
                             tabIndex={ready ? 0 : -1}
                             aria-hidden={!ready || undefined}
                             className={cn(
+                                ACTION_TIP_ABOVE_END,
                                 "flex h-7 w-5 items-center justify-center rounded-r-md border-l border-[color-mix(in_oklab,var(--brand)_70%,black)] bg-brand text-brand-foreground shadow-primary transition-[opacity,translate] duration-[140ms] ease-out hover:bg-[color-mix(in_oklab,var(--brand)_92%,black)]",
                                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                                 ready ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-1 opacity-0",
@@ -470,7 +502,7 @@ export const SendSplit = React.memo(function SendSplit({
                                 {sendLaterChoices(now).map((c) => (
                                     <DropdownMenuItem key={c.key} onSelect={() => onSchedule(c.at)}>
                                         {c.label}
-                                        <DropdownMenuShortcut className="whitespace-nowrap tabular-nums">{whenLabel(c.at, now)}</DropdownMenuShortcut>
+                                        <DropdownMenuShortcut className="whitespace-nowrap tabular-nums">{laterTimeLabel(c, now)}</DropdownMenuShortcut>
                                     </DropdownMenuItem>
                                 ))}
                                 <DropdownMenuSeparator />
@@ -509,8 +541,9 @@ export const SendSplit = React.memo(function SendSplit({
 
 /**
  * After scheduling (C44): a chip rises from Send to the composer's top-left,
- * "Scheduled for tomorrow 09:00 · Undo", for 6 s. Its clock turns once as it
- * lands, the playful moment of send-later.
+ * "Scheduled for tomorrow at 09:00 · Undo", for 6 s, in the toast's words
+ * (formatSendAt): it said "Tomorrow 09:00" (QA F-39). Its clock turns once as
+ * it lands, the playful moment of send-later.
  */
 export function ScheduledChip({ at, onUndo, onDone }: { at: Date; onUndo?: () => void; onDone: () => void }) {
     React.useEffect(() => {
@@ -520,7 +553,7 @@ export function ScheduledChip({ at, onUndo, onDone }: { at: Date; onUndo?: () =>
     return (
         <div role="status" data-scheduled-chip="" className="mb-2 inline-flex h-6 items-center gap-1.5 rounded-xl bg-sunken px-2.5 text-meta text-ink-2 animate-pill-in">
             <Clock className="size-3 motion-safe:animate-clock-once" aria-hidden="true" />
-            Scheduled for {whenLabel(at, new Date()).replace(" · ", " ")}
+            Scheduled for {formatSendAt(at)}
             {onUndo && (
                 <>
                     <span aria-hidden="true">·</span>

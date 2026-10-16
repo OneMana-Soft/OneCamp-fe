@@ -1,6 +1,7 @@
 "use client"
 
-import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
+import { useLayoutOnce } from "@/components/task/useLayoutOnce";
 import {
     ColumnFiltersState,
     SortingState,
@@ -102,14 +103,12 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     const urlUpdateTimeoutRef = useRef<NodeJS.Timeout|null>(null);
 
 
-    useLayoutEffect(() => {
-        // Reset taskListVisibleInfo on mount so we don't render the
-        // previous surface's tasks (e.g. project tasks if user came
-        // from /app/project/[id]) while we wait for the new fetch.
-        // taskInfoSlice.taskListVisibleInfo is shared between
-        // myTaskTable and projectTaskTable.
-        dispatch(clearTaskListVisibleInfo())
-    }, [])
+    // Reset taskListVisibleInfo once, on mount, so we don't render the
+    // previous surface's tasks (e.g. project tasks if user came from
+    // /app/project/[id]) while we wait for the new fetch.
+    // taskInfoSlice.taskListVisibleInfo is shared between myTaskTable and
+    // projectTaskTable. Once only: see useLayoutOnce.
+    useLayoutOnce("my-tasks", () => dispatch(clearTaskListVisibleInfo()))
 
     useEffect(() => {
 
@@ -269,6 +268,8 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
                     props={display.props}
                     canEdit={canEditTask}
                     loading={firstLoad}
+                    // More pages to load: a group counts only what has come (PROJ-BUG-2).
+                    partial={moreToLoad}
                     filtered={filtered}
                     sortedBy={sortedBy}
                     onClearFilters={() => {

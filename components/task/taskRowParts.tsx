@@ -8,12 +8,14 @@ import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { PriorityGlyph, StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf } from "@/components/task/taskStatusCell"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
-import { Check, Settings } from "@/lib/icons"
+import { Settings } from "@/lib/icons"
 import { displayNameOf } from "@/lib/personName"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { isBuiltInStatus, type StatusOption } from "@/lib/taskStatus"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { UserProfileDataInterface } from "@/types/user"
 import { useTranslation } from "react-i18next"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 /**
  * A task's assignee as design v3 draws it (work.md W19): a person's gradient
@@ -43,7 +45,7 @@ export function TaskAvatar({ user, size = 22, className }: { user?: UserProfileD
   }
   return (
     <span data-tip={name} className={cn("work-tip inline-flex shrink-0", className)} data-assignee="person">
-      <IdentityMark variant="avatar" id={user.user_uuid} label={name} src={src} size={size} aria-label={name} />
+      <IdentityMark variant="avatar" id={avatarSeed(user)} label={name} src={src} size={size} aria-label={name} />
     </span>
   )
 }
@@ -94,10 +96,10 @@ export function StatusMenu({
         </div>
         <DropdownMenuSeparator />
         {shown.map((o, i) => (
-          <DropdownMenuItem key={o.value} onSelect={() => onPick(o.value)} className="h-[30px] gap-2 rounded-md text-sm font-[450]">
+          <DropdownMenuItem key={o.value} onSelect={() => onPick(o.value)} aria-current={o.value === current || undefined} className="h-[30px] gap-2 rounded-md text-sm font-[450]">
             <StatusGlyph status={statusKindOf(o)} hue={o.hue} />
             <span className="min-w-0 flex-1 truncate">{isBuiltInStatus(o.value) ? t(o.value, { defaultValue: o.label }) : o.label}</span>
-            {o.value === current && <Check className="size-3.5 text-ink-2" aria-label="Current" />}
+            <MenuCheck checked={o.value === current} className="text-ink-2" />
             {i < 9 && <span className="kbd">{i + 1}</span>}
           </DropdownMenuItem>
         ))}
@@ -137,10 +139,10 @@ export function PriorityMenu({ current, onPick, children, withUrgent = false }: 
         }
       }}>
         {items.map((p) => (
-          <DropdownMenuItem key={p.value || "none"} onSelect={() => onPick(p.value)} className="h-[30px] gap-2 rounded-md text-sm font-[450]">
+          <DropdownMenuItem key={p.value || "none"} onSelect={() => onPick(p.value)} aria-current={(current || "") === p.value || undefined} className="h-[30px] gap-2 rounded-md text-sm font-[450]">
             <PriorityGlyph level={p.level} />
             <span className="min-w-0 flex-1">{p.label}</span>
-            {(current || "") === p.value && <Check className="size-3.5 text-ink-2" aria-label="Current" />}
+            <MenuCheck checked={(current || "") === p.value} className="text-ink-2" />
             <span className="kbd">{p.level}</span>
           </DropdownMenuItem>
         ))}

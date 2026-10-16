@@ -1,0 +1,122 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Autolink ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://onemana.dev/x",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "https://onemana.dev/x",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "Mail ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "mailto:someone@example.com",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "someone",
+          "type": "text"
+        },
+        {
+          "text": " and a path ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "/app/doc/123",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "in the app",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "Parens ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "wiki",
+          "type": "text"
+        },
+        {
+          "text": " and spaces ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://x.example/a file.pdf",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "file",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

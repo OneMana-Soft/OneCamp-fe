@@ -2,6 +2,7 @@
 
 
 import { CheckCircle2, XCircle } from "@/lib/icons"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /**
  * The outcome of the last runner probe, shown inline and kept on screen.
@@ -36,7 +37,7 @@ export interface RunnerProbe {
 export function RunnerTestStatus({ probe }: { probe: RunnerProbe | null }) {
   if (!probe) return null
 
-  const time = probe.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const time = clockTime(probe.at)
 
   return (
     <div

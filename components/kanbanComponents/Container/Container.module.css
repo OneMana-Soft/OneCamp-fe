@@ -53,6 +53,14 @@
   gap: 4px;
 }
 
+/* On a touch screen each button takes a touch 8px past its edge
+   (extend-touch-target): 12px apart, "+" keeps most of what lies between. */
+@media (pointer: coarse) {
+  .Actions {
+    gap: 12px;
+  }
+}
+
 /* A 16px fade where the cards are cut (work.md W20): a mask, not a shadow,
    set by the scroll handler in Container.tsx with no render. */
 .Fade[data-fade-top] {

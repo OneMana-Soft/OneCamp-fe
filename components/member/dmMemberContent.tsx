@@ -108,7 +108,7 @@ const DmMemberContent: React.FC<memberContentProp> = ({grpId}) => {
                                     "bg-card hover:bg-accent border-border"
                                 )}
                             >
-                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={userDisplayName(user)} />
+                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={userDisplayName(user)} userUUID={user.user_uuid} isBot={!!user.is_bot} />
 
 
                                 <div className="flex-1 min-w-0">

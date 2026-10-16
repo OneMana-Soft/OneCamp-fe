@@ -1,3 +1,4 @@
+import { withinParam, type SearchWithin } from "@/lib/search/within";
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
 import { usePost } from "@/hooks/usePost";
 import { useCallback } from "react";
@@ -45,14 +46,19 @@ export const useGlobalSearch = () => {
  * encoded: unencoded, "#engineering" was cut at the "#" and answered 404,
  * "a/b" was a route that doesn't exist, and "50%" failed before it was sent.
  */
-export const GlobalSearchGet = (searchText: string) => `${GetEndpointUrl.GlobalSearch}${encodeURIComponent(searchText.trim())}`;
+export const GlobalSearchGet = (searchText: string, within?: SearchWithin | null) => {
+    const path = `${GetEndpointUrl.GlobalSearch}${encodeURIComponent(searchText.trim())}`;
+    // In one conversation, when the search came from its header (QA F-15).
+    return within ? `${path}?${withinParam(within)}` : path;
+};
 
 /**
  * The page of a search after the cursor a page answered with (its next), for
  * "Show more": the server asks the index for the hits after that page's last.
  */
-export async function fetchSearchPage(searchText: string, after: string): Promise<SearchResponse> {
-    const res = await axiosInstance.get(`${GlobalSearchGet(searchText)}?after=${encodeURIComponent(after)}`);
+export async function fetchSearchPage(searchText: string, after: string, within?: SearchWithin | null): Promise<SearchResponse> {
+    const scope = within ? `&${withinParam(within)}` : "";
+    const res = await axiosInstance.get(`${GlobalSearchGet(searchText)}?after=${encodeURIComponent(after)}${scope}`);
     const data = res.data?.data ?? {};
     return { page: data.page ?? [], has_more: !!data.has_more, next: data.next };
 }

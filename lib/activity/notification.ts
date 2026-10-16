@@ -10,9 +10,13 @@
  *   dayGroupOf  Today, Yesterday, Earlier this week, Older (A7)
  *   priorityGroupOf  Needs a reply, Due soon, From agents (A8)
  */
+import { format } from "date-fns"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import type { UnifiedActivityItem } from "@/types/activity"
 import type { UserProfileDataInterface } from "@/types/user"
 import type { KindBadgeKind } from "@/components/ui/kindBadge"
+import { clockTime } from "@/lib/utils/date/clock"
+import { noticeBadge, noticeWords } from "@/lib/activity/notice"
 
 export type ActivityType = UnifiedActivityItem["activity_type"]
 
@@ -25,6 +29,8 @@ export const BADGE_FOR_TYPE: Record<ActivityType, KindBadgeKind> = {
   MENTION: "mention",
   COMMENT: "comment",
   REACTION: "reaction",
+  // A notice's own kind picks its badge (noticeBadge); this is the fallback.
+  NOTICE: "comment",
 }
 
 export function badgeForType(type: string): KindBadgeKind {
@@ -35,7 +41,7 @@ export function badgeForType(type: string): KindBadgeKind {
 
 /** The badge one item carries: a reply to your thread is a reply, an agent's mention is the agent's. */
 export function kindOf(item: UnifiedActivityItem): KindBadgeKind {
-  const base = badgeForType(item.activity_type)
+  const base = item.activity_type === "NOTICE" ? noticeBadge(item.notice) : badgeForType(item.activity_type)
   if (item.actor_kind === "agent" && base !== "reaction") return "agent"
   if (item.actor_kind === "app" && base !== "reaction") return "app"
   if (item.activity_type === "COMMENT" && (item.comment?.comment_post || item.comment?.comment_chat)) return "reply"
@@ -86,6 +92,10 @@ export function sentenceOf(item: UnifiedActivityItem): Sentence {
       preview: c.comment_text ?? "",
       at: c.comment_created_at || item.time,
     }
+  }
+  if (item.activity_type === "NOTICE" && item.notice) {
+    const w = noticeWords(item.notice)
+    return { actor: w.actor, verb: w.verb, place: w.place, preview: w.preview, at: item.notice.created_at || item.time }
   }
   if (item.activity_type === "REACTION" && r) {
     const place = channelName(r.post?.post_channel?.ch_name) || (r.chat ? "a direct message" : "") || r.reaction_task?.task_name || r.reaction_doc?.doc_title || ""
@@ -205,6 +215,20 @@ export function dayGroupOf(at: string, now = new Date()): DayGroup {
   if (d <= DAY_MS) return "Yesterday"
   if (d < 7 * DAY_MS) return "Earlier this week"
   return "Older"
+}
+
+/**
+ * A row's time under its day header: what the header has not already said.
+ * Under "Yesterday" every row read "Yesterday"; it says "4:12 PM" now, a
+ * weekday under "Earlier this week" and the date under "Older". Pure.
+ */
+export function timeUnderDay(at: string, now = new Date()): string {
+  const t = new Date(at)
+  if (Number.isNaN(t.getTime())) return ""
+  const group = dayGroupOf(at, now)
+  if (group === "Today" || group === "Yesterday") return clockTime(t)
+  if (group === "Earlier this week") return format(t, "EEE")
+  return shortDate(t, now)
 }
 
 export type PriorityGroup = "Needs a reply" | "Due soon" | "From agents"

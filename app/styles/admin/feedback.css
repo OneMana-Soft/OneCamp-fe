@@ -58,6 +58,23 @@
   .v3-sheet > .v3-dlg-footer {
     margin-top: auto;
   }
+  /* On a phone the footer stacks (the primary on top) and its buttons are
+     the dialog's width and 44px tall, a thumb's target. The footer centred
+     its items, which on a column shrank each button to its label: "Send
+     invitation" was a 32px pill in the middle with Cancel as bare text under
+     it. A confirm's footer stacks the same way. */
+  @media (max-width: 639.98px) {
+    .v3-dlg-footer,
+    :is(.v3-dialog, .v3-sheet) > .v3-dlg-footer,
+    :is(.v3-dialog, .v3-sheet) > form > .v3-dlg-footer {
+      align-items: stretch;
+    }
+    .v3-dlg-footer > :is(button, a),
+    .v3-dlg-footer > div > :is(button, a),
+    .v3-alert-footer > :is(button, a) {
+      min-height: 44px;
+    }
+  }
 
   /* The body that scrolls inside itself (DialogBody, opt-in): a hairline
      under the header and over the footer only while there is more to see. */

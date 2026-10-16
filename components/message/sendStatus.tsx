@@ -138,14 +138,14 @@ export function SendStatus({ state, localId, className }: { state?: SendState; l
             <span className="mr-1 font-medium text-danger-ink">Didn&apos;t send.</span>
             {actions && (
                 <>
-                    <button type="button" onClick={() => actions.retry(localId)} className={cn(STRIP_BUTTON, "text-ink")}>
+                    <button type="button" data-touch-target="" onClick={() => actions.retry(localId)} className={cn(STRIP_BUTTON, "text-ink")}>
                         <RotateCcw className="size-3" aria-hidden="true" />
                         Try again
                     </button>
-                    <button type="button" onClick={() => actions.edit(localId)} className={cn(STRIP_BUTTON, "text-ink-2 hover:text-ink")}>
+                    <button type="button" data-touch-target="" onClick={() => actions.edit(localId)} className={cn(STRIP_BUTTON, "text-ink-2 hover:text-ink")}>
                         Edit
                     </button>
-                    <button type="button" onClick={() => actions.discard(localId)} className={cn(STRIP_BUTTON, "text-ink-2 hover:text-ink")}>
+                    <button type="button" data-touch-target="" onClick={() => actions.discard(localId)} className={cn(STRIP_BUTTON, "text-ink-2 hover:text-ink")}>
                         Delete
                     </button>
                 </>

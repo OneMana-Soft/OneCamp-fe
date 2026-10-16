@@ -1,5 +1,6 @@
 import { isSameDay, addDays } from "date-fns"
-import { shortDate, shortTime } from "@/lib/utils/date/shortDate"
+import { shortDate } from "@/lib/utils/date/shortDate"
+import { clockTime } from "@/lib/utils/date/clock"
 
 // One phrase for when something is due, in the viewer's own time zone.
 //
@@ -15,9 +16,9 @@ export function dueLabel(iso: string | undefined, now: Date): string {
   const due = new Date(iso)
   if (Number.isNaN(due.getTime())) return ""
   if (due < now) {
-    return isSameDay(due, now) ? `Was due ${shortTime(due)}` : `Was due ${shortDate(due, now)}`
+    return isSameDay(due, now) ? `Was due ${clockTime(due)}` : `Was due ${shortDate(due, now)}`
   }
-  if (isSameDay(due, now)) return `Due today, ${shortTime(due)}`
-  if (isSameDay(due, addDays(now, 1))) return `Due tomorrow, ${shortTime(due)}`
+  if (isSameDay(due, now)) return `Due today, ${clockTime(due)}`
+  if (isSameDay(due, addDays(now, 1))) return `Due tomorrow, ${clockTime(due)}`
   return `Due ${shortDate(due, now)}`
 }

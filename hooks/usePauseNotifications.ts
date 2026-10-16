@@ -5,7 +5,7 @@
 // it covers every device; this device keeps a copy for pushes already in
 // flight. /dnd changes it server-side and says so with a "dnd-changed" event.
 
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -16,13 +16,18 @@ type PauseState = { notifications_paused_until?: string | null; focus_until?: st
 export function usePauseNotifications() {
   const { data, mutate } = useFetch<{ data?: PauseState }>(GetEndpointUrl.GetNotificationPreferences)
   const { makeRequest, isSubmitting } = usePost()
-  const raw = data?.data?.notifications_paused_until
-  const until = activePause(raw)
+  // The moments as numbers, then one Date for each value, kept while it holds.
+  // A fresh Date on every render is a new value to every effect that lists
+  // it: the sidebar's foot reset its clock on each one, which drew it again,
+  // and opening the profile menu in focus time ran that loop until React gave
+  // up and the whole app fell over (React error 185).
+  const pausedMs = activePause(data?.data?.notifications_paused_until)?.getTime() ?? 0
   // Focus time from the calendar: a pause the person did not set and cannot
   // resume here; it ends with the event.
-  const focus = activePause(data?.data?.focus_until)
-  const quiet = [until, focus].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
-  const untilMs = quiet?.getTime() ?? 0
+  const focusMs = activePause(data?.data?.focus_until)?.getTime() ?? 0
+  const until = useMemo(() => (pausedMs ? new Date(pausedMs) : null), [pausedMs])
+  const focus = useMemo(() => (focusMs ? new Date(focusMs) : null), [focusMs])
+  const untilMs = Math.max(pausedMs, focusMs)
 
   // Keep this device's copy in step with the server.
   useEffect(() => {

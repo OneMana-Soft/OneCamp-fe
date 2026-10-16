@@ -733,7 +733,7 @@ function BoardCanvas({
           // Their identity hue (lib/campHue), the colour their avatar and
           // name carry everywhere else, read from the theme's tokens because
           // the canvas needs a colour, not a class.
-          color: collaboratorColour(u.id || u.name || String(clientId)),
+          color: collaboratorColour(u.name || String(clientId)),
           id: u.id,
         } as Collaborator)
       })

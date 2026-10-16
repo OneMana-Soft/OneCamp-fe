@@ -4,8 +4,10 @@ import { stopAnswer } from "@/services/answerRecovery";
 import { usePost } from "@/hooks/usePost";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
+import { announceAnswerStarted } from "@/lib/ai/answerStarted";
 import { readSSE } from "@/lib/ai/sseReader";
 import { getCatchUp, CatchUpRequest, CatchUpResult } from "@/services/catchUpService";
+import type { AxiosRequestConfig } from "axios";
 
 export interface SourceRef {
     content_type: "post" | "chat" | "doc" | "task" | "comment";
@@ -142,6 +144,13 @@ export const useAskAIStream = () => {
             let parsedSources: SourceRef[] = [];
             let parsedNotice = "";
             let parsedSteps: StreamStep[] = [];
+            // Said once, at the answer's first words (see lib/ai/answerStarted).
+            let answering = false;
+            const answerArrived = () => {
+                if (answering) return;
+                answering = true;
+                announceAnswerStarted();
+            };
 
             // Three exits reach the caller: an explicit done event, a stream
             // that stopped without one, and a failure part way through. The
@@ -193,12 +202,14 @@ export const useAskAIStream = () => {
                     if (typeof data.content === "string" && data.content) {
                         accumulated += data.content;
                         setStreamText(accumulated);
+                        answerArrived();
                     }
                     // Server sends sanitized replacement after stream ends
                     // (uses json.Marshal on backend, so JSON.parse handles all escaping)
                     if (data.replace) {
                         accumulated = data.replace;
                         setStreamText(data.replace);
+                        answerArrived();
                     }
                     // Sent before any content, so the caller can adopt
                     // it even if the answer is cut short.
@@ -210,6 +221,8 @@ export const useAskAIStream = () => {
                     if (data.actions) {
                         parsedActions = data.actions;
                         setStreamActions(parsedActions);
+                        // An answer can be only a proposed action.
+                        if (Array.isArray(data.actions) && data.actions.length > 0) answerArrived();
                     }
                     // Server sends grounding sources (citations)
                     if (data.sources) {
@@ -307,7 +320,7 @@ export const useAIStatus = () => {
 
 // --- Doc AI Types ---
 
-export type DocAIAction = 'write' | 'expand' | 'summarize' | 'fix_grammar' | 'shorten' | 'rewrite';
+export type DocAIAction = 'write' | 'expand' | 'summarize' | 'fix_grammar' | 'shorten' | 'rewrite' | 'explain' | 'ask';
 
 interface DocAIResponse {
     result: string;
@@ -322,79 +335,11 @@ interface DocAIResponse {
 }
 
 /**
- * Hook for AI Doc Assistant — streaming completion for document editing.
- * Supports 6 actions: write, expand, summarize, fix_grammar, shorten, rewrite.
+ * The doc AI's one-shot completion, for the composer's "Improve" and a
+ * thread's summary (the doc's own bar and panel stream through
+ * lib/ai/docAIStream). The server still takes these older action names.
  */
 export const useDocAI = () => {
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [streamText, setStreamText] = useState("");
-    // Set when the input was shortened to fit the model's context window. Separate from
-    // `error` deliberately: the action succeeded, it just saw part of the selection.
-    const [streamNotice, setStreamNotice] = useState("");
-    const [error, setError] = useState<string | null>(null);
-    const abortRef = useRef<AbortController | null>(null);
-
-    const completeStream = useCallback(
-        async (action: DocAIAction, text: string, docId?: string, customPrompt?: string, context?: string) => {
-            setIsStreaming(true);
-            setStreamText("");
-            setError(null);
-
-            abortRef.current = new AbortController();
-
-            try {
-                const response = await authedStreamFetch(PostEndpointUrl.AIDocCompleteStream, {
-                    jsonBody: {
-                        action,
-                        text,
-                        prompt: customPrompt || "",
-                        doc_id: docId || "",
-                        context: context || "",
-                    },
-                    signal: abortRef.current.signal,
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error((errData as any)?.msg || `AI doc request failed: ${response.statusText}`);
-                }
-
-                const reader = response.body?.getReader();
-                if (!reader) throw new Error("No response body");
-
-                let accumulated = "";
-
-                for await (const data of readSSE(reader)) {
-                    if (data.error) {
-                        setError(data.error);
-                        setIsStreaming(false);
-                        return;
-                    }
-                    if (typeof data.content === "string" && data.content) {
-                        accumulated += data.content;
-                        setStreamText(accumulated);
-                    }
-                    // Sent just before "done" when the input was shortened
-                    // to fit the model's window.
-                    if (data.notice) {
-                        setStreamNotice(data.notice);
-                    }
-                    if (data.done) {
-                        setIsStreaming(false);
-                        return;
-                    }
-                }
-            } catch (err: any) {
-                if (err.name !== "AbortError") {
-                    setError(err.message || "Doc AI streaming failed");
-                }
-            } finally {
-                setIsStreaming(false);
-            }
-        },
-        []
-    );
-
     const complete = useCallback(
         async (action: DocAIAction, text: string, docId?: string, customPrompt?: string, context?: string): Promise<DocAIResponse | undefined> => {
             try {
@@ -419,23 +364,7 @@ export const useDocAI = () => {
         []
     );
 
-    const cancelStream = useCallback(() => {
-        abortRef.current?.abort();
-        setIsStreaming(false);
-    }, []);
-
-    // Abort on unmount — see useAskAIStream for rationale.
-    useEffect(() => () => {
-        abortRef.current?.abort();
-    }, []);
-
-    const resetResult = useCallback(() => {
-        setStreamText("");
-        setStreamNotice("");
-        setError(null);
-    }, []);
-
-    return { completeStream, complete, cancelStream, resetResult, isStreaming, streamText, streamNotice, error };
+    return { complete };
 };
 
 // --- Agentic Action Types ---
@@ -618,8 +547,8 @@ interface ChatSessionMessage {
 }
 
 /** A person's conversations, most recently active first. */
-export async function listChatSessions(): Promise<ChatSessionSummary[]> {
-    const res = await axiosInstance.get(GetEndpointUrl.AIChatSessions)
+export async function listChatSessions(config?: AxiosRequestConfig): Promise<ChatSessionSummary[]> {
+    const res = await axiosInstance.get(GetEndpointUrl.AIChatSessions, config)
     return (res.data?.data as ChatSessionSummary[]) || []
 }
 

@@ -30,7 +30,7 @@ import { Greeting } from "@/components/home/Greeting"
 import { NeedsMe } from "@/components/home/NeedsMe"
 import { useHomeNeeds } from "@/components/home/useHomeNeeds"
 import { useTodayEvents } from "@/components/home/useTodayEvents"
-import { hhmm } from "@/components/home/homeTime"
+import { clockTime } from "@/lib/utils/date/clock"
 import { needsCounts } from "@/components/home/needsMe"
 import { useRiseOnce, riseProps } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -80,7 +80,7 @@ export function MobileHome() {
                             mentions: needs.items.filter((i) => i.id.startsWith("mention:")).length,
                             agentRequests: pending.length,
                         }}
-                        next={today.next ? { title: today.next.event_title, time: hhmm(today.next.event_start_time) } : null}
+                        next={today.next ? { title: today.next.event_title, time: clockTime(today.next.event_start_time) } : null}
                     />
                 }
             />

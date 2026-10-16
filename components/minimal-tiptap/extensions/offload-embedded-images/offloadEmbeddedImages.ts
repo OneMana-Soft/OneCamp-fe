@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/react'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import { approxDataUrlBytes, dataURLToFile, isDataURL } from '@/lib/utils/uploadLimit'
 
@@ -56,6 +57,38 @@ interface OffloadEmbeddedImagesOptions {
 }
 
 /**
+ * Whether a transaction came from another person, through Yjs (y-prosemirror
+ * marks those with its 'y-sync$' meta). Remote changes are left alone (I6):
+ * the person who pasted an image offloads it, not every tab that receives it.
+ */
+export function isRemoteTransaction(tr: Transaction): boolean {
+  const meta = tr.getMeta('y-sync$') as { isChangeOrigin?: boolean; isUndoRedoOperation?: boolean } | undefined
+  // Undo and redo come through Yjs too, but they are this person's own.
+  return meta?.isChangeOrigin === true && meta.isUndoRedoOperation !== true
+}
+
+/**
+ * The ranges of tr.doc a transaction changed, from its steps' maps, each
+ * carried through the steps after it. Typing one letter is one tiny range.
+ */
+export function changedRanges(tr: Transaction): Array<[number, number]> {
+  const out: Array<[number, number]> = []
+  const maps = tr.mapping.maps
+  maps.forEach((map, i) => {
+    map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+      let from = newStart
+      let to = newEnd
+      for (let j = i + 1; j < maps.length; j++) {
+        from = maps[j].map(from, -1)
+        to = maps[j].map(to, 1)
+      }
+      out.push([from, to])
+    })
+  })
+  return out
+}
+
+/**
  * shouldOffloadSrc decides whether one src is a payload worth moving out of the
  * document. Pure, so the decision is unit-tested without an editor:
  *
@@ -97,13 +130,26 @@ export const OffloadEmbeddedImages = Extension.create<OffloadEmbeddedImagesOptio
     // Serial queue: one upload at a time.
     let queue: Promise<void> = Promise.resolve()
 
-    const collect = (view: EditorView): string[] => {
+    // The ranges this editor's own changes touched since the view last
+    // looked, in the newest doc's positions (appendTransaction records them;
+    // the view's update, right after, reads and clears them).
+    let pending: Array<[number, number]> = []
+
+    // Only what changed is looked at: typing a letter looks at that letter's
+    // block, not the whole doc. This walked every node of the doc on every
+    // change, remote ones included (N21), which grows with the doc (I20).
+    const collect = (doc: PMNode, ranges: Array<[number, number]>): string[] => {
       const found: string[] = []
-      view.state.doc.descendants(node => {
-        if (node.type.name !== options.nodeName) return
-        const src = node.attrs?.src
-        if (shouldOffloadSrc(src, options.minBytes, attempted)) found.push(src as string)
-      })
+      const size = doc.content.size
+      for (const [a, b] of ranges) {
+        const from = Math.max(0, Math.min(a, size))
+        const to = Math.max(from, Math.min(b, size))
+        doc.nodesBetween(from, to, (node) => {
+          if (node.type.name !== options.nodeName) return
+          const src = node.attrs?.src
+          if (shouldOffloadSrc(src, options.minBytes, attempted) && !found.includes(src as string)) found.push(src as string)
+        })
+      }
       return found
     }
 
@@ -153,16 +199,27 @@ export const OffloadEmbeddedImages = Extension.create<OffloadEmbeddedImagesOptio
     return [
       new Plugin({
         key: OffloadEmbeddedImagesPluginKey,
+        // Observes, never appends: it returns nothing.
+        appendTransaction: (transactions) => {
+          for (const tr of transactions) {
+            if (!tr.docChanged) continue
+            // Earlier ranges move with this transaction's changes.
+            pending = pending.map(([a, b]) => [tr.mapping.map(a, -1), tr.mapping.map(b, 1)])
+            if (isRemoteTransaction(tr)) continue
+            pending.push(...changedRanges(tr))
+          }
+          return null
+        },
         view: () => ({
-          update: (view: EditorView, prevState) => {
-            // Only walk the document when it actually changed. A reference compare
-            // is exact here (ProseMirror allocates a new doc only on change) and
-            // O(1), which matters because `update` also fires for every cursor
-            // move and selection change — by far the most frequent updates — and
-            // scanning a long page on each of those would be wasted work on the
-            // typing hot path.
-            if (prevState.doc === view.state.doc) return
-            for (const payload of collect(view)) process(view, payload)
+          update: (view: EditorView) => {
+            if (pending.length === 0) return
+            const ranges = pending
+            pending = []
+            // A read-only editor never writes (a reader's, a guest's): it has
+            // no right to change the document, and a guest has no session to
+            // upload with, so the attempt only failed and said so.
+            if (!view.editable) return
+            for (const payload of collect(view.state.doc, ranges)) process(view, payload)
           },
         }),
       }),

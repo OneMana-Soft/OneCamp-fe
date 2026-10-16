@@ -4,6 +4,7 @@ import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { AgentAvatar } from "@/components/ui/graphics";
 import { displayNameOf, handleOf } from "@/lib/personName";
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 
 /**
  * A row of the @mention picker (content.md D24, chat.md C41), as the
@@ -19,7 +20,8 @@ export function MentionAvatar({ person }: { person: UserProfileDataInterface }) 
             </span>
         );
     }
-    return <IdentityMark id={person.user_uuid} label={displayNameOf(person)} src={src || undefined} variant="avatar" size={24} />;
+    // The person's hue, keyed as every avatar is: the colour of the chip this row makes.
+    return <IdentityMark id={avatarSeed(person)} label={displayNameOf(person)} src={src || undefined} variant="avatar" size={24} />;
 }
 
 const MentionMember: React.FC<{ person: UserProfileDataInterface; [rest: string]: unknown }> = ({ person }) => {

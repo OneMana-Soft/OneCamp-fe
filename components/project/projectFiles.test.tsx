@@ -32,7 +32,7 @@ vi.mock("react-redux", () => ({
 
 import { ProjectAttachments } from "./ProjectAttachments"
 import { ProjectAttachmentList } from "./projectAttachmentList"
-import { fileSize, middleTruncate } from "./fileCard"
+import { fileSize, nameParts } from "./fileCard"
 import { shownFiles } from "./projectFiles"
 
 afterEach(() => {
@@ -141,6 +141,22 @@ describe("the desktop Files tab", () => {
   })
 })
 
+// A phone had Upload only in the empty state: once a project had a file,
+// nothing on the tab could add another.
+describe("a project's files on a phone, with some already", () => {
+  it("offers an admin Upload above the list, and a reader nothing to press", () => {
+    loaded([file("brief.pdf")])
+    const pick = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {})
+    const { unmount } = render(<ProjectAttachmentList projectId="p1" searchQuery="" />)
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }))
+    expect(pick).toHaveBeenCalled()
+    unmount()
+    loaded([file("brief.pdf")], false)
+    render(<ProjectAttachmentList projectId="p1" searchQuery="" />)
+    expect(screen.queryByRole("button", { name: "Upload" })).toBeNull()
+  })
+})
+
 describe("searching a project's files on a phone", () => {
   it("shows the matches in the same render the search arrives in", () => {
     loaded([file("brief.pdf"), file("logo.png", "image")])
@@ -168,7 +184,10 @@ describe("the files' words", () => {
   it("writes sizes short, and keeps a long name's extension", () => {
     expect(fileSize(2_516_582)).toBe("2.4 MB")
     expect(fileSize(880_640)).toBe("860 KB")
-    expect(middleTruncate("Launch-brief-final-final-v3.pdf")).toMatch(/…v3\.pdf$/)
+    // The tail always shows; only the head gives way, by the width there is.
+    expect(nameParts("Launch-brief-final-final-v3.pdf")).toEqual(["Launch-brief-final-final-", "v3.pdf"])
+    expect(nameParts("a.png")).toEqual(["", "a.png"])
+    expect(nameParts("README")).toEqual(["", "README"])
   })
 })
 

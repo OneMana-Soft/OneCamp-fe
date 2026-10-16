@@ -16,6 +16,18 @@ type Spans = Parameters<typeof firstView>[0]
  * rows and the remembered zoom are in; paused (a drag under way) holds the
  * view still while the timeline is resized.
  */
+/** The CSS variable the timeline's scroller keeps its horizontal scroll in. */
+export const SCROLL_X = "--timeline-scroll-x"
+
+/**
+ * The room a name stuck at the grid's left edge has, as a CSS length: what
+ * is left in view of the span it labels, which ends `end` px into the grid
+ * and sticks `inset` px in from the names column. Pure.
+ */
+export function stuckRoom(end: number, inset = 0): string {
+  return `max(0px, calc(${end - inset}px - var(${SCROLL_X}, 0px)))`
+}
+
 export function useTimelineView({
   scrollRef,
   range,
@@ -47,6 +59,11 @@ export function useTimelineView({
     const el = scrollRef.current
     if (!el) return
     anchor.current = { day: dayAt(el.scrollLeft + visibleGrid() / 2, range, dayWidth), at: 0.5 }
+    // How far the grid has scrolled, for the names that stick at its left
+    // edge: each one narrows to what is left of its month or bar instead of
+    // sliding under the names column ("ptember 2026", PTC-29). A variable,
+    // not state: a scroll renders nothing.
+    el.style.setProperty(SCROLL_X, `${el.scrollLeft}px`)
   }
 
   const rangeFrom = range.from.getTime()

@@ -215,7 +215,7 @@ const InvitationCard = () => {
   // link its email carries, which keeps working until it expires.
   const handleCopyLink = async (link: string) => {
     const ok = await copy(link, "Invitation link copied")
-    if (!ok) toast({ title: "Couldn't copy the link", description: link })
+    if (!ok) toast({ title: "Couldn't copy the link", description: link, tone: "error" })
   }
 
   const normalisedSearch = search.trim().toLowerCase()

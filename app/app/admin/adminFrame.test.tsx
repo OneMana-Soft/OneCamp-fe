@@ -98,7 +98,7 @@ describe("the admin page's frame", () => {
   it("still resolves the old addresses", () => {
     params.value = new URLSearchParams("tab=slack-import")
     render(<AdminPage />)
-    expect(screen.getByRole("heading", { level: 1, name: "Import" })).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 1, name: "Import and export" })).toBeTruthy()
   })
 
   // A long section's jumps: in the header below 1280px, a rail beside the

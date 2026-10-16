@@ -58,7 +58,7 @@ class OfflineQueue {
     if (this.queue.length === 0) {
       toast({
         title: "Back Online",
-        description: "All pending actions have been synchronized.",
+        description: "All pending actions have been synchronised.",
       });
     }
   }

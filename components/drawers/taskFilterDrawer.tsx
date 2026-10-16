@@ -23,7 +23,7 @@ import { taskPriorityOptions, taskStatusOptions } from "@/types/task"
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {ColorIcon} from "@/components/colorIcon/colorIcon";
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import {updateMyTaskSortingAndFiltering, type filterInterface, type sortInterface} from "@/store/slice/taskFilterSlice";
 import {useDispatch, useSelector} from "react-redux";
 import type { RootState } from "@/store/store"
@@ -208,7 +208,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                                 className="h-5 w-5 border-gray-600"
                             />
                             <Label className="font-normal flex gap-x-1 justify-center items-center" htmlFor={`${activeTab}-${option.uid}`}>
-                                <ColorIcon size={'xs'} name={option.project_uuid}/>
+                                <ProjectTile id={option.project_uuid} />
                                 {option.project_name}
                             </Label>
                         </div>)

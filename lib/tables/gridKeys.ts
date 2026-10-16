@@ -14,6 +14,9 @@
  *  - Enter in a text, number or date cell saves it (by leaving it) and goes
  *    down a row; Shift+Enter goes up. Enter on a button or a checkbox does
  *    what it does there.
+ *  - In a text area (a text cell's lines), Shift+Enter adds a line, and up
+ *    and down move the caret between its lines: the grid takes them only
+ *    from its first and last line.
  *  - Anything with Alt, Ctrl or Meta is left alone (Alt+Down opens a select).
  *
  * Pure: the grid hands it the key, where the caret is and the grid's size.
@@ -40,13 +43,14 @@ const COMMITS_ON_ENTER: CellKind[] = ["text", "number", "date"]
 /**
  * Where a key moves the focus, or null to leave the key to the cell.
  * `atStart`/`atEnd` say whether the caret is at the start or end of a text
- * cell's text, with nothing selected.
+ * cell's text, with nothing selected; `lines`, for a text area, whether it's
+ * on the first and the last of its lines.
  */
 export function nextCell(
   e: KeyInput,
   at: CellPos,
   size: { rows: number; cols: number },
-  cell: { kind: CellKind; atStart?: boolean; atEnd?: boolean },
+  cell: { kind: CellKind; atStart?: boolean; atEnd?: boolean; lines?: { first: boolean; last: boolean } },
 ): CellPos | null {
   if (e.altKey || e.ctrlKey || e.metaKey) return null
   const { row, col } = at
@@ -54,8 +58,10 @@ export function nextCell(
     p.row < 0 || p.row >= size.rows || p.col < 0 || p.col >= size.cols || (p.row === row && p.col === col) ? null : p
   switch (e.key) {
     case "ArrowUp":
+      if (cell.lines && !cell.lines.first) return null
       return clamp({ row: row - 1, col })
     case "ArrowDown":
+      if (cell.lines && !cell.lines.last) return null
       return clamp({ row: row + 1, col })
     case "ArrowLeft":
       if (cell.kind === "date") return null
@@ -66,7 +72,7 @@ export function nextCell(
       if (TYPED.includes(cell.kind) && !cell.atEnd) return null
       return clamp({ row, col: col + 1 })
     case "Enter":
-      if (!COMMITS_ON_ENTER.includes(cell.kind)) return null
+      if (!COMMITS_ON_ENTER.includes(cell.kind) || (e.shiftKey && cell.lines)) return null
       return clamp({ row: e.shiftKey ? row - 1 : row + 1, col })
     default:
       return null

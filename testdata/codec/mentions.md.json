@@ -1,0 +1,91 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Ask @Sam Rivera in ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/channel/c-1",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "#engineering",
+          "type": "text"
+        },
+        {
+          "text": " about ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/doc/d-1",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Launch notes",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "A task: ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/task/t-9",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Ship it",
+          "type": "text"
+        },
+        {
+          "text": " and a project: ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/project/p-2",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Roadmap",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

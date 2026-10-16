@@ -1,143 +1,79 @@
 import {useDispatch} from "react-redux";
 import {useCallback} from "react";
 import mqttService, {MqttActionType} from "@/services/mqttService";
-import {
-    createDocCommentReactionByCommentId,
-    createNewDocComment, decrementDocCommentCount, incrementDocCommentCount,
-    removeDocCommentByCommentUUID, removeDocCommentReactionByReactionId,
-    updateDocCommentByCommentUUID, updateDocCommentReactionByCommentId
-} from "@/store/slice/createDocCommentSlice";
+import {emitDocCommentEvent} from "@/lib/docComments/events";
+import {decrementDocCommentCount, incrementDocCommentCount} from "@/store/slice/createDocCommentSlice";
 
-interface UseDocMessageHandlersProps {
-    userUuid?: string
-}
-
-export const useDocMessageHandlers = ({ userUuid }: UseDocMessageHandlersProps) => {
+/**
+ * A doc's comment and reaction events, heard once by the global router
+ * (useMqttMessageHandler) and handed to the doc's threads, wherever a page
+ * shows them (lib/docComments/events: the threads store applies each by the
+ * comment's id, so an echo of this tab's own write changes nothing). The doc's
+ * comment count moves here, once per comment however often its event comes.
+ *
+ * Multi-device: an event about this person's own comment is not skipped; the
+ * tab that wrote it already holds it, and another of their devices needs it.
+ */
+export const useDocMessageHandlers = () => {
     const dispatch = useDispatch()
 
     const handleDocCommentMessage = useCallback(
         (messageStr: string) => {
-
             try {
-
-                const mqttDocComment = mqttService.parseDocCommentMsg(messageStr)
-
-                // Multi-device sync: don't skip self. createNewDocComment
-                // and incrementDocCommentCount both dedup so the originating
-                // tab is safe and the second device sees the new comment.
-
-                switch (mqttDocComment.data.type) {
+                const { data } = mqttService.parseDocCommentMsg(messageStr)
+                const docId = data.doc_id
+                const commentId = data.comment_uuid
+                switch (data.type) {
                     case MqttActionType.Create:
-                        dispatch(createNewDocComment({
-                            commentBy: {
-                                user_uuid: mqttDocComment.data.user_uuid,
-                                user_name: mqttDocComment.data.user_name,
-                                user_profile_object_key: mqttDocComment.data.user_profile_object_key,
-                            },
-                            docId: mqttDocComment.data.doc_id,
-                            commentText: mqttDocComment.data.body_text,
-                            attachments: mqttDocComment.data.comment_attachments || [],
-                            commentId: mqttDocComment.data.comment_uuid,
-                            commentCreatedAt: mqttDocComment.data.created_at
-                        }))
-
-                        dispatch(incrementDocCommentCount({docId: mqttDocComment.data.doc_id}))
-
-                        break;
-
-                    case MqttActionType.Update:
-                        dispatch(updateDocCommentByCommentUUID({
-                            docId: mqttDocComment.data.doc_id,
-                            commentUUID: mqttDocComment.data.comment_uuid,
-                            htmlText: mqttDocComment.data.body_text,
-                            updated_at: mqttDocComment.data.updated_at,
-                        }))
-
-                        break;
-
-                    case MqttActionType.Delete:
-                        dispatch(removeDocCommentByCommentUUID({
-                            docId: mqttDocComment.data.doc_id,
-                            commentUUID: mqttDocComment.data.comment_uuid,
-                        }))
-
-                        dispatch(decrementDocCommentCount({docId: mqttDocComment.data.doc_id}))
-
+                        emitDocCommentEvent({ kind: "created", docId, commentId })
+                        dispatch(incrementDocCommentCount({ docId, commentId }))
                         break
-
+                    case MqttActionType.Update:
+                        emitDocCommentEvent({ kind: "edited", docId, commentId, html: data.body_text, at: data.updated_at })
+                        break
+                    case MqttActionType.Delete:
+                        emitDocCommentEvent({ kind: "deleted", docId, commentId })
+                        dispatch(decrementDocCommentCount({ docId, commentId }))
+                        break
                     default:
-                        console.warn("[MQTT] Unknown doc comment action type:", mqttDocComment.data.type)
-
+                        console.warn("[MQTT] Unknown doc comment action type:", data.type)
                 }
-
-
-                } catch (error) {
+            } catch (error) {
                 console.error("[MQTT] Doc comment message handling error:", error)
             }
         },
-        [dispatch, userUuid]
+        [dispatch],
     )
 
-    const handleDocCommentReactionMessage = useCallback(
-        (messageStr: string) => {
-
-            try {
-
-                const mqttDocCommentReaction = mqttService.parseDocCommentReactionMsg(messageStr)
-                // Multi-device sync: don't skip self. The reducer dedups
-                // by (user, emoji) and upgrades temp -> real ids.
-
-                switch (mqttDocCommentReaction.data.type) {
-                    case MqttActionType.Create:
-                        dispatch(createDocCommentReactionByCommentId({
-                            docId: mqttDocCommentReaction.data.doc_uuid,
-                            commentId: mqttDocCommentReaction.data.comment_uuid,
-                            reactionId: mqttDocCommentReaction.data.reaction_id,
-                            emojiId:mqttDocCommentReaction.data.reaction_emoji_id,
-                            addedBy: {
-                                user_uuid: mqttDocCommentReaction.data.user_uuid,
-                                user_name: mqttDocCommentReaction.data.user_name,
-                                user_profile_object_key: ''
-                            },
-
-                        }))
-                        break
-
-                    case MqttActionType.Update:
-                        dispatch(updateDocCommentReactionByCommentId({
-                            docId: mqttDocCommentReaction.data.doc_uuid,
-                            commentId: mqttDocCommentReaction.data.comment_uuid,
-                            reactionId: mqttDocCommentReaction.data.reaction_id,
-                            emojiId: mqttDocCommentReaction.data.reaction_emoji_id,
-                        }))
-
-                        break
-
-                    case MqttActionType.Delete:
-                        dispatch(removeDocCommentReactionByReactionId({
-                            docId: mqttDocCommentReaction.data.doc_uuid,
-                            commentId: mqttDocCommentReaction.data.comment_uuid,
-                            reactionId: mqttDocCommentReaction.data.reaction_id,
-                        }))
-
-
-                    default:
-                        console.warn("[MQTT] Unknown doc comment reaction action type:", mqttDocCommentReaction.data.type)
-
-                }
-
-
-
-            } catch (error) {
-                console.error("[MQTT] Doc comment reaction message handling error:", error)
+    const handleDocCommentReactionMessage = useCallback((messageStr: string) => {
+        try {
+            const { data } = mqttService.parseDocCommentReactionMsg(messageStr)
+            const base = { docId: data.doc_uuid, commentId: data.comment_uuid, reactionId: data.reaction_id }
+            switch (data.type) {
+                // The server sends a changed emoji as a Create with the same
+                // reaction id: one person, one reaction on a comment.
+                case MqttActionType.Create:
+                case MqttActionType.Update:
+                    emitDocCommentEvent({
+                        kind: "reacted",
+                        ...base,
+                        emojiId: data.reaction_emoji_id,
+                        by: { user_uuid: data.user_uuid, user_name: data.user_name },
+                    })
+                    break
+                case MqttActionType.Delete:
+                    emitDocCommentEvent({ kind: "unreacted", ...base })
+                    break
+                default:
+                    console.warn("[MQTT] Unknown doc comment reaction action type:", data.type)
             }
-
-        },
-        [dispatch, userUuid]
-    )
+        } catch (error) {
+            console.error("[MQTT] Doc comment reaction message handling error:", error)
+        }
+    }, [])
 
     return {
         handleDocCommentMessage,
-        handleDocCommentReactionMessage
+        handleDocCommentReactionMessage,
     }
 }

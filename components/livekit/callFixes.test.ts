@@ -250,4 +250,10 @@ describe("CALL-BUG-17: an instant meeting that can't open says why", () => {
     expect(meetingUnavailable(404, "")?.title).toBe("This meeting has ended")
     expect(meetingUnavailable(500, "")).toBeNull()
   })
+
+  // F-54: an id no meeting ever had was "This meeting has ended" too.
+  it("knows a meeting that never was from one that has ended", () => {
+    expect(meetingUnavailable(404, "no_meeting")?.title).toBe("We couldn't find this meeting")
+    expect(meetingUnavailable(404, "ended")?.title).toBe("This meeting has ended")
+  })
 })

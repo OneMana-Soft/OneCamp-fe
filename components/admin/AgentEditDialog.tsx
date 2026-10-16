@@ -16,13 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields"
 import { useFetch } from "@/hooks/useFetch"
+import type { UserProfileInterface } from "@/types/user"
 import { AGENT_TEMPLATES, scheduleDaysFor, type AgentTemplate } from "@/lib/agentTemplates"
+import { governanceSentence } from "@/lib/agentCardCopy"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoInterface } from "@/types/project"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService"
 import { McpToolRiskBadge, McpToolRiskLegend } from "@/components/admin/McpToolRisk"
-import { type AuthorizedModel } from "@/services/aiModelService"
+import { type AuthorizedModel, type UserModelOption } from "@/services/aiModelService"
 import { cn } from "@/lib/utils/helpers/cn"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { Spark } from "@/components/ui/graphics/motifs"
@@ -135,12 +137,6 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
-/** The Review step's one sentence: who it acts for, its limit, where, and the record. */
-export function governanceSentence(name: string, channels: number): string {
-  const where = channels === 0 ? "wherever it is asked" : channels === 1 ? "in the one channel you chose" : `in the ${channels} channels you chose`
-  return `${name} acts for you. It can do only what you can, ${where}, and every action is on the record.`
-}
-
 export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDialogProps) {
   const { toast } = useToast()
   const editing = !!agent
@@ -165,14 +161,26 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     [mcpData],
   )
 
-  // Authorized models the admin can pin this agent to (usable only). Empty
-  // selection = run on the workspace default model.
+  // The models this agent can be pinned to. Empty selection = run on the
+  // workspace default model. An admin reads the workspace's authorized list
+  // (usable ones only); anyone else reads the models they may pick for
+  // themselves. Everyone read the admin list, which answers a member 403, so
+  // opening New agent raised "Not allowed" on every member's screen.
+  const self = useFetch<UserProfileInterface>(open ? GetEndpointUrl.SelfProfile : "")
+  const roleKnown = !!self.data?.data
+  const isAdmin = !!self.data?.data?.user_is_admin
   const { data: modelsData } = useFetch<{ data: AuthorizedModel[] }>(
-    open ? GetEndpointUrl.GetAIAuthorizedModels : "",
+    open && roleKnown && isAdmin ? GetEndpointUrl.GetAIAuthorizedModels : "",
   )
-  const usableModels = React.useMemo(
-    () => (modelsData?.data || []).filter((m) => m.enabled && m.provider_enabled),
-    [modelsData],
+  const { data: myModelsData } = useFetch<{ data: { models: UserModelOption[] } }>(
+    open && roleKnown && !isAdmin ? GetEndpointUrl.GetAIMyModels : "",
+  )
+  const usableModels: Pick<AuthorizedModel, "id" | "label" | "model" | "provider_label">[] = React.useMemo(
+    () =>
+      isAdmin
+        ? (modelsData?.data || []).filter((m) => m.enabled && m.provider_enabled)
+        : myModelsData?.data?.models || [],
+    [isAdmin, modelsData, myModelsData],
   )
 
   // Web search is grantable to an agent only when an admin has configured a
@@ -1561,7 +1569,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 <p className="text-xs text-muted-foreground">
                   Caps this teammate&apos;s own AI spend per day, billed to the agent (not its
                   owner&apos;s quota). 0 means no agent cap; the workspace limit still applies.
-                  Resets at 00:00 UTC.
+                  Resets at midnight UTC.
                   {aguiEndpoint.trim() !== "" &&
                     " A remote agent's model spend happens on its own account, so this workspace cannot meter it and this limit does not apply. Its step limit still does."}
                 </p>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { CHUNK_RECOVERY_SCRIPT, isChunkLoadError } from "./chunkRecovery"
+import { CHUNK_RECOVERY_SCRIPT, isChunkLoadError, reloadForNewBuild } from "./chunkRecovery"
 
 describe("chunk recovery", () => {
   it.each([
@@ -37,6 +37,18 @@ describe("chunk recovery", () => {
       const js = Object.assign(document.createElement("script"), { src: "/_next/static/chunks/b.js" })
       fail(js)
       expect(reload).toHaveBeenCalledTimes(1)
+      vi.unstubAllGlobals()
+    })
+
+    it("leaves an offline page as it is: a chunk failing then is the network, not a deploy", () => {
+      vi.stubGlobal("location", { reload })
+      const offline = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+      new Function(CHUNK_RECOVERY_SCRIPT)()
+      fail(Object.assign(document.createElement("script"), { src: "/_next/static/chunks/c.js" }))
+      expect(reload).not.toHaveBeenCalled()
+      expect(reloadForNewBuild()).toBe(false)
+      expect(reload).not.toHaveBeenCalled()
+      offline.mockRestore()
       vi.unstubAllGlobals()
     })
   })

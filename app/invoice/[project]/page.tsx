@@ -15,7 +15,7 @@ import { format } from "date-fns"
 // a sheet with a way back to the project, and the invoice is paper (light in
 // any theme, .invoice-paper) on the e2 step, with no outline.
 
-import { use, useEffect, useMemo, useState } from "react"
+import { use, useEffect, useId, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import axiosInstance from "@/lib/axiosInstance"
 import { Badge } from "@/components/ui/badge"
@@ -28,12 +28,15 @@ import { ArrowLeft, CheckCircle2, Loader2, Printer, Save, Send, Trash2, Undo2 } 
 import Link from "next/link"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { app_project_path } from "@/types/paths"
-import { serverMessage } from "@/lib/http/serverMessage"
-import { CURRENCIES, buildInvoice, money, round2, suggestNumber, type InvoiceTotals, type LineBy } from "@/lib/invoice/invoice"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { CURRENCIES, buildInvoice, defaultPeriod, money, round2, suggestNumber, type InvoiceTotals, type LineBy, type Period } from "@/lib/invoice/invoice"
 import { STATUS_LABEL, linesOf, linesToSave, shownStatus, type InvoiceInput, type SavedInvoice } from "@/lib/invoice/saved"
 import { formatHours, presetRange, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { localDay } from "@/lib/utils/timeZone"
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
+import { typedNumber, typedNumberText } from "@/lib/format/number"
+import { formatLocale } from "@/lib/tables/numberFormat"
 
 interface Seller { name: string; address: string; taxId: string; payment: string }
 interface ClientSide { name: string; address: string; rate: string; currency: string; taxPercent: string; by: LineBy }
@@ -69,17 +72,22 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
   const router = useRouter()
   const { toast } = useToast()
   const savedId = search.get("id")
-  const range = useMemo(() => {
+  // The dates asked for in the address, if any; else defaultPeriod picks
+  // them once the time is read: last month, or this month so far when last
+  // month has nothing to bill.
+  const asked = useMemo((): Period | null => {
     const from = search.get("from"), to = search.get("to")
-    if (from && to) return { from: new Date(from), to: new Date(to) }
-    return presetRange("last-month", new Date())
+    return from && to ? { from: new Date(from), to: new Date(to) } : null
   }, [search])
+  const [range, setRange] = useState<Period>(() => asked ?? presetRange("last-month", new Date()))
   const invoices = `${GetEndpointUrl.ProjectInvoices}/${project}/invoices`
 
   const [report, setReport] = useState<TimeReport | null>(null)
   const [saved, setSaved] = useState<SavedInvoice | null>(null)
   const [projectName, setProjectName] = useState("")
   const [error, setError] = useState("")
+  // Said in place of the invoice; the request's toast stays quiet.
+  useSaysLoadFailure(!!error)
   const [busy, setBusy] = useState(false)
 
   const [seller, setSeller] = useState<Seller>({ name: "", address: "", taxId: "", payment: "" })
@@ -89,6 +97,15 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
   const [issued, setIssued] = useState(localDay(today))
   const [due, setDue] = useState(localDay(new Date(today.getTime() + 15 * 864e5)))
   const [notes, setNotes] = useState("")
+  // The rate and the tax as typed, read as the reader writes numbers: read as
+  // JavaScript spells them, "18,5" % billed no tax, and "1,500" an hour billed
+  // at the project's rates instead, without a word.
+  const rate = typedNumber(client.rate)
+  const taxPercent = typedNumber(client.taxPercent)
+  const rateWrong = client.rate.trim() !== "" && rate === null
+  const taxWrong = client.taxPercent.trim() !== "" && taxPercent === null
+  const typedRate = (rate ?? 0) > 0
+  const problemIds = { rate: useId(), tax: useId() }
 
   useEffect(() => {
     setSeller(load(SELLER_KEY, seller))
@@ -112,7 +129,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     setDue(inv.due_on)
     setNotes(inv.notes)
     setSeller({ name: inv.seller.name, address: inv.seller.address, taxId: inv.seller.tax_id ?? "", payment: inv.seller.payment ?? "" })
-    setClient((c) => ({ ...c, name: inv.client.name, address: inv.client.address, currency: inv.currency, taxPercent: String(inv.tax_percent) }))
+    setClient((c) => ({ ...c, name: inv.client.name, address: inv.client.address, currency: inv.currency, taxPercent: typedNumberText(inv.tax_percent) }))
   }
 
   useEffect(() => {
@@ -126,35 +143,38 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
           show(inv.data.data as SavedInvoice)
           setProjectName(p.data?.data?.project_name ?? "")
         })
-        .catch((e) => !cancelled && setError(serverMessage(e, "Couldn't open this invoice. It may have been deleted.")))
+        .catch((e) => !cancelled && setError(apiErrorMessage(e, "Couldn't open this invoice. Try again in a moment.")))
       return () => {
         cancelled = true
       }
     }
     // A new one: the time it bills, and the next number.
-    const q = `from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
+    const timeOf = (r: Period) =>
+      axiosInstance
+        .get(`${GetEndpointUrl.ProjectTime}/${project}/time?from=${encodeURIComponent(r.from.toISOString())}&to=${encodeURIComponent(r.to.toISOString())}`)
+        .then((res) => res.data.data as TimeReport)
     Promise.all([
-      axiosInstance.get(`${GetEndpointUrl.ProjectTime}/${project}/time?${q}`),
+      asked ? timeOf(asked).then((report) => ({ period: asked, report })) : defaultPeriod(timeOf, new Date()),
       info,
       axiosInstance.get(invoices).catch(() => null),
     ])
-      .then(([time, p, list]) => {
+      .then(([{ period, report }, p, list]) => {
         if (cancelled) return
         setSaved(null)
-        setReport(time.data.data as TimeReport)
+        setRange(period)
+        setReport(report)
         const name = p.data?.data?.project_name ?? ""
         setProjectName(name)
-        setNumber((n) => n || list?.data?.data?.next_number || suggestNumber(name, range.from))
+        setNumber((n) => n || list?.data?.data?.next_number || suggestNumber(name, period.from))
       })
-      .catch((e) => !cancelled && setError(serverMessage(e, "Couldn't load this project's time. Sign in and try again.")))
+      .catch((e) => !cancelled && setError(apiErrorStatus(e) === 401 ? "Couldn't load this project's time. Sign in and try again." : apiErrorMessage(e, "Couldn't load this project's time. Try again in a moment.")))
     return () => {
       cancelled = true
     }
-  }, [project, range, savedId, invoices])
+  }, [project, asked, savedId, invoices])
 
   const draft = !saved || saved.status === "draft"
   const invoice = useMemo((): InvoiceTotals | null => {
-    const taxPercent = Number(client.taxPercent)
     if (saved) {
       const lines = linesOf(saved)
       const hours = round2(lines.reduce((s, l) => s + l.hours, 0))
@@ -163,14 +183,14 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
       }
       // A draft's tax can still change; its lines can't.
       const subtotal = saved.subtotal_cents / 100
-      const tax = Number.isFinite(taxPercent) && taxPercent > 0 ? round2((subtotal * taxPercent) / 100) : 0
+      const tax = taxPercent !== null && taxPercent > 0 ? round2((subtotal * taxPercent) / 100) : 0
       return { lines, hours, subtotal, tax, total: round2(subtotal + tax) }
     }
-    return report ? buildInvoice(report, { by: client.by, rate: Number(client.rate), taxPercent }) : null
-  }, [saved, report, client.by, client.rate, client.taxPercent])
+    return report ? buildInvoice(report, { by: client.by, rate: rate ?? 0, taxPercent: taxPercent ?? 0 }) : null
+  }, [saved, report, client.by, rate, taxPercent])
   // At the project's rates (no rate typed here), the invoice is in the
   // project's currency; the currency saved for a typed rate stays as it was.
-  const byProject = !saved && !!report?.currency && report.amount_cents !== undefined && !client.rate.trim()
+  const byProject = !saved && !!report?.currency && report.amount_cents !== undefined && !typedRate
   const currency = saved ? saved.currency : byProject ? report!.currency! : client.currency
   const fmt = money(currency)
   const periodFrom = saved?.period_from ? new Date(saved.period_from) : range.from
@@ -189,7 +209,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     seller: { name: seller.name, address: seller.address, tax_id: seller.taxId, payment: seller.payment },
     client: { name: client.name, address: client.address },
     lines: linesToSave(invoice?.lines ?? []),
-    tax_percent: Number(client.taxPercent) || 0,
+    tax_percent: taxPercent ?? 0,
     notes,
   })
 
@@ -201,7 +221,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
       if (inv) show(inv)
       toast({ title: done })
     } catch (e) {
-      toast({ title: failed, description: serverMessage(e), variant: "destructive" })
+      toast({ title: failed, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -258,7 +278,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
           {!saved && (
             <Group title="Rate">
               <div className="grid grid-cols-[1fr_7rem] gap-2">
-                <Field label="Hourly rate"><Input inputMode="decimal" value={client.rate} onChange={(e) => setClient({ ...client, rate: e.target.value })} placeholder={report!.amount_cents !== undefined ? "Project's rates" : "2000"} /></Field>
+                <Field label="Hourly rate" problem={rateWrong ? { id: problemIds.rate, text: "Not a number" } : null}><Input inputMode="decimal" aria-invalid={rateWrong || undefined} aria-describedby={rateWrong ? problemIds.rate : undefined} value={client.rate} onChange={(e) => setClient({ ...client, rate: e.target.value })} placeholder={report!.amount_cents !== undefined ? "Project's rates" : "2000"} /></Field>
                 <Field label="Currency">
                   <Select value={currency} onValueChange={(v) => setClient({ ...client, currency: v })} disabled={byProject}>
                     <SelectTrigger aria-label="Currency"><SelectValue /></SelectTrigger>
@@ -268,13 +288,13 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
               </div>
               {report!.amount_cents !== undefined && (
                 <p className="text-xs text-muted-foreground">
-                  {client.rate.trim()
+                  {typedRate
                     ? "Everything bills at the rate typed here. Clear it to use the project's rates."
                     : "Each person bills at their rate on this project. Type one rate here to bill everything at it instead."}
                 </p>
               )}
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Tax %"><Input inputMode="decimal" value={client.taxPercent} onChange={(e) => setClient({ ...client, taxPercent: e.target.value })} /></Field>
+                <Field label="Tax %" problem={taxWrong ? { id: problemIds.tax, text: "Not a number" } : null}><Input inputMode="decimal" aria-invalid={taxWrong || undefined} aria-describedby={taxWrong ? problemIds.tax : undefined} value={client.taxPercent} onChange={(e) => setClient({ ...client, taxPercent: e.target.value })} /></Field>
                 <Field label="One line per">
                   <Select value={client.by} onValueChange={(v) => setClient({ ...client, by: v as LineBy })}>
                     <SelectTrigger aria-label="One line per"><SelectValue /></SelectTrigger>
@@ -289,7 +309,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
           )}
           {saved && draft && (
             <Group title="Tax">
-              <Field label="Tax %"><Input inputMode="decimal" value={client.taxPercent} onChange={(e) => setClient({ ...client, taxPercent: e.target.value })} /></Field>
+              <Field label="Tax %" problem={taxWrong ? { id: problemIds.tax, text: "Not a number" } : null}><Input inputMode="decimal" aria-invalid={taxWrong || undefined} aria-describedby={taxWrong ? problemIds.tax : undefined} value={client.taxPercent} onChange={(e) => setClient({ ...client, taxPercent: e.target.value })} /></Field>
             </Group>
           )}
 
@@ -319,11 +339,11 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
           <div className="grid gap-2" role="group" aria-label="Invoice actions">
             {!saved && (
               <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => void create("draft")} disabled={busy || invoice.lines.length === 0} className="gap-2">
+                <Button onClick={() => void create("draft")} disabled={busy || invoice.lines.length === 0 || rateWrong || taxWrong} className="gap-2">
                   <Save className="h-4 w-4" />
                   Save draft
                 </Button>
-                <Button variant="outline" onClick={() => void create("sent")} disabled={busy || invoice.lines.length === 0} className="gap-2">
+                <Button variant="outline" onClick={() => void create("sent")} disabled={busy || invoice.lines.length === 0 || rateWrong || taxWrong} className="gap-2">
                   <Send className="h-4 w-4" />
                   Save as sent
                 </Button>
@@ -331,7 +351,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             )}
             {saved?.status === "draft" && (
               <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => void update()} disabled={busy} className="gap-2">
+                <Button onClick={() => void update()} disabled={busy || taxWrong} className="gap-2">
                   <Save className="h-4 w-4" />
                   Save draft
                 </Button>
@@ -427,7 +447,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
               <tfoot>
                 <tr><td colSpan={3} className="pt-4 text-right text-muted-foreground">Subtotal</td><td className="pt-4 text-right">{fmt(invoice.subtotal)}</td></tr>
                 {invoice.tax > 0 && (
-                  <tr><td colSpan={3} className="pt-1 text-right text-muted-foreground">Tax ({Number(client.taxPercent)}%)</td><td className="pt-1 text-right">{fmt(invoice.tax)}</td></tr>
+                  <tr><td colSpan={3} className="pt-1 text-right text-muted-foreground">Tax ({formatLocale(taxPercent ?? 0, { maximumFractionDigits: 2 })}%)</td><td className="pt-1 text-right">{fmt(invoice.tax)}</td></tr>
                 )}
                 <tr><td colSpan={3} className="pt-2 text-right font-semibold">Total</td><td className="pt-2 text-right text-base font-semibold">{fmt(invoice.total)}</td></tr>
               </tfoot>
@@ -460,13 +480,20 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   )
 }
 
-/** A label that wraps its input, so the input is named by it. */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** A label that wraps its input, so the input is named by it; what's wrong with what's typed, under it (the input points to it by id). */
+function Field({ label, problem, children }: { label: string; problem?: { id: string; text: string } | null; children: React.ReactNode }) {
   return (
-    <label className="grid gap-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      {children}
-    </label>
+    <div className="grid gap-1">
+      <label className="grid gap-1">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {children}
+      </label>
+      {problem ? (
+        <p id={problem.id} className="text-xs text-danger-ink">
+          {problem.text}
+        </p>
+      ) : null}
+    </div>
   )
 }
 

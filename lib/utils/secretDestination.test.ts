@@ -15,11 +15,17 @@ interface Case {
   moves: boolean
 }
 
-const cases: Case[] = JSON.parse(readFileSync(join(process.cwd(), "testdata/secret_destination.json"), "utf8"))
+// The backend's copy (helpers/testdata/secret_destination.json) must stay
+// byte-identical to this one; the file says so itself.
+const shared: { about: string; cases: Case[] } = JSON.parse(
+  readFileSync(join(process.cwd(), "testdata/secret_destination.json"), "utf8"),
+)
+const cases = shared.cases
 
 describe("a stored secret stays with its address", () => {
-  it("has the backend's cases", () => {
+  it("has the backend's cases, and says the two copies are one list", () => {
     expect(cases.length).toBeGreaterThanOrEqual(10)
+    expect(shared.about).toContain("byte-identical")
   })
   for (const c of cases) {
     it(c.why, () => {

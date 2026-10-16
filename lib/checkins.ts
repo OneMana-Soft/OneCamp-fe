@@ -5,7 +5,7 @@
  */
 
 import { format } from "date-fns"
-import { shortTime } from "@/lib/utils/date/shortDate"
+import { clockTime } from "@/lib/utils/date/clock"
 
 export interface CheckIn {
   id: string
@@ -39,7 +39,7 @@ export const SUGGESTED_QUESTIONS: { question: string; days: number[]; time: stri
   { question: "What did you learn this week?", days: [5], time: "16:00" },
 ]
 
-/** When a check-in asks, as people say it: "Weekdays at 17:00", "Mondays at 09:30", "Mon, Wed and Fri at 17:00". Pure. */
+/** When a check-in asks, as people say it, on the reader's clock: "Weekdays at 5:00 PM", "Mondays at 9:30 AM", "Mon, Wed and Fri at 5:00 PM". Pure. */
 export function describeSchedule(days: number[], time: string): string {
   const d = [...new Set(days)].filter((x) => x >= 1 && x <= 7).sort((a, b) => a - b)
   let when: string
@@ -51,7 +51,7 @@ export function describeSchedule(days: number[], time: string): string {
     const names = d.map((x) => DAY_LABELS[x - 1])
     when = `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
-  return `${when} at ${time}`
+  return `${when} at ${clockTime(time) || time}`
 }
 
 /** The next time a check-in asks, in the reader's own calendar and the app's one format: "Thu 8 Oct, 5:00 PM". Pure. */
@@ -59,5 +59,5 @@ export function nextLabel(iso: string | undefined): string | undefined {
   if (!iso) return undefined
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return undefined
-  return `${format(d, "EEE d MMM")}, ${shortTime(d)}`
+  return `${format(d, "EEE d MMM")}, ${clockTime(d)}`
 }

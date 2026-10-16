@@ -35,6 +35,8 @@ const RadioGroupItem = React.forwardRef<
         "relative aspect-square h-4 w-4 rounded-full border border-faint-foreground text-primary transition-colors after:absolute after:-inset-1 hover:border-muted-foreground data-[state=checked]:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
+      // A finger's target is 44px (app/phone.css F3); the ::after is a mouse's.
+      data-touch-target=""
       {...props}
     >
       <RadioGroupPrimitive.Indicator className="flex h-full w-full items-center justify-center">

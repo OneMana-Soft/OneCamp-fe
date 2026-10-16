@@ -105,7 +105,7 @@ export const ModelCatalog: React.FC<{
         setFailure("")
       } catch (e) {
         const why = apiErrorMessage(e, "The model provider couldn't be reached. Check that it is running.")
-        if (refresh) toast({ title: "Couldn't refresh the model catalog", description: why, variant: "destructive" })
+        if (refresh) toast({ title: "Couldn't refresh the model catalogue", description: why, variant: "destructive" })
         else setFailure(why)
       } finally {
         setLoading(false)
@@ -173,7 +173,7 @@ export const ModelCatalog: React.FC<{
           className="h-11 md:h-8"
           onClick={() => load(true)}
           disabled={refreshing || loading}
-          title="Re-fetch the latest catalog"
+          title="Re-fetch the latest catalogue"
         >
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
           {refreshing ? "Refreshing…" : "Refresh"}
@@ -200,7 +200,7 @@ export const ModelCatalog: React.FC<{
           ))}
         </div>
       ) : failure && !models ? (
-        <ErrorState compact subject="the model catalog" detail={failure} onRetry={() => void load(false)} />
+        <ErrorState compact subject="the model catalogue" detail={failure} onRetry={() => void load(false)} />
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-border">
           <EmptyState
@@ -318,10 +318,13 @@ const CatalogCard: React.FC<{
 
   return (
     <div className="rounded-lg border border-border bg-card/50 p-3 flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h5 className="text-sm font-medium truncate">{model.display_name}</h5>
+      {/* The name stays whole and its tags wrap under it when the card is
+          narrow: at 768 a two-column catalog cut the name to "Qwen3 …" beside
+          Recommended and Installed. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1" data-model-head="">
+        <div className="min-w-0 flex-1 basis-40">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <h5 className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{model.display_name}</h5>
             {model.recommended && (
               <Badge variant="secondary" className="h-5 px-1.5 text-2xs">
                 Recommended

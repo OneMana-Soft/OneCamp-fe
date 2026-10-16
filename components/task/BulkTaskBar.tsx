@@ -2,7 +2,7 @@
 
 import { displayNameOf, personKeywords } from "@/lib/personName"
 import * as React from "react"
-import { Check, Minus, Plus } from "@/lib/icons"
+import { Plus, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -16,10 +16,13 @@ import { useFetch } from "@/hooks/useFetch"
 import { useSelectedIds } from "@/hooks/useListSelection"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useBulkTaskUpdate, type BulkResult } from "@/hooks/useBulkTaskUpdate"
+import { useDeleteTasks } from "@/hooks/useDeleteTasks"
+import { DatePickerPanel } from "@/components/task/taskDateField"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { priorities } from "@/types/table"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { MAX_TAG_LENGTH, splitTags, tagTone } from "@/lib/tags"
-import { tagState, tasksCount, type BulkChange } from "@/lib/bulkTasks"
+import { notDone, tagState, tasksCount, type BulkChange } from "@/lib/bulkTasks"
 import type { ListField } from "@/lib/listKeys"
 import type { SelectionStore } from "@/lib/listSelection"
 import type { StatusOption } from "@/lib/taskStatus"
@@ -32,6 +35,7 @@ const FIELDS: { field: ListField; label: string; key: string }[] = [
   { field: "assignee", label: "Assignee", key: "A" },
   { field: "tags", label: "Tags", key: "T" },
   { field: "priority", label: "Priority", key: "P" },
+  { field: "due", label: "Due date", key: "D" },
 ]
 
 const kbd = "kbd"
@@ -72,6 +76,7 @@ export function BulkTaskBar({
   const own = useProjectStatuses(listProjectId ? undefined : project)
   const options = statusOptions ?? own.options
   const bulk = useBulkTaskUpdate(listProjectId)
+  const deleteTasks = useDeleteTasks(listProjectId)
 
   // A key can ask for a picker the bar can't offer: nothing here this person
   // may change, or people to assign across several projects. Say so, rather
@@ -104,7 +109,8 @@ export function BulkTaskBar({
       <div
         role="toolbar"
         aria-label={`${tasksCount(selected.length)} selected`}
-        className="pointer-events-auto flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto rounded-xl border border-border bg-background/95 p-1.5 pl-3 shadow-e3 backdrop-blur motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
+        // A floating bar's material (design v3: --pop and e3, no border, no blur: PTC-34).
+        className="pointer-events-auto flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto rounded-xl bg-pop p-1.5 pl-3 shadow-e3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
       >
         <span className="mr-1 whitespace-nowrap text-sm font-medium tabular-nums">{selected.length} selected</span>
         {readOnly > 0 && (
@@ -129,7 +135,7 @@ export function BulkTaskBar({
                     <kbd className={kbd}>{key}</kbd>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent side="top" align="center" className="w-64 p-0">
+                <PopoverContent side="top" align="center" className={cn(field === "due" ? "w-auto" : "w-64", "p-0")}>
                   {field === "status" && (
                     <OptionList
                       placeholder="Move to…"
@@ -154,11 +160,42 @@ export function BulkTaskBar({
                       }
                     />
                   )}
+                  {field === "due" && (
+                    <DatePickerPanel
+                      label="Due date"
+                      isAdmin
+                      onSelect={(d) =>
+                        run(
+                          { field: "due", value: d ? d.toISOString() : "" },
+                          d ? `Set ${tasksCount(editable.length)} due ${shortDate(d)}` : `Took the due date off ${tasksCount(editable.length)}`,
+                        )
+                      }
+                      onClose={() => onPicker(null)}
+                      closeOnPick
+                    />
+                  )}
                   {field === "tags" && <TagList projectId={project} tasks={editable} onPick={(tag, add) => run({ field: "tags", tag, add }, add ? `Tagged ${tasksCount(editable.length)} “${tag}”` : `Took “${tag}” off ${tasksCount(editable.length)}`)} />}
                 </PopoverContent>
               </Popover>
             )
           })}
+        {editable.length > 0 && (
+          // Deleted with Undo, as one task is (hooks/useDeleteTasks).
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-danger-ink hover:text-danger-ink"
+            onClick={() => {
+              const these = editable
+              onPicker(null)
+              store.clear()
+              void deleteTasks(these)
+            }}
+          >
+            <Trash2 aria-hidden className="size-3.5" />
+            Delete
+          </Button>
+        )}
         <span aria-hidden className="mx-1 h-5 w-px bg-border" />
         <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-muted-foreground" onClick={() => store.clear()}>
           Clear
@@ -175,7 +212,7 @@ function report(r: BulkResult, done: string) {
   if (r.failed > 0) {
     toast({
       variant: "destructive",
-      title: r.changed > 0 ? `${tasksCount(r.failed)} of ${r.changed + r.failed} weren't changed` : r.failed === 1 ? "The task wasn't changed" : `None of the ${r.failed} tasks were changed`,
+      title: notDone(r.failed, r.changed, "changed"),
       description: "You may no longer be an admin of their project, or they were removed. The list shows them as they are.",
     })
     return
@@ -268,17 +305,7 @@ function TagList({ projectId, tasks, onPick }: { projectId: string | undefined; 
             {names.map((name) => {
               const state = tagState(tasks, name)
               return (
-                <CommandItem key={name} value={name} onSelect={() => onPick(name, state !== "all")}>
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary",
-                      state === "none" ? "opacity-50" : "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    {state === "all" && <Check className="h-3 w-3" />}
-                    {state === "some" && <Minus className="h-3 w-3" />}
-                  </span>
+                <CommandItem key={name} checked={state === "all" ? true : state === "some" ? "indeterminate" : false} value={name} onSelect={() => onPick(name, state !== "all")}>
                   <span className={cn("truncate rounded px-1.5 text-xs font-medium", tagTone(name))}>{name}</span>
                   <span className="sr-only">{state === "all" ? ", on all of them" : state === "some" ? ", on some of them" : ""}</span>
                 </CommandItem>

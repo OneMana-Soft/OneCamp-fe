@@ -1,10 +1,8 @@
 import { displayNameOf } from "@/lib/personName"
 import { FilterChip } from "@/components/task/filterChip"
 import { useTranslation } from "react-i18next"
-import { CheckIcon, } from "@radix-ui/react-icons";
 import { Column } from "@tanstack/react-table";
 
-import { cn } from "@/lib/utils/helpers/cn";
 import {
     Command,
     CommandEmpty,
@@ -56,6 +54,7 @@ export function TaskTableFacetedAssigneeFilter<TData, TValue>({
                                 return (
                                     <CommandItem
                                         key={option.uid}
+                                        checked={isSelected}
                                         onSelect={() => {
                                             if (isSelected) {
                                                 selectedValues.delete(option.uid || "")
@@ -68,16 +67,6 @@ export function TaskTableFacetedAssigneeFilter<TData, TValue>({
                                             )
                                         }}
                                     >
-                                        <div
-                                            className={cn(
-                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                isSelected
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "opacity-50 [&_svg]:invisible"
-                                            )}
-                                        >
-                                            <CheckIcon className={cn("h-4 w-4")} />
-                                        </div>
                                         {/*{option.icon && (*/}
                                         {/*  <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />*/}
                                         {/*)}*/}

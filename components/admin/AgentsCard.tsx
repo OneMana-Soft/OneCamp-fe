@@ -333,6 +333,16 @@ const AgentsCard = ({
               hue={ADMIN_GROUP_HUE.ai}
               title="No agents yet"
               description="For example: a standup agent that sums up #standup each morning and opens a task for any blocker."
+              // The way to make one, where the reader is looking (design v3
+              // §1.7): the empty card said what an agent could be and then
+              // left the reader to find New agent in the page header.
+              // Secondary: the header's New agent stays the page's one primary.
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setCreating(true)}>
+                  <Plus />
+                  New agent
+                </Button>
+              }
               className="py-6"
             />
           </div>

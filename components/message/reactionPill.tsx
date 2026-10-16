@@ -94,7 +94,11 @@ export const ReactionPill = ({ emojiId, reactionUserNames, onClickEmoji, isSelec
                     <RollingCount value={count} />
                 </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="pop-surface flex max-w-72 items-center gap-2.5 px-3 py-2 text-ink">
+            {/* Who reacted, on the pop surface (C21). The tooltip's own ink
+                ground has to be named away (bg-pop, rounded-xl): the class
+                merger can't see that pop-surface sets a background, so the
+                ink ground stayed and the names, in ink, were black on black. */}
+            <TooltipContent side="top" align="start" data-reaction-tip="" className="pop-surface flex max-w-72 items-center gap-2.5 rounded-xl bg-pop px-3 py-2 text-ink">
                 <span className="text-[2rem] leading-none" aria-hidden="true">{emojiString}</span>
                 <span className="text-xs leading-4 text-ink-2">
                     <span className="text-ink">{who}</span> reacted with {emoji?.id ? `:${emoji.id}:` : "this"}

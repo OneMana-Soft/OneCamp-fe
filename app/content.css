@@ -50,12 +50,14 @@
   /* The doc's reading measure (D07). */
   --doc-measure: 720px;
   --doc-measure-full: 1040px;
-  /* The doc's tracking (D06, D07), from the scale's dynamic metrics:
-     body and h3 at 16 px, h1 at 24, h2 at 20, the title at 32. */
+  /* The doc's tracking (D06, D07; sizes from PROGRAM D-1), from the
+     scale's dynamic metrics: body and h4 at 16 px, h3 at 20, h2 at 24, h1
+     at 30 (the phone's title too), the title at 40. */
   --doc-tracking-body: -0.011em;
-  --doc-tracking-h1: -0.019em;
-  --doc-tracking-h2: -0.017em;
-  --doc-tracking-title: -0.021em;
+  --doc-tracking-h1: -0.021em;
+  --doc-tracking-h2: -0.019em;
+  --doc-tracking-h3: -0.017em;
+  --doc-tracking-title: -0.022em;
 }
 
 /* ---- float-in ------------------------------------------------------------ */

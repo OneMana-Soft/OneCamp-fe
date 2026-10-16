@@ -130,6 +130,9 @@ export interface BriefingHighlight {
   channel_name?: string
   author_name?: string
   snippet: string
+  /** A doc's or a task's name, and the text under it, apart (from servers since QA SH-09). */
+  title?: string
+  excerpt?: string
   chat_grp_id?: string
   chat_by_user_id?: string
   chat_to_user_id?: string

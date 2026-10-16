@@ -3,7 +3,24 @@
 // cap a clip at five minutes; so does OneCamp, and at the workspace's upload
 // limit, whichever comes first: a clip is a file like any other.
 
+import { format } from "date-fns"
+import { mediaFailure, type MediaDevice } from "@/lib/media/mediaFailure"
+
 export type ClipKind = "voice" | "video" | "screen"
+
+/** The device each kind of clip asks for first. */
+const CLIP_DEVICE: Record<ClipKind, MediaDevice> = { voice: "microphone", video: "camera", screen: "screen" }
+
+/**
+ * Why a clip couldn't start, in the app's one set of words for a device the
+ * browser refused (lib/media), or null when the person closed the screen
+ * picker, which is a choice, not a failure. The recorder has no device menu,
+ * so the words point to none. Pure.
+ */
+export function clipStartProblem(kind: ClipKind, error: unknown): string | null {
+  const f = mediaFailure(CLIP_DEVICE[kind], error, { deviceMenu: false })
+  return f ? `${f.title}. ${f.description}` : null
+}
 
 /** The longest a clip runs, in seconds. */
 export const CLIP_MAX_SECONDS = 5 * 60
@@ -50,9 +67,8 @@ const LABEL: Record<ClipKind, string> = { voice: "Voice clip", video: "Video cli
 
 /** "Voice clip 2026-10-08 22.15.weba": the kind and when, in the recorder's own time. */
 export function clipFileName(kind: ClipKind, mime: string, at: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0")
-  const day = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
-  return `${LABEL[kind]} ${day} ${pad(at.getHours())}.${pad(at.getMinutes())}.${extensionOf(mime)}`
+  // A file name sorts, so it keeps a fixed 24-hour stamp, not the reader's clock.
+  return `${LABEL[kind]} ${format(at, "yyyy-MM-dd HH.mm")}.${extensionOf(mime)}`
 }
 
 /**

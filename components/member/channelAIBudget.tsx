@@ -7,6 +7,7 @@
 // workspace limit still applies).
 
 import * as React from "react"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Cpu, Zap, Loader2 } from "@/lib/icons"
@@ -79,8 +80,8 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
       setSaved(true)
       window.clearTimeout(savedTimer.current)
       savedTimer.current = window.setTimeout(() => setSaved(false), 2000)
-    } catch {
-      toast({ title: "Couldn't update", description: "Please try again.", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't save the AI settings", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setSaving(false)
     }

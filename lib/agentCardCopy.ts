@@ -54,3 +54,9 @@ export function weekPhrase(card: Pick<AgentCard, "runs" | "actions" | "refusals"
   if (card.refusals > 0) parts.push(`${card.refusals} refused`)
   return parts.join(" · ")
 }
+
+/** The Review step's one sentence, as an agent is made: who it acts for, its limit, where, and the record. */
+export function governanceSentence(name: string, channels: number): string {
+  const where = channels === 0 ? "wherever it is asked" : channels === 1 ? "in the one channel you chose" : `in the ${channels} channels you chose`
+  return `${name} acts for you. It can do only what you can, ${where}, and every action is on the record.`
+}

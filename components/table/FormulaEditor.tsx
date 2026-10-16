@@ -147,7 +147,7 @@ export function FormulaEditor({
           spellCheck={false}
           aria-label="Formula"
           placeholder="{Price} * {Quantity}"
-          className="relative block min-h-[74px] w-full resize-y bg-transparent px-2.5 py-2 font-mono text-ui-sm leading-[21px] text-transparent caret-ink outline-none placeholder:text-ink-4"
+          className="relative block min-h-[74px] w-full resize-y bg-transparent px-2.5 py-2 font-mono text-ui-sm leading-[21px] text-transparent caret-ink outline-none placeholder:text-ink-3"
         />
       </div>
       <p

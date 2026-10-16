@@ -9,14 +9,14 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import SvgChart from "@/components/charts/SvgChart"
-import { ErrorState } from "@/components/ui/error-state"
+import { LoadFailureState } from "@/components/ui/load-failure-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import { TableToolbar, TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
-import { aggregateTable, type AggregateOp, type AggregateResult, type TableField, isComputed, computedOf } from "@/services/tableService"
+import { aggregateTable, isNumeric, type AggregateOp, type AggregateResult, type TableField } from "@/services/tableService"
 import { partialNote } from "@/lib/tables/chartNote"
 
 // DataTableChart — a Notion-style "chart view" for a table. The user picks a
@@ -32,7 +32,6 @@ type ChartType = (typeof CHART_TYPES)[number]
 const AGG_OPS: AggregateOp[] = ["count", "sum", "avg", "min", "max"]
 
 // Types whose cells are numeric enough to sum/average.
-const NUMERIC_FIELD_TYPES = new Set(["number"])
 
 interface DataTableChartProps {
     tableId: string
@@ -58,9 +57,12 @@ const configKey = (tableId: string) => `onecamp:tableChart:${tableId}`
 // still exists (a column may have been deleted since it was saved) and falling
 // back to sensible defaults otherwise. Never throws; SSR-safe.
 function loadConfig(tableId: string, fields: TableField[], numericFields: TableField[]): ChartConfig {
+    // Grouped by what groups rows (a select, a person, a date), not one bar a row.
+    const byPosition = [...fields].sort((a, b) => a.position - b.position)
+    const groups = byPosition.find((f) => f.type === "select" || f.type === "multi_select" || f.type === "person" || f.type === "date")
     const fallback: ChartConfig = {
         chartType: "bar",
-        groupBy: fields[0]?.id ?? "",
+        groupBy: (groups ?? byPosition[0])?.id ?? "",
         op: "count",
         valueField: numericFields[0]?.id ?? "",
     }
@@ -90,7 +92,7 @@ function loadConfig(tableId: string, fields: TableField[], numericFields: TableF
 export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartProps) {
     const numericFields = React.useMemo(
         // A formula or a rollup that gives a number adds up like a number field.
-        () => fields.filter((f) => NUMERIC_FIELD_TYPES.has(f.type) || (isComputed(f) && computedOf(f).result === "number")),
+        () => fields.filter(isNumeric),
         [fields],
     )
 
@@ -137,7 +139,10 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
             limit: 50,
         })
             .then((r) => {
-                if (!cancelled) setResult(r)
+                if (cancelled) return
+                // An answer without its buckets is a failure, never a table with nothing to chart.
+                if (Array.isArray(r?.buckets)) setResult(r)
+                else setError("Couldn't build that chart.")
             })
             .catch(() => {
                 if (!cancelled) setError("Couldn't build that chart. Try a different column.")
@@ -249,7 +254,8 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                     {loading ? (
                         <ChartSkeleton />
                     ) : error ? (
-                        <ErrorState subject="this chart" onRetry={() => setAttempt((n) => n + 1)} className="py-10" />
+                        // A failed read, or an answer with nothing to draw from: the shared state, with Try again.
+                        <LoadFailureState kind="failed" noun="chart" onRetry={() => setAttempt((n) => n + 1)} />
                     ) : needsValue && numericFields.length === 0 ? (
                         <EmptyState
                             className="py-10"

@@ -11,3 +11,9 @@ export function useModKey(): string {
   }, [])
   return mod
 }
+
+/** The chord that sends or saves, as a hint: "⌘↵" on a Mac, "Ctrl ↵" elsewhere. */
+export function useModEnter(): string {
+  const mod = useModKey()
+  return mod === "⌘" ? "⌘↵" : `${mod} ↵`
+}

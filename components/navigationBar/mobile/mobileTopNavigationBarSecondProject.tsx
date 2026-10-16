@@ -3,7 +3,7 @@
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ProjectInfoRawInterface } from "@/types/project"
-import { ColorIcon } from "@/components/colorIcon/colorIcon"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 
 export function MobileTopNavigationBarSecondProject({ projectUUID }: { projectUUID: string }) {
     const projectInfo = useFetch<ProjectInfoRawInterface>(
@@ -14,7 +14,7 @@ export function MobileTopNavigationBarSecondProject({ projectUUID }: { projectUU
 
     return (
         <div className="flex justify-center items-center gap-2 min-w-0 px-2">
-            <ColorIcon name={projectInfo.data?.data.project_uuid || projectUUID} size="xs" />
+            <ProjectTile id={projectInfo.data?.data.project_uuid || projectUUID} />
             <span className="text-base font-semibold text-foreground truncate">
                 {projectName}
             </span>

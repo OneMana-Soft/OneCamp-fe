@@ -97,11 +97,18 @@ describe("agents", () => {
     expect(card.querySelector(".agent-card-foot")?.textContent).toContain("Can act")
   })
 
-  it("puts the empty state on the AI group's tile, with the header's one New agent button", () => {
+  it("puts the empty state on the AI group's tile, with New agent in the card as well as the header", () => {
+    // Critic, 11 Oct (#31): the empty card said what an agent could be and
+    // left the reader to find New agent above it. The card offers it too, as
+    // a secondary: the header's stays the one primary.
     responses.agents = { data: [] }
     responses.overview = undefined
     render(<AgentsCard />)
     expect(screen.getByText("No agents yet")).toBeTruthy()
-    expect(screen.getAllByRole("button", { name: /agent/i })).toHaveLength(1)
+    const buttons = screen.getAllByRole("button", { name: /New agent/ })
+    expect(buttons).toHaveLength(2)
+    const inCard = buttons.find((b) => b.closest(".set-card")) as HTMLElement
+    expect(inCard.className).toContain("bg-raised")
+    expect(inCard.className).not.toContain("bg-brand")
   })
 })

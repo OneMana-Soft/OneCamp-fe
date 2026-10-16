@@ -12,15 +12,17 @@ import type { DesktopChildrenNavType, DesktopNavType } from "@/types/nav";
 import { DesktopNavigationChatAvatar } from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import { DesktopNavigationEmojiStatus } from "@/components/navigationBar/desktop/desktopNavigationChatEmojiStatus";
 import { formatCount } from "@/lib/utils/helpers/formatCount";
+import { rowSignal, sectionSignal } from "@/lib/nav/sidebarSignal";
+import { useHeldOrder } from "@/lib/nav/heldOrder";
 import { useMedia } from "@/context/MediaQueryContext";
-import { hueFor } from "@/lib/campHue";
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { AgentAvatar, BotAvatar } from "@/components/ui/graphics";
 import { BotTag } from "@/components/ui/botTag";
 import { isAIBot } from "@/lib/botCopy";
 import { useBotKindMap } from "@/hooks/useBotKinds";
 import { destinationHue } from "@/lib/destinationHue";
-import { lastInputWasPointer } from "@/lib/ui/inputModality";
+import { lastInputWasPointer, returnFocusOnlyForKeys } from "@/lib/ui/inputModality";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
@@ -31,8 +33,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * The current place is the raised chip (.nav-active: raised at e-sel, ink at
  * 510, its icon in the accent) and it never slides between rows. Channel and
  * doc glyphs are ink-3; only projects (tiles) and people (avatars) carry hue.
- * A plain unread is a 12px ink-3 count; only a DM or a mention earns the
- * filled brand badge, so a glance answers "does anyone need me?".
+ * An unread channel is bold with no number; only a DM's count or a mention
+ * of you ("@2") earns the filled brand badge, so a glance answers "does
+ * anyone need me?" (lib/nav/sidebarSignal).
  */
 
 /** A count that slides its digits when it changes (tabular, so the width holds). */
@@ -97,19 +100,10 @@ function GroupFaces({ people }: { people: NonNullable<DesktopChildrenNavType["us
   );
 }
 
-/** A project's 16px tile: its own hue's avatar cut, the first letter in white. */
-export function ProjectTile({ uuid, name }: { uuid: string; name: string }) {
-  return (
-    <span className={cn("shell-ptile", HUE_CLASS[hueFor(uuid)])} aria-hidden="true">
-      {(name.trim()[0] || "?").toUpperCase()}
-    </span>
-  );
-}
-
 export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
   const { isMobile } = useMedia();
   const isActive = ch.variant === "sidebarActive";
-  const unread = ch.unread_count && ch.unread_count > 0 ? ch.unread_count : 0;
+  const signal = rowSignal(ch);
   const dispatch = useDispatch();
   const fade = useChipFade(isActive);
   const botKinds = useBotKindMap();
@@ -117,7 +111,7 @@ export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
   const pane = !isMobile ? paneFromHref(String(ch.path || "")) : null;
 
   let glyph: ReactNode = null;
-  if (ch.project_uuid) glyph = <ProjectTile uuid={ch.project_uuid} name={ch.title} />;
+  if (ch.project_uuid) glyph = <ProjectTile id={ch.project_uuid} />;
   else if (ch.userParticipants && ch.userParticipants.length > 1) glyph = <GroupFaces people={ch.userParticipants} />;
   else if (ch.userProfile) glyph = <Face item={ch} botKinds={botKinds} />;
   else {
@@ -131,7 +125,7 @@ export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
         href={`${ch.path}`}
         scroll={false}
         aria-current={isActive ? "page" : undefined}
-        data-unread={unread && !ch.muted ? "true" : undefined}
+        data-unread={signal.unread ? "true" : undefined}
         data-muted={ch.muted ? "true" : undefined}
         data-fade={fade ? "true" : undefined}
         className={cn("shell-row", isActive ? "nav-active" : "nav-idle")}
@@ -142,13 +136,10 @@ export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
         {/* An agent carries the Agent tag; a bot of another kind says Bot. */}
         {ch.userProfile?.is_bot && <BotTag userUUID={ch.userProfile.user_uuid} />}
         {ch.isCallActive && <span className="shell-call-dot" aria-label="Call in progress" role="img" />}
-        {ch.muted ? (
-          <BellOff className="h-3 w-3 shrink-0 text-ink-4" aria-label="Muted" />
-        ) : unread ? (
-          ch.badge ? <Badge value={formatCount(unread)} /> : <Count value={unread} />
-        ) : null}
+        {ch.muted && <BellOff className="h-3 w-3 shrink-0 text-ink-3" aria-label="Muted" />}
+        {signal.badge && <Badge value={signal.badge} />}
         {ch.userProfile && !ch.userProfile.is_bot && <DesktopNavigationEmojiStatus userUUID={ch.userProfile.user_uuid} />}
-        {unread > 0 && <span className="sr-only">, {unread} unread</span>}
+        {signal.spoken && <span className="sr-only">{signal.spoken}</span>}
       </IntentLink>
       {pane && (
         <button
@@ -192,26 +183,17 @@ const PrimaryRow = memo(({ link, inboxPulse }: { link: DesktopNavType; inboxPuls
 PrimaryRow.displayName = "PrimaryRow";
 
 /**
- * More (S5): a popover from the row's right side holding every page that
- * isn't daily, each on its hue tile. Not an in-place fold.
+ * More (S5): a popover from its trigger's right side holding every page that
+ * isn't daily, each on its hue tile. Not an in-place fold. The sidebar's
+ * More row opens it, and so does the rail's More, so the rail reaches every
+ * page the sidebar does.
  */
-function MoreRow({ links }: { links: DesktopNavType[] }) {
-  const current = links.find((l) => l.variant === "sidebarActive");
+export function MorePopover({ links, children }: { links: DesktopNavType[]; children: ReactNode }) {
   return (
     <Menu.Root modal={false}>
-      <Menu.Trigger asChild>
-        <button
-          type="button"
-          aria-label={current ? `More, on ${current.title}` : "More"}
-          className="shell-row nav-idle w-full text-left !text-ink-3 data-[state=open]:bg-press"
-        >
-          <MoreHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate">More</span>
-          {current && <span className="shell-count">{current.title}</span>}
-        </button>
-      </Menu.Trigger>
+      <Menu.Trigger asChild>{children}</Menu.Trigger>
       <Menu.Portal>
-        <Menu.Content side="right" align="start" sideOffset={6} aria-label="More places" className="shell-menu shell-pop z-[var(--z-dropdown)] !w-56">
+        <Menu.Content side="right" align="start" sideOffset={6} collisionPadding={8} aria-label="More places" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)] !w-56">
           {links.map((l) => {
             const hue = destinationHue(String(l.path || "").split("?")[0]);
             return (
@@ -228,6 +210,30 @@ function MoreRow({ links }: { links: DesktopNavType[] }) {
         </Menu.Content>
       </Menu.Portal>
     </Menu.Root>
+  );
+}
+
+/**
+ * The sidebar's More row: the current place's name beside it when it lives in
+ * More, on the selected chip the primary rows wear (QA F-31). A grey name on an
+ * idle row didn't read as where you are.
+ */
+function MoreRow({ links }: { links: DesktopNavType[] }) {
+  const current = links.find((l) => l.variant === "sidebarActive");
+  const fade = useChipFade(!!current);
+  return (
+    <MorePopover links={links}>
+      <button
+        type="button"
+        aria-label={current ? `More, on ${current.title}` : "More"}
+        data-fade={fade ? "true" : undefined}
+        className={cn("shell-row w-full text-left data-[state=open]:bg-press", current ? "nav-active" : "nav-idle !text-ink-3")}
+      >
+        <MoreHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">More</span>
+        {current && <span className="shell-count">{current.title}</span>}
+      </button>
+    </MorePopover>
   );
 }
 
@@ -257,20 +263,28 @@ interface SectionProps {
   invite?: { label: string; onClick: () => void };
   /** At most this many rows, the rest behind "Show N more". */
   cap?: number;
+  /** No header and never folded: the list's own title already names it (the tablet's channel list). */
+  bare?: boolean;
 }
 
 /**
  * A section (S7): a 28px header, 14px above, 12/510 ink-3 in sentence case.
  * The heading toggles it (or, for Projects, opens every project, with the
- * toggle beside); "+" shows on sidebar hover. A collapsed section shows its
- * unread total, as a badge if it holds a DM. An empty section is never a bare
+ * toggle beside); "+" shows on sidebar hover. A collapsed section shows the
+ * brand badge if a row in it has one (its DMs' unread, or "@" its mentions),
+ * else a dot when anything in it is unread. An empty section is never a bare
  * header: it shows one quiet invite row. Collapse is instant.
  */
-export function SidebarSection({ title, open, setOpen, onAdd, addLabel, href, rows, invite, cap }: SectionProps) {
+const rowKey = (r: DesktopChildrenNavType) => r.path;
+
+export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel, href, rows: liveRows, invite, cap, bare = false }: SectionProps) {
   const [showAll, setShowAll] = useState(false);
+  const open = bare || openProp;
+  // A row never moves under the pointer: DMs follow their latest message,
+  // and one that moved waits until the pointer leaves or rests (F-17).
+  const { rows, handlers: holdOrder } = useHeldOrder(liveRows, rowKey);
   if (rows.length === 0 && !invite) return null;
-  const unread = rows.reduce((n, r) => n + (r.muted ? 0 : r.unread_count || 0), 0);
-  const badge = rows.some((r) => r.badge && (r.unread_count || 0) > 0);
+  const signal = sectionSignal(rows);
   const capped = !!cap && !showAll && rows.length > cap;
   const visible = capped ? rows.slice(0, cap) : rows;
   // The current place is never hidden behind "Show more".
@@ -278,13 +292,14 @@ export function SidebarSection({ title, open, setOpen, onAdd, addLabel, href, ro
   const label = (
     <>
       <span className="truncate">{title}</span>
-      {!open && unread > 0 && (badge ? <Badge value={formatCount(unread)} /> : <span className="shell-count">{formatCount(unread)}</span>)}
+      {!open && (signal.badge ? <Badge value={signal.badge} /> : signal.unread ? <span className="shell-dot" aria-hidden="true" /> : null)}
+      {!open && signal.spoken && <span className="sr-only">{signal.spoken}</span>}
     </>
   );
 
   return (
     <section aria-label={title} data-section={title}>
-      <div className="shell-sect">
+      {!bare && <div className="shell-sect">
         {href ? (
           <>
             <IntentLink href={href} className="shell-sect-btn">{label}</IntentLink>
@@ -307,12 +322,12 @@ export function SidebarSection({ title, open, setOpen, onAdd, addLabel, href, ro
             <TooltipContent side="right">{addLabel ?? `Add ${title.toLowerCase()}`}</TooltipContent>
           </Tooltip>
         )}
-      </div>
+      </div>}
       {open && (
-        <div className="shell-sect-rows flex flex-col gap-px" data-instant={lastInputWasPointer() ? undefined : "true"}>
+        <div className="shell-sect-rows flex flex-col gap-px" data-instant={lastInputWasPointer() ? undefined : "true"} {...holdOrder}>
           {rows.length === 0 && invite ? (
             <button type="button" onClick={invite.onClick} className="shell-row nav-idle w-full text-left !text-ink-3">
-              <span className="shell-ptile" data-invite="" aria-hidden="true"><Plus /></span>
+              <span className="shell-invite-tile" aria-hidden="true"><Plus /></span>
               <span className="truncate">{invite.label}</span>
             </button>
           ) : (

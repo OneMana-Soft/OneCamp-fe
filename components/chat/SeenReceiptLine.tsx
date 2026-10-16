@@ -62,11 +62,14 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
 
   const other = useFetchOnlyOnce<UserProfileInterface>(target.kind === "dm" ? `${GetEndpointUrl.SelfProfile}/${target.otherUUID}` : "").data?.data
   if (!line || typing) return null
-  // Under your last message on the right (design v3 chat, C32): in a DM the
-  // other person's 14px face and "Seen 10:42" at 12px ink-3; a group keeps
-  // the eye and its names. It fades in where it now belongs, never travels.
+  // Under your last message, where its words start (design v3 chat, C32):
+  // in a DM the other person's 14px face and "Seen 10:42" at 12px ink-3; a
+  // group keeps the eye and its names. Messages here read from the left, so
+  // the spec's right edge put it a sheet's width from the message it is about
+  // (700px away on a short one at 1440); on the text column it reads as that
+  // message's own status. It fades in where it now belongs, never travels.
   return (
-    <p data-seen-receipt="" className="flex animate-fade-in items-center justify-end gap-1.5 pb-1 pl-16 pr-6 text-meta text-ink-3" title={line.title} aria-live="polite">
+    <p data-seen-receipt="" className="flex animate-fade-in items-center gap-1.5 pb-1 pl-[68px] pr-6 text-meta text-ink-3" title={line.title} aria-live="polite">
       {target.kind === "dm" && other ? (
         <ChatFace name={displayNameOf(other)} profileKey={other.user_profile_object_key} userUUID={other.user_uuid} size={14} />
       ) : (

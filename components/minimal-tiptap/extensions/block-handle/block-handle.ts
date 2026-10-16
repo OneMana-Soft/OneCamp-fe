@@ -1,277 +1,354 @@
 "use client"
 
-import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey, NodeSelection } from '@tiptap/pm/state'
+import { Extension, type Editor } from "@tiptap/core"
+import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state"
+import type { EditorView } from "@tiptap/pm/view"
 
-const BlockHandlePluginKey = new PluginKey('block-handle')
-const BlockFocusPluginKey = new PluginKey('block-focus')
+import type { BlockRef } from "../block-commands/blocks"
+import { blockUnder } from "../block-commands/blockUnder"
+import { insertLine } from "../block-commands/commands"
+import { requestBlockMenu } from "../block-commands/menuRequest"
+import { BlockSelection, selectedBlocks } from "../block-selection/blockSelection"
+import { DRAG_SLOP, draggedFor, firstLine, runBlockDrag } from "./blockDrag"
 
-// ── Floating handle (Notion-style) ──────────────────────────────
-// A single DOM element that repositions itself next to the hovered
-// or focused block. Much more reliable than per-block decorations.
+/**
+ * THE BLOCK HANDLE (B1; editor.md P0-2, P0-3; small-details V1–V3, S6;
+ * content.md D10). Two 24 px controls in the gutter of the block the pointer
+ * is over, at any depth (a list item, a block in a callout or a column, an
+ * image): "+" adds a line below (⌥-click: above) and opens "/"; "⋮⋮" opens
+ * the block menu on a click and drags the block (blockDrag.ts) when pressed
+ * and moved.
+ *
+ * It follows the pointer, read once a frame, and centres on the block's
+ * first line. It glides between blocks (120 ms) and stays inside the doc's
+ * pane. It goes while you type (so a keystroke reads no layout, I20), while a
+ * mouse button is down in the text (a text selection being dragged), and 200
+ * ms after the pointer leaves. There is no handle for a finger: a phone
+ * long-presses a block instead (blockKeys.ts).
+ */
 
-// Two 24 px controls (content.md D10): "+" opens the block menu on a new
-// line below, "⋮⋮" drags the block. They sit in the gutter, glide from block
-// to block (a transform, so nothing lays out) and show only where there is a
-// pointer that hovers: a phone has the "/" key and its accessory bar instead.
-// The look is in minimal-tiptap/styles/index.css (.block-handle-floating).
 const PLUS_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`
 const GRIP_SVG = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><circle cx="4.5" cy="3" r="1.25" fill="currentColor"/><circle cx="4.5" cy="7" r="1.25" fill="currentColor"/><circle cx="4.5" cy="11" r="1.25" fill="currentColor"/><circle cx="9.5" cy="3" r="1.25" fill="currentColor"/><circle cx="9.5" cy="7" r="1.25" fill="currentColor"/><circle cx="9.5" cy="11" r="1.25" fill="currentColor"/></svg>`
 
-function createFloatingHandle(): { root: HTMLElement; plus: HTMLButtonElement; grip: HTMLElement } {
-  const root = document.createElement('div')
-  root.className = 'block-handle-floating'
-  root.setAttribute('contenteditable', 'false')
-  root.dataset.visible = 'false'
-  const plus = document.createElement('button')
-  plus.type = 'button'
-  plus.className = 'block-handle-btn'
-  plus.setAttribute('aria-label', 'Add a block below')
-  plus.title = 'Add a block below'
-  plus.innerHTML = PLUS_SVG
-  const grip = document.createElement('div')
-  grip.className = 'block-handle-btn block-handle-grip'
-  grip.setAttribute('draggable', 'true') // Enable native HTML5 dragging
-  grip.setAttribute('aria-label', 'Drag to move')
-  grip.title = 'Drag to move'
-  grip.innerHTML = GRIP_SVG
-  root.append(plus, grip)
-  return { root, plus, grip }
+/** The handle's size: two 24 px buttons 2 px apart. */
+export const HANDLE_WIDTH = 50
+const BUTTON = 24
+
+/** Where a list's marker sits outside its item (the list's 24 px inset). */
+const MARKER: Record<string, number> = { listItem: 24 }
+
+/**
+ * Where the handle goes for a block: centred on its first line, 4 px clear of
+ * its start (and of a list item's marker), kept inside the doc's pane. A
+ * right-to-left block has it on its right. Pure.
+ */
+export function handleSpot(
+  box: { left: number; right: number },
+  line: { top: number; bottom: number },
+  pane: { left: number; right: number } | null,
+  rtl: boolean,
+  marker: number,
+): { x: number; y: number } {
+  const y = Math.round((line.top + line.bottom) / 2 - BUTTON / 2)
+  if (rtl) {
+    let x = box.right + marker + 4
+    if (pane) x = Math.min(x, pane.right - HANDLE_WIDTH - 2)
+    return { x: Math.round(x), y }
+  }
+  let x = box.left - marker - HANDLE_WIDTH - 4
+  if (pane) x = Math.max(x, pane.left + 2)
+  return { x: Math.round(x), y }
 }
 
-// ── Extension ──────────────────────────────────────────────────
+const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
+
+function button(className: string, label: string, title: string, svg: string): HTMLButtonElement {
+  const b = document.createElement("button")
+  b.type = "button"
+  b.className = className
+  b.tabIndex = -1
+  b.setAttribute("aria-label", label)
+  b.title = title
+  b.innerHTML = svg
+  return b
+}
+
+/**
+ * Where the pointer rests over an editor whose handle was showing (or about to)
+ * when its plugin view went. A plugin added or removed while the doc is open
+ * makes every plugin view again (the doc's own editor never has one added:
+ * registry/factory.ts), and the new handle shows where the old one was, with
+ * no move of the pointer.
+ */
+const stillPointer = new WeakMap<EditorView, { x: number; y: number }>()
+
+/** The handle's DOM and what it does, for one editor. */
+class HandleView {
+  readonly root: HTMLElement
+  readonly plus: HTMLButtonElement
+  readonly grip: HTMLButtonElement
+  private block: BlockRef | null = null
+  private pointer: { x: number; y: number } | null = null
+  private hideTimer: ReturnType<typeof setTimeout> | null = null
+  private frame = 0
+  private pressed = false
+  private dragging = false
+  private readonly resize: ResizeObserver | null
+  private readonly off: Array<() => void> = []
+
+  constructor(
+    private view: EditorView,
+    private editor: Editor,
+  ) {
+    this.root = document.createElement("div")
+    this.root.className = "block-handle-floating"
+    this.root.dataset.visible = "false"
+    this.root.setAttribute("contenteditable", "false")
+    this.plus = button("block-handle-btn", "Add block", `Click to add a block below\n${isMac() ? "⌥" : "Alt"}-click to add one above`, PLUS_SVG)
+    this.grip = button("block-handle-btn block-handle-grip", "Drag to move or click for options", "Drag to move\nClick for options", GRIP_SVG)
+    this.grip.setAttribute("aria-haspopup", "menu")
+    this.root.append(this.plus, this.grip)
+    document.body.append(this.root)
+
+    const dom = view.dom as HTMLElement
+    const on = <K extends keyof HTMLElementEventMap>(el: HTMLElement | Document | Window, type: K, fn: (e: HTMLElementEventMap[K]) => void, opts?: AddEventListenerOptions) => {
+      el.addEventListener(type, fn as EventListener, opts)
+      this.off.push(() => el.removeEventListener(type, fn as EventListener, opts))
+    }
+    // Heard on the document, for the pane the editor is in when the pointer
+    // moves: the editor is made out of the page and put in it a moment later
+    // (or moved, as split view does), so a pane read here, when the view is
+    // made, would be one it has left.
+    let inside = false
+    on(document, "pointermove", (e) => {
+      const area = this.area()
+      const now = !!area && area.contains(e.target as Node)
+      if (now) this.onMove(e)
+      else if (inside) this.hideSoon()
+      inside = now
+    }, { passive: true })
+    on(document.documentElement, "pointerleave", () => {
+      if (inside) this.hideSoon()
+      inside = false
+    })
+    on(document, "scroll", (e) => {
+      if (e.target === this.area()) this.hideNow()
+    }, { capture: true, passive: true })
+    on(dom, "mousedown", (e) => {
+      if (e.button === 0) {
+        this.pressed = true
+        this.hideNow()
+      }
+    })
+    on(window, "mouseup", () => {
+      this.pressed = false
+    })
+    on(this.root, "pointerenter", () => this.keep())
+    on(this.root, "pointerleave", () => this.hideSoon())
+    on(this.plus, "mousedown", (e) => e.preventDefault())
+    on(this.plus, "click", (e) => this.add(e.altKey))
+    on(this.grip, "pointerdown", (e) => this.press(e))
+    // Hiding or resizing the editor scrolls nothing: the handle goes with it.
+    // Only a change of size: the observer also reports the size it starts with.
+    let size = ""
+    this.resize =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(([entry]) => {
+            const now = `${entry.contentRect.width}x${entry.contentRect.height}`
+            if (now === size) return
+            const was = size
+            size = now
+            if (was) this.hideNow()
+          })
+    this.resize?.observe(dom)
+
+    const still = stillPointer.get(view)
+    stillPointer.delete(view)
+    if (still && editor.isEditable) {
+      this.pointer = still
+      this.frame = requestAnimationFrame(() => this.track())
+    }
+  }
+
+  /** The doc's pane the editor is in now (the gutter is in it), or its parent; none while it is out of the page. */
+  private area(): HTMLElement | null {
+    const dom = this.view.dom as HTMLElement
+    if (!dom.isConnected) return null
+    return (dom.closest(".doc-scroll") as HTMLElement | null) ?? dom.parentElement
+  }
+
+  /** The block under the handle, if it is still the one it was shown for. */
+  private target(): BlockRef | null {
+    const b = this.block
+    if (!b) return null
+    return this.view.state.doc.nodeAt(b.pos) === b.node ? b : null
+  }
+
+  private onMove(e: PointerEvent) {
+    if (e.pointerType === "touch" || this.pressed || this.dragging || !this.editor.isEditable) return
+    // The grip between two columns is theirs: the handle steps aside for a resize.
+    if ((e.target as Element | null)?.closest?.(".doc-column-grip")) return this.hideNow()
+    this.pointer = { x: e.clientX, y: e.clientY }
+    if (!this.frame) this.frame = requestAnimationFrame(() => this.track())
+  }
+
+  /** The block under the pointer, read once a frame. */
+  private track() {
+    this.frame = 0
+    const p = this.pointer
+    if (!p || this.view.isDestroyed) return
+    const dom = this.view.dom as HTMLElement
+    const box = dom.getBoundingClientRect()
+    if (p.y < box.top - 4 || p.y > box.bottom + 4) return this.hideSoon()
+    // The gutter too: the handle stays while the pointer goes to it.
+    const block = blockUnder(this.view, p.x, p.y)
+    if (!block) return this.hideSoon()
+    if (this.root.dataset.visible === "true" && this.block?.pos === block.pos && this.block.node === block.node) return this.keep()
+    this.show(block)
+  }
+
+  private show(block: BlockRef) {
+    const el = this.view.nodeDOM(block.pos) as HTMLElement | null
+    // An editor out of sight (set aside by Focus, a hidden tab) has no box.
+    if (!el || !el.isConnected || el.getClientRects().length === 0) return this.hideNow()
+    const line = firstLine(this.view, block)
+    if (!line) return this.hideNow()
+    const box = el.getBoundingClientRect()
+    const rtl = getComputedStyle(el).direction === "rtl"
+    const spot = handleSpot(box, line, this.area()?.getBoundingClientRect() ?? null, rtl, MARKER[block.node.type.name] ?? 0)
+    this.keep()
+    // Gliding from one block to the next; appearing in place.
+    this.root.dataset.glide = this.root.dataset.visible === "true" ? "true" : "false"
+    this.root.style.transform = `translate3d(${spot.x}px, ${spot.y}px, 0)`
+    this.root.dataset.visible = "true"
+    this.block = block
+  }
+
+  private keep() {
+    if (this.hideTimer) clearTimeout(this.hideTimer)
+    this.hideTimer = null
+  }
+
+  private hideSoon() {
+    if (this.hideTimer || this.root.dataset.visible !== "true") return
+    this.hideTimer = setTimeout(() => this.hideNow(), 200)
+  }
+
+  hideNow() {
+    this.keep()
+    this.root.dataset.visible = "false"
+    this.block = null
+  }
+
+  /** "+": an empty line below the block (⌥: above), and "/" in it. */
+  private add(above: boolean) {
+    const block = this.target()
+    if (!block || !this.editor.isEditable) return
+    const tr = insertLine(this.view.state, block, above)
+    if (!tr) return
+    this.view.dispatch(tr)
+    this.editor.chain().focus().insertContent("/").run()
+    this.hideNow()
+  }
+
+  /** ⋮⋮ pressed: a click opens the block menu; moved past the slop, it drags. */
+  private press(e: PointerEvent) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const block = this.target()
+    if (!block) return
+    const start = { x: e.clientX, y: e.clientY }
+    const move = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_SLOP) return
+      stop()
+      this.drag(block, start)
+    }
+    const up = () => {
+      stop()
+      this.openMenu(block)
+    }
+    const stop = () => {
+      window.removeEventListener("pointermove", move, true)
+      window.removeEventListener("pointerup", up, true)
+    }
+    window.addEventListener("pointermove", move, true)
+    window.addEventListener("pointerup", up, true)
+  }
+
+  private drag(block: BlockRef, start: { x: number; y: number }) {
+    if (!this.editor.isEditable) return
+    const dragged = draggedFor(block, selectedBlocks(this.view.state))
+    const first = this.view.nodeDOM(dragged[0].pos) as HTMLElement | null
+    const left = first?.getBoundingClientRect?.().left ?? start.x
+    this.dragging = true
+    this.hideNow()
+    runBlockDrag({
+      view: this.view,
+      dragged,
+      startX: start.x,
+      startY: start.y,
+      blockLeft: left,
+      onEnd: () => {
+        this.dragging = false
+      },
+    })
+  }
+
+  /** The block menu for the block (or the chosen blocks it is one of), which shows chosen while it is up. */
+  private openMenu(block: BlockRef) {
+    const { state } = this.view
+    const chosen = selectedBlocks(state)
+    const blocks = chosen && chosen.some((b) => b.pos === block.pos) ? chosen : [block]
+    const sel = new BlockSelection(state.doc, blocks.map((b) => b.pos))
+    if (!sel.eq(state.selection)) this.view.dispatch(state.tr.setSelection(sel))
+    const r = this.grip.getBoundingClientRect()
+    requestBlockMenu(this.editor, { blocks: blocks.map((b) => b.pos), anchor: { left: r.left, top: r.top, bottom: r.bottom }, via: "handle" })
+  }
+
+  update(view: EditorView, prev: EditorState) {
+    this.view = view
+    if (view.state.doc === prev.doc || this.dragging) return
+    // A collaborator's edit: the handle keeps to the block under the pointer.
+    // An edit of your own: it goes until the pointer moves (no layout read per key).
+    if (blockHandleKey.getState(view.state)?.remote && this.root.dataset.visible === "true") {
+      if (!this.frame) this.frame = requestAnimationFrame(() => this.track())
+    } else {
+      this.hideNow()
+    }
+  }
+
+  destroy() {
+    if (this.pointer && !this.dragging && (this.root.dataset.visible === "true" || this.frame)) stillPointer.set(this.view, this.pointer)
+    else stillPointer.delete(this.view)
+    cancelAnimationFrame(this.frame)
+    this.keep()
+    for (const off of this.off) off()
+    this.resize?.disconnect()
+    this.root.remove()
+  }
+}
+
+export const blockHandleKey = new PluginKey<{ remote: boolean }>("blockHandle")
 
 export const BlockHandle = Extension.create({
-  name: 'blockHandle',
+  name: "blockHandle",
 
   addProseMirrorPlugins() {
     const editor = this.editor
-    let handle: HTMLElement | null = null
-    let currentHoverPos: number | null = null
-    let currentHoverDom: HTMLElement | null = null
-    let hideTimeout: ReturnType<typeof setTimeout> | null = null
-    let initTimeout: ReturnType<typeof setTimeout> | null = null
-    
-    let isDragging = false
-    let globalDragState: { pos: number; node: any } | null = null
-
-    const showHandle = (blockDom: HTMLElement, pos: number, immediate = false) => {
-      if (!handle || !editor.isEditable || isDragging) return
-      // An editor out of sight (a side view set aside by Focus, a hidden tab)
-      // has no box: the handle, fixed to the window, would stay behind alone.
-      if (blockDom.getClientRects().length === 0) { hideHandle(true); return }
-      if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null }
-
-      currentHoverPos = pos
-      currentHoverDom = blockDom
-      const blockRect = blockDom.getBoundingClientRect()
-
-      // Two 24 px buttons and a 2 px gap, 6 px left of the text, centred on
-      // the block's first line (26 px).
-      const handleLeft = blockRect.left - 56
-      const handleTop = blockRect.top + (Math.min(blockRect.height, 26) / 2) - 12
-
-      // Gliding from one block to the next; appearing in place.
-      handle.dataset.glide = handle.dataset.visible === 'true' ? 'true' : 'false'
-      handle.style.transform = `translate3d(${Math.round(handleLeft)}px, ${Math.round(handleTop)}px, 0)`
-      handle.dataset.visible = 'true'
-    }
-
-    const hideHandle = (immediate?: boolean) => {
-      if (!handle || isDragging) return
-      if (immediate) {
-        handle.dataset.visible = 'false'
-        currentHoverPos = null
-        currentHoverDom = null
-        return
-      }
-      if (hideTimeout) clearTimeout(hideTimeout)
-      hideTimeout = setTimeout(() => {
-        if (handle) {
-          handle.dataset.visible = 'false'
-          currentHoverPos = null
-          currentHoverDom = null
-        }
-      }, 200)
-    }
-
-    const updateFocusHandle = (view: any) => {
-      if (isDragging) return
-      if (!view || view.isDestroyed || view.destroyed || !view.docView) return
-      const focusedPos = BlockFocusPluginKey.getState(view.state) as number | null
-      if (focusedPos != null) {
-        const dom = view.nodeDOM(focusedPos) as HTMLElement | null
-        if (dom && dom.isConnected) {
-          showHandle(dom, focusedPos)
-        }
-      } else {
-        hideHandle()
-      }
-    }
-
     return [
       new Plugin({
-        key: BlockFocusPluginKey,
+        key: blockHandleKey,
         state: {
-          init() { return null as number | null },
-          apply(tr, prevFocusedPos) {
-            if (!tr.selectionSet && !tr.docChanged) return prevFocusedPos
-            const { $from } = tr.selection
-            let depth = $from.depth
-            while (depth > 1) depth--
-            return depth >= 1 ? $from.before(depth) : null
-          },
+          init: () => ({ remote: false }),
+          // Whether the last change came from a collaborator (y-prosemirror marks those).
+          apply: (tr, was) => (tr.docChanged ? { remote: !!(tr.getMeta("y-sync$") as { isChangeOrigin?: boolean } | undefined)?.isChangeOrigin } : was),
         },
-      }),
-
-      new Plugin({
-        key: BlockHandlePluginKey,
-        props: {
-          handleDrop(view, event, slice, moved) {
-            if (isDragging && globalDragState) {
-              const { pos: sourcePos, node: sourceNode } = globalDragState
-              const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })
-              if (!dropPos) return false
-
-              const $pos = view.state.doc.resolve(dropPos.pos)
-              let insertPos = dropPos.pos
-              
-              if ($pos.depth > 0) {
-                const blockBefore = $pos.before(1)
-                const blockAfter = $pos.after(1)
-                insertPos = (dropPos.pos - blockBefore < blockAfter - dropPos.pos) ? blockBefore : blockAfter
-              }
-
-              const targetEnd = sourcePos + sourceNode.nodeSize
-              
-              // Prevent dropping on itself
-              if (insertPos >= sourcePos && insertPos <= targetEnd) {
-                return true 
-              }
-
-              const tr = view.state.tr
-              let finalInsertPos = insertPos
-
-              if (finalInsertPos > sourcePos) {
-                finalInsertPos -= sourceNode.nodeSize
-              }
-
-              tr.delete(sourcePos, targetEnd)
-              tr.insert(finalInsertPos, sourceNode)
-              
-              try {
-                const { TextSelection } = require('@tiptap/pm/state')
-                const selectionPos = tr.doc.resolve(finalInsertPos + 1)
-                tr.setSelection(TextSelection.near(selectionPos))
-              } catch (e) {
-                // Fallback silently if selection fails
-              }
-
-              view.dispatch(tr)
-              view.focus()
-              
-              // Reset drag state aggressively
-              isDragging = false
-              globalDragState = null
-              updateFocusHandle(view)
-              
-              return true // Prevent default ProseMirror drop
-            }
-            return false
-          }
-        },
-        view(editorView) {
-          const parts = createFloatingHandle()
-          handle = parts.root
-          const grip = parts.grip
-          document.body.appendChild(handle)
-
-          // "+": a new empty line under the block, with the block menu open on it.
-          parts.plus.addEventListener('mousedown', (e) => e.preventDefault())
-          parts.plus.addEventListener('click', () => {
-            const pos = BlockFocusPluginKey.getState(editorView.state) as number | null
-            if (pos == null) return
-            const node = editorView.state.doc.nodeAt(pos)
-            if (!node) return
-            const after = pos + node.nodeSize
-            editor.chain().focus().insertContentAt(after, { type: 'paragraph' }).setTextSelection(after + 1).insertContent('/').run()
-          })
-
-          const onScroll = () => {
-             hideHandle(true)
-             updateFocusHandle(editorView)
-          }
-          window.addEventListener('scroll', onScroll, true)
-
-          handle.addEventListener('mouseenter', () => {
-            if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null }
-          })
-
-          grip.addEventListener('dragstart', (e: DragEvent) => {
-            const activePos = BlockFocusPluginKey.getState(editorView.state) as number | null
-            if (activePos == null) {
-              e.preventDefault()
-              return
-            }
-            
-            const sourceNode = editorView.state.doc.nodeAt(activePos)
-            if (!sourceNode) {
-              e.preventDefault()
-              return
-            }
-
-            isDragging = true
-            globalDragState = { pos: activePos, node: sourceNode }
-            handle!.dataset.visible = 'false'
-            
-            if (e.dataTransfer) {
-              e.dataTransfer.effectAllowed = 'move'
-              e.dataTransfer.setData('text/plain', sourceNode.textContent || '')
-              e.dataTransfer.setData('application/x-prosemirror-drag-block', 'true')
-              
-              const dom = editorView.nodeDOM(activePos) as HTMLElement
-              if (dom) {
-                e.dataTransfer.setDragImage(dom, 0, 0)
-              }
-            }
-
-            // Tell ProseMirror we are dragging a slice from the document!
-            const selection = NodeSelection.create(editorView.state.doc, activePos)
-            const slice = selection.content()
-            editorView.dragging = { slice, move: true }
-          })
-
-          const cleanupDrag = () => {
-            isDragging = false
-            globalDragState = null
-            if (handle) handle.dataset.visible = 'false'
-            updateFocusHandle(editorView)
-          }
-
-          grip.addEventListener('dragend', cleanupDrag)
-          window.addEventListener('dragend', cleanupDrag)
-
-          initTimeout = setTimeout(() => updateFocusHandle(editorView), 100)
-
-          // Hiding or resizing the editor moves no selection and scrolls
-          // nothing, so follow its box: the handle goes when it does, comes
-          // back when it does, and keeps to its block when the width changes.
-          const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => updateFocusHandle(editorView))
-          resize?.observe(editorView.dom)
-
+        view(view) {
+          const handle = new HandleView(view, editor)
           return {
-            update(view) {
-              if (isDragging) return
-              updateFocusHandle(view)
-            },
-            destroy() {
-              if (initTimeout) clearTimeout(initTimeout)
-              resize?.disconnect()
-              window.removeEventListener('scroll', onScroll, true)
-              window.removeEventListener('dragend', cleanupDrag)
-              handle?.remove()
-              handle = null
-            },
+            update: (v, prev) => handle.update(v, prev),
+            destroy: () => handle.destroy(),
           }
         },
       }),

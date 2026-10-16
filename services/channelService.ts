@@ -1,5 +1,6 @@
-import axiosInstance from "@/lib/axiosInstance";
-import { PostEndpointUrl } from "@/services/endPoints";
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
+import { appMutate } from "@/lib/swrMutate";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { clearChannelUnread } from "@/services/unreadCache";
 
 /**
@@ -37,4 +38,19 @@ export async function markChannelSeen(channelId: string): Promise<void> {
         // Best-effort: leaving a channel must never fail loudly. The next
         // genuine channel open will re-advance the marker anyway.
     }
+}
+
+/**
+ * restoreChannel brings an archived channel back, with its history: its
+ * admins and the workspace's admins may (the server answers 403 to anyone
+ * else). Throws on failure, so the caller can say so.
+ *
+ * Then it asks for the sidebar again, which is read once and kept: the
+ * channel is back in it for a restorer who is a member, and stays out of it
+ * for a workspace admin from outside the channel.
+ */
+export async function restoreChannel(channelId: string): Promise<void> {
+    // Each place that restores says what failed, in its own words.
+    await axiosInstance.post(PostEndpointUrl.RestoreChannel, { channel_uuid: channelId }, OWN_ERRORS);
+    void appMutate(GetEndpointUrl.SelfProfileSideNav);
 }

@@ -10,12 +10,12 @@
 // why not, with the link), since that is the whole answer; several get a row
 // each, so a refusal for one never hides that the others went.
 
+import { personHue } from "@/lib/utils/getAvatarColor"
 import React, { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { AlertCircle, Check, Copy, Loader2, X } from "@/lib/icons"
-import { hueFor } from "@/lib/campHue"
 import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { invite, type InvitationAnswer } from "@/services/invitationService"
 import { InvitationOutcome, couldntEmail } from "@/components/invite/InvitationOutcome"
@@ -58,6 +58,12 @@ export function seatLine(sending: number, seatsLeft: number | undefined): string
   return `${seatsLeft === 0 ? "No places" : places} left on the free plan. ${over} of these won't fit.`
 }
 
+/** What is wrong with the addresses that aren't email addresses, and what to do. Pure. */
+export function invalidLine(emails: string[]): string {
+  if (emails.length === 1) return `“${emails[0]}” isn't an email address, so it won't be sent. Fix it or remove it.`
+  return `${emails.length} of these aren't email addresses, so they won't be sent. Fix or remove them.`
+}
+
 type Result =
   | { email: string; state: "waiting" }
   | { email: string; state: "sent" | "created"; answer: InvitationAnswer }
@@ -77,7 +83,7 @@ export function resultSummary(results: Pick<Result, "state">[]): string {
 
 function Face({ email }: { email: string }) {
   return (
-    <span aria-hidden="true" className={`invite-chip-face ${avatarHueClass(hueFor(email))}`}>
+    <span aria-hidden="true" className={`invite-chip-face ${avatarHueClass(personHue({ user_email_id: email }))}`}>
       {email.charAt(0).toUpperCase()}
     </span>
   )
@@ -128,6 +134,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
     [chips, draft, knownSet],
   )
   const sendable = pending.filter((c) => c.kind === "ok")
+  const invalid = pending.filter((c) => c.kind === "invalid")
   const over = seatLine(sendable.length, seatsLeft)
 
   const reset = () => {
@@ -299,9 +306,17 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
                 }
               }}
               autoFocus
-              aria-describedby={[refusal && `invite-${name}-refusal`, over && `invite-${name}-seats`].filter(Boolean).join(" ") || undefined}
+              aria-describedby={[refusal && `invite-${name}-refusal`, invalid.length > 0 && `invite-${name}-invalid`, over && `invite-${name}-seats`].filter(Boolean).join(" ") || undefined}
             />
           </div>
+          {/* Said under the field, not only in the chip's tooltip: on a
+              phone there is no hover, and Send quietly left the address out. */}
+          {invalid.length > 0 && (
+            <p id={`invite-${name}-invalid`} data-invalid-line="" className="flex items-center gap-1.5 text-xs text-danger-ink">
+              <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
+              {invalidLine(invalid.map((c) => c.email))}
+            </p>
+          )}
           {over && (
             <div id={`invite-${name}-seats`} data-seat-line="" className="flex items-center justify-between gap-3 text-xs text-camp-sun-ink">
               <span>{over}</span>

@@ -10,7 +10,6 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProjectFieldsDialog } from "@/components/project/ProjectFieldsDialog"
@@ -20,15 +19,18 @@ import { useToast } from "@/hooks/use-toast"
 import { useProjectFields } from "@/hooks/useProjectFields"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { Check, ExternalLink, Plus } from "@/lib/icons"
+import { ExternalLink, Plus } from "@/lib/icons"
 import { appMutate } from "@/lib/swrMutate"
 import { colorDot } from "@/lib/taskStatus"
-import { OUTSIDE_PROJECT, draftOf, formatFieldValue, parseFieldInput, withField, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
-import { inlineInput, inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
+import { OUTSIDE_PROJECT, draftOf, formatFieldValue, withField, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
+import { parseFieldInput } from "@/lib/tasks/fieldInput"
+import { inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
+import { InlineEdit } from "@/components/task/inlineEdit"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { DateField } from "@/components/task/taskDateField"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
+import { dayDate, localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { UserProfileDataInterface } from "@/types/user"
 
@@ -167,8 +169,8 @@ function TaskFieldRow({
       <DateField
         isAdmin={canEdit}
         label={field.name}
-        value={dayOf(value)}
-        onSelect={(d) => void onSave(d ? dayKey(d) : null)}
+        value={typeof value === "string" ? dayDate(value) : undefined}
+        onSelect={(d) => void onSave(d ? localDay(d) : null)}
         onClear={() => void onSave(null)}
       />
     )
@@ -198,65 +200,36 @@ function TaskFieldRow({
 
 type EditorProps = { id: string; field: TaskField; value: FieldValue | undefined; onSave: (value: FieldValue | null) => Promise<void> }
 
-/** A date field's value ("2026-10-14") as a day in the person's calendar, and back. */
-function dayOf(value: FieldValue | undefined): Date | undefined {
-  if (typeof value !== "string") return undefined
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : undefined
-}
-const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
 const PLACEHOLDER: Partial<Record<TaskField["type"], string>> = { url: "Add a link…", number: "Add a number…", money: "Add an amount…" }
 
 /** Text, a link, a number or money: typed, saved when the box loses focus;
- * Escape puts the value back. */
+ * Escape puts the value back. A value at rest, as every other (InlineEdit). */
 function TypedEditor({ id, field, value, onSave }: EditorProps) {
   const { toast } = useToast()
   const shown = draftOf(field, value)
-  const [draft, setDraft] = React.useState(shown)
-  const [focused, setFocused] = React.useState(false)
-  const cancelled = React.useRef(false)
-  React.useEffect(() => setDraft(shown), [shown])
-  const commit = () => {
-    setFocused(false)
-    if (cancelled.current) {
-      cancelled.current = false
-      setDraft(shown)
-      return
-    }
+  const commit = (draft: string) => {
     const parsed = parseFieldInput(field, draft)
     if ("error" in parsed) {
       toast({ variant: "destructive", title: `${field.name} wasn't changed`, description: parsed.error })
-      setDraft(shown)
       return
     }
     void onSave(parsed.value)
   }
   const numeric = field.type === "number" || field.type === "money"
   return (
-    <div className="flex items-center">
-      {/* The currency beside an amount, not beside "Add an amount…". */}
-      {field.type === "money" && field.currency && (draft || focused) && <span className="mr-1 text-xs text-muted-foreground">{field.currency}</span>}
-      <Input
+    <div className="flex min-w-0 items-center">
+      <InlineEdit
         id={id}
-        value={draft}
-        inputMode={numeric ? "decimal" : field.type === "url" ? "url" : undefined}
+        value={shown}
         placeholder={PLACEHOLDER[field.type] ?? "Add text…"}
-        autoComplete="off"
+        onCommit={commit}
+        // The currency beside an amount, not beside "Add an amount…".
+        prefix={field.type === "money" && field.currency ? field.currency : undefined}
+        inputMode={numeric ? "decimal" : field.type === "url" ? "url" : undefined}
         spellCheck={field.type === "text"}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur()
-          if (e.key === "Escape") {
-            // Handled: the panel this field sits in stays open.
-            e.preventDefault()
-            cancelled.current = true
-            e.currentTarget.blur()
-          }
-        }}
-        className={cn(inlineInput, numeric ? "w-40 tabular-nums" : "w-full max-w-xs", field.type === "money" && field.currency && (draft || focused) && "ml-0")}
+        className={numeric ? "tabular-nums" : undefined}
+        inputClassName={numeric ? "w-40 tabular-nums" : "w-full max-w-xs"}
       />
       {field.type === "url" && typeof value === "string" && (
         <a href={value} target="_blank" rel="noopener noreferrer" aria-label={`Open ${field.name}`} className="text-muted-foreground hover:text-foreground">
@@ -328,8 +301,7 @@ function MultiSelectEditor({ id, field, value, onSave }: EditorProps) {
             <CommandEmpty>No option by that name.</CommandEmpty>
             <CommandGroup>
               {field.options.map((o) => (
-                <CommandItem key={o.id} value={o.label} onSelect={() => toggle(o.id)}>
-                  <Check className={cn("mr-2 h-4 w-4", chosen.includes(o.id) ? "opacity-100" : "opacity-0")} aria-hidden />
+                <CommandItem key={o.id} checked={chosen.includes(o.id)} value={o.label} onSelect={() => toggle(o.id)}>
                   <OptionPill label={o.label} color={o.color} />
                 </CommandItem>
               ))}

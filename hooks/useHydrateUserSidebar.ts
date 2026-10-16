@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
@@ -12,6 +12,7 @@ import {
     createUserTeamList,
     createUserDocList,
     createUserBoardList,
+    setUserStarred,
     setTotalUnreadActivityCount,
     updateUsersStatusFromList,
 } from "@/store/slice/userSlice"
@@ -19,6 +20,9 @@ import { batchUpdateChannelCallStatus } from "@/store/slice/channelSlice"
 import { batchUpdateChatCallStatus } from "@/store/slice/chatSlice"
 import { withOpenRead } from "@/lib/chat/conversation"
 import { dataToSeed } from "@/lib/swrMutate"
+import { setProjectOrder } from "@/lib/projectHue"
+import type { RootState } from "@/store/store"
+import type { Place } from "@/types/docGraph"
 
 /**
  * The sidenav payload, for a component that only reads it. One SWR config for
@@ -49,8 +53,16 @@ export function useHydrateUserSidebar() {
 
     useEffect(() => {
         // Once per answer: the store is kept current by live updates since.
-        const data = dataToSeed(GetEndpointUrl.SelfProfileSideNav, userSideNav.data)?.data
+        const seeded = dataToSeed(GetEndpointUrl.SelfProfileSideNav, userSideNav.data)
+        const data = seeded?.data
         if (!data) return
+
+        // The starred pages sit beside the profile in the answer, left out
+        // when the server couldn't read them: then the ones shown stay.
+        const starred = (seeded as { starred?: unknown }).starred
+        if (Array.isArray(starred)) {
+            dispatch(setUserStarred({ places: starred as Place[] }))
+        }
 
         if (data.user_teams) {
             dispatch(createUserTeamList({ teamUsers: data.user_teams }))
@@ -108,6 +120,13 @@ export function useHydrateUserSidebar() {
             dispatch(createUserBoardList({ boardUsers: data.user_boards }))
         }
     }, [userSideNav.data, dispatch])
+
+    // The reader's projects, oldest first, share the six hues out so no two
+    // of them draw the same colour (lib/projectHue).
+    const projects = useSelector((s: RootState) => s.users.userSidebar.userProjects)
+    useEffect(() => {
+        setProjectOrder((projects ?? []).map((p) => p.project_uuid))
+    }, [projects])
 
     return userSideNav
 }

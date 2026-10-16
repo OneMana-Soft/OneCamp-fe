@@ -1,4 +1,4 @@
-import type { AIActivityItem } from "@/services/aiActivityService"
+import { initiatorLabel, type AIActivityItem } from "@/services/aiActivityService"
 
 /**
  * Who acted, for one entry of the agents record (hub.md AI14).
@@ -61,4 +61,33 @@ export function recordActor(it: AIActivityItem, agentNames?: ReadonlyMap<string,
   const hit = FAMILY.find(([prefix]) => it.title?.startsWith(prefix))
   if (hit) return { name: hit[1], kind: hit[2], named: false, key: hit[0], drill }
   return { name: ASSISTANT_NAME, kind: "assistant", named: true, key: "onecamp-ai", drill }
+}
+
+/**
+ * The evidence's "Started by" and "Source" (hub.md AI15), in words: the rows
+ * said "person" and "agent", the audit row's own codes. Unknown codes are
+ * shown as they are, so nothing the server says is hidden.
+ */
+const STARTED_BY: Record<string, string> = {
+  person: "A person",
+  schedule: "A schedule, nobody watching",
+  event: "An event, nobody watching",
+  handoff: "A handoff from another agent, nobody watching",
+  eval: "An evaluation run",
+}
+export function startedByWords(initiator?: string): string {
+  if (!initiator) return ""
+  return STARTED_BY[initiator] ?? initiatorLabel(initiator)
+}
+
+const SOURCE: Record<string, string> = {
+  agent: "An agent",
+  human: "A person",
+  system: "OneCamp itself",
+  mcp: "A connected tool",
+  api: "An app with your key",
+}
+export function sourceWords(source?: string): string {
+  if (!source) return ""
+  return SOURCE[source] ?? source
 }

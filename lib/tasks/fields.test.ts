@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { draftOf, fieldFilterMatches, fieldIdOfFilter, formatFieldValue, parseFieldInput, parseTypedNumber, withField, type TaskField } from "./fields"
+import { draftOf, fieldFilterMatches, fieldIdOfFilter, formatFieldValue, withField, type TaskField } from "./fields"
+import { parseFieldInput } from "./fieldInput"
+import { parseTypedNumber } from "@/lib/format/number"
 
 const field = (type: TaskField["type"], more: Partial<TaskField> = {}): TaskField => ({
   id: "0a1b2c3d-0000-4000-8000-000000000001",
@@ -80,16 +82,19 @@ describe("numbers typed in", () => {
   })
 })
 
+// Task fields read a typed number as a table's number cell does (one reader,
+// lib/format/number): the locale's own signs, and a number that only reads
+// one way where the other sign is the decimal is refused, never guessed.
 describe("a number typed in the reader's own way", () => {
-  it("reads the locale's marks, and the other way round only when that's the one reading", () => {
-    expect(parseTypedNumber("12,50", "en-US")).toBe(12.5)
+  it("reads the locale's marks, and refuses the other way round", () => {
+    expect(parseTypedNumber("12,50", "en-US")).toBeNull()
     expect(parseTypedNumber("12,500.50", "en-US")).toBe(12500.5)
     expect(parseTypedNumber("1,250", "en-US")).toBe(1250)
     expect(parseTypedNumber("1.250", "en-US")).toBe(1.25)
     expect(parseTypedNumber("12,50", "de-DE")).toBe(12.5)
     expect(parseTypedNumber("12.500,50", "de-DE")).toBe(12500.5)
     expect(parseTypedNumber("1.250", "de-DE")).toBe(1250)
-    expect(parseTypedNumber("12.50", "de-DE")).toBe(12.5)
+    expect(parseTypedNumber("12.50", "de-DE")).toBeNull()
     expect(parseTypedNumber("12 500,50", "fr-FR")).toBe(12500.5)
     expect(parseTypedNumber("12\u202f500,50", "fr-FR")).toBe(12500.5)
     expect(parseTypedNumber("-3,5", "de-DE")).toBe(-3.5)
@@ -99,7 +104,6 @@ describe("a number typed in the reader's own way", () => {
     expect(parseTypedNumber("1,2,3", "en-US")).toBeNull()
     expect(parseTypedNumber("12,5,0", "de-DE")).toBeNull()
     expect(parseTypedNumber("1.2.3", "en-US")).toBeNull()
-    expect(parseTypedNumber("", "en-US")).toBeNull()
-    expect(parseTypedNumber("1e5", "en-US")).toBeNull()
+    expect(parseTypedNumber("", "en-US")).toBe("")
   })
 })

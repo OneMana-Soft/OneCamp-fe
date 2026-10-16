@@ -35,6 +35,7 @@ export function MemberRow({ user, canManage, isSelf, isCreator, onMakeAdmin, onR
     const second = user.is_bot ? botSubtitle(botKind) : addressOrHandleOf(user)
     // Agents are managed in the Agents section; the creator stays as they are.
     const menu = canManage && !user.is_bot && !isCreator && !isSelf
+    const role = user.user_is_admin || isCreator ? <span className="chip shrink-0">{isCreator ? "Owner" : "Admin"}</span> : null
 
     return (
         <div data-member-row="" className="flex min-h-12 items-center gap-3 rounded-lg px-2 transition-colors duration-[140ms] hover:bg-hover">
@@ -47,7 +48,7 @@ export function MemberRow({ user, canManage, isSelf, isCreator, onMakeAdmin, onR
                 </div>
                 {second && <p className="truncate text-meta text-ink-3">{second}</p>}
             </div>
-            {(user.user_is_admin || isCreator) && <span className="chip shrink-0">{isCreator ? "Owner" : "Admin"}</span>}
+            {menu && role}
             {menu ? (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -68,7 +69,9 @@ export function MemberRow({ user, canManage, isSelf, isCreator, onMakeAdmin, onR
                     </DropdownMenuContent>
                 </DropdownMenu>
             ) : (
-                <span className="size-7 shrink-0" aria-hidden="true" />
+                // A row without a menu has its role at the right edge, where
+                // the others' "…" ends: the Owner chip stopped 40px short (QA F-37).
+                role ?? <span className="size-7 shrink-0" aria-hidden="true" />
             )}
         </div>
     )

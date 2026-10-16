@@ -29,12 +29,18 @@
  * names its tool), above "Start an import", so picking a tool changes only the
  * panel under the picker. One flat section like every other admin tab, where
  * it was a bordered Card.
+ *
+ * PAGES (docs programme C4). A tool that brings pages (its "pages" capability:
+ * Notion) offers them as docs, on by default: every page the token can read
+ * comes across in its tree, and a database inside a page as a table. A
+ * database picked from the list comes across as a project too.
  */
 
 import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/ui/field"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -73,6 +79,7 @@ import { IMPORT_LIST, ImportJobRow, ImportRowsSkeleton, ROW_ACTION, count } from
 import { SourceMark } from "@/components/admin/connectParts"
 import { SLACK_IMPORT_NEW_EVENT } from "@/components/admin/importParts"
 import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "@/lib/importPick"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
 // validation, mappings UI, error pagination) and only render when the
@@ -101,6 +108,21 @@ function isLive(s: ImportJob["status"]) {
 }
 
 const NAME_MISSING = "Name this import, so you can tell it apart in the history."
+
+/** What a source card says comes across, where it isn't projects and tasks. */
+const SOURCE_LINE: Partial<Record<ImportProvider, string>> = { notion: "Pages, databases, tasks" }
+
+/**
+ * What rolling an import back takes away. An import that brought pages also
+ * takes its tables, and its docs go to the trash with any pages added under
+ * them, where they can be restored.
+ */
+export function rollbackWords(job: Pick<ImportJob, "options">): string {
+  const pages = job.options?.pages === true
+  return pages
+    ? "This takes away what the import brought in: its tasks, comments, files, custom fields and tables, and its projects and teams if nothing else is in them. Its docs go to the trash, with any pages added under them, where they can be restored. Anything else your team has added stays."
+    : "This takes away what the import brought in: its tasks, comments, files and custom fields, and its projects and teams if nothing else is in them. Anything your team has added stays."
+}
 
 const ImportCard: React.FC = () => {
   const { toast } = useToast()
@@ -138,6 +160,7 @@ const ImportCard: React.FC = () => {
   // New-import inputs, and what is missing from them, said under each field.
   const [workspaceName, setWorkspaceName] = useState("")
   const [boardId, setBoardId] = useState("") // Trello-specific opt
+  const [bringPages, setBringPages] = useState(true)
   const [creating, setCreating] = useState(false)
   const [nameError, setNameError] = useState("")
   const [pickError, setPickError] = useState("")
@@ -186,11 +209,15 @@ const ImportCard: React.FC = () => {
     () => connections.find((c) => c.provider === selectedProvider),
     [connections, selectedProvider],
   )
+  const offersPages = !!providers.find((p) => p.name === selectedProvider)?.capabilities?.includes("pages")
+  const pages = offersPages && bringPages
 
   // After connect, fetch the discoverable resources for the selected
-  // provider. We refetch when the connection identity changes.
+  // provider. A connection's identity is its updated_at: connecting again
+  // changes it, and a refetch of the same connection does not.
+  const connectedAt = connection?.updated_at
   useEffect(() => {
-    if (!selectedProvider || !connection) {
+    if (!selectedProvider || connectedAt === undefined) {
       setDiscoverItems([])
       setPickedDiscoverId("")
       return
@@ -216,7 +243,7 @@ const ImportCard: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedProvider, connection?.updated_at, discoverAttempt])
+  }, [selectedProvider, connectedAt, discoverAttempt])
 
   const chooseProvider = (p: ImportProvider | null) => {
     setSelectedProvider(p)
@@ -234,7 +261,7 @@ const ImportCard: React.FC = () => {
       return
     }
     // Each provider reads its own key for what was picked (lib/importPick).
-    const pick = optionsForPick(selectedProvider, pickedDiscoverId, discoverItems, boardId)
+    const pick = optionsForPick(selectedProvider, pickedDiscoverId, discoverItems, boardId, pages)
     if ("error" in pick) {
       setPickError(pick.error)
       ;(discoverItems.length > 0 ? pickRef.current : boardRef.current)?.focus()
@@ -299,14 +326,13 @@ const ImportCard: React.FC = () => {
       },
     })
   }
-  const onRollback = async (jobId: string) => {
-    const source = jobs?.find((j) => j.id === jobId)?.source_workspace_name
+  const onRollback = async (job: ImportJob) => {
+    const jobId = job.id
     confirm({
       title: "Roll back this import?",
       // Type-to-confirm (admin H4): it takes away work from many people.
-      requireText: source || "Roll back",
-      description:
-        "This takes away what the import brought in: its tasks, comments, files and custom fields, and its projects and teams if nothing else is in them. Anything your team has added stays.",
+      requireText: job.source_workspace_name || "Roll back",
+      description: rollbackWords(job),
       confirmText: "Roll back import",
       destructive: true,
       onConfirm: async () => {
@@ -371,7 +397,8 @@ const ImportCard: React.FC = () => {
         <>
           Asana, ClickUp, Jira, Linear, monday.com, Notion, Todoist and Trello. Projects, tasks, subtasks, comments,
           files, people and custom fields come across, into the source&apos;s own teams or a team named after it.
-          Importing the same workspace again brings only what is new, without copies.
+          Notion&apos;s pages come across as docs, in their tree, and its databases as tables. Importing the same
+          workspace again brings only what is new, without copies.
           {!isMqttHealthy && <span className="ml-1 text-warning-ink">Live updates are off, so the list refreshes every few seconds.</span>}
         </>
       }
@@ -404,7 +431,7 @@ const ImportCard: React.FC = () => {
                     onPlan={() => setPlanJob(j)}
                     onDiscard={() => onDiscard(j)}
                     onCancel={() => onCancel(j)}
-                    onRollback={() => onRollback(j.id)}
+                    onRollback={() => onRollback(j)}
                     onRetryFailed={() => onRetryFailed(j.id)}
                     onInvite={() => setInviteJob(j)}
                     onShowErrors={() => setErrorsJobId(j.id)}
@@ -494,8 +521,30 @@ const ImportCard: React.FC = () => {
                       that returns mixed-kind discovery items (e.g.
                       OAuth across multiple Asana orgs) doesn't show
                       a stale label. */}
+                  {offersPages && (
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="import-pages"
+                        className="mt-0.5"
+                        checked={bringPages}
+                        onCheckedChange={(v) => setBringPages(v === true)}
+                        aria-describedby="import-pages-help"
+                      />
+                      <div className="min-w-0 space-y-0.5">
+                        <label htmlFor="import-pages" className="text-sm font-medium">
+                          Bring pages across as docs
+                        </label>
+                        <p id="import-pages-help" className="text-xs text-muted-foreground">
+                          Every page the token can read comes across as a doc in its tree, private to you until you share
+                          it, and each database inside a page as a table.
+                          {selectedProvider === "notion" &&
+                            " A personal access token reads what you can in Notion; a connection's token reads the pages shared with it."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {discoverItems.length > 0 && (
-                    <Field label={pickLabel(selectedProvider)} error={pickError}>
+                    <Field label={pickLabel(selectedProvider, pages)} error={pickError}>
                       <select
                         ref={pickRef}
                         value={pickedDiscoverId}
@@ -529,7 +578,7 @@ const ImportCard: React.FC = () => {
                   )}
                   {discoverProblem && !discoverLoading && (
                     <div role="alert" className="cx-imp-note flex flex-col gap-2 text-sm sm:flex-row sm:items-center">
-                      <p className="min-w-0 flex-1 break-words text-danger-ink">{discoverProblem.message}</p>
+                      <p className="min-w-0 flex-1 break-words text-danger-ink">{discoverProblem.message}<SaysLoadFailure /></p>
                       <div className="flex shrink-0 gap-2">
                         {needsReconnect(discoverProblem) && (
                           <Button size="sm" variant="outline" className={cn(ROW_ACTION, "gap-1.5")} onClick={() => setConnectOpen(true)}>
@@ -689,42 +738,48 @@ function SourcePicker({
     window.dispatchEvent(new Event(SLACK_IMPORT_NEW_EVENT))
   }
   return (
-    <div data-source-picker="" className="cx-imp-sources">
-      <button type="button" data-source-card="slack" data-wide="true" className="cx-imp-source" onClick={startSlack}>
-        <SourceMark vendor="slack" name="Slack" />
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-foreground">Slack</span>
-          <span className="cx-imp-source-line block truncate">Channels, threads, files</span>
-        </span>
-      </button>
-      {/* contents: the radios sit in the grid beside Slack. */}
-      <div role="radiogroup" aria-label="Tool to import from" className="contents">
-        {choices.map((c, i) => {
-          const checked = c.value === value
-          return (
-            <button
-              key={c.value}
-              ref={(el) => {
-                refs.current[i] = el
-              }}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              aria-label={c.label}
-              tabIndex={i === focusable ? 0 : -1}
-              data-source-card={c.value}
-              className="cx-imp-source"
-              onClick={() => onChange((c.value || null) as ImportProvider | null)}
-              onKeyDown={(e) => onKey(e, i)}
-            >
-              <SourceMark vendor={c.value} name={c.label} />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-foreground">{c.label}</span>
-                <span className="cx-imp-source-line block truncate">Projects, tasks, comments</span>
-              </span>
-            </button>
-          )
-        })}
+    <div className="cx-imp-sources-wrap">
+      <div data-source-picker="" className="cx-imp-sources">
+        <button type="button" data-source-card="slack" data-wide="true" className="cx-imp-source" onClick={startSlack}>
+          <SourceMark vendor="slack" name="Slack" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-foreground">Slack</span>
+            <span className="cx-imp-source-line line-clamp-2 text-pretty">Channels, threads, files</span>
+          </span>
+        </button>
+        {/* contents: the radios sit in the grid beside Slack. */}
+        <div role="radiogroup" aria-label="Tool to import from" className="contents">
+          {choices.map((c, i) => {
+            const checked = c.value === value
+            return (
+              <button
+                key={c.value}
+                ref={(el) => {
+                  refs.current[i] = el
+                }}
+                type="button"
+                role="radio"
+                aria-checked={checked}
+                aria-label={c.label}
+                tabIndex={i === focusable ? 0 : -1}
+                data-source-card={c.value}
+                className="cx-imp-source"
+                onClick={() => onChange((c.value || null) as ImportProvider | null)}
+                onKeyDown={(e) => onKey(e, i)}
+              >
+                <SourceMark vendor={c.value} name={c.label} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-foreground">{c.label}</span>
+                  {/* Two lines rather than an ellipsis: at a third of the column the
+                      line was "Projects, tasks, comm…" on every card. */}
+                  <span className="cx-imp-source-line line-clamp-2 text-pretty">
+                    {SOURCE_LINE[c.value as ImportProvider] ?? "Projects, tasks, comments"}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

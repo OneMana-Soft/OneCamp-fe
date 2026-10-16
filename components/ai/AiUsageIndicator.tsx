@@ -59,8 +59,8 @@ const AiUsageIndicator: React.FC<{ refreshSignal?: number; variant?: "inline" | 
   const pct = hasCap ? Math.min(100, Math.round((used / limit) * 100)) : 0
   const near = hasCap && pct >= 80
   const title = hasCap
-    ? `Your AI usage today: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}%). Resets at 00:00 UTC.`
-    : `Your AI usage today: ${used.toLocaleString()} tokens. Resets at 00:00 UTC.`
+    ? `Your AI usage today: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}%). Resets at midnight UTC.`
+    : `Your AI usage today: ${used.toLocaleString()} tokens. Resets at midnight UTC.`
 
   if (variant === "menu") {
     return (

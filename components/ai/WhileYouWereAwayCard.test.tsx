@@ -83,15 +83,24 @@ describe("WhileYouWereAwayCard", () => {
   it("makes no request while at rest — the backlog size is free", () => {
     withUnread([20, 18])
     render(<WhileYouWereAwayCard />)
-    expect(screen.getByText(/38 unread messages/)).toBeTruthy()
+    expect(screen.getByText(/38 unread in/)).toBeTruthy()
     expect(catchUpMock).not.toHaveBeenCalled()
   })
 
   it("counts conversations as well as messages, since that is the reason not to read them one by one", () => {
     withUnread([20, 1], [4])
     render(<WhileYouWereAwayCard />)
-    expect(screen.getByText(/25 unread messages/)).toBeTruthy()
-    expect(screen.getByText(/across 3 conversations/)).toBeTruthy()
+    expect(screen.getByText("25 unread in 3 conversations")).toBeTruthy()
+  })
+
+  // QA SH-19 (14 Oct 2026): "12 unread messages across 3 conversa…" was cut
+  // off beside Catch me up at 1440.
+  it("says it in few enough words for its row, and wraps rather than cutting", () => {
+    withUnread([20, 1], [4])
+    render(<WhileYouWereAwayCard />)
+    const line = screen.getByText("25 unread in 3 conversations")
+    expect(line.className).toContain("line-clamp-2")
+    expect(line.className).not.toMatch(/\btruncate\b/)
   })
 
   it("asks for the workspace scope — the one scope no other surface requests", async () => {

@@ -10,6 +10,7 @@
  * to show, so it never adds noise to the dashboard.
  */
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import React, { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
@@ -322,13 +323,22 @@ function BriefingCard() {
                     >
                       <span className={homeGlyph}>
                         {h.author_name ? (
-                          <IdentityMark variant="avatar" size={24} id={h.chat_by_user_id || h.author_name} label={h.author_name} />
+                          <IdentityMark variant="avatar" size={24} id={avatarSeed(h.author_name)} label={h.author_name} />
                         ) : (
                           <HighlightIcon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
                         )}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm leading-snug truncate">{h.snippet}</span>
+                        {/* A doc's or a task's name on its own line and its text
+                            under it (QA SH-09): one line ran them together. */}
+                        {h.title && h.excerpt ? (
+                          <>
+                            <span className="block text-sm leading-snug truncate" data-highlight-title="">{h.title}</span>
+                            <span className="block text-xs leading-snug text-ink-2 truncate" data-highlight-excerpt="">{h.excerpt}</span>
+                          </>
+                        ) : (
+                          <span className="block text-sm leading-snug truncate">{h.snippet}</span>
+                        )}
                         <span className="text-2xs text-muted-foreground">
                           {h.author_name ? `${h.author_name}` : h.content_type}
                           {h.channel_uuid && channelName.get(h.channel_uuid)

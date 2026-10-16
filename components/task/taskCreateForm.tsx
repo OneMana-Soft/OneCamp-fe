@@ -1,5 +1,7 @@
 import { displayNameOf } from "@/lib/personName"
 import React, { useEffect, useRef, useState } from "react";
+import { useModEnter } from "@/hooks/useModKey";
+import { useEdgeFade } from "@/hooks/useEdgeFade";
 import { ProjectInfoListRawInterface } from "@/types/project";
 import { UserProfileDataInterface } from "@/types/user";
 import { priorities } from "@/types/table";
@@ -32,6 +34,7 @@ import { QuietEditor } from "@/components/task/QuietEditor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { CalendarDays, ChevronDown, GitBranch, MoreHorizontal, Paperclip, Tag, Timer, X } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { PriorityGlyph, StatusGlyph } from "@/components/ui/graphics/glyphs";
 import { Switch } from "@/components/ui/switch";
@@ -86,6 +89,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   
   const uploadFile = useUploadFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveKeys = useModEnter();
+  // The chips scroll sideways on a phone; a cut-off one fades (PTC-28: "Due d").
+  const chipRowRef = useRef<HTMLDivElement>(null);
+  const chipFade = useEdgeFade(chipRowRef);
   const dispatch = useDispatch();
   const post = usePost();
   
@@ -440,7 +447,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
           placeholder="Task title"
           autoComplete="off"
           autoFocus
-          className="w-full bg-transparent px-4 py-1 text-title-2 text-foreground outline-none placeholder:text-ink-4"
+          className="w-full bg-transparent px-4 py-1 text-title-2 text-foreground outline-none placeholder:text-ink-3"
         />
         {renderNameHint && <div className="px-4">{renderNameHint(nameWatch, (name) => setValue("task_name", name, { shouldValidate: true, shouldDirty: true }))}</div>}
 
@@ -465,7 +472,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
         />
 
         {/* The property chips (W36): each opens its picker; keys S P A D L E. */}
-        <div className="flex gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar sm:flex-wrap" data-create-chips="">
+        <div ref={chipRowRef} {...chipFade} className="flex gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar sm:flex-wrap" data-create-chips="">
           <Popover open={popOpenStatus} onOpenChange={setPopOpenStatus}>
             <PopoverTrigger asChild>
               <button type="button" className={cn(chip, status !== "todo" && "text-foreground")} aria-label={`Status: ${statusOption?.label ?? "To do"}`} aria-keyshortcuts="S">
@@ -524,7 +531,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     className={cn(chip, selectedUser && "text-foreground")}
                   >
                     {selectedUser ? (
-                      <IdentityMark variant="avatar" id={selectedUser.user_uuid} label={displayNameOf(selectedUser)} size={18} />
+                      <IdentityMark variant="avatar" id={avatarSeed(selectedUser)} label={displayNameOf(selectedUser)} size={18} />
                     ) : (
                       <span aria-hidden className="size-3.5 rounded-full border border-dashed border-line-3" />
                     )}
@@ -547,7 +554,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                               setPopOpenUserName(false);
                             }}
                           >
-                            <IdentityMark variant="avatar" id={member.user_uuid} label={displayNameOf(member)} size={18} />
+                            <IdentityMark variant="avatar" id={avatarSeed(member)} label={displayNameOf(member)} size={18} />
                             <span>{displayNameOf(member)}</span>
                           </CommandItem>
                         ))}
@@ -761,14 +768,16 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
             aria-hidden
           />
           <span className="flex-1" />
+          {/* Labelled on a phone too: a bare switch said nothing (PTC-28). */}
           <label className="mr-2 flex items-center gap-2 text-ui-sm text-ink-2">
             <Switch checked={createMore} onCheckedChange={setCreateMore} aria-label="Create more" />
-            <span className="hidden sm:inline">Create more</span>
+            <span>Create more</span>
           </label>
           <Button type="submit" size="sm" disabled={post.isSubmitting} className="gap-2">
             {submitLabel}
+            {/* The platform's own chord: Ctrl on Linux and Windows (PTC-27). */}
             <span className="kbd hidden h-4 min-w-0 border-0 bg-white/20 px-1 text-[inherit] shadow-none sm:inline-flex" aria-hidden>
-              ⌘↵
+              {saveKeys}
             </span>
           </Button>
         </div>

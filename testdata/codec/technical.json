@@ -1,0 +1,190 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "Release maths",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "text": "The rate is ",
+          "type": "text"
+        },
+        {
+          "attrs": {
+            "latex": "r = \\frac{d}{t}"
+          },
+          "type": "inlineMath"
+        },
+        {
+          "text": ", it costs $5, and ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "text": "$ is not an equation.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "attrs": {
+            "latex": " a `b` "
+          },
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "type": "inlineMath"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "latex": "E = mc^2\n\\int_0^1 x\\,dx"
+      },
+      "type": "blockMath"
+    },
+    {
+      "attrs": {
+        "caption": "Deploys the \"web\" app",
+        "language": "bash",
+        "wrap": true
+      },
+      "content": [
+        {
+          "text": "make deploy",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "attrs": {
+        "language": "mermaid"
+      },
+      "content": [
+        {
+          "text": "graph TD;\nA-->B",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {
+                "colspan": 1,
+                "colwidth": [
+                  160
+                ],
+                "rowspan": 1
+              },
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Step",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "type": "tableHeader"
+            },
+            {
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1
+              },
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Cost",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "type": "tableHeader"
+            }
+          ],
+          "type": "tableRow"
+        },
+        {
+          "content": [
+            {
+              "attrs": {
+                "background": "sky",
+                "colspan": 1,
+                "rowspan": 1
+              },
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Build",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "type": "tableCell"
+            },
+            {
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1
+              },
+              "content": [
+                {
+                  "content": [
+                    {
+                      "attrs": {
+                        "latex": "O(n)"
+                      },
+                      "type": "inlineMath"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "type": "tableCell"
+            }
+          ],
+          "type": "tableRow"
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "type": "doc"
+}

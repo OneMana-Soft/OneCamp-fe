@@ -2,8 +2,7 @@
 
 import * as React from "react"
 
-import { Button } from "@/components/ui/button"
-import { SpotError } from "@/components/ui/graphics"
+import { LoadFailureState, type WayBack } from "@/components/ui/load-failure-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { PublicSurface } from "@/components/public/MadeWithOneCamp"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -14,30 +13,65 @@ import { PaperCard, PublicFrame } from "./PublicFrame"
 const HOME = process.env.NEXT_PUBLIC_PRODUCT_SITE || ""
 
 /**
- * A public link that no longer works (content.md D20, Gone): inside the
- * frame, on a paper card, the error spot, what happened at 17/590 and what to
- * do at 14 ink-2. One ghost way out, no other buttons.
+ * A public link that doesn't open (content.md D20, Gone): inside the frame,
+ * on a paper card, said as every screen in the app says it (LoadFailureState):
+ * "This form doesn't exist or was deleted", what to do, and the one way out,
+ * to the product's site when the build names one. A page that didn't load
+ * (kind "failed") says nothing is lost, with Try again.
+ *
+ * The guest links, the forms and the booking pages each drew their own: a
+ * lone grey ring, with a gold top bar or with no frame at all (PTC-19).
  */
 export function PublicGone({
   surface,
-  title = "This link has stopped working",
+  noun = "link",
   detail = "Ask the person who sent it for a new one.",
+  kind = "gone",
+  onRetry,
+  back,
+  more,
+  frame = true,
 }: {
   surface: PublicSurface
-  title?: string
+  /** What the link opened, in the visitor's words: "form", "booking page", "shared project". */
+  noun?: string
+  /** What to do about it. */
   detail?: string
+  kind?: "gone" | "failed"
+  onRetry?: () => void
+  /** The way on, when there is a better one than the product's site (a 404: the workspace). */
+  back?: WayBack
+  /** Another way on after it: Sign in, or the app's search. */
+  more?: React.ReactNode
+  /**
+   * In the public frame, on its paper card (default); without it inside the
+   * app's own shell, where a signed-in 404 keeps the sidebar.
+   */
+  frame?: boolean
 }) {
+  const body = (
+    <LoadFailureState
+      kind={kind}
+      noun={noun}
+      goneDetail={detail}
+      onRetry={onRetry}
+      back={back ?? (HOME ? { label: "About OneCamp", href: HOME } : undefined)}
+      more={more}
+      headingLevel={1}
+      className="pt-0"
+    />
+  )
+  if (!frame) {
+    return (
+      <main id="main-content" data-public-gone="" className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-4 py-16">
+        {body}
+      </main>
+    )
+  }
   return (
     <PublicFrame surface={surface} mainClassName="px-4 pt-6 sm:pt-12">
-      <PaperCard className="flex max-w-[520px] flex-col items-center rounded-[16px] px-6 py-12 text-center shadow-e1 sm:px-12" data-public-gone="">
-        <SpotError size={96} />
-        <h1 className="mt-4 text-title-3 text-ink">{title}</h1>
-        <p className="mt-1.5 max-w-sm text-ui text-ink-2">{detail}</p>
-        {HOME ? (
-          <Button variant="ghost" size="sm" className="mt-5" asChild>
-            <a href={HOME}>About OneCamp</a>
-          </Button>
-        ) : null}
+      <PaperCard className="flex max-w-[520px] flex-col items-center rounded-[16px] px-6 py-6 text-center shadow-e1 sm:px-12" data-public-gone="">
+        {body}
       </PaperCard>
     </PublicFrame>
   )

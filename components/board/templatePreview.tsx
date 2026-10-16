@@ -94,17 +94,44 @@ export function TemplatePreview({
   )
 }
 
+const NOTE_TINTS = ["sun", "sky", "berry", "moss", "dusk", "lake"] as const
+const NOTE_TURNS = [-6, -4, -2, 2, 4, 6]
+
+/** The same small number for the same text, every time. Pure. */
+function seedOf(text: string): number {
+  let h = 7
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0
+  return h
+}
+
 /**
- * The fallback for a board with no picture yet (B01): three tilted sticky
- * notes in sun, sky and berry on the dot grid, so it reads as a board and not
- * as an error.
+ * The three notes a fallback draws, from a seed: without one, sun, sky and
+ * berry as before; with a board's id, its own hues and tilts, so a list of
+ * boards without pictures isn't one picture five times. Pure.
  */
-export function NotesFallback({ className }: { className?: string }) {
-  const notes = [
+export function fallbackNotes(seed?: string): { tint: string; rot: number; x: number; y: number }[] {
+  const base = [
     { tint: "var(--camp-sun-tint)", rot: -4, x: -46, y: -4 },
     { tint: "var(--camp-sky-tint)", rot: 2, x: 0, y: 10 },
     { tint: "var(--camp-berry-tint)", rot: 6, x: 44, y: -10 },
   ]
+  if (!seed) return base
+  const n = seedOf(seed)
+  return base.map((b, i) => ({
+    tint: `var(--camp-${NOTE_TINTS[(n + i * 2) % NOTE_TINTS.length]}-tint)`,
+    rot: NOTE_TURNS[(n >>> (i * 3 + 2)) % NOTE_TURNS.length],
+    x: b.x,
+    y: b.y + (((n >>> (i * 4 + 5)) % 7) - 3) * 2,
+  }))
+}
+
+/**
+ * The fallback for a board with no picture yet (B01): three tilted sticky
+ * notes on the dot grid, so it reads as a board and not as an error. Given
+ * the board's id, the notes take that board's own hues and tilts.
+ */
+export function NotesFallback({ className, seed }: { className?: string; seed?: string }) {
+  const notes = fallbackNotes(seed)
   return (
     <div data-note-fallback="" aria-hidden="true" className={cn("absolute inset-0 flex items-center justify-center", className)}>
       {notes.map((n, i) => (

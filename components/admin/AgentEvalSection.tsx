@@ -22,6 +22,7 @@ import {
   runEvalScenario,
   runEvalSuite,
 } from "@/services/agentService"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 // Split a comma/newline separated input into a trimmed, non-empty list.
 function splitList(s: string): string[] {
@@ -213,7 +214,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
         </div>
       ) : failed ? (
         <div className="flex flex-wrap items-center gap-2">
-          <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the saved tests.</p>
+          <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the saved tests.<SaysLoadFailure /></p>
           <Button variant="outline" size="sm" className="h-8" onClick={() => void load()}>
             Try again
           </Button>

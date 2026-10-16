@@ -21,6 +21,11 @@
 .v3-grid tbody th {
   border-bottom: 1px solid var(--line);
 }
+/* A new row kept in sight that the view's rules would hide or move: a sun
+   tint, under the hover and the selection. */
+.v3-grid tbody tr[data-marked] > * {
+  background-color: color-mix(in oklab, var(--camp-sun-tint) 70%, var(--sheet));
+}
 .v3-grid tbody tr:hover > * {
   background-color: color-mix(in oklab, var(--sheet), var(--ink) 4%);
 }
@@ -62,6 +67,51 @@
 @keyframes content-tint-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Every cell's control fills its cell (TAB-BUG-15). A cell had no height of
+   its own, so a control's h-full fell back to its content: a text box was
+   17 px tall in a 40 px row, a select's button 22, and a click or tap above
+   or below that line did nothing. The frozen cell is sticky, which places
+   its control as well. */
+.v3-grid tbody td[data-kind]:not([data-frozen]) {
+  position: relative;
+}
+.v3-grid tbody td[data-kind] > * {
+  position: absolute;
+  inset: 0;
+}
+/* On a touch screen a text box at rest ignores taps, and its cell takes
+   them (TextCell hands the focus on). A browser gives a tap to the target
+   it scores best near the finger, and scores a text box by its text line,
+   inset in the cell: a tap near a cell's side went to the cell beside it.
+   With the focus, the box takes taps again, to place the caret. */
+@media (hover: none) {
+  .v3-grid tbody td[data-kind] :is(input:not([type="checkbox"]), textarea)[data-cell]:not(:focus) {
+    pointer-events: none;
+  }
+}
+
+/* A text cell's text area (TAB-BUG-7): padded so its first line sits where
+   an input's would in each row height (20 px lines; a row's hairline is
+   1 px), top-aligned in tall rows. While it's edited it grows over the
+   rows below to show every line, above the frozen column. */
+.v3-grid { --cell-pad-y: 9.5px; }
+.v3-grid[data-row-height="short"] { --cell-pad-y: 5.5px; }
+.v3-grid[data-row-height="tall"],
+.v3-grid[data-row-height="xtall"] { --cell-pad-y: 10px; }
+@media (hover: none) {
+  .v3-grid[data-row-height="medium"] { --cell-pad-y: 11.5px; }
+}
+.v3-grid tbody td[data-kind="text"]:focus-within {
+  overflow: visible;
+  z-index: 3;
+}
+.v3-grid tbody textarea[data-grown] {
+  overflow-y: auto;
+  border-radius: 0 0 8px 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow-e2);
 }
 
 /* A focused cell sits on --raised under the ring. */

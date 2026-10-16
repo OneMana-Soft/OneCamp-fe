@@ -1,0 +1,158 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "text": "Quarterly plan",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "text": "We will ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "ship",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "italic"
+            }
+          ],
+          "text": " soon",
+          "type": "text"
+        },
+        {
+          "text": ", and ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "strike"
+            }
+          ],
+          "text": "not",
+          "type": "text"
+        },
+        {
+          "text": " slip.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "type": "hardBreak"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Item one",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Item ",
+                  "type": "text"
+                },
+                {
+                  "marks": [
+                    {
+                      "attrs": {
+                        "href": "https://example.com/two",
+                        "rel": "noopener noreferrer nofollow",
+                        "target": "_blank"
+                      },
+                      "type": "link"
+                    }
+                  ],
+                  "text": "two",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    },
+    {
+      "attrs": {
+        "start": 1
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "First",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "orderedList"
+    },
+    {
+      "content": [
+        {
+          "text": "plain mono",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "height": 100,
+        "src": "https://lh7-us.googleusercontent.com/abc",
+        "width": 200
+      },
+      "type": "image"
+    }
+  ],
+  "type": "doc"
+}

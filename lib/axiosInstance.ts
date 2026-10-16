@@ -6,6 +6,9 @@ import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
 import {loadingBus} from "@/lib/utils/loadingBus";
 import { toast } from "@/hooks/use-toast";
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity";
+import { tellReadFailure } from "@/lib/http/loadFailure";
+import { onSessionRefreshed, refreshSession, sessionIsStale } from "@/lib/auth/sessionRefresh";
+import { REQUEST_TIMEOUT_MS, isTimeout, waitsAsLongAsItTakes } from "@/lib/http/requestTimeout";
 
 declare module "axios" {
     interface AxiosRequestConfig {
@@ -28,8 +31,9 @@ export const OWN_ERRORS = { suppressErrorToast: true } as const
 // the shared refresh resolves — the "401 storm" users hit on idle return.
 //
 // So we refresh PROACTIVELY as well:
-//   1. A single-flight `refreshAccessToken()` shared by every path, so N
-//      concurrent callers trigger exactly ONE network refresh.
+//   1. One single-flight refresh (lib/auth/sessionRefresh refreshSession)
+//      shared by every path and every tab, so N concurrent callers trigger
+//      exactly ONE network refresh.
 //   2. The request interceptor checks token age up-front; if we're inside the
 //      pre-expiry skew window it awaits a refresh BEFORE the request leaves,
 //      so the whole post-idle wave rides one fresh cookie (no 401s at all).
@@ -39,44 +43,34 @@ export const OWN_ERRORS = { suppressErrorToast: true } as const
 //   4. The reactive 401 → refresh → retry path remains as the backstop for
 //      the edge where a token dies mid-flight despite the proactive window.
 
-// Access cookie TTL is 5 min (server: authCookieExpiryTime). Refresh a little
-// ahead of that so a request never leaves on an about-to-die token.
-const ACCESS_TTL_MS = 5 * 60 * 1000;
-const REFRESH_SKEW_MS = 45 * 1000;
-const PROACTIVE_AFTER_MS = ACCESS_TTL_MS - REFRESH_SKEW_MS; // ~4m15s
-
-// Best-effort issuance clock. Initialised at module load (a fresh page load
-// implies a fresh cookie or one that will 401 once and reset this), and reset
-// on every successful refresh. Active use does NOT extend a JWT's exp, so we
-// key staleness off issuance time, not last activity.
-let tokenIssuedAt = Date.now();
+// The refresh itself, single-flight across this tab's requests and across
+// tabs, and the shared time the cookie was issued: lib/auth/sessionRefresh
+// (QA SH-16). The store hears each refresh.
+onSessionRefreshed(() => {
+    store.dispatch(updateRefreshTokenStatus({ exist: true }));
+});
 
 let isLoggingOut = false;
 
-// Single-flight refresh: concurrent callers share one in-flight promise.
-let refreshPromise: Promise<void> | null = null;
-
-const refreshAccessToken = (): Promise<void> => {
-    if (refreshPromise) return refreshPromise;
-    refreshPromise = axios
-        .get(`${process.env.NEXT_PUBLIC_BACKEND_URL}refreshToken`, { withCredentials: true })
-        .then(() => {
-            tokenIssuedAt = Date.now();
-            store.dispatch(updateRefreshTokenStatus({ exist: true }));
-        })
-        .finally(() => {
-            refreshPromise = null;
-        });
-    return refreshPromise;
-};
+/**
+ * The guest pages (/guest/d|t|b|c|m|p/<token>): someone outside the workspace,
+ * with no session at all, reading what a link shares. A 401 there is expected,
+ * never a session that ran out, so it must not sign the browser out and send
+ * it to the sign-in page: that took a guest off the doc they were reading,
+ * whenever a node view asked the API for something, and four minutes in on
+ * any guest page, when the refresh timer below found no session to refresh.
+ */
+export function onGuestPage(pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''): boolean {
+    return /^\/guest\//.test(pathname);
+}
 
 // Proactive refresh that fails closed: if the refresh token itself is dead
 // (user idle past the refresh TTL), tear the session down. Safe to call from
 // fire-and-forget contexts (timer / visibility) — performLogout is guarded.
 const proactiveRefresh = () => {
-    if (isLoggingOut || refreshPromise) return;
-    if (Date.now() - tokenIssuedAt < PROACTIVE_AFTER_MS) return;
-    refreshAccessToken().catch(async (err) => {
+    if (isLoggingOut || onGuestPage()) return;
+    if (!sessionIsStale()) return;
+    refreshSession().catch(async (err) => {
         if (axios.isAxiosError(err) && err.response?.status === 401) {
             await performLogout();
         }
@@ -151,6 +145,7 @@ const axiosInstance = axios.create({
     xsrfCookieName: 'X-CSRF-Token',
     xsrfHeaderName: 'X-CSRF-Token',
     withXSRFToken: true,
+    timeout: REQUEST_TIMEOUT_MS,
 });
 
 /**
@@ -168,6 +163,10 @@ const axiosInstance = axios.create({
  */
 
 axiosInstance.interceptors.request.use(async req => {
+    if (req.timeout === axiosInstance.defaults.timeout && waitsAsLongAsItTakes(req)) {
+        req.timeout = 0
+    }
+
     // Block all requests if we're in the middle of logging out
     if (isLoggingOut) {
         const controller = new AbortController();
@@ -183,9 +182,9 @@ axiosInstance.interceptors.request.use(async req => {
     // the reactive 401 path below remains the authoritative backstop.
     // `skipAuthRefresh` lets internal/auth calls opt out.
     // @ts-ignore
-    if (!req.skipAuthRefresh && Date.now() - tokenIssuedAt >= PROACTIVE_AFTER_MS) {
+    if (!req.skipAuthRefresh && sessionIsStale()) {
         try {
-            await refreshAccessToken();
+            await refreshSession();
         } catch {
             // fall through to the request; reactive handler deals with 401
         }
@@ -211,6 +210,11 @@ axiosInstance.interceptors.request.use(async req => {
 const NO_ANSWER_TO_A_WRITE = {
     title: "Couldn't reach the server",
     description: "Your change wasn't saved. Check your connection and try again.",
+}
+
+const NO_ANSWER_IN_TIME = {
+    title: "The server didn't answer in time",
+    description: "Your change may not have been saved. Check before you try again.",
 }
 
 axiosInstance.interceptors.response.use(
@@ -241,29 +245,39 @@ axiosInstance.interceptors.response.use(
         } else if (!axios.isCancel(error) && error.code !== "ERR_CANCELED") {
             noteNetworkFailure();
             const method = String(error.config?.method || "get").toLowerCase();
-            if (method !== "get" && method !== "head" && !error.config?.suppressErrorToast && !shownRecently(NO_ANSWER_TO_A_WRITE)) {
-                toast({ variant: "destructive", ...NO_ANSWER_TO_A_WRITE });
+            const copy = isTimeout(error) ? NO_ANSWER_IN_TIME : NO_ANSWER_TO_A_WRITE;
+            if (method !== "get" && method !== "head" && !error.config?.suppressErrorToast && !shownRecently(copy)) {
+                toast({ variant: "destructive", ...copy });
             }
         }
 
         // Standardized Error Toasting (excluding 401 refresh attempts).
         // A request may opt out via `suppressErrorToast` (e.g. an embedded
         // table whose target was deleted renders its own friendly fallback).
+        // A write is the person's own change: its failure is said at once. A
+        // read is said only when nothing on screen says it (lib/http/
+        // loadFailure); useFetch's reads decide for themselves, so a failed
+        // refresh under what is shown says nothing.
         // @ts-ignore
         if (error.response && error.response.status !== 401 && !error.config?.suppressErrorToast) {
-            const copy = errorToastCopy(error.response.status, error.response.data?.msg)
-            if (!shownRecently(copy)) {
-                toast({ variant: "destructive", ...copy });
+            const method = String(error.config?.method || "get").toLowerCase();
+            if (method === "get" || method === "head") {
+                tellReadFailure(error);
+            } else {
+                const copy = errorToastCopy(error.response.status, error.response.data?.msg, error.response.data?.code)
+                if (!shownRecently(copy)) {
+                    toast({ variant: "destructive", ...copy });
+                }
             }
         }
 
-        if (error.response && error.response.status === 401 && !originalRequest._retry) {
+        if (error.response && error.response.status === 401 && !originalRequest._retry && !onGuestPage()) {
             // Mark retry immediately to prevent duplicate refresh from this request
             originalRequest._retry = true;
             try {
                 // Shares the single-flight refresh with any proactive/concurrent
                 // attempt, so a 401 burst still triggers exactly one refresh.
-                await refreshAccessToken();
+                await refreshSession();
                 return axiosInstance(originalRequest);
             }
             catch(err) {

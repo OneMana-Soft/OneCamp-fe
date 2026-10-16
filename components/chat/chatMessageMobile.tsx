@@ -5,10 +5,10 @@ import { useLongPress } from "@/hooks/useLongPress";
 import { useDispatch } from "react-redux";
 import { openUI, closeUI } from "@/store/slice/uiSlice";
 import { StandardReaction, SyncCustomReaction } from "@/types/reaction";
-import { app_chat_path, app_user } from "@/types/paths";
+import { app_chat_path } from "@/types/paths";
 import { usePathname, useRouter } from "next/navigation";
 import { GetEndpointUrl } from "@/services/endPoints";
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { UserProfileInterface } from "@/types/user";
 import { AttachmentMediaReq } from "@/types/attachment";
@@ -20,6 +20,7 @@ import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 import { useUserInfoState } from "@/hooks/useUserInfoState";
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
+import { useEditInPlace } from "@/hooks/useEditInPlace";
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -27,7 +28,8 @@ interface ChatMessageProps {
     addReaction: (emojiId: string, reactionId: string) => void
     removeReaction: (reactionId: string) => void
     removeChat: () => void
-    updateChat: (body: string) => void
+    /** Saves an edit: answers whether it saved, so a failure opens the box again with the words typed (F-06). */
+    updateChat: (body: string) => Promise<boolean> | void
     priority?: boolean
     /** Continues the message above it (lib/messageGrouping). */
     continued?: boolean
@@ -46,7 +48,8 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
     const otherUserUUID = usePathname().split('/')[3]
 
-    const[isMessageEditEnabled, setIsMessageEditEnabled] = useState(false);
+    // An edit in place, opened again with what was typed when its save fails (F-06).
+    const edit = useEditInPlace(updateChat);
 
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -56,9 +59,11 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
     const handleUserClick = useCallback((e: React.MouseEvent)=>{
         e.preventDefault()
         e.stopPropagation()
-        router.push(`${app_user}/${chatInfo.chat_from.user_uuid}`);
+        // The profile sheet, as a desktop opens it. It went to the member
+        // page, a whole screen away from the conversation.
+        dispatch(openUI({ key: "otherUserProfile", data: { userUUID: chatInfo.chat_from.user_uuid } }))
 
-    },[chatInfo.chat_from.user_uuid])
+    },[chatInfo.chat_from.user_uuid, dispatch])
 
     // The reader's reaction (one per person), for the sheet's emoji row.
     const mine = chatInfo.chat_reactions?.find((r) => r?.reaction_added_by?.user_uuid === selfProfile.data?.data?.user_uuid)
@@ -106,7 +111,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                 onAddReaction: addEmojiReaction,
                 chatUUID: chatInfo.chat_uuid,
                 otherUserUUID: otherUserUUID,
-                editMessage: () => {setIsMessageEditEnabled(true)},
+                editMessage: edit.open,
                 deleteMessage: removeChat,
                 isAdmin: isAdmin,
                 isOwner: chatInfo.chat_from.user_uuid == selfProfile.data?.data.user_uuid,
@@ -156,9 +161,9 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
     // Not yet on the server: no thread to open and no actions, only its status.
     const pending = !!chatInfo.chat_send_state
 
-    const handleOnCLick = useCallback((e: React.MouseEvent) => {
-        // Prevent navigation if clicking on interactive elements
-        if (pending || (e.target as HTMLElement).closest('button, a, .interactive')) return;
+    // Its thread; the row decides which taps open it (opensThread).
+    const handleOnCLick = useCallback(() => {
+        if (pending) return;
         router.push(`${app_chat_path}/${otherUserUUID}/${chatInfo.chat_uuid}`);
     }, [router, otherUserUUID, chatInfo.chat_uuid, pending]);
 
@@ -170,12 +175,10 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             continued={continued}
             arrived={arrived}
             priority={priority}
-            editing={isMessageEditEnabled}
-            onEditSave={(body) => {
-                updateChat(body)
-                setIsMessageEditEnabled(false)
-            }}
-            onEditCancel={() => setIsMessageEditEnabled(false)}
+            editing={edit.editing}
+            editDraft={edit.draft}
+            onEditSave={edit.finish}
+            onEditCancel={edit.cancel}
             onOpen={handleOnCLick}
             onUserClick={handleUserClick}
             longPress={pending ? {} : longPressEvent}

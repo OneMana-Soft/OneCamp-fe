@@ -114,21 +114,21 @@ const ALL_REACTION_CATEGORIES: Readonly<ReactionCategoryType[]> = [
 function getReactionCategoryLabel(id: string) {
     switch (id) {
         case 'search':
-            return 'Search Results'
+            return 'Search results'
         case 'frequent':
-            return 'Frequently Used'
+            return 'Frequently used'
         case 'custom':
             return 'Custom'
         case 'people':
-            return 'Smileys & People'
+            return 'Smileys and people'
         case 'nature':
-            return 'Animals & Nature'
+            return 'Animals and nature'
         case 'foods':
-            return 'Food & Drink'
+            return 'Food and drink'
         case 'activity':
             return 'Activity'
         case 'places':
-            return 'Travel & Places'
+            return 'Travel and places'
         case 'objects':
             return 'Objects'
         case 'symbols':

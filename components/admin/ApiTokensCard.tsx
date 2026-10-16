@@ -119,7 +119,7 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
         } catch (e) {
           toast({
             title: `Couldn't revoke "${t.name}"`,
-            description: apiErrorMessage(e, "Check your connection and try again."),
+            description: apiErrorMessage(e, "Try again in a moment."),
             variant: "destructive",
           })
         } finally {
@@ -155,7 +155,8 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
                 Tokens let scripts act as you, limited to the scopes you pick.
               </p>
             </div>
-            <Button size="sm" onClick={() => onCreatingChange(true)}>
+            {/* The header's New token is the page's one primary (QA SH-12). */}
+            <Button variant="secondary" size="sm" onClick={() => onCreatingChange(true)}>
               <Plus aria-hidden="true" />
               New token
             </Button>
@@ -366,7 +367,7 @@ function NewTokenForm({
       setCreated(res)
       onCreated()
     } catch (e) {
-      setProblem(`Couldn't create the token. ${apiErrorMessage(e, "Check your connection and try again.")}`)
+      setProblem(`Couldn't create the token. ${apiErrorMessage(e, "Try again in a moment.")}`)
     } finally {
       setSaving(false)
     }

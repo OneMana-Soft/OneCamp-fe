@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 import { burndownChart, cycleDates, cycleLabel, loadNote, nextStart, openCycles, paceNote, percentDone, velocityChart, type Burndown, type Cycle, type Velocity } from "./cycles"
+
+// Today is pinned (app/testClock.test.ts): a day in this year is written without its year, and these are 2026's.
+pinTestClock()
 
 const c = (n: number, state: Cycle["state"], start: string, end: string): Cycle => ({
   id: String(n), project_uuid: "p", number: n, name: "", starts_at: start, ends_at: end, state,

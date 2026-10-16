@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 /**
@@ -16,8 +16,15 @@ vi.mock("@/hooks/useClientConfig", () => ({
     useClientConfig: () => ({ features: { ai: true } }),
     useFeature: () => true,
 }))
+// mutate runs the write as SWR does, and a refusal rejects it.
 vi.mock("@/hooks/useFetch", () => ({
-    useFetch: () => ({ data: response, mutate: vi.fn() }),
+    useFetch: () => ({ data: response, mutate: vi.fn(async (write: () => Promise<unknown>) => write()) }),
+}))
+const { toasted, setReport } = vi.hoisted(() => ({ toasted: vi.fn(), setReport: vi.fn() }))
+vi.mock("@/hooks/use-toast", () => ({ toast: toasted, useToast: () => ({ toast: toasted }) }))
+vi.mock("@/services/channelReportService", () => ({
+    channelWeeklyReportUrl: (id: string) => `/ch/weeklyReport/${id}`,
+    setChannelWeeklyReport: setReport,
 }))
 vi.mock("@/lib/icons", () => ({ CalendarClock: () => <span /> }))
 vi.mock("@/components/dialog/editChannelDialog", () => ({
@@ -29,8 +36,8 @@ vi.mock("@/components/dialog/editChannelDialog", () => ({
     ),
 }))
 vi.mock("@/components/ui/switch", () => ({
-    Switch: ({ checked, disabled }: { checked: boolean; disabled?: boolean }) => (
-        <button role="switch" aria-checked={checked} disabled={disabled} />
+    Switch: ({ checked, disabled, onCheckedChange }: { checked: boolean; disabled?: boolean; onCheckedChange?: (v: boolean) => void }) => (
+        <button role="switch" aria-checked={checked} disabled={disabled} onClick={() => onCheckedChange?.(!checked)} />
     ),
 }))
 
@@ -39,6 +46,8 @@ const { ChannelWeeklyReportSetting } = await import("./ChannelWeeklyReportSettin
 afterEach(() => {
     cleanup()
     response = { data: { org_enabled: true, enabled: false, can_manage: true } }
+    toasted.mockClear()
+    setReport.mockReset()
 })
 
 describe("ChannelWeeklyReportSetting", () => {
@@ -65,5 +74,15 @@ describe("ChannelWeeklyReportSetting", () => {
         const sw = screen.getByRole("switch")
         expect(sw).toBeDisabled()
         expect(sw).toHaveAttribute("aria-checked", "true")
+    })
+
+    // A refusal said "Something went wrong" (QA F-35).
+    it("says which way the report didn't go when the server refuses", async () => {
+        setReport.mockRejectedValue(Object.assign(new Error("Request failed with status code 500"), { response: { status: 500, data: {} } }))
+        render(<ChannelWeeklyReportSetting channelUUID="c1" />)
+        fireEvent.click(screen.getByRole("switch"))
+        await vi.waitFor(() =>
+            expect(toasted).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't turn on the weekly report", variant: "destructive" })),
+        )
     })
 })

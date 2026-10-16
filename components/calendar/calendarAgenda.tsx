@@ -1,7 +1,6 @@
 "use client";
 
 import { differenceInCalendarDays, differenceInMinutes, format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
-import { shortTime } from "@/lib/utils/date/shortDate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
@@ -11,6 +10,7 @@ import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay } from "@/lib/calendar/allDay";
 import { joinLinkOf } from "@/components/calendar/eventPopover";
 import { cn } from "@/lib/utils/helpers/cn";
+import { clockRange, clockTime } from "@/lib/utils/date/clock";
 
 // The agenda (content.md C17): the days that have something on them, one row
 // per event or task. The phone's default view, and a desktop view of its own,
@@ -44,7 +44,7 @@ function itemDetail(item: AgendaItem, day: Date): string {
   // A task sits under its due day, so the heading already says when.
   if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task, due ${format(end, "d MMM")}`;
   if (item.event_is_away) return isSameDay(start, day) ? `Away until ${format(subMinutes(end, 1), "d MMM")}` : "Away";
-  const times = `${shortTime(start)} to ${shortTime(end)}`;
+  const times = clockRange(start, end);
   // A focus block is usually called "Focus time": say it once.
   if (item.event_is_focus) return item.event_title.trim().toLowerCase() === "focus time" ? times : `Focus time, ${times}`;
   if (allDayItem(item, start, end)) {
@@ -155,8 +155,8 @@ export function CalendarAgenda({
                       <span className="flex w-[72px] shrink-0 flex-col text-ui-sm font-[450] leading-4 tabular-nums text-ink-2">
                         {timed ? (
                           <>
-                            <span>{shortTime(start)}</span>
-                            <span className="text-meta text-ink-3">{shortTime(end)}</span>
+                            <span>{clockTime(start)}</span>
+                            <span className="text-meta text-ink-3">{clockTime(end)}</span>
                           </>
                         ) : (
                           <span className="text-meta text-ink-3">{item.isTask ? "Due" : "All day"}</span>

@@ -9,7 +9,7 @@ import { addDays, differenceInCalendarDays, format, isSameYear, isWeekend, start
 import { isClosedStatus } from "@/lib/taskStatus"
 import { spanOf, taskDate } from "@/lib/timeline"
 import { awayWorkingDays, capacityAfterTimeOff, type AwaySpan } from "@/lib/timeOff"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { WORKLOAD_WEEKS, isWorkloadKey, workloadKey } from "@/lib/workloadKey"
 
 export interface WorkloadPerson {
   user_uuid: string
@@ -60,17 +60,7 @@ export interface WorkloadData {
   truncated: boolean
 }
 
-/** How many weeks the workload shows, from this one. */
-const WORKLOAD_WEEKS = 12
-
-/** The workload's address in the cache, for the reader's zone. */
-export function workloadKey(tz: string, weeks = WORKLOAD_WEEKS): string {
-  return `${GetEndpointUrl.ProjectWorkload}?tz=${encodeURIComponent(tz)}&weeks=${weeks}`
-}
-
-export function isWorkloadKey(key: string): boolean {
-  return new URL(key, "http://localhost").pathname === GetEndpointUrl.ProjectWorkload
-}
+export { isWorkloadKey, workloadKey }
 
 /** The Monday of this week and of each week after it, n in all. */
 export function workloadWeeks(today: Date, n = WORKLOAD_WEEKS): Date[] {

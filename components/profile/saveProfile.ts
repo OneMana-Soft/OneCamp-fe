@@ -33,6 +33,6 @@ export async function saveProfile(payload: UserProfileUpdateInterface): Promise<
     if (apiErrorStatus(e) === 409) {
       return { ok: false, field: "handle", message: apiErrorMessage(e, "That handle is taken. Try another.") }
     }
-    return { ok: false, field: null, message: `Couldn't save your profile. ${apiErrorMessage(e, "Check your connection and try again.")}` }
+    return { ok: false, field: null, message: `Couldn't save your profile. ${apiErrorMessage(e, "Try again in a moment.")}` }
   }
 }

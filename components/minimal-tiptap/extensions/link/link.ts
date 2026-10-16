@@ -3,10 +3,33 @@
 import { mergeAttributes } from '@tiptap/react'
 import TiptapLink from '@tiptap/extension-link'
 import type { EditorView } from '@tiptap/pm/view'
+import type { MarkType, Node as PMNode } from '@tiptap/pm/model'
 import { getMarkRange } from '@tiptap/react'
-import { Plugin, TextSelection } from '@tiptap/pm/state'
+import { Plugin } from '@tiptap/pm/state'
 import { isSafeHref } from '@/lib/utils/safeHref'
 import { contentClasses } from '@/lib/contentClasses'
+
+/** Whether a link leaves the app: an http(s) address on another origin. Pure for a given origin. */
+export function externalHref(href: string | null | undefined, origin = typeof window !== 'undefined' ? window.location.origin : ''): boolean {
+  if (!href || !/^https?:\/\//i.test(href)) return false
+  try {
+    return new URL(href).origin !== origin
+  } catch {
+    return false
+  }
+}
+
+/** A click that opens a link in a new tab: with ⌘ on a Mac, Ctrl elsewhere. Pure. */
+export function opensWithModifier(event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'>): boolean {
+  return event.metaKey || event.ctrlKey
+}
+
+/** The safe href of the link at a position in the doc, if there is one. Pure. */
+export function linkHrefAt(doc: PMNode, pos: number, type: MarkType): string | null {
+  const marks = [...(doc.nodeAt(pos)?.marks ?? []), ...doc.resolve(pos).marks()]
+  const href = marks.find((m) => m.type === type)?.attrs.href as string | undefined
+  return href && isSafeHref(href) ? href : null
+}
 
 export const Link = TiptapLink.extend({
   /*
@@ -58,7 +81,16 @@ export const Link = TiptapLink.extend({
   renderHTML({ HTMLAttributes }) {
     const href = isSafeHref(HTMLAttributes.href) ? HTMLAttributes.href : null
     const className = contentClasses(HTMLAttributes.class) || null
-    return ['a', mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href, class: className }), 0]
+    // A link to another site opens in a new tab, without telling it who sent
+    // the reader: a reader clicking one in a doc used to lose the app's tab.
+    // The app's own links stay in the tab (and route in the app).
+    const away = externalHref(href)
+    return ['a', mergeAttributes(this.options.HTMLAttributes, {
+      ...HTMLAttributes,
+      href,
+      class: className,
+      ...(away ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
+    }), 0]
   },
 
   addOptions() {
@@ -94,32 +126,29 @@ export const Link = TiptapLink.extend({
 
             return false
           },
-          handleClick(view, pos) {
-            /*
-             * Marks the entire link when the user clicks on it.
-             */
-
-            const { schema, doc, tr } = view.state
+          handleClick(view, pos, event) {
+            // ⌘- or Ctrl-click opens it in a new tab, as Notion's does
+            // (small-details L8). A plain click in text being edited puts
+            // the caret in it, where the link bar shows (N48): it used to
+            // select the whole link, so the bar waited for the selection
+            // bar, and the next key typed over the link's words. A reader's
+            // link is an ordinary link already.
+            if (!opensWithModifier(event) || !view.editable) return false
+            const { schema, doc } = view.state
             const range = getMarkRange(doc.resolve(pos), schema.marks.link)
-
-            if (!range) {
-              return
-            }
-
-            const { from, to } = range
-            const start = Math.min(from, to)
-            const end = Math.max(from, to)
-
-            if (pos < start || pos > end) {
-              return
-            }
-
-            const $start = doc.resolve(start)
-            const $end = doc.resolve(end)
-            const transaction = tr.setSelection(new TextSelection($start, $end))
-
-            view.dispatch(transaction)
-          }
+            if (!range || pos < range.from || pos > range.to) return false
+            const href = linkHrefAt(doc, pos, schema.marks.link)
+            if (href) window.open(href, '_blank', 'noopener,noreferrer')
+            return true
+          },
+          handleDOMEvents: {
+            // The browser's own follow of that click, in the text being
+            // edited: the click above has opened it once already.
+            click: (view, event) => {
+              if (view.editable && opensWithModifier(event) && (event.target as Element | null)?.closest?.('a[href]')) event.preventDefault()
+              return false
+            },
+          },
         }
       })
     ]

@@ -65,6 +65,8 @@ export interface CommandResponse {
     ephemeral?: boolean
     client_action?: ClientAction
     preload_urls?: string[]
+    /** What an answer that came later, over MQTT, is: a reminder that came due, or an app's answer. */
+    kind?: "reminder" | "app"
 }
 
 export interface ExecuteCommandRequest {

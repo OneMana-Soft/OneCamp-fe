@@ -15,6 +15,7 @@
  * never adds noise to a fresh or AI-disabled workspace.
  */
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import { Mail, GitBranch, ArrowUpRight, Plug, Brain } from "@/lib/icons"
 import { HubRow, HubSectionHeader } from "@/components/ui/hubRow"
@@ -148,7 +149,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                       key={i}
                       as="li"
                       density="two-line"
-                      lead={<IdentityMark variant="avatar" size={24} id={h.meta || h.title} label={h.meta || h.title} />}
+                      lead={<IdentityMark variant="avatar" size={24} id={avatarSeed(h.meta || h.title)} label={h.meta || h.title} />}
                       title={
                         <a href={h.url || "#"} target="_blank" rel="noopener noreferrer" className="after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand">
                           {h.title}

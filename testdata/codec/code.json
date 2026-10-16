@@ -1,0 +1,50 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "language": "go"
+      },
+      "content": [
+        {
+          "text": "fmt.Println(\"hi\")\n\tindented line",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "content": [
+        {
+          "text": "no language here",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "attrs": {
+        "language": "markdown"
+      },
+      "content": [
+        {
+          "text": "a fence inside:\n```\nstill code\n```",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "type": "codeBlock"
+    },
+    {
+      "content": [
+        {
+          "text": "And text after.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

@@ -10,7 +10,7 @@ import { useProjectUpdates } from "@/hooks/useProjectUpdates"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Megaphone, Sparkles } from "@/lib/icons"
+import { Megaphone, Plus, Sparkles } from "@/lib/icons"
 import { HEALTHS, updateDue, type Health, type ProjectUpdate } from "@/lib/projectUpdates"
 import { healthColor } from "@/components/projectUpdates/healthTone"
 import { daysSince } from "@/lib/utils/relativeTime"
@@ -18,8 +18,8 @@ import { UpdateCard } from "@/components/projectUpdates/UpdateCard"
 import { UpdateComposer } from "@/components/projectUpdates/UpdateComposer"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotDocs } from "@/components/ui/graphics/spots"
-import { WorkState } from "@/components/task/workFrame"
-import { hueFor } from "@/lib/campHue"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
+import { useProjectHue } from "@/lib/projectHue"
 
 /**
  * A project's updates (design v3, work.md W27): one 720 px column from the
@@ -31,6 +31,7 @@ import { hueFor } from "@/lib/campHue"
  */
 export function ProjectUpdates({ projectId, projectName }: { projectId: string; projectName?: string }) {
   const { updates, canPost, isLoading, isError, retry, draft, aiDraft, post, edit, remove } = useProjectUpdates(projectId)
+  const projectHue = useProjectHue(projectId)
   const hasAI = useFeature(FEATURE_AI)
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const me = self.data?.data?.user_uuid
@@ -65,7 +66,20 @@ export function ProjectUpdates({ projectId, projectName }: { projectId: string; 
   )
 
   return (
-    <div data-updates="" className="flex w-full max-w-[720px] flex-col gap-4 pb-10">
+    <div className="flex w-full flex-col">
+      {/* The band every tab of the project draws (workFrame), so a switch to
+          Updates moves nothing, with its one primary (PTC-6: no band, and the
+          composer 28px lower and 24px further in than the other tabs). */}
+      <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
+        <span className="text-ui-sm text-ink-3">{updates.length > 0 ? `${updates.length} ${updates.length === 1 ? "update" : "updates"}` : "Updates"}</span>
+        {canPost && (
+          <Button size="sm" className="h-7 gap-1.5 px-2.5" onClick={() => setComposer({})} disabled={isLoading || isError || (!!composer && !composer.editing)}>
+            <Plus className="size-3.5" />
+            New update
+          </Button>
+        )}
+      </div>
+    <div data-updates="" className="flex w-full max-w-[720px] flex-col gap-4 px-4 pb-10 pt-4">
       {canPost && !isError && !isLoading && (
         composer && !composer.editing ? (
           composerFor(undefined, composer.health)
@@ -99,7 +113,7 @@ export function ProjectUpdates({ projectId, projectName }: { projectId: string; 
           <p className="text-sm text-ink-2">An update says where {projectName || "the project"} stands. OneCamp can draft it from the tasks.</p>
         ) : (
           <WorkState>
-            <EmptyState illustration={<SpotDocs hue={hueFor(projectId)} />} title="No updates yet" description="The project's admins post updates here: where it stands, and what changed." />
+            <EmptyState illustration={<SpotDocs hue={projectHue} />} title="No updates yet" description="The project's admins post updates here: where it stands, and what changed." />
           </WorkState>
         )
       ) : (
@@ -115,6 +129,7 @@ export function ProjectUpdates({ projectId, projectName }: { projectId: string; 
           )}
         </>
       )}
+    </div>
     </div>
   )
 }

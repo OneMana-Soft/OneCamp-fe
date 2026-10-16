@@ -29,7 +29,8 @@ const onComputer = () => {
   }
 }
 
-const markSeen = () => {
+/** Exported for the demo's guide, which takes the tip's place: two first-run prompts at once is one too many. */
+export const markSeen = () => {
   try {
     localStorage.setItem(KEY, "1")
   } catch {
@@ -120,7 +121,7 @@ export function KeyboardTip() {
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <ul className="mt-2">
+        <ul className="ktip-list mt-2">
           {rows.map((r) => (
             <li key={r.id} className="ktip-row" data-row={r.id}>
               <span className="ktip-keys">

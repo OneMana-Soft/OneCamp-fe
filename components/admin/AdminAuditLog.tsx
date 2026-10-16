@@ -40,6 +40,7 @@ import {
     ChevronRight,
     Copy,
     Download,
+    FileText,
     Key,
     LayoutGrid,
     Loader2,
@@ -59,7 +60,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import { fullDateTime, shortDate, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
+import { fullDateTime, shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotDocs, SpotSearch } from "@/components/ui/graphics"
@@ -81,6 +82,8 @@ import {
     type AuditVerifyResult,
     type InitiatorKind,
 } from "@/services/settingsService"
+import { clockTime } from "@/lib/utils/date/clock"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 /**
  * A category's glyph, always in ink-3 on a neutral chip: a category names a
@@ -96,6 +99,9 @@ export const CATEGORY_GLYPH: Record<string, LucideIcon> = {
     settings: SlidersHorizontal,
     agent: Sparkles,
     app: LayoutGrid,
+    // What happened to docs: shares, access and lock changes, deletes,
+    // restores, purges, exports, publishes, transfers and recoveries.
+    docs: FileText,
 }
 const glyphOf = (c: string) => CATEGORY_GLYPH[c] ?? ScrollText
 
@@ -107,17 +113,17 @@ const serverReason = (e: unknown) => (apiErrorStatus(e) ? apiErrorMessage(e) : u
 
 // The filter list the component starts with, replaced by whatever the server
 // reports, so the menu has its items on the first paint.
-const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent"]
+const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs"]
 
 const ALL = "all"
 /** Entries read at a time; a page that comes back shorter was the last. */
 const PAGE = 50
 
 /** The category as a neutral 22px chip with a 14px ink-3 glyph. Never a hue. */
-export function CategoryChip({ category }: { category: string }) {
+export function CategoryChip({ category, className }: { category: string; className?: string }) {
     const Icon = glyphOf(category)
     return (
-        <span data-audit-category={category} className="audit-chip chip shrink-0">
+        <span data-audit-category={category} className={cn("audit-chip chip shrink-0", className)}>
             <Icon aria-hidden="true" />
             {categoryLabel(category)}
         </span>
@@ -213,7 +219,7 @@ function AuditRow({
                 <span className="audit-time">
                     {valid ? (
                         <time dateTime={entry.created_at} title={fullDateTime(d)}>
-                            {shortTime(d)}
+                            {clockTime(d)}
                         </time>
                     ) : (
                         entry.created_at
@@ -237,8 +243,17 @@ function AuditRow({
                             {reason}
                         </span>
                     )}
+                    {/* A phone's second line (design v3, admin A11): when, and
+                        what kind, where the time column and the chip stand on
+                        a computer. */}
+                    <span data-audit-phone-meta="" className="mt-0.5 block truncate text-2xs tabular-nums text-ink-3 md:hidden">
+                        {valid ? clockTime(d) : entry.created_at} · {categoryLabel(entry.category)}
+                    </span>
                 </span>
-                <CategoryChip category={entry.category} />
+                {/* Hidden by a utility, not by the row's phone rule: the chip
+                    is itself a utility, which outranks the components layer,
+                    so on a phone it stayed and pushed the row past the screen. */}
+                <CategoryChip category={entry.category} className="max-md:hidden" />
                 <ChevronRight className="audit-chevron size-4" aria-hidden="true" />
             </button>
             {open && (
@@ -338,7 +353,7 @@ function SealRow({
                         : `Tampering detected${result.first_bad_seq ? ` at row #${result.first_bad_seq}` : ""}`}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-2">
-                    <time dateTime={at.toISOString()}>{shortTime(at)}</time>
+                    <time dateTime={at.toISOString()}>{clockTime(at)}</time>
                     {result.ok && result.redacted ? ` · ${result.redacted} taken at their word after redaction` : ""}
                     {!result.ok && <span title={result.message}>{` · ${result.message}`}</span>}
                 </p>
@@ -436,7 +451,8 @@ export default function AdminAuditLog() {
     // locked on the free plan this is the only way to reach anything older.
     const loadOlder = () => {
         setLoadingOlder(true)
-        getAdminAuditLog(filter === ALL ? undefined : filter, PAGE, entries.length, unattendedOnly ? UNATTENDED : undefined)
+        // Said by the toast below, once: the request's own stays quiet.
+        getAdminAuditLog(filter === ALL ? undefined : filter, PAGE, entries.length, unattendedOnly ? UNATTENDED : undefined, OWN_ERRORS)
             .then((page) => {
                 setEntries((prev) => {
                     const ids = new Set(prev.map((e) => e.id))

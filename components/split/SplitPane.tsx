@@ -1,7 +1,9 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, Video, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { InSplitPaneContext } from "@/hooks/useLinkTarget"
@@ -35,6 +37,48 @@ const KIND: Record<PaneKind, { label: string; icon: React.ComponentType<{ classN
   "call-group": { label: "Call", icon: Video },
 }
 
+/** The parts of the store a pane's name comes from. */
+type NameSources = {
+  users: Pick<RootState["users"], "userSidebar">
+  recentItems?: { items?: { id: string; title: string }[] }
+}
+
+/**
+ * What a pane's bar calls it: the place's own name where the app knows it
+ * (the sidebar's channels, conversations and projects, else a recent visit),
+ * or null for its kind. The bar said "Channel" over a channel whose name was
+ * the next thing down. Pure.
+ */
+export function paneTitle(s: NameSources, pane: Pane): string | null {
+  const sb = s.users.userSidebar
+  switch (pane.kind) {
+    case "channel":
+    case "call-channel": {
+      const c = [...(sb.userChannels || []), ...(sb.userFavChannels || [])].find((c) => c?.ch_uuid === pane.id)
+      if (c?.ch_name) return c.ch_name
+      break
+    }
+    case "project": {
+      const p = (sb.userProjects || []).find((p) => p?.project_uuid === pane.id)
+      if (p?.project_name) return p.project_name
+      break
+    }
+    case "chat": {
+      for (const d of sb.userChats || []) {
+        const who = d?.dm_participants?.find((u) => u?.user_uuid === pane.id)
+        if (who) return userDisplayName(who) || null
+      }
+      break
+    }
+    case "group": {
+      const d = (sb.userChats || []).find((d) => d?.dm_grouping_id === pane.id)
+      if (d) return d.dm_participants.map((u) => userDisplayName(u)).filter(Boolean).join(", ") || null
+      break
+    }
+  }
+  return s.recentItems?.items?.find((i) => i.id === pane.id)?.title || null
+}
+
 function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
   switch (pane.kind) {
     case "call-channel":
@@ -64,8 +108,9 @@ const barButton =
 /**
  * One pane of the split view (design v3, shell V2): the same channel, chat,
  * doc, project or task page as the main area, on its own sheet beside it with
- * the 8px frame seam between. A 44px bar names it (14/590, ink-2 while
- * another view has the keys), with its index key and three 28px buttons:
+ * the 8px frame seam between. A 44px bar names it by its own name, where the
+ * app knows it (14/590, ink-2 while another view has the keys), with its
+ * index key and three 28px buttons:
  * focus it alone, swap it with the main view, close it. The view the keys
  * act on wears a 1.5px brand top edge inside its radius. Focused alone, its
  * bar says "One view" with Show all beside it.
@@ -77,6 +122,7 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
   useConversationMoved(pane.kind === "group" ? "group" : null, pane.id, (to) => dispatch(replacePane({ index, pane: { ...pane, id: to } })))
   const { label, icon: Icon } = KIND[pane.kind]
   const what = label.toLowerCase()
+  const name = useSelector((s: RootState) => paneTitle(s, pane))
   return (
     <section
       aria-label={`${label}, side by side`}
@@ -86,7 +132,7 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line pl-4 pr-2">
         <Icon className="h-4 w-4 shrink-0 text-ink-3" />
-        <span className={cn("truncate text-sm font-semibold", active || focused ? "text-ink" : "text-ink-2")}>{label}</span>
+        <span className={cn("truncate text-sm font-semibold", active || focused ? "text-ink" : "text-ink-2")}>{name ?? label}</span>
         <kbd className="kbd hidden lg:inline-flex" title={`Ctrl + Alt + ${index + 2} comes here`}>
           {index + 2}
         </kbd>

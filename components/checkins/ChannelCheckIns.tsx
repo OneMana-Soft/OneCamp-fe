@@ -10,6 +10,7 @@ import { Loader2, Pause, Play, Plus, Trash2 } from "@/lib/icons"
 import { DAY_LABELS, SUGGESTED_QUESTIONS, describeSchedule, nextLabel, type CheckIn, type CheckInInput } from "@/lib/checkins"
 import { cn } from "@/lib/utils/helpers/cn"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /** Setting up a check-in, or changing one: the question, the days and the time. */
 function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave: (input: CheckInInput) => Promise<unknown>; onCancel: () => void }) {
@@ -152,7 +153,7 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
       {checkIns.length === 0 && !form && (
         <p className="text-sm text-muted-foreground">
           {canEdit
-            ? "Ask the channel a question on a schedule, like \u201cWhat did you work on today?\u201d every weekday at 17:00, instead of a status meeting."
+            ? `Ask the channel a question on a schedule, like \u201cWhat did you work on today?\u201d every weekday at ${clockTime("17:00")}, instead of a status meeting.`
             : "This channel has no check-ins yet. Its admins can set one up."}
         </p>
       )}

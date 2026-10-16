@@ -29,6 +29,20 @@ function ResetPasswordForm() {
   const passwordRef = useRef<HTMLInputElement>(null)
   const confirmRef = useRef<HTMLInputElement>(null)
 
+  // A link that can't be used says so as the page opens, not after a new
+  // password has been typed twice (QA SH-20). An unanswered check leaves the
+  // form: its submit hears what the server says.
+  useEffect(() => {
+    if (!token) return
+    let live = true
+    void authService.checkResetLink(token).then((link) => {
+      if (live && link === "refused") setOutcome((now) => (now === "form" ? "link_refused" : now))
+    })
+    return () => {
+      live = false
+    }
+  }, [token])
+
   // Changed: back to sign-in, where the toast says what to do next.
   useEffect(() => {
     if (outcome !== "reset") return

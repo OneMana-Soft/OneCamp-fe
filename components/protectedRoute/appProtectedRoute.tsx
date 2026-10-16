@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { appBootShowing, endAppBoot } from "@/lib/appBoot";
 
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
@@ -15,7 +16,8 @@ import axios from "axios";
 import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { SpotCrash } from "@/components/error/shellSpots";
-import { SplashFrame, SplashRing, serverHost, workspaceName } from "@/components/protectedRoute/Splash";
+import { SplashFrame, SplashRing, serverHost } from "@/components/protectedRoute/Splash";
+import { WorkspaceName } from "@/hooks/useWorkspaceName";
 import { SkeletonShell } from "@/components/protectedRoute/SkeletonShell";
 import { endSession, onSessionEndedElsewhere } from "@/lib/sessionEnd";
 // The store registers its own reset for endSession; importing it makes sure
@@ -49,6 +51,10 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     const splashShown = useRef(false);
     if (!userProfile.data?.data) splashShown.current = true;
     const [reopening] = useState(openedBefore);
+    // The first paint's static splash (lib/appBoot) is on screen: this one
+    // takes over from it as it is, ring drawn, and it goes as this draws.
+    const [continued] = useState(appBootShowing);
+    useLayoutEffect(() => endAppBoot(), []);
     const [slow, setSlow] = useState(false);
     const waiting = !userProfile.data?.data && !userProfile.isError;
     useEffect(() => {
@@ -178,7 +184,7 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
         );
     }
 
-    return <AppSplash slow={slow} onRetry={() => void userProfile.mutate()} reopening={reopening} />;
+    return <AppSplash slow={slow} onRetry={() => void userProfile.mutate()} reopening={reopening} continued={continued} />;
 }
 
 /** Whether this tab has opened the app before: then a reload shows the skeleton shell, not the splash. */
@@ -200,18 +206,18 @@ export const SPLASH_SLOW_MS = 8000;
  * past 8s it says it is still connecting, with a way to try again. A tab that
  * has opened the app before shows the skeleton shell instead.
  */
-export function AppSplash({ slow, onRetry, reopening }: { slow: boolean; onRetry: () => void; reopening: boolean }) {
+export function AppSplash({ slow, onRetry, reopening, continued = false }: { slow: boolean; onRetry: () => void; reopening: boolean; continued?: boolean }) {
     if (reopening && !slow) return <SkeletonShell />;
     return (
-        <SplashFrame role="status" aria-live="polite">
-            <SplashRing />
+        <SplashFrame role="status" aria-live="polite" data-continued={continued ? "" : undefined}>
+            <SplashRing draw={!continued} />
             {slow ? (
                 <div className="flex flex-col items-center gap-2">
                     <p className="text-xs text-ink-3">Still connecting to {serverHost()}…</p>
                     <Button variant="ghost" size="sm" onClick={onRetry}>Try again</Button>
                 </div>
             ) : (
-                <p className="splash-line text-xs text-ink-3">Opening {workspaceName()}</p>
+                <p className="splash-line text-xs text-ink-3">Opening <WorkspaceName /></p>
             )}
         </SplashFrame>
     );

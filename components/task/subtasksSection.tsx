@@ -159,7 +159,7 @@ function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange:
                 }}
                 placeholder="Subtask name, then Enter"
                 aria-label="New subtask"
-                className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none ring-brand/40 placeholder:text-ink-4 focus-visible:ring-1"
+                className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none ring-brand/40 placeholder:text-ink-3 focus-visible:ring-1"
             />
         </div>
     )

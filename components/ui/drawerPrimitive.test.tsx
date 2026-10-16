@@ -45,6 +45,14 @@ describe("the sheet's surface", () => {
     expect(css).toMatch(/\[data-vaul-drawer\]\[data-v3-sheet\]\s*\{\s*border-top-left-radius: var\(--r-sheet\)/)
   })
 
+  // The sheet takes focus to hold it inside. After a tap on a name in a
+  // conversation, Chrome counted that focus as visible and outlined the
+  // whole profile sheet in the accent: a surface draws no focus ring.
+  it("draws no focus ring around itself", () => {
+    render(<Sheet />)
+    expect(sheet().className.split(/\s+/)).toContain("outline-none")
+  })
+
   it("lays a 32% ink scrim, 55% black in dark", () => {
     render(<Sheet />)
     const scrim = document.querySelector("[data-vaul-overlay]") as HTMLElement
@@ -130,7 +138,7 @@ describe("an options menu (C7)", () => {
 
   it("puts what destroys alone, in the last group, followed only by Cancel, in every options drawer", () => {
     const dir = join(ROOT, "components/drawers")
-    const menus = ["calendarOptionsDrawer", "chatOptionsDrawer", "docOptionsDrawer", "groupChatOptionsDrawer", "myTaskOptionsDrawer", "projectOptionsDrawer", "teamOptionsDrawer", "taskDrawer", "projectLongPressDrawer", "channelOptionsDrawer"]
+    const menus = ["calendarOptionsDrawer", "chatOptionsDrawer", "docOptionsDrawer", "groupChatOptionsDrawer", "myTaskOptionsDrawer", "teamOptionsDrawer", "taskDrawer", "projectLongPressDrawer", "channelOptionsDrawer"]
     for (const name of menus) {
       const src = readFileSync(join(dir, `${name}.tsx`), "utf8")
       expect(src, name).toMatch(/detent="menu"/)

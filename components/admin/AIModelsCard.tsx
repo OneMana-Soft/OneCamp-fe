@@ -19,6 +19,8 @@
  * one sub-page is right on the next without another request.
  */
 
+import { useSecretReentry } from "@/hooks/useSecretReentry"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import React, { useCallback, useEffect, useId, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -943,7 +945,7 @@ function SpendList({
             <li key={r.key} data-spend-row="" className="ai-spend-row text-sm">
               <span className="flex min-w-0 items-center gap-3">
                 <span className="w-4 shrink-0 text-right text-2xs tabular-nums text-ink-3">{i + 1}</span>
-                {people ? <IdentityMark variant="avatar" id={r.key} label={r.name} size={24} /> : null}
+                {people ? <IdentityMark variant="avatar" id={avatarSeed(r.name)} label={r.name} size={24} /> : null}
                 <span className="truncate">{r.name}</span>
               </span>
               <span className="shrink-0 tabular-nums text-muted-foreground">{fmt(r.used)} tokens</span>
@@ -1023,7 +1025,7 @@ const PIIPatternsEditor: React.FC<{ initial: string; onSave: (patterns: string) 
             } catch (e: unknown) {
               toast({
                 title: "Couldn't save your patterns",
-                description: apiErrorMessage(e, "One of the patterns is an invalid regex."),
+                description: apiErrorMessage(e, "Try again in a moment."),
                 variant: "destructive",
               })
             } finally {
@@ -1285,7 +1287,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       await setVisionModel(visionProvider || "", visionModel || "")
       toast({
         title: visionProvider && visionModel ? "Vision model updated" : "Vision turned off",
-        description: visionProvider && visionModel ? `${visionModel} will analyze images.` : "Image analysis is disabled.",
+        description: visionProvider && visionModel ? `${visionModel} will analyse images.` : "Image analysis is disabled.",
       })
       await onChanged()
     } catch (e: unknown) {
@@ -1425,7 +1427,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       {/* Vision model (optional) */}
         <ModelSelectorRow
           title="Vision model (optional)"
-          hint="Lets the AI analyze images and GIFs. Pick a multimodal model (e.g. gpt-4o, a Claude vision model, or local llava / llama3.2-vision). Leave unset to keep image analysis off. Text documents do not need this."
+          hint="Lets the AI analyse images and GIFs. Pick a multimodal model (e.g. gpt-4o, a Claude vision model, or local llava / llama3.2-vision). Leave unset to keep image analysis off. Text documents do not need this."
           providers={enabledProviders}
           providerId={visionProvider}
           model={visionModel}
@@ -1639,7 +1641,7 @@ function RecapInstructionsField({
     <div className="space-y-1">
       <Label htmlFor="recap-instructions" className="text-sm font-medium">Recap instructions (optional)</Label>
       <p className="mb-2 text-xs text-muted-foreground text-pretty">
-        Tailor what the recap emphasizes. These are added to the recap prompt and can&apos;t override its
+        Tailor what the recap emphasises. These are added to the recap prompt and can&apos;t override its
         grounding rules (it always uses only the transcript). Example: &quot;Add a Risks section and write the
         recap in Spanish.&quot;
       </p>
@@ -1683,7 +1685,18 @@ function WebSearchSection({
   const id = useId()
 
   const realProvider = provider === "none" ? "" : provider
-  const needsKey = realProvider === "tavily" || realProvider === "brave"
+  // The stored key stays with the provider and address it was given for. With
+  // no provider it goes nowhere; "Remove it" sends none, for a SearXNG that
+  // takes no key.
+  const [clearKey, setClearKey] = useState(false)
+  const keyReentry = useSecretReentry({
+    stored: !!config.has_web_search_key && realProvider !== "" && !clearKey,
+    entered: apiKey,
+    from: { url: config.web_search_base_url || "", how: [config.web_search_provider || ""] },
+    to: { url: baseURL.trim(), how: [realProvider] },
+    noun: "API key",
+  })
+  const needsKey = realProvider === "tavily" || realProvider === "brave" || keyReentry.required
   const needsBase = realProvider === "searxng"
 
   // The switch and the fields wait for Save, so the save bar says so while
@@ -1694,11 +1707,13 @@ function WebSearchSection({
     provider !== (config.web_search_provider || "none") ||
     baseURL !== (config.web_search_base_url || "") ||
     apiKey !== "" ||
+    clearKey ||
     enabled !== config.web_search_enabled
   const reset = () => {
     setProvider(config.web_search_provider || "none")
     setBaseURL(config.web_search_base_url || "")
     setApiKey("")
+    setClearKey(false)
     setEnabled(config.web_search_enabled)
     setBaseError("")
   }
@@ -1710,15 +1725,18 @@ function WebSearchSection({
       return
     }
     setBaseError("")
+    if (!keyReentry.check()) return
     setSaving(true)
     try {
       await setWebSearch({
         provider: realProvider,
         base_url: baseURL.trim(),
         api_key: apiKey.trim() || undefined,
+        clear_key: clearKey && !apiKey.trim() ? true : undefined,
         enabled: realProvider !== "" && enabled,
       })
       setApiKey("")
+      setClearKey(false)
       toast({ title: "Web search saved" })
       await onChanged()
     } catch (e) {
@@ -1795,14 +1813,30 @@ function WebSearchSection({
         <div className="space-y-1 px-4 py-3">
           <Label htmlFor={`${id}-key`} className="text-xs">API key</Label>
           <Input
+            {...keyReentry.inputProps}
             id={`${id}-key`}
             type="password"
             autoComplete="new-password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={config.has_web_search_key ? "Saved: leave empty to keep it" : "The provider's API key…"}
+            placeholder={
+              keyReentry.placeholder ?? (config.has_web_search_key ? "Saved: leave empty to keep it" : "The provider's API key…")
+            }
           />
+          {keyReentry.note}
+          {keyReentry.required && realProvider === "searxng" && (
+            <button
+              type="button"
+              className="text-xs font-medium text-muted-foreground underline-offset-[3px] hover:text-foreground hover:underline"
+              onClick={() => setClearKey(true)}
+            >
+              Remove it: this SearXNG takes no key
+            </button>
+          )}
         </div>
+      )}
+      {clearKey && (
+        <p className="px-4 py-3 text-xs text-muted-foreground">The saved key is removed when you save.</p>
       )}
       </SettingsList>
 
@@ -1843,6 +1877,14 @@ function SandboxSection({
   const [urlError, setUrlError] = useState("")
   const urlRef = useRef<HTMLInputElement>(null)
   const id = useId()
+  // The stored token stays with the runner it was given for.
+  const tokenReentry = useSecretReentry({
+    stored: !!config.has_sandbox_runner_token && runnerURL.trim() !== "",
+    entered: runnerToken,
+    from: { url: config.sandbox_runner_url || "" },
+    to: { url: runnerURL.trim() },
+    noun: "runner token",
+  })
 
   const num = (v: string) => {
     const n = parseInt(v, 10)
@@ -1879,6 +1921,7 @@ function SandboxSection({
       return
     }
     setUrlError("")
+    if (!tokenReentry.check()) return
     setSaving(true)
     try {
       await setSandboxConfig({
@@ -1984,15 +2027,18 @@ function SandboxSection({
         <div className="space-y-1">
           <Label htmlFor={`${id}-token`} className="text-xs">Runner token</Label>
           <Input
+            {...tokenReentry.inputProps}
             id={`${id}-token`}
             type="password"
             autoComplete="new-password"
             value={runnerToken}
             onChange={(e) => setRunnerToken(e.target.value)}
             placeholder={
-              config.has_sandbox_runner_token ? "Saved: leave empty to keep it" : "The token the runner shares…"
+              tokenReentry.placeholder ??
+              (config.has_sandbox_runner_token ? "Saved: leave empty to keep it" : "The token the runner shares…")
             }
           />
+          {tokenReentry.note}
         </div>
       </div>
 
@@ -2161,6 +2207,14 @@ function CodePRSection({
   const urlRef = useRef<HTMLInputElement>(null)
   const wallRef = useRef<HTMLInputElement>(null)
   const id = useId()
+  // The stored token stays with the runner it was given for.
+  const tokenReentry = useSecretReentry({
+    stored: !!config.has_code_pr_runner_token && runnerURL.trim() !== "",
+    entered: runnerToken,
+    from: { url: config.code_pr_runner_url || "" },
+    to: { url: runnerURL.trim() },
+    noun: "runner token",
+  })
 
   // Everything but the code-run model (which has its own button) waits for
   // Save. The two switches below looked like the ones that save at once; the
@@ -2237,6 +2291,7 @@ function CodePRSection({
       wallRef.current?.focus()
       return
     }
+    if (!tokenReentry.check()) return
     setSaving(true)
     try {
       await setCodePRConfig({
@@ -2325,15 +2380,18 @@ function CodePRSection({
         <div className="space-y-1">
           <Label htmlFor={`${id}-token`} className="text-xs">Runner token</Label>
           <Input
+            {...tokenReentry.inputProps}
             id={`${id}-token`}
             type="password"
             autoComplete="new-password"
             value={runnerToken}
             onChange={(e) => setRunnerToken(e.target.value)}
             placeholder={
-              config.has_code_pr_runner_token ? "Saved: leave empty to keep it" : "The token the runner shares…"
+              tokenReentry.placeholder ??
+              (config.has_code_pr_runner_token ? "Saved: leave empty to keep it" : "The token the runner shares…")
             }
           />
+          {tokenReentry.note}
         </div>
       </div>
 

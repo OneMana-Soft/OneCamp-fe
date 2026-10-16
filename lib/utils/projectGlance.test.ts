@@ -27,6 +27,12 @@ describe("projectGlance", () => {
     expect(projectGlance(loaded, now).done).toBe(200)
   })
 
+  it("counts every open task the server counted, and marks the date counts as at least (PROJ-BUG-8)", () => {
+    const loaded = [{ task_status: "todo", task_due_date: day(29) }, { task_status: "todo" }]
+    expect(projectGlance(loaded, now, 0, 2500)).toEqual({ open: 2500, overdue: 1, dueSoon: 0, done: 0, partial: true })
+    expect(projectGlance(loaded, now, 0, 2)).toEqual({ open: 2, overdue: 1, dueSoon: 0, done: 0 })
+  })
+
   it("treats the zero time as no due date", () => {
     expect(projectGlance([{ task_status: "todo", task_due_date: "0001-01-01T00:00:00Z" }], now).overdue).toBe(0)
   })

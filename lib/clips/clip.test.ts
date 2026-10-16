@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { CLIP_MAX_SECONDS, clipFileName, extensionOf, pickMimeType, secondsLeft, stopReason } from "@/lib/clips/clip"
+import { CLIP_MAX_SECONDS, clipFileName, clipStartProblem, extensionOf, pickMimeType, secondsLeft, stopReason } from "@/lib/clips/clip"
 import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
 
 describe("a clip", () => {
@@ -40,5 +40,23 @@ describe("a clip", () => {
     expect(Math.round(secondsLeft(10, 1_000_000, 10_000_000))).toBe(84)
     // A small voice clip: time runs out first.
     expect(secondsLeft(60, 480_000, 10_000_000)).toBe(CLIP_MAX_SECONDS - 60)
+  })
+})
+
+// The release audit (S5): the clip recorder kept its own words for a device
+// the browser refused. It says what a call says (lib/media/mediaFailure),
+// without the call's device menu, which the recorder doesn't have.
+describe("why a clip couldn't start", () => {
+  const err = (name: string, message = "") => Object.assign(new Error(message), { name })
+
+  it("says a refusal, a missing device and a busy one as a call does", () => {
+    expect(clipStartProblem("voice", err("NotAllowedError"))).toBe("Your browser blocked the microphone. Allow the microphone for this site from the icon at the left of the address bar, then try again.")
+    expect(clipStartProblem("video", err("NotFoundError"))).toBe("No camera was found. Connect a camera, then try again.")
+    expect(clipStartProblem("voice", err("NotReadableError"))).toBe("Your microphone is in use. Another app may be using it. Close that app, then try again.")
+  })
+
+  it("says nothing when the screen picker was closed, and why a screen can't be shared", () => {
+    expect(clipStartProblem("screen", err("NotAllowedError", "Permission denied"))).toBeNull()
+    expect(clipStartProblem("screen", err("NotAllowedError", "Permission denied by system"))).toMatch(/^Your computer blocked screen sharing\./)
   })
 })

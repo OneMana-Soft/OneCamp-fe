@@ -26,7 +26,7 @@ describe("the date and time picker", () => {
     const onChange = vi.fn()
     render(<DateTimePicker value={new Date(2026, 9, 15, 9, 30)} onChange={onChange} aria-label="Start" />)
     const trigger = screen.getByLabelText("Start")
-    expect(trigger.textContent).toBe("Thu 15 Oct · 9:30 AM")
+    expect(trigger.textContent).toBe("Thu 15 Oct · 9:30\u00a0AM")
     fireEvent.click(trigger)
     fireEvent.click(screen.getAllByRole("option").find((o) => /^10:00/.test(o.textContent || ""))!)
     expect(onChange).toHaveBeenCalledWith(new Date(2026, 9, 15, 10, 0))

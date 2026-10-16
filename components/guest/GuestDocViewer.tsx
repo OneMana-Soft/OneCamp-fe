@@ -2,22 +2,31 @@
 
 /**
  * GuestDocViewer — a read-only, LIVE view of a shared document for an external
- * guest (no OneCamp account). It binds the same TipTap editor used by members
- * to the live Yjs document over the collaboration websocket, but:
+ * guest (no OneCamp account). It binds the doc's own editor (useDocEditor, the
+ * one every doc surface is built with) to the live Yjs document over the
+ * collaboration websocket, but:
  *   - connects with a short-lived GUEST collab token (not a member session),
  *   - is editable={false}, and
  *   - the collaboration service enforces read-only server-side regardless.
  *
- * Because it reuses the member editor's extension set, the rendering matches
- * exactly what members see — no second, divergent renderer to maintain.
+ * The same blocks matter for more than looks: y-prosemirror deletes from its
+ * copy of the document whatever its schema can't hold. Built from the shorter
+ * shared list, this viewer dropped every callout, toggle, to-do list and table
+ * embed, and drew the rest at chat size.
+ *
+ * Its node views read GuestReaderContext: they draw what a guest may see
+ * without asking the API, which a guest has no session for.
  */
 
 import "@/components/minimal-tiptap/styles/index.css"
 import { useEffect, useState } from "react"
 import { EditorContent } from "@tiptap/react"
-import { useMinimalTiptapEditor } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap"
+import { DOC_EDITOR_CLASS, useDocEditor } from "@/components/docEditor/useDocEditor"
+import { GuestReaderContext } from "@/components/minimal-tiptap/guestReader"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * How long a document may take to arrive before the guest is told it can't be
@@ -30,9 +39,11 @@ interface GuestDocViewerProps {
   documentName: string
   /** Returns a fresh short-lived guest collab JWT on every (re)connect. */
   tokenFetcher: () => Promise<string>
+  /** The id of the page's title heading, which names the doc's text. */
+  labelledBy?: string
 }
 
-export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerProps) {
+export function GuestDocViewer({ documentName, tokenFetcher, labelledBy }: GuestDocViewerProps) {
   const { provider, synced } = useCollaborationProvider({
     enabled: true,
     documentId: documentName,
@@ -41,8 +52,10 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
     userId: "guest",
   })
 
-  const editor = useMinimalTiptapEditor({
+  const editor = useDocEditor({
+    guest: true,
     editable: false,
+    labelledBy,
     collaboration: provider
       ? { enabled: true, documentId: documentName, username: "Guest", userId: "guest" }
       : undefined,
@@ -91,11 +104,17 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
     )
   }
 
+  // The doc's own type (DOC_EDITOR_CLASS), flush with the paper card's
+  // measure: the card already insets the text. Its own TooltipProvider: the
+  // signed-in app's providers hold the app's one, and the guest page is
+  // outside them, so an image's actions (tooltipped) threw and took the
+  // whole document down for a guest.
   return (
-    <EditorContent
-      editor={editor}
-      className="minimal-tiptap-editor mt-4 max-w-none"
-    />
+    <GuestReaderContext.Provider value={true}>
+      <TooltipProvider delayDuration={500} skipDelayDuration={300}>
+        <EditorContent editor={editor} className={cn(DOC_EDITOR_CLASS, "doc-editor-flush mt-4 max-w-none")} />
+      </TooltipProvider>
+    </GuestReaderContext.Provider>
   )
 }
 

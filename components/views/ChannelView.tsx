@@ -40,6 +40,9 @@ import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components
 import { useInSplitPane } from "@/hooks/useLinkTarget";
 import { useSWRConfig } from "swr";
 import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
+import { useConversationMissing } from "@/hooks/useConversationMissing";
+import { LoadFailureState } from "@/components/ui/load-failure-state";
+import { app_channel_path } from "@/types/paths";
 
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
@@ -55,6 +58,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
     const { cache } = useSWRConfig()
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : '')
+    const { missing, retry, retrying } = useConversationMissing("channel", channelId)
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
@@ -73,7 +77,12 @@ export function ChannelView({ channelId }: { channelId: string }) {
     useEffect(() => {
 
         if(channelInfo.data?.channel_info) {
-            dispatch(addUserChannelList({channelUser: channelInfo.data?.channel_info}))
+            // Into the sidebar only when you're in it: opening a channel you
+            // aren't in (from Discover or search) added it, until the next
+            // sidebar answer took it out (FE-F-14).
+            if (channelInfo.data.channel_info.ch_is_member) {
+                dispatch(addUserChannelList({channelUser: channelInfo.data.channel_info}))
+            }
 
             dispatch(updateChannelCallStatus({channelId: channelId, callStatus: channelInfo.data?.channel_info.ch_call_active || false}))
         }
@@ -234,6 +243,21 @@ export function ChannelView({ channelId }: { channelId: string }) {
     const schedule = useMemo(() => ({ kind: "channel" as const, target: channelId, schedule: handleSchedule }), [channelId, handleSchedule])
 
     if(!channelId) return
+
+    // A channel that isn't there, or isn't yours to read: one state on a
+    // computer and a phone, with no header, Huddle, Join or message box (QA F-08).
+    if (missing) {
+        return (
+            <LoadFailureState
+                kind={missing}
+                noun="channel"
+                onRetry={() => void retry()}
+                retrying={retrying}
+                back={inPane ? undefined : { label: "Back to channels", href: app_channel_path }}
+                noAccessDetail="It's private. Ask someone in it to add you."
+            />
+        )
+    }
 
     return (
         <PendingSendContext.Provider value={actions}>

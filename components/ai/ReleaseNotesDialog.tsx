@@ -71,7 +71,7 @@ const ReleaseNotesDialog: React.FC<{
             <Sparkles className="h-4 w-4 text-primary" /> Draft release notes
           </DialogTitle>
           <DialogDescription>
-            Summarize what shipped from a repo&apos;s merged pull requests into a draft you can edit and publish.
+            Summarise what shipped from a repo&apos;s merged pull requests into a draft you can edit and publish.
           </DialogDescription>
         </DialogHeader>
 

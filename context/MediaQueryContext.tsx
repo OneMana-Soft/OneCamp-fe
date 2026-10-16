@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useLayoutEffect, useState } from "react";
 
+/** A phone, as isMobile reads it (below Tailwind's `sm`), for code that reads the media query itself. */
+export const PHONE_QUERY = "(max-width: 639px)";
+
 type MediaQueryContextType = {
     isMobile: boolean;
     isTablet: boolean;

@@ -15,6 +15,7 @@ import { SaveForLaterButton } from "@/components/later/SaveForLater";
 import { messageLink } from "@/lib/utils/later";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
+import { noteReaction, quickReactions, readRecentReactions, type QuickReaction } from "@/lib/chat/recentReactions";
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -53,16 +54,11 @@ interface MessageDesktopHoverOptionProps {
     inThread?: boolean;
 }
 
-type QuickReaction = {
-    readonly id: string;
-    readonly emoji: string;
-    readonly label: string;
-};
-
+/** The toolbar's quick reactions until you have used three of your own (lib/chat/recentReactions). */
 const QUICK_REACTIONS: ReadonlyArray<QuickReaction> = [
-    { id: "white_check_mark", emoji: "✅", label: "Mark as done" },
-    { id: "eyes", emoji: "👀", label: "Take a look" },
-    { id: "raised_hands", emoji: "🙌", label: "Nice work" },
+    { id: "white_check_mark", native: "✅", label: "Mark as done" },
+    { id: "eyes", native: "👀", label: "Take a look" },
+    { id: "raised_hands", native: "🙌", label: "Nice work" },
 ];
 
 /** The toolbar's buttons (design v3 chat, C19): 26px at r7, icons 16px in ink-3. */
@@ -117,6 +113,15 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     // Decided once, as it mounts: arriving from outside, or from the row above.
     const [enters] = useState(
         () => toolbarsShown === 0 && (typeof performance === "undefined" || performance.now() - lastToolbarHidden > RESHOW_MS),
+    );
+    // Your three most recent reactions, read as the toolbar appears (MC-77).
+    const [quick] = useState(() => quickReactions(readRecentReactions(), QUICK_REACTIONS, 3));
+    const react = useCallback(
+        (reaction: QuickReaction) => {
+            noteReaction(reaction);
+            onReactionSelect(reaction.id);
+        },
+        [onReactionSelect],
     );
     useEffect(() => {
         toolbarsShown += 1;
@@ -201,18 +206,18 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
             data-message-toolbar=""
             className={cn("pop-surface flex items-center gap-px rounded-[10px] p-[3px]", enters && "animate-toolbar-in")}
         >
-            {QUICK_REACTIONS.map(({ id, emoji, label }) => (
+            {quick.map((reaction) => (
                 <Button
-                    key={id}
+                    key={reaction.id}
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label={`React with ${label}`}
-                    data-tip={label}
-                    onClick={() => onReactionSelect(id)}
+                    aria-label={`React with ${reaction.label}`}
+                    data-tip={reaction.label}
+                    onClick={() => react(reaction)}
                     className={cn(TOOL_BUTTON, "group/emoji text-base leading-none", ACTION_TIP)}
                 >
-                    <span aria-hidden="true" className="inline-block text-base transition-transform duration-[140ms] ease-out group-hover/emoji:scale-[1.15]">{emoji}</span>
+                    <span aria-hidden="true" className="inline-block text-base transition-transform duration-[140ms] ease-out group-hover/emoji:scale-[1.15]">{reaction.native}</span>
                 </Button>
             ))}
 

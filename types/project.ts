@@ -22,6 +22,8 @@ export interface ProjectInfoInterface {
     /** Totals of the closed columns; a board loads only the newest of them. */
     project_tasks_done_count?: number
     project_tasks_canceled_count?: number
+    /** The board's count per column (PROJ-BUG-8): a category key or a custom status id to its total (lib/board/columnTotals). */
+    project_column_counts?: Record<string, number>
     project_attachments: AttachmentMediaReq[];
     project_task_count: number;
     project_is_admin: boolean;

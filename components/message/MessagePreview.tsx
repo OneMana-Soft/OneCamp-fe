@@ -1,3 +1,4 @@
+import { personHue } from "@/lib/utils/getAvatarColor";
 import { displayNameOf } from "@/lib/personName"
 import Link from "next/link";
 import {UserProfileDataInterface} from "@/types/user";
@@ -11,7 +12,6 @@ import {useRelayedAuthor} from "@/hooks/useRelayedAuthor";
 import {RelayedAvatar} from "@/components/message/relayedAvatar";
 import {getLastMessagePreview} from "@/lib/utils/lastMessagePreview";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
-import { hueFor } from "@/lib/campHue";
 import {app_channel_path} from "@/types/paths";
 
 interface MsgPreviewProps {
@@ -76,7 +76,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
     // where and when it was said, the words clamped to four lines with a
     // fade, and the way back to the original.
     return (
-        <ForwardCard bar={cn("bg-hue", HUE_CLASS[hueFor(name)])}>
+        <ForwardCard bar={cn("bg-hue", HUE_CLASS[personHue(name)])}>
             <div className="flex min-w-0 items-center gap-2">
                 {relayed ? (
                     <span className="size-5 shrink-0">

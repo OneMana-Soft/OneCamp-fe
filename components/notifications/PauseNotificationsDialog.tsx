@@ -18,8 +18,8 @@ import { useToast } from "@/hooks/use-toast"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { formatSendAt, toLocalInputValue } from "@/lib/messages/schedulePresets"
 import { MAX_PAUSE_MS, pausePresets } from "@/lib/notifications/pause"
-import { lastAnchorRect } from "@/lib/hub/lastAnchor"
-import { shortTime } from "@/lib/utils/date/shortDate"
+import { lastAnchorRect, SIDEBAR_FOOT } from "@/lib/hub/lastAnchor"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /**
  * Whether to say "Mentions from agents wait too." under the rows. Off until
@@ -29,7 +29,7 @@ export const AGENT_MENTIONS_WAIT = false
 
 /** When a pause picked now would end, as the row's right side says it: "3:30 PM", or "Tue 9:00 AM" on another day. */
 export function pauseEndLabel(at: Date, now: Date = new Date()): string {
-  if (at.toDateString() === now.toDateString()) return shortTime(at)
+  if (at.toDateString() === now.toDateString()) return clockTime(at)
   return formatSendAt(at, now)
 }
 
@@ -37,7 +37,9 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
   const { pausedUntil, focusUntil, pause, resume, busy } = usePauseNotifications()
   const { toast } = useToast()
   const { isMobile } = useMedia()
-  const [anchor] = React.useState(() => lastAnchorRect())
+  // Beside what was pressed; from the profile menu's Custom… (gone with its
+  // menu), beside the sidebar foot the menu rose from.
+  const [anchor] = React.useState(() => lastAnchorRect(SIDEBAR_FOOT))
   const [customOpen, setCustomOpen] = React.useState(false)
   const now = new Date()
   const [custom, setCustom] = React.useState(() => toLocalInputValue(new Date(now.getTime() + 60 * 60 * 1000)))

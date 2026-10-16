@@ -2,7 +2,11 @@
 
 import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
-import { RecordingEmbedView } from "./recording-embed-view"
+import { lazyNodeView } from "../lazyNodeView"
+
+// Drawn by a component fetched the first time one shows (lazyNodeView): an
+// editor that never holds one never loads it (the chat composer, I20).
+const RecordingEmbedView = lazyNodeView(() => import("./recording-embed-view").then((m) => m.RecordingEmbedView), 64)
 
 interface RecordingEmbedOptions {
   HTMLAttributes: Record<string, any>

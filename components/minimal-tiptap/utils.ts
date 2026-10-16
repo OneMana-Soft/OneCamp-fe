@@ -1,7 +1,7 @@
 "use client"
 
 import type { Editor } from '@tiptap/react'
-import type { MinimalTiptapProps } from './minimal-tiptap'
+import type { UseMinimalTiptapEditorProps } from './hooks/use-minimal-tiptap'
 
 type ShortcutKeyResult = {
   symbol: string
@@ -33,7 +33,7 @@ const shortcutKeyMap: Record<string, ShortcutKeyResult> = {
 export const getShortcutKey = (key: string): ShortcutKeyResult =>
   shortcutKeyMap[key.toLowerCase()] || { symbol: key, readable: key }
 
-export const getOutput = (editor: Editor, format: MinimalTiptapProps['output']): object | string => {
+export const getOutput = (editor: Editor, format: UseMinimalTiptapEditorProps['output']): object | string => {
   switch (format) {
     case 'json':
       return editor.getJSON()
@@ -84,23 +84,6 @@ const sanitizeUrl = (
     : `https://${url}`
 }
 
-export const blobUrlToBase64 = async (blobUrl: string): Promise<string> => {
-  const response = await fetch(blobUrl)
-  const blob = await response.blob()
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result)
-      } else {
-        reject(new Error('Failed to convert Blob to base64'))
-      }
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
 
 export const randomId = (): string => Math.random().toString(36).slice(2, 11)
 

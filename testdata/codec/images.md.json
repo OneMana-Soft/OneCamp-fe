@@ -1,0 +1,35 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "alt": "A chart",
+        "src": "https://onemana.dev/a.png",
+        "title": "Revenue"
+      },
+      "type": "image"
+    },
+    {
+      "attrs": {
+        "src": "https://onemana.dev/b.png"
+      },
+      "type": "image"
+    },
+    {
+      "content": [
+        {
+          "text": "Text between images.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "alt": "Uploaded",
+        "src": "https://api.example.test/doc/getDocAttachment/d-1/o-1"
+      },
+      "type": "image"
+    }
+  ],
+  "type": "doc"
+}

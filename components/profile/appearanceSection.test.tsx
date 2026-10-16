@@ -61,7 +61,16 @@ describe("the appearance section", () => {
     render(<AppearanceSection />)
     const group = screen.getByRole("radiogroup", { name: "Theme" })
     for (const [name, mode] of [["Light", "light"], ["Dark", "dark"], ["Device", "system"]]) {
-      expect(within(group).getByRole("radio", { name }).querySelector(`.you-mini[data-mode="${mode}"]`)).not.toBeNull()
+      expect(within(group).getByRole("radio", { name }).querySelector(`:is(.you-mini, .you-mini-pair)[data-mode="${mode}"]`)).not.toBeNull()
     }
+  })
+
+  it("draws the device's own as the light miniature with the dark one over its right half", () => {
+    // Critic, 11 Oct: each part was split at its own 50 %, so the halves met
+    // out of line and the card read as a rendering fault.
+    render(<AppearanceSection />)
+    const device = within(screen.getByRole("radiogroup", { name: "Theme" })).getByRole("radio", { name: "Device" })
+    expect(device.querySelector('.you-mini-pair > .you-mini[data-mode="light"]')).not.toBeNull()
+    expect(device.querySelector('.you-mini-pair > .you-mini-half > .you-mini[data-mode="dark"]')).not.toBeNull()
   })
 })

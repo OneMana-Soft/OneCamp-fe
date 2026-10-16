@@ -1,40 +1,29 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { AuthHeading, AuthShell } from "@/components/auth/AuthShell"
-import { SpotOrbit } from "@/components/error/shellSpots"
+import { PublicGone } from "@/components/guest/publicStates"
 import { app_home_path, app_login_path } from "@/types/paths"
 
 /**
- * Global 404 page, in the frame of the signed-out pages: the product's name
- * at the top, and one column that says what happened and offers the way on.
+ * Global 404 page: drawn as every dead link is (PublicGone), in the public
+ * frame on its paper card, "This page doesn't exist or was deleted", with
+ * the way to the workspace and Sign in. The 404s, the guest links, the forms
+ * and the booking pages each drew their own (PG2-01).
  *
- * It was a centred icon tile over an "ERROR 404" eyebrow over a centred
- * paragraph over two equal buttons: the shape of every template's 404, and
- * the status code is the server's business, not the reader's.
- *
- * Design v3 (shell §L4): the orbit spot the signed-in 404 has, and the xl
- * button at r8. A signed-in person never sees this one for an /app link:
- * app/app/not-found.tsx draws theirs inside the shell.
+ * A signed-in person never sees this one for an /app link:
+ * app/app/not-found.tsx draws theirs inside the shell, the same way.
  */
 export default function NotFoundPage() {
     return (
-        <AuthShell>
-            <AuthHeading title="This page doesn't exist" art={<SpotOrbit />}>
-                The link may be old or mistyped, or what it pointed to was deleted.
-            </AuthHeading>
-            <div className="space-y-4">
-                {/* authControl's classes written out: this is a server component, and a
-                    plain value imported from a client module arrives here as a reference. */}
-                <Button asChild size="xl" className="w-full rounded-md">
-                    <Link href={app_home_path}>Go to your workspace</Link>
+        <PublicGone
+            surface="not-found"
+            noun="page"
+            detail="The link may be old or mistyped, or what it pointed to was deleted."
+            back={{ label: "Go to your workspace", href: app_home_path }}
+            more={
+                <Button asChild variant="ghost" size="sm">
+                    <Link href={app_login_path}>Sign in</Link>
                 </Button>
-                <p className="text-sm text-muted-foreground">
-                    Not signed in?{" "}
-                    <Link href={app_login_path} className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Sign in
-                    </Link>
-                </p>
-            </div>
-        </AuthShell>
+            }
+        />
     )
 }

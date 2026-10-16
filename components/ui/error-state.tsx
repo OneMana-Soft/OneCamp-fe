@@ -1,10 +1,11 @@
 "use client"
 import type * as React from "react"
-import { AlertCircle, RefreshCw } from "@/lib/icons"
+import { RefreshCw } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotError } from "@/components/ui/graphics/spots"
 import { cn } from "@/lib/utils/helpers/cn"
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 
 /**
  * ErrorState — "this failed to load", which is NOT the same sentence as "there
@@ -53,9 +54,8 @@ export function ErrorState({
   className?: string
   /**
    * Inside a section, under its title: half the padding, and the error spot at
-   * 48px (the playful layer's drawing for errors) instead of a bare icon. Admin
-   * sections each drew their own version of this: a red banner, an amber one, a
-   * line of text, none with Try again.
+   * 48px. Admin sections each drew their own version of this: a red banner, an
+   * amber one, a line of text, none with Try again.
    */
   compact?: boolean
   /**
@@ -64,10 +64,15 @@ export function ErrorState({
    */
   detail?: React.ReactNode
 }) {
+  // Said here, so the request's toast stays quiet (lib/http/loadFailure).
+  useSaysLoadFailure()
   return (
     <EmptyState
-      icon={compact ? undefined : AlertCircle}
-      illustration={compact ? <SpotError /> : undefined}
+      // The app's one error mark (critic integration, 12 Oct), the page with a
+      // "!" in the spot family's dotted orbit, as on the crash screens: 64px
+      // like an empty state's spot, 48px in a section. The full-size state drew
+      // a lone grey alert icon, below its own empty state's drawing.
+      illustration={<SpotError />}
       title={`Couldn't load ${subject}`}
       // Names the likely cause and rules out the frightening one, because the
       // question a user actually has is "is my work gone?".

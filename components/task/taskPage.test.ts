@@ -13,8 +13,9 @@ describe("the full task page", () => {
     expect(page).not.toMatch(/openRightPanel|router\.replace/)
   })
 
-  it("lays out two columns with the properties as a sticky 280px rail", () => {
-    expect(panel).toContain("lg:grid-cols-[minmax(0,1fr)_280px]")
+  it("lays out two columns with the properties as a sticky 340px rail", () => {
+    // 340, not 280: at 280 the rail wrapped "9 Oct" onto two lines and stacked Time's controls.
+    expect(panel).toContain("lg:grid-cols-[minmax(0,1fr)_340px]")
     expect(panel).toMatch(/data-task-properties[\s\S]{0,200}lg:sticky/)
   })
 

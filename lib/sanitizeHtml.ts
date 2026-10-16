@@ -42,6 +42,11 @@
 import DOMPurify from "dompurify"
 import { contentClasses } from "@/lib/contentClasses"
 
+// Its own instance: the class hook below must not reach libraries sanitising
+// through the shared one (Mermaid's diagrams lost every class).
+let purify: typeof DOMPurify | null = null
+const app = () => (purify ??= DOMPurify(window))
+
 // dompurify is browser-only. On the server we return "" so that:
 //   - the SSR HTML for any sanitised div is empty
 //   - the <SafeHtml> wrapper (or a manual useEffect) replaces it on
@@ -56,7 +61,7 @@ function ensureHooks() {
     if (hooksInstalled || !isBrowser) return
     hooksInstalled = true
 
-    DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    app().addHook("afterSanitizeAttributes", (node) => {
         // Only the classes the editor writes, in every sanitiser here.
         if (node.hasAttribute?.("class")) {
             const kept = contentClasses(node.getAttribute("class"))
@@ -89,7 +94,7 @@ export function sanitizeRichHtml(html: string): string {
     if (!html) return ""
     if (!isBrowser) return ""
     ensureHooks()
-    return DOMPurify.sanitize(html, {
+    return app().sanitize(html, {
         ALLOWED_TAGS: [
             "p", "br", "strong", "b", "em", "i", "u", "s", "del", "code", "pre",
             "h1", "h2", "h3", "h4", "h5", "h6",
@@ -98,6 +103,8 @@ export function sanitizeRichHtml(html: string): string {
             "a", "img",
             "table", "thead", "tbody", "tr", "th", "td",
             "span", "div",
+            // A highlight (B2).
+            "mark",
         ],
         ALLOWED_ATTR: [
             "href", "src", "alt", "title", "class",
@@ -111,8 +118,16 @@ export function sanitizeRichHtml(html: string): string {
             // stripping it would remove the marking on render and leave the
             // claim in the documentation with nothing behind it.
             "data-ai-generated",
+            // B2's look, by name: a text or highlight colour, a block's
+            // colour, a large quote, a callout's icon. Inert, like every
+            // data-* here; without them a doc's saved copy shows its colours
+            // only once the editor takes over.
+            "data-color", "data-block-color", "data-quote-size", "data-icon",
             "colspan", "rowspan",
             "target", "rel",
+            // A block's text direction (ltr, rtl), so a doc's saved copy,
+            // shown before its editor, reads the way the editor will (B1).
+            "dir",
         ],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|#|\/)/i,
         FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "svg", "math", "form", "input", "button", "textarea", "select", "option", "link", "meta"],
@@ -129,7 +144,7 @@ export function sanitizePlainHtml(html: string): string {
     if (!html) return ""
     if (!isBrowser) return ""
     ensureHooks()
-    return DOMPurify.sanitize(html, {
+    return app().sanitize(html, {
         ALLOWED_TAGS: ["b", "strong", "i", "em", "u", "s", "del", "mark", "code", "br", "span"],
         ALLOWED_ATTR: ["class"],
         FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "svg", "form"],
@@ -146,7 +161,7 @@ export function sanitizeImportedDocument(html: string): string {
     if (!html) return ""
     if (!isBrowser) return ""
     ensureHooks()
-    return DOMPurify.sanitize(html, {
+    return app().sanitize(html, {
         ALLOWED_TAGS: [
             "p", "br", "strong", "b", "em", "i", "u", "s", "del", "code", "pre",
             "h1", "h2", "h3", "h4", "h5", "h6",

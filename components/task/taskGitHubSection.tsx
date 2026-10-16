@@ -242,7 +242,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
       setResult(res)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Analysis failed"
-      toast({ title: "Couldn't analyze", description: msg, variant: "destructive" })
+      toast({ title: "Couldn't analyse", description: msg, variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -258,7 +258,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
         {!result && (
           <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 shrink-0" disabled={loading} onClick={() => run(false)}>
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-            {loading ? "Analyzing…" : "Analyze with AI"}
+            {loading ? "Analysing…" : "Analyse with AI"}
           </Button>
         )}
       </div>
@@ -296,7 +296,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
                 onClick={() => run(true)}
               >
                 {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                Analyze deeper
+                Analyse deeper
               </Button>
             </div>
           )}

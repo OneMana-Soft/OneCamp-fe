@@ -84,21 +84,27 @@
   @media (min-width: 768px) {
     .auth-form { transform: translateY(-4vh); }
   }
+  /* ink-2: the trust line is a sentence, the sign-in page's best claim, and
+     ink-3 is never for sentences (DESIGN_V3 §3.3): it was 3.4:1 on the
+     sheet, under AA. The shield stays ink-3, a glyph. */
+  /* Two lines on purpose, at every width: the claim, then Privacy and Help
+     under it. Side by side they never fit the form column, and the links
+     wrapped to a second row pushed to its right edge. */
   .auth-trust {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 6px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     font-size: 12.5px;
     line-height: 18px;
     letter-spacing: 0;
-    color: var(--ink-3);
+    color: var(--ink-2);
     position: relative;
     z-index: 1;
   }
-  .auth-trust svg { width: 14px; height: 14px; flex: none; }
+  .auth-trust svg { width: 14px; height: 14px; flex: none; color: var(--ink-3); }
   .auth-trust a {
-    color: var(--ink-3);
+    color: var(--ink-2);
     display: inline-flex;
     align-items: center;
     min-height: 44px;
@@ -844,11 +850,15 @@
     box-shadow: var(--e3);
     animation: ktip-in 240ms var(--ease-out) both;
   }
-  .ktip-row { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: 13px; line-height: 18px; }
-  .ktip-keys { display: flex; gap: 4px; min-width: 52px; }
+  /* One key column for the three rows (a subgrid), so the actions line up
+     however wide a chord is: "Alt click" pushed its action 9px right of the
+     other two. */
+  .ktip-list { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 10px; }
+  .ktip-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-height: 28px; font-size: 13px; line-height: 18px; }
+  .ktip-keys { display: flex; gap: 4px; }
   .ktip-key { transition: transform 90ms var(--ease-out), background-color 90ms var(--ease-out); }
   .ktip-key[data-pressed] { transform: translateY(1px); background: var(--press); }
-  .ktip-tick { width: 14px; height: 14px; color: var(--success-ink); margin-left: auto; animation: auth-check 220ms var(--ease-spring) both; }
+  .ktip-tick { grid-column: 3; width: 14px; height: 14px; color: var(--success-ink); animation: auth-check 220ms var(--ease-spring) both; }
 
   @media (prefers-reduced-motion: reduce) {
     .auth-shake, .auth-otp[data-shake], .auth-otp-digit, .auth-otp-caret,

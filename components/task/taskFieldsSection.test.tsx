@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { TaskField } from "@/lib/tasks/fields"
 
@@ -40,6 +41,8 @@ afterEach(() => {
   fields = []
   canManage = true
 })
+// Today is pinned (app/testClock.test.ts): a day in this year is written without its year, and these are 2026's.
+pinTestClock()
 
 describe("TaskFieldsSection", () => {
   it("shows each field's value to someone who can't change it", () => {
@@ -54,6 +57,8 @@ describe("TaskFieldsSection", () => {
     fields = [budget]
     post.mockResolvedValueOnce({ data: { data: { value: 990050 } } })
     render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit members={[]} />)
+    // A value at rest, a box once it is chosen to type in (InlineEdit).
+    fireEvent.click(screen.getByLabelText("Budget"))
     const box = screen.getByLabelText("Budget")
     fireEvent.change(box, { target: { value: "9,900.50" } })
     await act(async () => {
@@ -80,13 +85,14 @@ describe("TaskFieldsSection", () => {
   it("doesn't save a typed value that isn't one", async () => {
     fields = [budget]
     render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{ "f-budget": 100 }} canEdit members={[]} />)
+    fireEvent.click(screen.getByLabelText("Budget"))
     const box = screen.getByLabelText("Budget") as HTMLInputElement
     fireEvent.change(box, { target: { value: "lots" } })
     await act(async () => {
       fireEvent.blur(box)
     })
     expect(post).not.toHaveBeenCalled()
-    expect(box.value).toBe("1")
+    expect(screen.getByLabelText("Budget").textContent).toBe("1")
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Budget wasn't changed" }))
   })
 
@@ -156,9 +162,10 @@ describe("the panel's values read one way", () => {
     fields = [channel, budget]
     render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit members={[]} />)
     expect(screen.getByText("Choose…")).toBeTruthy()
-    expect((screen.getByLabelText("Budget") as HTMLInputElement).placeholder).toBe("Add an amount…")
+    expect(screen.getByLabelText("Budget").textContent).toBe("Add an amount…")
     expect(screen.queryByText("INR")).toBeNull()
-    fireEvent.focus(screen.getByLabelText("Budget"))
+    fireEvent.click(screen.getByLabelText("Budget"))
+    expect((screen.getByLabelText("Budget") as HTMLInputElement).placeholder).toBe("Add an amount…")
     expect(screen.getByText("INR")).toBeTruthy()
   })
 })

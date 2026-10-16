@@ -20,6 +20,7 @@ import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { formatSendAt } from "@/lib/messages/schedulePresets"
+import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { clearUserEmojiStatus } from "@/store/slice/userSlice"
@@ -29,6 +30,8 @@ import { USER_STATUS_ONLINE, type UserProfileInterface } from "@/types/user"
 import { PauseNotificationsDialog, pauseLeftLabel } from "@/components/notifications/PauseNotificationsDialog"
 import { AppearanceControl } from "@/components/navigationBar/appearanceControl"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
+import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /** The person's own status: the emoji and words, unless it has expired. */
 function useOwnStatus(userUUID: string | undefined) {
@@ -51,8 +54,6 @@ export function minutesLeft(until: Date, now: number): string {
   return r ? `${h} h ${r} min` : `${h} h`
 }
 
-/** The time a moment reads as on the clock, 24-hour as the mock shows ("16:00"). */
-const clock = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
 
 /** A face with presence, and in focus the ring that closes as the block ends. */
 function FootAvatar({
@@ -121,8 +122,8 @@ export function SelfAvatar() {
  * The sidebar's foot (design v3, shell S12): your face with presence, your
  * name, a status line, and the profile menu, which rises from it. In focus
  * the face wears the ring that closes as the block ends, the line reads
- * "In focus until 16:00" and End replaces the sliders; paused shows a hollow
- * pause badge and "Notifications paused · 1 h".
+ * "In focus until 4:00 PM" and End replaces the sliders; paused shows a
+ * hollow pause badge and "Paused · 1 h left".
  */
 export function SidebarFoot() {
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -137,7 +138,11 @@ export function SidebarFoot() {
     const t = window.setInterval(() => setNow(Date.now()), 60_000)
     return () => window.clearInterval(t)
   }, [])
-  useEffect(() => setNow(Date.now()), [focus.focusUntil, pausedUntil])
+  // Read again when the block or the pause changes. Their moments as numbers:
+  // a Date is a new value to an effect on every render.
+  const focusUntilMs = focus.focusUntil?.getTime() ?? 0
+  const pausedUntilMs = pausedUntil?.getTime() ?? 0
+  useEffect(() => setNow(Date.now()), [focusUntilMs, pausedUntilMs])
 
   const inFocus = !!focus.focusUntil
   const fraction = focusProgress(focus.focusStart, focus.focusUntil, now)
@@ -149,11 +154,15 @@ export function SidebarFoot() {
   if (inFocus && focus.focusUntil) {
     line = (
       <span className="shell-status-in" key="focus">
-        <b className="font-medium text-brand-text">In focus</b> until {clock(focus.focusUntil)}
+        <b className="font-medium text-brand-text">In focus</b> until {clockTime(focus.focusUntil)}
       </span>
     )
   } else if (pausedUntil) {
-    line = `Notifications paused · ${minutesLeft(pausedUntil, now)}`
+    // Short enough for the foot's column: "Notifications paused · 1 h" lost
+    // its "1 h" to the ellipsis, the one part that changes. The pause badge on
+    // the face says what is paused, and the time is written as the profile
+    // menu's pill writes it ("Paused · 1 h 20 m left").
+    line = `${pauseLeftLabel(pausedUntil, new Date(now))} left`
   } else if (away) {
     line = "Away"
   } else if (status) {
@@ -163,7 +172,7 @@ export function SidebarFoot() {
   }
 
   const avatarFocus = inFocus
-    ? { fraction, done: fraction >= 1, label: `In focus until ${focus.focusUntil ? clock(focus.focusUntil) : ""}, ${pctLeft} % left` }
+    ? { fraction, done: fraction >= 1, label: `In focus until ${focus.focusUntil ? clockTime(focus.focusUntil) : ""}, ${pctLeft} % left` }
     : null
 
   return (
@@ -198,26 +207,12 @@ export function SidebarFoot() {
   )
 }
 
-const PAUSES: { label: string; at: () => Date }[] = [
-  { label: "30 minutes", at: () => new Date(Date.now() + 30 * 60_000) },
-  { label: "1 hour", at: () => new Date(Date.now() + 60 * 60_000) },
-  { label: "2 hours", at: () => new Date(Date.now() + 120 * 60_000) },
-  {
-    label: "Until tomorrow, 9:00",
-    at: () => {
-      const d = new Date()
-      d.setDate(d.getDate() + 1)
-      d.setHours(9, 0, 0, 0)
-      return d
-    },
-  },
-]
 
 /**
  * The profile menu (design v3, shell M2): 264px, r12, e3, rising from the
  * foot. Your face and email, your status as a field (a click edits it, × clears
  * it), focus, the pause presets as a submenu, profile, settings, the keyboard
- * list, Appearance (hub P2: mode and theme colour), and Sign out in danger ink.
+ * list, Appearance (hub P2: mode and theme colour), and Sign out, in ink.
  */
 export function ProfileMenu({ children }: { children: React.ReactNode }) {
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -230,6 +225,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
   const status = useOwnStatus(profile?.user_uuid)
   const post = usePost()
   const [pauseOpen, setPauseOpen] = useState(false)
+  useEffect(() => watchInputModality(), [])
 
   const clearStatus = () => {
     if (!profile?.user_uuid) return
@@ -244,7 +240,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
       <Menu.Root>
         <Menu.Trigger asChild>{children}</Menu.Trigger>
         <Menu.Portal>
-          <Menu.Content side="top" align="start" sideOffset={6} aria-label="Profile and settings" className="shell-menu shell-pop z-[var(--z-dropdown)]">
+          <Menu.Content side="top" align="start" sideOffset={6} aria-label="Profile and settings" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)]">
             <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
               <FootAvatar profile={profile} size={36} />
               <div className="min-w-0 flex-1">
@@ -261,7 +257,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             {/* The status as a field: a click opens it to edit, × clears it. */}
-            <div className="mx-1 mb-1.5 flex h-8 items-center gap-2 rounded-md bg-sunken pl-2 pr-1 shell-field-ring">
+            <div className="mx-1 mb-1.5 flex h-8 items-center gap-2 rounded-md bg-sunken pl-2 pr-1 shell-field-ring [@media(pointer:coarse)]:h-11">
               <Menu.Item
                 className="flex min-w-0 flex-1 cursor-default items-center gap-2 rounded-sm text-xs outline-none data-[highlighted]:text-ink"
                 onSelect={() => dispatch(openUI({ key: "userStatusUpdate", data: { userUUID: "" } }))}
@@ -295,7 +291,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
                 <Focus aria-hidden="true" />
                 Start focus time
                 <span className="shell-menu-meta">1 h</span>
-                <span className="kbd ml-1.5">F</span>
+                <span data-kbd-hint="" className="kbd ml-1.5">F</span>
               </Menu.Item>
             )}
             <Menu.Sub>
@@ -311,15 +307,20 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
                 <ChevronRight className={cn("!h-3.5 !w-3.5", pausedUntil ? "!ml-1" : "!ml-auto")} aria-hidden="true" />
               </Menu.SubTrigger>
               <Menu.Portal>
-                <Menu.SubContent sideOffset={6} alignOffset={-4} className="shell-menu shell-pop z-[var(--z-dropdown)] !w-56">
+                <Menu.SubContent sideOffset={6} alignOffset={-4} collisionPadding={8} className="shell-menu shell-pop z-[var(--z-dropdown)] !w-[264px]">
                   {pausedUntil && (
                     <>
                       <Menu.Item className="shell-menu-item" onSelect={() => void resume()}>Resume notifications</Menu.Item>
                       <div className="shell-menu-sep" />
                     </>
                   )}
-                  {PAUSES.map((p) => (
-                    <Menu.Item key={p.label} className="shell-menu-item" onSelect={() => void pause(p.at())}>{p.label}</Menu.Item>
+                  {/* The pause dialog's own presets (lib/notifications/pause), each
+                      saying when it ends: "For 1 hour", until 8:10 PM. */}
+                  {pausePresets(new Date()).map((p) => (
+                    <Menu.Item key={p.label} className="shell-menu-item" onSelect={() => void pause(p.at)}>
+                      {p.label}
+                      <span className="shell-menu-meta tabular-nums">{pauseEndsLine(p, clockTime)}</span>
+                    </Menu.Item>
                   ))}
                   <Menu.Item className="shell-menu-item" onSelect={() => setPauseOpen(true)}>Custom…</Menu.Item>
                   <div className="shell-menu-sep" />
@@ -335,19 +336,29 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
             <Menu.Item className="shell-menu-item" onSelect={() => router.push("/app/settings")}>
               <Settings aria-hidden="true" />
               Settings
-              <span className="kbd ml-auto">,</span>
+              <span data-kbd-hint="" className="kbd ml-auto">,</span>
             </Menu.Item>
             <Menu.Item className="shell-menu-item" onSelect={() => openShortcuts()}>
               <Keyboard aria-hidden="true" />
               Keyboard shortcuts
-              <span className="kbd ml-auto">?</span>
+              <span data-kbd-hint="" className="kbd ml-auto">?</span>
             </Menu.Item>
             {/* Appearance (hub P2): Light, Dark and System as one sliding
                 segmented control, and the six theme colours under it. */}
             <div className="shell-menu-sep" />
-            <AppearanceControl />
+            <AppearanceControl
+              more={
+                <Menu.Item asChild onSelect={() => router.push("/app/settings/profile#profile-appearance")}>
+                  <button type="button" data-more-colours="" className="shrink-0 rounded-sm text-meta text-ink-3 outline-none hover:text-foreground focus-visible:text-foreground data-[highlighted]:text-foreground">
+                    More colours
+                  </button>
+                </Menu.Item>
+              }
+            />
             <div className="shell-menu-sep" />
-            <Menu.Item className="shell-menu-item" data-danger="" onSelect={logout}>
+            {/* Sign out ends nothing and loses nothing: neutral ink, as Linear
+                and Slack draw it. Danger ink is for what destroys (hub critic). */}
+            <Menu.Item className="shell-menu-item" onSelect={logout}>
               <LogOut aria-hidden="true" />
               Sign out
             </Menu.Item>

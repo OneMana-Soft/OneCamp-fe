@@ -81,16 +81,70 @@ describe("the keyboard shortcuts list", () => {
   })
 })
 
+// SD-64: a Slack person's ⌘/ (Ctrl+/) did nothing, and F1 opened the
+// browser's help. Both open the list; ⌘/ from a message box too, as Slack's.
+describe("opening the list", () => {
+  const isOpen = () => document.querySelectorAll("[data-shortcuts-dialog]").length
+
+  it("opens on Ctrl or ⌘ with /, from a message box too", () => {
+    render(<ShortcutsDialog />)
+    const box = document.createElement("div")
+    box.contentEditable = "true"
+    document.body.appendChild(box)
+    box.focus()
+    const e = new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true, cancelable: true })
+    act(() => void box.dispatchEvent(e))
+    expect(isOpen()).toBe(1)
+    expect(e.defaultPrevented).toBe(true)
+    box.remove()
+  })
+
+  it("opens once on F1 where nothing is typed, in place of the browser's help, and not from a field", () => {
+    render(<ShortcutsDialog />)
+    const field = document.createElement("input")
+    document.body.appendChild(field)
+    fireEvent.keyDown(field, { key: "F1" })
+    expect(isOpen()).toBe(0)
+    field.remove()
+    const e = new KeyboardEvent("keydown", { key: "F1", bubbles: true, cancelable: true })
+    act(() => void document.body.dispatchEvent(e))
+    act(() => void document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "F1", bubbles: true, cancelable: true })))
+    expect(e.defaultPrevented).toBe(true)
+    expect(isOpen()).toBe(1)
+  })
+
+  it("leaves a key something else took to it: a doc's ⌘/ is its block menu", () => {
+    render(<ShortcutsDialog />)
+    const doc = document.createElement("div")
+    doc.addEventListener("keydown", (e) => e.preventDefault())
+    document.body.appendChild(doc)
+    act(() => void doc.dispatchEvent(new KeyboardEvent("keydown", { key: "/", ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(isOpen()).toBe(0)
+    doc.remove()
+  })
+
+  it("lists the ways it opens, and lights them when pressed", () => {
+    openList()
+    const row = screen.getByText("This list").closest("li")!
+    expect(row.textContent).toBe("This list?orCtrl/orF1")
+    fireEvent.keyDown(window, { key: "/", ctrlKey: true })
+    expect(row.getAttribute("data-hit")).toBe("true")
+  })
+})
+
 describe("reading a written shortcut", () => {
   it("splits keys from words", () => {
     expect(pieces("J / K (or ↓ / ↑)", false)).toEqual([{ key: "J" }, { word: "/" }, { key: "K" }, { word: "or" }, { key: "↓" }, { word: "/" }, { key: "↑" }])
     expect(pieces("Ctrl/⌘ + K", true)).toEqual([{ key: "⌘" }, { key: "K" }])
     expect(pieces("Alt + click a link", false)).toEqual([{ key: "Alt" }, { word: "click" }, { word: "a" }, { word: "link" }])
+    // A "/" after "+" is the slash key.
+    expect(pieces("? or Ctrl/⌘ + / or F1", true)).toEqual([{ key: "?" }, { word: "or" }, { key: "⌘" }, { key: "/" }, { word: "or" }, { key: "F1" }])
   })
 
   it("knows the combinations a row lists, and when one is pressed", () => {
     expect(combosOf("Ctrl + Alt + 1 / 2 / 3")).toEqual([["ctrl", "alt", "1"], ["ctrl", "alt", "2"], ["ctrl", "alt", "3"]])
     expect(combosOf("G then H")).toEqual([])
+    expect(combosOf("? or Ctrl/⌘ + / or F1")).toEqual([["mod", "/"]])
     const mod = combosOf("Ctrl/⌘ + K")[0]
     expect(pressedMatches(mod, pressedOf({ key: "k", metaKey: true, ctrlKey: false, altKey: false, shiftKey: false }))).toBe(true)
     expect(pressedMatches(mod, pressedOf({ key: "k", metaKey: true, ctrlKey: false, altKey: true, shiftKey: false }))).toBe(false)

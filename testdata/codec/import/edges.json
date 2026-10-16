@@ -1,0 +1,151 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "text": "Edges both readers pin",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "Shipped!",
+          "type": "text"
+        },
+        {
+          "text": "🚀 and 🚀",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "!",
+          "type": "text"
+        },
+        {
+          "text": ", and ~**🚀*!",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "A backslash before spaces\\",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "text": "keeps its line break.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strike"
+            }
+          ],
+          "text": "struck",
+          "type": "text"
+        },
+        {
+          "text": " but ~~~not this~~~ and ~~~nor this~~",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "Tabs before a line end are dropped",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "text": "and so are the spaces.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ],
+          "text": "under ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "italic"
+            },
+            {
+              "type": "underline"
+            }
+          ],
+          "text": "both still",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ],
+          "text": " after",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "A leading no-break space and break.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "code",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    }
+  ],
+  "type": "doc"
+}

@@ -4,6 +4,7 @@ import { taskActivityConst } from "@/types/taskActivity"
 import type { TaskActivityInterface } from "@/types/task"
 import { useTranslation } from "react-i18next"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { BUILT_IN_STATUSES, CATEGORY_KIND, isBuiltInStatus } from "@/lib/taskStatus"
@@ -43,7 +44,7 @@ export default function TaskActivity({ taskActivity, line, openOtherUserProfile 
     return (
         <div className="flex items-start gap-2 py-1 text-ui-sm" data-history-line={folded ? "folded" : "single"}>
             <span className="mt-px size-5 shrink-0">
-                {agent ? <AgentAvatar src={imageSrc} /> : <IdentityMark variant="avatar" id={by?.user_uuid} label={name} src={imageSrc} size={20} />}
+                {agent ? <AgentAvatar src={imageSrc} /> : <IdentityMark variant="avatar" id={avatarSeed(by)} label={name} src={imageSrc} size={20} />}
             </span>
             <p className="min-w-0 flex-1 text-ink-2">
                 <button type="button" className="font-[510] text-foreground hover:underline" onClick={() => openOtherUserProfile(by.user_uuid)}>

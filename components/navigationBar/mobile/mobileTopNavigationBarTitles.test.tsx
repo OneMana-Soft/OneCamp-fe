@@ -46,6 +46,19 @@ describe("the phone's top bar", () => {
     expect(screen.getByText(title)).toBeTruthy()
   })
 
+  // QA DSA-23 (14 Oct 2026): a doc's comments page said "Comments" alone.
+  it("names the doc on its comments page, once its name is known", async () => {
+    const { MobileTopNavigationBarSecondDoc } = await import("./mobileTopNavigationBarSecondDoc")
+    const fetch = await import("@/hooks/useFetch")
+    const spy = vi.spyOn(fetch, "useFetch").mockReturnValue({ data: { data: { doc_title: "Q4 launch plan" } } } as never)
+    try {
+      render(<MobileTopNavigationBarSecondDoc docId="d1" page="Comments" />)
+      expect(screen.getByText("Comments · Q4 launch plan")).toBeTruthy()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it("opens the menu from the avatar by tap or keyboard, a 44px target", () => {
     pathname = "/app/home"
     render(<MobileTopNavigationBarThird />)

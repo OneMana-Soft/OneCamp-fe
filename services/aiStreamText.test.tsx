@@ -6,7 +6,8 @@ vi.mock("@/lib/utils/streamFetch", () => ({
     authedStreamFetch: (...args: unknown[]) => streamFetch(...args),
 }));
 
-import { useAskAIStream, useDocAI } from "@/services/aiService";
+import { useAskAIStream } from "@/services/aiService";
+import { streamDocAI } from "@/lib/ai/docAIStream";
 
 // Text a model really writes: a Windows path, a tab, quotes, a literal
 // backslash-n in code, and text beyond ASCII.
@@ -39,7 +40,10 @@ function sseInPieces(payloads: unknown[], size: number) {
 }
 
 describe("streamed AI text arrives whole", () => {
-    beforeEach(() => streamFetch.mockReset());
+    // A block body: a function returned from beforeEach is run as its cleanup.
+    beforeEach(() => {
+        streamFetch.mockReset();
+    });
 
     for (const size of [5, 13, 64]) {
         it(`in Ask AI, read ${size} bytes at a time`, async () => {
@@ -56,14 +60,15 @@ describe("streamed AI text arrives whole", () => {
             expect(out!.sessionId).toBe("s-1");
         });
 
-        it(`in the doc assistant, read ${size} bytes at a time`, async () => {
+        // The doc AI bar and panel stream through lib/ai/docAIStream.
+        it(`in doc AI, read ${size} bytes at a time`, async () => {
             streamFetch.mockResolvedValue(sseInPieces([...chunks.map((content) => ({ content })), { done: true }], size));
-            const { result } = renderHook(() => useDocAI());
-            await act(async () => {
-                await result.current.completeStream("write", "x");
-            });
-            expect(result.current.streamText).toBe(text);
-            expect(result.current.error).toBeNull();
+            const seen: string[] = [];
+            const out = await streamDocAI({ action: "write", prompt: "x" }, { onText: (t) => seen.push(t) });
+            expect(out.error).toBe("");
+            // Whole, then trimmed as the bar takes it.
+            expect(seen.at(-1)).toBe(text);
+            expect(out.text).toBe(text.trim());
         });
     }
 });

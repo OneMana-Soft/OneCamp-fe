@@ -60,6 +60,21 @@ export function SpotSearchV3({ size = 96, className }: { size?: number; classNam
   )
 }
 
+/** No comments yet: a speech bubble on a sun disc, three dots in it. */
+export function SpotComment({ size = 96, className }: { size?: number; className?: string }) {
+  return (
+    <Frame size={size} hue="sun" className={className} label="comment">
+      <RaisedTile x={22} y={26} w={52} h={36} r={12} />
+      <path d="M33 61.5 29 72l11-10.5" fill="var(--raised)" stroke="var(--line-2)" strokeWidth="1" strokeLinejoin="round" />
+      <circle cx="38" cy="44" r="3" fill="var(--camp-sun-ink)" />
+      <circle cx="48" cy="44" r="3" fill="var(--camp-sun-ink)" />
+      <circle cx="58" cy="44" r="3" fill="var(--camp-sun-ink)" />
+      <circle className="hub-pop-in" style={{ ["--i" as string]: 0 }} cx="16" cy="70" r="3.5" fill="var(--camp-moss)" />
+      <Spark x={72} y={8} />
+    </Frame>
+  )
+}
+
 /** The inbox: an envelope on a sky disc, a dashed orbit with a sun and a moss dot. */
 export function SpotEnvelope({
   size = 120,

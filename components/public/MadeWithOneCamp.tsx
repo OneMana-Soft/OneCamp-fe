@@ -6,7 +6,7 @@
 // The site comes from NEXT_PUBLIC_PRODUCT_SITE (.env.production), never a
 // literal here: without it the credit is plain text and links nowhere.
 
-export type PublicSurface = "booking" | "booked" | "form" | "guest-channel" | "guest-project" | "guest-doc" | "guest-board" | "guest-table" | "guest-meeting"
+export type PublicSurface = "booking" | "booked" | "form" | "guest-channel" | "guest-project" | "guest-doc" | "guest-board" | "guest-table" | "guest-meeting" | "not-found"
 
 const site = () => (process.env.NEXT_PUBLIC_PRODUCT_SITE || "").replace(/\/$/, "")
 
@@ -29,21 +29,22 @@ function RingMark() {
 }
 
 /**
- * The credit as a 24 px chip with the ring logo (design v3, work.md W46),
- * centred under the page's card.
+ * The credit as a badge (admin.md G1, work.md W46): a 28 px pill on e1 with
+ * the ring logo and "Made with OneCamp" at 12/510 ink-2, rising to e2 under
+ * the pointer, centred under the page's card. It read as a footnote.
  */
 export function MadeWithOneCamp({ surface, label = "Made with OneCamp", className = "" }: { surface: PublicSurface; label?: string; className?: string }) {
   const href = madeWithHref(surface)
-  const chip = "inline-flex h-6 items-center gap-1.5 rounded-sm bg-raised px-2 text-xs font-medium text-ink-2 shadow-e1"
+  const chip = "inline-flex h-7 items-center gap-1.5 rounded-full bg-raised px-3 text-meta font-medium text-ink-2 shadow-e1"
   return (
     <p className={`flex justify-center ${className}`} data-made-with="">
       {href ? (
-        <a href={href} target="_blank" rel="noopener" className={`${chip} transition-colors hover:text-foreground`}>
+        <a href={href} target="_blank" rel="noopener" className={`${chip} transition-[color,box-shadow] duration-[140ms] hover:text-ink hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`} data-made-with-badge="">
           <RingMark />
           {label}
         </a>
       ) : (
-        <span className={chip}>
+        <span className={chip} data-made-with-badge="">
           <RingMark />
           {label}
         </span>

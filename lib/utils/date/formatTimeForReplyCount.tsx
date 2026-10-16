@@ -1,4 +1,4 @@
-import { shortTime } from "@/lib/utils/date/shortDate";
+import { clockTime } from "@/lib/utils/date/clock";
 
 export function formatTimeForReplyCount(dateString: string | number): string {
     if (typeof dateString === "number") {
@@ -14,11 +14,11 @@ export function formatTimeForReplyCount(dateString: string | number): string {
 
     // Today
     if (dateObject.toDateString() === currentDate.toDateString()) {
-        return `Today at ${shortTime(dateObject)}`;
+        return `Today at ${clockTime(dateObject)}`;
     }
     // Yesterday
     else if (daysDiff <= 1) {
-        return `Yesterday at ${shortTime(dateObject)}`;
+        return `Yesterday at ${clockTime(dateObject)}`;
     }
     // Less than a month
     else if (daysDiff < 30) {

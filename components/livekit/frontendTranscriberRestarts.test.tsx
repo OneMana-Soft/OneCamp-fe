@@ -116,3 +116,34 @@ describe("CALL-BUG-24: the recogniser's restarts", () => {
     expect(nextRecogniserStart(null, 4)).toBe(1600)
   })
 })
+
+// QA F-21: the on-device question was asked on every join, captions on or
+// off, and a Chromium that exposes SpeechRecognition.available without its
+// on-device service ends the page for it. It is asked only while captions are
+// on here.
+describe("the on-device question", () => {
+  const available = vi.fn(async () => "unavailable")
+  beforeEach(() => {
+    ;(FakeRecognition as unknown as { available: typeof available }).available = available
+    available.mockClear()
+  })
+  afterEach(() => {
+    delete (FakeRecognition as unknown as { available?: unknown }).available
+  })
+
+  it("isn't asked while captions are off", async () => {
+    await act(async () => {
+      render(<FrontendTranscriber onTranscript={() => {}} active={false} persist language="en-GB" />)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(available).not.toHaveBeenCalled()
+  })
+
+  it("is asked once captions are on, for the call's language", async () => {
+    await mount()
+    expect(available).toHaveBeenCalledWith({ langs: ["en-GB"], processLocally: true })
+  })
+})
+

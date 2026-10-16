@@ -8,6 +8,12 @@ import {Button} from "@/components/ui/button";
 import {TeamProjectCard} from "@/components/team/TeamProjectCard";
 import {openUI} from "@/store/slice/uiSlice";
 import {TeamMemberCard} from "@/components/team/TeamMemberCard";
+import dynamic from "next/dynamic";
+import { SpaceDocsCardFallback } from "@/components/docTree/SpaceDocsCard";
+
+// The team's docs: the pages made in its space (docs programme B5), a chunk
+// of their own. Its card's heading stands in while it arrives.
+const SpaceDocs = dynamic(() => import("@/components/docTree/SpaceDocs"), { loading: () => <SpaceDocsCardFallback /> });
 
 export const TeamDesktop = ({teamId}:{teamId: string})=> {
 
@@ -41,6 +47,9 @@ export const TeamDesktop = ({teamId}:{teamId: string})=> {
                 <div className="flex flex-col lg:flex-row gap-8 h-full min-h-0 max-w-7xl mx-auto w-full">
                     <div className="flex-1 min-h-0 min-w-0 flex flex-col">
                         <TeamProjectCard teamId={teamId} />
+                    </div>
+                    <div className="flex-1 min-h-0 min-w-0 flex flex-col" data-team-docs="">
+                        <SpaceDocs space={`team:${teamId}` as const} name={teamInfo.data?.data.team_name} variant="card" />
                     </div>
                     <div className="flex-1 min-h-0 min-w-0 flex flex-col">
                         <TeamMemberCard teamId={teamId} />

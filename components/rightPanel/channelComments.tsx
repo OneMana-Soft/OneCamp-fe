@@ -4,7 +4,7 @@ import {useDispatch, useSelector} from "react-redux"
 import type { RootState } from "@/store/store"
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {CreateOrUpdatePostsReq, CreatePostsRes, PostsResRaw} from "@/types/post";
+import {CreateOrUpdatePostsReq, PostsResRaw} from "@/types/post";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
@@ -31,7 +31,6 @@ import {
     removeChannelComment,
     removeChannelCommentReaction,
     setChannelCommentAlsoSend,
-    updateChannelComment,
     updateChannelCommentReaction,
     updateChannelCommentReactionId
 } from "@/store/slice/channelCommentSlice";
@@ -39,6 +38,7 @@ import {ChannelCommentFileUpload} from "@/components/fileUpload/channelCommentFi
 import { SendHorizontal } from "@/lib/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
 import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
@@ -52,7 +52,6 @@ import {
     removePostReactionByPostId,
     updateChannelMessageReplyDecrement,
     updateChannelMessageReplyIncrement,
-    updatePostByPostId,
     updatePostReactionPostId
 } from "@/store/slice/channelSlice";
 import {UserProfileInterface} from "@/types/user";
@@ -66,6 +65,7 @@ const NO_DRAFT = {}
 
 export const ChannelComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
+    const sidebarChannelName = useSelector((state: RootState) => state.users.userSidebar.userChannels?.find((c) => c.ch_uuid === state.rightPanel.rightPanelState.data.channelUUID)?.ch_name)
 
 
     // The reply being written: this thread's own draft (MC-BUG-1).
@@ -86,6 +86,7 @@ export const ChannelComments = () => {
     const dispatch = useDispatch()
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
 
     // The root from the conversation's loaded messages, live; else from the
     // thread's own answer. A link to an older message in a conversation already
@@ -125,24 +126,10 @@ export const ChannelComments = () => {
     const replyMessageData = getReplyMessageData(postState)
 
 
+    // The message's own menu has asked already, in place (DeleteConfirm): no
+    // dialog half a second later, and no toast once it's gone (SD-5).
     const handleDeletePost = (postId: string) => {
-
-        if(!postId) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this message?",
-                    description: "It's removed from the channel for everyone. This can't be undone.",
-                    confirmText: "Delete message",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeletePost(postId)}
-                }
-            }));
-        }, 500);
-
-
+        if (postId) executeDeletePost(postId)
     }
 
     const executeDeletePost = (postId: string) => {
@@ -152,7 +139,7 @@ export const ChannelComments = () => {
             payload: {
                 post_id: postId
             },
-            showToast: true
+            showErrorToast: true
         })
             .then(() => {
                 dispatch(removePostByPostId({postId, channelId: rightPanelState.data.channelUUID}))
@@ -161,23 +148,7 @@ export const ChannelComments = () => {
     }
 
     const handleDeletePostComment = (commentUUID: string, commentIndex: number) => {
-
-        if(!commentUUID) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this reply?",
-                    description: "It's removed from the thread for everyone. This can't be undone.",
-                    confirmText: "Delete reply",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeletePostComment(commentIndex, commentUUID)}
-                }
-            }));
-        }, 500);
-
-
+        if (commentUUID) executeDeletePostComment(commentIndex, commentUUID)
     }
 
 
@@ -189,7 +160,7 @@ export const ChannelComments = () => {
                 post_id: rightPanelState.data.postUUID,
                 comment_id: commentUUID,
             },
-            showToast: true
+            showErrorToast: true
         })
             .then(() => {
                 dispatch(removeChannelComment({postId: rightPanelState.data.postUUID, commentIndex}))
@@ -201,59 +172,12 @@ export const ChannelComments = () => {
 
     }
 
-    const handleUpdatePostComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
+    const handleUpdatePostComment = (id: string, html: string) => saveEdit({ kind: "postReply", postId: rightPanelState.data.postUUID, id }, html)
 
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface>({
-            apiEndpoint: PostEndpointUrl.UpdatePostComment,
-            payload: {
-                post_id: rightPanelState.data.postUUID,
-                comment_id: commentUUID,
-                comment_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChannelComment({
-                        commentIndex: commentIndex,
-                        postId: rightPanelState.data.postUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
-
-    const handleUpdatePost = (postHTMLText: string, postId: string) => {
-
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
-            apiEndpoint: PostEndpointUrl.UpdateChannelPost,
-            payload: {
-                post_id: postId,
-                post_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updatePostByPostId({
-                        postId: postId,
-                        channelId: rightPanelState.data.channelUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-
-    }
+    // A correction to the thread's message or a reply saves as in the list:
+    // at once, and back with the box open on what was typed when the save
+    // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
+    const handleUpdatePost = (id: string, html: string) => saveEdit({ kind: "post", channelId: rightPanelState.data.channelUUID, id }, html)
 
     const handleSend = (latestContent?: string) => {
         // The thread this reply was written in: its draft is the one emptied
@@ -435,7 +359,11 @@ export const ChannelComments = () => {
 
 
     const threadKey = rightPanelState.data.postUUID || rightPanelState.data.chatMessageUUID
-    const channelName = postInfo.data?.data?.post_channel?.ch_name
+    // Where the thread lives: the post says when the server includes its
+    // channel, and the sidebar knows every channel the reader is in. The post
+    // rarely says, so the header was a bare "Thread" and the checkbox "Also
+    // send to channel" (C36: "in #engineering", "Also send to #engineering").
+    const channelName = postInfo.data?.data?.post_channel?.ch_name || sidebarChannelName
     return (
         // The thread panel (design v3 chat, C36): a layer of the sheet (the
         // task panel's darker step in dark). Its contents move, never the
@@ -448,6 +376,7 @@ export const ChannelComments = () => {
                     root
                     userInfo={mainMessageData.userInfo}
                     createdAt={mainMessageData.createdAt}
+                    updatedAt={mainMessageData.updatedAt}
                     content={mainMessageData.content}
                     forwardedMessage={forwardedMessageData}
                     replyMessage={replyMessageData}

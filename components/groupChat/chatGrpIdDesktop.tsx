@@ -1,5 +1,6 @@
 import { displayNameOf } from "@/lib/personName"
 import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
+import { searchWithinHref } from "@/lib/search/within";
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -38,7 +39,6 @@ import {createOrUpdateGroupChatBody, clearGroupChatReplyTarget, LocallyCreatedGr
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
-import {ErrorState} from "@/components/error/errorState";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
@@ -109,9 +109,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
     if(dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants) return <LoadingStateCircle />
 
-    if(!dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants && !dmParticipantsInfo.data?.data) {
-        return <ErrorState   errorMessage={'failed to fetch group chat'} errorTitle={'Conversation not found'}/>
-    }
+    // A group that isn't there is said once, for a computer and a phone, by
+    // GroupChatView (useConversationMissing), before this is drawn.
 
     // const toggleFavourite = async () => {
     //         if(isFavorite) {
@@ -160,9 +159,10 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                     <WithTooltip label="Members">
                         <Button aria-label="Manage members" size='icon' variant='ghost' className={HEADER_ICON} onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}><Users aria-hidden='true' /></Button>
                     </WithTooltip>
-                    <WithTooltip label="Search">
+                    {/* Search in this group (QA F-15). */}
+                    <WithTooltip label="Search in this group">
                         <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
-                            <Link href='/app/search' aria-label='Search'><Search aria-hidden='true' /></Link>
+                            <Link href={searchWithinHref({ kind: "group", id: grpId })} aria-label="Search in this group"><Search aria-hidden='true' /></Link>
                         </Button>
                     </WithTooltip>
                     <DropdownMenu modal={false}>

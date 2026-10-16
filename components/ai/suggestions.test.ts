@@ -13,7 +13,7 @@ describe("suggestionsFrom (hub.md AI3)", () => {
     expect(s.map((x) => x.text)).toEqual([
       "What changed in #engineering since yesterday?",
       "Summarise my 4 tasks that are due",
-      "Prepare me for Launch sync at 11:00",
+      "Prepare me for Launch sync at 11:00\u00a0AM",
       "Draft the launch announcement",
     ])
     expect(s.map((x) => x.hue)).toEqual(["sky", "moss", "sky", "dusk"])

@@ -12,10 +12,12 @@ import {ChannelMessages} from "@/components/channel/channelMessages";
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {ChannelTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
+import { ConversationLoadError } from "@/components/message/conversationError";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
 import { pageEdgeQuery } from "@/lib/chat/pageEdge";
+import { useOlderPages } from "@/hooks/useOlderPages";
 
 interface ChannelMessageListProps {
     channelId: string;
@@ -131,6 +133,13 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         }
     }, [ newMsg.data?.data]);
 
+    const retryOlder = useOlderPages({
+        latestHasMore: latestMsg.data?.data?.has_more,
+        setHasMore: setHasMoreOldPost,
+        asking: oldChannelPostTime != 0,
+        older: oldMsg,
+    })
+
     const leaveLink = useLeaveLink('postId')
     const handleClickedScrollToBottom = () => {
         // In link mode the latest page isn't loaded: leave the link, and it is (FE-BUG-9).
@@ -152,7 +161,6 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
         setOldEdge(pageEdgeQuery(lastTimeString, channelPostState[0].post_uuid))
         setOldChannelPostTime(epochTime)
-        setHasMoreOldPost(false)
     }
 
     const getNewMessages = () => {
@@ -207,6 +215,12 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
         )
     }
 
+    // Failed, with nothing to show: say so, never "This is the start of #…".
+    const opening = postId ? getNewPostsWithCurrentPost : latestMsg
+    if (opening.isError && !opening.data && channelPostState.length === 0) {
+        return <ConversationLoadError subject="this channel's messages" retry={() => opening.mutate()} />
+    }
+
     return (
         <div className='flex flex-col h-full gap-y-2 w-full min-w-0'>
             <ChannelMessages
@@ -221,6 +235,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
                 channelId={channelId}
                 isAdmin={isAdmin}
                 unreadOnOpen={unreadOnOpen}
+                retryOlder={retryOlder}
             />
 
             <ChannelTypingBar channelId={channelId} />

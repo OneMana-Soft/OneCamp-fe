@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils/helpers/cn"
  * hard-coded 30vw when the right panel opened, the PWA prompt sat on the
  * devtools layer, the keyboard tip at 16px from the window and the timer at
  * the middle. Now each is a CornerCard, and one host per side owns where they
- * go: 16px inside the sheet's edge, 8px apart, on the toast layer.
+ * go: 16px inside the sheet's edge, 8px apart, on the corner layer (under
+ * menus, popovers and dialogs; app/globals.css lists every layer).
  *
  *   left   the running timer, the keyboard tip, the PWA prompt
  *   right  the demo prompt and the slash-command cards, with toasts above

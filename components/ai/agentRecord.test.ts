@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { AIActivityItem } from "@/services/aiActivityService"
-import { recordActor } from "@/components/ai/agentRecord"
+import { recordActor, sourceWords, startedByWords } from "@/components/ai/agentRecord"
 
 /**
  * The agents record named no agent on the demo: every row read "An agent acted
@@ -56,5 +56,19 @@ describe("who acted, in the agents record", () => {
     expect(recordActor(run)).toMatchObject({ name: "Release Captain", named: true })
     const row: AIActivityItem = { kind: "audit", title: "mcp.tool_call.refused", agent_name: "Release Captain", agent_id: "ag-1", actor_kind: "agent", summary: "", at: "x" }
     expect(recordActor(row).name).toBe("Release Captain")
+  })
+})
+
+// The evidence read "Started by: person" and "Source: agent", the audit
+// row's own codes.
+describe("the evidence, in words (AI15)", () => {
+  it("says who started it and where it came from as a person would", () => {
+    expect(startedByWords("person")).toBe("A person")
+    expect(startedByWords("schedule")).toBe("A schedule, nobody watching")
+    expect(startedByWords(undefined)).toBe("")
+    expect(sourceWords("agent")).toBe("An agent")
+    // A code it does not know is shown as it came, never hidden.
+    expect(startedByWords("webhook")).toBe("webhook")
+    expect(sourceWords("custom.thing")).toBe("custom.thing")
   })
 })

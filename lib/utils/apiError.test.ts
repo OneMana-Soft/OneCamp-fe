@@ -102,11 +102,36 @@ describe("apiErrorMessage for an answer with no words of its own", () => {
   it("says what the status means", () => {
     expect(apiErrorMessage(answered(403), "fallback")).toBe("You don't have permission to do that.")
     expect(apiErrorMessage(answered(404), "fallback")).toBe("It may have been deleted or moved.")
-    expect(apiErrorMessage(answered(502), "fallback")).toBe("The server hit a problem. Try again in a moment.")
+    expect(apiErrorMessage(answered(502))).toBe("The server hit a problem. Try again in a moment.")
   })
 
-  it("says what the status means over a bare no", () => {
+  it("says what the status means over a bare no, or a blank message", () => {
     expect(apiErrorMessage(answered(403, { msg: "unauthorized" }), "fallback")).toBe("You don't have permission to do that.")
+    expect(apiErrorMessage(answered(409, { msg: "   " }), "fallback")).toBe("Someone changed this at the same time. Refresh and try again.")
+  })
+
+  // QA SH-02: an invitation refused with an empty 403 said "Check your
+  // connection and try again", the caller's words, blaming the network.
+  it("says a 403 is about permission, whatever the caller would have said", () => {
+    const callers = ["Couldn't send the invitation. Check your connection and try again.", "They weren't invited. Try again.", ""]
+    for (const fallback of callers) {
+      expect(apiErrorMessage(answered(403), fallback)).toBe("You don't have permission to do that.")
+      expect(apiErrorMessage(answered(403, { msg: "" }), fallback)).toBe("You don't have permission to do that.")
+      expect(apiErrorMessage(answered(403, { msg: "Forbidden" }), fallback)).toBe("You don't have permission to do that.")
+    }
+  })
+
+  // QA DSA-15: a comment answered 500 said "Failed to create comment", the
+  // server's developer text.
+  it("never shows a server fault's developer text: the caller's words, else the status's", () => {
+    for (const msg of ["Failed to create comment", "failed to update field", "Failed to get dgraph team member list"]) {
+      expect(apiErrorMessage(answered(500, { msg }), "Couldn't post your comment. Try again.")).toBe("Couldn't post your comment. Try again.")
+      expect(apiErrorMessage(answered(503, { msg }))).toBe("The server hit a problem. Try again in a moment.")
+    }
+    expect(apiErrorMessage(answered(500), "The request wasn't sent. Try again in a moment.")).toBe("The request wasn't sent. Try again in a moment.")
+    // A server fault's own words for people stay, and a refusal's "Failed to …" is a reason.
+    expect(apiErrorMessage(answered(503, { msg: "Couldn't open the doc just now. Try again in a moment." }), "x")).toBe("Couldn't open the doc just now. Try again in a moment.")
+    expect(apiErrorMessage(answered(400, { msg: "Failed to read the date: use YYYY-MM-DD." }), "x")).toBe("Failed to read the date: use YYYY-MM-DD.")
   })
 
   it("uses the caller's words for a status with none of its own, and never axios's", () => {

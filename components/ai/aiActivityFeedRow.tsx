@@ -28,8 +28,8 @@ import { shortHash } from "@/components/admin/ChainPair"
 import { ChevronDown, Copy, Link2, Plug, Shield } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
-import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
-import { recordActor } from "@/components/ai/agentRecord"
+import { UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
+import { recordActor, sourceWords, startedByWords } from "@/components/ai/agentRecord"
 import { recordLines, type RecordOutcome } from "@/components/ai/proveIt"
 
 /** The outcome tag (AI14): tint and words per outcome. */
@@ -42,14 +42,24 @@ const OUTCOME: Record<Exclude<RecordOutcome, null>, { label: string; tone: strin
     attempt: { label: "Attempt recorded", tone: "bg-hover text-ink-2 ring-1 ring-inset ring-line" },
 }
 
+/**
+ * A tag after the row's words is a word of its own, so a space comes before
+ * it (here and before Drill): the row reads "post in #drill-finance Drill
+ * Refused by permissions", aloud and when copied. A margin alone drew the gap
+ * and read "#drill-financeDrill" (QA F-45). The space and a 2px margin make
+ * the 6px the margin was.
+ */
 export function OutcomeTag({ outcome }: { outcome: RecordOutcome }) {
     if (!outcome) return null
     const o = OUTCOME[outcome]
     return (
-        <span data-outcome={outcome} className={cn("ml-1.5 inline-flex h-[18px] shrink-0 items-center gap-1 rounded-[5px] px-1.5 align-[1px] text-3xs font-medium leading-none tracking-[0.005em]", o.tone)}>
-            {outcome === "refused" ? <Shield className="size-3" aria-hidden /> : null}
-            {o.label}
-        </span>
+        <>
+            {" "}
+            <span data-outcome={outcome} className={cn("ml-0.5 inline-flex h-[18px] shrink-0 items-center gap-1 rounded-[5px] px-1.5 align-[1px] text-3xs font-medium leading-none tracking-[0.005em]", o.tone)}>
+                {outcome === "refused" ? <Shield className="size-3" aria-hidden /> : null}
+                {o.label}
+            </span>
+        </>
     )
 }
 
@@ -75,7 +85,7 @@ export function AIActivityFeedRow({ item: it, chain = "idle", sweepIndex = 0, br
     const run = it.kind === "agent_run"
     const who = recordActor(it)
     const lines = recordLines(it)
-    const started = initiatorLabel(it.initiator)
+    const started = startedByWords(it.initiator)
     const evidence = Boolean(it.entry_hash || (!run && it.title) || it.source || started)
     const machine = who.kind === "tool" || who.kind === "app"
 
@@ -119,9 +129,12 @@ export function AIActivityFeedRow({ item: it, chain = "idle", sweepIndex = 0, br
                 </>
             ) : null}
             {who.drill ? (
-                <span data-drill="" className="ml-1.5 inline-flex h-[18px] items-center rounded-[5px] bg-hover px-1.5 align-[1px] text-3xs font-medium leading-none text-ink-2 ring-1 ring-inset ring-line">
-                    Drill
-                </span>
+                <>
+                    {" "}
+                    <span data-drill="" className="ml-0.5 inline-flex h-[18px] items-center rounded-[5px] bg-hover px-1.5 align-[1px] text-3xs font-medium leading-none text-ink-2 ring-1 ring-inset ring-line">
+                        Drill
+                    </span>
+                </>
             ) : null}
             <OutcomeTag outcome={lines.outcome} />
         </>
@@ -181,7 +194,7 @@ function RecordEvidence({ item: it, started }: { item: AIActivityItem; started: 
     const rows: [string, React.ReactNode, boolean?][] = []
     if (it.seq) rows.push(["Entry", `#${it.seq}`])
     if (it.kind !== "agent_run" && it.title) rows.push(["Action", it.title, true])
-    if (it.source) rows.push(["Source", it.source])
+    if (it.source) rows.push(["Source", sourceWords(it.source)])
     if (started)
         rows.push([
             "Started by",

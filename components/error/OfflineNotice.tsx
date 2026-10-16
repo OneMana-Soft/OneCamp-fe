@@ -166,7 +166,12 @@ export function FootPill() {
   return <Pill pill={pill} retry={retry} reload={reload} reconnect={reconnect} />
 }
 
-/** The root's copy: floats bottom-left on a wide screen, above the tab bar on a phone, when no shell hosts the pill. */
+/**
+ * The root's copy: floats bottom-left on a wide screen, above the tab bar on a
+ * phone, when no shell hosts the pill. Bottom-left of the sheet, past the
+ * shell's own left edge (--shell-left-inset: the tablet's 72px rail), not
+ * over it.
+ */
 export function OfflineNotice() {
   const isHosted = useSyncExternalStore(subscribeHosts, hosted, notHosted)
   const { pill, retry, reload, reconnect } = useConnectionPill()
@@ -177,7 +182,7 @@ export function OfflineNotice() {
       retry={retry}
       reload={reload}
       reconnect={reconnect}
-      className="fixed z-[var(--z-toast)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 !m-0 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 sm:bottom-4 sm:left-4 sm:max-w-sm sm:translate-x-0"
+      className="fixed z-[var(--z-toast)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 !m-0 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 sm:bottom-4 sm:left-[calc(var(--shell-left-inset,0px)+16px)] sm:max-w-sm sm:translate-x-0"
     />
   )
 }

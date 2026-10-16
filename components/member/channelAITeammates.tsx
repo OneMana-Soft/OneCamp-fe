@@ -7,6 +7,7 @@
 // in sync with the Agent Builder's channel picker.
 
 import * as React from "react"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Switch } from "@/components/ui/switch"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { Loader2 } from "@/lib/icons"
@@ -60,10 +61,14 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
           ? "It now replies to @mentions in this channel."
           : "It no longer replies in this channel.",
       })
-    } catch {
+    } catch (e) {
       // Revert on failure.
       setOptions((prev) => prev.map((o) => (o.id === opt.id ? { ...o, in_channel: !next } : o)))
-      toast({ title: "Couldn't update", description: "Please try again.", variant: "destructive" })
+      toast({
+        title: next ? `Couldn't add ${opt.name} to this channel` : `Couldn't take ${opt.name} out of this channel`,
+        description: apiErrorMessage(e, "Try again in a moment."),
+        variant: "destructive",
+      })
     } finally {
       setBusy((b) => ({ ...b, [opt.id]: false }))
     }

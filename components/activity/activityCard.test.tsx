@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import type { UnifiedActivityItem } from "@/types/activity"
-import { hueFor } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
 
 vi.mock("@/components/later/SaveForLater", () => ({ SaveForLaterButton: () => null }))
 vi.mock("@/hooks/useFetch", () => ({
@@ -42,6 +42,7 @@ describe("an Activity row", () => {
 
   it("shows who did it in their own colour, not a grey fallback", () => {
     render(<ActivityCard activity={mention} />)
-    expect(document.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("u-jonas"))
+    // One colour per person (app/personHue.test.ts): by their name, as everywhere.
+    expect(document.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(personHue("Jonas Weber"))
   })
 })

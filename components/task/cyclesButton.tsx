@@ -16,14 +16,15 @@ import { Check, Loader2, Plus, RefreshCw, Trash2, TrendingDown, X } from "@/lib/
 import dynamic from "next/dynamic"
 
 // The burndown and its chart load when a cycle's chart is asked for.
-const CycleBurndownDialog = dynamic(() => import("@/components/task/cycleBurndownDialog").then((m) => m.CycleBurndownDialog))
+const CycleBurndownDialog = dynamic(() => import("@/components/task/cycleBurndownDialog").then((m) => m.CycleBurndownDialog), { loading: () => null })
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
-import { serverMessage } from "@/lib/http/serverMessage"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cycleDates, cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { celebrateRing } from "@/lib/celebrate"
 
 const STATE_LABEL: Record<string, string> = { current: "Current", upcoming: "Upcoming", ended: "Ended", completed: "Completed" }
@@ -209,7 +210,7 @@ function CycleRow({
     try {
       await fn()
     } catch (e) {
-      toast({ title: "Couldn't do that", description: serverMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't do that", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -218,9 +219,15 @@ function CycleRow({
   return (
     <li ref={rowRef} className={cn("rounded-md px-2 py-2", active && !featured && "bg-press")}>
       <button type="button" onClick={onShow} className="flex w-full items-start gap-2.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <ProgressRing value={pct} size={featured ? 28 : 16} weight={featured ? 3 : 2.5} label={`${cycleLabel(cycle)} progress`} className="mt-0.5">
-          {featured && <span className="text-micro font-semibold tabular-nums">{p.done}</span>}
-        </ProgressRing>
+        {cycle.completed_at ? (
+          // A completed cycle wears the done glyph, moss: an orange ring read
+          // as one not started, and orange is the brand's (PTC-32).
+          <StatusGlyph status="done" size={featured ? 28 : 16} label={`${cycleLabel(cycle)} completed`} className="mt-0.5 shrink-0" />
+        ) : (
+          <ProgressRing value={pct} size={featured ? 28 : 16} weight={featured ? 3 : 2.5} label={`${cycleLabel(cycle)} progress`} className="mt-0.5">
+            {featured && <span className="text-micro font-semibold tabular-nums">{p.done}</span>}
+          </ProgressRing>
+        )}
         <span className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex items-center justify-between gap-2 text-sm font-medium">
           <span className="flex min-w-0 items-center gap-1.5 truncate">
@@ -324,7 +331,7 @@ function NewCycle({ projectId, cycles, onDone }: { projectId: string; cycles: Cy
       toast({ title: `${cycleLabel(c)} ready`, description: cycleDates(c) })
       onDone()
     } catch (err) {
-      toast({ title: "Couldn't make the cycle", description: serverMessage(err), variant: "destructive" })
+      toast({ title: "Couldn't make the cycle", description: apiErrorMessage(err, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }

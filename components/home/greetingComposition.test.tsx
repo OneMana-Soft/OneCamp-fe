@@ -4,6 +4,7 @@ import { cleanup, render } from "@testing-library/react"
 import { GreetingComposition, orbitPlayState } from "@/components/home/GreetingComposition"
 import { dayArcPoint, hueForHour } from "@/components/home/homeTime"
 import { focusClause, orbitPeople } from "@/components/home/Greeting"
+import { hueFor } from "@/lib/campHue"
 
 /** The greeting's composition (hub.md H3): real data drawn as the camp at this hour. */
 afterEach(cleanup)
@@ -87,9 +88,23 @@ describe("who orbits", () => {
     ] as never
     expect(orbitPeople(events, chats, "me").map((p) => p.id)).toEqual(["u-maya", "u-jonas"])
   })
+  // OneCamp AI, a DM partner, orbited as a green "OA" disc beside the agent
+  // square drawn for it: an agent never reads as a person (V3 3.9).
+  it("leaves agents and bots to their own square, never a person's disc", () => {
+    const chats = [
+      { dm_grouping_id: "a", dm_unread: 3, dm_participants: [{ user_uuid: "u-ai", user_full_name: "OneCamp AI", is_bot: true }, { user_uuid: "me" }] },
+      { dm_grouping_id: "g", dm_unread: 1, dm_participants: [{ user_uuid: "u-maya", user_full_name: "Maya Chen" }, { user_uuid: "me" }] },
+    ] as never
+    expect(orbitPeople([], chats, "me").map((p) => p.id)).toEqual(["u-maya"])
+  })
+  it("draws each person in the colour of their messages: keyed on the name", () => {
+    const { container } = render(<GreetingComposition people={[{ id: "6749f365-be78", name: "Maya Chen" }]} agent={false} events={[]} animate={false} now={at(10)} />)
+    const disc = container.querySelector("[data-orbiter=person] circle:nth-of-type(2)")!
+    expect(disc.getAttribute("fill")).toBe(`var(--camp-${hueFor("Maya Chen")}-a2)`)
+  })
   it("says you are in focus while a focus block runs", () => {
     const ev = [{ event_uuid: "f", event_title: "Focus", event_is_focus: true, event_start_time: at(14).toISOString(), event_end_time: at(16).toISOString() }] as never
-    expect(focusClause(ev, at(15))).toBe("In focus until 16:00")
+    expect(focusClause(ev, at(15))).toBe("In focus until 4:00\u00a0PM")
     expect(focusClause(ev, at(17))).toBeNull()
   })
 })

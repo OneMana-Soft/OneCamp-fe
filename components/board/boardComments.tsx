@@ -12,6 +12,7 @@
 // transforms, kept in sync with pan/zoom by useBoardView.
 // ---------------------------------------------------------------------------
 
+import { personHue } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import { useBoardView } from "@/hooks/useBoardView"
@@ -19,7 +20,6 @@ import { clientToScene, sceneToLocal } from "@/lib/board/viewport"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { Button } from "@/components/ui/button"
 import { avatarHueClass } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
 import { Check, X, Trash, SmilePlus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
@@ -290,7 +290,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
             aria-label={`${c.resolved ? "Resolved comment" : "Comment"} by ${c.authorName}`}
             title={c.resolved ? "Resolved comment" : c.authorName}
           >
-            <span className={cn(avatarHueClass(hueFor(c.authorId || c.authorName)), "avatar-person inline-flex size-[22px] items-center justify-center rounded-[11px] text-micro")}>
+            <span className={cn(avatarHueClass(personHue(c.authorName)), "avatar-person inline-flex size-[22px] items-center justify-center rounded-[11px] text-micro")}>
               {initial(c.authorName)}
             </span>
             {c.resolved ? (
@@ -463,7 +463,7 @@ function ThreadMessageRow({
   const reactionEntries = Object.entries(reactions).filter(([, users]) => users.length > 0)
   return (
     <div className="group/msg flex gap-2.5 rounded-xl bg-sunken px-3 py-2.5">
-      <span className={cn(avatarHueClass(hueFor(message.authorId || message.authorName)), "avatar-person inline-flex size-6 shrink-0 items-center justify-center rounded-[12px] text-micro")}>
+      <span className={cn(avatarHueClass(personHue(message.authorName)), "avatar-person inline-flex size-6 shrink-0 items-center justify-center rounded-[12px] text-micro")}>
         {initial(message.authorName)}
       </span>
       <div className="min-w-0 flex-1">

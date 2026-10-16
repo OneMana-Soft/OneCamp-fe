@@ -98,6 +98,8 @@ describe("the token list", () => {
     render(<ApiTokensCard creating={false} onCreatingChange={onCreatingChange} />)
     expect(screen.getByRole("heading", { name: "No tokens yet" })).toBeInTheDocument()
     expect(document.querySelector("[data-spot-key]")?.getAttribute("width")).toBe("96")
+    // Secondary: the header's New token is the page's one primary (QA SH-12).
+    expect(screen.getByRole("button", { name: "New token" }).className).not.toMatch(/\bbg-brand\b/)
     fireEvent.click(screen.getByRole("button", { name: "New token" }))
     expect(onCreatingChange).toHaveBeenCalledWith(true)
   })

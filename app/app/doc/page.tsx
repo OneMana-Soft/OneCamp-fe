@@ -1,17 +1,16 @@
 "use client";
 
-import {DocListTabs} from "@/components/doc/docListTabs"; // Your custom hook
+import dynamic from "next/dynamic";
 
+import { DocsHomeSkeleton } from "@/components/doc/docSkeletons";
 
-function DocsPage() {
+// The docs home's code loads when the page is opened, not with the route: a
+// doc's "Docs" crumb prefetches this route, and a doc's opening carried the
+// whole docs home with it. The page's shape draws while it arrives.
+const DocListTabs = dynamic(() => import("@/components/doc/docListTabs").then((m) => m.DocListTabs), {
+    loading: () => <DocsHomeSkeleton />,
+});
 
-
-    return (
-        <DocListTabs/>
-
-
-
-    );
+export default function DocsPage() {
+    return <DocListTabs />;
 }
-
-export default DocsPage;

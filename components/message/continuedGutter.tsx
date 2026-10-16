@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils/helpers/cn"
 import { FailedMark, SendingNote } from "@/components/message/sendStatus"
 import { formatFullTimestamp, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
-import { chatClock } from "@/lib/chat/clock"
+import { clockTime } from "@/lib/utils/date/clock"
+import { TIME_TIP } from "@/components/MessageDesktopHover/actionTip"
 
 /**
  * What sits in the avatar column of a message that continues the one above it
@@ -39,7 +40,7 @@ export function ContinuedGutter({
         <div
             tabIndex={0}
             data-gutter=""
-            className={cn("relative h-5 w-9 shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring", className)}
+            className={cn("group/gutter relative h-5 w-9 shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring", className)}
         >
             <span className="sr-only">{authorName}, {formatFullTimestamp(createdAt)}</span>
             {failed ? (
@@ -50,10 +51,15 @@ export function ContinuedGutter({
                 <time
                     aria-hidden="true"
                     dateTime={isoTimestamp(createdAt)}
-                    title={formatFullTimestamp(createdAt)}
-                    className="pointer-events-none absolute right-0 top-0 whitespace-nowrap text-3xs leading-5 tabular-nums text-ink-3 opacity-0 transition-opacity duration-[140ms] ease-out group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:none)]:opacity-0"
+                    data-tip={formatFullTimestamp(createdAt)}
+                    className={cn(
+                        // Held to its left edge, so the date runs over the message, never off the row.
+                        TIME_TIP,
+                        "after:left-0 after:translate-x-0",
+                        "pointer-events-none absolute right-0 top-0 whitespace-nowrap text-3xs leading-5 tabular-nums text-ink-3 opacity-0 transition-opacity duration-[140ms] ease-out group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:none)]:opacity-0",
+                    )}
                 >
-                    {chatClock(createdAt)}
+                    {clockTime(createdAt)}
                 </time>
             )}
         </div>

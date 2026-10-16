@@ -25,3 +25,12 @@ describe("a row of tabs wider than its room", () => {
     expect(into).toHaveBeenCalled()
   })
 })
+
+describe("the chosen tab", () => {
+  it("is underlined in ink, not the accent (design v3 §3.12): a place, not an action", () => {
+    render(<SectionTabs tabs={TABS} value="tasks" onValueChange={() => {}} />)
+    const tab = screen.getByRole("tab", { name: "Tasks" })
+    expect(tab.className).toContain("data-[state=active]:after:bg-ink")
+    expect(tab.className).not.toContain("after:bg-primary")
+  })
+})

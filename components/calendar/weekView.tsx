@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { addDays, format, isSameDay, isWeekend, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
-import { shortTime } from "@/lib/utils/date/shortDate";
 import { ChevronDown, Plus } from "@/lib/icons";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { HueBlock } from "@/components/calendar/HueBlock";
@@ -12,6 +11,7 @@ import { kindOf, type CalendarItemLike } from "@/components/calendar/calendarTon
 import { atMinutes, clickRange, createRange, durationLabel, minutesAt, moveRange, resizeRange, DAY_MINUTES } from "@/lib/calendar/calendarDrag";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
+import { clockHour, clockRange, clockTime } from "@/lib/utils/date/clock";
 import { placedByDates } from "@/lib/calendar/allDay";
 
 /** px per hour: 15 minutes is 14 px (content.md C07). */
@@ -419,7 +419,7 @@ export function WeekView({
     }
     return null;
   })();
-  const ghostLabel = ghost ? `${shortTime(atMinutes(days[ghost.day], ghost.startMin))} – ${shortTime(atMinutes(days[ghost.day], ghost.endMin))}` : "";
+  const ghostLabel = ghost ? clockRange(atMinutes(days[ghost.day], ghost.startMin), atMinutes(days[ghost.day], ghost.endMin)) : "";
 
   const moving = drag && drag.kind !== "create" && drag.active ? drag : null;
 
@@ -530,7 +530,7 @@ export function WeekView({
                   <div key={h} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
                     {h > 0 && Math.abs(nowTopMin - h * 60) >= 20 ? (
                       <span className="absolute right-2 top-0 -translate-y-1/2 text-micro tabular-nums text-ink-3">
-                        {format(new Date(2000, 0, 1, h), "h a")}
+                        {clockHour(new Date(2000, 0, 1, h))}
                       </span>
                     ) : null}
                   </div>
@@ -571,7 +571,7 @@ export function WeekView({
                         className="pointer-events-none absolute inset-x-0 z-[5] h-[14px] bg-hover"
                         style={{ transform: `translateY(${(hoverMin.min / 60) * HOUR_HEIGHT}px)` }}
                       >
-                        <span className="absolute left-1.5 top-0 text-micro font-medium leading-[14px] tabular-nums text-ink-2">{shortTime(atMinutes(day, hoverMin.min))}</span>
+                        <span className="absolute left-1.5 top-0 text-micro font-medium leading-[14px] tabular-nums text-ink-2">{clockTime(atMinutes(day, hoverMin.min))}</span>
                       </div>
                     ) : null}
 
@@ -587,8 +587,8 @@ export function WeekView({
                       const geo = isMoving ? { left: "2px", width: "calc(100% - 4px)" } : blockGeometry(it.col, it.cols);
                       const past = it.end < now;
                       const live = it.start <= now && now < it.end;
-                      const time = `${shortTime(it.start)} – ${shortTime(it.end)}`;
-                      const tag = isMoving ? (moving.kind === "move" ? `${format(days[moving.curDay], "EEE")} ${shortTime(atMinutes(days[moving.curDay], startMin))}` : durationLabel(endMin - startMin)) : null;
+                      const time = clockRange(it.start, it.end);
+                      const tag = isMoving ? (moving.kind === "move" ? `${format(days[moving.curDay], "EEE")} ${clockTime(atMinutes(days[moving.curDay], startMin))}` : durationLabel(endMin - startMin)) : null;
                       return (
                         <div key={it.uuid} className="contents">
                           {isMoving ? <Origin it={it} /> : null}
@@ -635,11 +635,11 @@ export function WeekView({
                               </>
                             ) : height >= 28 ? (
                               <span className="truncate leading-4">
-                                {it.title} <span className="font-[450] tabular-nums opacity-75">· {shortTime(it.start)}</span>
+                                {it.title} <span className="font-[450] tabular-nums opacity-75">· {clockTime(it.start)}</span>
                               </span>
                             ) : (
                               <span className="truncate text-micro leading-3">
-                                {it.title} <span className="font-[450] tabular-nums opacity-75">{shortTime(it.start)}</span>
+                                {it.title} <span className="font-[450] tabular-nums opacity-75">{clockTime(it.start)}</span>
                               </span>
                             )}
                             {tag ? (
@@ -681,7 +681,7 @@ export function WeekView({
                             <HueBlock as="div" item={it} variant="block" style={{ top, height, left: 2, width: "calc(100% - 4px)" }} className="calendar-lift absolute py-1">
                               <span className="truncate leading-4">{it.title}</span>
                               <span key={moving.curStart} className="content-ghost-pulse absolute bottom-1 right-1 rounded-[5px] bg-pop px-1 text-micro font-semibold tabular-nums text-ink shadow-e1">
-                                {format(day, "EEE")} {shortTime(atMinutes(day, moving.curStart))}
+                                {format(day, "EEE")} {clockTime(atMinutes(day, moving.curStart))}
                               </span>
                             </HueBlock>
                           );
@@ -706,8 +706,10 @@ export function WeekView({
                 ))}
               </div>
 
-              {/* Now: brand, with the time in the gutter. */}
-              <NowLine top={(nowTopMin / 60) * HOUR_HEIGHT} gutter={GUTTER} columns={dayCount} todayIndex={todayIndex} now={now} />
+              {/* Now: brand, with the time in the gutter, in the week that has
+                  today. A week ahead drew it too, a 9:46 pill on a Tuesday
+                  that hasn't come yet. */}
+              {todayIndex >= 0 ? <NowLine top={(nowTopMin / 60) * HOUR_HEIGHT} gutter={GUTTER} columns={dayCount} todayIndex={todayIndex} now={now} /> : null}
             </div>
           </div>
           {/* A week or a day with nothing in it says so, small, in the middle of

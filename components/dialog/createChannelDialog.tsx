@@ -26,13 +26,8 @@ import {
     ChannelNameExistsInterface
 } from "@/types/channel";
 import {app_channel_path} from "@/types/paths";
-import { isValidName, nameSchema } from "@/lib/validation/names";
+import { channelSlug, isValidName, nameSchema } from "@/lib/validation/names";
 import {useRouter} from "next/navigation";
-
-/** What a channel name looks like as it is typed: lowercase, spaces as hyphens. */
-export function channelSlug(typed: string): string {
-    return typed.toLowerCase().replace(/\s+/g, "-")
-}
 
 const createChannelFormSchema = z.object({
     channel_name: nameSchema("workspace", "Channel name"),

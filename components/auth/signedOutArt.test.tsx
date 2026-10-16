@@ -77,10 +77,11 @@ describe("pictures on the signed-out pages", () => {
     expect(page).toMatch(/<AuthShell side=\{<SignInSide \/>\}>/)
   })
 
-  it("heads the 404 with the magnifier", () => {
+  it("draws the 404 as every dead link, with its spot hidden from screen readers", () => {
     const { container } = render(<NotFoundPage />)
-    expect(art(container)?.getAttribute("aria-hidden")).toBe("true")
-    expect(art(container)?.querySelector("svg")).not.toBeNull()
+    const spot = container.querySelector("[data-public-gone] [data-empty-illustration]")
+    expect(spot?.getAttribute("aria-hidden")).toBe("true")
+    expect(spot?.querySelector("svg")).not.toBeNull()
   })
 
   // Design v3 (F10): the shield with a lock, "You don't have access to this",

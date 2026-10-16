@@ -7,6 +7,13 @@ import { describe, expect, it, vi } from "vitest"
 import { LazyPopover } from "./LazyPopover"
 import { PopoverContent } from "@/components/ui/popover"
 
+// AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
+const ai = vi.hoisted(() => ({ on: true }))
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
+  useAIAvailable: () => ai.on,
+}))
+
 /**
  * What scrolling a big table costs (content wave, 11 Oct 2026). Scrolling
  * the Launch budget grown to 1,000 rows held 29 frames a second on a 4x

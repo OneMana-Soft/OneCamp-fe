@@ -26,9 +26,8 @@
  */
 
 import * as React from "react"
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import {
   SettingRow,
@@ -101,8 +100,6 @@ export const EMAIL_EVENTS = [
  * app are not per event in the preference model yet: they get a column here
  * when it stores them.
  */
-export const EVENT_CHANNELS = [{ id: "email", label: "Email" }] as const
-
 const DIGEST_OPTIONS = [
   { value: "off", label: "Off" },
   { value: "daily", label: "Daily" },
@@ -117,21 +114,6 @@ const DIGEST_LINE: Record<Preferences["email_digest_frequency"], string> = {
 
 const TEXT_DEBOUNCE_MS = 600
 const SAVED_MS = 1900
-const WIDE = "(min-width: 720px)"
-
-/** Whether the window is 720px or wider: the matrix's breakpoint. */
-function useWide() {
-  return useSyncExternalStore(
-    (on) => {
-      if (typeof window === "undefined" || !window.matchMedia) return () => {}
-      const mq = window.matchMedia(WIDE)
-      mq.addEventListener?.("change", on)
-      return () => mq.removeEventListener?.("change", on)
-    },
-    () => (typeof window !== "undefined" && !!window.matchMedia ? window.matchMedia(WIDE).matches : false),
-    () => false,
-  )
-}
 
 /** "HH:MM" as minutes since midnight, or null. */
 const minutesOf = (hhmm: string | null) => {
@@ -202,7 +184,6 @@ function useFieldStatuses() {
 
 export function NotificationPreferencesCard() {
   const { data, isLoading, isError, mutate } = useFetch<FetchResponse>(GetEndpointUrl.GetNotificationPreferences)
-  const wide = useWide()
   // Changes on their way to the server, laid over its answer. Only these are
   // kept here: the Read receipts card updates the same answer, and a copy of
   // the whole answer would throw its change away.
@@ -302,7 +283,7 @@ export function NotificationPreferencesCard() {
           <SwitchRow
             id="email_enabled"
             label="Email me about activity"
-            description="Off, no notification email is sent at all."
+            description="When off, no notification email is sent at all."
             checked={working.email_enabled && supported}
             disabled={!supported}
             status={statuses.email_enabled}
@@ -315,24 +296,22 @@ export function NotificationPreferencesCard() {
               </p>
             )}
             <div className={cn("you-events-body", masterOff && "opacity-50")}>
-              {wide ? (
-                <EventMatrix working={working} disabled={masterOff} statuses={statuses} onChange={change} />
-              ) : (
-                <div className="you-event-rows">
-                  {EMAIL_EVENTS.map((ev) => (
-                    <SwitchRow
-                      key={ev.key}
-                      id={ev.key}
-                      label={ev.label}
-                      description={ev.help}
-                      checked={working[ev.key]}
-                      disabled={masterOff}
-                      status={statuses[ev.key]}
-                      onChange={(v) => change(ev.key, v)}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* A switch per event on a computer and a phone alike: the
+                  computer's was a one-column table of checkboxes (QA F-33). */}
+              <div className="you-event-rows">
+                {EMAIL_EVENTS.map((ev) => (
+                  <SwitchRow
+                    key={ev.key}
+                    id={ev.key}
+                    label={ev.label}
+                    description={ev.help}
+                    checked={working[ev.key]}
+                    disabled={masterOff}
+                    status={statuses[ev.key]}
+                    onChange={(v) => change(ev.key, v)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
           <SwitchRow
@@ -428,8 +407,9 @@ export function NotificationPreferencesCard() {
               </div>
               {(["quiet_hours_start", "quiet_hours_end", "quiet_hours_tz"] as const).map((k) =>
                 statuses[k]?.state === "error" ? (
-                  <p key={k} role="alert" className="text-xs text-danger-ink">
-                    {statuses[k]?.error}
+                  // Said once, by the tick beside the field; an alert said it again.
+                  <p key={k} className="text-xs text-danger-ink">
+                    Not saved. <span>{statuses[k]?.error}</span>
                   </p>
                 ) : null,
               )}
@@ -438,63 +418,5 @@ export function NotificationPreferencesCard() {
         </SettingsList>
       </SettingsSection>
     </div>
-  )
-}
-
-/** The events as a matrix: a row per event, a 16px checkbox per channel the server stores. */
-function EventMatrix({
-  working,
-  disabled,
-  statuses,
-  onChange,
-}: {
-  working: Preferences
-  disabled: boolean
-  statuses: Partial<Record<Key, SaveStatus>>
-  onChange: (key: Key, value: boolean) => void
-}) {
-  return (
-    <table data-event-matrix="" className="you-matrix" aria-label="What you're emailed about">
-      <thead>
-        <tr>
-          <th scope="col" className="you-matrix-head text-left">
-            Event
-          </th>
-          {EVENT_CHANNELS.map((c) => (
-            <th key={c.id} scope="col" className="you-matrix-head w-20 text-center">
-              {c.label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {EMAIL_EVENTS.map((ev) => {
-          const status = statuses[ev.key]
-          return (
-            <tr key={ev.key} data-event={ev.key}>
-              <th scope="row" className="you-matrix-event">
-                <span className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{ev.label}</span>
-                  <SavedTick status={status} />
-                </span>
-                {status?.state === "error" ? (
-                  <span className="block text-xs font-normal text-danger-ink">{status.error}</span>
-                ) : (
-                  <span className="block text-xs font-normal text-muted-foreground">{ev.help}</span>
-                )}
-              </th>
-              <td className="text-center align-middle">
-                <Checkbox
-                  aria-label={`${ev.label} by email`}
-                  checked={working[ev.key]}
-                  disabled={disabled}
-                  onCheckedChange={(v) => onChange(ev.key, v === true)}
-                />
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
   )
 }

@@ -1,19 +1,19 @@
-// One shape for a message's time, everywhere a message is shown, in the app's
-// one date and time format (lib/utils/date/shortDate).
+// One shape for a message's time, everywhere a message is shown: the app's one
+// date format (lib/utils/date/shortDate) and the reader's own clock
+// (lib/utils/date/clock), "3:10 PM" or "15:10".
 //
-// The clock is "3:10 PM", not "03:10 PM": a leading zero is a form field's
-// habit, and in a column of messages it is the first thing the eye reads.
 // Older messages say "9 Oct, 3:10 PM" (and the year only when it isn't this
 // one), as every list and due date does, instead of the "09/10/26" that read
 // as the 10th of September to half the world.
-import { fullDateTime, shortDate, shortDateTime, shortTime } from "@/lib/utils/date/shortDate"
+import { fullDateTime, shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
+import { clockTime } from "@/lib/utils/date/clock"
 
 function toDate(dateString: string | number): Date {
     return new Date(typeof dateString === "number" ? dateString * 1000 : dateString)
 }
 
 export function formatClock(date: Date): string {
-    return shortTime(date)
+    return clockTime(date)
 }
 
 export function formatTimeForPostOrComment(dateString: string | number, onlyTime: boolean = false): string {

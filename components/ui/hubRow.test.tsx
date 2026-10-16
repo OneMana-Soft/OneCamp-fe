@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest"
-import { cleanup, render } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -36,6 +36,20 @@ describe("the HubRow", () => {
     expect(weight(a)).toBe(weight(b))
   })
 
+  // On one line at 390px, "Jonas Weber mentioned you in #acme" lost the place.
+  it("lets a feed row's sentence take two lines on a phone, and keeps the others to one", () => {
+    const { container } = render(
+      <>
+        <HubRow density="feed" title="Jonas Weber mentioned you in #acme" />
+        <HubRow density="two-line" title="Write the launch announcement" />
+      </>,
+    )
+    const [feed, two] = Array.from(container.querySelectorAll("[data-hub-row] .min-w-0 > span")).filter((s) => s.parentElement?.parentElement?.hasAttribute("data-hub-row"))
+    expect(feed.className).toContain("max-sm:line-clamp-2")
+    expect(feed.className).toContain("max-sm:whitespace-normal")
+    expect(two.className).not.toContain("line-clamp")
+  })
+
   it("has no dot at all in a list with no read state", () => {
     const { container } = render(<HubRow density="two-line" title="Write the launch announcement" />)
     expect(container.querySelector(".hub-unread-dot")).toBeNull()
@@ -50,7 +64,7 @@ describe("the HubRow", () => {
       <HubRow density="two-line" title="t" meta="10:42" tools={<HubToolButton label="Done" shortcut="E">x</HubToolButton>} />,
     )
     expect(container.querySelector("[data-has-tools]")).toBeTruthy()
-    expect(container.querySelector("button")?.getAttribute("title")).toBe("Done (E)")
+    expect(container.querySelector('button[aria-label="Done"]')?.getAttribute("title")).toBe("Done (E)")
   })
 
   it("draws separators inset to the content column, never in compact", () => {
@@ -69,6 +83,119 @@ describe("the HubRow", () => {
   it("has a skeleton in its own shape", () => {
     const { container } = render(<HubRowSkeleton density="feed" />)
     expect(container.querySelector("[data-hub-skeleton][data-density=feed]")).toBeTruthy()
+  })
+})
+
+// Interaction audit SH-31, SH-32 (15 Oct 2026): app/hub.css hid the toolbar
+// wherever nothing can hover, so on a phone the inbox, Later and search rows
+// had no way to mark read, save, remind or remove.
+describe("a row's tools where nothing can hover", () => {
+  const touch = () => {
+    const at = CSS.indexOf(".hub-row-more {")
+    return CSS.slice(CSS.indexOf("@media (hover: none)", at), CSS.indexOf("@media (pointer: coarse)", at))
+  }
+
+  it("shows an Actions button there, and only there, which a finger can reach", () => {
+    expect(CSS).toMatch(/\.hub-row-more \{\s*display: none;/)
+    expect(touch()).toMatch(/\.hub-row-more \{[^}]*display: grid;/)
+    expect(touch()).toMatch(/\.hub-row\[data-has-tools\] \{\s*grid-template-columns: 12px var\(--hub-lead\) minmax\(0, 1fr\) auto auto;/)
+    render(<HubRow density="two-line" title="Launch notes" tools={<HubToolButton label="Done">x</HubToolButton>} />)
+    const more = screen.getByRole("button", { name: "Actions" })
+    expect(more.hasAttribute("data-touch-target")).toBe(true)
+    expect(screen.getByRole("button", { name: "Done" }).hasAttribute("data-touch-target")).toBe(true)
+  })
+
+  it("shows the tools on a tapped Actions, or keyboard focus in the row, and never hides them from a finger again", () => {
+    const shown = touch().slice(touch().indexOf(".hub-row:is("))
+    expect(shown).toMatch(/^\.hub-row:is\(\[data-revealed\], :focus-visible, :has\(:focus-visible\)\) \.hub-row-tools \{\s*display: flex;\s*opacity: 1;\s*pointer-events: auto;/)
+    // Under a finger each tool is 44px across.
+    const coarse = CSS.slice(CSS.indexOf("@media (pointer: coarse)", CSS.indexOf(".hub-row-more {")))
+    expect(coarse).toMatch(/\.hub-row-tools > :is\(a, button\) \{\s*min-width: var\(--m-hit\);\s*min-height: var\(--m-hit\);/)
+  })
+
+  it("reveals on Actions without opening the row, and puts them away on a tap elsewhere or Escape", () => {
+    const opened = vi.fn()
+    const { container } = render(
+      <>
+        <HubRow density="two-line" title="Launch notes" onClick={opened} tools={<HubToolButton label="Done">x</HubToolButton>} />
+        <div role="menu" data-testid="menu" />
+        <p data-testid="away">elsewhere</p>
+      </>,
+    )
+    const row = container.querySelector("[data-hub-row]")!
+    const more = screen.getByRole("button", { name: "Actions" })
+    expect(row.getAttribute("data-reveal")).toBe("tap")
+    expect(more.getAttribute("aria-expanded")).toBe("false")
+
+    fireEvent.click(more)
+    expect(row.hasAttribute("data-revealed")).toBe(true)
+    expect(more.getAttribute("aria-expanded")).toBe("true")
+    expect(opened).not.toHaveBeenCalled()
+
+    // A tap on a tool, or in a tool's own menu, keeps them out.
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Done" }))
+    fireEvent.pointerDown(screen.getByTestId("menu"))
+    expect(row.hasAttribute("data-revealed")).toBe(true)
+
+    fireEvent.pointerDown(screen.getByTestId("away"))
+    expect(row.hasAttribute("data-revealed")).toBe(false)
+
+    fireEvent.click(more)
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(row.hasAttribute("data-revealed")).toBe(false)
+  })
+
+  it("shows the tools for keyboard focus in the row, keeps them while Tab walks through, and not for a tap's focus", () => {
+    const { container } = render(
+      <>
+        <HubRow density="two-line" title="Launch notes" tools={<HubToolButton label="Done">x</HubToolButton>} />
+        <div role="menu"><button>Tomorrow</button></div>
+        <button>Next</button>
+      </>,
+    )
+    const row = container.querySelector("[data-hub-row]")!
+    const done = screen.getByRole("button", { name: "Done" })
+    const real = Element.prototype.matches
+    let keyboard = false
+    const spy = vi.spyOn(Element.prototype, "matches").mockImplementation(function (this: Element, sel: string) {
+      return sel === ":focus-visible" ? keyboard && this === document.activeElement : real.call(this, sel)
+    })
+    try {
+      // A tap's focus (Android focuses what it taps) shows nothing.
+      act(() => done.focus())
+      expect(row.hasAttribute("data-revealed")).toBe(false)
+      act(() => done.blur())
+
+      keyboard = true
+      act(() => done.focus())
+      expect(row.hasAttribute("data-revealed")).toBe(true)
+      // Into a tool's own menu: the tools stay.
+      act(() => screen.getByRole("button", { name: "Tomorrow" }).focus())
+      expect(row.hasAttribute("data-revealed")).toBe(true)
+      act(() => done.focus())
+      // Out of the row: they go.
+      act(() => screen.getByRole("button", { name: "Next" }).focus())
+      expect(row.hasAttribute("data-revealed")).toBe(false)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("has no Actions on a row with no tools", () => {
+    const { container } = render(<HubRow density="two-line" title="Launch notes" meta="10:42" />)
+    expect(screen.queryByRole("button", { name: "Actions" })).toBeNull()
+    expect(container.querySelector("[data-hub-row]")?.hasAttribute("data-reveal")).toBe(false)
+  })
+})
+
+describe("the section header's action", () => {
+  it("takes a finger's tap (QA SH-04), and leaves a fragment as it is", async () => {
+    const { HubSectionHeader } = await import("@/components/ui/hubRow")
+    render(<HubSectionHeader title="What needs me now" action={<button type="button">See all</button>} />)
+    expect(screen.getByRole("button", { name: "See all" }).hasAttribute("data-touch-target")).toBe(true)
+    cleanup()
+    render(<HubSectionHeader title="Today" action={<><button type="button">One</button></>} />)
+    expect(screen.getByRole("button", { name: "One" }).hasAttribute("data-touch-target")).toBe(false)
   })
 })
 

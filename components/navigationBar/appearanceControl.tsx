@@ -10,6 +10,7 @@
  * is missing or motion is reduced.
  */
 import { useRef } from "react"
+import type React from "react"
 import { useTheme } from "next-themes"
 
 import { useThemeConfig } from "@/components/activeTheme/activeTheme"
@@ -55,7 +56,7 @@ export function previewTheme(id: string): () => void {
   }
 }
 
-export function AppearanceControl({ className }: { className?: string }) {
+export function AppearanceControl({ className, more }: { className?: string; more?: React.ReactNode }) {
   const { theme, setTheme } = useTheme()
   const mode = theme === "light" || theme === "dark" ? theme : "system"
   const row = useRef<HTMLDivElement>(null)
@@ -83,7 +84,12 @@ export function AppearanceControl({ className }: { className?: string }) {
           )
         })}
       </div>
-      <ThemeSwatches />
+      {/* The six, and the way to every colour Settings offers (QA SH-18:
+          the menu had 6 and Settings 11, with no way between them). */}
+      <div className="flex items-center justify-between gap-2">
+        <ThemeSwatches />
+        {more}
+      </div>
     </div>
   )
 }

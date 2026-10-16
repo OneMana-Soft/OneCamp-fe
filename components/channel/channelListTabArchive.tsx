@@ -11,9 +11,19 @@ import { SpotSearch, SpotInbox } from "@/components/ui/graphics/spots";
 import { ErrorState } from "@/components/ui/error-state"
 import { ChannelListSkeleton, ChannelListState, useRowsWhileSearching } from "@/components/channel/channelListFrame";
 import { cn } from "@/lib/utils/helpers/cn";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/utils/apiError";
+import { restoreChannel } from "@/services/channelService";
+import type { UserProfileInterface } from "@/types/user";
 
 export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
     const post = usePost();
+    const { toast } = useToast();
+    // Its admins and the workspace's admins can bring an archived channel back.
+    const selfProfile = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const workspaceAdmin = !!selfProfile.data?.data?.user_is_admin
+    const [restoring, setRestoring] = useState<string | null>(null)
     
     // Main List Pagination state
     const [pageIndex, setPageIndex] = useState(0)
@@ -94,6 +104,33 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
         }
     }, [pageData, pageIndex, searchQuery])
     
+    const restore = async (channel: ChannelInfoInterface) => {
+        setRestoring(channel.ch_uuid)
+        try {
+            await restoreChannel(channel.ch_uuid)
+            // Out of Archived; restoreChannel has asked for the sidebar again.
+            setAllChannels((prev) => prev.filter((c) => c.ch_uuid !== channel.ch_uuid))
+            setSearchAllChannels((prev) => prev.filter((c) => c.ch_uuid !== channel.ch_uuid))
+            toast({ title: `#${channel.ch_name} is back`, description: "Its members can post in it again." })
+        } catch (e) {
+            toast({ title: `Couldn't restore #${channel.ch_name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+        } finally {
+            setRestoring(null)
+        }
+    }
+    const restoreAction = (channel: ChannelInfoInterface) =>
+        channel.ch_is_admin || workspaceAdmin ? (
+            <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void restore(channel)}
+                disabled={restoring === channel.ch_uuid}
+                aria-label={`Restore #${channel.ch_name}`}
+            >
+                {restoring === channel.ch_uuid ? "Restoring…" : "Restore"}
+            </Button>
+        ) : null
+
     const onLoadMore = () => {
         if (searchQuery.trim().length > 0) {
             // Search Mode Load More
@@ -132,6 +169,7 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
                         onLoadMore={onLoadMore}
                         hasMore={currentHasMore}
                         isLoading={currentIsLoading}
+                        action={restoreAction}
                     />
                 </div>
             ) : isError && !searching ? (

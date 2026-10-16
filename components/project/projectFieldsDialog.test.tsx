@@ -65,6 +65,24 @@ describe("ProjectFieldsDialog", () => {
     expect(update).toHaveBeenCalledWith("c", expect.objectContaining({ options: [expect.objectContaining({ id: "bbbb2222" })] }))
   })
 
+  // The server keeps an option a save doesn't list, and takes out only those
+  // named: a removal that named nothing would have kept the option.
+  it("names the option it takes out, by id, and only when one goes", async () => {
+    fields = [channel]
+    render(<ProjectFieldsDialog projectId="p" open onOpenChange={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Remove Blog" }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove option" }))
+    })
+    expect(update).toHaveBeenLastCalledWith("c", expect.objectContaining({ removed_options: ["aaaa1111"] }))
+    const email = screen.getAllByLabelText("Option name").find((el) => (el as HTMLInputElement).value === "Email") as HTMLInputElement
+    fireEvent.change(email, { target: { value: "Newsletter" } })
+    await act(async () => {
+      fireEvent.blur(email)
+    })
+    expect(update.mock.lastCall?.[1]).not.toHaveProperty("removed_options")
+  })
+
   it("renames a field on blur, and shows it on cards when asked", async () => {
     fields = [channel]
     render(<ProjectFieldsDialog projectId="p" open onOpenChange={() => {}} />)

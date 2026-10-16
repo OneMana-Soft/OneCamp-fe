@@ -28,12 +28,31 @@ export function fileSize(bytes: number | undefined): string {
   return `${i === 0 ? n : n < 10 ? n.toFixed(1).replace(/\.0$/, "") : Math.round(n)} ${units[i]}`
 }
 
-/** "Launch-brief…v3.pdf": the middle goes, so the start and the extension stay. */
-export function middleTruncate(name: string, max = 24): string {
-  if (name.length <= max) return name
+/**
+ * A file name in two parts for a middle cut: the head, which may give way,
+ * and the tail ("v3.pdf": the extension and the two characters before it),
+ * which always shows. Pure.
+ */
+export function nameParts(name: string): [string, string] {
   const dot = name.lastIndexOf(".")
-  const tail = dot > 0 && name.length - dot <= 8 ? name.slice(dot - 2) : name.slice(-6)
-  return `${name.slice(0, Math.max(4, max - tail.length - 1))}…${tail}`
+  const keep = dot > 0 && name.length - dot <= 8 ? name.length - dot + 2 : 6
+  if (name.length <= keep) return ["", name]
+  return [name.slice(0, name.length - keep), name.slice(name.length - keep)]
+}
+
+/**
+ * "Launch-brief-v3-fin…ew.pdf": the middle goes, cut by the width there is,
+ * so the start and the extension stay. A count of characters cut it at 24
+ * and then the card's own ellipsis cut it again, losing the extension.
+ */
+function MiddleName({ name }: { name: string }) {
+  const [head, tail] = nameParts(name)
+  return (
+    <span className="flex min-w-0" data-middle-name="">
+      <span className="truncate">{head}</span>
+      <span className="shrink-0 whitespace-pre">{tail}</span>
+    </span>
+  )
 }
 
 function dateOf(iso: string | undefined): string {
@@ -167,9 +186,9 @@ export function FileCard({ file, mediaPath, onOpen, canDelete, onDelete }: FileP
           onClick={onOpen}
           title={file.attachment_file_name}
           aria-label={file.attachment_file_name}
-          className="truncate rounded-sm text-left text-ui-sm font-medium text-ink outline-none after:absolute after:inset-x-0 after:top-0 after:h-28 focus-visible:ring-2 focus-visible:ring-brand"
+          className="min-w-0 rounded-sm text-left text-ui-sm font-medium text-ink outline-none after:absolute after:inset-x-0 after:top-0 after:h-28 focus-visible:ring-2 focus-visible:ring-brand"
         >
-          {middleTruncate(file.attachment_file_name)}
+          <MiddleName name={file.attachment_file_name} />
         </button>
         <span className="truncate text-meta text-ink-3 tabular-nums">{meta}</span>
       </div>
@@ -190,8 +209,12 @@ export function FileRow({ file, mediaPath, onOpen, canDelete, onDelete }: FilePr
     <div data-file-row="" className="group flex h-11 items-center gap-3 border-b border-line px-1 max-sm:h-14">
       <span className="relative inline-flex size-8 shrink-0 overflow-hidden rounded-md">
         {file.attachment_type === "image" && url && !broken ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a signed, short-lived URL
-          <img src={url} alt="" onError={() => setBroken(true)} className="size-full object-cover" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- a signed, short-lived URL */}
+            <img src={url} alt="" onError={() => setBroken(true)} className="size-full object-cover" />
+            {/* An edge, so a white poster on the white sheet still reads as a tile. */}
+            <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-md shadow-[inset_0_0_0_1px_var(--line-2)]" />
+          </>
         ) : (
           <FileGlyph name={file.attachment_file_name} fileType={file.attachment_raw_type} size={32} />
         )}
@@ -290,8 +313,8 @@ export function UploadingFileCard({
         <span className="absolute inset-0 flex items-center justify-center">{ring}</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3 py-2.5">
-        <span className="truncate text-ui-sm font-medium text-ink" title={name}>
-          {middleTruncate(name)}
+        <span className="min-w-0 text-ui-sm font-medium text-ink" title={name}>
+          <MiddleName name={name} />
         </span>
         <span className="flex min-w-0 items-center gap-1">
           <span className={cn("min-w-0 flex-1 truncate text-meta tabular-nums", failed ? "text-danger-ink" : "text-ink-3")} role={failed ? "alert" : undefined}>

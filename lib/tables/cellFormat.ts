@@ -3,8 +3,32 @@
 // lives in the field's config ({"format": {...}}), which the server keeps as
 // written. Pure.
 
-import { parseFieldConfig, type TableField } from "@/services/tableService"
+import { isHiddenRef, parseFieldConfig, type TableField } from "@/services/tableService"
 import { formatLocale } from "./numberFormat"
+
+/** What a reader sees for the linked items in a cell they can't open: one phrase for all of them. */
+export function hiddenText(count: number): string {
+  return count === 1 ? "Something you can't open" : `${formatLocale(count, {})} things you can't open`
+}
+
+/**
+ * A list cell (a multi-select, a relation) as one line of text: the names,
+ * then the items the reader can't open as one phrase, never by their ids. The
+ * count of links not shown has a name of its own ("3 more").
+ */
+export function listText(items: unknown[]): string {
+  const names: string[] = []
+  let hidden = 0
+  for (const item of items) {
+    if (isHiddenRef(item)) hidden++
+    else if (item && typeof item === "object") {
+      const label = (item as { label?: unknown }).label
+      if (typeof label === "string" && label) names.push(label)
+    } else if (item !== null && item !== undefined && item !== "") names.push(String(item))
+  }
+  if (hidden) names.push(hiddenText(hidden))
+  return names.join(", ")
+}
 
 export interface NumberFormat {
   /** "INR" (₹) or "USD" ($); none for a plain number. */

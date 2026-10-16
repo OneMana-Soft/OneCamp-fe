@@ -37,6 +37,22 @@ describe("the phone's back arrow", () => {
     expect(router.replace).toHaveBeenCalledWith("/app/channel/c1")
   })
 
+  // A 404 drew an empty left slot: no title, no back, no way out but the
+  // browser's gesture.
+  it("offers Back on an address no route answers", () => {
+    pathname = "/app/this-page-wandered-off"
+    render(<MobileTopNavigationBarFirst />)
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy()
+  })
+
+  // OneCamp AI is a page you are sent to, not a tab's top level.
+  it("offers Back on the OneCamp AI page, not the workspace mark", () => {
+    pathname = "/app/ai"
+    render(<MobileTopNavigationBarFirst />)
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Open organisation profile" })).toBeNull()
+  })
+
   it("is a 44px target, and so is the workspace menu on a tab's top level", () => {
     pathname = "/app/doc/d1"
     render(<MobileTopNavigationBarFirst />)
@@ -44,6 +60,6 @@ describe("the phone's back arrow", () => {
     cleanup()
     pathname = "/app/channel"
     render(<MobileTopNavigationBarFirst />)
-    expect(screen.getByRole("button", { name: "Open organization profile" }).className.split(/\s+/)).toEqual(expect.arrayContaining(["h-11", "w-11"]))
+    expect(screen.getByRole("button", { name: "Open organisation profile" }).className.split(/\s+/)).toEqual(expect.arrayContaining(["h-11", "w-11"]))
   })
 })

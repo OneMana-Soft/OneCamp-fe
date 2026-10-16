@@ -36,6 +36,15 @@ describe("an empty conversation", () => {
     expect(said).toBe(true)
   })
 
+  it("heads a history as its start, without filling the list", () => {
+    const { container } = render(<ConversationEmpty kind="channel" faces={faces} title="This is the start of #design" placement="start" />)
+    const block = container.firstElementChild as HTMLElement
+    expect(block.className).not.toContain("h-full")
+    expect(block.className).toContain("pt-10")
+    expect(block.hasAttribute("data-conversation-empty")).toBe(false)
+    expect(container.querySelector("[data-orbit]")).toBeTruthy()
+  })
+
   it("takes no hue from the conversation's id", () => {
     const src = readFileSync("components/message/emptyConversations.tsx", "utf8") + readFileSync("components/message/conversationEmpty.tsx", "utf8")
     expect(src).not.toMatch(/hueFor\(/)

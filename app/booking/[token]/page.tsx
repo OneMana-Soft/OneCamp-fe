@@ -59,7 +59,7 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
   }, [token])
 
   if (state === "missing") {
-    return <PublicGone surface="booked" title="We couldn't find that booking" detail="Check the link in your confirmation." />
+    return <PublicGone surface="booked" noun="booking" detail="Check the link in your confirmation." />
   }
 
   const cancel = async () => {
@@ -91,7 +91,7 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
           : `${first ? `${first}'s` : "Their"} calendar is clear again.`
         : "This meeting is cancelled."
   return (
-    <PublicFrame surface="booked" header={false} mainClassName="px-4 pt-6 sm:pt-[72px]">
+    <PublicFrame surface="booked" header={false} mainClassName="flex-none px-4 pt-6 sm:pt-[72px]">
       <PaperCard className="max-w-[560px] rounded-[16px] px-5 pb-8 pt-8 shadow-e1 sm:px-9" data-manage-booking="">
         {state === "loading" || !booking ? (
           <div role="status" aria-label="Loading your booking" className="flex flex-col items-center gap-3">

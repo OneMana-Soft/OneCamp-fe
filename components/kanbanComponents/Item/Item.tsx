@@ -10,22 +10,21 @@ import styles from "./Item.module.scss"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GitBranch, ArrowUpRight, MessageSquare, MoreHorizontal, Clock, Check } from "@/lib/icons"
 import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge"
-import { useDispatch, useSelector } from "react-redux"
+import { useSelector } from "react-redux"
 import { TaskInfoInterface } from "@/types/task"
-import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import type { RootState } from "@/store/store"
 import { isClosedStatus, statusOptionOf } from "@/lib/taskStatus"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
 import { splitTags } from "@/lib/tags"
-import { hueFor } from "@/lib/campHue"
 import { BlockedBadge } from "@/components/task/BlockedBadge"
-import { CardFields } from "@/components/task/fieldValue"
+import { CardFields } from "@/components/task/cardFields"
 import { LabelChip } from "@/components/ui/chip"
 import { DueLabel } from "@/components/task/DueLabel"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
@@ -40,6 +39,7 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useProjectHue } from "@/lib/projectHue"
 
 interface Props {
     dragOverlay?: boolean
@@ -99,7 +99,7 @@ function CardAvatar({ user }: { user: NonNullable<TaskInfoInterface["task_assign
     }
     return (
         <span title={name} data-card-avatar="person" className="inline-flex shrink-0">
-            <IdentityMark variant="avatar" id={user.user_uuid} chosen={user.user_theme_color} label={name} src={src} size={22} />
+            <IdentityMark variant="avatar" id={avatarSeed(user)} label={name} src={src} size={22} />
         </span>
     )
 }
@@ -197,10 +197,37 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, cross
     )
 })
 
+// Under a finger the 24px button's hit area is 44px (data-touch-target, app/phone.css).
+const MENU_BUTTON =
+    "inline-flex size-6 items-center justify-center rounded-sm bg-pop text-ink-3 shadow-e1 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+
 /** The card's menu: open it, or move it to another column (every drag has a menu alternative). */
 function CardMenu({ task, onOpen }: { task: TaskInfoInterface; onOpen: () => void }) {
     const board = useBoardActions()
     const canMove = board ? board.canMove(task) : false
+    // On a phone the menu is the board's sheet (CardSheet).
+    const openMenu = board?.openMenu
+    if (openMenu) {
+        return (
+            <button
+                type="button"
+                aria-label="Card actions"
+                aria-haspopup="dialog"
+                // A press here neither opens the card nor picks it up.
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    e.stopPropagation()
+                    openMenu(task)
+                }}
+                className={MENU_BUTTON}
+                data-touch-target=""
+            >
+                <MoreHorizontal className="size-3.5" />
+            </button>
+        )
+    }
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -209,7 +236,8 @@ function CardMenu({ task, onOpen }: { task: TaskInfoInterface; onOpen: () => voi
                     aria-label="Card actions"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex size-6 items-center justify-center rounded-sm bg-pop text-ink-3 shadow-e1 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className={MENU_BUTTON}
+                    data-touch-target=""
                 >
                     <MoreHorizontal className="size-3.5" />
                 </button>
@@ -274,10 +302,10 @@ export const Item = React.memo(
             },
             ref,
         ) => {
-            const dispatch = useDispatch()
             const board = useBoardActions()
             const crossProject = Boolean(board?.crossProject)
-            const edgeHue = crossProject && task.task_project?.project_uuid ? hueFor(task.task_project.project_uuid) : undefined
+            const taskProjectHue = useProjectHue(task.task_project?.project_uuid)
+            const edgeHue = crossProject && task.task_project?.project_uuid ? taskProjectHue : undefined
             // The task open in the panel beside the board.
             const opened = Boolean(
                 useSelector((state: RootState) => state.rightPanel?.rightPanelState?.isOpen && state.rightPanel.rightPanelState.data.taskUUID === task.task_uuid),
@@ -287,19 +315,8 @@ export const Item = React.memo(
             // the browser restyle the whole page, the most expensive frame of a
             // pick-up. The lifted card carries the grabbing cursor itself.
 
-            const openTask = () => {
-                dispatch(
-                    openRightPanel({
-                        chatMessageUUID: "",
-                        chatUUID: "",
-                        channelUUID: "",
-                        postUUID: "",
-                        taskUUID: task.task_uuid,
-                        groupUUID: "",
-                        docUUID: "",
-                    }),
-                )
-            }
+            // The board opens it: in the panel beside it, or on a phone the task's page.
+            const openTask = () => board?.open(task)
 
             if (renderItem) {
                 return renderItem({
@@ -398,7 +415,7 @@ export const Item = React.memo(
                         {selected && <span className="sr-only">Selected.</span>}
                         <TaskCardBody task={task} statusBadge={statusBadge} crossProject={crossProject} />
 
-                        {/* Open, and the card's menu: top right, on hover (always on touch). */}
+                        {/* Open, and the card's menu: top right, on hover; on a touch screen the menu alone, always. */}
                         {!dragOverlay && (
                             <span
                                 className={cn(
@@ -410,6 +427,9 @@ export const Item = React.memo(
                                 <button
                                     type="button"
                                     aria-label="Open task"
+                                    // A touch screen has no hover to reveal it by, and a tap
+                                    // on the card opens it: there it would only cover the
+                                    // title (two 24px buttons over its 24px of room).
                                     onPointerDown={(e) => e.stopPropagation()}
                                     onMouseDown={(e) => e.stopPropagation()}
                                     onTouchStart={(e) => e.stopPropagation()}
@@ -417,7 +437,8 @@ export const Item = React.memo(
                                         e.stopPropagation()
                                         openTask()
                                     }}
-                                    className="inline-flex size-6 items-center justify-center rounded-sm bg-pop text-ink-3 shadow-e1 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                    className={cn(MENU_BUTTON, "[@media(hover:none)]:hidden")}
+                                    data-touch-target=""
                                 >
                                     <ArrowUpRight className="size-3.5" />
                                 </button>

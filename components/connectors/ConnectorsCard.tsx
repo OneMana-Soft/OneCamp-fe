@@ -19,6 +19,7 @@ import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
+import { DEMO_ACCOUNTS_LINE, useDemoVisitor } from "@/hooks/useDemoVisitor"
 import { Calendar, Eye, Loader2, Mail, ShieldCheck, Unlink, type LucideIcon } from "@/lib/icons"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -103,8 +104,10 @@ function ConnectorCard({
     onDisconnect: () => void
 }) {
     const morph = useConnectMorph(`connector:${c.id}`, c.connected, returned)
+    // Secondary: one primary per view (DESIGN_V3 §3.4), and the page lists
+    // three of these (QA SH-12: three orange Connect buttons).
     const connectButton = (label = "Connect") => (
-        <Button size="sm" className="h-11 md:h-7" aria-label={`${label} ${c.name}`} onClick={onConnect} disabled={busy}>
+        <Button variant="secondary" size="sm" className="h-11 md:h-7" aria-label={`${label} ${c.name}`} onClick={onConnect} disabled={busy}>
             {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
             {label}
         </Button>
@@ -158,7 +161,24 @@ function ConnectorCard({
     )
 }
 
+/**
+ * The member's connectors. The demo's shared visitor is told why there are
+ * none to connect instead: the demo connects nobody's own accounts, and
+ * refused every Connect (QA SH-07, NoPersonalAccountsInDemo).
+ */
 export default function ConnectorsCard() {
+    const demoVisitor = useDemoVisitor()
+    if (demoVisitor) {
+        return (
+            <p data-demo-keeps="accounts" className="text-ui-sm text-ink-2 text-pretty">
+                {DEMO_ACCOUNTS_LINE}
+            </p>
+        )
+    }
+    return <ConnectorList />
+}
+
+function ConnectorList() {
     const { data: connectors, error, isLoading, mutate } = useSWR("user-connectors", listConnectors, {
         revalidateOnFocus: false,
     })
@@ -214,7 +234,7 @@ export default function ConnectorsCard() {
             } catch (e) {
                 toast({
                     title: `Couldn't disconnect ${c.name}`,
-                    description: apiErrorMessage(e, "Check your connection and try again."),
+                    description: apiErrorMessage(e, "Try again in a moment."),
                     variant: "destructive",
                 })
             } finally {

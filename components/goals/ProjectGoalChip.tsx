@@ -21,6 +21,8 @@ export function ProjectGoalChip({ projectId, className }: { projectId: string; c
     <Link
       href={`/app/goals/${first.id}`}
       title={goals.map((g) => g.title).join("\n")}
+      // 24px tall: a finger's 44px (app/phone.css F3; QA PG2-19).
+      data-touch-target=""
       className={cn("chip h-6 max-w-xs gap-1.5 text-ink-2 transition-colors hover:bg-press hover:text-foreground", className)}
     >
       {/* How far the goal is, as a ring in the theme's progress: where the
@@ -31,7 +33,8 @@ export function ProjectGoalChip({ projectId, className }: { projectId: string; c
         <Target className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
       )}
       <span className="truncate">{first.title}</span>
-      {first.progress !== null && <span className="tabular-nums">· {percent(first.progress)}</span>}
+      {/* The name gives way first: the percentage stays whole. */}
+      {first.progress !== null && <span className="shrink-0 tabular-nums">· {percent(first.progress)}</span>}
       {more > 0 && <span className="shrink-0 opacity-75">+{more}</span>}
     </Link>
   )

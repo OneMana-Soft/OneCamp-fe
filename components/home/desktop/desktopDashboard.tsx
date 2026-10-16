@@ -36,7 +36,7 @@ import { NeedsMe } from "@/components/home/NeedsMe"
 import { JumpBackIn, CreateTiles } from "@/components/home/HomeLists"
 import { useHomeNeeds } from "@/components/home/useHomeNeeds"
 import { useTodayEvents } from "@/components/home/useTodayEvents"
-import { hhmm } from "@/components/home/homeTime"
+import { clockTime } from "@/lib/utils/date/clock"
 import { needsCounts } from "@/components/home/needsMe"
 import { HubSectionHeader } from "@/components/ui/hubRow"
 import { riseProps, useRiseOnce } from "@/lib/hub/motion"
@@ -148,7 +148,7 @@ export function DesktopDashboard() {
                                 mentions,
                                 agentRequests: pending.length,
                             }}
-                            next={today.next ? { title: today.next.event_title, time: hhmm(today.next.event_start_time), href: "/app/calendar" } : null}
+                            next={today.next ? { title: today.next.event_title, time: clockTime(today.next.event_start_time), href: "/app/calendar" } : null}
                         />
                     }
                 />
@@ -184,13 +184,21 @@ export function DesktopDashboard() {
                     <ProjectsStrip draw={rise} />
                 </div>
 
+                {/* Every section draws its own shape while it loads (design
+                    review PG1-04): this row waits a frame for the first paint,
+                    and was an empty band till then. */}
                 <div {...r(6)} className={cn("mt-8 grid min-h-[176px] grid-cols-1 gap-8 lg:grid-cols-[1.35fr_1fr]", r(6).className)}>
                     {below ? (
                         <>
                             <JumpBackIn />
                             <CreateTiles aiAvailable={aiAvailable} aiOpen={Boolean(isAiOpen)} onToggleAI={handleAiToggle} />
                         </>
-                    ) : null}
+                    ) : (
+                        <>
+                            <SectionSkeleton title="Jump back in" rows={2} />
+                            <SectionSkeleton title="Create" rows={2} />
+                        </>
+                    )}
                 </div>
 
                 {/* Last: it arrives late and may be tall, so it must never push anything. */}

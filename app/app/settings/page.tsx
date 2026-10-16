@@ -1,76 +1,74 @@
 "use client"
 
-import Link from "next/link"
-import { ChevronRight } from "lucide-react"
-import { PageHeader } from "@/components/ui/pageHeader"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useCapabilities } from "@/hooks/useCapabilities"
-import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
-import { SETTINGS_SECTIONS, sectionAccess } from "@/lib/settingsSections"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { Shield } from "@/lib/icons"
+import { useCapabilities } from "@/hooks/useCapabilities"
+import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { UserProfileInterface } from "@/types/user"
+import { sectionAccess } from "@/lib/settingsSections"
 import { useMedia } from "@/context/MediaQueryContext"
-import { PROFILE_HREF } from "@/lib/adminSections"
+import { PROFILE_HREF, SETTINGS_GROUP_HUE, SETTINGS_PLACES } from "@/lib/adminSections"
+import {
+  PhoneProfileCard,
+  PhoneSettingsGroup,
+  PhoneSettingsRow,
+  PhoneSettingsRowPending,
+} from "@/components/admin/SettingsPhoneList"
 
 /**
- * A person's settings sections, each on its own hue's tile. A row that waits
- * on this person's permissions or on whether the server has AI holds its
- * place until the answer is in: Workflows and Agents used to insert themselves
- * above API tokens a moment after the page drew, moving the row under the
- * pointer.
+ * Your sections, in the settings nav's order: one list for the phone and the
+ * computer (QA SH-17: the phone put Agents and skills before Your AI
+ * assistants). Profile is the card above them.
+ */
+const YOUR_SECTIONS = SETTINGS_PLACES.flatMap((p) => (p.group === "you" && p.settings ? [p.settings] : []))
+
+/**
+ * Your settings on a phone (design v3, admin S1): who you are first, as a
+ * card that opens your profile, then your sections as one card of 52px rows,
+ * each on its own hue's tile, and for an admin the way into Admin. It was a
+ * bordered box of rows with a line each and no way to the profile.
+ *
+ * A row that waits on this person's permissions or on whether the server has
+ * AI holds its place until the answer is in: Workflows and Agents used to
+ * insert themselves above API tokens a moment after the page drew, moving
+ * the row under the thumb.
+ *
+ * On a computer the settings nav is the index, so there is no page that only
+ * lists links: Settings opens on Profile.
  */
 export default function SettingsPage() {
   const { can, isLoading } = useCapabilities()
   const ai = useFeatureState(FEATURE_AI)
   const { isMobile } = useMedia()
   const router = useRouter()
-  // On a computer the settings nav is the index (design v3, admin S1), so
-  // there is no page that only lists links: Settings opens on Profile. A
-  // phone keeps this list, its own screen.
+  const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  const isAdmin = !!self.data?.data?.user_is_admin
   useEffect(() => {
     if (!isMobile) router.replace(PROFILE_HREF)
   }, [isMobile, router])
   if (!isMobile) return null
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Yours" title="Settings" />
-      <nav aria-label="Settings">
-        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-          {SETTINGS_SECTIONS.map((s) => {
+      {/* The phone's top bar says "Settings". */}
+      <h1 className="sr-only">Settings</h1>
+      <PhoneProfileCard />
+      <nav aria-label="Settings" className="space-y-6">
+        <PhoneSettingsGroup label="You">
+          {YOUR_SECTIONS.map((s) => {
             const access = sectionAccess(s, { can, capabilitiesKnown: !isLoading, ai })
             if (access === "hidden") return null
-            if (access === "unknown") {
-              return (
-                <li key={s.href} aria-hidden="true" className="flex items-center gap-4 px-4 py-3">
-                  <Skeleton className="size-8 shrink-0 rounded-lg" />
-                  <span className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-3.5 w-32" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </span>
-                </li>
-              )
-            }
-            const Icon = s.icon
-            return (
-              <li key={s.href}>
-                <Link
-                  href={s.href}
-                  className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-                >
-                  <Tile hue={s.hue} size="md">
-                    <Icon />
-                  </Tile>
-                  <span className="min-w-0 flex-1 space-y-0.5">
-                    <span className="block text-sm font-medium leading-5 text-foreground">{s.label}</span>
-                    <span className="block text-xs text-muted-foreground text-pretty">{s.description}</span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                </Link>
-              </li>
-            )
+            if (access === "unknown") return <PhoneSettingsRowPending key={s.href} />
+            return <PhoneSettingsRow key={s.href} href={s.href} label={s.label} icon={s.icon} hue={s.hue} />
           })}
-        </ul>
+        </PhoneSettingsGroup>
+        {isAdmin && (
+          <PhoneSettingsGroup label="Workspace">
+            <PhoneSettingsRow href="/app/admin" label="Admin" icon={Shield} hue={SETTINGS_GROUP_HUE.workspace} />
+          </PhoneSettingsGroup>
+        )}
       </nav>
     </div>
   )

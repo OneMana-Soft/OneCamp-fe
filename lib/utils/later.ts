@@ -7,7 +7,8 @@
  */
 
 import { format } from "date-fns"
-import { shortDate, shortTime } from "@/lib/utils/date/shortDate"
+import { shortDate } from "@/lib/utils/date/shortDate"
+import { clockTime } from "@/lib/utils/date/clock"
 
 export type LaterItemType = "post" | "comment" | "chat" | "task" | "doc" | "project" | "board" | "reminder"
 
@@ -19,7 +20,8 @@ interface ReminderChoice {
   at: Date
 }
 
-const MORNING_HOUR = 9
+/** The hour a reminder for a day comes: 9:00. */
+export const MORNING_HOUR = 9
 
 function atHour(d: Date, hour: number): Date {
   const x = new Date(d)
@@ -34,7 +36,7 @@ function addDays(d: Date, n: number): Date {
 }
 
 function time(d: Date): string {
-  return shortTime(d)
+  return clockTime(d)
 }
 
 function weekday(d: Date): string {
@@ -80,8 +82,7 @@ export function reminderLabel(at: Date, now: Date): { text: string; due: boolean
 
 /** A value for <input type="datetime-local"> in the person's own time. */
 export function toLocalInput(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  return format(d, "yyyy-MM-dd'T'HH:mm")
 }
 
 /** Where a saved message opens: its thread, which shows the message itself. */
@@ -96,12 +97,13 @@ export function messageLink(opts: { channelUUID?: string; postUUID?: string; cha
 export type ReminderTone = "later" | "today" | "overdue"
 
 /**
- * The reminder pill (hub.md L3): neutral for a later day ("Tomorrow 09:00"),
- * sun for today ("Today 17:00"), danger once it has come ("Overdue ·
- * Yesterday"). Times are 24-hour.
+ * The reminder pill (hub.md L3): neutral for a later day ("Tomorrow 9:00
+ * AM"), sun for today ("Today 5:00 PM"), danger once it has come ("Overdue ·
+ * Yesterday"). Times are the app's one clock (clockTime): the pill said
+ * "09:28" beside rows and messages that say "9:28 AM".
  */
 export function reminderPill(at: Date, now: Date): { text: string; tone: ReminderTone } {
-  const hm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  const hm = clockTime
   if (at.getTime() <= now.getTime()) {
     const when = sameDay(at, now) ? hm(at) : sameDay(at, addDays(now, -1)) ? "Yesterday" : format(at, "d MMM")
     return { text: `Overdue · ${when}`, tone: "overdue" }

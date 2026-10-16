@@ -181,9 +181,13 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
       persistRef.current = persist;
   }, [localParticipant, enabled, room, language, persist]);
 
-  // Ask once per language whether it can be recognised on this device.
+  // Ask once per language whether it can be recognised on this device, and
+  // only while captions are on here: a call touches the speech service only
+  // when someone turns captions on. Asking on every join lost the whole tab
+  // in a Chromium that exposes the API without its on-device service: the
+  // browser ends the page for a "bad Mojo message" (QA F-21).
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !enabled) return;
     let cancelled = false;
     setOnDevice(null);
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -193,7 +197,7 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
     return () => {
       cancelled = true;
     };
-  }, [language]);
+  }, [language, enabled]);
 
   // Listen for remote transcripts to populate buffer
   useEffect(() => {

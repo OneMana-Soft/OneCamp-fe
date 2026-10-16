@@ -56,7 +56,10 @@
 
 /* Weekends in dark: --sunken (#0F1012) sits barely below the dark sheet
    (#131416), so a weekend column didn't read as set apart. In dark it steps
-   further down, still a neutral (never a hue). Light keeps --sunken. */
+   further down, still a neutral (never a hue). Light keeps --sunken. At 62 %
+   it went below the frame itself (#050506 against #0B0C0E): a black hole in
+   the week rather than a quieter day. 84 % keeps it between the two, as far
+   from the sheet as light's weekend is. */
 .dark [data-weekend].bg-sunken {
-  background-color: color-mix(in oklab, var(--sheet) 62%, black);
+  background-color: color-mix(in oklab, var(--sheet) 84%, black);
 }

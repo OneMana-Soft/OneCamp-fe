@@ -26,6 +26,8 @@ import { useLaterActions, useLaterList } from "@/hooks/useLater"
 import type { LaterItem } from "@/services/laterService"
 import { reminderPill, type ReminderTone } from "@/lib/utils/later"
 import { relativeTime } from "@/lib/utils/relativeTime"
+import { optimistic } from "@/lib/optimistic"
+import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { useResolve } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
 import { SaveForLaterButton } from "@/components/later/SaveForLater"
@@ -130,18 +132,36 @@ export function LaterItems({ state }: { state: "open" | "done" }) {
   const rest = items.filter((i) => !dueItems.includes(i))
 
   // Done can be taken back on the server, so it goes at once, with an Undo.
+  // A refusal brings the row back, even from the middle of its way out, and
+  // takes "Marked done" away, so the request's error is what's said: a failed
+  // answer came before the row's exit ended, which then hid it for good under
+  // a toast saying it was done (QA F-12).
   const markDone = useCallback(
     (item: LaterItem) => {
-      actions.done(item.id, true).catch(() => hide(item.id, false))
-      resolve(item.id, () => hide(item.id, true))
-      toast({
-        title: "Marked done",
-        description: item.title || undefined,
-        action: (
-          <ToastAction altText="Put it back in Saved" onClick={() => actions.done(item.id, false).finally(() => hide(item.id, false))}>
-            Undo
-          </ToastAction>
-        ),
+      let refused = false
+      let said: { dismiss: () => void } | undefined
+      void optimistic({
+        key: `later:${item.id}`,
+        apply: () => {
+          resolve(item.id, () => {
+            if (!refused) hide(item.id, true)
+          })
+          said = toast({
+            title: "Marked done",
+            description: item.title || undefined,
+            action: (
+              <ToastAction altText="Put it back in Saved" onClick={() => actions.done(item.id, false).finally(() => hide(item.id, false))}>
+                Undo
+              </ToastAction>
+            ),
+          })
+        },
+        commit: () => actions.done(item.id, true),
+        revert: () => {
+          refused = true
+          hide(item.id, false)
+          said?.dismiss()
+        },
       })
     },
     [actions, hide, resolve, toast],
@@ -204,8 +224,12 @@ export function LaterItems({ state }: { state: "open" | "done" }) {
     )
   }
 
+  // One row the page can't draw is said in its place, and the rest stand: a
+  // row without the fields it expected took the whole page down (QA F-13).
   const row = (item: LaterItem) => (
-    <LaterRow key={item.id} item={item} done={state === "done"} phase={phase(item.id)} onDone={markDone} onRemove={remove} now={now} />
+    <LocalizedErrorBoundary key={item.id} fallbackTitle="This item couldn't be shown">
+      <LaterRow item={item} done={state === "done"} phase={phase(item.id)} onDone={markDone} onRemove={remove} now={now} />
+    </LocalizedErrorBoundary>
   )
   return (
     <div ref={list}>

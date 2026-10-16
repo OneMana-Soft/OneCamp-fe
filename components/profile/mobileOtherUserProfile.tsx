@@ -4,12 +4,13 @@ import { addressOrHandleOf, displayNameOf, handleOf, secondaryNameOf } from "@/l
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
-import { useFetch } from "@/hooks/useFetch";
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MessageSquare } from "@/lib/icons";
+import { ArrowLeft, MessageSquare, Pencil, Smile } from "@/lib/icons";
+import { profileKindOf } from "@/components/profile/profileCard";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {USER_STATUS_ONLINE} from "@/types/user";
 import { Button } from "@/components/ui/button";
@@ -29,11 +30,19 @@ import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
 import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction";
 import { useStatusIsExpired } from "@/hooks/useStatusIsExpired";
 
+/**
+ * A person's profile page (/app/user/<id>): on a phone, and on a wide screen
+ * where a link to someone lands (QA SH-06: a wide screen went home and floated
+ * a card with no title over it). Your own offers Edit profile and Set a
+ * status, as your own card does, never Message (QA SH-05).
+ */
 export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const router = useRouter();
     const dispatch = useDispatch();
 
     const profileInfo = useFetch<UserProfileInterface>(userUUID ? GetEndpointUrl.SelfProfile + '/' + userUUID : '');
+    const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
+    const isSelf = profileKindOf(profileInfo.data?.data, userUUID, self.data?.data?.user_uuid) === "self";
     const {src: imageSrc} = useUserAvatar(profileInfo?.data?.data?.user_profile_object_key);
 
     const isBotProfile = profileInfo.data?.data?.is_bot === true;
@@ -72,10 +81,18 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
 
     return (
         <div className="flex flex-col h-full bg-background w-full">
+            {/* A wide screen's header: the way back and whose profile it is. A
+                phone's top bar says both already. */}
+            <div data-profile-title-row="" className="hidden h-[52px] shrink-0 items-center gap-2 border-b border-line px-4 sm:flex md:pl-5">
+                <Button variant="ghost" size="icon-sm" onClick={() => router.back()} aria-label="Go back" className="-ml-1">
+                    <ArrowLeft className="size-4" />
+                </Button>
+                <h1 className="truncate text-title-3 font-semibold text-foreground">{loading ? "Profile" : shownName || "Profile"}</h1>
+            </div>
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto w-full">
-                <div className="p-4 md:p-6 lg:p-8 space-y-8 pb-20">
+                <div className="mx-auto w-full max-w-[640px] p-4 md:p-6 lg:p-8 space-y-8 pb-20">
                     
                     {/* Avatar Section */}
                     <div className="flex flex-col justify-center items-center mt-4">
@@ -157,7 +174,19 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                           still loading so the Message button does not
                           flash on first paint for an external contact.
                         */}
-                        {profileInfo.data?.data && (isBot || !isExternal) && (
+                        {profileInfo.data?.data && isSelf && (
+                            <div className="mt-6 flex w-full max-w-[320px] gap-2" data-own-profile-actions="">
+                                <Button variant="secondary" className="flex-1 gap-2 font-medium" onClick={() => dispatch(openUI({ key: "selfUserProfile" }))}>
+                                    <Pencil className="h-4 w-4" />
+                                    Edit profile
+                                </Button>
+                                <Button variant="secondary" className="flex-1 gap-2 font-medium" onClick={() => dispatch(openUI({ key: "userStatusUpdate", data: { userUUID } }))}>
+                                    <Smile className="h-4 w-4" />
+                                    Set a status
+                                </Button>
+                            </div>
+                        )}
+                        {profileInfo.data?.data && !isSelf && (isBot || !isExternal) && (
                             <Button
                                 variant="secondary"
                                 className="mt-6 w-full max-w-[200px] gap-2 font-medium"
@@ -234,7 +263,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 </div>
                             )}
                             {!statusText && !profileInfo.data?.data?.user_job_title && !profileInfo.data?.data?.user_hobbies && (
-                                <p className="py-1 text-sm text-muted-foreground">Nothing else on their profile yet.</p>
+                                <p className="py-1 text-sm text-muted-foreground">{isSelf ? "Nothing else on your profile yet." : "Nothing else on their profile yet."}</p>
                             )}
                         </dl>
                         )}

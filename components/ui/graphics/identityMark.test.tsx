@@ -46,6 +46,22 @@ describe("IdentityMark", () => {
     expect(initials.style.fontSize).toBe("12px")
   })
 
+  // A person is one colour on every screen (app/personHue.test.ts). Their
+  // message avatars, mentions and quote bars key on the name they go by, so a
+  // mark is keyed by avatarSeed(person), never their uuid; the id decides only
+  // for someone with no name, and a colour they picked wins over both.
+  it("keys a person on their name, the id only when there is none, and a picked colour first", async () => {
+    const { avatarSeed, getAvatarFallbackClass, personHue } = await import("@/lib/utils/getAvatarColor")
+    const uuid = "6749f365-be78-4f82-97be-6db442070dbd"
+    const maya = { user_uuid: uuid, user_name: "Maya Chen" }
+    const { getByText } = render(<IdentityMark variant="avatar" id={avatarSeed(maya)} label="Maya Chen" />)
+    expect(getByText("MC").className).toContain(`hue-${hueFor("Maya Chen")}`)
+    expect(getAvatarFallbackClass("Maya Chen")).toContain(`hue-${personHue(maya)}`)
+    expect(avatarSeed({ user_uuid: uuid })).toBe(uuid)
+    expect(personHue({ user_uuid: uuid })).toBe(hueFor(uuid))
+    expect(personHue(maya, "#EC4899")).toBe("berry")
+  })
+
   it("shows one initial below 24px, two from there up", () => {
     const { getByText } = render(<IdentityMark variant="avatar" id="Maya Chen" label="Maya Chen" size={20} />)
     expect(getByText("M")).toBeTruthy()

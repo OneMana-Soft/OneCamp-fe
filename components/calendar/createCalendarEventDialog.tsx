@@ -143,7 +143,10 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="gap-0 p-0 sm:max-w-[560px]" data-event-dialog="">
+            {/* No padding of its own (the body and footer pad themselves), so --dlg-pad says 0:
+                the v3 footer bleeds by --dlg-pad, and 20 px of bleed pushed Create event
+                out past the dialog's edge. */}
+            <DialogContent className="gap-0 p-0 [--dlg-pad:0px] sm:max-w-[560px]" data-event-dialog="">
                 <DialogTitle className="sr-only">New event</DialogTitle>
                 <DialogDescription className="sr-only">Add it to your calendar, and to your guests&apos; calendars too.</DialogDescription>
                 <Form {...form}>
@@ -160,7 +163,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                                 autoFocus
                                                 aria-label="Title"
                                                 placeholder="Event title"
-                                                className="w-full bg-transparent font-display text-title-2 font-semibold text-ink outline-none placeholder:text-ink-4"
+                                                className="w-full bg-transparent font-display text-title-2 font-semibold text-ink outline-none placeholder:text-ink-3"
                                             />
                                         </FormControl>
                                         <FormMessage />

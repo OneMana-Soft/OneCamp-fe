@@ -87,7 +87,20 @@ describe("the month", () => {
     fireEvent.click(day("2026-10-12"))
     const card = document.querySelector("[data-booking-card]")!
     expect(card.getAttribute("data-step")).toBe("2")
-    expect(card.className).toMatch(/sm:max-w-\[1000px\]/)
+    expect(card.className).toMatch(/min-\[1048px\]:max-w-\[1000px\]/)
+  })
+
+  // At 768 px the times went off the card's right edge: an iPad could pick
+  // a day and never see a time. Below 1,048 px they go under the month.
+  it("puts the times under the month where three columns don't fit", async () => {
+    await open()
+    fireEvent.click(day("2026-10-12"))
+    const card = document.querySelector("[data-booking-card]")!
+    expect(card.className).toMatch(/sm:max-w-\[740px\]/)
+    expect(document.querySelector("[data-day-and-times]")?.className).toMatch(/flex-col min-\[1048px\]:flex-row/)
+    const times = document.querySelector("[data-slot-column]")!
+    expect(times.className).toMatch(/sm:border-t/)
+    expect(times.querySelector("ul")?.className).toMatch(/max-\[1047px\]:grid-cols-3/)
   })
 })
 
@@ -156,18 +169,27 @@ describe("booked", () => {
   })
 })
 
-// CAL-BUG-20: the page built a date formatter for every slot, label and
-// render, mounted both time zone pickers (one hidden), and listed every zone
-// for each before anyone opened one. It builds a handful now, and the zone
-// list the first time a picker opens.
+// The aside cut "Eastern Daylight Time (GMT-4)" to "Eastern Daylight Time (…",
+// losing the offset, the part a visitor checks. Its label drops words instead.
+describe("the time zone's name", () => {
+  it("says itself ever shorter, keeping the offset", async () => {
+    const { zoneLabels } = await import("./BookingFlow")
+    const t = zoneLabels("America/New_York")
+    expect(t[0]).toMatch(/^Eastern (Daylight|Standard) Time \(GMT-[45]\)$/)
+    expect(t[1]).toMatch(/^Eastern Time \(GMT-[45]\)$/)
+    expect(t.at(-1)).toMatch(/^GMT-[45]$/)
+    for (let i = 1; i < t.length; i++) expect(t[i].length).toBeLessThan(t[i - 1].length)
+  })
+})
+
+// CAL-BUG-20: the page built about 1,700 date formatters on load, for two
+// time zone pickers nobody had opened (the zone list, twice), and one for
+// every slot it grouped. It builds a handful now, and the list on first open.
 describe("loading the page", () => {
-  it("builds fewer than 10 date formatters, and lists the zones only when the picker opens", async () => {
+  it("builds fewer than 10 date formatters until the time zone picker opens", async () => {
     vi.resetModules()
     const Real = Intl.DateTimeFormat
-    const intl = Intl as unknown as { supportedValuesOf: (key: string) => string[] }
-    const realSupported = intl.supportedValuesOf
     let made = 0
-    let listed = 0
     Intl.DateTimeFormat = new Proxy(Real, {
       construct(target, args) {
         made++
@@ -178,10 +200,6 @@ describe("loading the page", () => {
         return Reflect.apply(target, self, args)
       },
     })
-    intl.supportedValuesOf = (key: string) => {
-      if (key === "timeZone") listed++
-      return realSupported.call(Intl, key)
-    }
     try {
       const { BookingFlow: Fresh } = await import("./BookingFlow")
       await act(async () => {
@@ -190,14 +208,13 @@ describe("loading the page", () => {
       await act(async () => {})
       expect(document.querySelector("[data-available]")).toBeTruthy()
       expect(made).toBeLessThan(10)
-      expect(listed).toBe(0)
       expect(screen.getAllByRole("button", { name: /^Time zone:/ })).toHaveLength(1)
+      const before = made
       await act(async () => fireEvent.click(screen.getByRole("button", { name: /^Time zone:/ })))
       expect(screen.getByRole("listbox", { name: "Time zones" })).toBeTruthy()
-      expect(listed).toBeGreaterThan(0)
+      expect(made).toBeGreaterThan(before + 100)
     } finally {
       Intl.DateTimeFormat = Real
-      intl.supportedValuesOf = realSupported
     }
     // A fresh import of the page and its modules: slow in a full suite.
   }, 20_000)

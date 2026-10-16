@@ -5,6 +5,7 @@ import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { MenuCheck, menuCheckState, type MenuChecked } from "@/components/ui/menuCheck"
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -101,18 +102,23 @@ const CommandSeparator = React.forwardRef<
 ))
 CommandSeparator.displayName = CommandPrimitive.Separator.displayName
 
+/** With `checked`, a row that turns something on (MenuCheck); cmdk's data-selected stays the highlight. */
 const CommandItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item> & { checked?: MenuChecked }
+>(({ className, checked, children, ...props }, ref) => (
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
       "relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-highlight data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className
     )}
+    {...(checked === undefined ? {} : menuCheckState(checked))}
     {...props}
-  />
+  >
+    {checked === undefined ? null : <MenuCheck checked={checked} />}
+    {children}
+  </CommandPrimitive.Item>
 ))
 
 CommandItem.displayName = CommandPrimitive.Item.displayName

@@ -17,6 +17,7 @@
  * reply card; J/K, ↵, Esc, S, T, R, O and / from the keyboard.
  */
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { celebrateOnce, springPop } from "@/lib/celebrate"
 import { useDispatch } from "react-redux"
@@ -49,7 +50,9 @@ import {
   type InboxThreadDetail,
 } from "@/services/inboxService"
 import { useAIAvailable } from "@/hooks/useClientConfig"
+import { useModEnter } from "@/hooks/useModKey"
 import { foldedAtStart, inboxKeyAction, senderAddress, splitQuoted, threadByline } from "@/components/inbox/inboxParts"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 function htmlText(html: string): string {
   if (typeof document === "undefined") return ""
@@ -67,6 +70,8 @@ function typing(target: EventTarget | null): boolean {
 export default function InboxPage() {
   const { toast } = useToast()
   const dispatch = useDispatch()
+  // The send hint's key: Ctrl off a Mac.
+  const sendKeys = useModEnter()
   const [query, setQuery] = useState("")
   const [applied, setApplied] = useState("")
   const [threads, setThreads] = useState<InboxThread[] | null>(null)
@@ -265,6 +270,19 @@ export default function InboxPage() {
     return () => window.removeEventListener("keydown", onKey)
   }, [threads, cursor, openId, thread, open, summarize, makeTask])
 
+  // The public demo's shared visitor (and only that account; the demo's own team
+  // connects as usual) can never connect Gmail, so the server says "demo" and
+  // the page explains why instead of offering a button that would be refused.
+  if (connection === "demo") {
+    return (
+      <ConnectFrame
+        spot={<SpotEnvelope />}
+        title="Your own inbox, in your own OneCamp"
+        body="This demo is shared by everyone who opens it, so it never connects anyone's Gmail: the next visitor would see your mail. On your own OneCamp, Mail reads your Gmail beside your work, and only you can see it."
+        action={null}
+      />
+    )
+  }
 
   if (connection) {
     const reconnect = connection === "reconnect"
@@ -355,7 +373,7 @@ export default function InboxPage() {
         )}
         {listError && (
           <div data-inbox-state="error" className="mx-4 mt-4 flex items-center gap-3 rounded-lg bg-sunken px-4 py-3">
-            <p className="flex-1 text-ui text-ink-2">Gmail isn’t answering.</p>
+            <p className="flex-1 text-ui text-ink-2">Gmail isn’t answering.<SaysLoadFailure /></p>
             <Button variant="ghost" size="sm" onClick={() => void load(applied)}>
               Try again
             </Button>
@@ -386,7 +404,7 @@ export default function InboxPage() {
               unread={t.unread}
               selected={openId === t.id || (cursor === i && !openId)}
               data-inbox-row=""
-              lead={<IdentityMark variant="avatar" size={28} id={t.from} label={senderName(t.from)} />}
+              lead={<IdentityMark variant="avatar" size={28} id={avatarSeed(senderName(t.from))} label={senderName(t.from)} />}
               title={
                 // The row's one control, stretched over it.
                 <button
@@ -532,7 +550,7 @@ export default function InboxPage() {
                   />
                   <div className="mt-1 flex items-center justify-end gap-2">
                     <span className="flex items-center gap-1 text-meta text-ink-3">
-                      <kbd className="kbd">⌘↵</kbd> send
+                      <kbd className="kbd">{sendKeys}</kbd> send
                     </span>
                     <button
                       type="submit"
@@ -566,7 +584,7 @@ export default function InboxPage() {
   )
 }
 
-/** Connect and reconnect (I2): a 440px column at 18vh. */
+/** Connect, reconnect and the demo's explanation (I2): a 440px column at 18vh. */
 function ConnectFrame({ spot, title, body, action, privacy }: { spot: React.ReactNode; title: string; body: string; action?: React.ReactNode; privacy?: boolean }) {
   return (
     <div data-inbox-connect="" className="mx-auto flex w-full max-w-[440px] flex-col items-center px-6 pt-[18vh] text-center">
@@ -626,7 +644,7 @@ function Conversation({ messages, gmailUrl }: { messages: InboxMessage[]; gmailU
             }
             className="flex h-11 w-full items-center gap-3 text-left text-ui-sm hover:bg-hover"
           >
-            <IdentityMark variant="avatar" size={20} id={m.from} label={senderName(m.from)} />
+            <IdentityMark variant="avatar" size={20} id={avatarSeed(senderName(m.from))} label={senderName(m.from)} />
             <span className="shrink-0 font-medium">{senderName(m.from)}</span>
             <span className="min-w-0 flex-1 truncate text-ink-3">{htmlText(m.body).slice(0, 140)}</span>
             <time dateTime={m.date} className="shrink-0 text-meta tabular-nums text-ink-3">{mailDate(m.date)}</time>
@@ -645,7 +663,7 @@ function Message({ m, gmailUrl }: { m: InboxMessage; gmailUrl: string }) {
   return (
     <article data-inbox-message="" className="py-5 first:pt-0">
       <header className="flex items-center gap-3">
-        <IdentityMark variant="avatar" size={28} id={m.from} label={senderName(m.from)} />
+        <IdentityMark variant="avatar" size={28} id={avatarSeed(senderName(m.from))} label={senderName(m.from)} />
         <span className="truncate text-ui font-medium">{senderName(m.from)}</span>
         <span className="hidden truncate text-meta text-ink-3 sm:inline">{senderAddress(m.from)}</span>
         <time dateTime={m.date} title={fullDate(m.date)} className="ml-auto shrink-0 text-meta tabular-nums text-ink-3">

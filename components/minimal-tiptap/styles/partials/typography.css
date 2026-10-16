@@ -61,3 +61,30 @@
 .static-rich a[href]:hover {
   @apply decoration-primary;
 }
+
+/* Text colours and highlights, by name (B2, N15): each hue's ink cut for
+   text and its tint behind it, so they read in both themes and every ink
+   reads on every tint (docColoursContrast.test.ts). Grey is ink-2 on the
+   press step. */
+.minimal-tiptap-editor .ProseMirror span[data-color="gray"] { color: var(--ink-2); }
+.minimal-tiptap-editor .ProseMirror span[data-color="sun"] { color: var(--camp-sun-ink); }
+.minimal-tiptap-editor .ProseMirror span[data-color="moss"] { color: var(--camp-moss-ink); }
+.minimal-tiptap-editor .ProseMirror span[data-color="lake"] { color: var(--camp-lake-ink); }
+.minimal-tiptap-editor .ProseMirror span[data-color="sky"] { color: var(--camp-sky-ink); }
+.minimal-tiptap-editor .ProseMirror span[data-color="dusk"] { color: var(--camp-dusk-ink); }
+.minimal-tiptap-editor .ProseMirror span[data-color="berry"] { color: var(--camp-berry-ink); }
+
+.minimal-tiptap-editor .ProseMirror mark {
+  color: inherit;
+  background: var(--camp-sun-tint);
+  border-radius: 3px;
+  padding: 0 0.12em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.minimal-tiptap-editor .ProseMirror mark[data-color="gray"] { background: var(--press); }
+.minimal-tiptap-editor .ProseMirror mark[data-color="moss"] { background: var(--camp-moss-tint); }
+.minimal-tiptap-editor .ProseMirror mark[data-color="lake"] { background: var(--camp-lake-tint); }
+.minimal-tiptap-editor .ProseMirror mark[data-color="sky"] { background: var(--camp-sky-tint); }
+.minimal-tiptap-editor .ProseMirror mark[data-color="dusk"] { background: var(--camp-dusk-tint); }
+.minimal-tiptap-editor .ProseMirror mark[data-color="berry"] { background: var(--camp-berry-tint); }

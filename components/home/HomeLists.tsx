@@ -11,6 +11,7 @@
  * CREATE: four tile buttons, each naming what it makes in a feature tile and
  * teaching its key.
  */
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import Link from "next/link"
 import { useDispatch, useSelector } from "react-redux"
 
@@ -25,17 +26,19 @@ import { relativeTime } from "@/lib/utils/relativeTime"
 import { cn } from "@/lib/utils/helpers/cn"
 import { openInSplit } from "@/store/slice/splitSlice"
 import { openUI } from "@/store/slice/uiSlice"
+import { useModKey } from "@/hooks/useModKey"
 import type { RecentItem } from "@/store/slice/recentItemsSlice"
 import type { RootState } from "@/store/store"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 
 /** The lead for a recent item: identity where the thing has one, an ink-3 glyph where it has none. */
 export function recentLead(item: Pick<RecentItem, "id" | "type" | "title">) {
   switch (item.type) {
     case "user":
     case "chat":
-      return <IdentityMark variant="avatar" size={20} id={item.id} label={item.title} />
+      return <IdentityMark variant="avatar" size={20} id={avatarSeed(item.title)} label={item.title} />
     case "project":
-      return <IdentityMark variant="square" size={16} id={item.id} />
+      return <ProjectTile id={item.id} />
     case "task":
       return <StatusGlyph status="todo" />
     case "channel":
@@ -95,8 +98,13 @@ export function JumpBackIn({ className }: { className?: string }) {
   )
 }
 
+// A container, so its key hint can give way: at 1024 beside the sidebar a
+// tile's content box is about 120px, and "Ctrl J" (the hub's Ctrl-not-⌘ fix)
+// cut "Ask AI" to "As…". Below 136px of content (the tile, its label and
+// "Ctrl J") the label keeps the room and the hint goes; at 1440 (156px) the
+// hints stay.
 const TILE_BUTTON =
-  "group/tile flex h-14 items-center gap-2.5 rounded-lg bg-sheet px-3 text-left shadow-e1 transition-[box-shadow,translate] duration-[140ms] hover:-translate-y-px hover:shadow-e2 active:translate-y-[0.5px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand aria-pressed:shadow-e2 dark:bg-[#18191C]"
+  "@container group/tile flex h-14 items-center gap-2.5 rounded-lg bg-sheet px-3 text-left shadow-e1 transition-[box-shadow,translate] duration-[140ms] hover:-translate-y-px hover:shadow-e2 active:translate-y-[0.5px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand aria-pressed:shadow-e2 dark:bg-[#18191C]"
 
 function CreateButton({
   tile,
@@ -115,13 +123,15 @@ function CreateButton({
     <button type="button" onClick={onClick} aria-pressed={pressed} className={TILE_BUTTON} data-create-tile={label}>
       {tile}
       <span className="min-w-0 flex-1 truncate text-ui font-medium">{label}</span>
-      {pressed ? <span className="chip h-[18px] px-1.5 text-micro">Open</span> : kbd ? <span className="kbd">{kbd}</span> : null}
+      {pressed ? <span className="chip h-[18px] px-1.5 text-micro">Open</span> : kbd ? <span data-kbd-hint="" className="kbd @max-[8.5rem]:hidden">{kbd}</span> : null}
     </button>
   )
 }
 
 export function CreateTiles({ aiAvailable, aiOpen, onToggleAI, className }: { aiAvailable: boolean; aiOpen: boolean; onToggleAI: () => void; className?: string }) {
   const dispatch = useDispatch()
+  // The key that opens the AI here: Ctrl J off a Mac, as the sidebar says it.
+  const mod = useModKey()
   return (
     <section aria-labelledby="create-title" className={className} data-create="">
       <HubSectionHeader id="create-title" title="Create" />
@@ -163,7 +173,7 @@ export function CreateTiles({ aiAvailable, aiOpen, onToggleAI, className }: { ai
               </span>
             }
             label="Ask AI"
-            kbd="⌘J"
+            kbd={mod === "⌘" ? "⌘J" : `${mod} J`}
             pressed={aiOpen}
             onClick={onToggleAI}
           />

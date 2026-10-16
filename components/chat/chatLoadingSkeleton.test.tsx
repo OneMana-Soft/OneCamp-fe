@@ -42,3 +42,16 @@ describe("ChatLoadingSkeleton", () => {
     expect(box.className).not.toContain("invisible")
   })
 })
+
+// The messages land at the list's end (a conversation sits above its
+// composer), so the skeleton sits there too: one at the top, swapped for
+// messages at the bottom, jumped the length of the screen.
+describe("where it loads", () => {
+  it("is at the foot of the list, where the messages land", () => {
+    const { container } = render(<ChatLoadingSkeleton />)
+    const box = container.querySelector<HTMLElement>("[data-message-skeleton]")!
+    expect(box.className).toContain("justify-end")
+    expect(box.className).not.toContain("pt-8")
+  })
+})
+

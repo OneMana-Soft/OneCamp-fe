@@ -6,16 +6,24 @@ import { PostCard } from "@/components/posts/PostCard";
 import { PostsRes, CreatePostPaginationResRaw } from "@/types/post";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
-import { ErrorState } from "@/components/ui/error-state"
-import { Loader2 } from "@/lib/icons";
+import { HubEmpty, HubError } from "@/components/activity/hubEmpty";
+import { PageHeader } from "@/components/ui/pageHeader";
+import { PageContainer } from "@/components/ui/pageContainer";
 import { SkeletonRows } from "@/components/ui/skeletonRows";
 import { ConditionalWrap } from "@/components/conditionalWrap/conditionalWrap";
 import { useMedia } from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import { useRouter } from "next/navigation";
-import {Separator} from "@/components/ui/separator";
+import { Separator } from "@/components/ui/separator";
 
+/**
+ * Your posts: what you've posted in channels, newest first. The shape of the
+ * other list pages (Recordings): a header across the sheet, the rows in the
+ * start-aligned 880px column, and the hub's empty and failed states where the
+ * rows begin (QA F-28). It had a header of its own, "Your Posts" in title case
+ * on a computer and "Your posts" on a phone, a centred 760px list, and states
+ * in the middle of the screen.
+ */
 const PostsPage = () => {
     const [pageIndex, setPageIndex] = useState(0);
     const [allPosts, setAllPosts] = useState<PostsRes[]>([]);
@@ -23,7 +31,6 @@ const PostsPage = () => {
     const pageSize = 20;
     const router = useRouter();
     const { isMobile, isDesktop } = useMedia();
-
 
     const endpoint = `${GetEndpointUrl.GetUserPosts}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
     const { data: pageData, isLoading, isError, mutate } = useFetch<CreatePostPaginationResRaw>(endpoint);
@@ -63,65 +70,50 @@ const PostsPage = () => {
                 </TouchableDiv>
             )
         }>
-
-            {i!=0 && <Separator orientation="horizontal" className=" mx-6 w-[calc(100%-3rem)]" />}
-            <div >
-                <PostCard post={post} onClick={isMobile ? undefined : () => handleClick(post)} />
-            </div>
-
+            {i != 0 && <Separator orientation="horizontal" className="mx-6 w-[calc(100%-3rem)]" />}
+            <PostCard post={post} onClick={isMobile ? undefined : () => handleClick(post)} />
         </ConditionalWrap>
     );
 
     return (
-        <div className="flex h-full flex-col bg-background/30">
-            {isDesktop && <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-4 md:px-6 py-3 md:py-4">
-                <h1 className="text-base md:text-lg font-semibold text-foreground">Your Posts</h1>
-                {isLoading && (
-                    <div className="flex items-center gap-2 text-2xs md:text-xs text-muted-foreground animate-in fade-in">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span className="hidden sm:inline">Refreshing…</span>
-                    </div>
-                )}
-            </div>}
+        <div data-posts-view="" className="flex h-full min-h-0 flex-col bg-background">
+            {/* On a phone the top bar names the page, as on Recordings. */}
+            {isDesktop ? (
+                <PageContainer bounded={false} className="h-auto shrink-0 px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
+                    <PageHeader title="Your posts" />
+                </PageContainer>
+            ) : null}
 
-            <div className="flex-1 overflow-auto">
+            <PageContainer className="flex min-h-0 flex-1 flex-col">
                 {allPosts.length > 0 ? (
-                    <div className="w-full h-full flex justify-center">
-                        <div className="w-full max-w-[760px]">
-                            <VirtualInfiniteScroll
-                                items={allPosts}
-                                renderItem={renderItem}
-                                onLoadMore={onLoadMore}
-                                hasMore={hasMore}
-                                isLoading={isLoading}
-                                className="no-scrollbar"
-                                keyExtractor={(item: PostsRes) => item.post_uuid}
-                            />
-                        </div>
-                    </div>
-                ) : isError ? (
-                    // Checked before the empty branch: a failed fetch leaves the
-                    // list empty too, and "You haven't created any posts yet" is
-                    // a distressing thing to tell someone whose posts exist.
-                    <div className="flex h-full items-center justify-center p-8">
-                        <ErrorState subject="your posts" onRetry={() => void mutate()} />
-                    </div>
-                ) : !isLoading ? (
-                    <div className="flex h-full items-center justify-center p-8">
-                        <StatePlaceholder
-                            type="empty"
-                            title="No posts found"
-                            description="You haven't created any posts yet."
-                        />
-                    </div>
-                ) : (
+                    <VirtualInfiniteScroll
+                        items={allPosts}
+                        renderItem={renderItem}
+                        onLoadMore={onLoadMore}
+                        hasMore={hasMore}
+                        isLoading={isLoading}
+                        className="no-scrollbar min-h-0 flex-1"
+                        keyExtractor={(item: PostsRes) => item.post_uuid}
+                    />
+                ) : isLoading && !isError ? (
                     /* role + aria-label is the whole announcement; the skeleton
                        itself stays aria-hidden, so the text is not read twice. */
-                    <div role="status" aria-label="Loading your posts" className="p-2">
+                    <div role="status" aria-label="Loading your posts">
                         <SkeletonRows rows={5} />
                     </div>
+                ) : (
+                    <div data-posts-state="" className="flex justify-start pt-4 md:pt-12">
+                        {isError ? (
+                            // Ahead of the empty answer: a failed fetch leaves the
+                            // list empty too, and "You haven't posted yet" is a
+                            // distressing thing to tell someone whose posts exist.
+                            <HubError text="Your posts aren't loading. Nothing has been lost." onRetry={() => void mutate()} />
+                        ) : (
+                            <HubEmpty spot="message" title="You haven't posted yet" description="Posts you write in channels gather here, newest first." />
+                        )}
+                    </div>
                 )}
-            </div>
+            </PageContainer>
         </div>
     );
 };

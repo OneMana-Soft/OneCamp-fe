@@ -229,6 +229,11 @@ function probe() {
  * @param opts.viewport { width, height }
  * @param opts.storageState a signed-in state to start from
  */
+/** Adds the probe to a context of the caller's own (docs.mjs's local harness). */
+export async function installProbe(context) {
+  await context.addInitScript(probe)
+}
+
 export async function demoContext(browser, { base, viewport = { width: 1440, height: 900 }, storageState } = {}) {
   const ctx = await browser.newContext({ viewport, storageState, serviceWorkers: "block" })
   const guard = { blocked: [], faked: [], fakes: [], droppedFrames: 0, scriptBytes: 0, scriptGzip: 0, scripts: [] }
@@ -334,8 +339,10 @@ export async function demoContext(browser, { base, viewport = { width: 1440, hei
 }
 
 // A Hocuspocus frame: varString document name, varUint message type, then for
-// Sync a varUint y-protocols step. Allowed: Auth (2), QueryAwareness (3) and
-// Sync step 1 (0/0), which only asks the server for what it has.
+// Sync a varUint y-protocols step. Allowed: Auth (2), QueryAwareness (3), Sync
+// step 1 (0/0), which only asks the server for what it has, and Close (7),
+// which only lets go of a doc: on the tab's one socket (lib/collabSocket.ts) a
+// doc whose close never reached the server could not be opened on it again.
 function collabAllowed(buf) {
   let i = 0
   const varUint = () => {
@@ -353,7 +360,7 @@ function collabAllowed(buf) {
   if (nameLength < 0) return false
   i += nameLength
   const type = varUint()
-  if (type === 2 || type === 3) return true
+  if (type === 2 || type === 3 || type === 7) return true
   if (type === 0) return varUint() === 0
   return false
 }

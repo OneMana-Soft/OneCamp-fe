@@ -1,4 +1,5 @@
 import type { CampHue } from "@/lib/campHue"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /**
  * The AI's starter questions, built from what is true for this person now
@@ -34,8 +35,6 @@ export const GENERIC_SUGGESTIONS: Suggestion[] = [
   { text: "What did the team discuss today?", hue: "agent", icon: "spark" },
 ]
 
-const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-
 export function suggestionsFrom(ctx: SuggestionContext | undefined): Suggestion[] {
   const out: Suggestion[] = []
   const channel = ctx?.recentChannel?.trim().replace(/^#/, "")
@@ -44,7 +43,7 @@ export function suggestionsFrom(ctx: SuggestionContext | undefined): Suggestion[
   if (n > 0) out.push({ text: n === 1 ? "Summarise my task that's due" : `Summarise my ${n} tasks that are due`, hue: "moss", icon: "tasks" })
   const ev = ctx?.nextEvent
   if (ev?.title?.trim()) {
-    const at = ev.at && !Number.isNaN(ev.at.getTime()) ? ` at ${hhmm(ev.at)}` : ""
+    const at = ev.at && !Number.isNaN(ev.at.getTime()) ? ` at ${clockTime(ev.at)}` : ""
     out.push({ text: `Prepare me for ${ev.title.trim()}${at}`, hue: "sky", icon: "calendar" })
   }
   const draft = ctx?.draft?.trim()

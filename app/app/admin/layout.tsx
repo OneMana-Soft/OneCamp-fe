@@ -1,14 +1,20 @@
 "use client"
 
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
+import { useSaysLoadFailure } from "@/lib/http/loadFailure";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import {PermissionLockedNotice} from "@/components/admin/PlanLockedNotice";
+import {PageFrame, PageFrameHeader} from "@/components/ui/settingsPage";
+import {lastAppRoute} from "@/components/navigationBar/desktop/SettingsNav";
+import Link from "next/link";
+import {useEffect, useState} from "react";
 import {EmptyState} from "@/components/ui/empty-state";
 import {Button} from "@/components/ui/button";
 import {SpotError} from "@/components/ui/graphics";
 import {Skeleton} from "@/components/ui/skeleton";
-import {Lock, RefreshCw} from "@/lib/icons";
+import {ChevronLeft, RefreshCw, Shield} from "@/lib/icons";
+import {SETTINGS_GROUP_HUE} from "@/lib/adminSections";
 
 /**
  * The admin page's frame while the gate asks who you are (design v3, admin
@@ -43,6 +49,32 @@ function AdminFrameSkeleton() {
     )
 }
 
+/**
+ * A refusal, not a failure: nothing went wrong, so it is not drawn in the
+ * danger colour with an alert icon. Settings' locked card (QA SH-10): the
+ * page's own header, one sentence on --sunken with its lock, and a way on.
+ * It was a lone lock and grey text in the middle of an empty sheet.
+ */
+function AdminOnly() {
+    const [back, setBack] = useState("/app")
+    useEffect(() => setBack(lastAppRoute()), [])
+    return (
+        <PageFrame>
+            <PageFrameHeader hue={SETTINGS_GROUP_HUE.workspace} icon={Shield} title="Admin" />
+            <PermissionLockedNotice
+                what="Only workspace admins can open Admin."
+                who="Ask an admin if you need a change made here."
+            />
+            <Button asChild variant="secondary" size="sm" className="mt-4 gap-1.5">
+                <Link href={back}>
+                    <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Back to app
+                </Link>
+            </Button>
+        </PageFrame>
+    )
+}
+
 export default function AdminGate({
                                       children,
                                   }: Readonly<{
@@ -50,6 +82,8 @@ export default function AdminGate({
 }>) {
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    // The page says a failed profile read itself, below; the toast stays quiet.
+    useSaysLoadFailure(!!selfProfile.isError && !selfProfile.data)
 
     if (selfProfile.isLoading) {
         return <AdminFrameSkeleton/>
@@ -79,18 +113,7 @@ export default function AdminGate({
     }
 
     if (!selfProfile.data?.data.user_is_admin) {
-        // A refusal, not a failure: nothing went wrong, so it is not drawn in
-        // the danger colour with an alert icon.
-        return (
-            <div className="flex h-full items-center justify-center">
-                <StatePlaceholder
-                    type="empty"
-                    icon={Lock}
-                    title="Admins only"
-                    description="Only workspace admins can open this page. Ask an admin if you need a change made here."
-                />
-            </div>
-        )
+        return <AdminOnly />
     }
 
     return (

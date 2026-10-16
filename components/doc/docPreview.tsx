@@ -8,32 +8,29 @@ interface DocPreviewProps {
     content: string;
     /** The doc's title, set at the top of the page as the doc sets it. */
     title?: string;
-    /** The thumbnail size of a phone row: a small page, no text. */
-    compact?: boolean;
     className?: string;
 }
 
 /**
  * A doc's first lines as a page (content.md D02): a sheet on the sunken
  * ground, bleeding off the bottom into a 24 px fade, holding the real title
- * and opening text in the doc's own type. The text is set at twice the size
- * and scaled by half, so it stays crisp instead of being restyled inline at
- * 9 px. Under the card's pointer the page rises 2 px, as if picked up.
+ * and opening text in the doc's own type, in its own sizes zoomed to half
+ * (CSS zoom), so it is laid out at the size it is drawn. It was scaled by a
+ * transform, which laid the words out at full size and drew them at half:
+ * the spaces landed between the wrong letters ("Thread skeep", "Docsfor",
+ * QA DSA-30). Under the card's pointer the page rises 2 px, as if picked up.
  */
-export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, compact, className }) => {
+export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, className }) => {
     const hasContent = !!content && content.trim().length > 0 && !content.includes('Empty document');
 
     return (
-        <div className={cn("relative h-full w-full overflow-hidden bg-sunken", compact ? "px-1.5 pt-1.5" : "px-4 pt-4", className)}>
+        <div className={cn("relative h-full w-full overflow-hidden bg-sunken px-4 pt-4", className)}>
             <div
                 data-doc-page=""
-                className={cn(
-                    "relative h-full overflow-hidden bg-sheet shadow-e1 transition-transform duration-[140ms] ease-[var(--ease-out)] group-hover:-translate-y-0.5 motion-reduce:transform-none",
-                    compact ? "rounded-t-[3px]" : "rounded-t-md"
-                )}
+                className="relative h-full overflow-hidden rounded-t-md bg-sheet shadow-e1 transition-transform duration-[140ms] ease-[var(--ease-out)] group-hover:-translate-y-0.5 motion-reduce:transform-none"
             >
-                {compact ? null : hasContent || title ? (
-                    <div className="pointer-events-none w-[200%] origin-top-left scale-50 px-7 pt-6 text-ink select-none" aria-hidden="true">
+                {hasContent || title ? (
+                    <div data-doc-preview-text="" className="pointer-events-none px-7 pt-6 text-ink select-none [zoom:0.5]" aria-hidden="true">
                         {title ? <div className="mb-2 text-lg font-semibold leading-[26px] text-ink">{title}</div> : null}
                         {hasContent ? (
                             <SafeHtml
@@ -58,7 +55,7 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, compact,
                     </div>
                 )}
             </div>
-            {!compact ? <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent to-sunken" /> : null}
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent to-sunken" />
         </div>
     );
 };

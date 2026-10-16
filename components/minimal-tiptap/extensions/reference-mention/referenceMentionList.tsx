@@ -2,27 +2,21 @@
 
 import { MentionOptions } from "@tiptap/extension-mention"
 import { PluginKey } from "@tiptap/pm/state"
-import { ReactRenderer } from "@tiptap/react"
 import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
-import tippy, { Instance as TippyInstance } from "tippy.js"
+import { forwardRef, useImperativeHandle, useMemo, useRef } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
-import { cn } from "@/lib/utils/helpers/cn"
+import { CommandList, CommandTile, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
+import { chipAllowed, suggestionPopup, type SuggestionListExtras } from "../suggestion-popup"
 import {
   encodeReferenceId,
+  isDocEditor,
+  keptLabel,
   referenceIcon,
   referenceTypeLabel,
   type ReferenceItem,
   type ReferenceType,
 } from "./referenceTypes"
-
-const DOM_RECT_FALLBACK: DOMRect = {
-  bottom: 0, height: 0, left: 0, right: 0, top: 0, width: 0, x: 0, y: 0,
-  toJSON() {
-    return {}
-  },
-}
 
 // Maps a raw unified-search hit to a compact ReferenceItem for the chosen
 // trigger. Returns null for hits that don't apply (so one search call can back
@@ -72,7 +66,8 @@ function mapSearchResult(result: any, types: ReferenceType[]): ReferenceItem | n
   }
 }
 
-async function searchReferences(query: string, types: ReferenceType[]): Promise<ReferenceItem[]> {
+/** The workspace's docs, boards, tasks, projects or channels called something, as the reader may see them (global search). */
+export async function searchReferences(query: string, types: ReferenceType[]): Promise<ReferenceItem[]> {
   const q = query.trim()
   if (!q) return []
   try {
@@ -94,7 +89,7 @@ async function searchReferences(query: string, types: ReferenceType[]): Promise<
 // One debounced fetcher per suggestion instance. Superseded keystrokes drop
 // their pending timer (their promise simply never resolves, so Tiptap ignores
 // them) and only the latest query hits the search endpoint after a short pause.
-function createDebouncedFetcher(types: ReferenceType[], delayMs = 180) {
+export function createDebouncedFetcher(types: ReferenceType[], delayMs = 180) {
   let timer: ReturnType<typeof setTimeout> | null = null
   return (query: string): Promise<ReferenceItem[]> => {
     const q = query.trim()
@@ -108,81 +103,66 @@ function createDebouncedFetcher(types: ReferenceType[], delayMs = 180) {
   }
 }
 
-interface ReferenceListProps extends SuggestionProps {
+interface ReferenceListProps extends SuggestionProps, SuggestionListExtras {
   items: ReferenceItem[]
   emptyHint: string
+  /** The list's accessible name: "Link a channel". */
+  listLabel: string
 }
 
 type ReferenceListRef = {
   onKeyDown: (props: SuggestionKeyDownProps) => boolean
 }
 
+/**
+ * The "#" and "+" pickers, as the area's CommandList (the "/" and "@" menus'
+ * list): ↑ ↓ wrap, Enter or Tab picks, the highlight slides, and the list is
+ * announced from the editor. They were their own button list, with no roles,
+ * no Tab and the old tokens.
+ */
 const ReferenceList = forwardRef<ReferenceListRef, ReferenceListProps>((props, ref) => {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const listRef = useRef<CommandListHandle>(null)
+  const rows: CommandListItem[] = useMemo(
+    () =>
+      props.items.map((item) => {
+        const Icon = referenceIcon(item.refType)
+        return {
+          id: `${item.refType}-${item.routeId}`,
+          label: item.label,
+          meta: item.subtitle || referenceTypeLabel(item.refType),
+          tile: (
+            <CommandTile>
+              <Icon />
+            </CommandTile>
+          ),
+        }
+      }),
+    [props.items],
+  )
 
-  const selectItem = (index: number) => {
-    const item = props.items[index]
+  const selectItem = (row: CommandListItem) => {
+    const item = props.items.find((i) => `${i.refType}-${i.routeId}` === row.id)
     if (!item) return
-    props.command({ id: encodeReferenceId(item.refType, item.routeId), label: item.label } as any)
+    props.command({ id: encodeReferenceId(item.refType, item.routeId), label: keptLabel(item, isDocEditor(props.editor)) } as any)
   }
-
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [props.items])
 
   useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-      if (event.key === "ArrowUp") {
-        setSelectedIndex((selectedIndex + props.items.length - 1) % props.items.length)
-        return true
-      }
-      if (event.key === "ArrowDown") {
-        setSelectedIndex((selectedIndex + 1) % props.items.length)
-        return true
-      }
-      if (event.key === "Enter") {
-        selectItem(selectedIndex)
-        return true
-      }
-      return false
-    },
+    onKeyDown: ({ event }: SuggestionKeyDownProps) => listRef.current?.onKeyDown(event) ?? false,
   }))
 
-  if (props.items.length === 0) {
-    return (
-      <div className="rounded-lg border bg-popover text-popover-foreground shadow-e3 min-w-[14rem] max-w-[20rem] p-3 text-xs text-muted-foreground">
-        {props.emptyHint}
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-e3 min-w-[15rem] max-w-[22rem] max-h-[18rem] p-1 gap-0.5">
-      {props.items.map((item, index) => {
-        const Icon = referenceIcon(item.refType)
-        return (
-          <button
-            type="button"
-            key={`${item.refType}-${item.routeId}`}
-            onClick={() => selectItem(index)}
-            onMouseEnter={() => setSelectedIndex(index)}
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none cursor-pointer transition-colors text-left w-full",
-              index === selectedIndex ? "bg-accent text-accent-foreground" : "hover:bg-muted",
-            )}
-          >
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-              <Icon className="h-4 w-4" />
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate font-medium leading-tight">{item.label}</span>
-              <span className="truncate text-2xs text-muted-foreground leading-tight">
-                {item.subtitle || referenceTypeLabel(item.refType)}
-              </span>
-            </span>
-          </button>
-        )
-      })}
+    <div data-reference-list="">
+      <CommandList
+        ref={listRef}
+        comboboxFor={props.comboboxFor}
+        label={props.listLabel}
+        className="w-80"
+        maxHeight={8 * 44 + 8}
+        items={rows}
+        query={props.query}
+        onSelect={selectItem}
+        empty={<span className="text-ink-3">{props.query?.trim() ? `Nothing called “${props.query}”` : props.emptyHint}</span>}
+      />
     </div>
   )
 })
@@ -193,6 +173,8 @@ interface MakeReferenceSuggestionArgs {
   types: ReferenceType[]
   pluginKey: PluginKey
   emptyHint: string
+  /** The chip's node ("channelMention", "entityMention"): the menu opens only where it can go. */
+  nodeName: string
 }
 
 // Builds a Tiptap mention suggestion config for a non-user trigger. The popup
@@ -203,56 +185,23 @@ export function makeReferenceSuggestion({
   types,
   pluginKey,
   emptyHint,
+  nodeName,
 }: MakeReferenceSuggestionArgs): MentionOptions["suggestion"] {
   const debouncedFetch = createDebouncedFetcher(types)
   return {
     char,
     pluginKey,
     items: async ({ query }: { query: string }) => debouncedFetch(query),
-    render: () => {
-      let component: ReactRenderer<ReferenceListRef> | undefined
-      let popup: TippyInstance | undefined
-
-      return {
-        onStart: (props) => {
-          component = new ReactRenderer(ReferenceList, {
-            props: { ...props, emptyHint },
-            editor: props.editor,
-          })
-          popup = tippy("body", {
-            getReferenceClientRect: () => props.clientRect?.() ?? DOM_RECT_FALLBACK,
-            appendTo: () => document.body,
-            content: component.element,
-            showOnCreate: true,
-            interactive: true,
-            trigger: "manual",
-            placement: "bottom-start",
-            maxWidth: "none",
-          })[0]
-        },
-        onUpdate(props) {
-          component?.updateProps({ ...props, emptyHint })
-          popup?.setProps({
-            getReferenceClientRect: () => props.clientRect?.() || DOM_RECT_FALLBACK,
-          })
-        },
-        onKeyDown(props) {
-          if (props.event.key === "Escape") {
-            // Only while the list shows: a second Escape reaches the page.
-            if (!popup?.state.isVisible) return false
-            popup.hide()
-            return true
-          }
-          if (!component?.ref) return false
-          return component.ref.onKeyDown(props)
-        },
-        onExit() {
-          popup?.destroy()
-          component?.destroy()
-          popup = undefined
-          component = undefined
-        },
-      }
-    },
+    // "#" or "+" in code is code (a heading anchor, an addition), not a chip.
+    allow: chipAllowed(nodeName),
+    render: suggestionPopup({
+      component: forwardRef<ReferenceListRef, ReferenceListProps>(function ReferenceMenu(props, ref) {
+        return <ReferenceList {...props} ref={ref} />
+      }),
+      extraProps: () => ({
+        emptyHint,
+        listLabel: types.includes("channel") ? "Link a channel" : "Link a doc, board, task or project",
+      }),
+    }),
   }
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 // Directory provisioning. Credentials are rows of one card (they were a card
@@ -40,6 +41,8 @@ afterEach(() => {
   state.loading = false
   state.locked = false
 })
+// Today is pinned (app/testClock.test.ts): a credential's last use is written without its year in its year, and one that ran out on 1 January 2026 has expired.
+pinTestClock()
 
 describe("directory provisioning", () => {
   it("lists credentials as rows of one card, with dates in the app's format", () => {

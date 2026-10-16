@@ -19,6 +19,20 @@ describe("a notice", () => {
     expect(onDismiss).toHaveBeenCalled()
   })
 
+  // At 390 the words sat beside a 44px button with a third of the width and
+  // ran to four lines (the email notice; the demo's note, three).
+  it("on a phone, gives its words the row and puts its action on a row under them", () => {
+    render(<NoticeBar tone="info" lead="This demo is shared." action={<button className="notice-action">Got it</button>}>Everyone who opens it uses this account.</NoticeBar>)
+    const row = screen.getByRole("status")
+    expect(row.hasAttribute("data-has-action")).toBe(true)
+    expect(row.querySelector(".notice-act")?.textContent).toBe("Got it")
+    expect(row.querySelector(".notice-text")?.textContent).toMatch(/^This demo is shared\./)
+    const css = readFileSync(join(__dirname, "..", "..", "app", "globals.css"), "utf8")
+    const phone = css.slice(css.indexOf("@media (max-width: 639.98px) {\n  .notice[data-has-action]"))
+    expect(phone).toMatch(/grid-template-areas: "lead text close" ". act close";/)
+    expect(phone).toMatch(/\.notice-act \.notice-action::after \{\s*content: "";\s*position: absolute;\s*inset: -4px 0;/)
+  })
+
   it("is 40px at least, 13px words, with the fact in bold ink first", () => {
     render(<NoticeBar tone="info" lead="Email is off.">Invitations won&apos;t arrive.</NoticeBar>)
     const row = screen.getByRole("status")

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { applyViewRules, fitRules, kindOfField, loadViewRules, NO_RULES, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
+import { applyViewRules, fitRules, keepInSight, kindOfField, loadViewRules, NO_RULES, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
 import type { TableField, TableRow } from "@/services/tableService"
 
 const field = (id: string, type: TableField["type"], config: object = {}): TableField => ({
@@ -149,3 +149,54 @@ describe("a field whose type changes", () => {
     expect(fitRules(r, fields)).toBe(r)
   })
 })
+
+// TAB-BUG-14: a row added where the view's rules hide it, or sort it away from
+// where it was added, stays in sight, last, until the person moves on.
+describe("a new row the view would hide or move", () => {
+  // Named (a board's card, a duplicate): a blank row sorts last anyway.
+  const added = row("new", { item: "Aardvark" })
+  const held = [...rows, added]
+
+  it("stays last, and says the filter would hide it", () => {
+    const ruled = applyViewRules(held, fields, rules({ filters: [{ field: "item", op: "contains", value: "o" }] }))
+    expect(ids(ruled)).not.toContain("new")
+    expect(keepInSight(ruled, ruled, held, "new")).toEqual({ rows: [...ruled, added], kept: "filter" })
+  })
+
+  it("tells a search from a filter", () => {
+    const shown = searchRows(held, "booth")
+    expect(keepInSight(shown, held, held, "new")).toEqual({ rows: [...shown, added], kept: "search" })
+  })
+
+  it("stays where it was added when the sort puts it elsewhere", () => {
+    const sorted = applyViewRules(held, fields, rules({ sort: [{ field: "item", dir: "asc" }] }))
+    expect(sorted.at(-1)?.id).not.toBe("new")
+    const kept = keepInSight(sorted, sorted, held, "new")
+    expect(kept.kept).toBe("sort")
+    expect(ids(kept.rows)).toEqual([...ids(sorted).filter((id) => id !== "new"), "new"])
+  })
+
+  it("changes nothing for a row already last, one not held, or none", () => {
+    expect(keepInSight(held, held, held, "new")).toEqual({ rows: held, kept: null })
+    expect(keepInSight(rows, rows, rows, "gone")).toEqual({ rows, kept: null })
+    expect(keepInSight(rows, rows, rows, null)).toEqual({ rows, kept: null })
+  })
+})
+
+// TAB-BUG-8 in the filter box: a typed filter value was read by deleting its
+// commas, so "Cost is 1,5" filtered for 15. It's read now as a number cell
+// reads what's typed, in the reader's locale (en-US in these tests).
+describe("a number filter's typed value", () => {
+  const costs = [row("a", { cost: 1200 }), row("b", { cost: 15 }), row("c", { cost: 1.5 })]
+  const where = (value: string) => ids(applyViewRules(costs, fields, rules({ filters: [{ field: "cost", op: "is", value }] })))
+
+  it("takes a currency sign and digit groups", () => {
+    expect(where("€1,200")).toEqual(["a"])
+  })
+
+  it("never reads a decimal comma as a digit group: what isn't a number in the reader's locale filters nothing", () => {
+    expect(where("1,5")).toEqual(["a", "b", "c"])
+    expect(where("1.5")).toEqual(["c"])
+  })
+})
+

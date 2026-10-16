@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 /** Save for later (hub.md L4): saved is the bookmark filled in the accent, with a spring. */
@@ -43,5 +43,14 @@ describe("the save-for-later control", () => {
     saved = { id: "l1" }
     rerender(<TooltipProvider><SaveForLaterButton target={target} /></TooltipProvider>)
     expect(spring).toHaveBeenCalledTimes(1)
+  })
+
+  // "Tomorrow morning" wrapped to a 52px row in the menu (QA F-38).
+  it("keeps each reminder choice on one line", () => {
+    const { container } = mount()
+    fireEvent.keyDown(container.querySelector("button")!, { key: "Enter" })
+    const choice = screen.getByText("Tomorrow morning")
+    expect(choice.className).toContain("whitespace-nowrap")
+    expect(choice.nextElementSibling?.className).toContain("whitespace-nowrap")
   })
 })

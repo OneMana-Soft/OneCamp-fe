@@ -15,26 +15,25 @@ import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
 import {OWN_ERRORS} from "@/lib/axiosInstance";
-import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
+import {ChatInfoRes} from "@/types/chat";
 import type {RootState} from "@/store/store";
 import {
     addChatComments,
     createChatCommentReaction, removeChatComment,
-    removeChatCommentReaction, updateChatComment,
-    updateChatCommentReaction
+    removeChatCommentReaction, updateChatCommentReaction
 } from "@/store/slice/chatCommentSlice";
 
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
+import { useDeleteMessage } from "@/hooks/useDeleteMessage";
 import {UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {
-    createGroupChatReactionChatId, removeGroupChatByChatId,
-    removeGroupChatReactionByChatId, updateGroupChatByChatId, updateGroupChatMessageReplyDecrement,
+    createGroupChatReactionChatId,
+    removeGroupChatReactionByChatId, updateGroupChatMessageReplyDecrement,
     updateGroupChatReactionByChatId
 } from "@/store/slice/groupChatSlice";
-import {RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/slice/chatSlice";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {app_grp_chat_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
@@ -54,6 +53,8 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
     const router = useRouter();
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
+    const deleteMessage = useDeleteMessage()
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || NO_ITEMS);
 
     const chatState = chatMessageState?.find(c => c.chat_uuid === chatMessageUUID);
@@ -136,65 +137,18 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
     }
 
+    // The thread's message leaves at once, and the page goes back to the
+    // group, which shows the delete or, if refused, the message put back
+    // (QA F-02).
     const executeDeleteChat = (messageId: string) => {
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.DeleteChatMessage,
-            payload: {
-                chat_id: messageId
-            },
-            showToast: true
-        })
-            .then(() => {
-                const remaining = chatMessageState.filter(m => m.chat_uuid !== messageId);
-                const fallback = remaining.length > 0 ? remaining[remaining.length - 1] : null;
-
-                dispatch(removeGroupChatByChatId({grpId, messageId}))
-                // Sync sidebar preview
-                dispatch(RemoveMessageFromChatList({
-                    grpId: grpId,
-                    messageId,
-                    chatKey: grpId,
-                    fallbackMessage: fallback,
-                }))
-                router.push(app_grp_chat_path + '/' + grpId);
-
-            })
-
+        void deleteMessage({ kind: "group", grpId, id: messageId })
+        router.replace(app_grp_chat_path + '/' + grpId);
     }
 
-    const handleUpdateChat = ( messageId: string, postHTMLText: string) => {
-
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.UpdateGroupChatMessage,
-            payload: {
-                chat_id: messageId,
-                text_html: trimmedHtml,
-                grp_id: grpId
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateGroupChatByChatId({
-                        grpId,
-                        messageId,
-                        htmlText: trimmedHtml,
-                    }))
-                    // Sync sidebar preview
-                    dispatch(UpdateMessageTextInChatList({
-                        grpId: grpId,
-                        messageId,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
+    // A correction to the thread's message or a reply saves as in the list:
+    // at once, and back with the box open on what was typed when the save
+    // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
+    const handleUpdateChat = (id: string, html: string) => saveEdit({ kind: "group", grpId, id }, html)
 
     const createOrUpdateCommentReaction = (emojiId:string, reactionId:string, commentId:string, commentIdx: number) => {
         post.makeRequest<CreateOrUpdateCommentReaction, CreateOrUpdateCommentReaction>({apiEndpoint: PostEndpointUrl.CreateOrUpdateChatCommentReaction,
@@ -229,32 +183,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
             })
     }
 
-    const handleUpdateChatComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
-
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface>({
-            apiEndpoint: PostEndpointUrl.UpdateChatComment,
-            payload: {
-                chat_id: chatMessageUUID,
-                comment_id: commentUUID,
-                comment_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChatComment({
-                        commentIndex: commentIndex,
-                        chatId: chatMessageUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
+    const handleUpdateChatComment = (id: string, html: string) => saveEdit({ kind: "chatReply", chatMessageId: chatMessageUUID, id }, html)
 
     const handleDeleteChatComment = (commentUUID: string, commentIndex: number) => {
 

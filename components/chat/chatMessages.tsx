@@ -10,33 +10,32 @@ import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
 import {FlatItem, RowMeta} from "@/types/virtual";
 import {useMedia} from "@/context/MediaQueryContext";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
+import { useDeleteMessage } from "@/hooks/useDeleteMessage";
+import { REACTION_NOT_ADDED, REACTION_NOT_REMOVED } from "@/lib/chat/reactionNotAdded";
 import {CreateOrUpdateChatReaction} from "@/types/reaction";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector, useStore} from "react-redux";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
-import { openUI } from "@/store/slice/uiSlice";
 import {MessageListVirtua} from "@/components/message/MessaageListVirtua";
 import { mentionsUser } from "@/components/message/tintMentions";
 import {VListHandle} from "virtua";
 import {RootState} from "@/store/store";
 import {
-    createChatReactionChatId, removeChatByChatId,
-    removeChatReactionByChatId, updateChatByChatId,
-    updateChatReactionByChatId, updateChatScrollToBottom, updateChatScrollPosition, updateChatReactionId,
-    RemoveMessageFromChatList, UpdateMessageTextInChatList
+    createChatReactionChatId,
+    removeChatReactionByChatId, updateChatReactionByChatId, updateChatScrollToBottom, updateChatScrollPosition, updateChatReactionId,
 } from "@/store/slice/chatSlice";
-import {ChatInfo, CreateOrUpdateChatsReq} from "@/types/chat";
+import {ChatInfo} from "@/types/chat";
 import {ChatMessageMobile} from "@/components/chat/chatMessageMobile";
 import {ChatMessage} from "@/components/chat/chatMessage";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useToast } from "@/hooks/use-toast";
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen";
 import { DmEmpty } from "@/components/message/emptyConversations";
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
 import { hueFor } from "@/lib/campHue";
+import { messageSummary } from "@/lib/chat/messageSummary";
 import { userDisplayName } from "@/lib/utils/userDisplayName";
 
 // Stable empty object reference to prevent unnecessary re-renders
@@ -55,16 +54,19 @@ interface ChannelMessagesProps {
     clickedScrollToBottom: () => void;
     /** Unread when the conversation was opened: the "New" line goes above the first of them. */
     unreadOnOpen?: number;
-
+    /** Set when the older page failed: the list offers Try again (SD-BUG-1). */
+    retryOlder?: () => void
 }
 
-export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen }: ChannelMessagesProps) => {
+export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen, retryOlder }: ChannelMessagesProps) => {
     const { isMobile } = useMedia();
 
 
     const pendingReactionDeletes = useRef<Set<string>>(new Set())
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
+    const deleteMessage = useDeleteMessage()
 
     const { toast } = useToast()
     const dispatch = useDispatch();
@@ -143,12 +145,19 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 chat_id: messageId,
                 reaction_emoji_id: emojiId,
                 reaction_dgraph_id: reactionId
-            }})
+            },
+            // A refusal says so in the error toast (QA F-14).
+            showErrorToast: true,
+            failureTitle: REACTION_NOT_ADDED.title,
+        })
             .then((res) => {
                 // An answer without the new reaction's id is a failure too: the
                 // pill goes back and a toast says so (design v3 chat, C21). It
                 // used to stay forever, or take the conversation down.
-                if (!reactionId && !res?.reaction_dgraph_id) throw new Error("no reaction id")
+                if (!reactionId && !res?.reaction_dgraph_id) {
+                    toast(REACTION_NOT_ADDED)
+                    throw new Error("no reaction id")
+                }
                 if(reactionId) {
                    // Success
                 } else if (res?.reaction_dgraph_id && selfProfile.data?.data){
@@ -169,7 +178,6 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 }
             })
             .catch(() => {
-                toast({ title: "Couldn't add the reaction. Try again" })
                 // Revert
                 if (reactionId) {
                     if (oldEmojiId) {
@@ -200,7 +208,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             payload :{
                 chat_id: messageId,
                 reaction_dgraph_id: reactionId
-            }})
+            },
+            showErrorToast: true,
+            failureTitle: REACTION_NOT_REMOVED,
+        })
             .then(()=>{
                // Success
             })
@@ -218,122 +229,20 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             })
     })
 
+    // It leaves at once, with its sidebar preview; a refused delete puts both
+    // back (QA F-02).
     const executeDeleteChat = (messageId: string) => {
-        // Store for revert
-        const messageToDelete = chats.find(c => c.chat_uuid === messageId);
-        
-        // Optimistic Delete
-        dispatch(removeChatByChatId({chatId, messageId}))
-
-        // Sync sidebar preview immediately
-        const selfUuid = selfProfile.data?.data?.user_uuid || ''
-        if (selfUuid) {
-            dispatch(RemoveMessageFromChatList({
-                grpId: getGroupingId(chatId, selfUuid),
-                messageId,
-                chatKey: chatId,
-            }))
-        }
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.DeleteChatMessage,
-            payload: {
-               chat_id: messageId
-            },
-            showToast: false,
-            showErrorToast: true,
-            description: "Deleting message"
-        })
-            .then((res) => {
-                if (!res) {
-                    // Revert if silent failure (payload empty)
-                    if (messageToDelete) {
-                        // We would need an 'addChatToId' or similar to revert. 
-                        // For now we assume success or handle catch.
-                    }
-                }
-            })
-            .catch(() => {
-                // Revert 
-                // Note: Reverting a delete requires the full message object, 
-                // which might require a specific redux action like 'addBackChat'.
-                // If not present, we can just notify.
-                // toast is now handled by usePost showErrorToast: true
-            })
-
+        void deleteMessage({ kind: "dm", chatId, id: messageId })
     }
 
-    const handleUpdateChat = useStableCallback((postHTMLText: string, messageId: string) => {
-        // Trim leading/trailing empty paragraphs and whitespace before sending.
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
+    // A correction shows at once and, when its save fails, goes back with
+    // the box open on what was typed (hooks/useSaveEdit, F-06, F-07).
+    const handleUpdateChat = useStableCallback((html: string, messageId: string) => saveEdit({ kind: "dm", chatId, id: messageId }, html))
 
-        // Store for revert
-        const originalMessage = chats.find(c => c.chat_uuid === messageId);
-        const originalText = originalMessage?.chat_body_text || "";
-
-        // Optimistic Update
-        dispatch(updateChatByChatId({
-            chatId: chatId,
-            messageId,
-            htmlText: trimmedHtml,
-        }))
-
-        // Sync sidebar preview immediately
-        const selfUuid = selfProfile.data?.data?.user_uuid || ''
-        if (selfUuid) {
-            dispatch(UpdateMessageTextInChatList({
-                grpId: getGroupingId(chatId, selfUuid),
-                messageId,
-                htmlText: trimmedHtml,
-            }))
-        }
-
-        post.makeRequest<CreateOrUpdateChatsReq>({
-            apiEndpoint: PostEndpointUrl.UpdateChatMessage,
-            payload: {
-                chat_id: messageId,
-                text_html: trimmedHtml
-            },
-            showToast: false, // We handle it ourselves now for cleaner UX
-            showErrorToast: true,
-            description: "Updating message"
-        })
-            .then((res)=>{
-                if(!res) {
-                    // Revert
-                    dispatch(updateChatByChatId({ chatId, messageId, htmlText: originalText }));
-                }
-            })
-            .catch(() => {
-                // Revert
-                dispatch(updateChatByChatId({ chatId, messageId, htmlText: originalText }));
-            })
-    })
-
-
-    // On a computer, deleting is confirmed in place, inside the message's
-    // More menu (MessageDesktopDropdown, C20); the phone keeps its dialog.
+    // Deleting is confirmed in place, where Delete was chosen: a computer's
+    // More menu (MessageDesktopDropdown, C20), a phone's sheet (SD-5).
     const deleteNow = useStableCallback((id: string) => {
         if (id) executeDeleteChat(id)
-    })
-
-    const handleDeleteChat = useStableCallback((messageId: string) => {
-
-        if(!messageId) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this message?",
-                    description: "It's removed from the conversation for everyone. This can't be undone.",
-                    confirmText: "Delete message",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChat(messageId)}
-                }
-            }));
-        }, 500);
     })
 
     const groupedChats = useMemo(() => {
@@ -372,10 +281,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 <>
                     <ChatMessageMobile
                         chatInfo={chat}
-                        removeChat={()=>{handleDeleteChat(chat.chat_uuid)}}
+                        removeChat={() => { deleteNow(chat.chat_uuid) }}
                         addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                         removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
-                        updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
+                        updateChat={(body: string) => handleUpdateChat(body, chat.chat_uuid)}
                         priority={priority}
                         continued={continued}
                         arrived={arrived}
@@ -387,7 +296,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                     removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                     removePost={() => { deleteNow(chat.chat_uuid) }}
-                    updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
+                    updatePost={(body: string) => handleUpdateChat(body, chat.chat_uuid)}
                     priority={priority}
                     continued={continued}
                     arrived={arrived}
@@ -395,13 +304,16 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             }
             {isLast && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    ), [isMobile, hasMoreNewMsg, receiptTarget, handleDeleteChat, deleteNow, createOrUpdateReaction, removeReaction, handleUpdateChat]);
+    ), [isMobile, hasMoreNewMsg, receiptTarget, deleteNow, createOrUpdateReaction, removeReaction, handleUpdateChat]);
 
     // The row that can't be drawn offers its words; the jump pill counts
     // what arrived for the reader.
     const rawText = useCallback((m: ChatInfo) => m.chat_body_text, [])
     const selfIdForPill = selfProfile.data?.data?.user_uuid
     const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill), [selfIdForPill])
+    // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
+    const rowLabel = useCallback((m: ChatInfo) => messageSummary({ from: m.chat_from, at: m.chat_created_at, html: m.chat_body_text, files: m.chat_attachments?.length }), [])
+    const isOwn = useCallback((m: ChatInfo) => !!selfIdForPill && m.chat_from?.user_uuid === selfIdForPill, [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null);
 
@@ -455,6 +367,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         renderItem={renderItem}
         rawText={rawText}
         isForMe={isForMe}
+        label={otherName ? `Messages with ${otherName}` : "Messages"}
+        rowLabel={rowLabel}
+        isOwn={isOwn}
+        retryOlder={retryOlder}
         getDateHeading={getGroupDateHeading}
         fetchOlderMessage={getOldMessages}
         fetchNewMessage={handleGetNewMessage}
@@ -470,6 +386,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         empty={
             <DmEmpty chatId={chatId} />
         }
+        start={<DmEmpty chatId={chatId} start />}
         />
     );
 };

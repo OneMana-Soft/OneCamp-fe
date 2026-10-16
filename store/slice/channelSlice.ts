@@ -1,7 +1,8 @@
+import { editedAtAfter } from "@/lib/chat/replyEdit";
 import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import { createSlice } from "@reduxjs/toolkit";
 import {CancelTokenSource} from "axios";
-import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
+import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, restoreCase, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 import {PostsRes} from "@/types/post";
 import {UserProfileDataInterface} from "@/types/user";
 import {AttachmentMediaReq, AttachmentType} from "@/types/attachment";
@@ -178,6 +179,8 @@ interface UpdatePostByPostId {
     channelId: string
     postId: string
     htmlText: string
+    /** A revert's (F-07); null: never edited. */
+    updatedAt?: string | null
 }
 
 interface RemovePostPostId {
@@ -500,13 +503,12 @@ const channelSlice = createSlice({
         },
 
         updatePostByPostId: (state, action: {payload: UpdatePostByPostId}) => {
-            const { channelId, postId, htmlText } = action.payload;
+            const { channelId, postId, htmlText, updatedAt } = action.payload;
             if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
                 if(postId == post.post_uuid) {
-                    // A changed body is an edit: "(edited)" shows at once
-                    // (design v3 chat, C27), before the server's time arrives.
-                    if (post.post_text !== htmlText) post.post_updated_at = new Date().toISOString()
+                    // "(edited)" shows at once (C27), or as it was again.
+                    post.post_updated_at = editedAtAfter(post.post_updated_at, post.post_text, htmlText, updatedAt)
                     post.post_text = htmlText
                     post.post_live_at = Date.now()
                 }
@@ -525,6 +527,9 @@ const channelSlice = createSlice({
                 return post.post_uuid !== postId
             })
         },
+
+        // A delete the server refused takes itself back (hooks/useDeleteMessage).
+        restorePost: restoreCase((s: typeof initialState) => [s.deletedPosts, s.channelPosts], (p: PostsRes) => p.post_uuid, (p) => p.post_created_at),
 
         createPostLocally: (state, action: {payload: CreatePostLocally}) => {
             const { postText, postCreatedAt, channelId, postBy, attachments, postUUID, replyTo} = action.payload;
@@ -739,6 +744,7 @@ export const {
     removePostReactionByPostId,
     updatePostByPostId,
     removePostByPostId,
+    restorePost,
     createPost,
     createPostLocally,
     addPendingPost,

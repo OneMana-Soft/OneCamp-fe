@@ -24,6 +24,8 @@ import { Switch } from "@/components/ui/switch"
 import { CalendarClock } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
 import { DetailsRow } from "@/components/channel/details/detailsParts"
+import { toast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
     channelWeeklyReportUrl,
     setChannelWeeklyReport,
@@ -51,7 +53,8 @@ const ChannelWeeklyReportSettingUngated: React.FC<{ channelUUID: string }> = ({ 
 
     const onToggle = async (next: boolean) => {
         setSaving(true)
-        // Optimistic, then reconcile with what the server actually stored.
+        // Optimistic, then reconcile with what the server actually stored. A
+        // refusal says what didn't happen: it said "Something went wrong" (QA F-35).
         await mutate(
             async () => {
                 const saved = await setChannelWeeklyReport(channelUUID, next)
@@ -62,7 +65,13 @@ const ChannelWeeklyReportSettingUngated: React.FC<{ channelUUID: string }> = ({ 
                 rollbackOnError: true,
                 revalidate: false,
             },
-        ).catch(() => undefined)
+        ).catch((e) => {
+            toast({
+                title: next ? "Couldn't turn on the weekly report" : "Couldn't turn off the weekly report",
+                description: apiErrorMessage(e, "Try again in a moment."),
+                variant: "destructive",
+            })
+        })
         setSaving(false)
     }
 

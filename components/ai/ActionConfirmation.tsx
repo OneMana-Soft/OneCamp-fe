@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { StatusGlyph } from "@/components/ui/graphics/glyphs";
 import { springPop } from "@/lib/celebrate";
 import { AiMark } from "@/components/ai/AiMark";
+import { useModEnter } from "@/hooks/useModKey";
 
 interface ActionConfirmationProps {
     actions: ProposedAction[];
@@ -123,6 +124,8 @@ type Failed = { state: "failed"; message: string; refused: boolean };
 type RowState = { state: "running" } | { state: "done"; message: string; resultId?: string } | Failed;
 
 const ActionConfirmation: React.FC<ActionConfirmationProps> = ({ actions, onClose, onActionComplete }) => {
+    // The platform's key for the confirm hint: Ctrl off a Mac.
+    const confirmKeys = useModEnter();
     const { executeAction } = useExecuteAction();
     const dispatch = useDispatch();
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
@@ -340,7 +343,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({ actions, onClos
                     <>
                         <Button size="sm" onClick={confirm} disabled={busy} aria-keyshortcuts="Control+Enter Meta+Enter">
                             {busy ? `${head.running}…` : head.label}
-                            {!busy ? <kbd className="kbd ml-1 hidden sm:inline-flex">⌘↵</kbd> : null}
+                            {!busy ? <kbd className="kbd ml-1 hidden sm:inline-flex">{confirmKeys}</kbd> : null}
                         </Button>
                         <Button
                             size="sm"

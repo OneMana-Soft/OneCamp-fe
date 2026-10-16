@@ -7,18 +7,18 @@ import type { ElementDimensions } from '../hooks/use-drag-resize'
 import { useDragResize } from '../hooks/use-drag-resize'
 import { ResizeHandle } from './resize-handle'
 import { cn } from '@/lib/utils/helpers/cn'
-
-import { ActionButton, ActionWrapper, ImageActions } from './image-actions'
-import { useImageActions } from '../hooks/use-image-actions'
-import { blobUrlToBase64, randomId } from '../../../utils'
-import { Cross2Icon, InfoCircledIcon, TrashIcon } from '@radix-ui/react-icons'
-import { ImageOverlay } from './image-overlay'
-import type { UploadReturnType } from '../image'
-import { LoaderCircle } from "@/lib/icons";
-
-import { useMediaFetch } from '@/hooks/useFetch';
-import { GetMediaURLRes } from '@/types/file';
-
+import { AlertCircle, AlignCenter, AlignLeft, Copy, Crop, Download, Link2, Maximize2, Replace, RotateCcw, StretchHorizontal, Type, WifiOff, X } from '@/lib/icons'
+import { FloatingBar, FloatingBarButton, FloatingBarDivider } from '@/components/ui/FloatingBar'
+import { toast } from '@/hooks/use-toast'
+import { useMediaFetch } from '@/hooks/useFetch'
+import { GetMediaURLRes } from '@/types/file'
+import { useGuestReader } from '@/components/minimal-tiptap/guestReader'
+import { busFor } from '@/components/docEditor/registry/commandBus'
+import { viewableFileUrl } from '@/lib/docFiles'
+import { isSafeHref } from '@/lib/utils/safeHref'
+import { imageUploadsOf, isImagePlaceholder } from '../uploads'
+import { cropBox } from '../crop'
+import { ImagePlaceholder, useImageUpload } from './image-placeholder'
 
 const MAX_HEIGHT = 600
 const MIN_HEIGHT = 120
@@ -56,65 +56,99 @@ function measureColumnWidth(el: HTMLElement | null): number {
   return MAX_DISPLAY_WIDTH
 }
 
+/** Whether the browser says it is online (true where it can't tell). */
+function useOnline(): boolean {
+  return React.useSyncExternalStore(
+    (cb) => {
+      window.addEventListener('online', cb)
+      window.addEventListener('offline', cb)
+      return () => {
+        window.removeEventListener('online', cb)
+        window.removeEventListener('offline', cb)
+      }
+    },
+    () => navigator.onLine !== false,
+    () => true,
+  )
+}
+
+/** The doc's block actions on this picture (links-media/blockActions.ts), as the block menu runs them. */
+function runAction(editor: NodeViewProps['editor'], getPos: NodeViewProps['getPos'], size: number, id: 'crop' | 'alt' | 'link' | 'replace') {
+  const bus = busFor(editor)
+  const pos = typeof getPos === 'function' ? getPos() : undefined
+  if (!bus || pos == null) return
+  void import('../../links-media/blockActions').then((m) =>
+    m.runBlockAction(id, { docId: bus.docId, editor, canEdit: true, bus, state: { range: { from: pos, to: pos + size } } }),
+  )
+}
+
+const ALIGN = { left: 'mr-auto', center: 'mx-auto', full: 'w-full' } as const
+type Align = keyof typeof ALIGN
+
 interface ImageState {
-  src: string
-  isServerUploading: boolean
   imageLoaded: boolean
   isZoomed: boolean
   error: boolean
+  /** Loads tried after a failure; each asks for the picture again. */
+  attempt: number
   naturalSize: ElementDimensions
 }
 
-const normalizeUploadResponse = (res: UploadReturnType) => ({
-  src: typeof res === 'string' ? res : res.src,
-  id: typeof res === 'string' ? randomId() : res.id
-})
+/**
+ * An image in the editor. One with no address yet is its upload's placeholder
+ * (ImagePlaceholder, uploads.ts): the document never holds a `blob:` address
+ * while a file uploads. Two components, so moving from one to the other never
+ * changes the hooks a component runs.
+ */
+export const ImageViewBlock: React.FC<NodeViewProps> = (props) =>
+  isImagePlaceholder(props.node.attrs) ? <ImagePlaceholder {...props} /> : <ImageView {...props} />
 
-export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttributes }) => {
-  const { src: initialSrc, width: initialWidth, height: initialHeight, fileName } = node.attrs
-  const uploadAttemptedRef = React.useRef(false)
+const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttributes, getPos }) => {
+  const { src: storedSrc, width: initialWidth, height: initialHeight } = node.attrs
+  const guest = useGuestReader()
+  const online = useOnline()
+  const src = typeof storedSrc === 'string' ? storedSrc : ''
+  const align: Align = node.attrs.align in ALIGN ? node.attrs.align : 'center'
+  const crop = cropBox(node.attrs.crop)
+  const cropped = crop.w < 1 || crop.h < 1
+  const href = typeof node.attrs.href === 'string' && isSafeHref(node.attrs.href) && /^https?:\/\//i.test(node.attrs.href) ? node.attrs.href : ''
+  // The doc's own editing: a doc's editor (it has a bus), someone who can edit.
+  const docEditing = editor.isEditable && !!busFor(editor)
 
-  const initSrc = React.useMemo(() => {
-    if (typeof initialSrc === 'string') {
-      return initialSrc
-    }
-    return initialSrc.src
-  }, [initialSrc])
+  // Just uploaded in this tab: the file's own preview stands in until the
+  // uploaded copy has loaded, then is let go. A picture being replaced keeps
+  // its old self while the new one goes up, with the progress on it.
+  const uploads = imageUploadsOf(editor)
+  const uploadId = typeof node.attrs.id === 'string' ? node.attrs.id : ''
+  const upload = useImageUpload(uploads, uploadId)
+  const preview = upload?.status === 'done' ? upload.preview : undefined
 
   const [imageState, setImageState] = React.useState<ImageState>({
-    src: initSrc,
-    isServerUploading: false,
     imageLoaded: false,
     isZoomed: false,
     error: false,
-    naturalSize: { width: initialWidth, height: initialHeight }
+    attempt: 0,
+    naturalSize: { width: initialWidth, height: initialHeight },
   })
 
-  const isExternal = React.useMemo(() => {
-    return typeof imageState.src === 'string' && (imageState.src.startsWith('http') || imageState.src.startsWith('/')) && !imageState.src.startsWith('blob:') && !imageState.src.startsWith('data:')
-  }, [imageState.src])
-
   const shouldFetchMedia = React.useMemo(() => {
-    if (!isExternal) return false
-    const src = imageState.src as string
+    if (!src || guest || src.startsWith('blob:') || src.startsWith('data:')) return false
+    if (!(src.startsWith('http') || src.startsWith('/'))) return false
     // Only OneCamp's OWN media-resolution endpoints return a {url} JSON that
     // needs an authenticated fetch. A truly cross-origin image (Giphy, any
     // third-party CDN, or an absolute URL on another host) is already a
-    // directly-renderable <img> source — fetching it via axios (which sends
-    // withCredentials:true) trips CORS ("Allow-Origin: *" can't be combined
-    // with credentials) and floods the console with net::ERR_FAILED on every
-    // render + 4-min refresh. So: never XHR a cross-origin URL.
+    // directly-renderable <img> source; fetching it via axios (which sends
+    // withCredentials:true) trips CORS. Same-origin direct attachment
+    // endpoints stream or redirect to storage and render fine in <img>.
     if (isCrossOrigin(src)) return false
-    // Same-origin direct attachment endpoints stream/redirect to MinIO and
-    // render fine in <img> but fail an authenticated XHR — skip them too.
     return !src.includes('/getDocAttachment/') && !src.includes('/getFile/')
-  }, [isExternal, imageState.src])
+  }, [src, guest])
 
-  const { data: mediaData } = useMediaFetch<GetMediaURLRes>(shouldFetchMedia ? imageState.src : '')
-  const displaySrc = React.useMemo(() => {
-    if (mediaData?.url) return mediaData.url
-    return imageState.src
-  }, [mediaData, imageState.src])
+  // Never for a guest: they have no session, and a 401 signs the page out.
+  const { data: mediaData } = useMediaFetch<GetMediaURLRes>(shouldFetchMedia ? src : '')
+  const base = mediaData?.url || viewableFileUrl(src, guest)
+  // A try again asks for the picture anew (a fresh signed address from the server).
+  const displaySrc = imageState.attempt ? `${base}${base.includes('?') ? '&' : '?'}r=${imageState.attempt}` : base
 
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [activeResizeHandle, setActiveResizeHandle] = React.useState<'left' | 'right' | null>(null)
@@ -123,33 +157,26 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
     ({ width, height }: ElementDimensions) => {
       updateAttributes({ width, height })
     },
-    [updateAttributes]
+    [updateAttributes],
   )
 
-  const aspectRatio = imageState.naturalSize.width / imageState.naturalSize.height
+  // What shows of the picture: the crop's part of it.
+  const shown = { width: imageState.naturalSize.width * crop.w, height: imageState.naturalSize.height * crop.h }
+  const aspectRatio = shown.width / shown.height
   const maxWidth = MAX_HEIGHT * aspectRatio
   const containerMaxWidth = measureColumnWidth(containerRef.current)
 
-  const { isLink, onView, onDownload, onCopy, onCopyLink, onRemoveImg } = useImageActions({
-    editor,
-    node,
-    src: imageState.src,
-    onViewClick: isZoomed => setImageState(prev => ({ ...prev, isZoomed }))
-  })
-
   const { currentWidth, currentHeight, updateDimensions, initiateResize, isResizing } = useDragResize({
-    initialWidth: initialWidth ?? imageState.naturalSize.width,
-    initialHeight: initialHeight ?? imageState.naturalSize.height,
-    contentWidth: imageState.naturalSize.width,
-    contentHeight: imageState.naturalSize.height,
+    initialWidth: initialWidth ?? shown.width,
+    initialHeight: initialHeight ?? shown.height,
+    contentWidth: shown.width,
+    contentHeight: shown.height,
     gridInterval: 0.1,
     onDimensionsChange,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
-    maxWidth: containerMaxWidth > 0 ? containerMaxWidth : maxWidth
+    maxWidth: containerMaxWidth > 0 ? containerMaxWidth : maxWidth,
   })
-
-  const shouldMerge = React.useMemo(() => currentWidth <= 180, [currentWidth])
 
   // Whether we have real, positive pixel dimensions for this image yet.
   // Fresh /giphy inserts and legacy posts whose stored HTML has no width/height
@@ -158,76 +185,60 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
   // for those cases is what prevents the virtualized message list from
   // overlapping rows: without it the row paints at ~0px, then jumps to full
   // height when the bytes arrive, landing on top of the next message.
-  const hasPixelDims =
-    Number.isFinite(currentWidth) &&
-    Number.isFinite(currentHeight) &&
-    currentWidth > 0 &&
-    currentHeight > 0
+  const hasPixelDims = Number.isFinite(currentWidth) && Number.isFinite(currentHeight) && currentWidth > 0 && currentHeight > 0
+  const full = align === 'full'
 
-  // Placeholder height reserved while dimensions are unknown (pre-load). Kept
-  // modest so the one-time settle to the real size is a small, bounded shift
-  // the virtualizer absorbs cleanly, instead of an unbounded 0 -> full grow.
+  // Placeholder height reserved while dimensions are unknown (pre-load).
   const UNKNOWN_DIMS_MIN_HEIGHT = 160
 
   React.useEffect(() => {
-    setImageState(prev => {
-      if (prev.src === initSrc) return prev
-      return { ...prev, src: initSrc }
-    })
-  }, [initSrc])
+    setImageState((prev) => (prev.error ? { ...prev, error: false, imageLoaded: false, attempt: 0 } : prev))
+  }, [src])
+
+  // A picture that couldn't load comes back by itself with the connection.
+  React.useEffect(() => {
+    if (!imageState.error) return
+    const again = () => setImageState((prev) => ({ ...prev, error: false, imageLoaded: false, attempt: prev.attempt + 1 }))
+    window.addEventListener('online', again)
+    return () => window.removeEventListener('online', again)
+  }, [imageState.error])
 
   const handleImageLoad = React.useCallback(
     (ev: React.SyntheticEvent<HTMLImageElement>) => {
       const img = ev.target as HTMLImageElement
-      const newNaturalSize = {
-        width: img.naturalWidth,
-        height: img.naturalHeight
-      }
-      setImageState(prev => ({
-        ...prev,
-        naturalSize: newNaturalSize,
-        imageLoaded: true
-      }))
+      const natural = { width: img.naturalWidth, height: img.naturalHeight }
+      setImageState((prev) => ({ ...prev, naturalSize: natural, imageLoaded: true, error: false }))
+      // The uploaded copy is showing: the local preview can go.
+      if (upload?.status === 'done' && uploadId) uploads?.remove(uploadId)
 
-      // Size from the image's INTRINSIC (natural) dimensions, not img.width —
+      // Size from the image's INTRINSIC (natural) dimensions, not img.width:
       // img.width is the *rendered* width, which on first paint is the tiny
-      // placeholder size (the node had no width/height attrs, e.g. a /giphy
-      // GIF inserted as <img src=…>). Reading the rendered width and writing it
-      // back permanently shrank the image. Natural size, capped to the editor
-      // column width, gives a correctly-sized image on both desktop and mobile.
-      if (!newNaturalSize.width || !newNaturalSize.height) return
-
+      // placeholder size. Natural size (of the crop's part), capped to the
+      // editor column width, gives a correctly-sized image on desktop and phone.
+      if (!natural.width || !natural.height) return
+      const part = { width: natural.width * crop.w, height: natural.height * crop.h }
       const colWidth = measureColumnWidth(containerRef.current)
       // Never upscale past the image's own resolution; cap to the column width.
       const cap = Math.min(colWidth || MAX_DISPLAY_WIDTH, MAX_DISPLAY_WIDTH)
-      const targetWidth = Math.min(newNaturalSize.width, cap)
-
-      if (
-        Math.abs((initialWidth || 0) - targetWidth) > 1 ||
-        !initialHeight
-      ) {
-        updateAttributes({
-          width: targetWidth,
-          // Let height follow the aspect ratio from natural size.
-          height: Math.round(targetWidth * (newNaturalSize.height / newNaturalSize.width)),
-          alt: img.alt,
-          title: img.title
-        })
+      const targetWidth = Math.round(Math.min(part.width, cap))
+      // Only an editor fills in a size, and only a missing one: a size
+      // someone set stays (it was reset to 480 px on every load, by readers too).
+      if (!editor.isEditable) return
+      if (!initialWidth || !initialHeight) {
+        updateAttributes({ width: initialWidth || targetWidth, height: Math.round((initialWidth || targetWidth) * (part.height / part.width)) })
       }
-
-      if (!initialWidth) {
-        updateDimensions(state => ({ ...state, width: targetWidth }))
-      }
+      if (!initialWidth) updateDimensions((state) => ({ ...state, width: targetWidth }))
     },
-    [initialWidth, initialHeight, updateAttributes, updateDimensions]
+    [initialWidth, initialHeight, updateAttributes, updateDimensions, upload?.status, uploadId, uploads, crop.w, crop.h, editor],
   )
 
   const handleImageError = React.useCallback(() => {
-    setImageState(prev => ({ ...prev, error: true, imageLoaded: true }))
-  }, [])
+    setImageState((prev) => ({ ...prev, error: true, imageLoaded: true }))
+    if (upload?.status === 'done' && uploadId) uploads?.remove(uploadId)
+  }, [upload?.status, uploadId, uploads])
 
   const closeZoom = React.useCallback(() => {
-    setImageState(prev => (prev.isZoomed ? { ...prev, isZoomed: false } : prev))
+    setImageState((prev) => (prev.isZoomed ? { ...prev, isZoomed: false } : prev))
   }, [])
 
   // Close the lightbox on Escape and lock body scroll while it's open.
@@ -250,238 +261,266 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
       setActiveResizeHandle(direction)
       initiateResize(direction)(event)
     },
-    [initiateResize]
+    [initiateResize],
   )
 
-  const handleResizeEnd = React.useCallback(() => {
-    setActiveResizeHandle(null)
-  }, [])
-
   React.useEffect(() => {
-    if (!isResizing) {
-      handleResizeEnd()
-    }
-  }, [isResizing, handleResizeEnd])
+    if (!isResizing) setActiveResizeHandle(null)
+  }, [isResizing])
 
-  React.useEffect(() => {
-    const handleImage = async () => {
-      if (!initSrc.startsWith('blob:') || uploadAttemptedRef.current) {
-        return
-      }
-
-      uploadAttemptedRef.current = true
-      const imageExtension = editor.options.extensions.find(ext => ext.name === 'image')
-      const { uploadFn } = imageExtension?.options ?? {}
-
-      if (!uploadFn) {
+  const name = String(node.attrs.fileName || node.attrs.alt || 'picture')
+  const fileTools = React.useMemo(
+    () => ({
+      download: () => void import('../../links-media/blockActions').then((m) => m.downloadFile(src, name, guest)),
+      copy: async () => {
         try {
-          const base64 = await blobUrlToBase64(initSrc)
-          setImageState(prev => ({ ...prev, src: base64 }))
-          updateAttributes({ src: base64 })
+          const blob = await (await fetch(displaySrc)).blob()
+          await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+          toast({ title: 'Picture copied' })
         } catch {
-          setImageState(prev => ({ ...prev, error: true }))
+          toast({ title: "Couldn't copy the picture", description: 'Download it instead, or copy it from the full view.', variant: 'destructive' })
         }
-        return
+      },
+    }),
+    [src, name, guest, displaySrc],
+  )
+
+  const loading = !imageState.imageLoaded && !imageState.error
+  const replacing = !!upload && upload.status !== 'done'
+  const pos = () => (typeof getPos === 'function' ? getPos() : undefined)
+  const act = (id: 'crop' | 'alt' | 'link' | 'replace') => runAction(editor, getPos, node.nodeSize, id)
+
+  const frame: React.CSSProperties = full
+    ? { width: '100%', aspectRatio: hasPixelDims && Number.isFinite(aspectRatio) ? String(aspectRatio) : undefined }
+    : {
+        width: hasPixelDims ? `${currentWidth}px` : '100%',
+        maxWidth: '100%',
+        aspectRatio: hasPixelDims ? `${currentWidth} / ${currentHeight}` : undefined,
+        minHeight: hasPixelDims ? undefined : `${UNKNOWN_DIMS_MIN_HEIGHT}px`,
+        maxHeight: cropped ? undefined : `${MAX_HEIGHT}px`,
       }
+  // The crop's part, scaled to fill the frame: the picture runs past it on every side.
+  const cropStyle: React.CSSProperties | undefined = cropped
+    ? { position: 'absolute', width: `${100 / crop.w}%`, height: `${100 / crop.h}%`, left: `${(-crop.x / crop.w) * 100}%`, top: `${(-crop.y / crop.h) * 100}%`, maxWidth: 'none' }
+    : undefined
 
-      try {
-        setImageState(prev => ({ ...prev, isServerUploading: true }))
-        const response = await fetch(initSrc)
-        const blob = await response.blob()
-        const file = new File([blob], fileName, { type: blob.type })
-
-        const url = await uploadFn(file, editor)
-        const normalizedData = normalizeUploadResponse(url)
-
-        setImageState(prev => ({
-          ...prev,
-          ...normalizedData,
-          isServerUploading: false
-        }))
-
-        updateAttributes(normalizedData)
-      } catch (e: unknown) {
-        console.error('Image upload failed in ImageViewBlock', e)
-        setImageState(prev => ({
-          ...prev,
-          error: true,
-          isServerUploading: false
-        }))
-      }
-    }
-
-    handleImage()
-  }, [editor, fileName, initSrc, updateAttributes])
+  const img =
+    !displaySrc || imageState.error ? null : (
+      <img
+        key={imageState.attempt}
+        src={displaySrc}
+        className={cn('rounded object-contain transition-opacity duration-[140ms]', {
+          'opacity-0': !imageState.imageLoaded,
+          'cursor-zoom-in': !editor.isEditable && imageState.imageLoaded && !href,
+          'cursor-pointer': !editor.isEditable && !!href,
+        })}
+        style={cropStyle ?? { width: '100%', height: hasPixelDims || full ? '100%' : 'auto' }}
+        width={cropped ? undefined : currentWidth}
+        height={cropped ? undefined : currentHeight}
+        onError={handleImageError}
+        onLoad={handleImageLoad}
+        onClick={() => {
+          // A reader's click opens the picture's link, else the full view
+          // (as Notion's and Slack's). In the editor a click selects it.
+          if (editor.isEditable || !imageState.imageLoaded || imageState.error) return
+          if (href) window.open(href, '_blank', 'noopener,noreferrer')
+          else setImageState((prev) => ({ ...prev, isZoomed: true }))
+        }}
+        alt={node.attrs.alt || ''}
+        title={node.attrs.title || undefined}
+        id={node.attrs.id || undefined}
+        draggable={false}
+      />
+    )
 
   return (
-    <NodeViewWrapper ref={containerRef} data-drag-handle className="relative">
-      <div
-        className="group/node-image relative rounded-md"
-        style={{
-          maxWidth: `min(${maxWidth}px, 100%)`,
-          width: hasPixelDims ? currentWidth : '100%',
-        }}
-      >
+    <NodeViewWrapper ref={containerRef} data-drag-handle data-image-align={align} className="relative">
+      <div className={cn('group/node-image relative', ALIGN[align])} style={full ? undefined : { maxWidth: `min(${maxWidth}px, 100%)`, width: hasPixelDims ? currentWidth : '100%' }}>
         <div
-          className={cn('relative flex cursor-default flex-col items-center rounded', {
-            'outline outline-2 outline-offset-1 outline-primary': selected || isResizing
+          className={cn('relative overflow-hidden rounded-md', {
+            'outline outline-2 outline-offset-1 outline-brand': selected || isResizing,
+            'bg-sunken': loading || imageState.error,
           })}
+          style={frame}
         >
-          <div className="contain-paint">
-            <div className="relative">
-              {imageState.isServerUploading && !imageState.error && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <LoaderCircle className="h-4 w-4 animate-spin"/>
+          {/* The file as it was picked, while its uploaded copy loads. */}
+          {preview && !imageState.imageLoaded ? <img src={preview} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full rounded object-contain" /> : null}
+          {img}
 
-                </div>
-              )}
+          {imageState.error ? (
+            <div role="alert" className="absolute inset-0 flex min-h-[160px] flex-col items-center justify-center gap-2 p-4 text-center">
+              {online ? <AlertCircle className="size-5 text-danger-ink" aria-hidden="true" /> : <WifiOff className="size-5 text-ink-3" aria-hidden="true" />}
+              <p className="text-ui-sm font-medium text-ink">{online ? "This picture couldn't load." : "You're offline. The picture shows when you're back online."}</p>
+              {node.attrs.alt ? <p className="max-w-[40ch] text-meta text-ink-3">{node.attrs.alt}</p> : null}
+              {online ? (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setImageState((prev) => ({ ...prev, error: false, imageLoaded: false, attempt: prev.attempt + 1 }))}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-raised px-2.5 text-ui-sm font-medium text-ink shadow-e1 outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand [&_svg]:size-3.5"
+                >
+                  <RotateCcw aria-hidden="true" />
+                  Try again
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
-              {imageState.error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <InfoCircledIcon className="size-8 text-danger-ink" />
-                  <p className="mt-2 text-sm text-muted-foreground">Failed to load image</p>
-                </div>
-              )}
-
-              {!displaySrc || typeof displaySrc !== 'string' || displaySrc.trim() === "" || imageState.error ? null : (
-                  <img
-                    src={displaySrc}
-                    className={cn('rounded object-contain transition-shadow', {
-                      'opacity-0': !imageState.imageLoaded || imageState.error,
-                      'cursor-zoom-in': !editor.isEditable && imageState.imageLoaded
-                    })}
-                    style={{
-                      // Reserve layout height immediately. When we know the
-                      // pixel dimensions, drive height off aspect-ratio with
-                      // height:auto so the box reserves its height the instant
-                      // it paints (before the image bytes load) AND scales
-                      // correctly when max-width clamps the width on mobile —
-                      // no late growth, no letterbox whitespace. When the
-                      // dimensions are still unknown, hold a bounded
-                      // placeholder height so the row never collapses to ~0 and
-                      // overlaps the next message in the virtualized list.
-                      width: hasPixelDims ? `${currentWidth}px` : '100%',
-                      aspectRatio: hasPixelDims ? `${currentWidth} / ${currentHeight}` : undefined,
-                      height: hasPixelDims ? 'auto' : undefined,
-                      minHeight: hasPixelDims ? undefined : `${UNKNOWN_DIMS_MIN_HEIGHT}px`,
-                      maxWidth: '100%',
-                      maxHeight: `${MAX_HEIGHT}px`,
-                    }}
-                    width={currentWidth}
-                    height={currentHeight}
-                    onError={handleImageError}
-                    onLoad={handleImageLoad}
+          {replacing ? (
+            upload!.status === 'failed' ? (
+              <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-sheet/80 p-4 text-center">
+                <p className="text-ui-sm font-medium text-ink">Couldn&apos;t upload the new picture.</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
-                      // In read-only surfaces (chat/posts), clicking the image
-                      // opens the lightbox — matching Notion/Slack. In the
-                      // editor the click is reserved for selection/resize.
-                      if (!editor.isEditable && imageState.imageLoaded && !imageState.error) {
-                        onView()
-                      }
+                      const upload = editor.extensionManager.extensions.find((e) => e.name === 'image')?.options.uploadFn
+                      if (upload) void import('../../links-media/blockActions').then((m) => m.replaceUpload(editor, uploadId, 'image', upload))
                     }}
-                    alt={node.attrs.alt || ''}
-                    title={node.attrs.title || ''}
-                    id={node.attrs.id}
-                  />
-              )}
-            </div>
-
-            {imageState.isServerUploading && <ImageOverlay />}
-
-            {editor.isEditable && imageState.imageLoaded && !imageState.error && !imageState.isServerUploading && (
-              <>
-                <ResizeHandle
-                  onPointerDown={handleResizeStart('left')}
-                  className={cn('left-1', {
-                    hidden: isResizing && activeResizeHandle === 'right'
-                  })}
-                  isResizing={isResizing && activeResizeHandle === 'left'}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-raised px-2.5 text-ui-sm font-medium text-ink shadow-e1 outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand [&_svg]:size-3.5"
+                  >
+                    <RotateCcw aria-hidden="true" />
+                    Try again
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => uploads?.remove(uploadId)}
+                    className="inline-flex h-7 items-center rounded-lg px-2.5 text-ui-sm font-medium text-ink-2 outline-none hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                  >
+                    Keep this one
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-x-4 bottom-4 h-1 overflow-hidden rounded-xs bg-press">
+                <div
+                  role="progressbar"
+                  aria-label="Uploading the new picture"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(upload!.progress * 100)}
+                  className="h-full origin-left bg-brand transition-transform duration-[160ms] ease-[var(--ease-out)]"
+                  style={{ transform: `scaleX(${Math.max(0.04, upload!.progress)})` }}
                 />
-                <ResizeHandle
-                  onPointerDown={handleResizeStart('right')}
-                  className={cn('right-1', {
-                    hidden: isResizing && activeResizeHandle === 'left'
-                  })}
-                  isResizing={isResizing && activeResizeHandle === 'right'}
-                />
-              </>
-            )}
-          </div>
+              </div>
+            )
+          ) : null}
 
-          {imageState.error && (
-            <ActionWrapper>
-              <ActionButton icon={<TrashIcon className="size-4" />} tooltip="Remove image" onClick={onRemoveImg} />
-            </ActionWrapper>
-          )}
-
-          {/* Caption input */}
-          {editor.isEditable && imageState.imageLoaded && !imageState.error && !imageState.isServerUploading && (
-            <div className="w-full mt-1.5">
-              <input
-                type="text"
-                placeholder="Add caption…"
-                defaultValue={node.attrs.caption || ''}
-                onBlur={(e) => updateAttributes({ caption: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    editor.chain().focus().createParagraphNear().run()
-                  }
-                }}
-                className="w-full text-center text-sm text-muted-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/50 focus:text-foreground transition-colors"
-              />
-            </div>
-          )}
-          {!editor.isEditable && node.attrs.caption && (
-            <div className="w-full mt-1.5 text-center text-sm text-muted-foreground">
-              {node.attrs.caption}
-            </div>
-          )}
-
-          {!isResizing && !imageState.error && !imageState.isServerUploading && (
-            <ImageActions
-              shouldMerge={shouldMerge}
-              isLink={isLink}
-              onView={onView}
-              onDownload={onDownload}
-              onCopy={onCopy}
-              onCopyLink={onCopyLink}
-            />
-          )}
+          {href && docEditing && imageState.imageLoaded ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="absolute left-2 top-2 inline-flex h-6 max-w-[60%] items-center gap-1 rounded-md bg-pop px-2 text-meta font-medium text-ink-2 shadow-e1 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              <Link2 className="size-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{href.replace(/^https?:\/\/(www\.)?/, '')}</span>
+            </a>
+          ) : null}
         </div>
+
+        {editor.isEditable && imageState.imageLoaded && !imageState.error && !full ? (
+          <>
+            <ResizeHandle onPointerDown={handleResizeStart('left')} className={cn('left-1', { hidden: isResizing && activeResizeHandle === 'right' })} isResizing={isResizing && activeResizeHandle === 'left'} />
+            <ResizeHandle onPointerDown={handleResizeStart('right')} className={cn('right-1', { hidden: isResizing && activeResizeHandle === 'left' })} isResizing={isResizing && activeResizeHandle === 'right'} />
+          </>
+        ) : null}
+
+        {!isResizing && imageState.imageLoaded && !imageState.error ? (
+          <FloatingBar
+            label="Picture"
+            className={cn(
+              'absolute right-2 top-2 opacity-0 transition-opacity duration-[140ms] focus-within:opacity-100 group-hover/node-image:opacity-100 [@media(hover:none)]:opacity-100 max-sm:hidden',
+              selected && 'opacity-100',
+            )}
+          >
+            {docEditing ? (
+              <>
+                <FloatingBarButton label="Align left" active={align === 'left'} onClick={() => updateAttributes({ align: 'left' })}>
+                  <AlignLeft />
+                </FloatingBarButton>
+                <FloatingBarButton label="Centre" active={align === 'center'} onClick={() => updateAttributes({ align: null })}>
+                  <AlignCenter />
+                </FloatingBarButton>
+                <FloatingBarButton label="Full width" active={full} onClick={() => updateAttributes({ align: full ? null : 'full' })}>
+                  <StretchHorizontal />
+                </FloatingBarButton>
+                <FloatingBarDivider />
+                <FloatingBarButton label="Crop" onClick={() => act('crop')}>
+                  <Crop />
+                </FloatingBarButton>
+                <FloatingBarButton label="Alt text" active={!!node.attrs.alt} onClick={() => act('alt')}>
+                  <Type />
+                </FloatingBarButton>
+                <FloatingBarButton label={href ? 'Edit the link' : 'Link'} active={!!href} onClick={() => act('link')}>
+                  <Link2 />
+                </FloatingBarButton>
+                <FloatingBarButton label="Replace" onClick={() => act('replace')}>
+                  <Replace />
+                </FloatingBarButton>
+                <FloatingBarDivider />
+              </>
+            ) : null}
+            <FloatingBarButton label="Full view" onClick={() => setImageState((prev) => ({ ...prev, isZoomed: true }))}>
+              <Maximize2 />
+            </FloatingBarButton>
+            <FloatingBarButton label="Download" onClick={fileTools.download}>
+              <Download />
+            </FloatingBarButton>
+            <FloatingBarButton label="Copy the picture" onClick={() => void fileTools.copy()}>
+              <Copy />
+            </FloatingBarButton>
+          </FloatingBar>
+        ) : null}
+
+        {/* Caption */}
+        {editor.isEditable && imageState.imageLoaded && !imageState.error ? (
+          <input
+            type="text"
+            aria-label="Caption"
+            placeholder="Add a caption"
+            defaultValue={node.attrs.caption || ''}
+            onBlur={(e) => e.target.value !== (node.attrs.caption || '') && updateAttributes({ caption: e.target.value || null })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                const at = pos()
+                editor.chain().focus(at == null ? undefined : at + node.nodeSize).createParagraphNear().run()
+              }
+            }}
+            className="mt-1.5 w-full border-none bg-transparent text-center text-meta text-ink-3 outline-none transition-colors placeholder:text-ink-3 focus:text-ink"
+          />
+        ) : null}
+        {!editor.isEditable && node.attrs.caption ? <p className="mt-1.5 w-full text-center text-meta text-ink-3">{node.attrs.caption}</p> : null}
       </div>
 
-      {imageState.isZoomed && typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            onClick={closeZoom}
-            style={{
-              paddingTop: 'env(safe-area-inset-top)',
-              paddingBottom: 'env(safe-area-inset-bottom)',
-            }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          >
-            <button
-              type="button"
+      {imageState.isZoomed && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={node.attrs.alt || 'Picture'}
               onClick={closeZoom}
-              aria-label="Close"
-              style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
-              className="absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 active:bg-white/30"
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
             >
-              <Cross2Icon className="size-6" />
-            </button>
-            {/* Stop propagation so clicking the image itself doesn't close. */}
-            <img
-              src={displaySrc}
-              alt={node.attrs.alt || ''}
-              onClick={e => e.stopPropagation()}
-              className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-e4 sm:max-w-[90vw]"
-            />
-          </div>,
-          document.body
-        )}
+              <button
+                type="button"
+                onClick={closeZoom}
+                aria-label="Close"
+                style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+                className="absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 active:bg-white/30"
+              >
+                <X className="size-6" />
+              </button>
+              {/* Stop propagation so clicking the image itself doesn't close. */}
+              <img src={displaySrc} alt={node.attrs.alt || ''} onClick={(e) => e.stopPropagation()} className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-e4 sm:max-w-[90vw]" />
+            </div>,
+            document.body,
+          )
+        : null}
     </NodeViewWrapper>
   )
 }

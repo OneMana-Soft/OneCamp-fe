@@ -1,5 +1,6 @@
 "use client"
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -23,14 +24,20 @@ export function awaitsReview(t: Pick<GuestTaskCard, "status" | "review">): boole
   return t.status === "inReview" && !t.review
 }
 
-/** The verdict as a 20 px chip: moss with a check, or sun with "!" (work.md W21). */
+/**
+ * The verdict as a 20 px chip: moss with a check, or sun with "!" (work.md W21).
+ * In a card's row beside the due date, the comments and the assignee it
+ * shrinks before anything spills: the client's name gives way, the verdict
+ * stays whole. It kept its words' width and pushed the assignee out past the
+ * card's edge ("Changes requested · Priya (Acme)" in a 264px column).
+ */
 export function VerdictChip({ review, animate = false }: { review: Review; animate?: boolean }) {
   const approved = review.decision === "approved"
   return (
     <span
       data-verdict={review.decision}
       className={cn(
-        "inline-flex h-5 max-w-full items-center gap-1 rounded-sm px-1.5 text-micro font-medium",
+        "inline-flex h-5 min-w-0 max-w-full items-center gap-1 rounded-sm px-1.5 text-micro font-medium",
         approved ? "bg-camp-moss-tint text-camp-moss-ink" : "bg-camp-sun-tint text-camp-sun-ink",
       )}
       title={`${approved ? "Approved" : "Changes requested"} by ${review.name}`}
@@ -40,9 +47,8 @@ export function VerdictChip({ review, animate = false }: { review: Review; anima
       ) : (
         <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
       )}
-      <span className="truncate">
-        {approved ? "Approved" : "Changes requested"} · {review.name}
-      </span>
+      <span className="shrink-0">{approved ? "Approved" : "Changes requested"}</span>
+      <span data-verdict-by="" className="min-w-0 truncate">· {review.name}</span>
     </span>
   )
 }
@@ -117,7 +123,7 @@ export function GuestCard({
           )}
           {task.review && <VerdictChip review={task.review} animate={justApproved} />}
           <span className="flex-1" />
-          {task.assignee && <IdentityMark variant="avatar" id={task.assignee} label={task.assignee} size={22} aria-label={task.assignee} />}
+          {task.assignee && <IdentityMark variant="avatar" id={avatarSeed(task.assignee)} label={task.assignee} size={22} aria-label={task.assignee} />}
         </span>
       </button>
       {waiting && canReview && (

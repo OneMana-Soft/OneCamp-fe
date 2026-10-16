@@ -19,9 +19,18 @@ interface rightPanelProps {
         docId: string;
         surroundingContext?: string;
         initialAction?: string;
+        /** What was typed with it ("Ask AI to write …"). */
+        initialPrompt?: string;
+        /** The person's level on the doc: the panel offers what it allows. */
+        level?: string;
     };
     viewStartDate?: string;
     viewEndDate?: string;
+    /**
+     * A panel a package registered for a doc (components/docEditor/registry:
+     * registerPanel), shown by its kind: the doc's own, not one more flag.
+     */
+    docPanel?: { kind: string; docId: string };
 }
 const initialState = {
     rightPanelState: { 

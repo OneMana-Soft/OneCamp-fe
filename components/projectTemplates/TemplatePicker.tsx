@@ -230,10 +230,10 @@ function Choice({ value, title, line, count, selected, menu, confirm, preview }:
         )}
       >
         {preview !== undefined && <span className="mb-1 block w-full"><MiniBoard id={value} tasks={preview} /></span>}
-        <span className={cn("flex w-full items-baseline justify-between gap-2", menu && "pr-7")}>
-          <span className="truncate text-sm font-medium">{title}</span>
-          {count !== undefined && <span className="shrink-0 text-xs tabular-nums text-ink-3">{taskCount(count)}</span>}
-        </span>
+        {/* The name whole, its count under it: beside it, the count cut
+            "Client proj…" and "Product la…" down to a word. */}
+        <span className={cn("w-full text-sm font-medium leading-5", menu && "pr-7")}>{title}</span>
+        {count !== undefined && <span className="text-xs tabular-nums text-ink-3">{taskCount(count)}</span>}
         {line && <span className="line-clamp-2 text-xs text-ink-2">{line}</span>}
       </RadioGroupPrimitive.Item>
       {menu && <div className="absolute right-1.5 top-[3.75rem]">{menu}</div>}

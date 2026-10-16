@@ -7,6 +7,7 @@
  */
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { apiErrorCode } from "@/lib/utils/apiError"
 import { PostEndpointUrl } from "@/services/endPoints"
 
 // Provider names mirror models/postgres/Import.ProviderXxx on the BE.
@@ -49,6 +50,8 @@ export interface ImportPlan {
   team_count: number
   project_count: number
   task_count: number
+  /** Pages that come across as docs (a provider's "pages" capability). */
+  page_count?: number
   subtask_count: number
   comment_count: number
   file_count: number
@@ -288,11 +291,8 @@ export async function discoverImportResources(provider: ImportProvider): Promise
       OWN_ERRORS,
     )
     return res.data?.items ?? []
-  } catch (err: any) {
-    const code = err?.response?.data?.code
-    if (code === "no_discover") {
-      return []
-    }
+  } catch (err) {
+    if (apiErrorCode(err) === "no_discover") return []
     throw err
   }
 }

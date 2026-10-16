@@ -23,12 +23,21 @@ warm. The values are pinned in both repos by `sharedTokens.test.ts`.
 | `sunken` (muted) | `#F8F9FA` | `#0F1012` | group headers, columns, code, comment cards |
 | `raised` (card) | `#FFFFFF` | `#1B1C1F` | cards, inputs, secondary buttons, the selected nav chip |
 | `pop` (popover) | `#FFFFFF` | `#1F2024` | menus, popovers, floating toolbars |
-| `ink` / `ink-2` / `ink-3` / `ink-4` | `#16171B` / `#5B5D65` / `#8A8C92` / `#B9BBC0` | `#EEEEF0` / `#A8ABB1` / `#72747B` / `#4A4C52` | text, secondary, timestamps and idle icons (never sentences), disabled |
+| `ink` / `ink-2` / `ink-3` / `ink-4` | `#16171B` / `#5B5D65` / `#67696F` / `#B9BBC0` | `#EEEEF0` / `#A8ABB1` / `#95979E` / `#4A4C52` | text, secondary, meta (timestamps, counts, idle icons; never sentences), decoration |
 | `line` / `line-2` / `line-3` | ink at 7.5 / 12 / 18% | white at 6.5 / 10 / 16% | hairlines, rings, unchecked boxes |
 | `hover` / `press` / `sel` | ink at 4 / 7 / 5.5% | white at 4 / 7 / 6% | overlays that read on any surface |
 
 The shadcn names are aliases of these (`--background: var(--sheet)`), so a
 component that says `bg-background` paints v3.
+
+**Every ink that carries text reads at AA (D-SD4, 13 Oct 2026).** `ink`,
+`ink-2` and `ink-3` hold 4.5:1 on every surface, at rest and under hover,
+press and sel, on each theme's `brand-muted` and on `agent-muted`
+(`app/inkContrast.test.ts`). In light, the sidebar reads its ink-3 as ink-2:
+under the glow and the grain, with a row hovered or open, no lighter grey
+holds 4.5:1 there. `ink-4` is decoration only (separators, chevrons,
+disabled, placeholder glyphs) and never colours text someone has to read; the
+same test finds every `text-ink-4` and needs a reason for each.
 
 **The theme is light, not tint.** Each theme sets the accent and a campfire
 glow (`--glow`, `--glow2`) that the frame (`.app-frame`) paints behind the

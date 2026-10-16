@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { Cycle } from "@/lib/tasks/cycles"
 
@@ -34,6 +35,8 @@ afterEach(() => {
   remove.mockClear()
   toast.mockClear()
 })
+// Today is pinned (app/testClock.test.ts): in the middle of the current cycle.
+pinTestClock()
 
 function openPopover() {
   render(<CyclesButton projectId="p" onShow={() => {}} />)
@@ -90,7 +93,7 @@ describe("the cycle chip and switcher (work.md W45)", () => {
     render(<CyclesButton projectId="p" onShow={() => {}} />)
     const chip = screen.getByRole("button", { name: /Cycles: Launch week/ })
     expect(chip.querySelector("[role=progressbar]")).not.toBeNull()
-    expect(chip.textContent).toMatch(/Launch week\s*· (\d+ d left|Ends today|Ended)/)
+    expect(chip.textContent).toMatch(/Launch week\s*· 4 d left/)
   })
 
   it("puts the current cycle on a card at the top of the switcher", () => {
@@ -114,6 +117,18 @@ describe("the cycle chip and switcher (work.md W45)", () => {
     expect(screen.getByRole("group", { name: "Complete Launch week" }).textContent).toContain("All 3 tasks are done.")
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Complete" })))
     expect(celebrateRing).toHaveBeenCalledTimes(1)
+  })
+
+  it("draws a completed cycle with the done glyph, not an orange ring (PTC-32)", () => {
+    cycles = [
+      ...CYCLES,
+      { ...CYCLES[0], id: "c2", number: 2, name: "Beta week", state: "completed", completed_at: "2026-10-04T18:00:00Z", done_count: 6, progress: { total: 6, started: 0, done: 6 } },
+    ]
+    openPopover()
+    expect(screen.getByRole("img", { name: "Beta week completed" }).querySelector("svg, path, circle")).toBeTruthy()
+    expect(screen.queryByRole("progressbar", { name: "Beta week progress" })).toBeNull()
+    // An open cycle keeps its ring.
+    expect(screen.getAllByRole("progressbar", { name: "Launch week progress" }).length).toBeGreaterThan(0)
   })
 
   it("says how the cycle stands in time", () => {

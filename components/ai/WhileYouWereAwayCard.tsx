@@ -178,9 +178,10 @@ function WhileYouWereAwayCard({
         <span className="hub-row-lead">
           <AwayMark />
         </span>
-        <span id="away-recap-heading" className="min-w-0 truncate text-ui font-book">
-          {unreadTotal} unread {unreadTotal === 1 ? "message" : "messages"} across {conversationCount}{" "}
-          {conversationCount === 1 ? "conversation" : "conversations"}
+        {/* Short enough for its column, and never cut: beside Catch me up
+            it read "12 unread messages across 3 conversa…" (QA SH-19). */}
+        <span id="away-recap-heading" className="min-w-0 line-clamp-2 text-ui font-book">
+          {unreadTotal} unread in {conversationCount} {conversationCount === 1 ? "conversation" : "conversations"}
         </span>
         <span className="flex items-center gap-1">
           {!summary ? (

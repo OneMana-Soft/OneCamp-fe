@@ -3,8 +3,11 @@ import { useCallback } from "react";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
-import { isWorkloadKey, type WorkloadData, type WorkloadTask } from "@/lib/workload";
-import { taskDate } from "@/lib/timeline";
+// The two small helpers, not lib/workload and lib/timeline whole: those came
+// onto the project's first screen with every list (app/firstLoad.test.ts).
+import { isWorkloadKey } from "@/lib/workloadKey";
+import type { WorkloadData, WorkloadTask } from "@/lib/workload";
+import { taskDate } from "@/lib/tasks/taskDate";
 import { fieldFilterMatches, fieldIdOfFilter, withField, type FieldValue } from "@/lib/tasks/fields";
 
 /** A task list's response, whose lists of tasks are keyed by name. */

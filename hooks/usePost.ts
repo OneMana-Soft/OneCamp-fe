@@ -8,7 +8,7 @@ import type { GenericResponse } from "@/types/genericRes"
 
 import type { AxiosError } from "axios"
 import { offlineQueue } from "@/lib/offlineQueue"
-import { errorToastCopy } from "@/lib/utils/errorToast"
+import { errorToastCopy, isDemoRefusal } from "@/lib/utils/errorToast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 
 interface UsePostOptions<T> {
@@ -108,9 +108,10 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Project name updated successfully.",
         error: "Failed to update project name.",
     },
+    // The server archives a project; nothing in it is deleted.
     [PostEndpointUrl.DeleteProject]: {
-        success: "Project deleted successfully.",
-        error: "Failed to delete project.",
+        success: "Project archived successfully.",
+        error: "Failed to archive project.",
     },
     [PostEndpointUrl.UndeleteProject]: {
         success: "Project restored successfully.",
@@ -159,12 +160,12 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         error: "Failed to join channel.",
     },
     [PostEndpointUrl.AddFavChannel]: {
-        success: "Added to favorites.",
-        error: "Failed to add to favorites.",
+        success: "Added to favourites.",
+        error: "Failed to add to favourites.",
     },
     [PostEndpointUrl.RemoveFavChannel]: {
-        success: "Removed from favorites.",
-        error: "Failed to remove from favorites.",
+        success: "Removed from favourites.",
+        error: "Failed to remove from favourites.",
     },
     [PostEndpointUrl.UpdateChannelNotification]: {
         success: "Channel notifications updated.",
@@ -186,17 +187,18 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Moderator removed successfully.",
         error: "Failed to remove moderator.",
     },
+    // A channel's posts are messages to the people reading them (QA F-34).
     [PostEndpointUrl.CreateChannelPost]: {
-        success: "Post created successfully.",
-        error: "Failed to create post.",
+        success: "Message sent.",
+        error: "Failed to send message.",
     },
     [PostEndpointUrl.UpdateChannelPost]: {
-        success: "Post updated successfully.",
-        error: "Failed to update post.",
+        success: "Message updated.",
+        error: "Failed to update message.",
     },
     [PostEndpointUrl.DeleteChannelPost]: {
-        success: "Post deleted successfully.",
-        error: "Failed to delete post.",
+        success: "Message deleted.",
+        error: "Failed to delete message.",
     },
 
     // Chat / Messages
@@ -299,30 +301,30 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         error: "Failed to remove attachment.",
     },
 
-    // Comments
+    // Comments. A channel's or a DM's are the replies in a thread.
     [PostEndpointUrl.CreatePostComment]: {
-        success: "Comment added.",
-        error: "Failed to add comment.",
+        success: "Reply sent.",
+        error: "Failed to send reply.",
     },
     [PostEndpointUrl.UpdatePostComment]: {
-        success: "Comment updated.",
-        error: "Failed to update comment.",
+        success: "Reply updated.",
+        error: "Failed to update reply.",
     },
     [PostEndpointUrl.RemovePostComment]: {
-        success: "Comment removed.",
-        error: "Failed to remove comment.",
+        success: "Reply deleted.",
+        error: "Failed to delete reply.",
     },
     [PostEndpointUrl.CreateChatComment]: {
-        success: "Comment added.",
-        error: "Failed to add comment.",
+        success: "Reply sent.",
+        error: "Failed to send reply.",
     },
     [PostEndpointUrl.UpdateChatComment]: {
-        success: "Comment updated.",
-        error: "Failed to update comment.",
+        success: "Reply updated.",
+        error: "Failed to update reply.",
     },
     [PostEndpointUrl.RemoveChatComment]: {
-        success: "Comment removed.",
-        error: "Failed to remove comment.",
+        success: "Reply deleted.",
+        error: "Failed to delete reply.",
     },
     [PostEndpointUrl.CreateTaskComment]: {
         success: "Comment added.",
@@ -691,13 +693,18 @@ export const usePost = () => {
             
             // One toast: what didn't happen, in the person's words, and why, in
             // the server's (or what its status means when its message is a bare
-            // "no"), or that nothing answered at all.
+            // "no"), or that nothing answered at all. The demo explaining itself
+            // (code "demo") keeps its own title and words.
             if (ownsErrorToast) {
                 const data = error.response?.data
-                const description = error.response
-                    ? errorToastCopy(error.response.status, data?.msg || data?.message).description
-                    : apiErrorMessage(e, "Try again in a moment.")
-                toast({ title: options.failureTitle || failureTitle(errorMessage), description, variant: "destructive" })
+                if (isDemoRefusal(data)) {
+                    toast({ variant: "destructive", ...errorToastCopy(error.response?.status, data?.msg, data?.code) })
+                } else {
+                    const description = error.response
+                        ? errorToastCopy(error.response.status, data?.msg || data?.message, data?.code).description
+                        : apiErrorMessage(e, "Try again in a moment.")
+                    toast({ title: options.failureTitle || failureTitle(errorMessage), description, variant: "destructive" })
+                }
             }
             
             // Handle Offline Queueing if enabled

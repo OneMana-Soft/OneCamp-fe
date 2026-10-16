@@ -1,5 +1,6 @@
 "use client"
 
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import type { LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -25,7 +26,7 @@ export function Faces({ people, size = 20, max = 3 }: { people: { user_uuid: str
     <span className="flex -space-x-1.5">
       {people.slice(0, max).map((p) => (
         <span key={p.user_uuid} className="rounded-full ring-2 ring-background" title={p.name}>
-          <IdentityMark variant="avatar" size={size} id={p.user_uuid} label={p.name} />
+          <IdentityMark variant="avatar" size={size} id={avatarSeed(p.name)} label={p.name} />
         </span>
       ))}
     </span>

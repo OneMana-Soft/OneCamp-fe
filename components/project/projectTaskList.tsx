@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
+import { PhoneListSkeleton } from "@/components/task/phoneListSkeleton"
+import { PHONE_PAGE_SIZE, headedRows, type GroupHeaderRow } from "@/lib/tasks/grouping"
+import type { StatusOption } from "@/lib/taskStatus"
+import { StatusGlyph } from "@/components/ui/graphics/glyphs"
+import { statusKindOf } from "@/components/task/taskStatusCell"
+import { useLayoutOnce } from "@/components/task/useLayoutOnce"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
@@ -32,7 +39,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotSearch, SpotTasks } from "@/components/ui/graphics/spots"
-import { hueFor } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
 
 
 interface getURLPramInput {
@@ -69,13 +76,14 @@ const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: 
 // never equals the last).
 const NO_TASKS: TaskInfoInterface[] = []
 
-export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: string; projectId: string }) => {
+export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuery: string; projectId: string; search?: ReactNode }) => {
     const router = useRouter()
+    const projectHue = useProjectHue(projectId)
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const [urlParams, setUrlParams] = useState<string>("")
-    const pageSize = 10
+    const pageSize = PHONE_PAGE_SIZE
     const [pageIndex, setPageIndex] = useState(() => {
         const pageFromUrl = searchParams.get("page")
         return pageFromUrl ? Number.parseInt(pageFromUrl, 10) : 0
@@ -107,13 +115,14 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }, [pageIndex, pathname, router])
 
-    useLayoutEffect(() => {
-        // Reset this project's task list slot on mount / project switch
-        // so a previous project's tasks never bleed in while we wait
-        // for the new fetch. Same defence-in-depth as MyTaskList.
+    // Reset this project's task list slot once per project, so a previous
+    // project's tasks never bleed in while we wait for the new fetch. Same
+    // defence-in-depth as MyTaskList, and once only, as there
+    // (useLayoutOnce).
+    useLayoutOnce(projectId, () => {
         dispatch(clearProjectTask({ projectId }))
         setUrlParams("")
-    }, [projectId])
+    })
 
     useEffect(() => {
         const u = getURLPram({
@@ -293,7 +302,19 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
 
     const isAdmin = projectInfo.data?.data.project_is_admin || false
 
-    const handleRenderIndex = useCallback((taskInfo: TaskInfoInterface) => {
+    // The rows grouped by status, as on a computer (work.md W53, the mock's
+    // "In progress 2 / To do 2"): the phone listed them in the server's order,
+    // done tasks between open ones. A group's header is a row of its own.
+    const { options: statusOpts } = useProjectStatuses(projectId)
+    // Pages still to come (0-based; or the next one loading): a group counts
+    // only what has arrived, and says so ("To do 4+"). Its bare count read as
+    // the whole and grew while the list scrolled (PROJ-BUG-2).
+    const more = projectInfo.isLoading || (projectInfo.data?.pageCount ?? 1) > pageIndex + 1
+    const rows = useMemo<PhoneRow[]>(() => headedRows(taskListState || [], "status", statusOpts, more), [taskListState, statusOpts, more])
+
+    const handleRenderIndex = useCallback((item: PhoneRow) => {
+        if ("kind" in item) return <PhoneGroupHeader label={item.label} count={item.count} status={item.status} />
+        const taskInfo = item
         return (
             <TaskListTask
                 showProject={false}
@@ -308,37 +329,20 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
         )
     }, [isAdmin, handleToggleStatusWithAnimation, animatingSubtasks, selectionMode, selectedTaskUUIDs, handleToggleSelect])
 
-    const handleItemKey = useCallback((taskInfo: TaskInfoInterface) => {
-        return taskInfo.task_uuid
-    }, [])
+    const handleItemKey = useCallback((item: PhoneRow) => ("kind" in item ? item.key : item.task_uuid), [])
 
     return (
         <div className="relative flex-1 min-h-0 flex flex-col">
-            {/* Selection mode toggle */}
-            {isAdmin && (
-                <div className="flex items-center justify-between px-2 py-1.5 flex-shrink-0">
-                    {selectionMode ? (
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-11 text-xs gap-1"
-                                onClick={handleSelectAll}
-                            >
-                                <ListChecks className="h-3.5 w-3.5" />
-                                {selectedTaskUUIDs.size === taskListState.length ? "Clear selection" : "Select all"}
-                            </Button>
-                            <Badge variant="secondary" className="text-xs">
-                                {selectedTaskUUIDs.size} selected
-                            </Badge>
-                        </div>
-                    ) : (
-                        <div />
-                    )}
+            {/* Search, and Select beside it: they took two rows, about 170 px
+                above the first task (PTC-43). While selecting, Select all and the
+                count take a row of their own under them. */}
+            <div data-list-search-row="" className="flex shrink-0 items-center pr-2">
+                <div className="min-w-0 flex-1">{search}</div>
+                {isAdmin && (
                     <Button
                         variant={selectionMode ? "secondary" : "ghost"}
                         size="sm"
-                        className="h-11 text-xs gap-1"
+                        className="h-11 shrink-0 gap-1 text-xs"
                         onClick={() => {
                             if (selectionMode) {
                                 handleExitSelectionMode()
@@ -353,6 +357,22 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                             <><ListChecks className="h-3.5 w-3.5" /> Select</>
                         )}
                     </Button>
+                )}
+            </div>
+            {isAdmin && selectionMode && (
+                <div className="flex shrink-0 items-center gap-2 px-2 pb-1.5">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-11 text-xs gap-1"
+                        onClick={handleSelectAll}
+                    >
+                        <ListChecks className="h-3.5 w-3.5" />
+                        {selectedTaskUUIDs.size === taskListState.length ? "Clear selection" : "Select all"}
+                    </Button>
+                    <Badge variant="secondary" className="text-xs">
+                        {selectedTaskUUIDs.size} selected
+                    </Badge>
                 </div>
             )}
             <Separator className="shrink-0" />
@@ -364,15 +384,23 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                 searchQuery ? (
                     <EmptyState illustration={<SpotSearch />} title={`No tasks match “${searchQuery}”.`} />
                 ) : (
-                    <EmptyState illustration={<SpotTasks hue={hueFor(projectId)} />} title="No tasks yet" description="Create one and it shows here." />
+                    <EmptyState
+                        illustration={<SpotTasks hue={projectHue} />}
+                        title="No tasks yet"
+                        description="Make the first one, and it shows here."
+                        // The empty page's way forward, as on a computer: it had none.
+                        action={isAdmin ? <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button> : undefined}
+                    />
                 )
             ) : (
             <VirtualInfiniteScroll
                 onLoadMore={handleLoadMore}
                 hasMore={(projectInfo.data?.pageCount || 0) > pageIndex}
-                items={taskListState || []}
+                items={rows}
                 renderItem={handleRenderIndex}
                 isLoading={projectInfo.isLoading}
+                // The first load is the list's shape, not "Loading more…".
+                loadingComponent={(taskListState?.length ?? 0) === 0 ? <PhoneListSkeleton /> : undefined}
                 keyExtractor={handleItemKey}
             />
             )}
@@ -414,6 +442,21 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                 </div>
             )}
 
+        </div>
+    )
+}
+
+type PhoneRow = TaskInfoInterface | GroupHeaderRow
+
+/** A status group's header on a phone: its glyph, its name and its count, on the sunken surface. */
+function PhoneGroupHeader({ label, count, status }: { label: string; count: string; status?: StatusOption }) {
+    return (
+        <div data-phone-group="" className="flex h-9 items-center gap-2 border-b border-line bg-sunken px-4 text-ui-sm font-[510] text-foreground">
+            {status && <StatusGlyph status={statusKindOf(status)} hue={status.hue} />}
+            <span className="min-w-0 truncate">{label}</span>
+            <span className="text-ink-3 tabular-nums" data-group-count="">
+                {count}
+            </span>
         </div>
     )
 }

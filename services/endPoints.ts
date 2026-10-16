@@ -89,6 +89,9 @@ export enum GetEndpointUrl {
     GetUserPublicDocList = "/doc/getPublicDoc",
     GetUserActiveChannelList = "/ch/userActiveChannelsWithLatestPost",
     GetAllActiveChannelList = "/ch/allActiveChannels",
+    // The public channels to join (?pageIndex=&pageSize=&search=): paged and
+    // searched on the server, without the ones you're in.
+    GetDiscoverChannelList = "/ch/discover",
     GetUserArchiveChannelList = "/ch/userArchiveChannelsWithLatestPost",
     GetTeamInfo = "/team/info",
     GetTeamProjectList = "/team/projectList",
@@ -103,6 +106,8 @@ export enum GetEndpointUrl {
     GetProjectAttachments = "/project/attachments",
     projectListByAdminUID = "/project/projectListByAdminUID",
     GetTaskInfo = "/task/info",
+    /** A task's older history lines: ?before={activity_uuid}&first=N, oldest to newest (PROJ-BUG-8). */
+    GetTaskActivityList = "/task/getTaskActivityList",
     GetTaskRecurrence = "/task/recurrence",
     // A project's cycles: /project/{id}/cycles (+ /{cycle}/complete, /rename, /delete)
     ProjectCycles = "/project",
@@ -216,7 +221,6 @@ export enum GetEndpointUrl {
     GetApiTokenScopes = "/api-tokens/scopes",
     // Templates (shareable templates)
     GetMarketplaceTemplates = "/marketplace/templates", // append ?kind= or /{id}
-    GetDocSnapshots = "/doc/getDocSnapshots",
     GetDocViewers = "/doc/getViewers",
     GlobalSearch = "/search/unifiedSearch/",
     GetMentionActivity= "/activity/mentions",
@@ -408,7 +412,7 @@ export enum PostEndpointUrl {
     UpdateTable = "/tables",                 // append /{id}/update
     DeleteTable = "/tables",                 // append /{id}/delete
     CreateTableRow = "/tables",              // append /{id}/rows
-    UpdateTableRow = "/tables",              // append /{id}/rows/{rowId}/update
+    PatchTableRow = "/tables",               // append /{id}/rows/{rowId}/patch (only the cells sent)
     ChangeTableLinks = "/tables",            // append /{id}/rows/{rowId}/links
     PreviewTableFormula = "/tables",         // append /{id}/formula/preview
     DeleteTableRow = "/tables",              // append /{id}/rows/{rowId}/delete
@@ -444,12 +448,14 @@ export enum PostEndpointUrl {
     BoardCommentDelete = "/board/commentDelete",
     RestoreBoardSnapshot = "/board/restoreBoardSnapshot",
     RecordBoardView = "/board/recordView",
-    RestoreDocSnapshot = "/doc/restoreDocSnapshot",
     RecordDocView = "/doc/recordView",
     JoinChannel = "/ch/joinChannel",
     MarkChannelSeen = "/ch/markSeen", // append /{channel_uuid}
     // The Inbox marks the feed seen by asking; reading the feed marks nothing.
     MarkActivitySeen = "/activity/seen",
+    // Bring an archived channel back ({channel_uuid}): its admins and
+    // workspace admins.
+    RestoreChannel = "/ch/restore",
     UpdateChannel = "/ch/updateInfo",
     SetChannelPostPolicy = "/ch/postPolicy",
     RemoveProjectModerator = "/project/removeAdminRole",
@@ -791,3 +797,9 @@ export enum PostEndpointUrl {
     ImportCancel = "/admin/import/jobs",     // /{jobId}/cancel
     ImportRollback = "/admin/import/jobs",   // /{jobId}/rollback
 }
+
+// Docs programme: a package's base path, one line per package at its merge
+// (PROGRAM.md §3.6).
+export const THREADS_PATH = '/threads' // A8: anchored threads (router/docsThreads.go)
+export const APPEND_BLOCKS_PATH = '/doc/blocks/append' // B1: blocks moved to another doc (router/docsBlocks.go)
+export const CONNECTED_PATHS = { entities: '/entities', mentionAccess: '/doc/mentionAccess', todoTask: '/doc/todoTask', todoCheck: '/doc/todoTask/check' } as const // C1: chips, the @ list's access and to-dos that are tasks (router/docsConnected.go)

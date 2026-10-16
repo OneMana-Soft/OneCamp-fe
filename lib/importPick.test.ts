@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ALL_OF_THEM, allOfThemLabel, optionsForPick } from "./importPick"
+import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "./importPick"
 import type { DiscoverItem } from "@/services/importService"
 
 const item = (id: string): DiscoverItem => ({ id, name: id, kind: "project" })
@@ -31,5 +31,16 @@ describe("the import card's pick, as the job's options", () => {
     expect(optionsForPick("linear", "", [])).toEqual({ options: {} })
     expect(optionsForPick("clickup", "w1", [])).toEqual({ options: { workspace_id: "w1" } })
     expect(optionsForPick("monday", "main", [])).toEqual({ options: { workspace_id: "main" } })
+  })
+
+  // Docs programme C4: Notion's pages come across as docs, its databases as
+  // tables, and a picked database as a project too.
+  it("brings Notion's pages when asked, with or without a database as a project", () => {
+    expect(optionsForPick("notion", "", [], "", true)).toEqual({ options: { pages: true } })
+    expect(optionsForPick("notion", "db1", [], "", true)).toEqual({ options: { databases: ["db1"], pages: true } })
+    expect(optionsForPick("notion", "", [])).toEqual({ options: {} })
+    expect(optionsForPick("trello", "", [], "", true)).toEqual({ error: "Pick a Trello board." })
+    expect(pickLabel("notion")).toBe("Pick a Notion database")
+    expect(pickLabel("notion", true)).toBe("Database to bring as a project (optional)")
   })
 })

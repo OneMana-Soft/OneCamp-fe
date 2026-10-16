@@ -152,6 +152,20 @@ describe("the splash while the profile loads", () => {
     expect(view.container.querySelector(".app-frame.splash")).toBeTruthy()
   })
 
+  // The first paint's static splash (lib/appBoot) was on screen: this one
+  // takes over as it is, ring drawn, and the static one goes as it draws.
+  it("takes over from the first paint's splash without drawing the ring again", async () => {
+    document.documentElement.setAttribute("data-app-boot", "")
+    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    const view = page()
+    await act(async () => {})
+    expect(document.documentElement.hasAttribute("data-app-boot")).toBe(false)
+    const frame = view.container.querySelector(".app-frame.splash")!
+    expect(frame.hasAttribute("data-continued")).toBe(true)
+    expect(frame.querySelector(".splash-ring-draw")).toBeNull()
+    expect(screen.getByRole("status").textContent).toMatch(/^Opening /)
+  })
+
   it("says it is still connecting after 8 seconds, and Try again asks again", async () => {
     vi.useFakeTimers()
     profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }

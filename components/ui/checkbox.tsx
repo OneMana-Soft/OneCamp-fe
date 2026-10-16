@@ -27,6 +27,8 @@ const Checkbox = React.forwardRef<
       "peer relative size-4 shrink-0 rounded-[5px] ring-[1.5px] ring-inset ring-faint-foreground transition-spring after:absolute after:-inset-1 hover:ring-muted-foreground active:scale-[0.88] active:duration-[90ms] aria-invalid:ring-destructive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-camp-moss data-[state=checked]:text-white data-[state=checked]:ring-1 data-[state=checked]:ring-black/10 data-[state=indeterminate]:bg-camp-moss data-[state=indeterminate]:text-white data-[state=indeterminate]:ring-1 data-[state=indeterminate]:ring-black/10 dark:data-[state=checked]:text-frame dark:data-[state=indeterminate]:text-frame",
       className
     )}
+    // A finger's target is 44px (app/phone.css F3); the ::after is a mouse's.
+    data-touch-target=""
     {...props}
   >
     <CheckboxPrimitive.Indicator

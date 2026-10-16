@@ -84,19 +84,29 @@ describe("the corner stack", () => {
     expect(left.className).toContain("corner-stack-left")
   })
 
-  it("sits 16px inside the sheet's edges, 8px between cards, on the toast layer", () => {
+  it("sits 16px inside the sheet's edges, 8px between cards, on the corner layer", () => {
     const css = read("app/globals.css")
     const at = css.indexOf(".corner-stack {")
     const block = css.slice(at, css.indexOf("@keyframes corner-in", at))
-    expect(block).toMatch(/z-index:\s*var\(--z-toast\)/)
+    expect(block).toMatch(/z-index:\s*var\(--z-corner\)/)
     expect(block).toMatch(/gap:\s*8px/)
     expect(block).toMatch(/left:\s*calc\(var\(--shell-left-inset, 0px\) \+ 16px\)/)
     expect(block).toMatch(/right:\s*calc\(var\(--shell-right-inset, 8px\) \+ 16px\)/)
     // Above the phone's tab bar and its home indicator.
     expect(block).toMatch(/bottom:\s*calc\(4rem \+ env\(safe-area-inset-bottom\)/)
-    // The toast layer outranks a drawer, or a card hides behind an open sheet.
+  })
+
+  it("puts the corner cards over the page and under anything opened on it", () => {
+    // On the toast layer, the demo prompt covered the lower half of a
+    // message's More menu: Edit and Delete couldn't be clicked (QA F-03).
+    const css = read("app/globals.css")
     const z = (name: string) => Number(css.match(new RegExp(`--z-${name}:\\s*(\\d+)`))![1])
-    expect(z("toast")).toBeGreaterThan(z("modal"))
+    // Over the tab bar, the composer and the right panel over the page (fixed + 1).
+    expect(z("corner")).toBeGreaterThan(z("fixed") + 1)
+    // Under a dialog's scrim, so a modal covers the cards it would otherwise leave clickable.
+    for (const above of ["modal-backdrop", "modal", "popover", "dropdown", "tooltip", "toast"]) {
+      expect(z("corner"), above).toBeLessThan(z(above))
+    }
   })
 
   it("puts the toasts above whatever the right corner holds", () => {

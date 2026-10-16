@@ -16,6 +16,8 @@ export interface MainMessageData {
     userInfo: UserProfileDataInterface
     userName: string
     createdAt: string
+    /** When it was last edited ("(edited)" in the thread, as in the list). */
+    updatedAt?: string
     content: string
     attachments: AttachmentMediaReq[]
     reactions?: GroupedReaction[]

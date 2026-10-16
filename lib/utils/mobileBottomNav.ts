@@ -1,3 +1,5 @@
+import { isAppPlace } from "@/lib/nav/appSegments"
+
 // Which surfaces own the bottom edge of a phone screen.
 //
 // One list, read by both sides of the same decision: the bottom navigation
@@ -30,10 +32,12 @@ export function pageOwnsBottomEdge(pathname: string): boolean {
  * Which bottom-bar tab the page belongs to: the tab whose section the path is
  * in, or "more" for everything reached through the More menu (My Tasks, Docs,
  * Calendar, Tables...). Those pages used to select nothing at all, so a phone
- * showed a bar with no current place.
+ * showed a bar with no current place. An address no route answers is in no
+ * tab: "" (a 404 marked More as the current place).
  */
 export function bottomNavTab(pathname: string, tabPages: string[]): string {
   const path = (pathname || "").split(/[?#]/)[0].replace(/^\/+|\/+$/g, "")
   const tab = tabPages.find((page) => path === page || path.startsWith(`${page}/`))
-  return tab ?? "more"
+  // An address no route answers (a 404) is in no tab, More included.
+  return tab ?? (isAppPlace(pathname) ? "more" : "")
 }

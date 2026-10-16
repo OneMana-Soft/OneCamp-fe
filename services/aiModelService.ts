@@ -14,6 +14,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { authedStreamFetch } from "@/lib/utils/streamFetch"
 import { dedupeInFlight } from "@/lib/utils/inFlight"
+import type { AxiosRequestConfig } from "axios"
 
 export type ProviderKind = "ollama" | "openai" | "anthropic" | "openai_compatible"
 
@@ -716,8 +717,8 @@ export const MODEL_LIMIT_BOUNDS = {
   maxOutput: { min: 256, max: 1_000_000 },
 } as const
 
-export async function getAuthorizedModels(): Promise<AuthorizedModel[]> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAIAuthorizedModels)
+export async function getAuthorizedModels(config?: AxiosRequestConfig): Promise<AuthorizedModel[]> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAIAuthorizedModels, config)
   return res.data?.data ?? []
 }
 

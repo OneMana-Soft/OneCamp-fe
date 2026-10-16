@@ -25,3 +25,19 @@ export function lastInputWasPointer(): boolean {
   listen()
   return last === "pointer"
 }
+
+/** Starts listening, so the first answer is a real one. Call once a surface mounts. */
+export function watchInputModality(): void {
+  listen()
+}
+
+/**
+ * For a menu's onCloseAutoFocus: focus goes back to the trigger when a key
+ * closed the menu (the keyboard path, which needs to know where it is), and
+ * stays put when a pointer did. Radix put it back either way, and Chrome drew
+ * the 2px ring on the trigger the mouse had just used: the sidebar's foot
+ * wore one after every pick from the profile menu.
+ */
+export function returnFocusOnlyForKeys(e: Event): void {
+  if (lastInputWasPointer()) e.preventDefault()
+}

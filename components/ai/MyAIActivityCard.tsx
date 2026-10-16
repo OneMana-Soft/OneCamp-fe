@@ -47,6 +47,7 @@ import { verifyChain, type ChainCheck } from "@/components/ai/proveIt"
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
 import { celebrateOnce } from "@/lib/celebrate"
 import { AlertTriangle } from "@/lib/icons"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
 
 /** A record row's identity in the list. */
 const keyOf = (it: AIActivityItem, i: number) =>
@@ -58,7 +59,9 @@ const keyOf = (it: AIActivityItem, i: number) =>
  * Never a claim beyond the chain: no "compliant", no "certified".
  */
 function ProveBanner({ check, at, onShow }: { check: ChainCheck; at: Date | null; onShow: () => void }) {
-  const when = at ? at.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }) : ""
+  // The app's one clock, as the rows' times are ("6:38 AM" beside "09:15"
+  // read as two clocks).
+  const when = at ? shortDateTime(at) : ""
   if (!check.ok) {
     return (
       <div data-prove-banner="broken" role="status" className="hub-pop-down flex h-10 items-center gap-2.5 rounded-[10px] bg-[color-mix(in_oklab,var(--destructive)_10%,transparent)] px-3 text-xs font-medium text-danger-ink">
@@ -321,9 +324,11 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
     return (
       <ActivityFeedFrame
         // Whose record this is, where there is room to say it. An admin
-        // reading it would otherwise take it for the workspace's.
+        // reading it would otherwise take it for the workspace's. Two lines
+        // rather than an ellipsis: beside the two buttons it was cut off at
+        // "what they were refu…", which is the half that matters.
         filter={
-          <p className="hidden min-w-0 truncate text-xs text-ink-2 sm:block">
+          <p data-record-intro="" className="hidden min-w-0 text-xs leading-4 text-pretty text-ink-2 line-clamp-2 sm:block">
             Your own record: what agents did as you, and what they were refused.
           </p>
         }

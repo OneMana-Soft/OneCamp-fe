@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { useState } from "react"
-import { act, cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import { Editor } from "@tiptap/react"
 import { StarterKit } from "@tiptap/starter-kit"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -72,8 +72,9 @@ describe("a toolbar section", () => {
     expect(bold().getAttribute("aria-pressed")).toBe("false")
     expect(bold().className).not.toContain("bg-highlight text-foreground")
     act(() => void editor.chain().toggleBold().insertContent("bold").run())
-    await settle()
-    expect(bold().getAttribute("aria-pressed")).toBe("true")
+    // The toolbar re-reads the editor's state when it next renders, which a
+    // loaded machine delays past any fixed wait: wait for the button instead.
+    await waitFor(() => expect(bold().getAttribute("aria-pressed")).toBe("true"))
     expect(bold().className).toContain("bg-highlight text-foreground")
   })
 

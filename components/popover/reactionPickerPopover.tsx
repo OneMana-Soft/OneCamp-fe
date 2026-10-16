@@ -54,8 +54,10 @@ export function ReactionPickerPopover({showCustomReactions, onReactionSelect, se
                 {children}
             </PopoverTrigger>
             {/* The floating material (design v3 chat, C22): 352×380 at e3, r12,
-                with the house pop motion rather than a 95% zoom. */}
-            <PopoverContent collisionPadding={12} className="pop-surface z-[var(--z-popover)] h-[380px] w-[352px] p-2" style={{ maxHeight: `max(calc(100dvh - ${triggerRect.top}px), calc(${triggerRect.bottom}px))` }}>
+                with the house pop motion rather than a 95% zoom. It starts at
+                its button's edge: centred on the composer's smile, 70px from
+                the sheet's edge, it hung half over the sidebar. */}
+            <PopoverContent align="start" collisionPadding={12} className="pop-surface z-[var(--z-popover)] h-[380px] w-[352px] p-2" style={{ maxHeight: `max(calc(100dvh - ${triggerRect.top}px), calc(${triggerRect.bottom}px))` }}>
                 <DesktopReactionPicker
                     showCustomReactions={showCustomReactions}
                     onReactionSelect={handleReactionSelect}

@@ -74,7 +74,16 @@ export async function draftProjectPlan(description: string, signal?: AbortSignal
   return draft.template
 }
 
-export function useProjectTemplates() {
-  const { data, isLoading, isError } = useFetch<{ data: TemplateSummary[] }>(BASE, undefined, { revalidateOnFocus: false })
-  return { templates: data?.data ?? [], isLoading, isError: !!isError }
+/**
+ * The templates, read only while `enabled`: the templates page shows them
+ * under two of its filters and doesn't read them under the others.
+ */
+export function useProjectTemplates(enabled = true) {
+  const { data, isLoading, isError, mutate } = useFetch<{ data: TemplateSummary[] }>(enabled ? BASE : "", undefined, { revalidateOnFocus: false })
+  return {
+    templates: enabled ? data?.data ?? [] : [],
+    isLoading: enabled && isLoading,
+    isError: enabled && !!isError,
+    retry: () => void mutate(),
+  }
 }

@@ -85,8 +85,13 @@ export function splitByCitations(answer: string, validIndexes: Set<number>): Seg
 const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: number }> = ({ query, selfUUID = "", resultCount }) => {
   const router = useRouter()
   const [loading, setLoading] = React.useState(false)
-  const [data, setData] = React.useState<UnifiedAnswerResponse | null>(null)
+  // The answer, with the query it answers: an answer is only ever shown under
+  // its own query, never under the next one while that is asked (QA DSA-04).
+  const [answered, setAnswered] = React.useState<{ q: string; res: UnifiedAnswerResponse } | null>(null)
+  const data = answered && answered.q === query.trim() ? answered.res : null
   const [failed, setFailed] = React.useState(false)
+  // Try again asks the same question again.
+  const [attempt, setAttempt] = React.useState(0)
   const [expanded, setExpanded] = React.useState(false)
   const [lit, setLit] = React.useState<number | null>(null)
   const [tall, setTall] = React.useState(false)
@@ -98,7 +103,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: n
   React.useEffect(() => {
     const q = query.trim()
     if (q.length < 2) {
-      setData(null)
+      setAnswered(null)
       return
     }
     let cancelled = false
@@ -112,12 +117,12 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: n
     const t = setTimeout(async () => {
       try {
         const res = await unifiedSearchAnswer(q, controller.signal)
-        if (!cancelled) setData(res)
+        if (!cancelled) setAnswered({ q, res })
       } catch (e) {
         // An answer the user abandoned (typed on, navigated, pressed Stop) is not
-        // a failure: leave whatever is on screen rather than blanking it.
+        // a failure.
         if (!cancelled && !isAbortedRequest(e)) {
-          setData(null)
+          setAnswered(null)
           setFailed(true)
         }
       } finally {
@@ -131,7 +136,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: n
       // runs on the request context, so this stops work nobody will read.
       controller.abort()
     }
-  }, [query])
+  }, [query, attempt])
 
   // Stop lets a person end a slow synthesis instead of watching a skeleton. The
   // request is aborted (client AND server) and the panel simply stops loading.
@@ -149,10 +154,18 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: n
 
   if (query.trim().length < 2) return null
   if (failed && !loading) {
+    // What happened and the way on (QA DSA-25): it said only "AI answer
+    // unavailable". The results below stand either way.
     return (
-      <p data-search-answer="unavailable" className="text-meta text-ink-3">
-        AI answer unavailable
-      </p>
+      <div data-search-answer="unavailable" className="flex items-center gap-2 text-ui-sm text-ink-2">
+        <span className="size-4 shrink-0">
+          <AgentAvatar />
+        </span>
+        Couldn&apos;t write an answer just now.
+        <Button variant="ghost" size="xs" onClick={() => setAttempt((n) => n + 1)}>
+          Try again
+        </Button>
+      </div>
     )
   }
   if (!loading && (!data || !data.enabled)) return null
@@ -236,6 +249,10 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: n
           <p
             ref={bodyRef}
             data-search-answer-body=""
+            // Faded at its foot only while it is cut short: the fade covered the
+            // last 40px of every answer, and a two-line one read as greyed out
+            // (QA DSA-27).
+            data-clamped={(tall && !expanded) || undefined}
             className={cn("mt-2.5 text-body text-foreground text-pretty", !expanded && "hub-clamp-fade")}
           >
             {segments.map((seg, i) =>

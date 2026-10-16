@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { usableResetLink } from "./stubbedApp"
+
 // Smoke E2E for the public /reset-password route.
 //
 // Coverage rationale
@@ -37,6 +39,8 @@ test.describe("/reset-password", () => {
   })
 
   test("renders the password form when a token is present", async ({ page }) => {
+    // The page checks its link as it opens (QA SH-20); this one is usable.
+    await usableResetLink(page)
     await page.goto("/reset-password?token=fake-test-token")
 
     // Don't depend on specific copy: the differentiated UI for the

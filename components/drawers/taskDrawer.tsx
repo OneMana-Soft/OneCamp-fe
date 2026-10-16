@@ -13,9 +13,9 @@ import {
 import { useCallback } from "react"
 import { app_task_path } from "@/types/paths"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
-import { CreateTaskInterface, TaskInfoRawInterface } from "@/types/task"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { usePost } from "@/hooks/usePost"
+import { TaskInfoRawInterface } from "@/types/task"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { useDeleteTasks } from "@/hooks/useDeleteTasks"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { DrawerItem } from "@/components/drawers/drawerItem"
@@ -28,7 +28,6 @@ interface TaskDrawerProps {
 
 export function TaskDrawer({ drawerOpenState, setOpenState, taskId }: TaskDrawerProps) {
     const copyToClipboard = useCopyToClipboard()
-    const post = usePost()
     const taskInfo = useFetchOnlyOnce<TaskInfoRawInterface>(
         taskId ? `${GetEndpointUrl.GetTaskInfo}/${taskId}` : "",
     )
@@ -44,15 +43,14 @@ export function TaskDrawer({ drawerOpenState, setOpenState, taskId }: TaskDrawer
         closeDrawer()
     }, [taskId, copyToClipboard])
 
+    // Deleted with Undo, as everywhere (hooks/useDeleteTasks): it leaves its
+    // lists at once. It stayed on them, and Undo was nowhere.
+    const deleteTasks = useDeleteTasks()
     const handleDeleteTask = useCallback(() => {
-        post.makeRequest<CreateTaskInterface>({
-            apiEndpoint: PostEndpointUrl.ArchiveTask,
-            payload: { task_uuid: taskId },
-        }).then(() => {
-            taskInfo.mutate()
-        })
+        const task = taskInfo.data?.data
+        if (task) void deleteTasks([task])
         closeDrawer()
-    }, [taskId, post, taskInfo])
+    }, [taskInfo.data?.data, deleteTasks])
 
     const isActive = isZeroEpoch(taskInfo.data?.data.task_deleted_at || "")
 

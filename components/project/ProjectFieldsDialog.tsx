@@ -10,14 +10,14 @@
  * away takes it off the tasks that had it, and the dialog says so first.
  */
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ColorPicker } from "@/components/ui/paletteColorPicker"
-import { Calendar, CheckSquare, ChevronDown, ChevronUp, CircleDot, Coins, Hash, Link, ListTodo, Plus, Trash2, Type, User, X } from "@/lib/icons"
+import { OptionsEditor } from "@/components/fields/OptionsEditor"
+import { Calendar, CheckSquare, ChevronDown, ChevronUp, CircleDot, Coins, Hash, Link, ListTodo, Plus, Trash2, Type, User } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectFields, type FieldInput } from "@/hooks/useProjectFields"
 import { FIELD_TYPES, typeLabel, type FieldOption, type FieldType, type TaskField } from "@/lib/tasks/fields"
@@ -36,6 +36,14 @@ const draftKey = () => `draft-${++drafts}`
 
 /** Options as the server takes them: id (if saved), label, colour. */
 const asSent = (options: DraftOption[]) => options.map(({ id, label, color }) => ({ id, label, color }))
+
+/** How the one options editor (components/fields) edits a task field's options here. */
+const OPTIONS = {
+  keyOf: (o: DraftOption) => o.id ?? o.key ?? o.label,
+  make: (label: string, options: DraftOption[]): DraftOption => ({ key: draftKey(), label, color: STATUS_COLORS[(options.length + 9) % STATUS_COLORS.length] }),
+  max: MAX_OPTIONS,
+  maxLength: 40,
+}
 
 const isChoice = (t: FieldType) => t === "select" || t === "multi_select"
 
@@ -226,11 +234,16 @@ function FieldRow({
 
       {isChoice(field.type) && (
         <div className="border-t border-line px-2 py-2">
-          <OptionsEditor
+          <OptionsEditor<DraftOption>
+            {...OPTIONS}
             options={field.options}
             busy={busy}
-            confirmRemove
-            onChange={(options) => void onSave(inputOf(field, { options: asSent(options) }))}
+            // A saved option taken away comes off every task that has it.
+            removal={(o) => (o.id ? `“${o.label}” comes off every task that has it.` : null)}
+            // A removal is named by id: the server keeps an option a save
+            // leaves out (a dialog open before someone added one took it off
+            // every task that had it).
+            onChange={(options, removed) => void onSave(inputOf(field, { options: asSent(options), ...(removed.length ? { removed_options: removed } : {}) }))}
           />
         </div>
       )}
@@ -249,129 +262,6 @@ function FieldRow({
         </div>
       )}
     </div>
-  )
-}
-
-/** A choice field's options: colour, name, remove, and a box to add one.
- * onChange gets the whole list. With confirmRemove, taking a saved option
- * away asks first: it comes off every task that has it. */
-function OptionsEditor({
-  options,
-  busy,
-  onChange,
-  confirmRemove = false,
-}: {
-  options: DraftOption[]
-  busy: boolean
-  onChange: (options: DraftOption[]) => void
-  confirmRemove?: boolean
-}) {
-  const [adding, setAdding] = useState("")
-  const [removing, setRemoving] = useState<number | null>(null)
-  const add = () => {
-    const label = adding.trim()
-    if (!label) return
-    if (options.some((o) => o.label.toLowerCase() === label.toLowerCase())) return
-    onChange([...options, { key: draftKey(), label, color: STATUS_COLORS[(options.length + 9) % STATUS_COLORS.length] }])
-    setAdding("")
-  }
-  return (
-    <div className="space-y-1">
-      <ul className="space-y-1" aria-label="Options">
-        {options.map((o, i) => (
-          <OptionRow
-            key={o.id ?? o.key ?? `new-${i}`}
-            option={o}
-            busy={busy}
-            onChange={(next) => onChange(options.map((x, j) => (j === i ? next : x)))}
-            onRemove={() => (confirmRemove && o.id ? setRemoving(i) : onChange(options.filter((_, j) => j !== i)))}
-          />
-        ))}
-      </ul>
-      {removing !== null && options[removing] && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-sunken px-2 py-1.5 text-sm" role="alert">
-          <span className="text-muted-foreground">&ldquo;{options[removing].label}&rdquo; comes off every task that has it.</span>
-          <div className="ml-auto flex gap-1">
-            <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setRemoving(null)}>
-              Keep it
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              className="h-7"
-              disabled={busy}
-              onClick={() => {
-                onChange(options.filter((_, j) => j !== removing))
-                setRemoving(null)
-              }}
-            >
-              Remove option
-            </Button>
-          </div>
-        </div>
-      )}
-      {options.length < MAX_OPTIONS && (
-        <div className="flex items-center gap-1">
-          <Input
-            value={adding}
-            maxLength={40}
-            placeholder="Add an option"
-            aria-label="New option"
-            disabled={busy}
-            onChange={(e) => setAdding(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                add()
-              }
-            }}
-            className="h-8 flex-1 text-sm"
-          />
-          <Button type="button" variant="ghost" size="sm" className="h-8" aria-label="Add option" disabled={busy || !adding.trim()} onClick={add}>
-            Add
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function OptionRow({ option, busy, onChange, onRemove }: { option: DraftOption; busy: boolean; onChange: (o: DraftOption) => void; onRemove: () => void }) {
-  const [label, setLabel] = useState(option.label)
-  // A rename saved (or put back) elsewhere shows here.
-  useEffect(() => setLabel(option.label), [option.label])
-  const save = () => {
-    const l = label.trim()
-    if (!l || l === option.label) {
-      setLabel(option.label)
-      return
-    }
-    onChange({ ...option, label: l })
-  }
-  return (
-    <li className="flex items-center gap-1">
-      <ColorPicker value={option.color} disabled={busy} onChange={(color) => onChange({ ...option, color })} />
-      <Input dense
-        value={label}
-        maxLength={40}
-        aria-label="Option name"
-        disabled={busy}
-        onChange={(e) => setLabel(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            e.currentTarget.blur()
-          }
-          if (e.key === "Escape") setLabel(option.label)
-        }}
-        className="h-8 flex-1 border-transparent bg-transparent px-2 text-sm shadow-none focus-visible:border-input"
-      />
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label={`Remove ${option.label}`} disabled={busy} onClick={onRemove}>
-        <X className="h-4 w-4" />
-      </Button>
-    </li>
   )
 }
 
@@ -441,7 +331,7 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
       </div>
       {isChoice(type) && (
         <div className="pl-1">
-          <OptionsEditor options={options} busy={busy} onChange={setOptions} />
+          <OptionsEditor<DraftOption> {...OPTIONS} options={options} busy={busy} onChange={(next) => setOptions(next)} />
           {needsOptions && <p className="mt-1 text-xs text-muted-foreground">Add its options first: what can be chosen.</p>}
         </div>
       )}

@@ -23,6 +23,7 @@ const { list, connect, disconnect, toast, confirm } = vi.hoisted(() => ({
 }))
 vi.mock("@/services/connectorService", () => ({ listConnectors: list, startConnect: connect, disconnectConnector: disconnect }))
 vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
+vi.mock("@/hooks/useDemoVisitor", async (orig) => ({ ...(await orig<typeof import("@/hooks/useDemoVisitor")>()), useDemoVisitor: () => false }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 
 import ConnectorsCard, { connectedOn } from "./ConnectorsCard"
@@ -71,7 +72,9 @@ describe("the connectors list", () => {
     expect(screen.queryByText(/Loading connectors/)).toBeNull()
   })
 
-  it("draws each connector as a connection card: a neutral mark, its name, a state, and Connect as the primary", async () => {
+  // QA SH-12 (14 Oct 2026): three orange Connect buttons on one page; one
+  // primary per view (DESIGN_V3 §3.4), so Connect is secondary.
+  it("draws each connector as a connection card: a neutral mark, its name, a state, and Connect as a secondary action", async () => {
     list.mockResolvedValue([gmail, calendar])
     renderCard()
     const card = (await screen.findByRole("heading", { level: 2, name: "Gmail" })).closest("[data-connection-card]") as HTMLElement
@@ -81,7 +84,8 @@ describe("the connectors list", () => {
     // A provider is a category, never a hue.
     expect(card.innerHTML).not.toMatch(/\bhue-(sun|moss|lake|sky|dusk|berry)\b|bg-camp-/)
     expect(card.querySelector("[data-state-word]")?.textContent).toBe("Not connected")
-    expect(screen.getByRole("button", { name: "Connect Gmail" }).className).toMatch(/\bbg-brand\b/)
+    expect(screen.getByRole("button", { name: "Connect Gmail" }).className).not.toMatch(/\bbg-brand\b/)
+    expect(screen.getByRole("button", { name: "Connect Gmail" }).className).toMatch(/\bbg-raised\b/)
     const cal = screen.getByRole("heading", { level: 2, name: "Google Calendar" }).closest("[data-connection-card]") as HTMLElement
     expect(cal.querySelector("[data-state-word]")?.getAttribute("data-state-word")).toBe("success")
     expect(screen.queryByRole("button", { name: "Connect Google Calendar" })).toBeNull()

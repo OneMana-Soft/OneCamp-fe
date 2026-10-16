@@ -14,6 +14,7 @@ import * as React from "react"
 
 import { ArrowUp, Mic } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isComposingKey } from "@/lib/keys/ime"
 
 export interface AiComposerProps {
   value: string
@@ -31,6 +32,10 @@ export interface AiComposerProps {
   className?: string
   /** The composer element itself, for the page's glide (FLIP). */
   boxRef?: React.Ref<HTMLDivElement>
+  /** What it asks (the call's assistant asks about the call). */
+  placeholder?: string
+  /** The longest question it takes. */
+  maxLength?: number
 }
 
 const MAX_HEIGHT = 280
@@ -48,6 +53,8 @@ export function AiComposer({
   inputRef,
   className,
   boxRef,
+  placeholder = "Ask your workspace anything…",
+  maxLength,
 }: AiComposerProps) {
   const local = React.useRef<HTMLTextAreaElement | null>(null)
   const setRef = (el: HTMLTextAreaElement | null) => {
@@ -60,12 +67,33 @@ export function AiComposer({
   // Grows with what is typed, up to 280 px, and shrinks back: measured after
   // the value is in the DOM, with no height transition (a transition would
   // read a stale scrollHeight and the box would never shrink).
-  React.useLayoutEffect(() => {
+  const measure = React.useCallback(() => {
     const el = local.current
     if (!el) return
     el.style.height = `${min}px`
+    // Empty is the least height. An empty textarea measures its placeholder,
+    // and the side panel opens by sliding in from nothing: measured in that
+    // narrow moment the placeholder wrapped a word a line, and the empty box
+    // stayed 280 px tall, half the panel.
+    if (!el.value) return
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
-  }, [value, min])
+  }, [min])
+  React.useLayoutEffect(measure, [value, measure])
+  // Measured at one width, it is wrong at another (the panel sliding in, the
+  // window resized): measure again when the width changes, never on height,
+  // which this sets.
+  React.useEffect(() => {
+    const el = local.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    let width = el.clientWidth
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return
+      width = el.clientWidth
+      measure()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [measure])
 
   const empty = !value.trim()
   return (
@@ -84,7 +112,9 @@ export function AiComposer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            // An input method's Enter picks its word (Safari's has keyCode
+            // 229 and isComposing false): it never sends.
+            if (e.key === "Enter" && !e.shiftKey && !isComposingKey(e.nativeEvent)) {
               e.preventDefault()
               if (!streaming) onSend()
             } else if (e.key === "Escape" && streaming) {
@@ -94,18 +124,21 @@ export function AiComposer({
           }}
           readOnly={disabled}
           rows={1}
-          placeholder="Ask your workspace anything…"
+          maxLength={maxLength}
+          placeholder={placeholder}
           aria-label="Message AI assistant"
           className="block w-full resize-none bg-transparent text-body leading-[23px] tracking-[-0.009em] text-foreground outline-none transition-none placeholder:text-ink-3"
           style={{ minHeight: min, maxHeight: MAX_HEIGHT }}
         />
-        <div className="mt-2 flex items-center gap-0.5">
+        {/* 16px apart on a touch screen (44 less their 28), so the mic never takes Send's taps. */}
+        <div className="mt-2 flex items-center gap-0.5 pointer-coarse:gap-4">
           <span className="flex-1" />
           {mic?.available && !streaming ? (
             <button
               type="button"
               onClick={mic.toggle}
               disabled={mic.busy || disabled}
+              data-touch-target=""
               aria-label={mic.label}
               title={mic.label}
               className={cn(
@@ -122,6 +155,7 @@ export function AiComposer({
               onClick={onStop}
               aria-label="Stop generating"
               title="Stop (Esc)"
+              data-touch-target=""
               data-stop=""
               className="grid size-7 place-items-center rounded-md bg-foreground transition-transform duration-[90ms] active:scale-95"
             >
@@ -134,6 +168,7 @@ export function AiComposer({
               disabled={empty || disabled}
               aria-label="Send message"
               title="Send (Enter)"
+              data-touch-target=""
               data-send={empty ? "empty" : "ready"}
               className={cn(
                 "grid size-7 place-items-center rounded-md transition-[background-color,translate] duration-[90ms] active:translate-y-px [&_svg]:size-3.5",

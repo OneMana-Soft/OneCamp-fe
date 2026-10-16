@@ -2,7 +2,11 @@
 
 import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
-import { DiffEmbedView } from "./diff-embed-view"
+import { lazyNodeView } from "../lazyNodeView"
+
+// Drawn by a component fetched the first time one shows (lazyNodeView): an
+// editor that never holds one never loads it (the chat composer, I20).
+const DiffEmbedView = lazyNodeView(() => import("./diff-embed-view").then((m) => m.DiffEmbedView), 120)
 
 interface DiffEmbedOptions {
   HTMLAttributes: Record<string, any>

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
@@ -10,7 +10,9 @@ import type { TaskInfoInterface } from "@/types/task"
 // Status names are translated, as in the app (ClientProviders loads this once).
 import "@/lib/utils/i18n"
 
-const bulk = vi.fn(async () => ({ changed: 2, failed: 0, unchanged: 0 }))
+const bulk = vi.fn(async (tasks: TaskInfoInterface[]) => ({ changed: tasks.length, failed: 0, unchanged: 0, done: tasks }))
+const toasts: Array<{ title?: string; action?: unknown }> = []
+vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string }) => (toasts.push(t), { id: "t", dismiss: () => {}, update: () => {} }), useToast: () => ({ toasts: [] }) }))
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => bulk }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: BUILT_IN_STATUSES }) }))
 vi.mock("@/components/tags/TagPicker", () => ({ useProjectTags: () => ({ tags: [], refresh: () => {} }) }))
@@ -21,6 +23,15 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: (url: string) => (url && prefetch
 
 const { KeyboardList, TaskTableRow, HOVER_INTENT_MS } = await import("./KeyboardList")
 const { useRowState } = await import("@/hooks/useListSelection")
+
+// The selection bar is a chunk of its own (next/dynamic in KeyboardList), and
+// its pickers are a large module graph. Loaded first here, its transform has
+// a hook's 10 s rather than findBy's 1 s: in a full parallel run on a busy
+// machine it once took longer than that, and the bar's first test failed.
+// The tests still wait for the bar to arrive through the dynamic import.
+beforeAll(async () => {
+  await import("@/components/task/BulkTaskBar")
+})
 
 /** A card as a board draws one, reduced to what the keys need. */
 function Card({ t }: { t: TaskInfoInterface }) {
@@ -61,7 +72,10 @@ function renderList() {
 const press = (key: string, extra: Record<string, unknown> = {}) => act(() => void fireEvent.keyDown(document.activeElement ?? document.body, { key, ...extra }))
 const row = (name: string) => screen.getByText(name).closest("tr") as HTMLElement
 
-beforeEach(() => bulk.mockClear())
+beforeEach(() => {
+  bulk.mockClear()
+  toasts.length = 0
+})
 afterEach(() => {
   cleanup()
   disarmGo()
@@ -77,7 +91,8 @@ describe("a task list from the keyboard", () => {
     expect(row("Write the copy")).not.toHaveAttribute("data-highlighted")
     press("x")
     expect(row("Pick the hero")).toHaveAttribute("data-state", "selected")
-    expect(screen.getByRole("toolbar", { name: "1 task selected" })).toBeInTheDocument()
+    // The bar is a chunk of its own (KeyboardList): it arrives a moment after the list.
+    expect(await screen.findByRole("toolbar", { name: "1 task selected" })).toBeInTheDocument()
     press("K", { shiftKey: true })
     expect(row("Write the copy")).toHaveAttribute("data-state", "selected")
     expect(screen.getByRole("toolbar", { name: "2 tasks selected" })).toBeInTheDocument()
@@ -95,6 +110,38 @@ describe("a task list from the keyboard", () => {
     press("Escape")
     expect(screen.queryByRole("toolbar")).toBeNull()
     expect(store.getState().rightPanel.rightPanelState.isOpen).toBe(false)
+  })
+
+  it("sets the selection's due date with D (PTC-20)", async () => {
+    renderList()
+    press("j")
+    press("x")
+    press("j")
+    press("x")
+    expect(await screen.findByRole("toolbar", { name: "2 tasks selected" })).toBeInTheDocument()
+    press("d")
+    fireEvent.click(await screen.findByRole("button", { name: "Tomorrow" }))
+    await act(async () => {})
+    expect(bulk).toHaveBeenCalledOnce()
+    const [tasks, change] = bulk.mock.calls[0] as unknown as [TaskInfoInterface[], { field: string; value: string }]
+    expect(tasks.map((t) => t.task_uuid).sort()).toEqual(["t1", "t2"])
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    expect(change).toEqual({ field: "due", value: tomorrow.toISOString() })
+  })
+
+  it("deletes the selection with Undo, and clears it (PTC-20)", async () => {
+    renderList()
+    press("j")
+    press("x")
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
+    await act(async () => {})
+    const [tasks, change] = bulk.mock.calls[0] as unknown as [TaskInfoInterface[], { field: string }]
+    expect(tasks.map((t) => t.task_uuid)).toEqual(["t1"])
+    expect(change).toEqual({ field: "delete" })
+    expect(toasts.find((t) => t.title === "Deleted “Write the copy”")?.action).toBeTruthy()
+    expect(screen.queryByRole("toolbar")).toBeNull()
   })
 
   it("opens the highlighted task with Enter", () => {

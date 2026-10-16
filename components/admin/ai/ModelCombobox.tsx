@@ -23,9 +23,10 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { Check, ChevronsUpDown, RefreshCw } from "@/lib/icons"
+import { ChevronsUpDown, RefreshCw } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ModelView, formatBytes } from "@/services/aiModelService"
+import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 export const ModelCombobox: React.FC<{
   value: string
@@ -91,15 +92,15 @@ export const ModelCombobox: React.FC<{
                     key={m.id}
                     value={m.id}
                     onSelect={() => commit(m.id)}
-                    className="flex items-center justify-between gap-2"
+                    className="flex items-center gap-2"
+                    {...menuCheckState(value === m.id)}
                   >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <Check className={cn("h-4 w-4 shrink-0", value === m.id ? "opacity-100" : "opacity-0")} />
-                      <span className="truncate">{m.id}</span>
-                    </span>
+                    <span className="min-w-0 flex-1 truncate">{m.id}</span>
                     <span className="shrink-0 text-2xs text-muted-foreground">
                       {!m.installed ? "not installed" : m.size_bytes ? formatBytes(m.size_bytes) : ""}
                     </span>
+                    {/* The chosen model's check at the row's end, as a select's chosen option has it. */}
+                    <MenuCheck checked={value === m.id} />
                   </CommandItem>
                 ))}
               </CommandGroup>

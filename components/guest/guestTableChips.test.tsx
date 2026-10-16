@@ -48,3 +48,28 @@ describe("a shared table's option chips", () => {
     expect(chipOf("Unsorted").className).toMatch(/\bbg-hover\b/)
   })
 })
+
+// TAB-BUG-5: a guest never sees what a link points to unless it's shareable,
+// and never its id; a share past its first page of rows says so (TAB-BUG-2).
+describe("a shared table's links and rows", () => {
+  afterEach(() => cleanup())
+  const links = { id: "f2", table_id: "t1", name: "Links", type: "relation", position: 1, config: JSON.stringify({ relation_target: "any" }) } as TableField
+  const linked = (refs: unknown[]): TableRow => ({ id: "r1", table_id: "t1", values: JSON.stringify({ f2: refs }), position: 0, created_at: "", updated_at: "" })
+
+  it("names the people a row links to and counts what it can't show, never by id", () => {
+    render(<GuestTableViewer fields={[links]} rows={[linked([{ id: "u1", type: "user", label: "Maya Shah" }, { id: "secret-doc", type: "doc", hidden: true }, { id: "no-name", type: "task" }])]} />)
+    expect(screen.getByText("Maya Shah")).toBeTruthy()
+    expect(screen.getByText("2 things you can't open")).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/secret-doc|no-name/)
+  })
+
+  it("says when it shows only the table's first rows", () => {
+    render(<GuestTableViewer fields={[field]} rows={[row("r1", "Signed")]} total={1200} />)
+    expect(document.querySelector("[data-guest-rows-more]")?.textContent).toBe("Showing the first 1 of 1,200 rows.")
+  })
+
+  it("says nothing of the sort when it shows every row", () => {
+    render(<GuestTableViewer fields={[field]} rows={[row("r1", "Signed")]} total={1} />)
+    expect(document.querySelector("[data-guest-rows-more]")).toBeNull()
+  })
+})

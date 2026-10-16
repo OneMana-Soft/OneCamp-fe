@@ -17,6 +17,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { useDispatch } from "react-redux"
 import { TeamInfoRawInterface } from "@/types/team"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { WorkspaceName } from "@/hooks/useWorkspaceName"
 
 interface TeamOptionsDrawerProps {
     drawerOpenState: boolean
@@ -61,8 +62,8 @@ export function TeamOptionsDrawer({
         <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
-                    <DrawerTitle className="capitalize">
-                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    <DrawerTitle>
+                        <WorkspaceName />
                     </DrawerTitle>
                     <DrawerDescription>Team options</DrawerDescription>
                 </DrawerHeader>

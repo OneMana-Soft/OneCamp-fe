@@ -122,7 +122,9 @@ export function SectionTabs({
                                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-inset",
                                     "data-[state=active]:text-foreground data-[state=active]:font-semibold",
                                     "after:content-[''] after:absolute after:left-3 after:right-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent",
-                                    "data-[state=active]:after:bg-primary",
+                                    // Ink, not the accent (design v3 §3.12, chat C03): a
+                                    // tab is where you are, not an action or "for you".
+                                    "data-[state=active]:after:bg-ink",
                                 )}
                             >
                                 {tab.label}

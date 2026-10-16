@@ -10,6 +10,7 @@ import { Plus } from "@/lib/icons"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_WORKFLOW_MANAGE } from "@/services/capabilityService"
 import { settingsSection } from "@/lib/settingsSections"
+import { PermissionLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { SectionHeader } from "../SectionHeader"
 
 const HREF = "/app/settings/workflows"
@@ -41,15 +42,20 @@ export default function WorkflowsSettingsPage() {
           ) : null
         }
       >
-        {!isLoading && !allowed
-          ? "Making workflows is turned off for you. An admin can turn it on under Admin, Permissions."
-          : WORKFLOWS_DESCRIPTION}
+        {WORKFLOWS_DESCRIPTION}
       </SectionHeader>
       {isLoading ? (
         <WorkflowsListSkeleton />
       ) : allowed ? (
         <WorkflowsCard hue={settingsSection(HREF)?.hue} withTitle={false} scope="mine" creating={creating} onCreatingChange={setCreating} />
-      ) : null}
+      ) : (
+        // Off for this person: a note where the list would be. It was the
+        // header's line alone, grey on a blank page.
+        <PermissionLockedNotice
+          what="Making workflows is turned off for you."
+          who="An admin can turn it on in Admin, Permissions."
+        />
+      )}
     </div>
   )
 }

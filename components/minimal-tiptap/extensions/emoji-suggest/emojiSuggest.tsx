@@ -1,11 +1,11 @@
 import { Extension } from "@tiptap/core"
-import { ReactRenderer } from "@tiptap/react"
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion"
 import { PluginKey } from "@tiptap/pm/state"
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
-import tippy, { type Instance as TippyInstance } from "tippy.js"
+import { forwardRef, useEffect, useId, useImperativeHandle, useState } from "react"
 import type { EmojiMartData } from "@emoji-mart/data"
 import { cn } from "@/lib/utils/helpers/cn"
+import { useAnnounceList } from "@/components/ui/CommandList"
+import { inCode, suggestionPopup, type SuggestionListExtras } from "../suggestion-popup"
 
 export interface EmojiHit {
     id: string
@@ -46,9 +46,13 @@ type Ref = { onKeyDown: (p: SuggestionKeyDownProps) => boolean }
  * floating material above the caret, the chosen one's :short_name: under it.
  * ← and → choose, Enter or Tab puts it in.
  */
-const EmojiRow = forwardRef<Ref, SuggestionProps<EmojiHit>>(function EmojiRow(props, ref) {
+const EmojiRow = forwardRef<Ref, SuggestionProps<EmojiHit> & SuggestionListExtras>(function EmojiRow(props, ref) {
     const [index, setIndex] = useState(0)
     useEffect(() => setIndex(0), [props.items])
+    // Announced from the editor, which keeps focus while the row is up.
+    const rowId = useId()
+    const optionId = (i: number) => `${rowId}-${i}`
+    useAnnounceList(props.items.length ? props.comboboxFor : null, `${rowId}-list`, props.items.length ? optionId(index) : undefined)
     const pick = (i: number) => {
         const hit = props.items[i]
         if (hit) props.command(hit)
@@ -73,11 +77,12 @@ const EmojiRow = forwardRef<Ref, SuggestionProps<EmojiHit>>(function EmojiRow(pr
     }))
     if (!props.items.length) return null
     return (
-        <div data-emoji-suggest="" role="listbox" aria-label="Emoji" className="pop-surface animate-pop-in p-1">
+        <div data-emoji-suggest="" id={`${rowId}-list`} role="listbox" aria-label="Emoji" aria-orientation="horizontal" className="pop-surface animate-pop-in p-1">
             <div className="flex gap-0.5">
                 {props.items.map((hit, i) => (
                     <button
                         key={hit.id}
+                        id={optionId(i)}
                         type="button"
                         role="option"
                         aria-selected={i === index}
@@ -111,39 +116,14 @@ export const EmojiSuggest = Extension.create({
                 command: ({ editor, range, props }) => {
                     editor.chain().focus().deleteRange(range).insertContent(props.native).run()
                 },
-                render: () => {
-                    let component: ReactRenderer<Ref> | undefined
-                    let popup: TippyInstance | undefined
-                    return {
-                        onStart: (props) => {
-                            component = new ReactRenderer(EmojiRow, { props, editor: props.editor })
-                            popup = tippy("body", {
-                                getReferenceClientRect: () => props.clientRect?.() ?? new DOMRect(),
-                                appendTo: () => document.body,
-                                content: component.element,
-                                showOnCreate: true,
-                                interactive: true,
-                                trigger: "manual",
-                                placement: "top-start",
-                            })[0]
-                        },
-                        onUpdate: (props) => {
-                            component?.updateProps(props)
-                            popup?.setProps({ getReferenceClientRect: () => props.clientRect?.() ?? new DOMRect() })
-                        },
-                        onKeyDown: (props) => {
-                            if (props.event.key === "Escape") {
-                                popup?.hide()
-                                return true
-                            }
-                            return component?.ref?.onKeyDown(props) ?? false
-                        },
-                        onExit: () => {
-                            popup?.destroy()
-                            component?.destroy()
-                        },
-                    }
-                },
+                // ":" in code is code (a key: value, a selector), not emoji.
+                allow: ({ state, range }) => !inCode(state, range.from),
+                render: suggestionPopup({
+                    component: EmojiRow,
+                    tippy: { placement: "top-start", offset: [0, 4], popperOptions: undefined },
+                    // ":" and one letter, or no emoji by that name: nothing to show.
+                    isEmpty: (props) => props.items.length === 0,
+                }),
             }),
         ]
     },

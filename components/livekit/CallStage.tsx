@@ -10,6 +10,7 @@
 // The stage is always dark (VideoConference sets `dark`), so the camp tokens
 // here resolve to their dark cuts.
 
+import { personHue } from "@/lib/utils/getAvatarColor"
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { useIsMuted, type TrackReferenceOrPlaceholder } from "@livekit/components-react"
 import { ParticipantKind, Track } from "livekit-client"
@@ -18,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { HUE_CLASS, avatarHueClass } from "@/components/ui/graphics/hues"
 import { Captions, MicOff } from "@/lib/icons"
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
 import { prefersReducedMotion } from "@/lib/celebrate"
@@ -57,7 +58,7 @@ export function StageFace({
   fixedSize?: number
   className?: string
 }) {
-  const hue: CampHue = hueFor(identity)
+  const hue: CampHue = personHue(name || identity)
   const size = fixedSize ? `${fixedSize}px` : "clamp(56px, 30cqmin, 120px)"
   const style = { width: size, height: size, fontSize: `calc(${size} * 0.375)` } as CSSProperties
   return (
@@ -172,8 +173,8 @@ export function NamePlate({
  * follows their voice (ringOpacity), drawn on its own layer so only opacity
  * changes. No glow.
  */
-export function SpeakingRing({ identity, opacity, agent = false }: { identity: string; opacity: number; agent?: boolean }) {
-  const hue = hueFor(identity)
+export function SpeakingRing({ identity, name, opacity, agent = false }: { identity: string; name?: string; opacity: number; agent?: boolean }) {
+  const hue = personHue(name || identity)
   return (
     <span
       aria-hidden
@@ -423,7 +424,7 @@ export function CaptionsOverlay({ entries, idleMessage }: { entries: CaptionEntr
           <p className="text-ui text-ink-2">{idleMessage}</p>
         ) : (
           shown.map((e) => {
-            const hue = hueFor(e.identity)
+            const hue = personHue(e.name || e.identity)
             return (
               <div key={e.identity} className="py-0.5">
                 <span className={cn(HUE_CLASS[hue], "block text-meta font-semibold text-hue-ink")}>{e.name}</span>
@@ -476,6 +477,15 @@ export function TypingText({ text = "" }: { text?: string }) {
 export function callScreenHeight(embedded?: boolean): string {
   return embedded ? "min-h-full" : "min-h-dvh"
 }
+
+/**
+ * The ground of a call screen outside the call, the green room and a meeting
+ * that can't be opened: the sheet, with the frame's campfire glow continuing
+ * behind it. It follows the theme; the stage, and what stands in for it once
+ * a call is over, stays dark.
+ */
+export const GREEN_ROOM_GROUND =
+  "relative overflow-hidden bg-sheet before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.14),transparent_68%)]"
 
 /**
  * Connecting (C11): the ring motif, a gradient core with one dot circling it,
@@ -562,6 +572,10 @@ export function CallLeft({
  * A call that ended without the person choosing to leave: removed (CALL-BUG-
  * 11), with no Rejoin, or never connected (CALL-BUG-23), with Try again. Why,
  * and the way on.
+ *
+ * Unavailable is a meeting that can't be opened at all (over, never there,
+ * someone else's). Nobody was in a call, so it sits on the green room's
+ * ground and follows the theme, where it was always dark (F-54).
  */
 export function CallRemoved({
   title,
@@ -581,9 +595,13 @@ export function CallRemoved({
   kind?: "removed" | "failed" | "unavailable"
   embedded?: boolean
 }) {
+  const stage = kind !== "unavailable"
   return (
-    <div className={cn("dark flex h-full w-full items-center justify-center bg-[#0B0C0E] p-4 text-foreground", callScreenHeight(embedded))} data-call-notice={kind}>
-      <div role="alert" className="hub-pop w-[360px] max-w-full rounded-[16px] bg-[#1B1C1F] p-5 shadow-e4">
+    <div
+      className={cn("flex h-full w-full items-center justify-center p-4 text-foreground", stage ? "dark bg-[#0B0C0E]" : GREEN_ROOM_GROUND, callScreenHeight(embedded))}
+      data-call-notice={kind}
+    >
+      <div role="alert" className={cn("hub-pop relative w-[360px] max-w-full rounded-[16px] p-5", stage ? "bg-[#1B1C1F] shadow-e4" : "bg-raised shadow-e2")}>
         <h2 className="text-title-3 font-semibold">{title}</h2>
         <p className="mt-1 text-ui text-ink-2 text-pretty">{detail}</p>
         {onBack || primary ? (

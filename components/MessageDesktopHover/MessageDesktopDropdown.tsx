@@ -22,6 +22,7 @@ import { reminderChoices } from "@/lib/utils/later"
 import type { LaterTarget } from "@/components/later/SaveForLater"
 import { useToast } from "@/hooks/use-toast"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
+import { DeleteConfirm } from "@/components/message/deleteConfirm"
 
 interface MessageDesktopDropdownProps {
     setIsDropdownOpen: (open: boolean) => void
@@ -189,22 +190,18 @@ export default function MessageDesktopDropdown({
                 )}
                 {canDelete &&
                     (confirming ? (
-                        <div role="group" aria-label="Delete this message?" data-delete-confirm="" className="animate-fade-in px-2 pb-1.5 pt-1">
-                            <p className="text-ui-sm font-medium text-ink">Delete for everyone?</p>
-                            <p className="mt-0.5 text-meta text-ink-3">It can&apos;t be undone.</p>
-                            <div className="mt-2 flex justify-end gap-1.5">
-                                <DropdownMenuItem asChild onSelect={(e) => { e.preventDefault(); setConfirming(false) }}>
-                                    <Button size="xs" variant="ghost">
-                                        Cancel
-                                    </Button>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild onSelect={deleteMessage}>
-                                    <Button size="xs" variant="destructive">
-                                        Delete
-                                    </Button>
-                                </DropdownMenuItem>
-                            </div>
-                        </div>
+                        <DeleteConfirm className="px-2 pb-1.5 pt-1">
+                            <DropdownMenuItem asChild onSelect={(e) => { e.preventDefault(); setConfirming(false) }}>
+                                <Button size="xs" variant="ghost">
+                                    Cancel
+                                </Button>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild onSelect={deleteMessage}>
+                                <Button size="xs" variant="destructive">
+                                    Delete
+                                </Button>
+                            </DropdownMenuItem>
+                        </DeleteConfirm>
                     ) : (
                         <DropdownMenuItem
                             className="text-danger-ink focus:text-danger-ink [&_svg]:text-danger-ink"

@@ -37,11 +37,12 @@ export function AgentCardDetails({ botUserId, fallback }: { botUserId: string; f
 
   if (isLoading) {
     return (
-      <div className="space-y-4" role="status" aria-label="Loading this agent">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="space-y-1.5">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-4 w-3/4" />
+      // The rows' own shape: a label beside its value.
+      <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-3 gap-y-2.5" role="status" aria-label="Loading this agent">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="contents">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3.5 w-3/4" />
           </div>
         ))}
       </div>
@@ -81,21 +82,23 @@ export function AgentCardDetails({ botUserId, fallback }: { botUserId: string; f
   ]
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3">
       {(card.description || !card.active) && (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {!card.active && (
-            <p className="text-sm font-medium text-warning-ink">Paused. It will not run until it is resumed.</p>
+            <p className="text-ui-sm font-medium text-warning-ink">Paused. It will not run until it is resumed.</p>
           )}
-          {card.description && <p className="text-sm leading-relaxed text-foreground">{card.description}</p>}
+          {card.description && <p className="text-ui-sm text-pretty text-ink-2">{card.description}</p>}
         </div>
       )}
 
-      <dl className="space-y-3.5">
+      {/* Label beside value (v3 property rows): stacked, the five rows made an
+          agent's card taller than a laptop screen. */}
+      <dl data-agent-rows="" className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-3 gap-y-1.5">
         {rows.map((r) => (
-          <div key={r.label} className="space-y-0.5">
-            <dt className="text-xs font-medium text-muted-foreground">{r.label}</dt>
-            <dd className="text-sm text-foreground">{r.value}</dd>
+          <div key={r.label} className="contents">
+            <dt className="pt-px text-meta font-medium text-ink-3">{r.label}</dt>
+            <dd className="text-ui-sm text-pretty text-foreground">{r.value}</dd>
           </div>
         ))}
       </dl>

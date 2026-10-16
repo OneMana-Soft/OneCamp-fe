@@ -46,9 +46,9 @@ describe("reminderLabel", () => {
   })
   it("names today, tomorrow, the weekday, then the date", () => {
     // In the app's one format, whatever the browser's locale.
-    expect(reminderLabel(d(2026, 9, 30, 15), now).text).toBe("Today, 3:00 PM")
-    expect(reminderLabel(d(2026, 10, 1, 9), now).text).toBe("Tomorrow, 9:00 AM")
-    expect(reminderLabel(d(2026, 10, 5, 9), now).text).toBe("Mon, 9:00 AM")
+    expect(reminderLabel(d(2026, 9, 30, 15), now).text).toBe("Today, 3:00\u00a0PM")
+    expect(reminderLabel(d(2026, 10, 1, 9), now).text).toBe("Tomorrow, 9:00\u00a0AM")
+    expect(reminderLabel(d(2026, 10, 5, 9), now).text).toBe("Mon, 9:00\u00a0AM")
     expect(reminderLabel(d(2026, 10, 20, 9), now).text).toBe("20 Oct")
     expect(reminderLabel(d(2027, 1, 20, 9), now).text).toBe("20 Jan 2027")
   })
@@ -75,10 +75,10 @@ describe("toLocalInput", () => {
 
 describe("the reminder pill (hub.md L3)", () => {
   const now = new Date(2026, 9, 11, 10, 0)
-  it("is neutral for a later day, sun for today, danger once it has come, in 24-hour time", () => {
-    expect(reminderPill(new Date(2026, 9, 12, 9, 0), now)).toEqual({ text: "Tomorrow 09:00", tone: "later" })
-    expect(reminderPill(new Date(2026, 9, 11, 17, 0), now)).toEqual({ text: "Today 17:00", tone: "today" })
+  it("is neutral for a later day, sun for today, danger once it has come, on the app's clock", () => {
+    expect(reminderPill(new Date(2026, 9, 12, 9, 0), now)).toEqual({ text: "Tomorrow 9:00\u00a0AM", tone: "later" })
+    expect(reminderPill(new Date(2026, 9, 11, 17, 0), now)).toEqual({ text: "Today 5:00\u00a0PM", tone: "today" })
     expect(reminderPill(new Date(2026, 9, 10, 17, 0), now)).toEqual({ text: "Overdue · Yesterday", tone: "overdue" })
-    expect(reminderPill(new Date(2026, 9, 11, 9, 30), now)).toEqual({ text: "Overdue · 09:30", tone: "overdue" })
+    expect(reminderPill(new Date(2026, 9, 11, 9, 30), now)).toEqual({ text: "Overdue · 9:30\u00a0AM", tone: "overdue" })
   })
 })

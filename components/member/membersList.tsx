@@ -20,6 +20,9 @@ interface MembersListPropInterface {
     handleRemoveMember: (id: string) => void
 }
 
+/** How many people a list holds before it offers to find one among them. */
+const FIND_FROM = 8
+
 import { useDebounce } from "@/hooks/useDebounce";
 
 const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForUUID, usersList, isLoading, handleMakeAdmin, handleRemoveAdmin, handleRemoveMember}) => {
@@ -42,15 +45,21 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
 
     return (
         <div className="flex-1 min-h-0 flex flex-col w-full">
-            <div className="relative mb-4 flex-shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    type="text"
-                    placeholder="Search members…"
-                    className="pl-9 bg-muted/50 border-border/50 focus-visible:ring-primary/20"
-                    onChange={(event) => setQuery(event.target.value)}
-                />
-            </div>
+            {/* A find for a long list only: three people under two "Search
+                members…" fields, one adding and one filtering, read as one
+                field twice (PTC-18). */}
+            {usersList.length >= FIND_FROM && (
+                <div className="relative mb-4 flex-shrink-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        type="text"
+                        placeholder="Find a member…"
+                        aria-label="Find a member"
+                        className="pl-9 bg-muted/50 border-border/50 focus-visible:ring-primary/20"
+                        onChange={(event) => setQuery(event.target.value)}
+                    />
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                 {isLoading ? (

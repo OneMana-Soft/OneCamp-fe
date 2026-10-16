@@ -77,7 +77,7 @@ describe("the status menu", () => {
   it("says when a status clears in words", () => {
     expect(expiryWords("30m")).toBe("30 minutes")
     expect(expiryWords("this_week")).toBe("This week")
-    expect(expiryWords("custom", new Date(new Date().getFullYear(), 9, 12, 17, 0))).toBe("Until 12 Oct, 5:00 PM")
+    expect(expiryWords("custom", new Date(new Date().getFullYear(), 9, 12, 17, 0))).toBe("Until 12 Oct, 5:00\u00a0PM")
   })
 
   // Design v3, hub.md P3: a popover, not a modal.
@@ -85,6 +85,27 @@ describe("the status menu", () => {
     mount()
     expect(document.querySelector("[data-status-popover]")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull()
+  })
+
+  // Asked for from the profile menu, whose row closes with the menu: with
+  // nothing pressed left to anchor to, it opened at the top of the screen.
+  it("opens beside the sidebar foot when what was pressed has gone", async () => {
+    const { setLastAnchor } = await import("@/lib/hub/lastAnchor")
+    const gone = document.createElement("div")
+    setLastAnchor(gone)
+    const foot = document.createElement("div")
+    foot.setAttribute("data-sidebar-foot", "")
+    foot.getBoundingClientRect = () => new DOMRect(8, 840, 232, 44)
+    document.body.appendChild(foot)
+    try {
+      mount()
+      const box = document.querySelector<HTMLElement>("[data-status-anchor]")!
+      expect([box.style.left, box.style.top]).toEqual(["8px", "840px"])
+      expect(document.querySelector("[data-status-popover]")!.getAttribute("data-side") ?? "right").toBe("right")
+    } finally {
+      foot.remove()
+      setLastAnchor(null)
+    }
   })
 
   it("shows the automatic row while focus time is on", () => {

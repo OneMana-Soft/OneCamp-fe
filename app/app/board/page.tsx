@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { usePost } from "@/hooks/usePost";
 import { useFetch } from "@/hooks/useFetch";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { useDebounce } from "@/hooks/useDebounce";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { BoardInfoInterface, BoardListResponse } from "@/types/board";
@@ -41,7 +42,8 @@ function BoardsPage() {
   const listUrl = `${GetEndpointUrl.GetBoardList}?pageSize=60&pageIndex=0${
     debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ""
   }`;
-  const { data, isLoading, isError, mutate } = useFetch<BoardListResponse>(listUrl);
+  // The page shows a failed load itself, with Try again: no second, toast-borne copy.
+  const { data, isLoading, isError, mutate } = useFetch<BoardListResponse>(listUrl, undefined, undefined, OWN_ERRORS);
   const boards = data?.data?.boards || [];
   const count = data?.data?.count || boards.length;
 
@@ -275,7 +277,7 @@ function BoardCard({
               onError={() => setThumbFailed(true)}
             />
           ) : (
-            <NotesFallback />
+            <NotesFallback seed={uuid} />
           )}
         </div>
       </div>

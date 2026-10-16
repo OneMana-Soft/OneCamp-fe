@@ -1,0 +1,89 @@
+/* What changed, in a version's preview (B8). Loaded with the diff, only when
+   "Show changes" is on. Moss is what was added and berry (the camp palette's
+   rose) what was removed; a block whose words changed gets a quiet bar and
+   carries the colour in its words. Tokens only, so both themes come from the
+   palette, and nothing here moves a line: toggling the changes never reflows
+   the text under the reader's eye. */
+
+.history-preview ins.history-ins {
+  text-decoration: underline 1px var(--camp-moss);
+  text-underline-offset: 3px;
+  background: color-mix(in oklab, var(--camp-moss-tint) 75%, transparent);
+  border-radius: 2px;
+}
+
+.history-preview del.history-del {
+  text-decoration: line-through 1px var(--camp-berry);
+  color: var(--camp-berry-ink);
+  background: var(--camp-berry-tint);
+  border-radius: 2px;
+}
+
+/* A block added, removed or changed: a 2 px bar just outside its start, in
+   the meaning's hue; added and removed ones are tinted too. */
+.history-preview [data-history-change] {
+  box-shadow: -3px 0 0 0 var(--hue-bar);
+  border-radius: 0 4px 4px 0;
+}
+
+.history-preview [data-history-change="added"] {
+  --hue-bar: var(--camp-moss);
+  background: color-mix(in oklab, var(--camp-moss-tint) 70%, transparent);
+}
+
+.history-preview [data-history-change="removed"] {
+  --hue-bar: var(--camp-berry);
+  background: color-mix(in oklab, var(--camp-berry-tint) 80%, transparent);
+  color: var(--camp-berry-ink);
+  text-decoration: line-through 1px var(--camp-berry);
+}
+
+.history-preview [data-history-change="removed"] * {
+  text-decoration: inherit;
+}
+
+.history-preview [data-history-change="changed"] {
+  --hue-bar: var(--ink-4);
+}
+
+/* A block inside one already marked says nothing more. */
+.history-preview [data-history-change="added"] [data-history-change],
+.history-preview [data-history-change="removed"] [data-history-change] {
+  box-shadow: none;
+  background: none;
+}
+
+/* An image has no text to strike. */
+.history-preview img[data-history-change] {
+  box-shadow: none;
+  outline: 2px solid var(--hue-bar);
+  outline-offset: 2px;
+}
+
+.history-preview img[data-history-change="removed"] {
+  filter: grayscale(0.5) opacity(0.55);
+}
+
+/* The change the reader stepped to. */
+.history-preview [data-history-current] {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* The marks arrive after the text they sit on. */
+@media (prefers-reduced-motion: no-preference) {
+  .history-preview ins.history-ins,
+  .history-preview del.history-del,
+  .history-preview [data-history-change] {
+    animation: history-mark-in 160ms var(--ease-out) both;
+  }
+}
+
+@keyframes history-mark-in {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -1,15 +1,14 @@
 "use client"
 
-import { Check } from "@/lib/icons";
 import { CommandItem } from "@/components/ui/command"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BotTag } from "@/components/ui/botTag"
-import { cn } from "@/lib/utils/helpers/cn"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { useBotKind } from "@/hooks/useBotKinds"
 import { botSubtitle } from "@/lib/botCopy"
 import { addressOrHandleOf, personSearchValue } from "@/lib/personName"
+import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 interface UserComboboxItemProps {
     userUuid: string
@@ -44,6 +43,7 @@ export function UserComboboxItem({
             value={personSearchValue(userName, { fullName: userFullName, handle: userHandle, email: userEmail, id: userUuid })}
             onSelect={() => onSelect(userUuid)}
             className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
+            {...menuCheckState(isSelected)}
         >
             <Avatar className="h-8 w-8 border border-border/50 flex-shrink-0">
                 <AvatarImage
@@ -63,12 +63,8 @@ export function UserComboboxItem({
                 </span>
                 {secondLine && <span className="text-2xs text-muted-foreground truncate font-medium">{secondLine}</span>}
             </div>
-            <Check
-                className={cn(
-                    "ml-auto h-4 w-4 text-primary",
-                    isSelected ? "opacity-100" : "opacity-0"
-                )}
-            />
+            {/* The row leads with the person, so the shared check ends it. */}
+            <MenuCheck checked={isSelected} className="ml-auto" />
         </CommandItem>
     )
 }

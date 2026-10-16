@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import type { RecordingInfoInterface } from "@/types/recording"
 
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }) }))
+vi.mock("@/hooks/useFetch", () => ({
+  useFetchOnlyOnce: () => ({ data: undefined }),
+  useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: () => {} }),
+}))
+vi.mock("react-redux", async (actual) => ({ ...(await actual<typeof import("react-redux")>()), useDispatch: () => () => {} }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
 const { RecordingListRecording, callLength, recordingPlace, recordingHueKey } = await import("@/components/recording/recordingListRecording")
@@ -13,6 +18,8 @@ const { hueFor } = await import("@/lib/campHue")
 const { dateRangeLabel } = await import("@/components/dateRangePicker/dateRangeField")
 
 afterEach(cleanup)
+// Today is pinned (app/testClock.test.ts): a day in this year is written without its year, and these are 2026's.
+pinTestClock()
 
 const person = (uuid: string, name: string) => ({ user_uuid: uuid, user_name: name, user_full_name: name }) as never
 const rec = (over: Partial<RecordingInfoInterface> = {}): RecordingInfoInterface =>
@@ -54,7 +61,7 @@ describe("a recorded call", () => {
   it("is a HubRow that plays it, with who started it and how big on one quiet line", () => {
     const onOpen = vi.fn()
     render(<RecordingListRecording recordingInfo={rec()} currentUserId="me" onOpen={onOpen} />)
-    const row = screen.getByRole("button", { name: "Play the recording, #engineering, 10 Oct, 10:00 AM" })
+    const row = screen.getByRole("button", { name: "Play the recording, #engineering, 10 Oct, 10:00\u00a0AM" })
     fireEvent.click(row)
     expect(onOpen).toHaveBeenCalled()
     expect(row.textContent).toContain("Started by Sam Rivera · 12.3 MB")
@@ -115,10 +122,29 @@ describe("the one recordings UI", () => {
     expect(src).toMatch(/<PageHeader title="Recordings" actions=\{rangeField\}>/)
     expect(src).toMatch(/<PageContainer className="flex min-h-0 flex-1 flex-col">/)
     expect(src).toMatch(/illustration=\{<SpotRecording \/>\}/)
-    // Start-aligned in the column, as the hub's empties are.
+    // Start-aligned in the column, as the hub's empties are: the hub's own
+    // states, not the shared EmptyState, which centred itself in its box.
     expect(src).toMatch(/className="flex justify-start pt-4 md:pt-12"/)
+    expect(src).toMatch(/<HubEmpty\b/)
+    expect(src).toMatch(/<HubError\b/)
+    expect(src).not.toMatch(/<EmptyState\b|<ErrorState\b/)
     expect(src).toMatch(/Show the last 90 days/)
     expect(src).toMatch(/data-lead="40"/)
     expect(src).not.toMatch(/Global Meeting History|Gathering your recordings/)
+  })
+})
+
+// QA F-30: the range button sat at the right edge of the lists' 880px column,
+// two thirds of the way across a wide sheet.
+describe("the recordings page's header", () => {
+  it("spans the sheet, the range on its right edge, over the lists' column", async () => {
+    const { RecordingsView } = await import("@/components/recording/RecordingsView")
+    const { container } = render(
+      <RecordingsView listUrl="/recordings" playerUrls={() => ({ media: "", transcript: "" })} subtitle="Calls recorded in your channels and conversations." />,
+    )
+    const [head, list] = Array.from(container.querySelectorAll("[data-recordings-view] > div"))
+    expect(head.querySelector("header")).not.toBeNull()
+    expect(head.className).not.toContain("max-w-[880px]")
+    expect(list.className).toContain("max-w-[880px]")
   })
 })

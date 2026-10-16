@@ -19,17 +19,29 @@ describe("a signed-in 404", () => {
     expect(readFileSync("app/app/[...missing]/page.tsx", "utf8")).toMatch(/notFound\(\)/)
   })
 
-  it("says the page wandered off, goes home, and searches for what the link named", () => {
+  it("says the page is gone as every dead link does, goes home, and searches for what the link named", () => {
     const asked: unknown[] = []
     const listen = (e: Event) => asked.push((e as CustomEvent).detail)
     window.addEventListener(PALETTE_OPEN_EVENT, listen)
-    render(<AppNotFound />)
-    expect(screen.getByRole("heading", { name: "This page wandered off" })).toBeTruthy()
+    const view = render(<AppNotFound />)
+    // One layout for every dead link (PG2-01): PublicGone, here without the
+    // public frame, inside the app's shell.
+    expect(view.container.querySelector("[data-public-gone] [data-load-failure='gone']")).toBeTruthy()
+    expect(view.container.querySelector("[data-public-frame]")).toBeNull()
+    expect(screen.getByRole("heading", { name: "This page doesn't exist or was deleted" })).toBeTruthy()
     expect(screen.getByRole("link", { name: "Go home" }).getAttribute("href")).toBe("/app/home")
     fireEvent.click(screen.getByRole("button", { name: /Search/ }))
     expect(asked).toEqual([{ query: "q4 launch plan" }])
-    expect(document.querySelector("[data-spot-orbit] .orbit-once")).toBeTruthy()
     window.removeEventListener(PALETTE_OPEN_EVENT, listen)
+  })
+
+  // "Search Ctrl K" on a phone named a key nobody has there.
+  it("marks its key hint, which a touch screen with no keyboard hides", () => {
+    render(<AppNotFound />)
+    const kbd = screen.getByRole("button", { name: /Search/ }).querySelector("kbd")!
+    expect(kbd.hasAttribute("data-kbd-hint")).toBe(true)
+    const css = readFileSync("app/globals.css", "utf8")
+    expect(css).toMatch(/@media \(hover: none\) and \(pointer: coarse\) \{\s*\[data-kbd-hint\] \{ display: none !important; \}/)
   })
 
   it("de-slugs the link's last words, and drops a bare id", () => {
@@ -40,9 +52,11 @@ describe("a signed-in 404", () => {
 })
 
 describe("the signed-out 404", () => {
-  it("keeps Sign in, with the orbit spot", () => {
+  it("is drawn as every dead public link is, in the public frame, with the workspace and Sign in (PG2-01)", () => {
     const view = render(<NotFoundPage />)
+    expect(view.container.querySelector("[data-public-frame] [data-public-gone] [data-load-failure='gone']")).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "This page doesn't exist or was deleted" })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go to your workspace" }).getAttribute("href")).toBe("/app/home")
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy()
-    expect(view.container.querySelector("[data-spot-orbit]")).toBeTruthy()
   })
 })

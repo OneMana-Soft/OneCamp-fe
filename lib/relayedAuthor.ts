@@ -115,3 +115,12 @@ export function relayInitials(name: string): string {
   const bare = name.replace(/\([^)]*\)/g, " ").replace(/[^\p{L}\p{N}\s]/gu, " ")
   return getNameInitials(bare) || "?"
 }
+
+/**
+ * A relayed name and the organisation it carries in brackets: "Priya (Acme)"
+ * is Priya from Acme. Pure.
+ */
+export function splitRelayedName(name: string): { person: string; org?: string } {
+  const m = /^(.*\S)\s*\(([^()]+)\)$/.exec(name.trim())
+  return m ? { person: m[1], org: m[2].trim() } : { person: name.trim() }
+}

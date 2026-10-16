@@ -35,6 +35,7 @@ import {
   type ConsentView,
 } from "@/services/connectService"
 import { isConnectRequestId, rememberPendingConnect } from "@/lib/pendingConnect"
+import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
 
 /** Errors the backend sends here instead of to an unverified client address. */
 const ERRORS: Record<string, string> = {
@@ -149,7 +150,7 @@ export function ConnectAuthorize() {
   const requestId = params.get("request")
   const error = params.get("error")
   const host = useHost()
-  const workspace = process.env.NEXT_PUBLIC_ORG_NAME?.trim() || host || "this workspace"
+  const workspace = useNamedWorkspace() || host || "this workspace"
   const [phase, setPhase] = React.useState<Phase>({ kind: "loading" })
   const [agentId, setAgentId] = React.useState(NEW_AGENT)
   const [scopes, setScopes] = React.useState<string[]>([])

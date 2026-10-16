@@ -11,8 +11,12 @@ export const ALL_OF_THEM = "__all__"
 
 export type PickResult = { options: Record<string, unknown> } | { error: string }
 
-/** What the dropdown asks for. */
-export function pickLabel(provider: ImportProvider): string {
+/**
+ * What the dropdown asks for. With a provider's pages, a picked Notion
+ * database comes across as a project too; the rest come as tables.
+ */
+export function pickLabel(provider: ImportProvider, pages = false): string {
+  if (provider === "notion" && pages) return "Database to bring as a project (optional)"
   switch (provider) {
     case "trello":
       return "Pick a Trello board"
@@ -39,9 +43,16 @@ export function allOfThemLabel(provider: ImportProvider, count: number): string 
   return count === 1 ? "The 1 project" : `All ${count} projects`
 }
 
-/** The job's options for a pick, or what is missing. */
-export function optionsForPick(provider: ImportProvider, picked: string, items: DiscoverItem[], typedBoardId = ""): PickResult {
-  const pick = picked.trim()
+/**
+ * The job's options for a pick, or what is missing. With pages, a provider
+ * that brings them (its "pages" capability) brings them too.
+ */
+export function optionsForPick(provider: ImportProvider, picked: string, items: DiscoverItem[], typedBoardId = "", pages = false): PickResult {
+  const out = pickOptions(provider, picked.trim(), items, typedBoardId)
+  return pages && "options" in out ? { options: { ...out.options, pages: true } } : out
+}
+
+function pickOptions(provider: ImportProvider, pick: string, items: DiscoverItem[], typedBoardId: string): PickResult {
   switch (provider) {
     case "trello": {
       const board = pick || typedBoardId.trim()

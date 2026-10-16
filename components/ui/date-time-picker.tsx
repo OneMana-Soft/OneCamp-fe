@@ -3,12 +3,12 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon } from "@/lib/icons"
-import { shortTime } from "@/lib/utils/date/shortDate"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { parseEventText, parsedRange } from "@/lib/calendar/parseEventText"
+import { clockTime } from "@/lib/utils/date/clock"
 
 interface DateTimePickerProps {
   value?: Date
@@ -79,7 +79,7 @@ export function TimeList({
               selected ? "bg-ink text-sheet" : "text-ink hover:bg-hover focus-visible:bg-hover",
             )}
           >
-            <span>{shortTime(d)}</span>
+            <span>{clockTime(d)}</span>
             {since !== undefined ? <span className={cn("text-meta", selected ? "text-sheet/70" : "text-ink-3")}>{durationText(m - since)}</span> : null}
           </button>
         )
@@ -145,7 +145,7 @@ export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }
           )}
         >
           <CalendarIcon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
-          <span className="truncate">{value ? `${format(value, "EEE d MMM")} · ${shortTime(value)}` : "Pick a date and time"}</span>
+          <span className="truncate">{value ? `${format(value, "EEE d MMM")} · ${clockTime(value)}` : "Pick a date and time"}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="content-float w-[296px] rounded-xl bg-pop p-0 shadow-e3" align="start">
@@ -167,7 +167,7 @@ export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }
           />
           {typed ? (
             <p className="mt-1 text-meta text-ink-3">
-              {format(typed, "EEE d MMM")} · {shortTime(typed)} · press Enter
+              {format(typed, "EEE d MMM")} · {clockTime(typed)} · press Enter
             </p>
           ) : null}
         </div>

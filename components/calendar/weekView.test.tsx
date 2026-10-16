@@ -29,6 +29,17 @@ function week(props: Partial<Parameters<typeof WeekView>[0]> = {}) {
 
 const blankNote = () => document.querySelector("[data-calendar-blank]")
 
+describe("now", () => {
+  it("is drawn in the week that has today, and not in another", () => {
+    const thisWeek = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 0)
+    week({ weekStart: thisWeek })
+    expect(document.querySelector("[data-now-line]")).toBeTruthy()
+    cleanup()
+    week({ weekStart: addDays(thisWeek, 14) })
+    expect(document.querySelector("[data-now-line]")).toBeNull()
+  })
+})
+
 describe("a week with nothing in it", () => {
   it("says so, small, with the calendar drawing", () => {
     week()

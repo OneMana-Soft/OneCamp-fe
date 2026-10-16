@@ -28,6 +28,10 @@ import { History, Search, Trash2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { withAI } from "@/components/common/withFeature"
 import { cn } from "@/lib/utils/helpers/cn"
+import { clockTime } from "@/lib/utils/date/clock"
+import { shortDate } from "@/lib/utils/date/shortDate"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 export interface ResumedConversation {
     sessionId: string
@@ -54,8 +58,7 @@ export function historyGroup(updatedAt: string, now = new Date()): HistoryGroup 
 function when(updatedAt: string, group: HistoryGroup): string {
     const d = new Date(updatedAt)
     if (Number.isNaN(d.getTime())) return ""
-    if (group !== "Earlier") return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    return group !== "Earlier" ? clockTime(d) : shortDate(d)
 }
 
 const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume, currentId }) => {
@@ -70,10 +73,11 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume, currentId }) => {
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            setSessions(await listChatSessions())
-        } catch {
+            // Said by the toast below, once: the request's own stays quiet.
+            setSessions(await listChatSessions(OWN_ERRORS))
+        } catch (e) {
             setSessions([])
-            toast({ title: "Could not load your conversations", variant: "destructive" })
+            toast({ title: "Couldn't load your conversations", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setLoading(false)
         }
@@ -130,6 +134,7 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume, currentId }) => {
                     type="button"
                     aria-label="Past conversations"
                     title="History"
+                    data-touch-target=""
                     className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand [&_svg]:size-4"
                 >
                     <History />

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 import { renderHook } from "@testing-library/react"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+pinTestClock()
 
 const dispatched: { type: string; payload: unknown }[] = []
 vi.mock("react-redux", () => ({ useDispatch: () => (a: { type: string; payload: unknown }) => dispatched.push(a) }))
@@ -35,5 +38,30 @@ describe("a live reply in a channel", () => {
     const comment = (increment?.payload as { comment: { comment_text: string; comment_by: { is_bot?: boolean } } }).comment
     expect(comment.comment_text).toBe(text)
     expect(comment.comment_by.is_bot).toBe(true)
+  })
+})
+
+// SN-8: a live post that mentions you adds to its channel's "@2" in the
+// sidebar, as the server's count does on the next answer.
+describe("a live post in a channel you aren't looking at", () => {
+  const post = (html: string) =>
+    JSON.stringify({
+      type: 0,
+      data: { type: MqttActionType.Create, post_uuid: "p9", post_channel_uuid: "ch-launch", post_html_text: html, user_uuid: "maya", user_full_name: "Maya Chen", post_created_at: "2026-10-14T09:00:00Z" },
+    })
+  const bumped = () => dispatched.find((a) => a.type.endsWith("incrementUserChannelUnread"))?.payload
+
+  it("counts as a mention of you when it mentions you", () => {
+    dispatched.length = 0
+    const { result } = renderHook(() => usePostMessageHandlers({ userUuid: "me" }))
+    result.current.handlePostMessage(post('<p><span data-type="mention" data-id="me@0x2a" data-label="Sam">@Sam</span> look</p>'))
+    expect(bumped()).toEqual({ ch_uuid: "ch-launch", mentionsMe: true })
+  })
+
+  it("counts as unread only when it doesn't", () => {
+    dispatched.length = 0
+    const { result } = renderHook(() => usePostMessageHandlers({ userUuid: "me" }))
+    result.current.handlePostMessage(post('<p><span data-type="mention" data-id="jonas@0x2b" data-label="Jonas">@Jonas</span> look</p>'))
+    expect(bumped()).toEqual({ ch_uuid: "ch-launch", mentionsMe: false })
   })
 })

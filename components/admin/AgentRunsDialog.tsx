@@ -48,12 +48,14 @@ import {
   listAgentSkills,
   toolLabel,
 } from "@/services/agentService"
+import { clockTime } from "@/lib/utils/date/clock"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return ""
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ""
-  return d.toLocaleString()
+  return shortDateTime(d)
 }
 
 function formatDuration(start?: string | null, end?: string | null): string {
@@ -99,7 +101,7 @@ function todayUsageParts(stats: AgentRunStats): string[] {
   const tokensToday = stats.tokens_today ?? 0
   const tokenCap = stats.max_daily_tokens ?? 0
   if (tokenCap > 0) {
-    parts.push(`${formatTokens(tokensToday)} / ${formatTokens(tokenCap)} tokens (resets 00:00 UTC)`)
+    parts.push(`${formatTokens(tokensToday)} / ${formatTokens(tokenCap)} tokens (resets at midnight UTC)`)
   } else if (tokensToday > 0) {
     parts.push(`${formatTokens(tokensToday)} tokens`)
   }
@@ -254,12 +256,10 @@ const ToolParamsView: React.FC<{ params?: Record<string, string> }> = ({ params 
 }
 
 // cadenceLabel renders a routine's recurrence + fire time as a short human
-// phrase ("daily at 09:00 UTC", "weekly on MO,WE,FR at 14:30 UTC"), mirroring
-// the backend describeCadence so the UI and chat replies read the same.
+// phrase ("daily at 9:00 AM UTC", "weekly on MO,WE,FR at 2:30 PM UTC"), in UTC
+// as the backend's describeCadence says it in chat, on the reader's own clock.
 function cadenceLabel(recurrence: string, atMinuteUTC: number): string {
-  const hh = String(Math.floor(atMinuteUTC / 60)).padStart(2, "0")
-  const mm = String(atMinuteUTC % 60).padStart(2, "0")
-  const at = `${hh}:${mm} UTC`
+  const at = `${clockTime(Date.UTC(2000, 0, 1, Math.floor(atMinuteUTC / 60), atMinuteUTC % 60), { timeZone: "UTC" })} UTC`
   const rule = (recurrence || "").toUpperCase()
   if (rule.includes("FREQ=HOURLY")) {
     const m = rule.match(/INTERVAL=(\d+)/)

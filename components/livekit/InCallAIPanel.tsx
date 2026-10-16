@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, Send, X, Loader2, AlertCircle } from "@/lib/icons";
+import { X, AlertCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
+import { AiComposer } from "@/components/ai/AiComposer";
+import { AiMark } from "@/components/ai/AiMark";
 import { useAIStatus, AIStatusResponse } from "@/services/aiService";
 import { InCallQAItem } from "./useInCallAgent";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -20,7 +22,7 @@ interface InCallAIPanelProps {
 
 // Quick-prompt chips — the highest-signal asks during a live call.
 const SUGGESTIONS = [
-    "Summarize the last few minutes",
+    "Summarise the last few minutes",
     "What did we decide?",
     "What are my action items?",
 ];
@@ -73,182 +75,110 @@ export function InCallAIPanel({
         [aiEnabled, isStreaming, onAsk],
     );
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            submit(input);
-        }
-    };
-
     return (
         // A right column in the stage (hub.md C10): #131416, r14, e3 in dark,
-        // 12px in from the stage's edges, sliding in on the panel recipe.
-        <div className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-white @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+        // 12px in from the stage's edges, sliding in on the panel recipe. The
+        // AI's own pieces in dark (hub.md section 9): its mark, your question
+        // in the neutral bubble, the answer flat beside the mark, the mark
+        // breathing while it thinks (no spinner in the AI), and its composer.
+        <div data-in-call-ai="" className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
+            <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3">
                 <div className="flex items-center gap-2.5">
                     {/* The AI is agent identity: the agent square, not the accent. */}
-                    <span className="grid size-6 place-items-center rounded-[32%] avatar-agent text-white">
-                        <Sparkles className="size-3.5" />
-                    </span>
+                    <AiMark size={24} />
                     <div>
                         <p className="text-heading leading-tight">Ask about this call</p>
-                        <p className="flex items-center gap-1.5 text-meta text-ink-3 leading-tight" title={aiEnabled && modelLabel ? `Powered by ${modelLabel} · shared with the call` : undefined}>
+                        <p className="flex items-center gap-1.5 text-meta leading-tight text-ink-3" title={aiEnabled && modelLabel ? `Powered by ${modelLabel} · shared with the call` : undefined}>
                             <span aria-hidden className="size-1.5 rounded-[3px] bg-camp-moss" />
                             Listening · shared with everyone in the call
                         </p>
                     </div>
                 </div>
-                <Button
- aria-label="Close AI panel"                    variant="ghost"
-                    size="icon"
-                    onClick={onClose}
-                    className="h-8 w-8 rounded-lg text-white/60 hover:text-white hover:bg-white/10"
-                >
+                <Button aria-label="Close AI panel" variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-lg text-ink-3 hover:bg-white/10 hover:text-foreground">
                     <X className="h-4 w-4" />
                 </Button>
             </div>
 
-            {/* Conversation */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-                {statusLoading && (
-                    <div className="flex items-center justify-center h-full">
-                        <Loader2 className="h-5 w-5 animate-spin text-white/40" />
+            <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+                {statusLoading ? (
+                    <div role="status" aria-label="Getting the assistant ready" className="flex h-full items-center justify-center">
+                        <AiMark size={32} breathing />
                     </div>
-                )}
-
-                {/* AI disabled — explain why and how to fix, no dead composer. */}
-                {!statusLoading && !aiEnabled && (
-                    <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-warning/10">
-                            <AlertCircle className="h-6 w-6 text-warning-ink" />
+                ) : !aiEnabled ? (
+                    // AI disabled: why and how to fix it, no dead composer.
+                    <div className="flex h-full flex-col items-center justify-center gap-4 px-2 text-center">
+                        <div className="flex size-12 items-center justify-center rounded-[14px] bg-warning/10">
+                            <AlertCircle className="size-6 text-warning-ink" />
                         </div>
                         <div className="space-y-1">
-                            <p className="text-sm font-medium text-white/90">AI is turned off</p>
-                            <p className="text-xs text-white/50 leading-relaxed">
-                                An admin can enable the AI assistant and pick a chat model from
-                                Admin → AI. Once it&apos;s on, you can ask about this call here.
+                            <p className="text-heading">AI is turned off</p>
+                            <p className="text-ui-sm text-pretty text-ink-2">
+                                An admin can switch on the AI assistant and pick a chat model in Admin, AI. Once it&apos;s on, you can ask about this call here.
                             </p>
                         </div>
                     </div>
-                )}
-
-                {!statusLoading && aiEnabled && items.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-white/5">
-                            <Sparkles className="h-6 w-6 text-primary" />
-                        </div>
+                ) : items.length === 0 ? (
+                    <div data-in-call-empty="" className="flex h-full flex-col items-center justify-center gap-4 px-2 text-center">
+                        <AiMark size={40} />
                         <div className="space-y-1">
-                            <p className="text-sm font-medium text-white/90">Ask about the call</p>
-                            <p className="text-xs text-white/50 leading-relaxed">
-                                I answer from what&apos;s been said so far: decisions, action
-                                items, or a quick recap. Everyone in the call sees the answer.
+                            <p className="text-heading">Ask about the call</p>
+                            <p className="text-ui-sm text-pretty text-ink-2">
+                                I answer from what&apos;s been said so far: decisions, action items, or a quick recap. Everyone in the call sees the answer.
                             </p>
                         </div>
-                        <div className="flex flex-col gap-2 w-full mt-2">
+                        <div className="mt-2 flex w-full flex-col gap-2">
                             {SUGGESTIONS.map((s) => (
                                 <button
                                     key={s}
+                                    type="button"
                                     onClick={() => submit(s)}
-                                    className="text-xs text-left px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 transition-colors"
+                                    className="rounded-[10px] bg-raised px-3 py-2 text-left text-ui-sm text-foreground shadow-e1 transition-shadow hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                                 >
                                     {s}
                                 </button>
                             ))}
                         </div>
                     </div>
+                ) : (
+                    items.map((it) => (
+                        <div key={it.id} className="space-y-2" data-in-call-item="">
+                            {/* Asker attribution, only for questions from others. */}
+                            {!it.mine && <p className="px-1 text-meta text-ink-3">{it.askedByName} asked</p>}
+                            <div className={cn("flex", it.mine ? "justify-end" : "justify-start")}>
+                                <div className="ai-user-bubble max-w-[85%] px-3.5 py-2 text-ui leading-[21px] text-foreground">{it.question}</div>
+                            </div>
+                            <div className="flex items-start gap-2.5">
+                                <AiMark size={20} breathing={!it.answer && !it.error} className="mt-0.5" />
+                                <div className="min-w-0 flex-1 text-ui leading-[22px]">
+                                    {it.error ? (
+                                        <span className="text-danger-ink">{it.error}</span>
+                                    ) : it.answer ? (
+                                        <MarkdownMessage content={it.answer} className="text-ui leading-[22px]" />
+                                    ) : (
+                                        <span className="hub-shimmer" role="status">
+                                            Thinking…
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))
                 )}
-
-                {!statusLoading && aiEnabled && items.map((it) => (
-                    <div key={it.id} className="space-y-1.5">
-                        {/* Asker attribution — only for questions from others. */}
-                        {!it.mine && (
-                            <p className="text-2xs text-white/40 px-1">
-                                {it.askedByName} asked
-                            </p>
-                        )}
-                        {/* Question */}
-                        <div className={cn("flex", it.mine ? "justify-end" : "justify-start")}>
-                            <div
-                                className={cn(
-                                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
-                                    it.mine
-                                        ? "rounded-br-sm bg-blue-600"
-                                        : "rounded-bl-sm bg-white/10",
-                                )}
-                            >
-                                {it.question}
-                            </div>
-                        </div>
-                        {/* Answer */}
-                        <div className="flex justify-start">
-                            <div className="max-w-[90%] rounded-2xl rounded-bl-sm bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90">
-                                {it.error ? (
-                                    <span className="text-danger-ink">{it.error}</span>
-                                ) : it.answer ? (
-                                    <MarkdownMessage content={it.answer} className="text-sm leading-relaxed" />
-                                ) : (
-                                    <span className="inline-flex items-center gap-2 text-white/50">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        Thinking…
-                                    </span>
-                                )}
-                                {it.streaming && it.answer && (
-                                    <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-white/60 animate-pulse" />
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
             </div>
 
-            {/* Composer */}
-            <div className="border-t border-white/10 p-3 shrink-0">
-                <div className={cn(
-                    "flex items-end gap-2 rounded-2xl bg-white/5 border border-white/10 px-3 py-2 transition-colors",
-                    aiEnabled ? "focus-within:border-white/30" : "opacity-50",
-                )}>
-                    <textarea
-                        ref={inputRef}
-                        rows={1}
-                        value={input}
-                        maxLength={2000}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={onKeyDown}
-                        disabled={!aiEnabled}
-                        placeholder={aiEnabled ? "Ask the call assistant…" : "AI is unavailable"}
-                        className="flex-1 resize-none bg-transparent text-sm text-white placeholder:text-white/40 outline-none max-h-24 leading-relaxed disabled:cursor-not-allowed"
-                    />
-                    {isStreaming ? (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Cancel"
-                            onClick={onCancel}
-                            className="h-8 w-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10 shrink-0"
-                            title="Stop"
-                        >
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Send"
-                            onClick={() => submit(input)}
-                            disabled={!input.trim() || !aiEnabled}
-                            className={cn(
-                                "h-8 w-8 rounded-lg shrink-0 transition-colors",
-                                input.trim() && aiEnabled
-                                    ? "text-blue-400 hover:text-blue-300 hover:bg-white/10"
-                                    : "text-white/30",
-                            )}
-                            title="Send"
-                        >
-                            <Send className="h-4 w-4" />
-                        </Button>
-                    )}
-                </div>
+            <div className="shrink-0 px-3 pb-3 pt-1">
+                <AiComposer
+                    inputRef={inputRef}
+                    value={input}
+                    onChange={setInput}
+                    onSend={() => submit(input)}
+                    onStop={onCancel}
+                    streaming={isStreaming}
+                    disabled={!aiEnabled}
+                    disabledNote={!statusLoading && !aiEnabled ? "AI is unavailable" : undefined}
+                    placeholder="Ask about this call…"
+                    maxLength={2000}
+                />
             </div>
         </div>
     );

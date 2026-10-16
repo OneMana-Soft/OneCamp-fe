@@ -16,6 +16,8 @@ import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
 import {PostEndpointUrl} from "@/services/endPoints";
+import { useDispatch } from "react-redux";
+import { docRenamed } from "@/lib/docCache";
 import { nameSchema } from "@/lib/validation/names";
 
 
@@ -53,6 +55,7 @@ const UpdateDocTitleDialog: React.FC<UpdateDocDialogProps> = ({
 
 
     const { makeRequest, isSubmitting } = usePost();
+    const dispatch = useDispatch();
 
     const onSubmit = (data: UpdateDocFormValues) => {
         makeRequest({
@@ -62,8 +65,10 @@ const UpdateDocTitleDialog: React.FC<UpdateDocDialogProps> = ({
                 doc_title: data.doc_title,
             }
         }).then(()=> {
-
+            docRenamed(dispatch, docId, data.doc_title.trim());
             closeModal()
+        }).catch(() => {
+            // usePost has said it wasn't renamed; the dialog stays open.
         });
 
     };

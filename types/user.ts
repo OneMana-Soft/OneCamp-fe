@@ -26,6 +26,8 @@ export interface UserProfileDataInterface {
     user_tasks_done?: TaskInfoInterface[];
     user_tasks_done_count?: number
     user_tasks_canceled_count?: number
+    /** My Tasks' board count per column, by category (PROJ-BUG-8; lib/board/columnTotals). */
+    user_column_counts?: Record<string, number>
     user_channels?: ChannelInfoInterface[];
     user_fav_channels?: ChannelInfoInterface[];
     user_task_count?: number;
@@ -39,6 +41,8 @@ export interface UserProfileDataInterface {
     user_hobbies?: string
     user_profile_object_key: string;
     user_is_admin?: boolean;
+    /** On your own profile only: you are the public demo's shared visitor (the server's helpers.IsDemoVisitor). */
+    user_demo_visitor?: boolean;
     user_job_title?: string;
     user_deleted_at?: string;
     user_notifications_paused?: boolean

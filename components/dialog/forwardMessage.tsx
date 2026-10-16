@@ -25,6 +25,7 @@ import {clearFwdMsgInputState, createOrUpdateFwdMsg} from "@/store/slice/fwdMess
 import { LoaderCircle } from "@/lib/icons";
 import {Skeleton} from "@/components/ui/skeleton";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 
 
 interface FileDialogProps {
@@ -41,13 +42,14 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
 
     // DM chat preview — uses the individual message UUID
     const chatPreviewId = chatMessageID || chatUUID
-    const chatInfo = useFetch<ChatInfoRes>(chatPreviewId ? `${GetEndpointUrl.GetOnlyChatText}/${chatPreviewId}`: "")
+    // The previews say their own failure, in the dialog; the toast stays quiet.
+    const chatInfo = useFetch<ChatInfoRes>(chatPreviewId ? `${GetEndpointUrl.GetOnlyChatText}/${chatPreviewId}`: "", undefined, undefined, OWN_ERRORS)
 
     // Group chat message preview — uses the dedicated group chat endpoint
-    const groupChatInfo = useFetch<ChatInfoRes>(groupChatMsgID ? `${GetEndpointUrl.GetOnlyGroupChatText}/${groupChatMsgID}` : "")
+    const groupChatInfo = useFetch<ChatInfoRes>(groupChatMsgID ? `${GetEndpointUrl.GetOnlyGroupChatText}/${groupChatMsgID}` : "", undefined, undefined, OWN_ERRORS)
 
     // Channel post preview
-    const postInfo = useFetch<PostsResRaw>(channelUUID ? `${GetEndpointUrl.GetOnlyPostText}/${channelUUID}/${postUUID}` : "")
+    const postInfo = useFetch<PostsResRaw>(channelUUID ? `${GetEndpointUrl.GetOnlyPostText}/${channelUUID}/${postUUID}` : "", undefined, undefined, OWN_ERRORS)
 
     const [selectedUsersOrChannels, setSelectedUsersOrChannels] = useState<ChannelAndUserListInterfaceResp[]>([])
 
@@ -145,7 +147,7 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
                     )}
                     {hasPreviewError && !isPreviewLoading && (
                         <div className="text-sm text-muted-foreground text-center py-2">
-                            Unable to load message preview
+                            Couldn&apos;t load the message preview.
                         </div>
                     )}
                     {hasPreviewData && !isPreviewLoading && (

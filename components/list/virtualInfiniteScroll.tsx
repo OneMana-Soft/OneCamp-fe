@@ -1,6 +1,6 @@
 "use client"
 
-import React, {useCallback, useMemo, useRef} from "react"
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import {VList, VListHandle} from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import {debounceUtil} from "@/lib/utils/helpers/debounce";
@@ -98,18 +98,39 @@ export function VirtualInfiniteScroll<T>({
 
     const listRef = useRef<VListHandle>(null)
 
-    const handleScroll = useCallback((offset: number) => {
-        const list = listRef.current
-        if (!list || !hasMore || isLoading) return
+    // What the list was last given. The scroll handler reads it as it runs: a
+    // handler made for each render ran 100 ms later with that render's props.
+    const latest = useRef({ hasMore, isLoading, onLoadMore, count: items.length })
+    useLayoutEffect(() => {
+        latest.current = { hasMore, isLoading, onLoadMore, count: items.length }
+    })
 
-        if (offset - list.scrollSize + list.viewportSize >= -300) {
-            onLoadMore()
-        }
-    }, [hasMore, isLoading, onLoadMore])
+    // One ask for more at a time: the next waits until that load has come in
+    // (the items grew) or ended (isLoading went true and back). A caller's
+    // page number moves a render before its request does, and for that render
+    // it isn't loading: a scroll then asked for the page after next, and the
+    // page between never reached the list (a phone's project list lost tasks
+    // 21 to 25 of 25 on a slow phone).
+    const asked = useRef<{ count: number; started: boolean } | null>(null)
+    useEffect(() => {
+        const a = asked.current
+        if (!a) return
+        if (isLoading) a.started = true
+        else if (a.started || items.length > a.count) asked.current = null
+    }, [isLoading, items.length])
 
     const debouncedHandleScroll = useMemo(
-        () => debounceUtil(handleScroll, 100),
-        [handleScroll],
+        () =>
+            debounceUtil((offset: number) => {
+                const list = listRef.current
+                const { hasMore, isLoading, onLoadMore, count } = latest.current
+                if (!list || !hasMore || isLoading || asked.current) return
+                if (offset - list.scrollSize + list.viewportSize >= -300) {
+                    asked.current = { count, started: false }
+                    onLoadMore()
+                }
+            }, 100),
+        [],
     )
 
     // Empty state

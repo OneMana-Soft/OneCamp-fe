@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import React from "react"
@@ -84,11 +84,28 @@ describe("the AI panel's frame (hub.md AI1, AI2, AI4, AI5, AI10)", () => {
     expect(box.closest(".max-w-\\[720px\\]")).not.toBeNull()
   })
 
-  it("on a phone's page, leaves its name to the top bar and keeps a way back", () => {
+  // Hub critic: the phone's page drew the top bar and then a 52px row of its
+  // own holding only its tools. Its name is the bar's, its way back is the
+  // bar's Back (mobileTopNavigationBarFirst), and its tools go up into the
+  // bar's trailing slot: one bar.
+  it("on a phone's page, has no row of its own: its tools ride in the top bar", async () => {
     mobile = true
-    render(<AiChatPanel variant="page" />)
-    expect(screen.queryByRole("heading", { name: "OneCamp AI", level: 2 })).toBeNull()
-    expect(screen.getByRole("button", { name: "Close panel" })).toBeTruthy()
+    const slot = document.createElement("div")
+    slot.setAttribute("data-phone-bar-end", "")
+    document.body.appendChild(slot)
+    try {
+      render(<AiChatPanel variant="page" />)
+      expect(screen.queryByRole("heading", { name: "OneCamp AI", level: 2 })).toBeNull()
+      expect(document.querySelector("[data-ai-header]")).toBeNull()
+      await waitFor(() => expect(slot.querySelector("[data-phone-bar-actions] [aria-label='New conversation']")).not.toBeNull())
+      expect(slot.querySelector("[aria-label='More AI tools']")).not.toBeNull()
+      // QA DSA-35 (14 Oct 2026): with the header row went the model; it sits
+      // over the box on a phone.
+      expect(screen.getByTestId("model").closest("[data-ai-model]")).not.toBeNull()
+      expect(screen.queryByRole("button", { name: "Close panel" })).toBeNull()
+    } finally {
+      slot.remove()
+    }
   })
 
   it("puts your words in a neutral bubble and the answer flat beside the mark", async () => {
@@ -153,5 +170,27 @@ describe("the empty page (hub.md AI2)", () => {
     const glide = src.slice(src.indexOf("The page's glide"), src.indexOf("Focus input on mount"))
     expect(glide).toMatch(/translateY/)
     expect(glide).not.toMatch(/height|top:|margin/)
+  })
+})
+
+describe("the composer's height (hub.md AI10)", () => {
+  // The side panel slides in from nothing. Measured in that narrow moment, an
+  // empty box measured its wrapped placeholder and stayed 280px tall: half the
+  // panel was an empty composer with an orange ring.
+  it("is its least height while empty, however its placeholder wraps, and grows with words", async () => {
+    const { AiComposer } = await import("@/components/ai/AiComposer")
+    const tall = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockReturnValue(300)
+    try {
+      const props = { onChange: () => {}, onSend: () => {}, onStop: () => {}, streaming: false }
+      const { container, rerender } = render(<AiComposer {...props} value="" />)
+      const box = container.querySelector("textarea")!
+      expect(box.style.height).toBe("24px")
+      rerender(<AiComposer {...props} value="Where does the launch stand?" />)
+      expect(box.style.height).toBe("280px")
+      rerender(<AiComposer {...props} value="" size="page" />)
+      expect(box.style.height).toBe("40px")
+    } finally {
+      tall.mockRestore()
+    }
   })
 })

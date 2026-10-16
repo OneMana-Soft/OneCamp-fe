@@ -1,0 +1,65 @@
+import { describe, expect, it } from "vitest"
+import { isTimeout, waitsAsLongAsItTakes } from "./requestTimeout"
+import { GetEndpointUrl, PostEndpointUrl, PostFileUploadURL } from "@/services/endPoints"
+
+// FE-F-10: the API client had no timeout, so a stalled send said "Sending…"
+// for minutes. It has one now, and this is what it never applies to.
+describe("what waits as long as its work takes", () => {
+  it("never a message being sent, an edit or a read", () => {
+    for (const url of [PostEndpointUrl.CreateChannelPost, PostEndpointUrl.CreateChatMessage, PostEndpointUrl.CreateGroupChatMessage, `${GetEndpointUrl.GetChannelLatestPost}/c1`, GetEndpointUrl.SelfProfileSideNav, "/task/updateTaskName"]) {
+      expect(waitsAsLongAsItTakes({ url, data: { text: "hi" } }), url).toBe(false)
+    }
+  })
+
+  it("a file going up or coming down, whatever its route", () => {
+    expect(waitsAsLongAsItTakes({ url: PostFileUploadURL.UploadFile, data: new FormData() })).toBe(true)
+    expect(waitsAsLongAsItTakes({ url: "/po/createPost", data: new Blob(["x"]) })).toBe(true)
+    expect(waitsAsLongAsItTakes({ url: "/project/time", responseType: "blob" })).toBe(true)
+    expect(waitsAsLongAsItTakes({ url: "/doc/x", onUploadProgress: () => {} })).toBe(true)
+  })
+
+  it("the model at work, wherever its route lives", () => {
+    for (const url of [
+      PostEndpointUrl.AICatchUp,
+      PostEndpointUrl.AISchedulePropose,
+      "/admin/ai/self-test",
+      PostEndpointUrl.GenerateBoardDiagram,
+      "/tables/t1/fields/f1/ai-fill",
+      "/tables/t1/query-plan",
+      PostEndpointUrl.GenerateTable,
+      PostEndpointUrl.DraftAgent,
+      GetEndpointUrl.GetDMAISuggestions,
+    ]) {
+      expect(waitsAsLongAsItTakes({ url }), url).toBe(true)
+    }
+  })
+
+  it("imports, exports, restores and checks of another service", () => {
+    for (const url of ["/admin/import/jobs/j1/run", "/admin/github/import-issues/l1", "/admin/auditLog/export?from=1", PostEndpointUrl.RestoreChannel, "/data-sources/test-connection", "/agents/agui/check"]) {
+      expect(waitsAsLongAsItTakes({ url }), url).toBe(true)
+    }
+  })
+
+  // A route the model, an import, an export or a restore answers, added
+  // later, is never cut short: every endpoint named for one is matched. A
+  // value several names share is a prefix the caller builds on (its
+  // comment says what it appends), so it's left out.
+  it("covers every endpoint named for the model, an import, an export or a restore", () => {
+    const named = /(^AI|^Ai|AI[A-Z]|Generate|Draft|Import|Export|Restore|Transcribe|Summarize|Translate|Analyze|CatchUp|ExtractTasks|QueryPlan)/
+    const entries = [GetEndpointUrl, PostEndpointUrl, PostFileUploadURL].flatMap((e) => Object.entries(e) as [string, string][])
+    const uses = new Map<string, number>()
+    for (const [, url] of entries) uses.set(url, (uses.get(url) ?? 0) + 1)
+    const missed = entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1 && !waitsAsLongAsItTakes({ url })).map(([name, url]) => `${name} = ${url}`)
+    expect(missed).toEqual([])
+    expect(entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1).length).toBeGreaterThan(30)
+  })
+})
+
+describe("a request that ran out of time", () => {
+  it("is told apart from one that got no answer for another reason", () => {
+    expect(isTimeout({ code: "ECONNABORTED" })).toBe(true)
+    expect(isTimeout({ code: "ETIMEDOUT" })).toBe(true)
+    expect(isTimeout({ code: "ERR_NETWORK" })).toBe(false)
+    expect(isTimeout(undefined)).toBe(false)
+  })
+})

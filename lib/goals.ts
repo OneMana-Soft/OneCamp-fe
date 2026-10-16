@@ -176,14 +176,20 @@ export function progressSource(g: NumberGoal & Pick<GoalSummary, "projects" | "s
  */
 export function paceGap(g: Pick<GoalSummary, "progress" | "expected" | "status">): number | undefined {
   if (g.status !== "open" || g.progress === null || g.expected === undefined) return undefined
-  return Math.round((g.progress - g.expected) * 100)
+  // Past its target counts as its target: 120% is as far as there is to go.
+  return Math.round((Math.min(1, Math.max(0, g.progress)) - g.expected) * 100)
 }
 
-/** The pace as a short line: "On pace", "12 points ahead", "20 points behind". Pure. */
-export function paceLine(gap: number | undefined): string | undefined {
+/**
+ * The pace in words, the one way the goals list and a goal's page say it:
+ * "On pace" within five points, else "12 points ahead of its time" and, short,
+ * "12 points ahead" (the list said "23 ahead", with no unit: PTC-35). Pure.
+ */
+export function paceLine(gap: number | undefined, { short = false }: { short?: boolean } = {}): string | undefined {
   if (gap === undefined) return undefined
   if (Math.abs(gap) < 5) return "On pace"
-  return gap > 0 ? `${gap} points ahead of its time` : `${-gap} points behind its time`
+  const n = Math.abs(gap)
+  return `${n} ${n === 1 ? "point" : "points"} ${gap > 0 ? "ahead" : "behind"}${short ? "" : gap > 0 ? " of its time" : " its time"}`
 }
 
 /** Whether whoever can check in should: an open goal with no check-in, or a two-week-old one. Pure. */

@@ -11,6 +11,7 @@ import * as React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Check } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
@@ -24,18 +25,14 @@ export interface SaveStatus {
 
 const SAVED_MS = 1900
 
-/** The reason a failed request gives, in the words the server used. */
+/**
+ * Why a save failed, in plain words (lib/utils/apiError): the server's own
+ * when they say why, else what its answer means. It read the server's raw
+ * text, its error key included, and a setting said "boom" (QA F-25).
+ */
 export function reasonOf(err: unknown): string {
-  if (!err) return "Something went wrong. Try again."
   if (typeof err === "string") return err
-  const anyErr = err as { response?: { data?: { msg?: string; message?: string; error?: string } }; message?: string }
-  return (
-    anyErr.response?.data?.msg ||
-    anyErr.response?.data?.message ||
-    anyErr.response?.data?.error ||
-    anyErr.message ||
-    "Something went wrong. Try again."
-  )
+  return apiErrorMessage(err, "Try again in a moment.") || "Try again in a moment."
 }
 
 /**

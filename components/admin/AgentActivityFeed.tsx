@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
 import { listAgentActivity, type AgentActivityItem } from "@/services/agentService"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 // The dot's word, for anyone who can't tell the colours apart or can't see
 // them: the dot was colour alone, with only a hover title.
@@ -79,7 +80,7 @@ const AgentActivityFeed: React.FC = () => {
   if (failed && items === null) {
     return (
       <div data-settings-card="" className="set-card mb-4 flex flex-wrap items-center gap-2 px-4 py-3">
-        <p role="alert" className="text-sm text-muted-foreground">Couldn&apos;t load recent agent activity.</p>
+        <p role="alert" className="text-sm text-muted-foreground">Couldn&apos;t load recent agent activity.<SaysLoadFailure /></p>
         <Button variant="outline" size="sm" className="h-8" onClick={load} disabled={loading}>
           Try again
         </Button>

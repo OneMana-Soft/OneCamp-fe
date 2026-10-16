@@ -5,6 +5,9 @@ import mqttService, { msgActivityInterface } from "@/services/mqttService"
 import { incrementTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
+import { appMutate } from "@/lib/swrMutate"
+import { inboxFeedKey, INBOX_PAGE_SIZE } from "@/lib/activity/feedPages"
+import { GetEndpointUrl } from "@/services/endPoints"
 
 interface UseActivityMessageHandlersProps {
     userUuid?: string
@@ -28,7 +31,22 @@ export const useActivityMessageHandlers = ({ userUuid }: UseActivityMessageHandl
         }
     }
 
+    // An inbox notice (types/activity NoticeItem): it counts as unread, and the
+    // inbox's first page, if it's open, reads it in.
+    const handleNoticeMessage = (messageStr: string) => {
+        try {
+            const notice = JSON.parse(messageStr)?.data
+            if (notice?.user_uuid && notice.user_uuid === userUuid) {
+                dispatch(incrementTotalUnreadActivityCount())
+                void appMutate(inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, INBOX_PAGE_SIZE))
+            }
+        } catch (error) {
+            console.error("[MQTT] Notice message processing error:", error)
+        }
+    }
+
     return {
         handleActivityMessage,
+        handleNoticeMessage,
     }
 }

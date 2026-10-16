@@ -15,4 +15,4 @@ vi.mock("@tanstack/react-virtual", () => ({
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: false, mutate: () => Promise.resolve() }) }))
 vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: () => "" }))
-vi.mock("@/hooks/useTimelineView", () => ({ useTimelineView: () => ({ onScroll: () => {}, goToday: () => {} }) }))
+vi.mock("@/hooks/useTimelineView", async (orig) => ({ ...(await orig<typeof import("@/hooks/useTimelineView")>()), useTimelineView: () => ({ onScroll: () => {}, goToday: () => {} }) }))

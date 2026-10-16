@@ -78,6 +78,9 @@ describe("the AI record in Activity (the feed variant)", () => {
     expect(tag.className).toContain("text-agent-ink")
     expect(tag.className).not.toMatch(/brand|primary|danger|destructive/)
     expect(first.querySelector("[data-drill]")).toBeTruthy()
+    // The tags are words of their own: "#drill-financeDrill" was what a
+    // screen reader read and a copy carried (QA F-45).
+    expect(first.textContent).toContain("post in #drill-finance Drill Refused by permissions")
     // A named agent is drawn like a person, by its name.
     const second = rows[1] as HTMLElement
     expect(second.textContent).toContain("Release Captain")

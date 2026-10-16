@@ -73,14 +73,16 @@ const DOC_EXTS = new Set([
     "rtf",
 ])
 
+/**
+ * A file name's extension, lower case. Some names arrive with query strings
+ * (presigned URLs round-tripped as file names): the lookup sees the real tail.
+ */
+const extensionOf = (fileName: string): string => fileName.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase() ?? ""
+
 export const getAttachmentType = (fileName: string): AttachmentType => {
     if (!fileName) return ATTACHMENT_TYPE_OTHER
 
-    // Some file names arrive with query strings (e.g. presigned URLs
-    // round-tripped as filenames). Strip them so the extension lookup
-    // sees the real tail.
-    const cleaned = fileName.split("?")[0].split("#")[0]
-    const extension = cleaned.split(".").pop()?.toLowerCase() ?? ""
+    const extension = extensionOf(fileName)
 
     if (IMAGE_EXTS.has(extension)) return ATTACHMENT_TYPE_IMAGE
     if (VIDEO_EXTS.has(extension)) return ATTACHMENT_TYPE_VIDEO
@@ -98,7 +100,18 @@ export const getAttachmentType = (fileName: string): AttachmentType => {
  */
 export const isImageByExtension = (fileName: string): boolean => {
     if (!fileName) return false
-    const cleaned = fileName.split("?")[0].split("#")[0]
-    const extension = cleaned.split(".").pop()?.toLowerCase() ?? ""
-    return IMAGE_EXTS.has(extension)
+    return IMAGE_EXTS.has(extensionOf(fileName))
+}
+
+/**
+ * The files the in-app viewer shows (components/attachments/documentViewer):
+ * a PDF in the browser's own reader, Word and Excel files drawn as a page,
+ * and text. A legacy .doc isn't one: the viewer can't read it.
+ */
+const VIEWABLE_DOC_EXTS = new Set(["pdf", "docx", "xls", "xlsx", "txt", "md", "csv", "json", "xml", "log"])
+
+/** The viewer's type for a file it can show (its extension), or null for one it can't. */
+export const viewableDocumentType = (fileName: string): string | null => {
+    const extension = fileName ? extensionOf(fileName) : ""
+    return VIEWABLE_DOC_EXTS.has(extension) ? extension : null
 }

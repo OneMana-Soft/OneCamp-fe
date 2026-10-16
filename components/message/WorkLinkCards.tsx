@@ -19,9 +19,11 @@ import { CardProgress, LinkCardBody, LinkCardSkeleton, hueTileClass, linkCardCla
 import { ChatFace } from "@/components/message/chatFace"
 import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { cn } from "@/lib/utils/helpers/cn"
-import { hueFor } from "@/lib/campHue"
+import { hueFor, type CampHue } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { CheckSquare, FileText, FolderKanban } from "@/lib/icons"
+import { CheckSquare, FileText } from "@/lib/icons"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { taskStatusLabel, type TaskInfoRawInterface } from "@/types/task"
 import type { DocInfoResponse } from "@/types/doc"
@@ -100,11 +102,11 @@ function useWaited(isLoading: boolean): boolean {
 }
 
 // The tile is in the thing's own hue (its project's, for a task), the colour
-// its mark has in the sidebar and on its page.
-function CardShell({ href, icon, hueId, waited, ...body }: { href: string; icon: React.ReactNode; hueId?: string; waited?: boolean } & Omit<React.ComponentProps<typeof LinkCardBody>, "icon" | "iconClassName">) {
+// its mark has in the sidebar and on its page; a project is its own tile.
+function CardShell({ href, icon, hue, waited, ...body }: { href: string; icon: React.ReactNode; hue?: CampHue | "own"; waited?: boolean } & Omit<React.ComponentProps<typeof LinkCardBody>, "icon" | "iconClassName">) {
   return (
     <Link href={href} onClick={(e) => e.stopPropagation()} className={cn(linkCardClass, waited && "animate-fade-in")}>
-      <LinkCardBody icon={icon} iconClassName={hueId ? hueTileClass(hueFor(hueId)) : undefined} {...body} />
+      <LinkCardBody icon={icon} iconClassName={hue === "own" ? "" : hue ? hueTileClass(hue) : undefined} {...body} />
     </Link>
   )
 }
@@ -115,6 +117,7 @@ function TaskCard({ id }: { id: string }) {
   const { data, isLoading } = useFetch<TaskInfoRawInterface>(`${GetEndpointUrl.GetTaskInfo}/${id}`, undefined, QUIET, OWN_ERRORS)
   const waited = useWaited(isLoading)
   const t = data?.data
+  const taskProjectHue = useProjectHue(t?.task_project?.project_uuid)
   if (!t?.task_name) return isLoading ? <LinkCardSkeleton /> : null
   const due = t.task_due_date ? parseISO(t.task_due_date) : null
   const dueOk = due && !Number.isNaN(due.getTime()) && due.getFullYear() > 1970
@@ -124,7 +127,7 @@ function TaskCard({ id }: { id: string }) {
   return (
     <CardShell
       href={`/app/task/${id}`}
-      hueId={t.task_project?.project_uuid}
+      hue={t.task_project?.project_uuid ? taskProjectHue : undefined}
       waited={waited}
       icon={<CheckSquare />}
       lead={<StatusGlyph status={statusKindOf(t.task_status)} size={14} label={t.task_custom_status_name || taskStatusLabel(t.task_status)} className="shrink-0" />}
@@ -154,7 +157,7 @@ function DocCard({ id }: { id: string }) {
   return (
     <CardShell
       href={`/app/doc/${id}`}
-      hueId={id}
+      hue={hueFor(id)}
       waited={waited}
       icon={<FileText />}
       title={d.doc_title}
@@ -172,9 +175,9 @@ function ProjectCard({ id }: { id: string }) {
   return (
     <CardShell
       href={`/app/project/${id}`}
-      hueId={id}
+      hue="own"
       waited={waited}
-      icon={<FolderKanban />}
+      icon={<ProjectTile id={id} size={36} />}
       title={p.project_name}
       detail={p.project_team?.team_name ? `Project · ${p.project_team.team_name}` : "Project"}
     />
@@ -187,7 +190,8 @@ export function WorkLinkCards({ text }: { text: string }) {
   if (links.length === 0) return null
   // 8px under the body, 6px between cards (C07's rhythm).
   return (
-    <div data-work-cards="" className="mt-2 flex flex-col gap-1.5">
+    // /collapse hides link cards with the pictures (app/globals.css).
+    <div data-work-cards="" data-message-media="" className="mt-2 flex flex-col gap-1.5">
       {links.map((l) =>
         l.kind === "task" ? <TaskCard key={l.id} id={l.id} /> : l.kind === "doc" ? <DocCard key={l.id} id={l.id} /> : <ProjectCard key={l.id} id={l.id} />,
       )}

@@ -3,7 +3,7 @@
  * viewer's zone, and the calendar file a booked guest takes away. Pure.
  */
 import { browserTZ } from "@/lib/utils/timeZone"
-import { dateTimeFormat } from "@/lib/utils/date/dayAndTime"
+import { clockTime, dateTimeFormat } from "@/lib/utils/date/clock"
 
 export interface WorkingHours {
   days: number[] // 0 Sunday … 6 Saturday
@@ -48,15 +48,15 @@ export function groupByDay(slots: Slot[], tz: string): { day: string; slots: Slo
   return out
 }
 
-// A moment reads the same here as everywhere else in the app (lib/utils/date/
-// shortDate): "11:00 AM", "Tue 6 Oct", day before month. These were left to
-// the browser's locale, so the booking page said "Mon, Oct 12" and "Wednesday,
-// October 14, 11:00 AM – 11:30 AM" in an American browser beside an app that
-// writes "12 Oct" and "9:30 AM to 9:45 AM". The zone is still the viewer's.
+// A moment reads the same here as everywhere else in the app: the day in its
+// one written form (lib/utils/date/shortDate), "Tue 6 Oct", day before month;
+// the time on the reader's own clock (lib/utils/date/clock), "11:00 AM" or
+// "11:00". The days were left to the browser's locale, so the booking page
+// said "Mon, Oct 12" in an American browser beside an app that writes
+// "12 Oct". The zone is still the viewer's.
 
-/** "11:00 AM", in a zone. */
-export const formatTime = (iso: string, tz: string) =>
-  dateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso))
+/** "11:00 AM" or "11:00", in a zone. */
+export const formatTime = (iso: string, tz: string) => clockTime(iso, { timeZone: tz })
 
 /** "Tue 6 Oct" for a day key; the key is a date, so it reads the same anywhere. */
 export const formatDay = (key: string) => dayWords(key + "T12:00:00Z", "UTC", "short")

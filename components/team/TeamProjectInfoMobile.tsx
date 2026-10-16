@@ -2,7 +2,7 @@ import { useLongPress } from "@/hooks/useLongPress";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { ProjectInfoInterface } from "@/types/project";
 import { Badge } from "@/components/ui/badge";
-import { ColorIcon } from "@/components/colorIcon/colorIcon";
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { openUI } from "@/store/slice/uiSlice";
 import { useDispatch } from "react-redux";
 import { useMedia } from "@/context/MediaQueryContext";
@@ -95,7 +95,7 @@ export const TeamProjectInfoMobile = ({
         <div {...longPressEvent}>
             <ListRow
                 density="default"
-                leading={<ColorIcon name={projectInfo.project_uuid} size="sm" />}
+                leading={<ProjectTile id={projectInfo.project_uuid} size={32} />}
                 title={projectInfo.project_name}
                 subtitle={subtitle}
                 trailing={trailing}

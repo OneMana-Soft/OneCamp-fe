@@ -1,4 +1,6 @@
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
+import "@/components/docEditor/registry"
+import { snapshotClassesFor } from "@/components/docEditor/registry/readers"
 
 /**
  * A doc's saved HTML, made safe and dressed the way the live editor dresses
@@ -13,17 +15,11 @@ import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
  * 0.11 layout shift opening the Q4 launch plan). A checklist item also gets
  * the editor's shape: a box where the checkbox goes, its text beside it.
  *
- * docSnapshot.test.ts holds these classes to the editor's configuration.
+ * Each block's spec names its classes (BlockSpec.snapshotClass), so a block a
+ * package adds is dressed here too. docSnapshot.test.ts holds these classes to
+ * the editor's configuration.
  */
-export const SNAPSHOT_CLASSES: readonly (readonly [selector: string, className: string])[] = [
-  ["p", "text-node"],
-  ["h1, h2, h3, h4, h5, h6", "heading-node"],
-  ["blockquote", "block-node"],
-  ["pre", "block-node"],
-  ['ul[data-type="taskList"]', "task-list"],
-  ['li[data-type="taskItem"]', "task-item"],
-  ['ul:not([data-type="taskList"]), ol', "list-node"],
-]
+export const SNAPSHOT_CLASSES: readonly (readonly [selector: string, className: string])[] = snapshotClassesFor("doc", { ai: false })
 
 export function snapshotHtml(html: string): string {
   const safe = sanitizeRichHtml(html)

@@ -119,7 +119,7 @@ const PushNotificationsCard: React.FC = () => {
             toast({ title: `Push notifications are on for ${next.project_id}`, tone: "success" })
         } catch (e) {
             // Said in the dialog, where the key is, not in a toast behind it.
-            setSaveError(apiErrorMessage(e, "The credential was not accepted."))
+            setSaveError(apiErrorMessage(e, "The key wasn't saved. Try again in a moment."))
         } finally {
             setSaving(false)
         }

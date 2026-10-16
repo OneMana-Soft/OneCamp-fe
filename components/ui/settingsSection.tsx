@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { AlertCircle, Loader2, Lock, RefreshCw } from "@/lib/icons"
 import { clearUnsaved, markUnsaved } from "@/lib/unsavedChanges"
 import { SavedTick, type SaveStatus } from "@/components/ui/saveStatus"
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 
 /** The gap between sections on a page: 32px (the old ADMIN_SECTION_STACK). */
 export const SETTINGS_STACK = "space-y-8"
@@ -226,8 +227,10 @@ function RowWords({
         <SavedTick status={status} />
       </div>
       {failed && status?.error ? (
+        // One sentence that says it wasn't saved and why: it was the server's
+        // bare words, "boom", with nothing saying the change didn't hold (QA F-25).
         <p id={descId} className="mt-0.5 text-xs text-danger-ink text-pretty">
-          {status.error}
+          Not saved. <span>{status.error}</span>
         </p>
       ) : (
         description && (
@@ -413,17 +416,21 @@ export function SettingsCardError({
   onRetry?: () => void
   retrying?: boolean
 }) {
+  // Said here, so the request's toast stays quiet (lib/http/loadFailure).
+  useSaysLoadFailure()
   return (
-    <div role="alert" data-card-error="" className="set-row flex items-center gap-3">
+    // The words keep 14rem before Try again gives way: on a phone it goes
+    // under them, where it squeezed them into a column three words wide.
+    <div role="alert" data-card-error="" className="set-row flex flex-wrap items-center gap-x-3 gap-y-2">
       <AlertCircle className="size-4 shrink-0 text-danger-ink" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-56">
         <p className="text-sm font-medium text-foreground">Couldn&apos;t load {what}.</p>
         <p className="text-xs text-muted-foreground text-pretty">
           {reason ?? "Nothing has been lost. This is usually a connection problem."}
         </p>
       </div>
       {onRetry && (
-        <Button type="button" variant="secondary" size="sm" onClick={onRetry} disabled={retrying}>
+        <Button type="button" variant="secondary" size="sm" className="max-sm:ml-7" onClick={onRetry} disabled={retrying}>
           <RefreshCw className={cn("size-3.5", retrying && "animate-spin")} aria-hidden="true" />
           {retrying ? "Trying…" : "Try again"}
         </Button>

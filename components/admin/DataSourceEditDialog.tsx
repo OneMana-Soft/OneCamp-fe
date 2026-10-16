@@ -1,5 +1,6 @@
 "use client"
 
+import { useSecretReentry } from "@/hooks/useSecretReentry"
 import * as React from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -148,6 +149,16 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
 
   const input = buildInput()
   const connectionChanged = source ? hasConnectionChanges(source, input) : false
+  // The stored password stays with the server it was given for, as the server
+  // holds it: another engine, host or port, or another SSL mode, needs it
+  // entered again. Touching the field (typing or clearing it) keeps nothing.
+  const passwordReentry = useSecretReentry({
+    stored: !!source?.has_password && !passwordTouched,
+    entered: password,
+    from: source ? dataSourceDestination(source.engine, source.host, source.port, source.ssl_mode) : { url: "" },
+    to: dataSourceDestination(input.engine, input.host, input.port ?? defaultPort(engine), input.ssl_mode),
+    noun: "password",
+  })
   const needsPasswordForInlineTest =
     editing && (connectionChanged || passwordTouched) && password.length === 0
 
@@ -195,6 +206,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
     if (next.name) return nameRef.current?.focus()
     if (next.host) return hostRef.current?.focus()
     if (next.database) return dbRef.current?.focus()
+    if (!passwordReentry.check()) return
     setSaving(true)
     try {
       if (editing && source) {
@@ -317,6 +329,9 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
               <Lock className="h-3.5 w-3.5" /> Password
             </Label>
             <Input
+              ref={passwordReentry.inputProps.ref}
+              required={passwordReentry.required}
+              aria-invalid={passwordReentry.inputProps["aria-invalid"]}
               id="ds-pass"
               type="password"
               value={password}
@@ -324,10 +339,15 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
                 setPassword(e.target.value)
                 setPasswordTouched(true)
               }}
-              placeholder={editing ? "Saved: leave empty to keep it" : ""}
+              placeholder={passwordReentry.placeholder ?? (editing ? "Saved: leave empty to keep it" : "")}
               autoComplete="new-password"
-              aria-describedby={needsPasswordForInlineTest ? "ds-test-guidance" : undefined}
+              aria-describedby={
+                [needsPasswordForInlineTest ? "ds-test-guidance" : "", passwordReentry.inputProps["aria-describedby"] || ""]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
             />
+            {passwordReentry.note}
             {needsPasswordForInlineTest && (
               <div
                 id="ds-test-guidance"
@@ -426,3 +446,8 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
   )
 }
 
+/** Where a data source's password goes, as the server compares it: the server, as an address, and its SSL mode. */
+function dataSourceDestination(engine: string | undefined, host: string, port: number, sslMode: string | undefined) {
+  const h = host.trim()
+  return { url: `${engine || "postgres"}://${h.includes(":") ? `[${h}]` : h}:${port}`, how: [sslMode || "require"] }
+}

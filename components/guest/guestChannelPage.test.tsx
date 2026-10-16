@@ -56,7 +56,7 @@ describe("a shared channel whose server stops answering", () => {
     await poll()
     expect(screen.getByText("Launch is Friday")).toBeInTheDocument()
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't reach the server, retrying…")
-    expect(screen.queryByText("This link is no longer available")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "This shared channel doesn't exist or was deleted" })).not.toBeInTheDocument()
 
     await poll()
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
@@ -74,7 +74,7 @@ describe("a shared channel whose server stops answering", () => {
     getGuestChannel.mockResolvedValueOnce({ ok: true, data: page }).mockResolvedValue(fail(404))
     await open()
     await poll()
-    expect(screen.getByText("This link is no longer available")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "This shared channel doesn't exist or was deleted" })).toBeInTheDocument()
   })
 })
 

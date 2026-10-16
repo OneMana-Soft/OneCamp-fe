@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { Check, ChevronRight, Circle } from "@/lib/icons";
+import { ChevronRight, Circle } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 
@@ -59,13 +60,18 @@ DropdownMenuSubContent.displayName =
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
+>(({ className, sideOffset = 4, collisionPadding = 8, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
+      collisionPadding={collisionPadding}
       className={cn(
-        "z-[var(--z-dropdown)] min-w-[8rem] overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto",
+        // At most the room left below (or above) it, and scrolling past that:
+        // on a 640px phone the board's Display menu ran 140px off the screen,
+        // and its last rows (Done, Manage statuses…) could not be reached.
+        "max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain",
+        "z-[var(--z-dropdown)] min-w-[8rem] overflow-x-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto",
         "duration-[180ms] ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
         className
       )}
@@ -121,11 +127,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     checked={checked}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
+    <MenuCheck checked={checked ?? false} className="absolute left-2" />
     {children}
   </DropdownMenuPrimitive.CheckboxItem>
 ))

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 // Adding your reaction answers with a little spring (the playful layer's
@@ -40,3 +40,22 @@ describe("a reaction", () => {
     expect(pops).not.toHaveBeenCalled()
   })
 })
+
+// Who reacted (C21) is drawn on the pop surface. The tooltip's own ink ground
+// outlived the pop-surface class (the class merger can't see that it sets a
+// background), so the names, in ink, were black on black.
+describe("who reacted", () => {
+  it("is on the pop surface, not the tooltip's ink ground", async () => {
+    pill(false)
+    await act(async () => {
+      screen.getByRole("button").focus()
+    })
+    const tip = document.querySelector<HTMLElement>("[data-reaction-tip]")
+    expect(tip).toBeTruthy()
+    expect(tip!.className).toContain("bg-pop")
+    expect(tip!.className).not.toContain("bg-[var(--tooltip-bg)]")
+    expect(tip!.className).not.toContain("text-white")
+    expect(tip!.textContent).toContain("Maya Chen")
+  })
+})
+

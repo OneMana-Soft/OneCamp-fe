@@ -1,110 +1,178 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, X } from "@/lib/icons";
+import * as React from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
+import { PanelLeft, Search, Trash2, X } from "@/lib/icons";
 import { DocListTabContent } from "@/components/doc/docListTabContent";
-import { Button } from "@/components/ui/button";
-import { useFetch } from "@/hooks/useFetch";
-import { GetEndpointUrl } from "@/services/endPoints";
-import type { DocInfoListInterfaceResp } from "@/types/doc";
-import { defaultDocTab, isDocTab, type DocTab } from "@/lib/utils/docTab";
-import { DocGridSkeleton } from "@/components/doc/docListResult";
+import { DocGridSkeleton, DocRowsSkeleton, type DocsView } from "@/components/doc/docListResult";
+import { DocsToolbar, type OwnerChoice } from "@/components/doc/DocsToolbar";
+import { NewDocButton } from "@/components/doc/NewDocButton";
+import { tabPageKey } from "@/components/doc/DocListTab";
 import { UnderlineTabs } from "@/components/doc/underlineTabs";
 import { useCreateDoc } from "@/components/doc/useCreateDoc";
-import { debounceUtil } from "@/lib/utils/helpers/debounce";
-import { sanitizeFilterQuery } from "@/lib/utils/sanitizeFilterQuery";
+import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
+import { useSidenav } from "@/hooks/useHydrateUserSidebar";
+import { useFetch } from "@/hooks/useFetch";
+import { useStoredState } from "@/hooks/useStoredState";
+import { useDebounce } from "@/hooks/useDebounce";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { isTyping } from "@/lib/goKeys";
+import { DOC_TABS, DOC_TAB_LABEL, defaultDocTab, isDocTab, tabFromAddress, tabTools, tabToolsOff, type DocTab } from "@/lib/utils/docTab";
 import { cn } from "@/lib/utils/helpers/cn";
+import { DocGraphEndpoint, listKey, type Envelope } from "@/services/docGraphService";
+import { searchable } from "@/services/docHomeService";
+import type { DocList, DocListSort, DocSpace, DocTrash } from "@/types/docGraph";
 
-const FIRST_PAGE = "?pageIndex=0&pageSize=20"
+const PagesSheet = React.lazy(() => import("@/components/docTree/PagesSheet"));
+// Search's results load with the first search (I20): the page opens without them.
+const DocSearchResults = React.lazy(() => import("@/components/doc/DocSearchResults").then((m) => ({ default: m.DocSearchResults })));
+
+const isView = (v: unknown): v is DocsView => v === "grid" || v === "list";
+
+const quiet = { revalidateOnFocus: false };
+
+/** What a search can be narrowed by: whose docs. It has its own order (best first) and shows rows. */
+const SEARCH_TOOLS = { sort: false, owner: true, space: false, view: false };
+
+/** Each tab's whole count, for the label beside it, and the trash's: asked once the page has settled. */
+function useTabCounts(enabled: boolean) {
+    const ask = (tab: DocTab) => (enabled ? listKey(tab, { limit: 1 }) : "");
+    // One hook per tab, always in DOC_TABS' order.
+    const answers = [
+        useFetch<Envelope<DocList>>(ask("recent"), undefined, quiet, OWN_ERRORS).data,
+        useFetch<Envelope<DocList>>(ask("mine"), undefined, quiet, OWN_ERRORS).data,
+        useFetch<Envelope<DocList>>(ask("shared"), undefined, quiet, OWN_ERRORS).data,
+        useFetch<Envelope<DocList>>(ask("workspace"), undefined, quiet, OWN_ERRORS).data,
+        useFetch<Envelope<DocList>>(ask("starred"), undefined, quiet, OWN_ERRORS).data,
+        useFetch<Envelope<DocList>>(ask("archived"), undefined, quiet, OWN_ERRORS).data,
+    ];
+    const trash = useFetch<Envelope<DocTrash>>(enabled ? `${DocGraphEndpoint.Trash}?limit=1` : "", undefined, quiet, OWN_ERRORS).data;
+    const counts: Partial<Record<DocTab, number>> = {};
+    DOC_TABS.forEach((t, i) => {
+        const n = answers[i]?.data?.count;
+        if (typeof n === "number") counts[t] = n;
+    });
+    return { counts, trash: trash?.data?.count };
+}
 
 /**
- * The docs page (content.md D01): one 1,040 px column on the sheet. A title
- * row ("Docs", a count, a search pill with its "/" key and the primary "New
- * doc" with "N"), then the tabs with the sliding ink underline, then the
- * cards. Three bands stacked over the content became one header.
- *
- * "All" and "Shared" need a list the API doesn't have (only Private and
- * Public), so the page keeps those two tabs with the v3 look. On a phone the
- * title is the app bar's and search is a full-width field under the tabs.
+ * The docs home (docs programme B5, structure.md P0.6; content.md D01): one
+ * 1,040 px column on the sheet. A title row (Docs, how many, a search pill
+ * with its "/" key, and New doc with its "N" and its other ways to start), the
+ * tabs (Recent, Mine, Shared with me, Workspace, Starred, Archived) each with
+ * its exact count and the Trash at their end, the list's sort, filters and
+ * cards-or-rows, then the list. Searching shows docs whose title or body has
+ * the words, with the passages found, from every list: no tab is chosen while
+ * it shows, and the one filter it takes (whose docs) stays in view, so a
+ * filter set on another list never narrows it unseen. On a phone the title is the app bar's,
+ * search is a full-width field under the tabs, and the app bar gains Pages:
+ * the sidebar's page tree, in a sheet.
  */
 export function DocListTabs() {
-    const pathname = usePathname()
-    const searchParams = useSearchParams()
-    const router = useRouter()
-    const { create, busy } = useCreateDoc()
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const { create, busy } = useCreateDoc();
+    const selfId = useSidenav().data?.data?.user_uuid;
 
-    const [urlTab] = useState(() => searchParams.get("tab"))
-    const [selectedTab, setSelectedTab] = useState<DocTab>(() => defaultDocTab(urlTab, undefined))
-    const [chosen, setChosen] = useState(isDocTab(urlTab))
+    const [urlTab] = React.useState(() => searchParams.get("tab"));
+    const [tab, setTab] = React.useState<DocTab>(() => tabFromAddress(urlTab) ?? "recent");
+    // A doc made from the Workspace tab is the workspace's (QA DSA-34); from
+    // any other tab, private.
+    const newDocSpace: DocSpace | undefined = tab === "workspace" ? "workspace" : undefined;
+    const [chosen, setChosen] = React.useState(() => tabFromAddress(urlTab) !== null);
 
-    // The same first pages the two lists ask for, so SWR serves both from one
-    // request each: the counts beside the tabs, and the default tab.
-    const { data: firstPrivate } = useFetch<DocInfoListInterfaceResp>(`${GetEndpointUrl.GetUserPrivateDocList}${FIRST_PAGE}`)
-    const { data: firstPublic } = useFetch<DocInfoListInterfaceResp>(`${GetEndpointUrl.GetUserPublicDocList}${FIRST_PAGE}`)
-    const privateCount = firstPrivate?.data ? firstPrivate.data.count ?? firstPrivate.data.docs?.length ?? 0 : undefined
-    const publicCount = firstPublic?.data ? firstPublic.data.count ?? firstPublic.data.docs?.length ?? 0 : undefined
-
-    useEffect(() => {
-        if (chosen || !firstPrivate) return
-        setSelectedTab(defaultDocTab(null, (firstPrivate.data?.docs ?? []).length))
-        setChosen(true)
-    }, [chosen, firstPrivate])
-
-    const handleTabChange = useCallback((value: string) => {
-        if (isDocTab(value)) {
-            setChosen(true)
-            setSelectedTab(value)
+    // Without a tab in the address, Recent opens, or the workspace's docs for
+    // someone who hasn't opened one yet. Recent's first page decides: the
+    // same answer its list then shows, so nothing is asked twice.
+    const recentFirst = useFetch<Envelope<DocList>>(chosen ? "" : tabPageKey("recent", {}), undefined, quiet, OWN_ERRORS);
+    React.useEffect(() => {
+        if (chosen) return;
+        if (recentFirst.data) {
+            setTab(defaultDocTab(null, recentFirst.data.data?.count ?? 0));
+            setChosen(true);
+        } else if (recentFirst.isError) {
+            // Recent's own list says it failed, with Try again.
+            setChosen(true);
         }
-    }, [])
+    }, [chosen, recentFirst.data, recentFirst.isError]);
 
-    useEffect(() => {
-        if (!chosen) return
-        if (pathname === "/app/doc" && searchParams.get("tab") !== selectedTab) {
-            const params = new URLSearchParams(searchParams.toString())
-            params.set("tab", selectedTab)
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-        }
-    }, [chosen, selectedTab, pathname, router, searchParams])
+    // Search: what's typed, asked for a moment after typing stops. It looks
+    // through every doc the person can open, so while it shows, no tab is
+    // chosen, and choosing one leaves the search for that list.
+    const [text, setText] = React.useState("");
+    const debounced = useDebounce(text, 250);
+    const searching = searchable(debounced);
+    const clearSearch = React.useCallback(() => setText(""), []);
 
-    // Search: typed into the pill, asked for after 500 ms and three letters.
-    const [inputValue, setInputValue] = useState("")
-    const [searchQuery, setSearchQuery] = useState("")
-    const debouncedSearch = useMemo(() => debounceUtil((q: string) => setSearchQuery(q.trim()), 500), [])
-    const onSearch = useCallback((raw: string) => {
-        const q = sanitizeFilterQuery(raw)
-        setInputValue(q)
-        debouncedSearch(q.trim().length >= 3 ? q : "")
-    }, [debouncedSearch])
-    const clearSearch = useCallback(() => {
-        setInputValue("")
-        setSearchQuery("")
-        debouncedSearch("")
-    }, [debouncedSearch])
+    const onTab = React.useCallback((value: string) => {
+        if (!isDocTab(value)) return;
+        setChosen(true);
+        setTab(value);
+        setText("");
+    }, []);
+
+    React.useEffect(() => {
+        if (!chosen || pathname !== "/app/doc" || searchParams.get("tab") === tab) return;
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("tab", tab);
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }, [chosen, tab, pathname, router, searchParams]);
+
+    // How the list is shown, sorted and filtered.
+    const [view, setView] = useStoredState<DocsView>("docs.view", "grid", isView);
+    const [sort, setSort] = React.useState<DocListSort>("edited");
+    const [owner, setOwner] = React.useState<OwnerChoice | null>(null);
+    const [space, setSpace] = React.useState<DocSpace | null>(null);
+    const query = React.useMemo(() => ({ sort: sort === "edited" ? undefined : sort, owner: owner?.uuid, space: space ?? undefined }), [sort, owner, space]);
+    const clearFilters = React.useCallback(() => {
+        setOwner(null);
+        setSpace(null);
+    }, []);
+
+    // Counts: each list's own, from the server.
+    const [settled, setSettled] = React.useState(false);
+    React.useEffect(() => {
+        if (!chosen) return;
+        const t = window.setTimeout(() => setSettled(true), 400);
+        return () => window.clearTimeout(t);
+    }, [chosen]);
+    const { counts, trash } = useTabCounts(settled);
+    const [listCounts, setListCounts] = React.useState<Partial<Record<DocTab, number>>>({});
+    const onCount = React.useCallback((t: DocTab, n: number | undefined) => {
+        setListCounts((prev) => (prev[t] === n ? prev : { ...prev, [t]: n }));
+    }, []);
+    const [searchCount, setSearchCount] = React.useState("");
+    const tools = tabTools(tab);
+    const filtered = (tools.owner && !!owner) || (tools.space && !!space);
+    const shownCount = listCounts[tab];
+    const heading = searching
+        ? searchCount
+        : shownCount === undefined
+          ? ""
+          : `${shownCount} ${shownCount === 1 ? "doc" : "docs"}${filtered ? " match these filters" : ""}`;
 
     // "/" searches and "N" starts a doc, from anywhere on the page but a field.
-    const searchRef = useRef<HTMLInputElement>(null)
-    useEffect(() => {
+    const searchRef = React.useRef<HTMLInputElement>(null);
+    React.useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.metaKey || e.ctrlKey || e.altKey || isTyping(document.activeElement)) return
+            if (e.metaKey || e.ctrlKey || e.altKey || isTyping(document.activeElement)) return;
             if (e.key === "/") {
-                e.preventDefault()
-                searchRef.current?.focus()
-            } else if (e.key === "n" || e.key === "N") {
-                e.preventDefault()
-                void create()
+                e.preventDefault();
+                searchRef.current?.focus();
+            } else if ((e.key === "n" || e.key === "N") && !busy) {
+                e.preventDefault();
+                void create({ space: newDocSpace });
             }
-        }
-        window.addEventListener("keydown", onKey)
-        return () => window.removeEventListener("keydown", onKey)
-    }, [create])
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [create, busy, newDocSpace]);
 
-    const total = (privateCount ?? 0) + (publicCount ?? 0)
-    const tabs = [
-        { value: "private", label: "Private", count: privateCount },
-        { value: "public", label: "Public", count: publicCount },
-    ]
+    const tabs = DOC_TABS.map((t) => ({ value: t, label: DOC_TAB_LABEL[t], count: counts[t] }));
+    const [pagesOpen, setPagesOpen] = React.useState(false);
 
     return (
         <div className="flex h-full min-h-0 flex-col" data-docs-page="">
@@ -114,29 +182,67 @@ export function DocListTabs() {
                     <div className="min-w-0 flex-1">
                         <h1 className="text-title-1 text-ink">Docs</h1>
                         <p className="mt-0.5 text-ui text-ink-2 tabular-nums" aria-live="polite">
-                            {privateCount === undefined || publicCount === undefined ? " " : `${total} ${total === 1 ? "doc" : "docs"} · ${publicCount} public`}
+                            {heading || " "}
                         </p>
                     </div>
-                    <SearchPill inputRef={searchRef} value={inputValue} onChange={onSearch} onClear={clearSearch} className="w-60" />
-                    <Button size="sm" onClick={() => void create()} disabled={!!busy} className="gap-1.5" aria-keyshortcuts="N">
-                        <Plus className="size-3.5" aria-hidden="true" />
-                        New doc
-                        <kbd className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-xs bg-white/20 px-1 text-micro font-medium" aria-hidden="true">N</kbd>
-                    </Button>
+                    <SearchPill inputRef={searchRef} value={text} onChange={setText} onClear={clearSearch} className="w-60" />
+                    <NewDocButton space={newDocSpace} />
                 </div>
-                <UnderlineTabs tabs={tabs} value={selectedTab} onValueChange={handleTabChange} label="Docs" className="mt-4 gap-5 max-sm:mt-0" />
+                <div className="flex items-end gap-2">
+                    <UnderlineTabs tabs={tabs} value={searching ? "" : tab} onValueChange={onTab} label="Docs" className="mt-4 min-w-0 flex-1 gap-4 max-sm:mt-0" />
+                    <Link
+                        href="/app/doc/trash"
+                        className="mb-1.5 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-2 outline-none hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                    >
+                        <Trash2 className="size-3.5" aria-hidden="true" />
+                        <span className="max-sm:sr-only">Trash</span>
+                        {trash !== undefined && trash > 0 && <span className="text-meta tabular-nums text-ink-3">{trash}</span>}
+                    </Link>
+                </div>
                 {/* A phone searches in a full-width field under the tabs. */}
                 <div className="pt-3 sm:hidden">
-                    <SearchPill value={inputValue} onChange={onSearch} onClear={clearSearch} className="h-11 w-full" />
+                    <SearchPill value={text} onChange={setText} onClear={clearSearch} className="h-11 w-full" />
                 </div>
+                {/* While searching, only the filter the search applies: whose docs. */}
+                <DocsToolbar
+                    className="mt-3"
+                    tools={searching ? SEARCH_TOOLS : { ...tools, view: tab !== "archived" }}
+                    off={searching ? undefined : tabToolsOff(tab)}
+                    sort={sort}
+                    onSort={setSort}
+                    owner={owner}
+                    onOwner={setOwner}
+                    space={space}
+                    onSpace={setSpace}
+                    view={view}
+                    onView={setView}
+                    selfId={selfId}
+                />
             </div>
-            {chosen ? (
-                <DocListTabContent selectedTab={selectedTab} searchQuery={searchQuery} onClearSearch={clearSearch} />
+            {searching ? (
+                <React.Suspense fallback={<DocRowsSkeleton rows={5} />}>
+                    <DocSearchResults key={`${debounced.trim()}|${owner?.uuid ?? ""}`} q={debounced} owner={owner?.uuid} selfId={selfId} onClear={clearSearch} onCount={setSearchCount} />
+                </React.Suspense>
+            ) : chosen ? (
+                <DocListTabContent tab={tab} query={query} view={view} selfId={selfId} onCount={onCount} onClearFilters={clearFilters} />
+            ) : view === "list" ? (
+                <DocRowsSkeleton />
             ) : (
                 <DocGridSkeleton withCreateCard />
             )}
+            {/* The phone's Pages: the sidebar's page tree, in a sheet. */}
+            <PhoneBarActions>
+                <button type="button" onClick={() => setPagesOpen(true)} aria-label="Pages">
+                    <PanelLeft aria-hidden="true" />
+                </button>
+            </PhoneBarActions>
+            {pagesOpen && (
+                <React.Suspense fallback={null}>
+                    <PagesSheet onClose={() => setPagesOpen(false)} />
+                </React.Suspense>
+            )}
         </div>
-    )
+    );
 }
 
 /** The 32 px search pill (e1, r8) with its "/" key; 44 px full width on a phone. */
@@ -147,11 +253,11 @@ function SearchPill({
     className,
     inputRef,
 }: {
-    value: string
-    onChange: (v: string) => void
-    onClear: () => void
-    className?: string
-    inputRef?: React.Ref<HTMLInputElement>
+    value: string;
+    onChange: (v: string) => void;
+    onClear: () => void;
+    className?: string;
+    inputRef?: React.Ref<HTMLInputElement>;
 }) {
     return (
         <label className={cn("group/search relative flex h-8 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50", className)}>
@@ -164,11 +270,12 @@ function SearchPill({
                 onKeyDown={(e) => {
                     if (e.key === "Escape") {
                         onClear();
-                        (e.target as HTMLInputElement).blur()
+                        (e.target as HTMLInputElement).blur();
                     }
                 }}
                 placeholder="Search docs"
                 aria-label="Search docs"
+                maxLength={200}
                 className="min-w-0 flex-1 bg-transparent text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base [&::-webkit-search-cancel-button]:appearance-none"
             />
             {value ? (
@@ -176,8 +283,10 @@ function SearchPill({
                     <X className="size-3.5" />
                 </button>
             ) : (
-                <kbd className="kbd max-sm:hidden" aria-hidden="true">/</kbd>
+                <kbd className="kbd max-sm:hidden" aria-hidden="true">
+                    /
+                </kbd>
             )}
         </label>
-    )
+    );
 }

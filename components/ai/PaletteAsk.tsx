@@ -144,7 +144,10 @@ export function PaletteAskView({ query, askNonce, continueNonce, selfId, onNavig
   }, [continueNonce, query, isStreaming, ask, continueInPanel])
 
   const thinking = isStreaming && !streamText
-  const failed = !!error && !isStreaming
+  // An answer that came back with no words is an answer that failed: on its
+  // own, the provenance line said "Answered from what you can open" under
+  // nothing at all.
+  const failed = !isStreaming && (!!error || (done && !streamText.trim()))
 
   if (!asked) {
     return (

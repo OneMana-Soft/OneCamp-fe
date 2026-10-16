@@ -26,6 +26,7 @@ import axiosInstance from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface GitHubConfigStatus {
     client_id: string
@@ -98,7 +99,7 @@ export default function GitHubConfigDialog({
         } catch (e) {
             toast({
                 title: "Couldn't save the GitHub credentials",
-                description: apiErrorMessage(e, "Check the values and try again."),
+                description: apiErrorMessage(e, "Try again in a moment."),
                 variant: "destructive",
             })
         } finally {
@@ -122,7 +123,7 @@ export default function GitHubConfigDialog({
 
                 {loadFailed ? (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-raised px-3 py-2.5 shadow-e1">
-                        <p className="text-sm text-muted-foreground">Couldn&apos;t load the GitHub credentials.</p>
+                        <p className="text-sm text-muted-foreground">Couldn&apos;t load the GitHub credentials.<SaysLoadFailure /></p>
                         <Button variant="outline" size="sm" className="h-8" onClick={load}>Try again</Button>
                     </div>
                 ) : (

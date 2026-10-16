@@ -24,8 +24,8 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
             missing: design v3's tokens, written out (the frame and its glow,
             the inks, r8 buttons with the primary's inner highlight). */}
         <style>{`
-          :root { color-scheme: light dark; --frame: #F3F4F6; --fg: #16171B; --ink-2: #5B5D65; --ink-3: #8A8C92; --brand: #CC4A0B; --on-brand: #FFFFFF; --glow: 255 110 30; }
-          @media (prefers-color-scheme: dark) { :root { --frame: #0B0C0E; --fg: #EEEEF0; --ink-2: #A8ABB1; --ink-3: #72747B; --brand: #FF7A33; --on-brand: #0B0C0E; } }
+          :root { color-scheme: light dark; --frame: #F3F4F6; --fg: #16171B; --ink-2: #5B5D65; --ink-3: #67696F; --brand: #CC4A0B; --on-brand: #FFFFFF; --glow: 255 110 30; }
+          @media (prefers-color-scheme: dark) { :root { --frame: #0B0C0E; --fg: #EEEEF0; --ink-2: #A8ABB1; --ink-3: #95979E; --brand: #FF7A33; --on-brand: #0B0C0E; } }
           body { margin: 0; min-height: 100dvh; background: var(--frame); color: var(--fg); font: 14px/20px Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.006em; -webkit-font-smoothing: antialiased;
             background-image: radial-gradient(760px 520px at -80px -100px, rgb(var(--glow) / 0.2), transparent 68%); }
           main { box-sizing: border-box; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px 16px; }

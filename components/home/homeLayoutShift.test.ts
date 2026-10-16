@@ -13,6 +13,21 @@ import { describe, expect, it } from "vitest"
  */
 const read = (p: string) => readFileSync(resolve(__dirname, "..", "..", p), "utf8")
 
+// Design review PG1-04 (14 Oct 2026): every section draws its own shape
+// while it loads. Home's lower row waited a frame for the first paint and was
+// an empty band till then; needs-me, Today and Projects draw theirs.
+describe("every Home section draws its own shape while it loads", () => {
+  it("the lower row, until the first paint is done", () => {
+    const src = read("components/home/desktop/desktopDashboard.tsx")
+    expect(src).toMatch(/\{below \? \([\s\S]*?<JumpBackIn \/>[\s\S]*?\) : \([\s\S]*?<SectionSkeleton title="Jump back in"[\s\S]*?<SectionSkeleton title="Create"/)
+  })
+  it("needs-me, Today and Projects, from their own loading state", () => {
+    expect(read("components/home/NeedsMeSection.tsx")).toMatch(/if \(loading\) \{[\s\S]*?<HubRowSkeleton/)
+    expect(read("components/home/TodayAgenda.tsx")).toMatch(/\{loading \? \([\s\S]*?animate-shimmer/)
+    expect(read("components/home/ProjectsStrip.tsx")).toMatch(/\{isLoading && !projects \? \([\s\S]*?animate-shimmer/)
+  })
+})
+
 describe("home layout while things load", () => {
   for (const [name, file] of [
     ["desktop", "components/home/desktop/desktopDashboard.tsx"],

@@ -47,10 +47,16 @@ export function scopeCounts(results: SearchResult[]): Record<SearchScope, number
   return counts
 }
 
-/** The chips to show: All always, the rest only when they hold something. */
+/**
+ * The chips to show: All always, the rest only when they hold something, each
+ * named as its group is headed (QA DSA-26: chip "Docs 4" over a group "Docs
+ * and boards 4").
+ */
 export function visibleScopes(results: SearchResult[]): typeof SCOPES {
   const counts = scopeCounts(results)
-  return SCOPES.filter((s) => s.id === "all" || counts[s.id] > 0)
+  return SCOPES.filter((s) => s.id === "all" || counts[s.id] > 0).map((s) =>
+    s.id === "all" ? s : { ...s, label: groupLabel(s.id, s.label, results.filter((r) => scopeOf(r) === s.id)) },
+  )
 }
 
 export interface ResultGroup {
@@ -66,6 +72,29 @@ export interface ResultGroup {
 /** How many of each type "All" shows before "Show all". */
 export const ALL_PER_GROUP = 3
 
+/**
+ * What a group holds, said as it is. Boards ride with Docs and teams with
+ * Channels to keep the chips few, but a group of one team was headed
+ * "Channels", and a board sat under "Docs". Pure.
+ */
+const KINDS_OF: Partial<Record<Exclude<SearchScope, "all">, [SearchResult["type"], string][]>> = {
+  docs: [
+    ["doc", "Docs"],
+    ["board", "Boards"],
+  ],
+  channels: [
+    ["channel", "Channels"],
+    ["team", "Teams"],
+  ],
+}
+function groupLabel(scope: Exclude<SearchScope, "all">, label: string, rows: SearchResult[]): string {
+  const kinds = KINDS_OF[scope]
+  if (!kinds) return label
+  const held = kinds.filter(([type]) => rows.some((r) => r.type === type)).map(([, name]) => name)
+  if (held.length === 0) return label
+  return held.length === 1 ? held[0] : `${held[0]} and ${held.slice(1).join(" and ").toLowerCase()}`
+}
+
 /** The results grouped by type, in the chips' order, each group in the answer's order. */
 export function groupResults(results: SearchResult[], scope: SearchScope): ResultGroup[] {
   const groups: ResultGroup[] = []
@@ -76,7 +105,7 @@ export function groupResults(results: SearchResult[], scope: SearchScope): Resul
     const capped = scope === "all" && rows.length > ALL_PER_GROUP
     groups.push({
       scope: s.id,
-      label: s.label,
+      label: groupLabel(s.id, s.label, rows),
       total: rows.length,
       rows: capped ? rows.slice(0, ALL_PER_GROUP) : rows,
       more: capped ? `Show all ${rows.length} ${s.plural}` : null,

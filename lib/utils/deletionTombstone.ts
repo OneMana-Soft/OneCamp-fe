@@ -23,9 +23,9 @@
 //      not to "forever", so a restore can never be suppressed for long. (The
 //      slices holding it are also not persisted, so a page reload clears it and
 //      a restore shows immediately.)
-//   2. CLEARED ON RE-INTRODUCTION — clearTombstone is called whenever an item
-//      with the same id is legitimately (re)created/restored into state, so a
-//      restore that does surface is honoured at once.
+//   2. CLEARED WHEN THE DELETE FAILS — restoreCase takes the tombstone
+//      away with the failed delete and puts the item back, so nothing keeps
+//      out a message that was never deleted.
 //
 // Every function here is pure over the map it is handed (Immer-friendly,
 // unit-testable) and reusable across every slice.
@@ -95,6 +95,42 @@ export function pruneTombstones(
 
 
 /**
+ * The one case reducer that takes back a delete that failed (QA F-01, F-02):
+ * a channel's posts, a DM's messages and a group's, given where the slice
+ * keeps their tombstones and lists. The tombstone goes, so the next page or
+ * live event may carry the item again, and the item goes back into its list
+ * in time order, unless the list has it already. A list let go of meanwhile
+ * stays let go: its next page has the item.
+ */
+export function restoreCase<S, T>(
+    at: (state: S) => [TombstoneMap, Record<string, T[] | undefined>],
+    id: (item: T) => string,
+    createdAt: (item: T) => string,
+) {
+    return (state: S, { payload: { containerId, item } }: { payload: { containerId: string; item: T } }): void => {
+        const [tombstones, lists] = at(state)
+        const key = id(item)
+        const bucket = tombstones[containerId]
+        if (bucket) {
+            delete bucket[key]
+            if (Object.keys(bucket).length === 0) delete tombstones[containerId]
+        }
+        const list = lists[containerId]
+        if (!list || list.some((x) => id(x) === key)) return
+        const time = toTimestamp(createdAt(item))
+        let i = list.length
+        while (i > 0 && toTimestamp(createdAt(list[i - 1])) > time) i--
+        list.splice(i, 0, item)
+    }
+}
+
+function toTimestamp(value: string | number | Date): number {
+    if (typeof value === "number") return value
+    if (value instanceof Date) return value.getTime()
+    return Date.parse(value)
+}
+
+/**
  * Metadata captured immediately before fetching an authoritative latest page.
  * Existing callers may omit it; in that case an empty page remains a no-op.
  */
@@ -139,11 +175,6 @@ export function reconcileLatestWindow<T>({
     sort,
     authoritativeThrough,
 }: ReconcileLatestWindowOptions<T>): T[] {
-    const toTimestamp = (value: string | number | Date): number => {
-        if (typeof value === "number") return value
-        if (value instanceof Date) return value.getTime()
-        return Date.parse(value)
-    }
     const accepted = incoming.filter(shouldAcceptIncoming)
     const rawTimes = incoming
         .map((item) => toTimestamp(getCreatedAt(item)))

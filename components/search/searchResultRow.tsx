@@ -10,17 +10,18 @@
  * carries the match (the sun highlighter), the second line says where it is
  * and who, and a doc or a task that matched in its body adds the passage.
  */
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
+import NextLink from "next/link"
+import { isPlainLeftClick } from "@/lib/ui/linkClick"
 
 import { HubRow, HubToolButton } from "@/components/ui/hubRow"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
-import { avatarHueClass } from "@/components/ui/graphics/hues"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { PrincipalTag } from "@/components/ui/principalTag"
-import { Eye, FileText, FolderKanban, Hash, LayoutDashboard, Link, Paperclip, Users } from "@/lib/icons"
-import { hueFor } from "@/lib/campHue"
+import { Eye, FileText, Hash, LayoutDashboard, Link, Paperclip, Users } from "@/lib/icons"
 import { displayNameOf } from "@/lib/personName"
-import { cn } from "@/lib/utils/helpers/cn"
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { getHighlightedTitle, isResultPreviewable, Snippet } from "@/lib/utils/helpers/search"
 import { highlightText } from "@/lib/search/highlight"
@@ -41,14 +42,12 @@ export function statusKindOf(status: string | undefined): StatusKind {
 /** The row's lead, by type (hub.md S9's table). */
 export function SearchLead({ result }: { result: SearchResult }) {
   switch (result.type) {
-    case "project": {
-      const hue = hueFor(result.project?.project_id)
+    case "project":
       return (
-        <span data-search-lead="project" data-hue={hue} className={cn(avatarHueClass(hue), "grid size-6 place-items-center rounded-[7px] [&_svg]:size-3.5")}>
-          <FolderKanban />
+        <span data-search-lead="project" className="grid size-6 place-items-center">
+          <ProjectTile id={result.project?.project_id} size={24} />
         </span>
       )
-    }
     case "task":
       return (
         <span data-search-lead="task" className="grid size-6 place-items-center">
@@ -63,14 +62,14 @@ export function SearchLead({ result }: { result: SearchResult }) {
       const name = r.chat_by_user_full_name || r.post_by_user_full_name || r.comment_by_user_full_name
       return (
         <span data-search-lead="message" className="grid place-items-center">
-          <IdentityMark variant="avatar" size={24} id={id} label={name} />
+          <IdentityMark variant="avatar" size={24} id={avatarSeed(name)} label={name} />
         </span>
       )
     }
     case "user":
       return (
         <span data-search-lead="person" className="grid place-items-center">
-          <IdentityMark variant="avatar" size={28} id={result.user?.user_id} label={displayNameOf(result.user)} />
+          <IdentityMark variant="avatar" size={28} id={avatarSeed(result.user)} label={displayNameOf(result.user)} />
         </span>
       )
     default: {
@@ -86,6 +85,12 @@ export function SearchLead({ result }: { result: SearchResult }) {
 
 const dot = <span className="text-ink-4"> · </span>
 
+/** Whether a hit is from a channel that was archived (the server marks it). */
+export function inArchivedChannel(result: SearchResult): boolean {
+  const entry = (result.post ?? result.comment ?? result.attachment) as { channel_archived?: boolean } | undefined
+  return entry?.channel_archived === true
+}
+
 /** Where a result is and who, in the words a person uses. */
 function SearchMeta({ result }: { result: SearchResult }) {
   const parts: React.ReactNode[] = []
@@ -100,14 +105,14 @@ function SearchMeta({ result }: { result: SearchResult }) {
       if (t.task_project_name)
         push(
           <span className="inline-flex items-center gap-1">
-            <IdentityMark variant="square" size={12} id={t.task_project_id} />
+            <ProjectTile id={t.task_project_id} size={14} />
             {t.task_project_name}
           </span>,
         )
       if (t.task_assignee_user_full_name)
         push(
           <span className="inline-flex items-center gap-1">
-            <IdentityMark variant="avatar" size={16} id={t.task_assignee_user_id} label={t.task_assignee_user_full_name} />
+            <IdentityMark variant="avatar" size={16} id={avatarSeed(t.task_assignee_user_full_name)} label={t.task_assignee_user_full_name} />
             {t.task_assignee_user_full_name}
           </span>,
         )
@@ -147,6 +152,8 @@ function SearchMeta({ result }: { result: SearchResult }) {
       push(result.attachment?.attachment_channel_name ? `File in #${result.attachment.attachment_channel_name}` : result.attachment?.attachment_doc_title ? `File in ${result.attachment.attachment_doc_title}` : "File")
       break
   }
+  // From a channel that was archived: its members still find its history.
+  if (inArchivedChannel(result)) push(<span data-search-archived="" className="text-ink-3">Archived</span>)
   return (
     <>
       {parts.map((p, i) => (
@@ -181,11 +188,17 @@ function BodyMatch({ result }: { result: SearchResult }) {
   )
 }
 
+// Block and truncating itself: a button is an atomic inline box, so the
+// row's own ellipsis never reached it and a long title was cut mid-word
+// ("…part here by tomo"). Its ::after stretches it over the row.
+const TITLE_CONTROL =
+  "block w-full truncate text-left text-foreground after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand"
+
 export interface SearchResultRowProps {
   result: SearchResult
   onOpen: (result: SearchResult) => void
   onPreview?: (result: SearchResult) => void
-  /** The address of what the row opens, for "Copy link". */
+  /** The address of what the row opens: the row is a link to it, and "Copy link" copies it. */
   href?: string
 }
 
@@ -221,15 +234,28 @@ export function SearchResultRow({ result, onOpen, onPreview, href }: SearchResul
       className="min-h-14"
       lead={<SearchLead result={result} />}
       title={
-        // The title is the row's one control, stretched over the row.
-        <button
-          type="button"
-          data-search-result=""
-          onClick={() => onOpen(result)}
-          className="text-left text-foreground after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand"
-        >
-          {getHighlightedTitle(result)}
-        </button>
+        // The title is the row's one control, stretched over the row. A row
+        // with an address is a link (QA DSA-13), so a middle click or Ctrl/⌘
+        // click opens it in a new tab and its address can be copied; a plain
+        // click still opens it here.
+        href ? (
+          <NextLink
+            href={href}
+            data-search-result=""
+            onClick={(e) => {
+              if (!isPlainLeftClick(e)) return
+              e.preventDefault()
+              onOpen(result)
+            }}
+            className={TITLE_CONTROL}
+          >
+            {getHighlightedTitle(result)}
+          </NextLink>
+        ) : (
+          <button type="button" data-search-result="" onClick={() => onOpen(result)} className={TITLE_CONTROL}>
+            {getHighlightedTitle(result)}
+          </button>
+        )
       }
       second={<SearchMeta result={result} />}
       meta={at ? formatListTimestamp(new Date(at).toISOString()) : undefined}

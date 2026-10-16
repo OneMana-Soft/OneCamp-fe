@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 
 // Per-channel opt-in for the weekly channel report.
 //
@@ -25,6 +25,7 @@ export async function setChannelWeeklyReport(
     channelUUID: string,
     enabled: boolean,
 ): Promise<ChannelWeeklyReportState | undefined> {
-    const res = await axiosInstance.post(channelWeeklyReportUrl(channelUUID), { enabled })
+    // The setting says what failed, in its own words.
+    const res = await axiosInstance.post(channelWeeklyReportUrl(channelUUID), { enabled }, OWN_ERRORS)
     return (res.data as { data?: ChannelWeeklyReportState })?.data
 }

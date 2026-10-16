@@ -4,6 +4,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { downloadBlob } from "@/lib/utils/download"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import type { AxiosRequestConfig } from "axios"
 
 export interface WorkspaceSettings {
     upload_limit_mb: number
@@ -150,13 +151,14 @@ export async function getAdminAuditLog(
     limit = 50,
     offset = 0,
     initiator?: string,
+    config?: AxiosRequestConfig,
 ): Promise<AuditLogPage> {
     const params = new URLSearchParams()
     if (category) params.set("category", category)
     if (initiator) params.set("initiator", initiator)
     params.set("limit", String(limit))
     params.set("offset", String(offset))
-    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}?${params.toString()}`)
+    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}?${params.toString()}`, config)
     const data = (res.data as {
         data?: { entries?: AuditEntry[]; categories?: string[]; initiators?: InitiatorKind[] }
     })?.data

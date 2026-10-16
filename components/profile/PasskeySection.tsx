@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Fingerprint, Laptop, LoaderCircle, Pencil, Smartphone } from "@/lib/icons"
 import { useConfirm } from "@/hooks/useConfirm"
-import { serverMessage } from "@/lib/http/serverMessage"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn"
 import { addPasskey, listPasskeys, removePasskey, renamePasskey, type Passkey } from "@/services/passkeyService"
 import { shortDate } from "@/lib/utils/date/shortDate"
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 
 const when = (iso: string) => shortDate(new Date(iso))
 
@@ -37,6 +38,8 @@ export function PasskeySection() {
   // The list couldn't be read: said with a way to read it again, apart from a
   // failed action's message.
   const [loadProblem, setLoadProblem] = useState("")
+  // Said in place, below; the request's toast stays quiet.
+  useSaysLoadFailure(!!loadProblem)
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
   const supported = passkeysSupported()
   const confirm = useConfirm()
@@ -46,7 +49,7 @@ export function PasskeySection() {
       setKeys(await listPasskeys())
       setLoadProblem("")
     } catch (e) {
-      const reason = serverMessage(e, "")
+      const reason = apiErrorMessage(e)
       setLoadProblem(`Couldn't load your passkeys. ${reason || "This is usually a connection problem: try again in a moment."}`)
     }
   }, [])
@@ -62,7 +65,7 @@ export function PasskeySection() {
       await refresh()
     } catch (e) {
       // The server's refusals come with a response; the browser's don't.
-      const msg = (e as { response?: unknown })?.response ? serverMessage(e) : passkeyErrorMessage(e)
+      const msg = (e as { response?: unknown })?.response ? apiErrorMessage(e) : passkeyErrorMessage(e)
       if (msg) setError(msg)
     } finally {
       setBusy(false)

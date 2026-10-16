@@ -1,0 +1,28 @@
+/* A doc's cover (B6, D-2): an image of the doc's, or one of the gallery's
+   token gradients. Loaded with the cover (chrome/CoverArt.tsx) and its picker;
+   the room it takes is chrome/look.css's, so nothing moves while it loads. */
+
+.doc-cover > img,
+.doc-cover > .doc-cover-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The gallery: the camp colours, as light as a page wants under its title. */
+.doc-cover-art { background: var(--sunken); }
+.doc-cover-sky { background: linear-gradient(120deg, var(--camp-sky) 0%, var(--camp-lake) 100%); }
+.doc-cover-dusk { background: linear-gradient(120deg, var(--camp-dusk) 0%, var(--camp-berry) 100%); }
+.doc-cover-moss { background: linear-gradient(120deg, var(--camp-moss) 0%, var(--camp-lake) 100%); }
+.doc-cover-sun { background: linear-gradient(120deg, var(--camp-sun) 0%, var(--camp-berry) 100%); }
+.doc-cover-berry { background: linear-gradient(120deg, var(--camp-berry) 0%, var(--camp-dusk) 100%); }
+.doc-cover-lake { background: linear-gradient(120deg, var(--camp-lake) 0%, var(--camp-sky) 100%); }
+.doc-cover-dawn { background: linear-gradient(120deg, var(--camp-sun-tint) 0%, var(--camp-berry-tint) 50%, var(--camp-dusk-tint) 100%); }
+.doc-cover-tide { background: linear-gradient(120deg, var(--camp-sky-tint) 0%, var(--camp-lake-tint) 50%, var(--camp-moss-tint) 100%); }
+.doc-cover-paper {
+  background-color: var(--sunken);
+  background-image: radial-gradient(var(--line-2, var(--line)) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+.doc-cover-ink { background: linear-gradient(120deg, var(--ink-2) 0%, var(--ink) 100%); }

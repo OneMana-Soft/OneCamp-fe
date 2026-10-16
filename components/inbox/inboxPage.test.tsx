@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { hueFor } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
 
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
@@ -85,9 +85,10 @@ describe("the list", () => {
     await act(async () => {})
     const r = document.querySelector("[data-inbox-row]")!
     expect(r.getAttribute("data-density")).toBe("feed")
-    expect(r.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor('"Priya Sharma" <priya@acme.test>'))
+    // One colour per person (app/personHue.test.ts): the sender's name.
+    expect(r.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(personHue("Priya Sharma"))
     expect(r.querySelector(".hub-unread-dot")!.hasAttribute("data-read")).toBe(false)
-    expect(r.textContent).toContain("9:05 AM")
+    expect(r.textContent).toContain("9:05\u00a0AM")
     expect(r.textContent).toContain("Signed copy attached")
   })
 

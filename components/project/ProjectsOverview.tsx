@@ -20,20 +20,21 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Bar } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { WorkSearch, WorkSegmented, WorkTabs, type WorkTab } from "@/components/task/WorkTabs"
-import { WorkState } from "@/components/task/workFrame"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useGrow } from "@/hooks/useGrow"
 import { useLongPress } from "@/hooks/useLongPress"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
 import { useStoredState } from "@/hooks/useStoredState"
 import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
-import { BarChart3, ChartGantt, Check, ChevronDown, Filter, List, Plus, SlidersHorizontal, Target, Users } from "@/lib/icons"
+import { BarChart3, ChartGantt, ChevronDown, Filter, List, Plus, SlidersHorizontal, Target, Users } from "@/lib/icons"
 import { HEALTHS } from "@/lib/projectUpdates"
 import { OVERVIEW_SORTS, filterOverview, progressOf, sortOverview, type OverviewFilter, type OverviewSort, type ProjectOverview } from "@/lib/projectsOverview"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { app_project_path } from "@/types/paths"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
@@ -270,7 +271,7 @@ interface Facets {
   teams: string[]
 }
 
-/** A checkable menu row: 30 px, r8, the v3 checkbox. */
+/** A checkable menu row: 30 px, r8, led by the shared menu check (several can be on). */
 function CheckRow({ on, children, onClick }: { on: boolean; children: ReactNode; onClick: () => void }) {
   return (
     <button
@@ -280,11 +281,7 @@ function CheckRow({ on, children, onClick }: { on: boolean; children: ReactNode;
       onClick={onClick}
       className="flex h-[30px] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-press focus-visible:bg-press"
     >
-      <span
-        className={cn("flex size-4 shrink-0 items-center justify-center rounded-[5px] transition-colors", on ? "bg-camp-moss text-white" : "ring-[1.5px] ring-inset ring-line-3")}
-      >
-        {on && <Check className="size-3" />}
-      </span>
+      <MenuCheck checked={on} />
       {children}
     </button>
   )
@@ -407,7 +404,8 @@ function DisplayMenu({
               className="flex h-[30px] w-full items-center justify-between rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-press focus-visible:bg-press"
             >
               {s.label}
-              {sort === s.value && <Check className="size-3.5 text-ink-2" />}
+              {/* One ordering at a time: its check ends the row. */}
+              <MenuCheck checked={sort === s.value} className="text-ink-2" />
             </button>
           ))}
         </div>
@@ -649,18 +647,21 @@ export function ProjectsOverview() {
   }
 
   // Timeline and Workload draw the toolbar at the start of their own row, and
-  // Goals and Reports draw their own controls. Projects takes the shared one.
+  // Goals and Reports draw their own controls in the same band. Projects takes
+  // the shared one. Every view's band is flush under the tabs: Goals' and
+  // Reports' sat inside a 12 px top and 24 px side inset, 12 px lower and
+  // 24 px further in than the others' (PTC-7).
   const tableView = view === "table"
   const fills = view === "timeline" || view === "workload"
   const content = (
     // Each view crossfades in (120 ms) as its tab is chosen.
     <div key={view} data-overview-view={view} className={cn("flex min-h-0 flex-1 flex-col [animation:work-fade-in_120ms_var(--ease-out)_both]", !fills && "overflow-y-auto")}>
       {tableView && (
-        <div data-work-toolbar="" className={cn("flex h-11 shrink-0 items-center gap-1.5 border-b border-line", isDesktop && "pl-5 pr-4")}>
+        <div data-work-toolbar="" className={cn(workToolbar, !isDesktop && "-mx-4")}>
           {viewTools}
         </div>
       )}
-      <div className={cn("min-h-0", fills && "flex flex-1 flex-col", !tableView && "pt-3", !tableView && isDesktop && "px-6")}>{body}</div>
+      <div className={cn("min-h-0", fills && "flex flex-1 flex-col")}>{body}</div>
     </div>
   )
 
@@ -678,15 +679,18 @@ export function ProjectsOverview() {
   )
 
   if (!isDesktop) {
+    // The phone's top bar names the page, so the page's own title is for
+    // screen readers only: it read "Projects" twice, 48 px apart (PTC-42).
+    // New project sits at the end of the views' row, which scrolls under it.
     return (
       <div className="flex h-full flex-col px-4">
-        <div className="flex h-12 shrink-0 items-center justify-between">
-          <h1 className="text-title-3 font-[590]">Projects</h1>
-          <Button variant="ghost" size="icon-sm" aria-label="New project" onClick={newProject}>
+        <h1 className="sr-only">Projects</h1>
+        <div data-overview-tabs-row="" className="flex shrink-0 items-center gap-1 border-b border-line">
+          <WorkTabs tabs={VIEWS} value={view} onChange={choose} label="Projects views" className="min-w-0 flex-1 border-b-0" />
+          <Button variant="ghost" size="icon-sm" aria-label="New project" onClick={newProject} className="shrink-0">
             <Plus />
           </Button>
         </div>
-        <WorkTabs tabs={VIEWS} value={view} onChange={choose} label="Projects views" />
         {content}
       </div>
     )
@@ -698,7 +702,9 @@ export function ProjectsOverview() {
           <h1 className="text-title-1 font-[590] text-foreground">Projects</h1>
           <div className="mt-1">{meta}</div>
         </div>
-        <Button size="sm" onClick={newProject} className="mt-1">
+        {/* One primary per view (DESIGN_V3 §3.4): Goals has its own (New goal),
+            and an empty page's own spot offers New project. */}
+        <Button size="sm" variant={view === "goals" || (tableView && !!projects && nothingYet) ? "secondary" : "default"} onClick={newProject} className="mt-1">
           <Plus className="!size-3.5" />
           New project
         </Button>

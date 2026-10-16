@@ -1,6 +1,7 @@
 "use client"
 
-import {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
+import { useLayoutOnce } from "@/components/task/useLayoutOnce";
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
@@ -14,6 +15,7 @@ import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {CreateTaskInterface, TaskInfoInterface} from "@/types/task"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
+import { PhoneListSkeleton } from "@/components/task/phoneListSkeleton"
 import { TaskListTask } from "@/components/task/taskListTask"
 import {usePost} from "@/hooks/usePost";
 import {useAnimationState} from "@/hooks/useAnimationState";
@@ -25,6 +27,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { Search } from "@/lib/icons"
+import { PHONE_PAGE_SIZE } from "@/lib/tasks/grouping"
 
 interface getURLPramInput {
     sortQuery?: sortInterface[]
@@ -64,7 +67,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     const post = usePost()
 
     const [urlParams, setUrlParams] = useState<string>("")
-    const pageSize = 10
+    const pageSize = PHONE_PAGE_SIZE
     const [pageIndex, setPageIndex] = useState(() => {
         const pageFromUrl = searchParams.get("page")
         return pageFromUrl ? Number.parseInt(pageFromUrl, 10) : 0
@@ -97,17 +100,19 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }, [pageIndex, pathname, router])
 
-    useLayoutEffect(() => {
-        // Reset Redux on mount so we don't display stale `myTaskList`
-        // entries from a prior visit. Without this, the SWR fetch
-        // de-dupes the cached payload and the merge reducer keeps any
-        // tasks already in the slice from a previous my-task session
-        // until the user reloads. The same applies if the user lands
-        // here from /app/project/[id] — Redux holds tasks from the
-        // last my-task render and never clears them on route change.
+    // Reset Redux on mount so we don't display stale `myTaskList`
+    // entries from a prior visit. Without this, the SWR fetch
+    // de-dupes the cached payload and the merge reducer keeps any
+    // tasks already in the slice from a previous my-task session
+    // until the user reloads. The same applies if the user lands
+    // here from /app/project/[id] — Redux holds tasks from the
+    // last my-task render and never clears them on route change.
+    // Once only (useLayoutOnce): run again by a Suspense boundary
+    // showing the page anew, it blanked the list and its address.
+    useLayoutOnce("my-tasks", () => {
         dispatch(clearMyTask())
         setUrlParams("")
-    }, [])
+    })
 
     useEffect(() => {
         const u = getURLPram({
@@ -273,6 +278,9 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
             items={taskListState || []}
             renderItem={handleRenderIndex}
             isLoading={userInfo.isLoading}
+            // The first load is the list's shape, as in a project's list, not
+            // "Loading more…" alone at the top of an empty page.
+            loadingComponent={(taskListState?.length ?? 0) === 0 ? <PhoneListSkeleton /> : undefined}
             keyExtractor={handleItemKey}
         />
     )

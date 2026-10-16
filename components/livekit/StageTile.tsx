@@ -95,7 +95,7 @@ export function StageTile({
       <CameraOffFace trackRef={trackRef} size={size} />
       {/* A 4% white overlay on hover. */}
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-white/0 transition-colors group-hover/tile:bg-white/[0.04]" />
-      {!screen ? <SpeakingRing identity={who.identity} opacity={ring} agent={agent} /> : null}
+      {!screen ? <SpeakingRing identity={who.identity} name={name} opacity={ring} agent={agent} /> : null}
       <NamePlate
         name={screen ? `${name} is presenting` : name}
         muted={!screen && micMuted}

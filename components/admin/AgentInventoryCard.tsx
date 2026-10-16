@@ -107,12 +107,15 @@ function InventoryAgentRow({
 }) {
   const [confirming, setConfirming] = React.useState(false)
   return (
-    <li data-inventory-agent="" className="px-4 py-3">
+    <li data-inventory-agent="" className="set-row">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="block size-8 shrink-0">
           <AgentAvatar />
         </span>
-        <div className="min-w-0 flex-1">
+        {/* The words keep 14rem before the counts give way: on a phone the
+            counts and the switch wrap under them, rather than squeezing them
+            into a column a word wide. */}
+        <div data-inventory-words="" className="min-w-0 flex-1 basis-56">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui">
             <span className="font-medium text-foreground">{a.name}</span>
             <span className="inline-flex h-[18px] items-center rounded-[5px] bg-agent-muted px-1.5 text-3xs font-medium text-agent-ink">Agent</span>
@@ -123,7 +126,7 @@ function InventoryAgentRow({
             {a.last_refusal_at && a.refusals_7d > 0 && <> · last refused {relativeTime(a.last_refusal_at)}</>}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-4">
+        <div data-inventory-counts="" className="flex shrink-0 items-center gap-4 max-sm:ml-12">
           <Count n={a.runs_7d} label="asked" />
           <Count n={a.actions_7d} label="did" />
           <Count n={a.refusals_7d} label={a.refusals_7d === 1 ? "refusal" : "refusals"} refused />
@@ -179,7 +182,7 @@ function InventoryCredentialRow({
   onRevoke: (c: InventoryCredential) => void
 }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <li className="set-row flex flex-wrap items-center gap-x-4 gap-y-2">
       <span className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-hover text-ink-2 [&_svg]:size-4">
         <Key aria-hidden />
       </span>
@@ -306,7 +309,7 @@ export function AgentInventoryCard() {
             {!inv ? (
               <SectionListSkeleton label="Loading the agents" rows={2} lines={3} trailing="switch" />
             ) : inv.agents.length === 0 ? (
-              <div className="rounded-lg border border-border">
+              <div className="set-card">
                 <EmptyState
                   icon={Bot}
                   hue={ADMIN_GROUP_HUE.ai}
@@ -317,7 +320,7 @@ export function AgentInventoryCard() {
                 />
               </div>
             ) : (
-              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+              <ul className="set-card">
                 {inv.agents.map((a) => (
                   <InventoryAgentRow key={a.id} agent={a} busy={busy === a.id} onToggle={toggle} />
                 ))}
@@ -335,7 +338,7 @@ export function AgentInventoryCard() {
             {!inv ? (
               <SectionListSkeleton label="Loading the credentials" rows={1} lines={3} trailing="button" />
             ) : inv.credentials.length === 0 ? (
-              <div className="rounded-lg border border-border">
+              <div className="set-card">
                 <EmptyState
                   icon={Key}
                   hue={ADMIN_GROUP_HUE.ai}
@@ -346,7 +349,7 @@ export function AgentInventoryCard() {
                 />
               </div>
             ) : (
-              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+              <ul className="set-card">
                 {inv.credentials.map((c) => (
                   <InventoryCredentialRow key={c.id} credential={c} busy={busy === c.id} onRevoke={setRevoking} />
                 ))}

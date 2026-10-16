@@ -1,3 +1,4 @@
+import { editedAtAfter } from "@/lib/chat/replyEdit";
 import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
@@ -11,7 +12,7 @@ import { ExtendedChats, chatContentDiffers, CHAT_ACCESS } from "./chatSlice";
 import { hasServerIdElsewhere, indexOfEchoed, indexOfLocal } from "@/lib/chat/pendingSend";
 import { newerThanAnswer } from "@/lib/chat/liveChange";
 import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
-import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
+import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, restoreCase, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 
 
 export interface ChatInputState {
@@ -99,6 +100,8 @@ interface UpdateChatByChatId {
     messageId: string
     grpId: string
     htmlText: string
+    /** A revert's (F-07); null: never edited. */
+    updatedAt?: string | null
 }
 
 interface UpdateScrollToBottom {
@@ -425,10 +428,11 @@ const groupChatSlice = createSlice({
 
 
         updateGroupChatByChatId: (state, action: {payload: UpdateChatByChatId}) => {
-            const { messageId, grpId, htmlText } = action.payload;
+            const { messageId, grpId, htmlText, updatedAt } = action.payload;
             if (!state.chatMessages[grpId]) return
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(messageId == chat.chat_uuid) {
+                    chat.chat_updated_at = editedAtAfter(chat.chat_updated_at, chat.chat_body_text, htmlText, updatedAt)
                     chat.chat_body_text = htmlText
                     chat.chat_live_at = Date.now()
                 }
@@ -446,6 +450,9 @@ const groupChatSlice = createSlice({
                 return chat.chat_uuid !== messageId
             })
         },
+
+        // A delete the server refused takes itself back (hooks/useDeleteMessage).
+        restoreGroupChat: restoreCase((s: typeof initialState) => [s.deletedChats, s.chatMessages], (c: ChatInfo) => c.chat_uuid, (c) => c.chat_created_at),
 
         removeGroupChatReactionByChatId: (state, action: {payload: RemoveChatReactionByChatId}) => {
             const { messageId, grpId, reactionId } = action.payload;
@@ -666,6 +673,7 @@ export const {
     updateGroupChatByChatId,
     updateGroupChats,
     removeGroupChatByChatId,
+    restoreGroupChat,
     createGroupChat,
     setGroupChatReplyTarget,
     clearGroupChatReplyTarget,

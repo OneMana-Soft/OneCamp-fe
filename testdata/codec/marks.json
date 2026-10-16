@@ -1,0 +1,222 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "bold",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "italic",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "strike"
+            }
+          ],
+          "text": "struck",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "code",
+          "type": "text"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ],
+          "text": "underlined",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "bold"
+            },
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "bold and italic",
+          "type": "text"
+        },
+        {
+          "text": " then ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "bold ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            },
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "with italic",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ],
+          "text": " inside",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://onemana.dev/docs",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "link",
+          "type": "text"
+        },
+        {
+          "text": " and a ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://onemana.dev/a",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            },
+            {
+              "type": "bold"
+            }
+          ],
+          "text": "bold link",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "code with a ` backtick",
+          "type": "text"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "`starts with one",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "text": "Strike ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            },
+            {
+              "type": "strike"
+            }
+          ],
+          "text": "with bold",
+          "type": "text"
+        },
+        {
+          "text": " ends.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

@@ -39,7 +39,7 @@ const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getTex
   const run = useCallback(async () => {
     const text = removeHtmlTags(getText() || "").trim()
     if (!text) {
-      toast({ title: "Nothing to summarize yet" })
+      toast({ title: "Nothing to summarise yet" })
       return
     }
     setBusy(true)
@@ -47,7 +47,7 @@ const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getTex
       const res = await complete("summarize", text)
       const out = (res?.result || "").trim()
       if (!out) {
-        toast({ title: "AI couldn't summarize this thread", variant: "destructive" })
+        toast({ title: "AI couldn't summarise this thread", variant: "destructive" })
         return
       }
       setSummary(out)
@@ -94,7 +94,7 @@ const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getTex
       className={"h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-primary " + (className || "")}
     >
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-      {busy ? "Summarizing…" : "Summarize thread"}
+      {busy ? "Summarising…" : "Summarise thread"}
     </Button>
   )
 }

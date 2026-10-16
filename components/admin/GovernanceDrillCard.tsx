@@ -40,7 +40,6 @@ import {
     ShieldX,
 } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { shortTime } from "@/lib/utils/date/shortDate"
 import { ChainPair } from "@/components/admin/ChainPair"
 import { Spark } from "@/components/ui/graphics/motifs"
 import { useStagger } from "@/components/admin/ai/useStagger"
@@ -53,6 +52,7 @@ import {
     type DrillStatus,
     type DrillStep,
 } from "@/services/governanceDrillService"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /**
  * Where the audit log lives in this admin page. One definition, so the link and
@@ -64,7 +64,7 @@ const AUDIT_LOG_HREF = "/app/admin?tab=audit#audit-log"
 function formatWhen(iso: string): string {
     if (!iso) return ""
     const d = new Date(iso)
-    return Number.isNaN(d.getTime()) ? "" : shortTime(d)
+    return Number.isNaN(d.getTime()) ? "" : clockTime(d)
 }
 
 // One row of the steps list: the list draws the border, each row a hairline,

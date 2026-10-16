@@ -16,6 +16,7 @@ import { SPARK_PATH } from "@/components/ui/graphics/motifs"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useRiseOnce } from "@/lib/hub/motion"
 import type { Suggestion, SuggestionIcon } from "@/components/ai/suggestions"
+import { useModKey } from "@/hooks/useModKey"
 
 const ICON: Record<SuggestionIcon, React.ReactNode> = {
   hash: <Hash />,
@@ -84,6 +85,7 @@ export function AiEmpty({
   /** Between the sentence and the suggestions: the page's composer. */
   children?: React.ReactNode
 }) {
+  const mod = useModKey()
   const play = useRiseOnce("ai-empty")
   return (
     <div data-ai-empty="" className={cn("flex flex-col items-center px-5 pt-7 pb-2 text-center", className)}>
@@ -116,7 +118,7 @@ export function AiEmpty({
             ))}
           </div>
           <p className="mt-3.5 hidden items-center gap-1 text-meta text-ink-3 sm:flex [@media(pointer:coarse)]:hidden">
-            <kbd className="kbd">⌘</kbd>
+            <kbd className="kbd">{mod}</kbd>
             <kbd className="kbd">J</kbd>
             opens this anywhere
           </p>

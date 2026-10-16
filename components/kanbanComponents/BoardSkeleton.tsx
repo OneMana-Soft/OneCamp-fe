@@ -10,7 +10,7 @@ export function BoardSkeleton({ columns = 4 }: { columns?: number }) {
   return (
     <div role="status" aria-label="Loading the board" data-board-skeleton="" className="flex h-full gap-2 overflow-hidden px-4 pb-4 sm:gap-3 sm:px-0">
       {Array.from({ length: columns }, (_, c) => (
-        <div key={c} aria-hidden="true" className="flex w-[calc(100vw-32px)] shrink-0 flex-col rounded-lg bg-sunken sm:w-[280px] dark:bg-white/[.02]">
+        <div key={c} aria-hidden="true" className="flex w-[calc(100vw-56px)] shrink-0 flex-col rounded-lg bg-sunken sm:w-auto sm:min-w-[264px] sm:max-w-[320px] sm:flex-1 sm:basis-0 dark:bg-white/[.02]">
           <div className="flex h-10 items-center gap-2 px-3">
             <Skeleton className="size-4 rounded-full" />
             <Skeleton className="h-3.5 w-20" />

@@ -2,6 +2,7 @@ import type React from "react"
 import {useEffect, useState} from "react";
 import { sanitizeImportedDocument } from "@/lib/sanitizeHtml";
 import { SafeHtml } from "@/components/safeHtml/SafeHtml";
+import { useStableCallback } from "@/hooks/useStableCallback";
 
 interface DocumentViewerProps {
     type: string
@@ -14,17 +15,41 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
     const [htmlContent, setHtmlContent] = useState<string | undefined>(undefined)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | undefined>(undefined)
+    // A PDF is read from its own bytes: its stored file is served as a
+    // download (Content-Disposition: attachment), so a frame pointed at its
+    // address saved it instead of showing it.
+    const [pdfUrl, setPdfUrl] = useState<string | undefined>(undefined)
+    // The address is signed, and renewed every few minutes while the viewer
+    // is open (useMediaFetch); the file is the same one, so it is read once.
+    // Read again at each renewal, a PDF went back to its first page.
+    const file = url?.split("?")[0]
+    const signedUrl = useStableCallback(() => url)
 
     useEffect(() => {
-        if (!url) return;
+        const at = signedUrl()
+        if (!file || !at) return;
+        let live = true
+        let made: string | undefined
 
         const fetchAndProcess = async () => {
             setLoading(true);
             setError(undefined);
             try {
+                if (type === 'pdf') {
+                    const res = await fetch(at);
+                    if (!res.ok) throw new Error(String(res.status));
+                    const blobUrl = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: 'application/pdf' }));
+                    if (live) {
+                        made = blobUrl;
+                        setPdfUrl(blobUrl);
+                    } else {
+                        // Closed or moved on meanwhile: nothing will show it.
+                        URL.revokeObjectURL(blobUrl);
+                    }
+                }
                 // Text-based files
-                if (['txt', 'text', 'csv', 'json', 'xml', 'log', 'md'].includes(type) && !content) {
-                    const res = await fetch(url);
+                else if (['txt', 'text', 'csv', 'json', 'xml', 'log', 'md'].includes(type) && !content) {
+                    const res = await fetch(at);
                     const text = await res.text();
                     setTextContent(text);
                 }
@@ -32,7 +57,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
                 // every-page bundle. mammoth is ~700 KB and only used
                 // when the user opens a .docx attachment.
                 else if (['docx', 'doc'].includes(type)) {
-                    const res = await fetch(url);
+                    const res = await fetch(at);
                     const arrayBuffer = await res.arrayBuffer();
                     const mammoth = await import("mammoth");
                     const result = await mammoth.convertToHtml({ arrayBuffer });
@@ -40,7 +65,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
                 }
                 // Excel — same lazy-load story; xlsx is ~900 KB.
                 else if (['xlsx', 'xls'].includes(type)) {
-                    const res = await fetch(url);
+                    const res = await fetch(at);
                     const arrayBuffer = await res.arrayBuffer();
                     const XLSX = await import("xlsx");
                     const workbook = XLSX.read(arrayBuffer);
@@ -58,13 +83,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
         };
 
         fetchAndProcess();
-    }, [type, url, content]);
+        return () => {
+            live = false
+            if (made) URL.revokeObjectURL(made)
+        }
+    }, [type, file, content, signedUrl]);
 
-    if (type === "pdf") {
+    if (type === "pdf" && pdfUrl) {
         return (
             <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-e3">
                 <iframe
-                    src={`${url}#toolbar=1&navpanes=1&scrollbar=1`}
+                    src={`${pdfUrl}#toolbar=1&navpanes=1&scrollbar=1`}
                     className="w-full h-full border-0"
                     title="PDF Document"
                     style={{ maxWidth: "100%", overflow: "auto" }}

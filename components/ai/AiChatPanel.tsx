@@ -28,6 +28,7 @@ import AiInstructionsDialog from "@/components/ai/AiInstructionsDialog";
 import MyAgentWorkDialog from "@/components/ai/MyAgentWorkDialog";
 import { AgentTeammatesMenuItem } from "@/components/ai/AgentTeammatesMenuItem";
 import { ChatHistoryMenu, type ResumedConversation } from "@/components/ai/ChatHistoryMenu";
+import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
 import { ProposedAction, getChatSessionState } from "@/services/aiService";
@@ -211,35 +212,35 @@ const SOURCE_LABEL: Record<string, string> = {
 // generic workspace prompts on home / unrecognized surfaces.
 const CONTEXT_SUGGESTIONS: Record<string, string[]> = {
     channel: [
-        "Summarize recent activity in this channel",
+        "Summarise recent activity in this channel",
         "What decisions were made in this channel?",
         "Are there open questions here I should answer?",
     ],
     doc: [
-        "Summarize this doc",
+        "Summarise this doc",
         "What are the action items in this doc?",
         "Suggest improvements to this doc",
     ],
     task: [
-        "Summarize this task and its discussion",
+        "Summarise this task and its discussion",
         "What's blocking this task?",
         "Draft a status update for this task",
     ],
     board: [
-        "Summarize what's on this board",
+        "Summarise what's on this board",
         "What are the next steps from this board?",
     ],
     table: [
-        "Summarize what's in this table",
+        "Summarise what's in this table",
         "What patterns stand out in this data?",
     ],
     chat: [
-        "Summarize this conversation",
+        "Summarise this conversation",
         "What did I miss in this conversation?",
         "Draft a reply",
     ],
     project: [
-        "Summarize this project's status",
+        "Summarise this project's status",
         "What tasks are overdue in this project?",
         "What decisions were made in this project?",
     ],
@@ -403,7 +404,7 @@ function AiErrorNote({ message, onRetry }: { message: string; onRetry?: () => vo
     if (aiErrorKind(message) === "limit") {
         return (
             <div data-ai-error="limit" className="ml-9 rounded-[10px] bg-camp-sun-tint px-3 py-2.5 text-ui text-camp-sun-ink" role="status">
-                You&apos;ve used today&apos;s AI allowance. It resets at 00:00. An admin can raise it in AI settings.
+                You&apos;ve used today&apos;s AI allowance. It resets at midnight UTC. An admin can raise it in AI settings.
             </div>
         );
     }
@@ -744,69 +745,77 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page"; initialAsk?: string }>
         />
     );
 
+    // The phone's page: its tools ride in the phone's top bar.
+    const phonePage = isPage && isMobile;
+    const tools = (
+        <>
+            <button type="button" className={ICON_BTN} data-touch-target="" onClick={handleNewChat} title="New chat" aria-label="New conversation">
+                <SquarePen />
+            </button>
+            {/* Past conversations, beside the tools menu: reopening yesterday's thread is a top-level thing to do. */}
+            <ChatHistoryMenu onResume={handleResume} currentId={sessionId} />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button type="button" className={ICON_BTN} data-touch-target="" title="More tools" aria-label="More AI tools">
+                        <MoreHorizontal />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                    <AiUsageIndicator variant="menu" refreshSignal={messages.length} />
+                    <AgentTeammatesMenuItem onSelect={() => setAgentWorkOpen(true)} />
+                    <DropdownMenuItem onClick={() => setInstructionsOpen(true)}>
+                        <SlidersHorizontal className="h-4 w-4" />
+                        Custom instructions
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/app/ai/memory")}>
+                        <Lightbulb className="h-4 w-4" />
+                        Workspace memory
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
+                        <CalendarClock className="h-4 w-4" />
+                        Find a meeting time
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setReleaseNotesOpen(true)}>
+                        <FileText className="h-4 w-4" />
+                        Draft release notes
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setSocialTopic(""); setSocialOpen(true); }}>
+                        <Megaphone className="h-4 w-4" />
+                        Draft social posts
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </>
+    );
+
     return (
         <div data-ai-panel={variant} className={cn("flex h-full flex-col bg-sheet dark:bg-panel", !isPage && "border-l border-line")}>
-            {/* One 52px row: the mark, the name and the model, then the tools. */}
+            {/* One 52px row: the mark, the name and the model, then the tools.
+                On the phone's page the top bar names it, and the tools go up
+                into that bar (PhoneBarActions): one bar, not two. */}
+            {phonePage ? (
+                <PhoneBarActions>{tools}</PhoneBarActions>
+            ) : (
             <div className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line pl-4 pr-2.5" data-ai-header="">
-                {isPage && isMobile ? (
-                    // The phone's top bar names the page; the tools sit right.
-                    <span className="flex-1" />
-                ) : (
-                    <>
-                        <AiMark />
-                        <h2 className="min-w-0 truncate text-heading font-semibold text-foreground">OneCamp AI</h2>
-                        <span className="ml-1 min-w-0 shrink" data-ai-model="">
-                            <AiModelPicker />
-                        </span>
-                        <span className="flex-1" />
-                    </>
-                )}
-                <div className="flex shrink-0 items-center gap-0.5">
-                    <button type="button" className={ICON_BTN} onClick={handleNewChat} title="New chat" aria-label="New conversation">
-                        <SquarePen />
-                    </button>
-                    {/* Past conversations, beside the tools menu: reopening yesterday's thread is a top-level thing to do. */}
-                    <ChatHistoryMenu onResume={handleResume} currentId={sessionId} />
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button type="button" className={ICON_BTN} title="More tools" aria-label="More AI tools">
-                                <MoreHorizontal />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                            <AiUsageIndicator variant="menu" refreshSignal={messages.length} />
-                            <AgentTeammatesMenuItem onSelect={() => setAgentWorkOpen(true)} />
-                            <DropdownMenuItem onClick={() => setInstructionsOpen(true)}>
-                                <SlidersHorizontal className="h-4 w-4" />
-                                Custom instructions
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push("/app/ai/memory")}>
-                                <Lightbulb className="h-4 w-4" />
-                                Workspace memory
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
-                                <CalendarClock className="h-4 w-4" />
-                                Find a meeting time
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setReleaseNotesOpen(true)}>
-                                <FileText className="h-4 w-4" />
-                                Draft release notes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setSocialTopic(""); setSocialOpen(true); }}>
-                                <Megaphone className="h-4 w-4" />
-                                Draft social posts
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    {/* Closing means something in the side panel, and on a phone (back). */}
-                    {!(isPage && !isMobile) && (
-                        <button type="button" className={ICON_BTN} onClick={handleClose} title="Close (Esc)" aria-label="Close panel">
+                <AiMark />
+                <h2 className="min-w-0 truncate text-heading font-semibold text-foreground">OneCamp AI</h2>
+                <span className="ml-1 min-w-0 shrink" data-ai-model="">
+                    <AiModelPicker />
+                </span>
+                <span className="flex-1" />
+                {/* 16px apart on a touch screen (44 less their 28). */}
+                <div className="flex shrink-0 items-center gap-0.5 pointer-coarse:gap-4">
+                    {tools}
+                    {/* Closing means something in the side panel. */}
+                    {!isPage && (
+                        <button type="button" className={ICON_BTN} data-touch-target="" onClick={handleClose} title="Close (Esc)" aria-label="Close panel">
                             <X />
                         </button>
                     )}
                 </div>
             </div>
+            )}
 
             {centred ? (
                 // The empty page: the composition and a wider composer together, at 38% of the height.
@@ -899,6 +908,13 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page"; initialAsk?: string }>
                     </div>
 
                     <div className="shrink-0 px-3 pb-3 pt-1">
+                        {/* The phone's page has no header row, and with it went
+                            the model (QA DSA-35): it sits over the box. */}
+                        {phonePage ? (
+                            <div data-ai-model="" className="mb-1 flex empty:hidden">
+                                <AiModelPicker />
+                            </div>
+                        ) : null}
                         <div className={column}>{composer}</div>
                     </div>
                 </>

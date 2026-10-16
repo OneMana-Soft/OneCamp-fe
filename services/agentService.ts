@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 // Agent Builder client. Mirrors workflowService: list via useFetch in the card,
@@ -374,9 +374,9 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
       { name: "send_message", label: "Post in a channel", write: true },
       { name: "send_dm", label: "Send a direct message", write: true },
       { name: "send_group_chat", label: "Message a group chat", write: true },
-      { name: "summarize_channel", label: "Summarize a channel", write: false },
-      { name: "summarize_dm", label: "Summarize a DM", write: false },
-      { name: "summarize_group_chat", label: "Summarize a group chat", write: false },
+      { name: "summarize_channel", label: "Summarise a channel", write: false },
+      { name: "summarize_dm", label: "Summarise a DM", write: false },
+      { name: "summarize_group_chat", label: "Summarise a group chat", write: false },
       { name: "create_poll", label: "Post a poll", write: true },
       { name: "read_poll", label: "Read a poll's results", write: false },
     ],
@@ -395,8 +395,8 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
     tools: [
       { name: "list_tables", label: "List tables", write: false },
       { name: "read_table", label: "Read a table", write: false },
-      { name: "query_table", label: "Analyze a table (totals & charts)", write: false },
-      { name: "query_plan", label: "Analyze a table in several steps (top-N, %, having)", write: false },
+      { name: "query_table", label: "Analyse a table (totals & charts)", write: false },
+      { name: "query_plan", label: "Analyse a table in several steps (top-N, %, having)", write: false },
       { name: "create_table_row", label: "Add a table row", write: true },
       { name: "update_table_row", label: "Update a table row", write: true },
     ],
@@ -407,8 +407,8 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
     tools: [
       { name: "list_data_sources", label: "List data sources", write: false },
       { name: "read_data_source", label: "Read a data source's schema", write: false },
-      { name: "query_data_source", label: "Analyze a data source (totals & charts)", write: false },
-      { name: "query_data_source_plan", label: "Analyze a data source in several steps (top-N, %, having)", write: false },
+      { name: "query_data_source", label: "Analyse a data source (totals & charts)", write: false },
+      { name: "query_data_source_plan", label: "Analyse a data source in several steps (top-N, %, having)", write: false },
     ],
   },
   {
@@ -429,12 +429,12 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
     group: "Code (GitHub, read-only)",
     note: "Read + understand the workspace's connected GitHub repo. Read-only, so safe to grant broadly.",
     tools: [
-      { name: "repo_summary", label: "Summarize the repo", write: false },
+      { name: "repo_summary", label: "Summarise the repo", write: false },
       { name: "search_repo_code", label: "Search code", write: false },
       { name: "read_repo_file", label: "Read a file", write: false },
       { name: "list_commits", label: "List commits", write: false },
       { name: "list_recent_changes", label: "List merged PRs", write: false },
-      { name: "code_analyze", label: "Analyze a bug / propose a fix", write: false },
+      { name: "code_analyze", label: "Analyse a bug / propose a fix", write: false },
     ],
   },
   {
@@ -900,7 +900,8 @@ export async function setChannelAITeammate(
   agentId: string,
   enabled: boolean,
 ): Promise<void> {
-  await axiosInstance.post("/ch/ai-teammates", { channel_id: channelId, agent_id: agentId, enabled })
+  // The channel's Details say what failed, in their own words.
+  await axiosInstance.post("/ch/ai-teammates", { channel_id: channelId, agent_id: agentId, enabled }, OWN_ERRORS)
 }
 
 // ChannelAIBudget is a channel's per-day AI token cap (0 = no cap), today's
@@ -930,7 +931,7 @@ export async function setChannelAIBudget(
 ): Promise<void> {
   const body: Record<string, unknown> = { channel_id: channelId, max_daily_tokens: maxDailyTokens }
   if (aiModelId !== undefined) body.ai_model_id = aiModelId
-  await axiosInstance.post("/ch/ai-budget", body)
+  await axiosInstance.post("/ch/ai-budget", body, OWN_ERRORS)
 }
 
 // ─── Agent evaluation harness ────────────────────────────────────────────────

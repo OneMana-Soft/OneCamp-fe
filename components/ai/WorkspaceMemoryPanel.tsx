@@ -597,6 +597,7 @@ function WorkspaceMemoryPanel({
                 role="tab"
                 aria-selected={active}
                 type="button"
+                data-touch-target=""
                 onClick={() => setStatusView(s.value)}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                   active
@@ -628,6 +629,7 @@ function WorkspaceMemoryPanel({
                 role="tab"
                 aria-selected={active}
                 type="button"
+                data-touch-target=""
                 onClick={() => setTab(t.value)}
                 className={`relative flex-shrink-0 whitespace-nowrap px-3 py-2.5 text-sm transition-colors border-b-2 ${
                   active
@@ -826,7 +828,8 @@ function MemoryRow({
           fading out. */}
       <div
         className={cn(
-          "flex items-center gap-0.5 flex-shrink-0 transition-opacity",
+          // 16px apart on a touch screen (44 less their 28).
+          "flex items-center gap-0.5 pointer-coarse:gap-4 flex-shrink-0 transition-opacity",
           actionsPinned
             ? "opacity-100"
             : "opacity-100 sm:opacity-0 pointer-events-none sm:group-hover:opacity-100 group-hover:pointer-events-auto sm:group-focus-within:opacity-100 focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",

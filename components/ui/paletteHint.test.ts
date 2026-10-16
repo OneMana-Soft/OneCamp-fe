@@ -17,8 +17,8 @@ describe("the command palette's key hints", () => {
     }
   })
 
-  it("shows Tab on the Ask segment", () => {
-    expect(palette).toMatch(/Ask \{!isPhone && <kbd className="kbd">Tab<\/kbd>\}/)
+  it("shows Tab on the Ask segment, as a key hint a touch screen with no keyboard drops", () => {
+    expect(palette).toMatch(/Ask \{!isPhone && <kbd data-kbd-hint="" className="kbd">Tab<\/kbd>\}/)
   })
 
   it("draws no close button: Esc and the scrim close it", () => {

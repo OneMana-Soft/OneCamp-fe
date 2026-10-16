@@ -37,7 +37,6 @@ const CreateCalendarEventDialog = dynamic(() => import("@/components/calendar/cr
 const BoardVersionHistoryDialog = dynamic(() => import("@/components/dialog/boardVersionHistoryDialog"), { ssr: false });
 const BoardShareDialog = dynamic(() => import("@/components/dialog/boardShareDialog").then(mod => mod.BoardShareDialog), { ssr: false });
 const BoardViewersDialog = dynamic(() => import("@/components/dialog/boardViewersDialog"), { ssr: false });
-const DocVersionHistoryDialog = dynamic(() => import("@/components/dialog/docVersionHistoryDialog"), { ssr: false });
 const DocViewersDialog = dynamic(() => import("@/components/dialog/docViewersDialog"), { ssr: false });
 const TaskNameSuggestion = dynamic(() => import("@/components/ai/TaskNameSuggestion").then((m) => m.TaskNameSuggestion), { ssr: false });
 const ExtractTasksDialog = dynamic(() => import("@/components/ai/ExtractTasksDialog"), { ssr: false });
@@ -63,7 +62,6 @@ const ChannelOptionsDrawer = dynamic(() => import("@/components/drawers/channelO
 const ChatOptionsDrawer = dynamic(() => import("@/components/drawers/chatOptionsDrawer").then(mod => mod.ChatOptionsDrawer), { ssr: false });
 const GroupChatOptionsDrawer = dynamic(() => import("@/components/drawers/groupChatOptionsDrawer").then(mod => mod.GroupChatOptionsDrawer), { ssr: false });
 const ChannelMobileSheet = dynamic(() => import("@/components/sheets/channelMobileSheet").then(mod => mod.ChannelMobileSheet), { ssr: false });
-const DocFilterOptionsDrawer = dynamic(() => import("@/components/drawers/docFilterOptionsDrawer").then(mod => mod.DocFilterOptionsDrawer), { ssr: false });
 const DocOptionsDrawer = dynamic(() => import("@/components/drawers/docOptionsDrawer").then(mod => mod.DocOptionsDrawer), { ssr: false });
 const EmojiPickerDrawer = dynamic(() => import("@/components/drawers/emojiPickerDrawer").then(mod => mod.EmojiPickerDrawer), { ssr: false });
 const TaskFilterDrawer = dynamic(() => import("@/components/drawers/taskFilterDrawer").then(mod => mod.TaskFilterDrawer), { ssr: false });
@@ -71,7 +69,6 @@ const ProjectTaskFilterDrawer = dynamic(() => import("@/components/drawers/proje
 const TaskOptionsDrawer = dynamic(() => import("@/components/drawers/taskOptionsDrawer").then(mod => mod.TaskOptionsDrawer), { ssr: false });
 const TeamOptionsDrawer = dynamic(() => import("@/components/drawers/teamOptionsDrawer").then(mod => mod.TeamOptionsDrawer), { ssr: false });
 const MyTaskOptionsDrawer = dynamic(() => import("@/components/drawers/myTaskOptionsDrawer").then(mod => mod.MyTaskOptionsDrawer), { ssr: false });
-const ProjectOptionsDrawer = dynamic(() => import("@/components/drawers/projectOptionsDrawer").then(mod => mod.ProjectOptionsDrawer), { ssr: false });
 const CalendarOptionsDrawer = dynamic(() => import("@/components/drawers/calendarOptionsDrawer").then(mod => mod.CalendarOptionsDrawer), { ssr: false });
 
 
@@ -341,14 +338,6 @@ export function UnifiedUIManager() {
         />
       )}
 
-      {ui.docVersionHistory.isOpen && (
-        <DocVersionHistoryDialog
-          open={ui.docVersionHistory.isOpen}
-          onOpenChange={() => dispatch(closeUI('docVersionHistory'))}
-          docId={ui.docVersionHistory.data.docId}
-        />
-      )}
-
       {ui.docViewers.isOpen && (
         <DocViewersDialog
           open={ui.docViewers.isOpen}
@@ -586,13 +575,6 @@ export function UnifiedUIManager() {
         />
       )}
 
-      {ui.docFilterOptionsDrawer.isOpen && (
-        <DocFilterOptionsDrawer
-          drawerOpenState={ui.docFilterOptionsDrawer.isOpen}
-          setOpenState={() => dispatch(closeUI('docFilterOptionsDrawer'))}
-        />
-      )}
-
       {ui.docOptionsDrawer.isOpen && (
         <DocOptionsDrawer
           drawerOpenState={ui.docOptionsDrawer.isOpen}
@@ -647,14 +629,6 @@ export function UnifiedUIManager() {
         <MyTaskOptionsDrawer
           drawerOpenState={ui.myTaskOptionsDrawer.isOpen}
           setOpenState={() => dispatch(closeUI('myTaskOptionsDrawer'))}
-        />
-      )}
-
-      {ui.projectOptionsDrawer.isOpen && (
-        <ProjectOptionsDrawer
-          drawerOpenState={ui.projectOptionsDrawer.isOpen}
-          setOpenState={() => dispatch(closeUI('projectOptionsDrawer'))}
-          projectId={ui.projectOptionsDrawer.data.projectUUID}
         />
       )}
 

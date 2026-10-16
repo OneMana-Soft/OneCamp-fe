@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { Provider } from "react-redux"
 import { SendHorizontal } from "@/lib/icons"
@@ -46,6 +46,26 @@ const reachable = (root: Element) =>
   [...root.querySelectorAll("button")].filter((b) => !b.closest("[aria-hidden=true]") && b.getAttribute("aria-hidden") !== "true" && b.tabIndex !== -1)
 
 describe("the phone composer", () => {
+  // QA F-26: its tools were 36px, Send 36px and the smile 32px under a
+  // finger. Every control in the card takes a finger's 44px (app/phone.css
+  // F3), and a row of 36px tools sits 8px apart on a touch screen, so each
+  // reach ends where the next one's starts (QA-FIX's e2e/touchTargets.spec
+  // measures it on a phone).
+  it("gives every control a finger's 44px, and spaces its rows for it on a touch screen", async () => {
+    const { container } = composer("<p>Numbers are in</p>")
+    const card = await waitFor(() => container.querySelector<HTMLElement>("[data-phone-composer]")!)
+    fireEvent.focus(card.querySelector("[contenteditable]")!)
+    const tools = await waitFor(() => card.querySelector<HTMLElement>("[data-phone-tools]")!)
+    fireEvent.click(screen.getByRole("button", { name: "Show formatting" }))
+    const buttons = [...card.querySelectorAll("button")]
+    expect(buttons.length).toBeGreaterThan(8)
+    for (const b of buttons) expect(b.hasAttribute("data-touch-target"), b.getAttribute("aria-label") ?? b.textContent ?? "").toBe(true)
+    expect(tools.className.split(/\s+/)).toContain("pointer-coarse:gap-2")
+    expect(screen.getByRole("button", { name: "Hide formatting" })).toBeTruthy()
+    const formatRow = card.querySelector<HTMLElement>("[data-phone-tools] + div")!
+    expect(formatRow.className.split(/\s+/)).toContain("pointer-coarse:gap-2")
+  })
+
   it("is one row at rest: at most three controls beside the field, on a floating card", async () => {
     const { container } = composer()
     const card = await waitFor(() => container.querySelector<HTMLElement>("[data-phone-composer]")!)

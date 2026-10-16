@@ -1,0 +1,201 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "attrs": {
+            "level": 3
+          },
+          "content": [
+            {
+              "text": "Release ",
+              "type": "text"
+            },
+            {
+              "marks": [
+                {
+                  "type": "italic"
+                }
+              ],
+              "text": "notes",
+              "type": "text"
+            }
+          ],
+          "type": "heading"
+        },
+        {
+          "content": [
+            {
+              "text": "Shipped on time.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Plain ",
+              "type": "text"
+            },
+            {
+              "marks": [
+                {
+                  "attrs": {
+                    "href": "https://example.com/x",
+                    "rel": "noopener noreferrer nofollow",
+                    "target": "_blank"
+                  },
+                  "type": "link"
+                }
+              ],
+              "text": "summary",
+              "type": "text"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "marks": [
+                {
+                  "attrs": {
+                    "color": "sun"
+                  },
+                  "type": "highlight"
+                }
+              ],
+              "text": "marked",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Loose text.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "No summary: an empty first line, then this.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Wrapped",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Second line",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Body.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "sun"
+              },
+              "type": "highlight"
+            }
+          ],
+          "text": "Marked",
+          "type": "text"
+        },
+        {
+          "text": ", ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "lake"
+              },
+              "type": "highlight"
+            }
+          ],
+          "text": "teal",
+          "type": "text"
+        },
+        {
+          "text": ", red, which goes and ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "dusk"
+              },
+              "type": "textStyle"
+            }
+          ],
+          "text": "purple",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "type": "toc"
+    },
+    {
+      "type": "toc"
+    }
+  ],
+  "type": "doc"
+}

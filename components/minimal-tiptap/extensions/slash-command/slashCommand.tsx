@@ -1,10 +1,11 @@
-import { CommandList, CommandTile, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
-import { ReactRenderer } from "@tiptap/react"
+import { CommandList, CommandTile, fuzzyMatch, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
 import React, { forwardRef, useImperativeHandle, useRef } from "react"
-import tippy, { Instance as TippyInstance } from "tippy.js"
-import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Minus, CheckSquare, Image, Sparkles, MessageSquare, ChevronRight, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
-import { Lightbulb, Underline as UnderlineIcon, Eraser, Table as TableIcon } from "@/lib/icons";
+import { suggestionPopup, type SuggestionListExtras } from "../suggestion-popup"
+import { busFor } from "@/components/docEditor/registry/commandBus"
+import { storedRecents } from "@/lib/utils/storedRecents"
+import { Code, Sparkles, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
+import { Underline as UnderlineIcon, Eraser } from "@/lib/icons";
 
 export interface SlashCommandItem {
   id: string
@@ -14,18 +15,16 @@ export interface SlashCommandItem {
   section: string
   /** The markdown shortcut that makes the same block, shown as kbd chips. */
   kbd?: string[]
+  /** Other words it answers to ("img", "todo", "h1", "#", "div"), as Notion's do. */
+  aliases?: string[]
   command: (props: { editor: any; range: any }) => void
-}
-
-const DOM_RECT_FALLBACK: DOMRect = {
-  bottom: 0, height: 0, left: 0, right: 0, top: 0, width: 0, x: 0, y: 0,
-  toJSON() { return {} },
 }
 
 // ─── Text formatting (safe everywhere: chat, comments, docs) ───
 const FORMAT_COMMANDS: SlashCommandItem[] = [
   {
     id: "bold",
+    aliases: ["strong", "b"],
     title: "Bold",
     description: "Make text bold",
     icon: Bold,
@@ -36,6 +35,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "italic",
+    aliases: ["emphasis", "i"],
     title: "Italic",
     description: "Make text italic",
     icon: Italic,
@@ -46,6 +46,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "underline",
+    aliases: ["u"],
     title: "Underline",
     description: "Underline text",
     icon: UnderlineIcon,
@@ -56,6 +57,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "strikethrough",
+    aliases: ["strike", "s", "~"],
     title: "Strikethrough",
     description: "Cross out text",
     icon: Strikethrough,
@@ -66,6 +68,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "inlineCode",
+    aliases: ["code", "mono"],
     title: "Inline code",
     description: "Format text as inline code",
     icon: Code,
@@ -76,6 +79,7 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "clearFormatting",
+    aliases: ["clear", "unformat", "plain"],
     title: "Clear formatting",
     description: "Remove all text formatting",
     icon: Eraser,
@@ -86,228 +90,25 @@ const FORMAT_COMMANDS: SlashCommandItem[] = [
   },
 ]
 
-// ─── Block structure (requires corresponding Tiptap extensions) ───
-const STRUCTURE_COMMANDS: SlashCommandItem[] = [
-  {
-    id: "heading1",
-    kbd: ["#"],
-    title: "Heading 1",
-    description: "Large section heading",
-    icon: Heading1,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setNode("heading", { level: 1 }).run()
-    },
-  },
-  {
-    id: "heading2",
-    kbd: ["##"],
-    title: "Heading 2",
-    description: "Medium section heading",
-    icon: Heading2,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setNode("heading", { level: 2 }).run()
-    },
-  },
-  {
-    id: "heading3",
-    kbd: ["###"],
-    title: "Heading 3",
-    description: "Small section heading",
-    icon: Heading3,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setNode("heading", { level: 3 }).run()
-    },
-  },
-  {
-    id: "bulletList",
-    kbd: ["-"],
-    title: "Bullet list",
-    description: "Create a simple bullet list",
-    icon: List,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleBulletList().run()
-    },
-  },
-  {
-    id: "orderedList",
-    kbd: ["1."],
-    title: "Numbered list",
-    description: "Create a numbered list",
-    icon: ListOrdered,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleOrderedList().run()
-    },
-  },
-  {
-    id: "taskList",
-    kbd: ["[]"],
-    title: "Task list",
-    description: "Create a task list with checkboxes",
-    icon: CheckSquare,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleTaskList().run()
-    },
-  },
-  {
-    id: "blockquote",
-    kbd: [">"],
-    title: "Quote",
-    description: "Insert a blockquote",
-    icon: Quote,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleBlockquote().run()
-    },
-  },
-  {
-    id: "codeBlock",
-    kbd: ["```"],
-    title: "Code block",
-    description: "Insert a code block",
-    icon: Code,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setCodeBlock().run()
-    },
-  },
-  {
-    id: "horizontalRule",
-    kbd: ["---"],
-    title: "Divider",
-    description: "Insert a horizontal divider",
-    icon: Minus,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHorizontalRule().run()
-    },
-  },
-]
-
-// ─── Doc-only blocks (require extra extensions: Callout, Collapsible, TaskList, Image) ───
-const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
-  {
-    id: "callout",
-    title: "Callout",
-    description: "A highlighted note, warning or idea",
-    icon: MessageSquare,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertContent({
-          type: 'callout',
-          content: [{ type: 'paragraph' }],
-        })
-        .run()
-    },
-  },
-  {
-    id: "collapsible",
-    title: "Toggle",
-    description: "Collapsible section with title",
-    icon: ChevronRight,
-    section: "Basic",
-    command: ({ editor, range }) => {
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertContent({
-          type: 'collapsible',
-          content: [{ type: 'paragraph' }],
-        })
-        .run()
-    },
-  },
-  {
-    id: "image",
-    title: "Image",
-    description: "Upload or embed an image",
-    icon: Image,
-    section: "Media and embeds",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleImage().run()
-    },
-  },
-  {
-    id: "table",
-    title: "Table",
-    description: "Embed an existing table or create a new one",
-    icon: TableIcon,
-    section: "Media and embeds",
-    command: ({ editor, range }) => {
-      // Open the table picker (handled in docInput.tsx): the author can embed
-      // a live view of an existing table or create a new one. The doc stores
-      // only { tableId }, never the rows (Notion's model).
-      editor.chain().focus().deleteRange(range).run()
-      window.dispatchEvent(new CustomEvent("doc-embed-table"))
-    },
-  },
-]
-
-// ─── AI assistants — dispatch events captured by docInput.tsx ───
-const AI_COMMANDS: SlashCommandItem[] = [
-  {
-    id: "ai-write",
-    title: "Write with AI",
-    description: "Generate content from a prompt",
-    icon: Sparkles,
-    section: "AI",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).run()
-      window.dispatchEvent(new CustomEvent('doc-ai-slash', { detail: { action: 'write' } }))
-    },
-  },
-  {
-    id: "ai-summarize",
-    title: "Summarize with AI",
-    description: "Summarize selected text or document",
-    icon: Lightbulb,
-    section: "AI",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).run()
-      window.dispatchEvent(new CustomEvent('doc-ai-slash', { detail: { action: 'summarize' } }))
-    },
-  },
-]
-
-// ─── Assembled palettes ───
-
-/** Chat, comments, channel posts, task descriptions — only formatting */
+/**
+ * Chat, comments, channel posts, task descriptions: only formatting. A doc's
+ * "/" comes from the block registry (registry/readers.ts slashItemsFor): its
+ * blocks, and behind the AI gate its AI items; registry tests hold these to
+ * the registry's own formatting items.
+ */
 export const CHAT_COMMANDS: SlashCommandItem[] = [
   ...FORMAT_COMMANDS,
 ]
-
-/** Full doc editor palette — structure + doc blocks + formatting + AI */
-export const DOC_SLASH_COMMANDS: SlashCommandItem[] = [
-  ...STRUCTURE_COMMANDS,
-  ...DOC_BLOCK_COMMANDS,
-  ...FORMAT_COMMANDS,
-  ...AI_COMMANDS,
-]
-
-/** Legacy export — keep for backward compatibility */
-const COMMANDS: SlashCommandItem[] = DOC_SLASH_COMMANDS
-const BASE_COMMANDS: SlashCommandItem[] = CHAT_COMMANDS
-const DOC_COMMANDS: SlashCommandItem[] = DOC_BLOCK_COMMANDS
 
 // ─── Backend command provider (Slack-style app/core commands) ───
 //
 // The chat composer registers an async provider that returns the scoped
 // command catalog (/remind, /giphy, /poll, ...). These are merged into the
 // "/" menu alongside the formatting commands above. Selecting one dispatches
-// a `chat-slash-command` CustomEvent — the same decoupled pattern the AI
-// commands use (`doc-ai-slash`) — which the composer's command runner handles
-// (execute server-side, render an interactive card, or perform a client
-// action). Keeping this as a module-level provider avoids threading async
+// a `chat-slash-command` CustomEvent, which the composer's command runner
+// handles (execute server-side, render an interactive card, or perform a
+// client action). A doc's own items (AI among them) are registered actions run
+// through its command bus instead (components/docEditor/registry). Keeping this as a module-level provider avoids threading async
 // props through every composer while ensuring docs (which never register a
 // provider) keep their formatting-only menu unchanged.
 
@@ -495,9 +296,43 @@ interface NodeLike {
   attrs?: { id?: unknown; label?: unknown }
 }
 
+/**
+ * How well an item answers what was typed after "/": its name, then the other
+ * words it answers to (aliases, from their start), then words in its name,
+ * then words in its description, then the letters of its name in order. 0 is
+ * no match. Pure.
+ */
+export function slashScore(item: SlashCommandItem, query: string): number {
+  const q = query.trim().toLowerCase()
+  if (!q) return 1
+  const title = item.title.toLowerCase()
+  const aliases = (item.aliases ?? []).map((a) => a.toLowerCase())
+  if (title === q || aliases.includes(q)) return 100
+  if (title.startsWith(q)) return 90
+  if (aliases.some((a) => a.startsWith(q))) return 85
+  if (title.split(/[\s-]+/).some((w) => w.startsWith(q))) return 75
+  if (item.id.toLowerCase().startsWith(q)) return 70
+  if (title.includes(q)) return 60
+  if (item.description.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.startsWith(q))) return 40
+  // Letters in order ("hdg" for Heading) only from three on: two letters
+  // in order match half the menu.
+  if (q.length >= 3 && fuzzyMatch(title, q)) return 20
+  return 0
+}
+
+/** The most commands a chat composer's provider adds to the menu. */
+const BACKEND_LIMIT = 50
+
 export const slashCommandSuggestion = {
+  /**
+   * What "/" offers for a query. Tiptap's query is what follows the "/", so
+   * all of it counts: the first letter used to be cut off, so "/img" and
+   * "/todo" found nothing and "/he" listed everything. Every match is
+   * offered, best first (the list scrolls): a cap of 16 used to hide the AI
+   * items and the last formatting ones.
+   */
   items: ({ query, commands, editor }: { query: string; commands: SlashCommandItem[]; editor?: SurfaceEditor }): SlashCommandItem[] => {
-    const q = query.toLowerCase().slice(1) // Remove leading /
+    const q = (query || "").trim().toLowerCase()
 
     // Merge backend (app/core) commands when a provider is registered (chat
     // composer). Docs register no provider, so their menu is unchanged.
@@ -505,90 +340,37 @@ export const slashCommandSuggestion = {
     const provider = providerFor(commandSurfaceOf(editor))
     if (provider) {
       try {
-        backendItems = provider(q).map(toBackendItem)
+        backendItems = provider(q).slice(0, BACKEND_LIMIT).map(toBackendItem)
       } catch {
         backendItems = []
       }
     }
 
-    if (!q) {
-      // Show backend commands first, then a trimmed set of formatting commands.
-      return [...backendItems, ...commands].slice(0, 16)
-    }
-    const filteredLocal = commands.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
-        item.id.toLowerCase().includes(q)
-    )
-    return [...backendItems, ...filteredLocal].slice(0, 16)
+    if (!q) return [...backendItems, ...commands]
+    const ranked = commands
+      .map((item, at) => ({ item, at, score: slashScore(item, q) }))
+      .filter((r) => r.score > 0)
+      .sort((a, b) => b.score - a.score || a.at - b.at)
+      .map((r) => r.item)
+    return [...backendItems, ...ranked]
   },
 
-  render: () => {
-    let component: ReactRenderer<SlashRef> | undefined
-    let popup: TippyInstance | undefined
-
-    return {
-      onStart: (props: SuggestionProps) => {
-        slashMenuOpen = true
-        component = new ReactRenderer(SlashCommandList, {
-          props,
-          editor: props.editor,
-        })
-
-        popup = tippy("body", {
-          getReferenceClientRect: () =>
-            props.clientRect?.() ?? DOM_RECT_FALLBACK,
-          appendTo: () => document.body,
-          content: component.element,
-          showOnCreate: true,
-          interactive: true,
-          trigger: "manual",
-          placement: "bottom-start",
-          offset: [0, 6],
-          // The list is the floating surface; tippy's own box draws nothing.
-          theme: "none",
-          arrow: false,
-          popperOptions: { modifiers: [{ name: "flip", options: { fallbackPlacements: ["top-start"] } }] },
-        })[0]
-      },
-
-      onUpdate(props: SuggestionProps) {
-        component?.updateProps(props)
-        popup?.setProps({
-          getReferenceClientRect: () =>
-            props.clientRect?.() || DOM_RECT_FALLBACK,
-        })
-      },
-
-      onKeyDown(props: SuggestionKeyDownProps) {
-        if (props.event.key === "Escape") {
-          // Only while the menu shows: a second Escape reaches the page.
-          if (!popup?.state.isVisible) return false
-          slashMenuOpen = false
-          popup.hide()
-          return true
-        }
-        if (!component?.ref) return false
-        return component.ref.onKeyDown(props)
-      },
-
-      onExit() {
-        slashMenuOpen = false
-        popup?.destroy()
-        component?.destroy()
-        popup = undefined
-        component = undefined
-      },
-    }
-  },
+  render: suggestionPopup({
+    component: forwardRef<SlashRef, SlashProps>(function SlashMenu(props, ref) {
+      return <SlashCommandList {...props} ref={ref} />
+    }),
+    // The chat composer's Enter yields while the menu is up (isSlashMenuOpen).
+    onOpenChange: (open) => {
+      slashMenuOpen = open
+    },
+  }),
 }
 
 type SlashRef = {
   onKeyDown: (props: SuggestionKeyDownProps) => boolean
 }
 
-interface SlashProps extends SuggestionProps {
+interface SlashProps extends SuggestionProps, SuggestionListExtras {
   items: SlashCommandItem[]
 }
 
@@ -602,21 +384,10 @@ const MEDIA_TILE: Record<string, string> = {
 }
 
 /** The last three blocks someone inserted, newest first (per browser). */
-const RECENT_KEY = "onecamp-slash-recent"
-function readRecent(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]").slice(0, 3)
-  } catch {
-    return []
-  }
-}
-function pushRecent(id: string) {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent().filter((r) => r !== id)].slice(0, 3)))
-  } catch {
-    /* private window */
-  }
-}
+const recentBlocks = storedRecents<string>("onecamp-slash-recent", 3, {
+  valid: (id): id is string => typeof id === "string",
+  same: (a, b) => a === b,
+})
 
 /**
  * The slash menu (content.md D09), as the area's CommandList: grouped
@@ -633,9 +404,19 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
   const inDoc = !!props.editor?.extensionManager?.extensions
     ?.find((e: { name: string }) => e.name === "slash-command")
     ?.options?.commands?.some((c: SlashCommandItem) => c.section === "AI")
+  // A chat composer's menu leads with its commands (/remind, /poll): it says
+  // so, where it read "Blocks" (MC-13). A doc's stays a block menu.
+  const commands = !!providerFor(commandSurfaceOf(props.editor))
 
   const ordered = React.useMemo(() => {
-    const recentIds = query ? [] : readRecent()
+    if (query) {
+      // Ranked (items, best first), grouped: a group comes where its best
+      // match does, so the highlighted first row is the best one.
+      const groups: string[] = []
+      for (const i of props.items) if (!groups.includes(i.section)) groups.push(i.section)
+      return groups.flatMap((section) => props.items.filter((i) => i.section === section).map((i) => ({ item: i, group: section })))
+    }
+    const recentIds = recentBlocks.read()
     const recent = recentIds.map((id) => props.items.find((i) => i.id === id)).filter(Boolean) as SlashCommandItem[]
     const rest = SECTION_ORDER.flatMap((section) => props.items.filter((i) => i.section === section))
     const unknown = props.items.filter((i) => !SECTION_ORDER.includes(i.section))
@@ -666,13 +447,14 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
   const select = (id: string) => {
     const entry = ordered.find(({ item, group }) => `${group}:${item.id}` === id)
     if (!entry) return
-    if (entry.item.section !== "Commands") pushRecent(entry.item.id)
+    if (entry.item.section !== "Commands") recentBlocks.note(entry.item.id)
     entry.item.command({ editor: props.editor, range: props.range })
   }
 
   const askAI = () => {
     props.editor.chain().focus().deleteRange(props.range).run()
-    window.dispatchEvent(new CustomEvent("doc-ai-slash", { detail: { action: "write", prompt: query } }))
+    // The doc this menu is in, alone (split view shows two).
+    busFor(props.editor)?.emit("aiRun", { action: "write", prompt: query })
   }
 
   useImperativeHandle(ref, () => ({
@@ -689,8 +471,9 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
     <div data-slash-menu="">
     <CommandList
       ref={listRef}
-      label="Insert a block"
-      header={query ? `/ ${query}` : "Blocks"}
+      comboboxFor={props.comboboxFor}
+      label={commands ? "Commands" : "Insert a block"}
+      header={query ? `/ ${query}` : commands ? "Commands" : "Blocks"}
       query={query}
       items={items}
       footer={items.length > 0}
@@ -711,7 +494,7 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
             <span className="min-w-0 truncate">Ask AI to write “{query}”</span>
           </button>
         ) : (
-          <span className="text-ink-3">No block called “{query}”</span>
+          <span className="text-ink-3">No {commands ? "command" : "block"} called “{query}”</span>
         )
       }
     />

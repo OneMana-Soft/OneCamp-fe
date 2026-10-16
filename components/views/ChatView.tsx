@@ -2,6 +2,9 @@
 
 
 import { displayNameOf } from "@/lib/personName"
+import { useConversationMissing } from "@/hooks/useConversationMissing";
+import { LoadFailureState } from "@/components/ui/load-failure-state";
+import { app_chat_path } from "@/types/paths";
 import { useMedia } from "@/context/MediaQueryContext";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
@@ -83,6 +86,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(
     chatId ? `${GetEndpointUrl.SelfProfile}/${chatId}` : ''
   );
+  const { missing, retry, retrying } = useConversationMissing("dm", chatId);
 
   const latestKey = chatId ? GetEndpointUrl.GetChatLatestMessage + "/" + chatId : '';
 
@@ -269,6 +273,21 @@ export function ChatView({ chatId }: { chatId: string }) {
   const schedule = useMemo(() => ({ kind: "dm" as const, target: chatId, schedule: handleSchedule }), [chatId, handleSchedule]);
 
   if(!chatId) return
+
+  // Nobody by that id, on a computer and a phone: no message box for a
+  // person who isn't there (QA F-09, F-10).
+  if (missing) {
+    return (
+      <LoadFailureState
+        kind={missing}
+        noun="conversation"
+        onRetry={() => void retry()}
+        retrying={retrying}
+        back={inPane ? undefined : { label: "Back to messages", href: app_chat_path }}
+        goneDetail="We couldn't find that person. The link may be old or mistyped."
+      />
+    );
+  }
 
   // Block DMs to external users client-side. The BE also rejects this on
   // CreateChatMessage as defence-in-depth, but rendering an inert chat

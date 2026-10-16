@@ -1,11 +1,13 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 
-// Templates client: shareable templates (agents, workflows, tables). Publish
-// something you built, browse, and install a copy. All mutations are POST
-// (OneCamp router convention); reads use useFetch in components.
+// Templates client: shareable templates (agents, workflows, tables and docs).
+// Publish something you built, browse, and install a copy. All mutations are
+// POST (OneCamp router convention); reads use useFetch in components. A doc
+// template's own calls (save a doc as one, use one in an empty doc) are in
+// services/docHomeService.ts.
 
-export type TemplateKind = "agent" | "workflow" | "table"
+export type TemplateKind = "agent" | "workflow" | "table" | "doc"
 
 export interface MarketplaceTemplate {
   id: string
@@ -20,7 +22,7 @@ export interface MarketplaceTemplate {
   author_name?: string
 }
 
-interface InstallResult {
+export interface InstallResult {
   kind: TemplateKind
   entity_id: string
   name: string
@@ -55,6 +57,9 @@ export function installedPath(res: InstallResult): string {
       return `/app/settings/agents`
     case "workflow":
       return `/app/settings/workflows`
+    case "doc":
+      // Its title ready to type over, as any new doc opens.
+      return `/app/doc/${res.entity_id}?new=1`
     default:
       return "/app/templates"
   }

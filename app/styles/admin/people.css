@@ -384,12 +384,14 @@
     animation: invite-chip-in 220ms var(--ease-spring) both;
     animation-delay: calc(var(--i, 0) * 20ms);
   }
-  .invite-chip[data-kind="invalid"] {
+  /* By data-invite-chip, the attribute the chip carries: these rules named
+     data-kind, which nothing sets, so a bad address looked like a good one. */
+  .invite-chip[data-invite-chip="invalid"] {
     background: color-mix(in oklab, var(--destructive) 10%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--destructive) 30%, transparent);
     color: var(--danger-ink);
   }
-  .invite-chip[data-kind="known"] {
+  .invite-chip[data-invite-chip="known"] {
     color: var(--ink-2);
   }
   .invite-chip[data-selected="true"] {
@@ -545,8 +547,9 @@
     .audit-row-head {
       grid-template-columns: 22px minmax(0, 1fr) 16px;
     }
-    .audit-row-head .audit-time,
-    .audit-row-head .audit-chip {
+    /* The chip is hidden by its own max-md:hidden: as a utility it outranks
+       this layer. The time moves into the row's second line. */
+    .audit-row-head .audit-time {
       display: none;
     }
     .audit-detail {

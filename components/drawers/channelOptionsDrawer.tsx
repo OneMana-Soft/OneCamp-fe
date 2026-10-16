@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { WorkspaceName } from "@/hooks/useWorkspaceName"
 
 interface ChannelOptionsDrawerProps {
     drawerOpenState: boolean
@@ -102,8 +103,8 @@ export function ChannelOptionsDrawer({
         <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
-                    <DrawerTitle className="capitalize">
-                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    <DrawerTitle>
+                        <WorkspaceName />
                     </DrawerTitle>
                     <DrawerDescription>Channel options</DrawerDescription>
                 </DrawerHeader>
@@ -121,7 +122,7 @@ export function ChannelOptionsDrawer({
 
                     <DrawerItem
                         icon={Star}
-                        label={favourite ? "Remove from favorites" : "Add to favorites"}
+                        label={favourite ? "Remove from favourites" : "Add to favourites"}
                         onClick={toggleFavourite}
                     />
 

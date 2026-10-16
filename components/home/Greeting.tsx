@@ -14,23 +14,29 @@ import { useMemo, type ReactNode } from "react"
 import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { CalendarEventInterface } from "@/types/calendar"
-import type { UserDMInterface } from "@/types/user"
+import type { UserDMInterface, UserProfileDataInterface } from "@/types/user"
 import { GreetingComposition, type CompositionEvent, type CompositionPerson } from "@/components/home/GreetingComposition"
-import { classifyEvent, hhmm } from "@/components/home/homeTime"
+import { classifyEvent } from "@/components/home/homeTime"
+import { clockTime } from "@/lib/utils/date/clock"
 import { riseProps } from "@/lib/hub/motion"
 
-/** Up to four people you meet or talk with today: attendees first, then DM partners. Pure. */
+/**
+ * Up to four people you meet or talk with today: attendees first, then DM
+ * partners. People only: an agent or a bot you talk with is no person, and
+ * OneCamp AI orbited as a green "OA" disc beside its own agent square. Pure.
+ */
 export function orbitPeople(events: CalendarEventInterface[], chats: UserDMInterface[], selfId?: string, max = 4): CompositionPerson[] {
   const out: CompositionPerson[] = []
   const seen = new Set<string>()
-  const add = (id?: string, name?: string) => {
-    if (!id || id === selfId || seen.has(id) || out.length >= max) return
+  const add = (p: UserProfileDataInterface) => {
+    const id = p.user_uuid
+    if (!id || p.is_bot || id === selfId || seen.has(id) || out.length >= max) return
     seen.add(id)
-    out.push({ id, name: name || "?" })
+    out.push({ id, name: displayNameOf(p) || "?" })
   }
-  for (const ev of events) for (const p of ev.event_participants ?? []) add(p.user_uuid, displayNameOf(p))
+  for (const ev of events) for (const p of ev.event_participants ?? []) add(p)
   const waiting = [...chats].sort((a, b) => (b.dm_unread || 0) - (a.dm_unread || 0))
-  for (const c of waiting) for (const p of c.dm_participants ?? []) add(p.user_uuid, displayNameOf(p))
+  for (const c of waiting) for (const p of c.dm_participants ?? []) add(p)
   return out
 }
 
@@ -42,7 +48,7 @@ export function orbitEvents(events: CalendarEventInterface[]): CompositionEvent[
 /** " · In focus until 16:00" while a focus block runs. Pure. */
 export function focusClause(events: CalendarEventInterface[], now: Date): string | null {
   const f = events.find((e) => e.event_is_focus && classifyEvent(e, now) === "current")
-  return f ? `In focus until ${hhmm(f.event_end_time)}` : null
+  return f ? `In focus until ${clockTime(f.event_end_time)}` : null
 }
 
 export function Greeting({

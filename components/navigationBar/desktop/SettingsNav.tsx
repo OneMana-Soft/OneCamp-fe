@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Search } from "@/lib/icons"
+import { ChevronLeft, Lock, Search } from "@/lib/icons"
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
@@ -20,6 +20,7 @@ import { useModKey } from "@/hooks/useModKey"
 import { preloadAdminSection } from "@/components/admin/adminPreload"
 import { flashCard } from "@/hooks/useJumpFlash"
 import { cn } from "@/lib/utils/helpers/cn"
+import { RailItem } from "@/components/navigationBar/desktop/SidebarRail"
 
 /** Where "Back to app" goes: the last place outside settings, this session. */
 const LAST_APP_ROUTE = "onecamp:last-app-route"
@@ -40,18 +41,26 @@ export function lastAppRoute(): string {
 
 const GROUP_ORDER: SettingsGroupKey[] = ["you", "workspace", "ai", "connections", "records", "system"]
 
-/** Which places this person sees: "You" for everyone, the rest for admins. */
-export function useSettingsPlaces(isAdmin: boolean) {
+/**
+ * Which places this person sees: "You" for everyone, the rest for admins.
+ * A section they can't use is left out, unless it is the page they are on
+ * (`here`, opened by its address): that one stays, locked, so the nav still
+ * says where they are (QA SH-21).
+ */
+export function useSettingsPlaces(isAdmin: boolean, here?: string) {
   const { can, isLoading } = useCapabilities()
   const ai = useFeatureState(FEATURE_AI)
   const calls = useFeatureState(FEATURE_CALLS)
   return useMemo(() => {
-    const out: { place: SettingsPlace; pending: boolean }[] = []
+    const out: { place: SettingsPlace; pending: boolean; locked?: boolean }[] = []
     for (const place of SETTINGS_PLACES) {
       if (place.group !== "you" && !isAdmin) continue
       if (place.settings) {
         const access = sectionAccess(place.settings, { can, capabilitiesKnown: !isLoading, ai })
-        if (access === "hidden") continue
+        if (access === "hidden") {
+          if (place.key === here) out.push({ place, pending: false, locked: true })
+          continue
+        }
         out.push({ place, pending: access === "unknown" })
         continue
       }
@@ -60,7 +69,7 @@ export function useSettingsPlaces(isAdmin: boolean) {
       out.push({ place, pending: gate === "unknown" })
     }
     return out
-  }, [isAdmin, can, isLoading, ai, calls])
+  }, [isAdmin, can, isLoading, ai, calls, here])
 }
 
 /**
@@ -82,8 +91,8 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname() || ""
   const params = useSearchParams()
   const router = useRouter()
-  const places = useSettingsPlaces(isAdmin)
   const current = placeForLocation(pathname, params?.get("tab") ?? null)
+  const places = useSettingsPlaces(isAdmin, current?.key)
   const [query, setQuery] = useState("")
   const [back, setBack] = useState("/app")
   const searchRef = useRef<HTMLInputElement>(null)
@@ -96,7 +105,7 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => setBack(lastAppRoute()), [])
 
   const hits: SettingsHit[] = useMemo(
-    () => searchSettings(query, places.filter((p) => !p.pending).map((p) => p.place)),
+    () => searchSettings(query, places.filter((p) => !p.pending && !p.locked).map((p) => p.place)),
     [query, places],
   )
 
@@ -228,7 +237,7 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
                   <p aria-hidden="true" className={cn("snav-sect text-2xs font-medium", group === "you" && "mt-1")}>
                     {SETTINGS_GROUP_LABEL[group]}
                   </p>
-                  {rows.map(({ place, pending }) => {
+                  {rows.map(({ place, pending, locked }) => {
                     const Icon = place.icon
                     if (pending) {
                       return (
@@ -251,6 +260,12 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
                       >
                         <Icon className="size-4 shrink-0" aria-hidden="true" />
                         <span className="min-w-0 flex-1 truncate">{place.label}</span>
+                        {locked ? (
+                          <>
+                            <Lock className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                            <span className="sr-only">, locked</span>
+                          </>
+                        ) : null}
                       </IntentLink>
                     )
                   })}
@@ -261,5 +276,46 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * The settings nav folded into the rail (design v3, admin §1.1 and shell
+ * S13): Back to app, then each section this person can open as a rail item,
+ * grouped by hairlines, the current one the raised chip. Under 1024 the
+ * sidebar starts as the rail, and in settings the rail showed the app's
+ * places instead: no way to another settings section without widening the
+ * sidebar. The rail's peek still opens the whole settings nav, search and all.
+ */
+export function SettingsRailItems({ isAdmin }: { isAdmin: boolean }) {
+  const pathname = usePathname() || ""
+  const params = useSearchParams()
+  const current = placeForLocation(pathname, params?.get("tab") ?? null)
+  const places = useSettingsPlaces(isAdmin, current?.key)
+  const [back, setBack] = useState("/app")
+  useEffect(() => setBack(lastAppRoute()), [])
+  return (
+    <>
+      <RailItem href={back} title="Back to app">
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </RailItem>
+      {GROUP_ORDER.map((group) => {
+        const rows = places.filter((p) => p.place.group === group && !p.pending)
+        if (rows.length === 0) return null
+        return (
+          <div key={group} role="group" aria-label={SETTINGS_GROUP_LABEL[group]} data-settings-rail-group={group} className="flex flex-col items-start gap-0.5">
+            <span className="shell-rail-sep" aria-hidden="true" />
+            {rows.map(({ place }) => {
+              const Icon = place.icon
+              return (
+                <RailItem key={place.key} href={place.href} title={place.label} active={current?.key === place.key}>
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </RailItem>
+              )
+            })}
+          </div>
+        )
+      })}
+    </>
   )
 }

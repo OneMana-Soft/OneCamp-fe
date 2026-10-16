@@ -6,11 +6,12 @@
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { useFetch } from "@/hooks/useFetch"
 import { Loader2 } from "@/lib/icons"
-import { serverMessage } from "@/lib/http/serverMessage"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatCents } from "@/lib/rates"
 import { STATUS_LABEL, outstanding, shownStatus, type SavedInvoice, type ShownStatus } from "@/lib/invoice/saved"
 import { localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 // A status as a dot and its word, like a task's: the uppercase badges (DRAFT,
 // PAID in a tint, OVERDUE in a red fill) shouted in a list of three rows.
@@ -25,8 +26,12 @@ const DOT: Record<ShownStatus, string> = {
 const shortDay = (iso: string) => shortDate(new Date(`${iso}T00:00:00`))
 
 export function ProjectInvoices({ projectId }: { projectId: string }) {
+  // Says its own failure, below the heading; the toast stays quiet.
   const { data, isLoading, isError } = useFetch<{ data: { invoices: SavedInvoice[]; next_number: string } }>(
     `${GetEndpointUrl.ProjectInvoices}/${projectId}/invoices`,
+    undefined,
+    undefined,
+    OWN_ERRORS,
   )
   const invoices = data?.data?.invoices ?? []
   const today = localDay()
@@ -45,7 +50,7 @@ export function ProjectInvoices({ projectId }: { projectId: string }) {
       {isLoading ? (
         <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
       ) : isError ? (
-        <p className="text-sm text-danger-ink">{serverMessage(isError, "Couldn't load this project's invoices.")}</p>
+        <p className="text-sm text-danger-ink">{apiErrorMessage(isError, "Couldn't load this project's invoices.")}</p>
       ) : invoices.length === 0 ? (
         <p className="text-sm text-muted-foreground">None saved yet. Make an invoice from this range&apos;s time, then save it to keep track of whether it&apos;s paid.</p>
       ) : (

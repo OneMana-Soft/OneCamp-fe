@@ -8,8 +8,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 // foot of the page while the rest of the page saved at once.
 //
 // With email off, the event rows dim and disable under one line, and stay
-// where they are. At 720px and wider the events are a matrix with a column
-// per channel the server stores per event, which today is Email alone.
+// where they are. Every width has the same control for an event, a switch:
+// a computer's was a one-column table of checkboxes (QA F-33).
 //
 // The card shares its request with Read receipts, which updates the shared
 // answer: a change in flight must survive that.
@@ -92,6 +92,18 @@ describe("one save model: instant", () => {
     expect(mentions().closest("[data-setting-row]")).toHaveTextContent("The server is restarting.")
   })
 
+  // A refused toggle said "boom" under its label, the server's raw words, and
+  // nothing said the change didn't hold (QA F-25).
+  it("says a refused save wasn't saved, in plain words, never the server's raw error", async () => {
+    post.mockRejectedValue({ response: { status: 500, data: { error: "pq: deadlock detected" } } })
+    render(<NotificationPreferencesCard />)
+    await act(async () => void fireEvent.click(mentions()))
+    const row = mentions().closest("[data-setting-row]") as HTMLElement
+    // A server fault says the caller's own words (lib/utils/apiError), never its developer text.
+    await waitFor(() => expect(row).toHaveTextContent("Not saved. Try again in a moment."))
+    expect(row).not.toHaveTextContent("pq:")
+  })
+
   it("keeps a change in flight when Read receipts updates the shared answer", async () => {
     let answer: (v: unknown) => void = () => {}
     post.mockReturnValue(new Promise((r) => (answer = r)))
@@ -133,30 +145,21 @@ describe("the email master switch", () => {
   })
 })
 
-describe("the event matrix", () => {
-  it("lays the events out as a matrix at 720px and wider, with a column per stored channel", () => {
-    wide.on = true
+describe("one control for an event, on every width (QA F-33)", () => {
+  it.each([true, false])("is a switch per event, wide: %s", (on) => {
+    wide.on = on
     render(<NotificationPreferencesCard />)
-    const matrix = screen.getByRole("table", { name: "What you're emailed about" })
-    const heads = within(matrix).getAllByRole("columnheader").map((h) => h.textContent)
-    // Email is the only channel the server stores per event today.
-    expect(heads).toEqual(["Event", "Email"])
-    expect(within(matrix).getAllByRole("row")).toHaveLength(8)
-    expect(within(matrix).getByRole("checkbox", { name: "Mentions by email" })).toHaveAttribute("data-state", "checked")
+    expect(screen.queryByRole("table")).toBeNull()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    expect(mentions()).toHaveAttribute("aria-checked", "true")
   })
 
-  it("saves a matrix checkbox like any other change", async () => {
+  it("saves an event's switch like any other change", async () => {
     wide.on = true
     post.mockResolvedValue({})
     render(<NotificationPreferencesCard />)
-    await act(async () => void fireEvent.click(screen.getByRole("checkbox", { name: "Calls by email" })))
+    await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Calls" })))
     expect(post.mock.calls[0][1]).toEqual({ email_calls: false })
-  })
-
-  it("keeps switch rows below 720px", () => {
-    render(<NotificationPreferencesCard />)
-    expect(screen.queryByRole("table")).toBeNull()
-    expect(mentions()).toBeInTheDocument()
   })
 })
 

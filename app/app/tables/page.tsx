@@ -4,9 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
+import { useAIAvailable } from "@/hooks/useClientConfig"
+import { isComposingKey } from "@/lib/keys/ime"
 import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight } from "@/lib/icons"
 import { DataTable, createTable, deleteTable, generateTable, updateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -44,12 +47,15 @@ export default function TablesPage() {
   const router = useRouter()
   const { toast } = useToast()
   const confirm = useConfirm()
-  const { data, isLoading, isError, mutate } = useFetch<{ data: DataTable[] }>(GetEndpointUrl.GetTables)
+  // The page shows a failed load itself, with Try again: no second, toast-borne copy.
+  const { data, isLoading, isError, mutate } = useFetch<{ data: DataTable[] }>(GetEndpointUrl.GetTables, undefined, undefined, OWN_ERRORS)
   const [creating, setCreating] = React.useState(false)
+  const ai = useAIAvailable()
   const [prompt, setPrompt] = React.useState("")
   const [generating, setGenerating] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState("")
   const [renaming, setRenaming] = React.useState<string | null>(null)
+  const renameNext = React.useRef<string | null>(null)
   const searchRef = React.useRef<HTMLInputElement>(null)
   const promptRef = React.useRef<HTMLInputElement>(null)
 
@@ -95,7 +101,8 @@ export default function TablesPage() {
     try {
       const t = await generateTable(p)
       toast({ title: `Created "${t.name}"` })
-      router.push(`/app/tables/${t.id}`)
+      // Marked as made by AI: the table is private, and its page says why.
+      router.push(`/app/tables/${t.id}?made=ai`)
     } catch {
       // surfaced by interceptor
     } finally {
@@ -126,7 +133,8 @@ export default function TablesPage() {
     const next = name.trim()
     if (!next || next === t.name) return
     try {
-      await updateTable(t.id, { name: next, description: t.description || undefined, icon: t.icon || undefined, visibility: t.visibility })
+      // The name alone: the rest of this list's copy may be out of date.
+      await updateTable(t.id, { name: next })
       mutate()
     } catch {
       // surfaced
@@ -170,44 +178,51 @@ export default function TablesPage() {
         </Button>
       </div>
 
-      {/* The AI bar: a floating composer card, not a search field. */}
-      <div
-        data-ai-bar=""
-        className="mb-2 flex h-11 items-center gap-2.5 rounded-xl bg-raised pl-3.5 pr-1.5 shadow-e2 outline-0 outline-brand/15 transition-[outline-width] focus-within:outline-[3px] focus-within:ring-1 focus-within:ring-brand/50"
-      >
-        <Spark size={16} className="shrink-0 text-agent" />
-        <input
-          ref={promptRef}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
-          aria-label="Describe a table for AI to build"
-          placeholder="Describe a table and AI builds it: a hiring pipeline with stages and owners"
-          className="min-w-0 flex-1 truncate bg-transparent text-ui text-ink outline-none placeholder:text-ink-3"
-          maxLength={2000}
-          disabled={!!generating}
-        />
-        <Button size="sm" variant="secondary" onClick={handleGenerate} disabled={!!generating || !prompt.trim()} className="gap-1.5">
-          {generating && <Loader2 className="size-3.5 animate-spin" />}
-          Generate
-        </Button>
-      </div>
-      <div className="mb-6 flex flex-wrap gap-1.5">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => {
-              setPrompt(s.prompt)
-              promptRef.current?.focus()
-            }}
-            className="chip h-6 cursor-pointer gap-1.5 text-ink-2 transition-colors hover:bg-press hover:text-ink"
+      {/* The AI bar, where AI is on: with it off (or on the edition without
+          it) Generate could only fail. */}
+      {ai ? (
+        <>
+          {/* A floating composer card, not a search field. */}
+          <div
+            data-ai-bar=""
+            className="mb-2 flex h-11 items-center gap-2.5 rounded-xl bg-raised pl-3.5 pr-1.5 shadow-e2 outline-0 outline-brand/15 transition-[outline-width] focus-within:outline-[3px] focus-within:ring-1 focus-within:ring-brand/50"
           >
-            <span aria-hidden="true" className="size-1.5 rounded-[3px] bg-ink-3" />
-            {s.label}
-          </button>
-        ))}
-      </div>
+            <Spark size={16} className="shrink-0 text-agent" />
+            <input
+              ref={promptRef}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !isComposingKey(e.nativeEvent) && !generating && handleGenerate()}
+              aria-label="Describe a table for AI to build"
+              placeholder="Describe a table and AI builds it: a hiring pipeline with stages and owners"
+              className="min-w-0 flex-1 truncate bg-transparent text-ui text-ink outline-none placeholder:text-ink-3"
+              maxLength={2000}
+              disabled={!!generating}
+            />
+            <Button size="sm" variant="secondary" onClick={handleGenerate} disabled={!!generating || !prompt.trim()} className="gap-1.5">
+              {generating && <Loader2 className="size-3.5 animate-spin" />}
+              Generate
+            </Button>
+          </div>
+          <div className="mb-6 flex flex-wrap gap-1.5">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => {
+                  setPrompt(s.prompt)
+                  promptRef.current?.focus()
+                }}
+                data-touch-target=""
+                className="chip h-6 cursor-pointer gap-1.5 text-ink-2 transition-colors hover:bg-press hover:text-ink"
+              >
+                <span aria-hidden="true" className="size-1.5 rounded-[3px] bg-ink-3" />
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
 
       {isLoading ? (
         <div role="status" aria-label="Loading tables">
@@ -232,7 +247,8 @@ export default function TablesPage() {
           description="Track anything: vendors, budgets, content, hiring."
           className="px-6 py-16"
           action={
-            <Button size="sm" onClick={handleCreate} disabled={creating} className="gap-1.5">
+            // Secondary: New table is already the page's one primary, above.
+            <Button size="sm" variant="secondary" onClick={handleCreate} disabled={creating} className="gap-1.5">
               <Plus className="size-3.5" /> New table
             </Button>
           }
@@ -305,13 +321,25 @@ export default function TablesPage() {
                     <MoreHorizontal className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="content-float w-52 rounded-xl p-1 shadow-e3">
+                <DropdownMenuContent
+                  align="end"
+                  className="content-float w-52 rounded-xl p-1 shadow-e3"
+                  // Rename opens its input once the menu has gone: while open, the
+                  // menu holds the focus, and took it back from the new input,
+                  // which ended the rename before a key was typed.
+                  onCloseAutoFocus={(e) => {
+                    if (renameNext.current !== t.id) return
+                    renameNext.current = null
+                    e.preventDefault()
+                    setRenaming(t.id)
+                  }}
+                >
                   <DropdownMenuItem asChild>
                     <Link href={`/app/tables/${t.id}`}>
                       <ArrowUpRight /> Open
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setRenaming(t.id)}>
+                  <DropdownMenuItem onSelect={() => (renameNext.current = t.id)}>
                     <Pencil /> Rename
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

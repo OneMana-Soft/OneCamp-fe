@@ -138,36 +138,6 @@ export function fieldFilterMatches(values: FieldValues | undefined, filterId: st
 }
 
 
-/** What a typed value is for a text-like field (text, link, number, money):
- * null to take it off, or what to say. A link without its https:// gets it;
- * money is typed in units and kept in cents. */
-export function parseFieldInput(field: Pick<TaskField, "name" | "type">, text: string): { value: FieldValue | null } | { error: string } {
-  const t = text.trim()
-  if (t === "") return { value: null }
-  switch (field.type) {
-    case "text":
-      return { value: t }
-    case "url": {
-      const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`
-      try {
-        const u = new URL(withScheme)
-        if ((u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".")) return { value: withScheme }
-      } catch {
-        // falls through to the message
-      }
-      return { error: `${field.name} takes a web address, like example.com/page.` }
-    }
-    case "number":
-    case "money": {
-      // A currency sign before the amount ("₹ 12,500") goes.
-      const n = parseTypedNumber(t.replace(/^[^\p{L}\d.,-]+/u, ""))
-      if (n === null) return { error: `${field.name} takes a number, like ${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(12500.5)}.` }
-      return { value: field.type === "money" ? Math.round(n * 100) : n }
-    }
-  }
-  return { error: `${field.name} isn't typed in.` }
-}
-
 /** A text-like value as its box shows it for editing: money in units. */
 export function draftOf(field: Pick<TaskField, "type">, value: FieldValue | undefined): string {
   if (value === undefined || value === null) return ""
@@ -181,32 +151,4 @@ export function withField(values: FieldValues | undefined, fieldId: string, valu
   if (value === null || (Array.isArray(value) && value.length === 0)) delete next[fieldId]
   else next[fieldId] = value
   return next
-}
-
-/** The reader's decimal and grouping marks, as their locale writes numbers. */
-function marks(locale?: string): { decimal: string; group: string } {
-  const parts = new Intl.NumberFormat(locale).formatToParts(12345.6)
-  return { decimal: parts.find((p) => p.type === "decimal")?.value ?? ".", group: parts.find((p) => p.type === "group")?.value ?? "," }
-}
-
-const escapeRe = (c: string) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
-/** A number as someone types it: in their own locale's marks (12.500,50 in
- * German, 12,500.50 in English), or the other way round when that is its only
- * reading (12.50 typed in German, 12,50 in English). Spaces and apostrophes
- * group digits. Null when it isn't a number: a comma read as a thousands mark
- * never turns 12,50 into 1250. */
-export function parseTypedNumber(text: string, locale?: string): number | null {
-  const t = text.replace(/[\s\u00a0\u202f']/g, "")
-  if (!/^-?\d[\d.,]*$/.test(t)) return null
-  const { decimal } = marks(locale)
-  const read = (dec: string, grp: string): number | null => {
-    const d = escapeRe(dec)
-    const g = escapeRe(grp)
-    const ok = new RegExp(`^-?\\d{1,3}(${g}\\d{3})+(${d}\\d+)?$`).test(t) || new RegExp(`^-?\\d+(${d}\\d+)?$`).test(t)
-    if (!ok) return null
-    const n = Number(t.split(grp).join("").replace(dec, "."))
-    return Number.isFinite(n) ? n : null
-  }
-  return decimal === "," ? (read(",", ".") ?? read(".", ",")) : (read(".", ",") ?? read(",", "."))
 }

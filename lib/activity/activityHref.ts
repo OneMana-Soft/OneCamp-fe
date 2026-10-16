@@ -2,7 +2,8 @@ import type { UnifiedActivityItem } from "@/types/activity"
 import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
-import { chatPath } from "@/lib/chat/chatPath"
+import { noticeHref } from "@/lib/activity/notice"
+import { chatPath } from "@/lib/routes/conversationRoute"
 
 /**
  * Where an Activity row opens: the message, thread, task, doc or board it is
@@ -34,6 +35,8 @@ export function activityHref(activity: UnifiedActivityItem, currentUserId: strin
     }
     case "COMMENT":
       return commentHref(activity.comment, currentUserId)
+    case "NOTICE":
+      return noticeHref(activity.notice)
     case "REACTION": {
       const r = activity.reaction
       if (!r) return null

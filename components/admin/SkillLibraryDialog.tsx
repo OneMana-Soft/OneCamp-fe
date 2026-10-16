@@ -21,6 +21,7 @@ import {
     revertAgentSkill,
     updateAgentSkill,
 } from "@/services/agentService"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 /**
  * Editing the shared skill library.
@@ -213,7 +214,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onTo
                         })}
                         {loadFailed && skills.length === 0 ? (
                             <li className="space-y-2 px-2 py-1.5">
-                                <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the skills.</p>
+                                <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the skills.<SaysLoadFailure /></p>
                                 <Button size="sm" variant="outline" className="h-8" onClick={load}>
                                     Try again
                                 </Button>
@@ -302,7 +303,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onTo
                                 <ul className="max-h-52 space-y-2 overflow-y-auto border-t border-border/50 pt-2">
                                     {historyFailed && revisions.length === 0 && (
                                         <li className="flex flex-wrap items-center gap-2">
-                                            <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the history.</p>
+                                            <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the history.<SaysLoadFailure /></p>
                                             <Button size="sm" variant="outline" className="h-8" onClick={() => void openHistory()}>
                                                 Try again
                                             </Button>

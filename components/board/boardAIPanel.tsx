@@ -747,7 +747,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
               onClick={handleCluster}
               disabled={clustering || isStreaming || isSubmitting || !api}
               className="h-7 shrink-0 gap-1.5 text-xs"
-              title="Cluster and summarize the notes already on this board"
+              title="Cluster and summarise the notes already on this board"
             >
               {clustering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               {clustering ? "Clustering…" : "Cluster"}

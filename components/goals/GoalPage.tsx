@@ -50,10 +50,11 @@ import {
   type GoalProjectLine,
 } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
+import { usePageName } from "@/lib/utils/pageName"
 import { daysAgo } from "@/lib/utils/relativeTime"
 import { localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { app_project_path } from "@/types/paths"
 import type { UserProfileInterface } from "@/types/user"
 
@@ -81,7 +82,7 @@ function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boo
           project's own colour leads it, as everywhere else. */}
       <div className="min-w-[min(100%,14rem)] flex-1">
         <Link href={`${app_project_path}/${p.project_uuid}`} className="flex min-w-0 items-center gap-2 text-sm font-medium hover:underline">
-          <IdentityMark id={p.project_uuid} variant="square" />
+          <ProjectTile id={p.project_uuid} size={16} />
           <span className="truncate">{p.project_name}</span>
         </Link>
         <p className="pl-[18px] text-xs text-muted-foreground">
@@ -236,6 +237,8 @@ export function GoalPage({ goalId }: { goalId: string }) {
   const { goals } = useGoals()
   const { goal, isLoading, isError, notFound, refresh, remove, reopen, linkProject, unlinkProject, draft, aiDraft, postCheckIn, editCheckIn, removeCheckIn } =
     useGoal(goalId)
+  // The tab says the goal's name: it said "OneCamp" (PTC-38).
+  usePageName(goal?.title)
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const me = self.data?.data?.user_uuid
   const [composer, setComposer] = useState<{ editing?: GoalCheckIn } | null>(null)

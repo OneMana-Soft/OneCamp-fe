@@ -5,10 +5,12 @@ import { displayNameOf } from "@/lib/personName"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatFullTimestamp, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
+import { TIME_TIP } from "@/components/MessageDesktopHover/actionTip"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
+import { RelayedPersonCard } from "@/components/message/relayedPersonCard"
 import { Languages, Loader2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
@@ -37,7 +39,6 @@ import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 import { FailedMark, SendStatus, SendingNote } from "@/components/message/sendStatus"
 import { usePrimeActions } from "@/components/message/primeActions"
 import type { SendState } from "@/lib/chat/pendingSend"
-import { chatClock } from "@/lib/chat/clock"
 import { isAIBot } from "@/lib/botCopy"
 import { agentIdsOf, mentionsUser, type MentionContext } from "@/components/message/tintMentions"
 import { AgentProvenance, type AgentAsker } from "@/components/message/agentProvenance"
@@ -71,6 +72,9 @@ import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
+import { clockTime } from "@/lib/utils/date/clock"
+import { editedTitle } from "@/lib/chat/editedMark"
+import { useEditInPlace } from "@/hooks/useEditInPlace"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 
 interface NormalizedForwardMessage {
@@ -219,7 +223,8 @@ interface BaseMessageCardProps {
   addReaction: (emojiId: string, reactionId: string) => void
   removeReaction: (reactionId: string) => void
   removePost: () => void
-  updatePost: (body: string) => void
+  /** Saves an edit: answers whether it saved, so a failure opens the box again with the words typed (F-06). */
+  updatePost: (body: string) => Promise<boolean> | void
   priority?: boolean
   /** @deprecated every row has its own boundary now (RowBoundary, in the list). */
   showErrorBoundary?: boolean
@@ -239,15 +244,6 @@ interface BaseMessageCardProps {
    * moves, so this is never set for a row drawn from a load.
    */
   arrived?: boolean
-}
-
-/** "Edited 10:42 · originally 10:31", for the "(edited)" tooltip (C27). */
-function editedTitle(createdAt: string, updatedAt?: string): string | undefined {
-  if (!updatedAt) return undefined
-  const made = new Date(createdAt).getTime()
-  const changed = new Date(updatedAt).getTime()
-  if (!Number.isFinite(made) || !Number.isFinite(changed) || changed - made <= 1000) return undefined
-  return `Edited ${chatClock(updatedAt)} · originally ${chatClock(createdAt)}`
 }
 
 /** The delay before a hovered row offers its actions: intent, not a pass-through. */
@@ -278,12 +274,18 @@ export const BaseMessageCard = React.memo(({
   const [actionsWanted, setActionsWanted] = useState(false)
   const intent = useRef(0)
   useEffect(() => () => window.clearTimeout(intent.current), [])
-  const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
+  // An edit in place: a save that fails opens the box again holding what
+  // was typed (hooks/useEditInPlace, F-06).
+  const edit = useEditInPlace(updatePost)
+  const isMessageEditEnabled = edit.editing
   // Mirror the edited text into a ref so the synchronous flush triggered when
   // the user clicks Save / presses Enter (which updates state via the
   // editor's onChange) is observable inside the same tick by the
   // handleEditComplete callback below.
   const updatedTextRef = useRef<string>(message.bodyText || "")
+  useEffect(() => {
+    if (edit.draft !== undefined) updatedTextRef.current = edit.draft
+  }, [edit.draft])
   // The reaction the reader just made as their first on this message.
   const [burstEmojiId, setBurstEmojiId] = useState<string | undefined>(undefined)
 
@@ -413,16 +415,18 @@ export const BaseMessageCard = React.memo(({
     dispatch(openRightPanel(rightPanelConfig))
   }, [dispatch, rightPanelConfig])
 
+  const { finish: finishEdit, cancel: cancelEdit } = edit
   const handleEditComplete = useCallback(() => {
-    updatePost(updatedTextRef.current)
-    setIsMessageEditEnabled(false)
+    finishEdit(updatedTextRef.current)
     setIsDropdownOpen(false)
-  }, [updatePost])
+  }, [finishEdit])
 
   const handleEditCancel = useCallback(() => {
-    setIsMessageEditEnabled(false)
+    cancelEdit()
     setIsDropdownOpen(false)
-  }, [])
+    // The editor's Escape: handled (lib's onCancel).
+    return true
+  }, [cancelEdit])
 
   const editor = (
     <MinimalTiptapTextInput
@@ -432,16 +436,18 @@ export const BaseMessageCard = React.memo(({
       className={cn("max-w-full h-auto", isMessageEditEnabled && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
       editorContentClassName="overflow-auto"
       output="html"
-      content={bodyText}
+      // A save that failed opens the box again with what was typed.
+      content={edit.draft ?? bodyText}
       placeholder="Edit message…"
       editable={isMessageEditEnabled}
       // Enter saves (the editor's submit); Save and Cancel are the words
-      // under it (C29), not two icons.
+      // under it (C29), not two icons. Escape cancels, after any menu
+      // inside the editor (the editor's own keymap, F-05).
       buttonOnclick={handleEditComplete}
-      // Editing folds its formatting behind one button, as the message box
-      // does: thirteen icons opened under the line being corrected.
-      toggleToolbar={isMessageEditEnabled}
-      noBorder={isMessageEditEnabled}
+      onCancel={isMessageEditEnabled ? handleEditCancel : undefined}
+      // Corrected in place: the words at their own size in an inset box,
+      // the emoji beside them, nothing else (textInput's "edit").
+      variant={isMessageEditEnabled ? "edit" : undefined}
       editorClassName="focus:outline-none "
       mentionContext={mentionContext}
       editedTitle={edited}
@@ -534,10 +540,10 @@ export const BaseMessageCard = React.memo(({
         )}
         <div className="min-w-0">
           {!isMessageEditEnabled && !continued && (
-            <div data-name-line="" className="flex h-5 min-w-0 items-center gap-2">
+            <div data-name-line="" className="group/name flex h-5 min-w-0 items-center gap-2">
               {relayed ? (
-                // A guest or Slack person has no profile to open: the name is only a name.
-                <span className="truncate text-ui font-semibold text-ink">{authorName}</span>
+                // A guest or Slack person has no profile: their name opens a read-only card (F-42).
+                <RelayedPersonCard name={authorName} kind={relayed.kind} />
               ) : (
                 <button
                   type="button"
@@ -561,10 +567,10 @@ export const BaseMessageCard = React.memo(({
               ) : (
                 <time
                   dateTime={isoTimestamp(message.createdAt)}
-                  title={formatFullTimestamp(message.createdAt)}
-                  className={cn("shrink-0 text-meta tabular-nums", forMe ? "text-brand-text" : "text-ink-3")}
+                  data-tip={formatFullTimestamp(message.createdAt)}
+                  className={cn("shrink-0 text-meta tabular-nums", TIME_TIP, forMe ? "text-brand-text" : "text-ink-3")}
                 >
-                  {chatClock(message.createdAt)}
+                  {clockTime(message.createdAt)}
                 </time>
               )}
               {sending && <SendingNote />}
@@ -584,15 +590,6 @@ export const BaseMessageCard = React.memo(({
               checkin && "mt-1 max-w-[560px] rounded-xl bg-sunken px-3.5 py-3 [&_.ProseMirror_p:first-child]:font-semibold",
             )}
             onClickCapture={handleInternalLinkClick}
-            // Escape leaves an edit unchanged, as in every chat app; a popover
-            // inside the editor (mentions, emoji) takes it first.
-            onKeyDown={(e) => {
-              if (isMessageEditEnabled && e.key === "Escape" && !e.defaultPrevented) {
-                e.preventDefault()
-                e.stopPropagation()
-                handleEditCancel()
-              }
-            }}
           >
             {editor}
             {checkin && (
@@ -713,7 +710,7 @@ export const BaseMessageCard = React.memo(({
         {(showActions || primingActions) && (
           <div className="absolute -top-3.5 right-6 z-10" hidden={!showActions} aria-hidden={!showActions || undefined}>
             <MessageDesktopHoverOptionsForMainChatAndChannel
-              editMessage={() => setIsMessageEditEnabled(true)}
+              editMessage={edit.open}
               deleteMessage={removePost}
               isOwner={message.from.user_uuid === selfId}
               isAdmin={isAdmin}

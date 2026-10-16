@@ -2,7 +2,11 @@
 
 import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
-import { ChartEmbedView } from "./chart-embed-view"
+import { lazyNodeView } from "../lazyNodeView"
+
+// Drawn by a component fetched the first time one shows (lazyNodeView): an
+// editor that never holds one never loads it (the chat composer, I20).
+const ChartEmbedView = lazyNodeView(() => import("./chart-embed-view").then((m) => m.ChartEmbedView), 220)
 
 interface ChartEmbedOptions {
   HTMLAttributes: Record<string, any>

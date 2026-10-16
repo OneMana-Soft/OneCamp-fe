@@ -62,10 +62,10 @@ import {
 } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
-import { shortTime } from "@/lib/utils/date/shortDate"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { HealthRing } from "@/components/admin/HealthRing"
 import { runSystemCheck, type SystemCheckKind, type SystemCheckReport, type SystemCheckResult } from "@/services/systemCheckService"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /** Whole milliseconds are what an operator compares. Pure. */
 export function formatDuration(ms: number): string {
@@ -78,7 +78,7 @@ function formatCheckedAt(unixSeconds: number): string {
     if (!unixSeconds) return ""
     const d = new Date(unixSeconds * 1000)
     if (Number.isNaN(d.getTime())) return ""
-    return shortTime(d)
+    return clockTime(d)
 }
 
 /** A check's name as people say it: "github-sync" reads "GitHub sync". Pure. */
@@ -106,9 +106,15 @@ export function diskUsed(check: SystemCheckResult): number | null {
     return m ? Math.min(100, Number(m[1])) : null
 }
 
-/** Whether a tile spans both columns: a failure, or a note worth reading. Pure. */
+/**
+ * Whether a tile spans both columns, and in which tone: a service this install
+ * needs that is down is danger; a feature that has started to fail quietly is
+ * sun, the tone the ring gives it; a note worth reading is sun. A failing
+ * feature's tile was danger beside a sun ring, two answers to one question.
+ * Pure.
+ */
 export function needsAttention(check: SystemCheckResult): "danger" | "warning" | null {
-    if (!check.healthy) return "danger"
+    if (!check.healthy) return check.kind === "dependency" ? "danger" : "warning"
     return check.detail ? "warning" : null
 }
 
@@ -173,8 +179,10 @@ const ServiceTile: React.FC<{ check: SystemCheckResult; index: number; running: 
                         <Loader2 className="size-2.5 animate-spin text-ink-3" aria-label="Checking" />
                     ) : (
                         <span key={run} className="cfg-tile-result" style={{ "--i": index } as React.CSSProperties}>
-                            {attention === "danger" ? (
-                                <StatusWord tone="danger" className="text-xs font-medium">Needs attention</StatusWord>
+                            {/* The word says whether it failed; the tone says how
+                                much (a service down is danger, a feature sun). */}
+                            {attention && !check.healthy ? (
+                                <StatusWord tone={attention} className="text-xs font-medium">Needs attention</StatusWord>
                             ) : attention === "warning" ? (
                                 <StatusWord tone="warning" className="text-xs font-medium">Worth knowing</StatusWord>
                             ) : (

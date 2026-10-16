@@ -36,13 +36,13 @@ describe("a guest page before its first answer", () => {
   afterEach(() => cleanup())
 
   it("holds the page's shape, not a spinner", () => {
-    render(<GuestNotYet trouble={null} />)
+    render(<GuestNotYet trouble={null} gone={null} />)
     expect(screen.getByRole("status")).toHaveTextContent("Opening the link…")
     expect(spinner()).toBeNull()
   })
 
   it("keeps the shape while it says the server can't be reached", () => {
-    render(<GuestNotYet trouble="unreachable" shape="table" />)
+    render(<GuestNotYet trouble="unreachable" shape="table" gone={null} />)
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't reach the server, retrying…")
     expect(spinner()).toBeNull()
   })

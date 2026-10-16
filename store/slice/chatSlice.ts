@@ -1,7 +1,8 @@
+import { editedAtAfter } from "@/lib/chat/replyEdit";
 import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedCallStatus, ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
-import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
+import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, restoreCase, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {ChatInfo} from "@/types/chat";
 import {UserDMInterface, UserProfileDataInterface} from "@/types/user";
@@ -127,6 +128,8 @@ interface UpdateChatByChatId {
     messageId: string
     chatId: string
     htmlText: string
+    /** A revert's (F-07); null: never edited. */
+    updatedAt?: string | null
 }
 
 interface UpdateScrollToBottom {
@@ -463,10 +466,11 @@ const chatSlice = createSlice({
 
 
         updateChatByChatId: (state, action: {payload: UpdateChatByChatId}) => {
-            const { messageId, chatId, htmlText } = action.payload;
+            const { messageId, chatId, htmlText, updatedAt } = action.payload;
             if (!state.chatMessages[chatId]) return
             state.chatMessages[chatId] = state.chatMessages[chatId].map((chat) => {
                 if(messageId == chat.chat_uuid) {
+                    chat.chat_updated_at = editedAtAfter(chat.chat_updated_at, chat.chat_body_text, htmlText, updatedAt)
                     chat.chat_body_text = htmlText
                     chat.chat_live_at = Date.now()
                 }
@@ -484,6 +488,9 @@ const chatSlice = createSlice({
                 return chat.chat_uuid !== messageId
             })
         },
+
+        // A delete the server refused takes itself back (hooks/useDeleteMessage).
+        restoreChat: restoreCase((s: typeof initialState) => [s.deletedChats, s.chatMessages], (c: ChatInfo) => c.chat_uuid, (c) => c.chat_created_at),
 
         removeChatReactionByChatId: (state, action: {payload: RemoveChatReactionByChatId}) => {
             const { messageId, chatId, reactionId } = action.payload;
@@ -748,6 +755,28 @@ const chatSlice = createSlice({
             }
         },
 
+        // RemoveMessageFromChatList taken back, for a delete the server refused:
+        // the message is the row's preview again, unless a newer one arrived
+        // meanwhile. A DM's and a group's rows both live here.
+        RestoreMessageInChatList: (state, action: {payload: {grpId: string, message: ChatInfo}}) => {
+            const {grpId, message} = action.payload;
+            const dm = state.latestChatList.find(d => d.dm_grouping_id === grpId);
+            if (!dm) return;
+            const chats = dm.dm_chats;
+            const shown = chats?.[0];
+            if (shown && shown.chat_uuid !== message.chat_uuid
+                && Date.parse(shown.chat_created_at) > Date.parse(message.chat_created_at)) return;
+            const preview = {
+                chat_uuid: message.chat_uuid,
+                chat_body_text: message.chat_body_text,
+                chat_created_at: message.chat_created_at,
+                chat_from: message.chat_from,
+                chat_attachments: message.chat_attachments || [],
+            };
+            if (chats && shown) chats[0] = {...shown, ...preview};
+            else dm.dm_chats = [{...message, ...preview}];
+        },
+
         // Sync sidebar preview when a message is edited
         UpdateMessageTextInChatList: (state, action: {payload: UpdateMessageTextInChatListInput}) => {
             const {grpId, messageId, htmlText} = action.payload;
@@ -870,6 +899,7 @@ export const {
     updateChatByChatId,
     updateChats,
     removeChatByChatId,
+    restoreChat,
     createChat,
     setChatReplyTarget,
     clearChatReplyTarget,
@@ -891,6 +921,7 @@ export const {
     batchUpdateChatCallStatus,
     invalidateAllChatMessages,
     RemoveMessageFromChatList,
+    RestoreMessageInChatList,
     UpdateMessageTextInChatList,
     mergeChats
 } = chatSlice.actions

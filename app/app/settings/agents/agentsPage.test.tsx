@@ -18,6 +18,7 @@ vi.mock("@/components/admin/DataSourcesCard", () => ({ default: () => null }))
 vi.mock("@/components/ai/MyAIActivityCard", () => ({ default: () => null }))
 
 import AgentsSettingsPage from "./page"
+import { governanceSentence } from "@/lib/agentCardCopy"
 
 afterEach(cleanup)
 
@@ -49,8 +50,9 @@ describe("agents and skills, design v3", () => {
     expect(src).toMatch(/agent-card-foot/)
   })
 
-  it("says in Review who the agent acts for, its limit, where, and the record", async () => {
-    const { governanceSentence } = await import("@/components/admin/AgentEditDialog")
+  // From the copy module, not the dialog: importing the dialog for one sentence
+  // took 2.7 s of the test, at the 5 s limit on a busy machine.
+  it("says in Review who the agent acts for, its limit, where, and the record", () => {
     expect(governanceSentence("Release Captain", 2)).toBe(
       "Release Captain acts for you. It can do only what you can, in the 2 channels you chose, and every action is on the record.",
     )

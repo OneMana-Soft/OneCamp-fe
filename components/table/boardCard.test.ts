@@ -8,3 +8,11 @@ describe("a board card's values", () => {
     expect(formatCardValue(["a", "b"], "multi_select")).toBe("a, b")
   })
 })
+
+// TAB-BUG-5: a linked item the reader can't open reads as one phrase, never by its id.
+describe("a board card's links", () => {
+  it("names what the reader may open and counts the rest", () => {
+    expect(formatCardValue([{ id: "d1", type: "doc", label: "Plan" }, { id: "x1", type: "doc", hidden: true }, { id: "x2", type: "doc", hidden: true }], "relation")).toBe("Plan, 2 things you can't open")
+    expect(formatCardValue([{ id: "x1", type: "doc", hidden: true }], "relation")).toBe("Something you can't open")
+  })
+})

@@ -25,9 +25,10 @@ import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { BUILT_IN_STATUSES, statusPatch } from "@/lib/taskStatus"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 import { KeyboardList } from "@/components/task/KeyboardList"
-import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
+import { useClosedLimit, useOpenLimit, withQuery } from "@/hooks/useClosedLimit"
+import { columnTotals } from "@/lib/board/columnTotals"
 import { cn } from "@/lib/utils/helpers/cn"
-import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -56,7 +57,9 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
     // priority on My Tasks changed nothing.
     const urlParam = GetTaskStatusQueryParamByStatus({ projectFilter: activeProject, priorityFilter })
     const closed = useClosedLimit()
-    const userInfo = useFetch<UserInfoRawInterface>(withQuery(GetEndpointUrl.GetUserTaskListForKanban, urlParam, closed.param))
+    // Open columns page too (PROJ-BUG-8): their totals, and Show more.
+    const open = useOpenLimit()
+    const userInfo = useFetch<UserInfoRawInterface>(withQuery(GetEndpointUrl.GetUserTaskListForKanban, urlParam, closed.param, open.param))
     const u = userInfo.data?.data
 
     const columns = useMemo(
@@ -89,19 +92,15 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
     return (
         // The project board's toolbar and gutter: the board lines up with the
         // page title, Create task is the one filled button, View is quiet.
-        <div className={cn("flex flex-col h-full p-4 overflow-hidden", className)}>
+        <div className="flex h-full flex-col overflow-hidden">
             <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                     <TaskKanbanProjectFilter activeList={activeProject} updateList={setActiveProject} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                 </div>
-                {/* At every width, as on the List: below sm the icons stay. */}
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" className="text-ui-sm" aria-label="New task" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
-                        <Plus className="size-3.5" />
-                        <span className="hidden sm:inline">New task</span>
-                        <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
-                    </Button>
+                {/* At every width, as on the List (below sm the icons stay):
+                    Display, then the one primary at the far right. */}
+                <div className="flex flex-wrap items-center gap-1.5">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="text-ui-sm" aria-label="Display">
@@ -123,23 +122,29 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button size="sm" className="text-ui-sm" aria-label="New task" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
+                        <Plus className="size-3.5" />
+                        <span className="hidden sm:inline">New task</span>
+                        <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
+                    </Button>
                 </div>
             </div>
 
+            <div className={cn("flex min-h-0 flex-1 flex-col pb-4", className)}>
             {loading ? (
-                <div className={cn(workBody, "min-h-0 flex-1")}>
+                <div className="min-h-0 flex-1">
                     <BoardSkeleton columns={3} />
                 </div>
             ) : failed ? (
-                <WorkState className={workBody}>
+                <WorkState>
                     <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
                 </WorkState>
             ) : noTasks ? (
-                <WorkState className={workBody}>
+                <WorkState>
                     <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} />
                 </WorkState>
             ) : (
-            <KeyboardList tasks={boardTasks} canEdit={canEditTask} placement="overlay" className={cn(workBody, "flex-1 overflow-hidden")}>
+            <KeyboardList tasks={boardTasks} canEdit={canEditTask} placement="overlay" className="flex-1 overflow-hidden">
                 <div className="h-full">
                     <TaskBoard
                         columns={columns}
@@ -149,12 +154,14 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                         boardKey="my-tasks"
                         crossProject
-                        totals={{ done: u?.user_tasks_done_count, canceled: u?.user_tasks_canceled_count }}
-                        onShowMore={closed.showMore}
+                        totals={columnTotals(u?.user_column_counts, { done: u?.user_tasks_done_count, canceled: u?.user_tasks_canceled_count })}
+                        // My Tasks' columns are the six categories.
+                        onShowMore={(column) => (column === "done" || column === "canceled" ? closed.showMore() : open.showMore())}
                     />
                 </div>
             </KeyboardList>
             )}
+            </div>
         </div>
     )
 }

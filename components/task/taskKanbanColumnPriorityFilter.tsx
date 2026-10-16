@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { FilterChip } from "@/components/task/filterChip"
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
-import {CheckIcon, } from "@radix-ui/react-icons";
 import {
     Command,
     CommandEmpty,
@@ -11,7 +10,6 @@ import {
     CommandList,
     CommandSeparator
 } from "@/components/ui/command";
-import {cn} from "@/lib/utils/helpers/cn";
 import {priorities} from "@/types/table";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 
@@ -40,6 +38,7 @@ export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCa
                                 return (
                                     <CommandItem
                                         key={option.value}
+                                        checked={isSelected}
                                         onSelect={() => {
                                             if (isSelected) {
                                                 updateList(activeList.filter((item) => item !== option.value))
@@ -49,16 +48,6 @@ export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCa
 
                                         }}
                                     >
-                                        <div
-                                            className={cn(
-                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                isSelected
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "opacity-50 [&_svg]:invisible"
-                                            )}
-                                        >
-                                            <CheckIcon className={cn("h-4 w-4")} />
-                                        </div>
                                         <TaskPriorityCell priority={option}/>
 
                                         {/*{facets?.get(option.value) && (*/}

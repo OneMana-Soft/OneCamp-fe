@@ -3,6 +3,7 @@
 import { memo, useMemo } from "react"
 import { headerTicks, offsetOf, type Range, type Zoom } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
+import { stuckRoom } from "@/hooks/useTimelineView"
 
 export const HEADER_HEIGHT = 52
 
@@ -49,7 +50,7 @@ export const TimelineHeader = memo(function TimelineHeader({
         {top.map((t) => (
           <div key={t.key} className="absolute top-0 h-6" style={{ left: t.left, width: t.width }}>
             {t.width >= 36 && (
-              <span className="sticky inline-block truncate px-2 text-xs font-[510] leading-6 text-ink-2" style={{ left: nameWidth, maxWidth: t.width }}>
+              <span className="sticky inline-block truncate px-2 text-xs font-[510] leading-6 text-ink-2" style={{ left: nameWidth, maxWidth: `min(${t.width}px, ${stuckRoom(t.left + t.width)})` }}>
                 {t.label}
               </span>
             )}

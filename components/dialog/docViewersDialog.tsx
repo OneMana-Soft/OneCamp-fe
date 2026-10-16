@@ -20,7 +20,7 @@ export function DocViewersDialog({ open, onOpenChange, docId }: DocViewersDialog
       viewersEndpoint={GetEndpointUrl.GetDocViewers}
       idParam="doc_uuid"
       resourceId={docId}
-      noun="document"
+      noun="doc"
     />
   )
 }

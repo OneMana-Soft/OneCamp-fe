@@ -1,6 +1,6 @@
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {CreateDocCommentInterface, DocInfoResponse} from "@/types/doc";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {DocInfoResponse} from "@/types/doc";
+import {GetEndpointUrl} from "@/services/endPoints";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
 import { MessageCircle } from "@/lib/icons";
@@ -8,60 +8,34 @@ import { Ellipsis } from "@/lib/icons";
 import {useEffect, useState} from "react";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
-import {useRouter} from "next/navigation";
 import Link from "next/link";
 import { app_doc_path} from "@/types/paths";
-import {usePost} from "@/hooks/usePost";
 import {UserProfileInterface} from "@/types/user";
 
 export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
 
     const dispatch = useDispatch();
-    const docCommentCount = useSelector((state: RootState) => state.createDocComment.docCommentCount[docId]);
-    const router = useRouter();
-    const docInfo = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '');
+    const docCommentCount = useSelector((state: RootState) => state.createDocComment?.docCommentCount[docId]);
+    // The page says why a doc didn't open (no access, the trash); the bar stays quiet.
+    const docInfo = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '', undefined, undefined, { suppressErrorToast: true } as never);
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const [isOwner, setIsOwner] = useState(false)
-
-    const post = usePost()
 
     const commentHref = `${app_doc_path}/${docId}/comment`;
 
     useEffect(() => {
 
-        if(docInfo && docInfo.data?.data.doc_created_by.user_uuid == selfProfile.data?.data.user_uuid) {
-            setIsOwner(true)
-        }
+        // Both known, and the same person: undefined == undefined made
+        // everyone the owner while either was loading.
+        const owner = docInfo.data?.data?.doc_created_by?.user_uuid
+        const me = selfProfile.data?.data?.user_uuid
+        setIsOwner(!!owner && !!me && owner === me)
 
-    }, [docInfo])
+    }, [docInfo.data, selfProfile.data])
 
-    const executeDeleteDoc = () => {
-
-        post.makeRequest<CreateDocCommentInterface>({
-            apiEndpoint:PostEndpointUrl.DeleteDoc,
-            payload: {
-                doc_uuid: docId
-            }
-        }).then(() => {
-            router.push(app_doc_path);
-        })
-    }
-
-    const deleteDoc = () => {
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this doc?",
-                    description: "The doc and everything written in it are removed for everyone. This can't be undone.",
-                    confirmText: "Delete doc",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteDoc()}
-                }
-            }));
-        }, 500);
-    }
+    // Delete is B6's doc.trash on the sheet: to the trash, with Undo.
+    const deleteDoc = () => {}
 
 
     return (

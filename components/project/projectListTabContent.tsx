@@ -33,28 +33,35 @@ export const ProjectListTabContent = ({
         debouncedSearch(q)
     }
 
+    const search = (
+        <SearchField
+            onChange={handleSearchChange}
+            value={inputValue}
+            placeholder={selectedTab === "task" ? "Search tasks…" : "Search files…"}
+        />
+    )
+
     return (
         <div className="flex flex-col h-full">
-            <SearchField
-                onChange={handleSearchChange}
-                value={inputValue}
-                placeholder={selectedTab === "task" ? "Search tasks…" : "Search files…"}
-            />
+            {/* The task list puts Select beside its search (PTC-43). */}
+            {selectedTab !== "task" && search}
             {/* The task list is virtual and scrolls itself, so it needs a real
                 height. Inside a plain scrolling block its viewport measured next
                 to nothing and only the first two tasks of a project were drawn. */}
             {selectedTab === "task" && (
                 <div className="flex-1 min-h-0 flex flex-col">
-                    <ProjectTaskList searchQuery={searchQuery} projectId={projectId} />
+                    <ProjectTaskList searchQuery={searchQuery} projectId={projectId} search={search} />
                 </div>
             )}
             <div className={selectedTab === "attachment" ? "flex-1 overflow-y-auto" : "hidden"}>
                 {selectedTab === "attachment" && (
+                    // Files first, then the docs and boards linked here, the
+                    // order the desktop tab has.
                     <div className="flex flex-col">
-                        <div className="px-3 pt-3">
+                        <ProjectAttachmentList searchQuery={searchQuery} projectId={projectId} />
+                        <div className="px-3 pb-3">
                             <LinkedItemsSection sourceType="project" sourceUUID={projectId} canEdit={true} />
                         </div>
-                        <ProjectAttachmentList searchQuery={searchQuery} projectId={projectId} />
                     </div>
                 )}
             </div>

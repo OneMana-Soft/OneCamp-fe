@@ -18,7 +18,7 @@
  * make.
  */
 
-import { isBareNo, statusWords } from "./errorToast"
+import { saysWhy, statusWords } from "./errorToast"
 
 /** The error-carrying subset of a OneCamp response envelope. */
 interface ApiErrorEnvelope {
@@ -47,10 +47,15 @@ function envelopeOf(error: unknown): ApiErrorEnvelope | undefined {
 }
 
 /**
- * The message to show for a failed request.
+ * The message to show for a failed request: the one helper for error words.
  *
- * Order is the server's message, then the transport's (network failures never reach a handler, so
- * there is no envelope for "Network Error"), then the caller's fallback.
+ * Order is the server's message, then what the status means, then the transport's (network
+ * failures never reach a handler, so there is no envelope for "Network Error"), then the caller's
+ * fallback. Two rules hold whatever the caller passes (QA SH-02, DSA-15):
+ *   - a 403 says plainly that the person doesn't have permission, never the caller's words, which
+ *     blamed the connection for a refusal;
+ *   - a 5xx never shows the server's developer text ("Failed to create comment"): the caller's own
+ *     words say what didn't happen, else the status's.
  *
  * DELIBERATELY DOES NOT READ THE `err` OR `error` KEYS. Handlers put raw dependency strings there —
  * a Postgres driver message naming the constraint, table and column. The server's redaction blanks
@@ -58,16 +63,19 @@ function envelopeOf(error: unknown): ApiErrorEnvelope | undefined {
  * the product renders them. Reading them here would undo that from the client side.
  *
  * @param error the value from a catch block
- * @param fallback shown when neither the server nor the transport said anything useful
+ * @param fallback the caller's own words for what didn't happen, shown when the server and the
+ *   transport said nothing useful, and for a server fault
  */
 export function apiErrorMessage(error: unknown, fallback = ""): string {
-  const msg = envelopeOf(error)?.msg
-  if (typeof msg === "string" && msg !== "" && !isBareNo(msg)) return msg
-
-  // An answer with no words of its own, or only a bare "no": what its status
-  // means. Axios's message for it, "Request failed with status code 403",
-  // names the machinery, not the problem, and reached admin cards as it was.
   const status = apiErrorStatus(error)
+  const msg = envelopeOf(error)?.msg
+  if (typeof msg === "string" && saysWhy(msg, status)) return msg
+
+  // An answer with no words worth showing: a server fault in the caller's own
+  // words, else what its status means. Axios's message for it, "Request failed
+  // with status code 403", names the machinery, not the problem, and reached
+  // admin cards as it was.
+  if (status >= 500) return fallback || (statusWords(status) as string)
   if (status) return statusWords(status) ?? (fallback || "Try again in a moment.")
 
   const transport = (error as { message?: unknown } | null | undefined)?.message

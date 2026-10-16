@@ -32,6 +32,12 @@ interface TaskCommentComposerProps {
     onActionFiles?: (files: File[]) => void
     /** Files are attached and uploaded: Send reads as ready without text. */
     hasAttachments?: boolean
+    /**
+     * The page's columns, on a task's own page: the box sits under the work
+     * column, where the comments are, instead of across the whole sheet
+     * (PTC-45: 264 to 1416 px under a column from 332 to 968).
+     */
+    frame?: string
 }
 
 export const TaskCommentComposer = memo(function TaskCommentComposer({
@@ -43,12 +49,14 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
     onAttachmentClick,
     onActionFiles,
     hasAttachments = false,
+    frame,
 }: TaskCommentComposerProps) {
     return (
         // Tighter on a phone, where the task page has no bottom bar: clear of
         // the home indicator (safe-area inset), and less of the screen spent
         // on an empty box above the task's own fields.
         <div className="flex-shrink-0 border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:p-4">
+            <div data-composer-frame={frame ? "page" : undefined} className={frame}>
             <MinimalTiptapTextInput
                 throttleDelay={300}
                 attachmentOnclick={onAttachmentClick}
@@ -68,6 +76,7 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
             >
                 <TaskCommentFileUpload taskUUID={taskUUID} projectUUID={projectUUID} />
             </MinimalTiptapTextInput>
+            </div>
         </div>
     )
 })
@@ -83,11 +92,14 @@ export const TaskCommentBox = memo(function TaskCommentBox({
     projectUUID,
     onAttachmentClick,
     onActionFiles,
+    frame,
 }: {
     taskUUID: string
     projectUUID: string
     onAttachmentClick: () => void
     onActionFiles?: (files: File[]) => void
+    /** The page's columns, on a task's own page (TaskCommentComposer). */
+    frame?: string
 }) {
     const dispatch = useDispatch()
     const post = usePost()
@@ -140,6 +152,7 @@ export const TaskCommentBox = memo(function TaskCommentBox({
             onSend={onSend}
             onAttachmentClick={onAttachmentClick}
             onActionFiles={onActionFiles}
+            frame={frame}
         />
     )
 })

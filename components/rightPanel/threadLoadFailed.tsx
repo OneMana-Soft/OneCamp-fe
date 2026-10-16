@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotError } from "@/components/ui/graphics/spots"
-import { loadFailure } from "@/lib/http/loadFailure"
+import { loadFailure, useSaysLoadFailure } from "@/lib/http/loadFailure"
 
 /**
  * A thread that couldn't be opened (TN-BUG-4). A failed read leaves no data,
@@ -23,7 +23,10 @@ export function ThreadLoadFailed({ error, onRetry, retrying, onClose }: {
     /** Closes the panel. The phone's thread page has its own way back. */
     onClose?: () => void
 }) {
-    const gone = loadFailure(error) === "gone"
+    // Gone or no longer theirs (no-access) read the same from the thread's side.
+    const gone = loadFailure(error) !== "failed"
+    // Said here, so the read's toast stays quiet (ErrorState says it for the rest).
+    useSaysLoadFailure(gone)
     if (gone) {
         return (
             <EmptyState

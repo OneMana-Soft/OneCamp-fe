@@ -51,7 +51,7 @@ export function TaskStatusPriorityControl({
         <div className="min-w-0">
           <Popover open={openStatus} onOpenChange={setOpenStatus}>
             <PopoverTrigger asChild>
-              <button type="button" className={cn(propertyValue, "w-fit")} disabled={!isAdmin} aria-label={`Status: ${selectedStatus?.label ?? "none"}. Change status`}>
+              <button type="button" data-touch-target="" className={cn(propertyValue, "w-fit")} disabled={!isAdmin} aria-label={`Status: ${selectedStatus?.label ?? "none"}. Change status`}>
                 {selectedStatus ? (
                   <span key={selectedStatus.value} className={cn("inline-flex", changed.current && "[animation:work-glyph-in_220ms_var(--ease-spring)_both]")}>
                     <TaskStatusCell status={selectedStatus} />
@@ -89,7 +89,7 @@ export function TaskStatusPriorityControl({
         <div className="min-w-0">
           <Popover open={openPriority} onOpenChange={setOpenPriority}>
             <PopoverTrigger asChild>
-              <button type="button" className={cn(propertyValue, "w-fit")} disabled={!isAdmin} aria-label={`Priority: ${selectedPriority?.label ?? "none"}. Change priority`}>
+              <button type="button" data-touch-target="" className={cn(propertyValue, "w-fit")} disabled={!isAdmin} aria-label={`Priority: ${selectedPriority?.label ?? "none"}. Change priority`}>
                 <span key={selectedPriority?.value ?? "none"} className={cn("inline-flex", changed.current && "[animation:work-glyph-in_220ms_var(--ease-spring)_both]")}>
                   <TaskPriorityCell priority={selectedPriority?.value ?? ""} />
                 </span>

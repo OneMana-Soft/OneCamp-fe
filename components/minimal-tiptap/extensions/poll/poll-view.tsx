@@ -10,6 +10,7 @@ import { BarChart3, Check, Loader2 } from "@/lib/icons"
 import { EmbedCard } from "@/components/minimal-tiptap/components/embed-card"
 import { closePoll, nextChoice, pollUrl, shares, votePoll, type Poll } from "@/services/pollService"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 
 /**
  * A poll inside a message: one click to vote, results for everyone as they
@@ -19,7 +20,9 @@ import { shortDateTime } from "@/lib/utils/date/shortDate"
 export function PollView({ node }: NodeViewProps) {
   const id = String(node.attrs.id || "")
   const { toast } = useToast()
-  const { data, isLoading, mutate } = useFetch<{ data: Poll }>(id ? pollUrl(id) : "", undefined, undefined, { suppressErrorToast: true })
+  // A guest has no session to read or vote with (a 401 would sign the page out).
+  const guest = useGuestReader()
+  const { data, isLoading, mutate } = useFetch<{ data: Poll }>(id && !guest ? pollUrl(id) : "", undefined, undefined, { suppressErrorToast: true })
   const [busy, setBusy] = useState<string | null>(null)
   const poll = data?.data
 
@@ -45,7 +48,7 @@ export function PollView({ node }: NodeViewProps) {
         {!poll ? (
           <p className="flex items-center gap-2 text-ui-sm text-ink-3">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isLoading ? "Loading the poll…" : "This poll is no longer available."}
+            {guest ? "This poll isn't shared through this link." : isLoading ? "Loading the poll…" : "This poll is no longer available."}
           </p>
         ) : (
           <>

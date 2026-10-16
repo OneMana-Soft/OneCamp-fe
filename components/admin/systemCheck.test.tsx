@@ -84,6 +84,19 @@ describe("the health ring", () => {
   })
 })
 
+describe("a tile's tone", () => {
+  // Critic, 11 Oct: a failing feature (the GitHub sync queue) drew its tile in
+  // danger beside a ring whose remainder was sun for it. The tile follows the
+  // ring: a service down is danger, a feature failing quietly is sun.
+  it("is danger for a service that is down and sun for a feature that fails", async () => {
+    const { needsAttention } = await import("@/components/admin/SystemCheckCard")
+    const base = { name: "x", describe: "", healthy: false, took_ms: 1 }
+    expect(needsAttention({ ...base, kind: "dependency" } as never)).toBe("danger")
+    expect(needsAttention({ ...base, kind: "behaviour" } as never)).toBe("warning")
+    expect(needsAttention({ ...base, kind: "behaviour", healthy: true } as never)).toBeNull()
+  })
+})
+
 describe("service tiles", () => {
   it("spans both columns for a tile that needs attention, with its reason and fix", async () => {
     runSystemCheck.mockResolvedValue(report())

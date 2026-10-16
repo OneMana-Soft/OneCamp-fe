@@ -7,11 +7,10 @@ import * as Menu from "@radix-ui/react-dropdown-menu"
 import { ChevronsUpDown, CircleHelp, Gift, PanelLeft, Pin, Settings, Shield, SquarePen, UserPlus } from "@/lib/icons"
 import { openUI } from "@/store/slice/uiSlice"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-
-/** The workspace's name, as the install was configured. */
-export function orgName(): string {
-  return process.env.NEXT_PUBLIC_ORG_NAME || "OneCamp"
-}
+import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
+import { useCapabilities } from "@/hooks/useCapabilities"
+import { CAP_INVITATION_CREATE } from "@/services/capabilityService"
+import { useWorkspaceName } from "@/hooks/useWorkspaceName"
 
 /** The host people reach this workspace at, for the menu's second line. */
 function workspaceHost(): string {
@@ -50,7 +49,7 @@ function firstOpenToday(): boolean {
  * the only gradient in the chrome (design v3, shell S3). An install with its
  * own logo (NEXT_PUBLIC_ORG_LOGO) shows it on the raised surface instead.
  */
-export function WorkspaceMark({ size = 26, draw = false }: { size?: 26 | 24 | 16; draw?: boolean }) {
+export function WorkspaceMark({ size = 26, draw = false }: { size?: 32 | 26 | 24 | 16; draw?: boolean }) {
   const logo = process.env.NEXT_PUBLIC_ORG_LOGO
   if (logo) {
     return (
@@ -60,7 +59,7 @@ export function WorkspaceMark({ size = 26, draw = false }: { size?: 26 | 24 | 16
       </span>
     )
   }
-  const glyph = size === 26 ? 16 : size === 24 ? 14 : 10
+  const glyph = size === 32 ? 20 : size === 26 ? 16 : size === 24 ? 14 : 10
   return (
     <span className="shell-mark" data-size={size === 26 ? undefined : size} aria-hidden="true" style={size === 16 ? { width: 16, height: 16, borderRadius: 5 } : undefined}>
       <svg width={glyph} height={glyph} viewBox="0 0 24 24" aria-hidden="true">
@@ -97,7 +96,7 @@ interface SidebarHeaderProps {
  */
 export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps) {
   const dispatch = useDispatch()
-  const name = orgName()
+  const name = useWorkspaceName()
   const [draw, setDraw] = useState(false)
   useEffect(() => setDraw(firstOpenToday()), [])
 
@@ -168,8 +167,13 @@ export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps
  */
 export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
   const router = useRouter()
-  const name = orgName()
+  // Invite people is offered to whoever may invite (admins, and members when
+  // an admin allows it), as the palette and the phone's sheets offer it: a
+  // member who couldn't was offered it, and refused (QA SH-02).
+  const { can } = useCapabilities()
+  const name = useWorkspaceName()
   const host = workspaceHost()
+  useEffect(() => watchInputModality(), [])
 
   return (
     <Menu.Root>
@@ -179,6 +183,7 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
           align="start"
           sideOffset={4}
           aria-label="Workspace"
+          onCloseAutoFocus={returnFocusOnlyForKeys}
           className="shell-menu shell-pop z-[var(--z-dropdown)] origin-[var(--radix-dropdown-menu-content-transform-origin)]"
         >
           <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
@@ -189,11 +194,13 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
             </div>
           </div>
           <div className="shell-menu-sep" />
-          <Menu.Item className="shell-menu-item" onSelect={() => window.dispatchEvent(new CustomEvent("open-invite-people"))}>
-            <UserPlus aria-hidden="true" />
-            Invite people
-            <span className="kbd ml-auto">I</span>
-          </Menu.Item>
+          {can(CAP_INVITATION_CREATE) && (
+            <Menu.Item className="shell-menu-item" onSelect={() => window.dispatchEvent(new CustomEvent("open-invite-people"))}>
+              <UserPlus aria-hidden="true" />
+              Invite people
+              <span data-kbd-hint="" className="kbd ml-auto">I</span>
+            </Menu.Item>
+          )}
           {isAdmin && (
             <>
               <Menu.Item className="shell-menu-item" onSelect={() => router.push("/app/admin?tab=settings")}>
@@ -212,7 +219,8 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
           {productSite() && (
             <>
               <div className="shell-menu-sep" />
-              <Menu.Item className="shell-menu-item" onSelect={() => window.open(`${productSite()}/blog`, "_blank", "noopener,noreferrer")}>
+              {/* The release notes (QA SH-22): it opened the blog. */}
+              <Menu.Item className="shell-menu-item" onSelect={() => window.open(`${productSite()}/changelog`, "_blank", "noopener,noreferrer")}>
                 <Gift aria-hidden="true" />
                 What&apos;s new
               </Menu.Item>

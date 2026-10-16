@@ -39,12 +39,15 @@ const DEFAULT_SIZE: Record<IdentityMarkVariant, number> = { dot: 8, square: 10, 
  * lib/campHue's hueFor, so the same thing is the same colour on every screen:
  *
  *   dot     a 6 to 8 px disc: a channel or calendar in a list
- *   square  a small rounded square: a project, beside its name
+ *   square  a small rounded square (a project is never one: it is drawn by
+ *           components/ui/graphics/ProjectTile, in its own hue)
  *   tile    a tint tile holding an icon, or the name's first letter
- *   avatar  a person without a photo: the hue's saturated disc, white initials
+ *   avatar  a person without a photo: the hue's saturated disc, white initials.
+ *           A person is keyed by avatarSeed (lib/utils/getAvatarColor), their
+ *           display name, as every avatar, mention and quote bar is, never
+ *           their uuid (their id only when they have no name).
  *
- *   <IdentityMark id={project.project_uuid} variant="square" />
- *   <IdentityMark id={user.user_uuid} label={name} src={photo} variant="avatar" />
+ *   <IdentityMark id={avatarSeed(user)} label={name} src={photo} variant="avatar" />
  *
  * Decorative unless given an aria-label: the name beside it already says what
  * it is, and colour never carries meaning alone.

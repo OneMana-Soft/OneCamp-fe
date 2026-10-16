@@ -1,3 +1,5 @@
+import { readFileSync } from "fs"
+import { join } from "path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
@@ -6,17 +8,25 @@ let jobs: unknown[] = []
 let jobsState: { isLoading?: boolean; isError?: unknown } = {}
 let connectionsState: { isError?: unknown } = {}
 let providersState: { isLoading?: boolean } = {}
+// Notion, which brings pages, connected beside Jira.
+let withNotion = false
+// When Jira was last connected: connecting again changes it.
+let jiraConnectedAt = "1"
 const refetchJobs = vi.fn()
 const asked: string[] = []
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
     if (url === "/admin/import/providers" && providersState.isLoading) return { data: undefined, isLoading: true, mutate: vi.fn() }
-    if (url === "/admin/import/providers") return { data: { providers: [{ name: "jira", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }, { name: "asana", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }] }, mutate: vi.fn() }
+    if (url === "/admin/import/providers") {
+      const providers: Array<Record<string, unknown>> = [{ name: "jira", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }, { name: "asana", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }]
+      if (withNotion) providers.push({ name: "notion", sources: ["api"], capabilities: ["projects", "tasks", "pages"], default_status_map: {}, default_priority_map: {} })
+      return { data: { providers }, mutate: vi.fn() }
+    }
     if (url === "/admin/import/connections")
       return connectionsState.isError
         ? { data: undefined, isError: connectionsState.isError, mutate: vi.fn() }
-        : { data: { connections: [{ provider: "jira", created_at: "", updated_at: "1" }] }, mutate: vi.fn() }
+        : { data: { connections: [{ provider: "jira", created_at: "", updated_at: jiraConnectedAt }, ...(withNotion ? [{ provider: "notion", created_at: "", updated_at: "1" }] : [])] }, mutate: vi.fn() }
     if (url.startsWith("/admin/import/jobs")) {
       if (jobsState.isLoading || jobsState.isError) return { data: undefined, ...jobsState, mutate: refetchJobs }
       return { data: { jobs }, mutate: refetchJobs }
@@ -46,6 +56,7 @@ vi.mock("@/components/admin/ImportConnectDialog", () => ({
 }))
 
 const ImportCard = (await import("./ImportCard")).default
+const { rollbackWords } = await import("./ImportCard")
 const { ImportJobRow } = await import("./ImportJobRow")
 const { ImportStepper, SLACK_STEPS } = await import("./importParts")
 const { importProviderLabel } = await import("@/services/importService")
@@ -57,6 +68,8 @@ afterEach(() => {
   jobsState = {}
   connectionsState = {}
   providersState = {}
+  withNotion = false
+  jiraConnectedAt = "1"
   confirm.mockReset()
   toast.mockReset()
   refetchJobs.mockReset()
@@ -94,6 +107,28 @@ describe("the import card", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     await waitFor(() => expect(screen.getByRole("option", { name: "Engineering" })).toBeTruthy())
     expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  // Every read of the connections hands back new objects, as a refetch does
+  // for a connection that hasn't changed. The list follows the connection, not
+  // the object: asked once however often it is read, and again after Jira is
+  // connected anew.
+  it("asks for the tool's list once per connection, and again after reconnecting", async () => {
+    let calls = 0
+    discover = async () => {
+      calls++
+      return [{ id: "ENG", name: "Engineering", kind: "project" }]
+    }
+    const { rerender } = render(<ImportCard />)
+    fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
+    await waitFor(() => expect(screen.getByRole("option", { name: "Engineering" })).toBeTruthy())
+    rerender(<ImportCard />)
+    rerender(<ImportCard />)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(calls).toBe(1)
+    jiraConnectedAt = "2"
+    rerender(<ImportCard />)
+    await waitFor(() => expect(calls).toBe(2))
   })
 
   // Picking a tool was a filled orange button that narrowed the history to it,
@@ -295,5 +330,57 @@ describe("the import screen, v3", () => {
     expect(steps.map((s) => s.getAttribute("data-state"))).toEqual(["done", "current", "next"])
     expect(steps[1].getAttribute("aria-current")).toBe("step")
     expect(steps[0].textContent).toMatch(/Upload the export \(done\)/)
+  })
+})
+
+// Docs programme C4: Notion's pages come across as docs, on by default, its
+// databases as tables, and a picked database as a project too.
+describe("importing from Notion", () => {
+  it("brings pages as docs unless asked not to", async () => {
+    withNotion = true
+    discover = async () => [{ id: "db1", name: "Roadmap", kind: "database" }]
+    render(<ImportCard />)
+    const card = screen.getByRole("radio", { name: "Notion" })
+    expect(card.textContent).toMatch(/Pages, databases, tasks/)
+    fireEvent.click(card)
+    const pages = await screen.findByRole("checkbox", { name: "Bring pages across as docs" })
+    expect(pages.getAttribute("aria-checked")).toBe("true")
+    expect(screen.getByText(/a connection's token reads the pages shared with it/)).toBeTruthy()
+    expect(await screen.findByLabelText("Database to bring as a project (optional)")).toBeTruthy()
+
+    const start = async (options: Record<string, unknown>) => {
+      fireEvent.change(screen.getByLabelText("Workspace name"), { target: { value: "Wiki" } })
+      fireEvent.click(screen.getByRole("button", { name: "Start import" }))
+      await waitFor(() => expect(createImportJob).toHaveBeenLastCalledWith("notion", expect.objectContaining({ options })))
+    }
+    await start({ pages: true })
+    fireEvent.click(pages)
+    expect(screen.getByLabelText("Pick a Notion database")).toBeTruthy()
+    await start({})
+  })
+
+  // At 768 px the settings column is a phone's width: four cards across cut
+  // every line short ("Pag…"), so the cards go four across by the column's
+  // width, not the window's.
+  it("lays the tools out by the column's width", () => {
+    render(<ImportCard />)
+    expect(document.querySelector("[data-source-picker]")?.parentElement?.className).toBe("cx-imp-sources-wrap")
+    const css = readFileSync(join(process.cwd(), "app/styles/admin/connect.css"), "utf8")
+    expect(css).toMatch(/\.cx-imp-sources-wrap \{ container-type: inline-size; \}/)
+    expect(css).toMatch(/@container \(min-width: 600px\) \{ \.cx-imp-sources \{ grid-template-columns: repeat\(4/)
+    expect(css).not.toMatch(/@media[^{]*\{\s*\.cx-imp-sources \{/)
+  })
+
+  it("offers pages only for a tool that brings them", async () => {
+    discover = async () => []
+    render(<ImportCard />)
+    fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
+    await screen.findByRole("button", { name: "Start import" })
+    expect(screen.queryByRole("checkbox", { name: "Bring pages across as docs" })).toBeNull()
+  })
+
+  it("says rolling back sends the import's docs to the trash, where they can be restored", () => {
+    expect(rollbackWords({ options: { pages: true } })).toMatch(/custom fields and tables.*Its docs go to the trash, with any pages added under them, where they can be restored\./)
+    expect(rollbackWords({ options: {} })).not.toMatch(/docs|tables/)
   })
 })

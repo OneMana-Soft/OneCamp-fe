@@ -1,0 +1,46 @@
+/*
+ * Anchored threads, drawn on their words (docs programme A8). Nothing here is
+ * in the doc: the highlights are decorations (extensions/anchor-decorations).
+ *
+ * A thread's words take the sun, as a search match does (globals.css `mark`),
+ * but quieter (a tint and an underline, at about half a match's strength), so
+ * a match inside a commented passage still stands out. The thread being
+ * looked at is as strong as a match. The underline keeps a commented passage
+ * findable where a tint alone fades on some screens.
+ */
+
+.thread-anchor {
+  background-color: color-mix(in oklab, var(--camp-sun) 12%, transparent);
+  border-bottom: 2px solid color-mix(in oklab, var(--camp-sun) 55%, transparent);
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.thread-anchor-active {
+  background-color: color-mix(in oklab, var(--camp-sun) 24%, transparent);
+  border-bottom-color: var(--camp-sun);
+}
+
+.dark .thread-anchor {
+  background-color: color-mix(in oklab, var(--camp-sun) 15%, transparent);
+}
+
+.dark .thread-anchor-active {
+  background-color: color-mix(in oklab, var(--camp-sun) 30%, transparent);
+}
+
+/*
+ * A thread on a block with no words of its own (a picture, a divider, an
+ * empty line): the block is outlined, as a tint on no words shows nothing
+ * (B7). An outline, outside the block, follows its corners and leaves its own
+ * frame and size untouched.
+ */
+.thread-anchor-block {
+  outline: 2px solid color-mix(in oklab, var(--camp-sun) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.thread-anchor-block-active {
+  outline-color: var(--camp-sun);
+}

@@ -35,6 +35,8 @@ import { Fragment } from "react";
 import { useBotKinds } from "@/hooks/useBotKinds";
 import { followKeyboard } from "@/lib/ui/visualViewport";
 import { followHistory, noteRouteChange } from "@/lib/navigation/back";
+import { usePanelPlacement, useShellBand } from "@/components/navigationBar/tablet/useShellBand";
+import { isTabletBand } from "@/lib/ui/shellBand";
 
 /** The panel group beside the sidebar: the page, any split panes, the right panel. */
 const PANEL_GROUP_ID = "app-panels";
@@ -81,14 +83,55 @@ function Seam({ hidden, onDragging, onReset, label }: { hidden?: boolean; onDrag
 
 const percentOf = (px: number, groupWidth: number) => Math.ceil((px / groupWidth) * 1000) / 10;
 
+/**
+ * The page's sheet: r12 on e-sheet, the brightest thing on screen. A column,
+ * so a notice above the work takes its own height and the work below shrinks
+ * to fit, never clipped at the bottom. With views side by side, the one the
+ * keys act on wears a 1.5px brand top edge inside its radius (keysHere).
+ */
+function PageSheet({ isAdmin, keysHere, focusPill, children }: { isAdmin?: boolean; keysHere: boolean; focusPill: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div data-main-sheet="" className={cn("app-sheet relative flex h-full flex-col overflow-hidden", keysHere && "shell-sheet-focused")}>
+      {/* Work in progress: a brand light along the sheet's top edge (L2). */}
+      <SheetProgressBar />
+      {/* Notices: the top of the sheet, inside it, two at most (T2). The
+          offline state is the foot pill now (T3), not a notice. */}
+      <NoticeStack>
+        <AdminBanners isAdmin={isAdmin} />
+      </NoticeStack>
+      {focusPill && (
+        <div className="pointer-events-none absolute right-3 top-2.5 z-[var(--z-sticky)] [&>*]:pointer-events-auto">
+          {focusPill}
+        </div>
+      )}
+      <div
+        data-split-view="-1"
+        tabIndex={-1}
+        className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar outline-none"
+      >
+        <PageTransition>
+          {children}
+        </PageTransition>
+      </div>
+    </div>
+  );
+}
+
 export function LayoutContent({ children }: { children: React.ReactNode }) {
   useOpenFromUrl();
   // While the on-screen keyboard is up, the app fits what is left of the
   // screen (lib/ui/visualViewport.ts). Outside React: nothing re-renders.
   useEffect(() => followKeyboard(), []);
   const { isMobile } = useMedia();
-  // Split view is for a screen with room for it.
-  const { panes, active, focused } = useSplitView(!isMobile);
+  // A tablet's shell (design v3, mobile T1): the rail, and the right panel as
+  // a sheet over the page.
+  const tablet = isTabletBand(useShellBand());
+  // Where the right panel opens: beside the page from 1100px up, over it in a
+  // narrower window and on a tablet (lib/ui/shellBand).
+  const panelOver = usePanelPlacement() === "over";
+  // Split view is for a screen with room for it, and a pointer (mobile T3:
+  // it stays a desktop feature; a tablet has the list beside the page).
+  const { panes, active, focused } = useSplitView(!isMobile && !tablet);
   useGoKeys(!isMobile);
   // Which bots are agents, read before the first message draws its tag.
   useBotKinds();
@@ -166,7 +209,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   useLayoutEffect(() => {
     if (isMobile || inMeeting) return;
     const root = document.documentElement;
-    const el = rightSheetRef.current;
+    // Over the page, the panel floats above it, so the corner is the sheet's.
+    const el = panelOver ? null : rightSheetRef.current;
     const set = () => root.style.setProperty("--shell-right-inset", `${rightPanelState.isOpen && el ? Math.round(el.getBoundingClientRect().width) + 16 : 8}px`);
     set();
     const ro = rightPanelState.isOpen && el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(set) : null;
@@ -175,7 +219,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
       ro?.disconnect();
       root.style.removeProperty("--shell-right-inset");
     };
-  }, [rightPanelState.isOpen, isMobile, inMeeting]);
+  }, [rightPanelState.isOpen, isMobile, inMeeting, panelOver]);
 
   const isTaskPage = !!(path.length > 2 && path[2] === "task" && path[3]);
 
@@ -200,6 +244,57 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     return children;
   }
 
+  const pageSheet = (
+    <PageSheet isAdmin={isAdmin} keysHere={split && focused === null && active === -1} focusPill={focused === -1 && <FocusPill />}>
+      {children}
+    </PageSheet>
+  );
+
+  // What the right panel shows, with its own error boundary.
+  const panelBody = (
+    <div key={panelKey} className="shell-content-swap min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <PanelErrorBoundary resetKey={panelKey} onClose={() => dispatch(closeRightPanel())}>
+        <RightPanel />
+      </PanelErrorBoundary>
+    </div>
+  );
+
+  // The right panel over the page (a tablet, mobile T4; a window under
+  // 1100px, as Slack does in a narrow window): a sheet of its own that slides
+  // over the page from the right, on a 20% scrim that closes it (Esc does
+  // too: RightPanel's own). Beside the page, its width crushed what it sat
+  // beside: on a tablet at 768 a list got 278px, its title on two lines and
+  // New task cut off; in a 1024 window a conversation got about 360px, at
+  // 768 about 165.
+  const panelOverlay = rightPanelState.isOpen ? (
+    <>
+      <div className="shell-scrim" data-panel-scrim="" aria-hidden="true" onClick={() => dispatch(closeRightPanel())} />
+      <div
+        key="open"
+        data-right-panel=""
+        data-right-panel-sheet=""
+        data-panel-over=""
+        className="app-sheet shell-panel-sheet shell-panel-over flex flex-col overflow-hidden"
+      >
+        {panelBody}
+      </div>
+    </>
+  ) : null;
+
+  // A tablet (design v3, mobile T4): the page's sheet takes the width, and
+  // the right panel opens over it.
+  if (tablet) {
+    return (
+      <DesktopNavigationBar>
+        <AgentNoteOnOpen />
+        <RunningTimerChip />
+        {pageSheet}
+        {panelOverlay}
+        <ShortcutsDialog />
+      </DesktopNavigationBar>
+    );
+  }
+
   // Split view: two views share the width 50/50; three take 40/30/30. Every
   // view keeps at least 360px.
   const mainSize = panes.length === 0 ? 100 : panes.length === 1 ? 50 : 40
@@ -219,7 +314,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             document.cookie = `react-resizable-root-panels:layout:mail=${JSON.stringify(sizes)}`;
             // The right panel's width, in pixels, for the next time it opens.
             const right = sizes[sizes.length - 1];
-            if (rightPanelState.isOpen && right > 0 && groupWidthRef.current > 0) {
+            if (!panelOver && rightPanelState.isOpen && right > 0 && groupWidthRef.current > 0) {
               document.cookie = `${RIGHT_PANEL_COOKIE}=${Math.round((right / 100) * groupWidthRef.current)}; path=/; max-age=31536000`;
             }
           }, 300);
@@ -227,7 +322,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         className="h-full"
       >
         <ResizablePanel
-          defaultSize={Math.max(30, (rightPanelState.isOpen ? 100 - rightOpenSize(groupWidth) : 100) - (100 - mainSize))}
+          defaultSize={Math.max(30, (rightPanelState.isOpen && !panelOver ? 100 - rightOpenSize(groupWidth) : 100) - (100 - mainSize))}
           minSize={30}
           id="main-panel"
           order={1}
@@ -236,40 +331,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           // took to open. The panel's sheet slides in instead (below).
           className={cn("h-full relative w-full min-w-0", !shows(-1) && "hidden")}
         >
-          {/* The page's sheet: r12 on e-sheet, the brightest thing on screen.
-              A column, so a notice above the work takes its own height and
-              the work below shrinks to fit, never clipped at the bottom. With
-              views side by side, the one the keys act on wears a 1.5px brand
-              top edge inside its radius. */}
-          <div
-            data-main-sheet=""
-            className={cn(
-              "app-sheet relative flex h-full flex-col overflow-hidden",
-              split && focused === null && active === -1 && "shell-sheet-focused",
-            )}
-          >
-            {/* Work in progress: a brand light along the sheet's top edge (L2). */}
-            <SheetProgressBar />
-            {/* Notices: the top of the sheet, inside it, two at most (T2). The
-                offline state is the foot pill now (T3), not a notice. */}
-            <NoticeStack>
-              <AdminBanners isAdmin={isAdmin} />
-              </NoticeStack>
-            {focused === -1 && (
-              <div className="pointer-events-none absolute right-3 top-2.5 z-[var(--z-sticky)] [&>*]:pointer-events-auto">
-                <FocusPill />
-              </div>
-            )}
-            <div
-              data-split-view="-1"
-              tabIndex={-1}
-              className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar outline-none"
-            >
-              <PageTransition>
-                {children}
-              </PageTransition>
-            </div>
-          </div>
+          {pageSheet}
         </ResizablePanel>
         {/* Split view: what was opened beside the page, each on its own sheet. */}
         {panes.map((pane, i) => (
@@ -280,6 +342,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             </ResizablePanel>
           </Fragment>
         ))}
+        {/* Beside the page from 1100px up; under that it opens over it (below). */}
+        {!panelOver && (<>
         <Seam
           label="Resize the panel"
           hidden={!rightPanelState.isOpen}
@@ -314,15 +378,13 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
                 isDragging && "[animation:none]",
               )}
             >
-              <div key={panelKey} className="shell-content-swap min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-                <PanelErrorBoundary resetKey={panelKey} onClose={() => dispatch(closeRightPanel())}>
-                  <RightPanel />
-                </PanelErrorBoundary>
-              </div>
+              {panelBody}
             </div>
           )}
         </ResizablePanel>
+        </>)}
       </ResizablePanelGroup>
+      {panelOver && panelOverlay}
       <ShortcutsDialog />
       <KeyboardTip />
     </DesktopNavigationBar>

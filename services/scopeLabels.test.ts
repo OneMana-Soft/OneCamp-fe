@@ -10,6 +10,8 @@ describe("scope labels", () => {
       expect(scopeLabel(s)).not.toMatch(/[/&]/)
     }
     expect(scopeLabel("tasks:write")).toBe("Create and update tasks")
+    // The public API adds to the end of a doc with docs:write (docs programme C4).
+    expect(scopeLabel("docs:write")).toBe("Create documents and add to them")
   })
 
   it("give each permission on the agent's consent page a phone-sized row", () => {

@@ -17,11 +17,14 @@ export const ChannelListResult = ({
     onLoadMore,
     hasMore,
     isLoading,
+    action,
 }: {
     channelList: ChannelInfoInterface[]
     onLoadMore?: () => void
     hasMore?: boolean
     isLoading?: boolean
+    /** A control at a row's end (Archived's Restore), beside the row's link, never in it. */
+    action?: (channel: ChannelInfoInterface) => React.ReactNode
 }) => {
     const channelCallStatus = useSelector(
         (state: RootState) => state.channel.channelCallStatus,
@@ -47,7 +50,8 @@ export const ChannelListResult = ({
         const last = channel.ch_posts?.[0];
         const by = last?.post_by;
         const relayed = by?.is_bot && by.user_uuid ? relayedAuthorOf(botKinds?.[by.user_uuid], last?.post_text) : null;
-        return (
+        const control = action?.(channel);
+        const link = (
             <Link
                 key={channel.ch_uuid}
                 href={`${app_channel_path}/${channel.ch_uuid}`}
@@ -59,10 +63,12 @@ export const ChannelListResult = ({
             >
                 <ChannelListChannel
                     channelId={channel.ch_uuid}
+                    isPrivate={!!channel.ch_private}
                     lastUsername={relayed ? relayed.name : displayNameOf(by) || ""}
                     lastUserMessage={relayed ? relayed.body : last?.post_text || ""}
                     lastMessageTime={channel.ch_posts?.[0]?.post_created_at || ""}
                     channelName={channel.ch_name}
+                    hasGuestAccess={channel.has_guest_access === true}
                     unseenMessageCount={channel.unread_post_count || 0}
                     userSelected={false}
                     attachmentCount={channel.ch_posts?.[0]?.post_attachments?.length || 0}
@@ -75,6 +81,13 @@ export const ChannelListResult = ({
                 />
             </Link>
         );
+        if (!control) return link;
+        return (
+            <div key={channel.ch_uuid} className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">{link}</div>
+                <div className="shrink-0 pr-3">{control}</div>
+            </div>
+        );
     };
 
     return (
@@ -84,6 +97,7 @@ export const ChannelListResult = ({
                 renderItem={renderItem}
                 onLoadMore={onLoadMore || (() => {})}
                 hasMore={hasMore || false}
+                isLoading={isLoading}
                 keyExtractor={(item) => item.ch_uuid}
             />
         </PageContainer>

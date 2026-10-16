@@ -112,7 +112,8 @@ export function SaveForLaterButton({
           </TooltipTrigger>
           <TooltipContent>{label}</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="w-[248px]">
+        {/* Each choice on one line: "Tomorrow morning" wrapped to a 52px row (QA F-38). */}
+        <DropdownMenuContent align="end" className="w-[264px]">
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
             {saved
               ? saved.remind_at
@@ -133,8 +134,8 @@ export function SaveForLaterButton({
           {reminderChoices(now).map((c) => (
             <DropdownMenuItem key={c.key} onSelect={() => saveWith(c.at)}>
               <Clock className="h-4 w-4" />
-              <span className="flex-1">{c.label}</span>
-              <span className="ml-3 text-xs tabular-nums text-muted-foreground">{c.hint}</span>
+              <span className="flex-1 whitespace-nowrap">{c.label}</span>
+              <span className="ml-3 whitespace-nowrap text-xs tabular-nums text-muted-foreground">{c.hint}</span>
             </DropdownMenuItem>
           ))}
           <DropdownMenuItem onSelect={() => setPicking(true)}>

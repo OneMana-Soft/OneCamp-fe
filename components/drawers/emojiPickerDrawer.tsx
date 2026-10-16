@@ -45,7 +45,7 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
     }, [reactionDrawerOpenState])
 
     const handleReactionSelect = (emoji: Parameters<MobileReactionPickerProps['onReactionSelect']>[number]) => {
-        addReactionIdToFrequents({ id: emoji.id })
+        addReactionIdToFrequents(emoji)
         onReactionSelect(emoji)
 
         // Close locally first to trigger the vaul animation

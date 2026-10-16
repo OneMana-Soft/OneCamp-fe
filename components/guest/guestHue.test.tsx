@@ -17,7 +17,8 @@ vi.mock("@/services/guestService", () => ({
 }))
 vi.mock("@/components/guest/GuestDocViewer", () => ({ GuestDocViewer: () => null }))
 
-import { GUEST_HUE, GuestLinkGone, GuestPageSkeleton } from "./guestUi"
+import { GUEST_HUE, GuestPageSkeleton } from "./guestUi"
+import { PublicGone } from "./publicStates"
 import { GuestDocComments } from "./GuestDocComments"
 import GuestDocPage from "@/app/guest/d/[token]/page"
 
@@ -51,7 +52,7 @@ describe("the workspace's hue on a guest page", () => {
     render(<GuestPageSkeleton label="Opening the link…" />)
     expect(band()!.className).toContain(HUE)
     cleanup()
-    render(<GuestLinkGone />)
+    render(<PublicGone surface="guest-channel" noun="shared channel" />)
     expect(band()!.className).toContain(HUE)
   })
 

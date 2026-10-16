@@ -38,6 +38,7 @@ const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsers
 const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
 const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
 const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
+const ExportCard = dynamic(() => import("@/components/admin/ExportCard"), { loading: AdminCardSkeleton })
 // AI & agents: one section of six sub-pages, each a chunk of its own.
 const AIAgentsSection = dynamic(() => import("@/components/admin/ai/AIAgentsSection"), { loading: AdminCardSkeleton })
 const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
@@ -305,9 +306,11 @@ const AdminPage = () => {
               <TabsContent value="import" className="mt-0 outline-none">
                 <div className={ADMIN_SECTION_STACK}>
                   {/* Slack first: chat history is the migration most teams arrive
-                      with, and the other providers carry projects and tasks. */}
+                      with, and the other providers carry projects and tasks
+                      (Notion its pages too). The docs' export closes it. */}
                   <SlackImportCard />
                   <ImportCard />
+                  <ExportCard />
                 </div>
               </TabsContent>
               </>

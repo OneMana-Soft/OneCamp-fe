@@ -18,6 +18,7 @@
  * treatment rather than being folded into has_api_key.
  */
 
+import { useSecretReentry } from "@/hooks/useSecretReentry"
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -142,6 +143,15 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   const dirty =
     baseURL !== provider.base_url || apiKey !== "" || insecureTLS !== provider.insecure_tls
 
+  // A custom endpoint's stored key stays with the address it was given for.
+  const keyReentry = useSecretReentry({
+    stored: isCustom && (!!provider.has_api_key || keyUnreadable),
+    entered: apiKey,
+    from: { url: provider.base_url || "" },
+    to: { url: baseURL.trim() },
+    noun: "API key",
+  })
+
   // Enable/disable persists immediately (optimistic) — a toggle that only
   // saved via the form was the source of "the toggle does nothing". Enabling a
   // key-required provider with no key would just create a broken "on" state, so
@@ -171,6 +181,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   }
 
   const save = async () => {
+    if (!keyReentry.check()) return
     setBusy(true)
     try {
       await updateProvider(provider.id, {
@@ -345,20 +356,26 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               <Label className="text-xs">API key</Label>
               <div className="flex gap-2">
                 <Input
+                  ref={keyReentry.inputProps.ref}
+                  required={keyReentry.required}
                   type="password"
                   value={apiKey}
                   disabled={busy}
                   placeholder={
-                    keyUnreadable
+                    keyReentry.placeholder ??
+                    (keyUnreadable
                       ? "paste the key again to replace it"
                       : provider.has_api_key
                         ? "•••••••• (unchanged)"
-                        : "paste key to set"
+                        : "paste key to set")
                   }
                   onChange={(e) => setApiKey(e.target.value)}
                   className={`h-9 font-mono text-xs ${keyUnreadable ? "border-destructive/50" : ""}`}
-                  aria-invalid={keyUnreadable || undefined}
-                  aria-describedby={keyUnreadable ? keyUnreadableHintId : undefined}
+                  aria-invalid={keyUnreadable || keyReentry.inputProps["aria-invalid"] || undefined}
+                  aria-describedby={
+                    [keyUnreadable ? keyUnreadableHintId : "", keyReentry.inputProps["aria-describedby"] || ""].filter(Boolean).join(" ") ||
+                    undefined
+                  }
                 />
                 {(provider.has_api_key || keyUnreadable) && (
                   <Button size="sm" variant="ghost" disabled={busy} onClick={clearKey}>
@@ -366,6 +383,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                   </Button>
                 )}
               </div>
+              {keyReentry.note}
               {/*
                 The cause and the remedy, next to the field that applies the remedy.
 

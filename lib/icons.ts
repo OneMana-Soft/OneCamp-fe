@@ -22,10 +22,14 @@
 // reply's connector, Record's stop, and the archive and remind actions.
 export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, CornerDownRight, Cpu, Hand } from "lucide-react";
 export { ArrowLeftRight, Columns2 } from "lucide-react";
+// Docs: the four-column row in "/" (B1).
+export { Columns4 } from "lucide-react";
 // A project's timeline tab, and its Unscheduled list.
 export { ChartGantt, CalendarOff, CirclePlus } from "lucide-react";
 // Goals: the view, a goal's page and its link from a project.
 export { Target } from "lucide-react";
+// Docs (B2): colour, the fourth heading, the table of contents, and callout icons.
+export { Baseline, Heading4, TableOfContents, CircleAlert, Flame, BookOpen, GraduationCap } from "lucide-react";
 export { Focus } from "lucide-react";
 // Calls: the captions toggle (hub, 10 Oct 2026).
 export { Captions, CaptionsOff } from "lucide-react";
@@ -127,6 +131,9 @@ export {
   RefreshCw,
   RefreshCcw,
   Undo2,
+  Redo2,
+  IndentIncrease,
+  IndentDecrease,
   ClipboardCheck,
   CircleStop,
 } from "lucide-react";
@@ -213,6 +220,8 @@ export {
 } from "lucide-react";
 
 // ─── Media / Files ──────────────────────────────────────────
+// A doc's pictures, embeds and files (docs B4): crop, replace, align, a resize grip.
+export { Crop, Replace, AlignCenter, StretchHorizontal, GripHorizontal } from "lucide-react";
 export {
   File,
   FileImage,
@@ -329,3 +338,7 @@ export {
 // facilitation cluster's timer and vote.
 export { Library, Timer, Vote } from "lucide-react";
 // The AI panel's new chat (hub, 11 Oct 2026) uses SquarePen, exported with the shell's icons above.
+// A doc image whose upload never finished (its placeholder, image/uploads.ts).
+export { ImageOff } from "lucide-react";
+// The doc's technical blocks (B3): the simple table, equations, find and replace, the word count. Replace is exported with B4's image icons above.
+export { Table2, TableCellsMerge, TableCellsSplit, PanelTop, Radical, ReplaceAll, CaseSensitive, WholeWord, LetterText, WrapText, PaintBucket } from "lucide-react";

@@ -1,0 +1,103 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A quote.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Its second paragraph.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "blockquote"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A quote with a list:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "one",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "type": "listItem"
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "two",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "type": "listItem"
+            }
+          ],
+          "type": "bulletList"
+        }
+      ],
+      "type": "blockquote"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Outer",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Inner",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "blockquote"
+        }
+      ],
+      "type": "blockquote"
+    }
+  ],
+  "type": "doc"
+}

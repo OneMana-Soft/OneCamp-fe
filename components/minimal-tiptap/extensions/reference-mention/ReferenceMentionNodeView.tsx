@@ -9,8 +9,16 @@ import {
   buildReferenceHref,
   referenceIcon,
   referenceAccentClass,
+  referenceTypeLabel,
+  LIVE_REFERENCE_TYPES,
   type ReferenceType,
 } from "./referenceTypes"
+import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
+
+// A page, task or project is drawn live (Live Entity Chips, docs C1): its name
+// and state now, read as the reader, and "No access" for what they can't
+// open. Its code loads the first time one is drawn.
+const EntityChip = React.lazy(() => import("@/components/liveEntity/EntityChip").then((m) => ({ default: m.EntityChip })))
 
 // Renders a doc/board/task/project/channel reference as an inline chip. The
 // same component is used inside the composer and inside displayed messages
@@ -23,6 +31,48 @@ const ReferenceMentionNodeView: React.FC<NodeViewProps> = (props) => {
   const refType: ReferenceType = decoded?.refType ?? "doc"
   const routeId = decoded?.routeId ?? ""
   const Icon = referenceIcon(refType)
+  // A guest can't open the workspace's docs, boards or channels: the chip
+  // names the thing and goes nowhere.
+  const guest = useGuestReader()
+
+  if (!guest && LIVE_REFERENCE_TYPES.has(refType) && routeId) {
+    return (
+      <NodeViewWrapper as="span" className="inline">
+        <React.Suspense
+          fallback={
+            <span contentEditable={false} className="mx-px inline-flex items-baseline gap-1 rounded-[5px] bg-hover px-1 align-baseline text-ink-3 [&_svg]:self-center">
+              <Icon className="size-3.5" aria-hidden="true" />
+              <span aria-hidden="true" className="inline-block h-[0.7em] w-14 animate-pulse rounded-sm bg-press motion-reduce:animate-none" />
+            </span>
+          }
+        >
+          <EntityChip kind={refType} id={routeId} selected={props.selected} />
+        </React.Suspense>
+      </NodeViewWrapper>
+    )
+  }
+
+  if (guest) {
+    // A guest may open none of the workspace's things: a live one says only what it is, never a name kept with it.
+    const words = LIVE_REFERENCE_TYPES.has(refType) ? referenceTypeLabel(refType) : label
+    return (
+      <NodeViewWrapper className="inline-block align-baseline">
+        <span
+          contentEditable={false}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 mx-0.5 text-sm font-medium select-none align-baseline max-w-[16rem]",
+            referenceAccentClass(refType),
+          )}
+          data-id={id}
+          data-type={props.node.type.name}
+          title={words}
+        >
+          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{words}</span>
+        </span>
+      </NodeViewWrapper>
+    )
+  }
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()

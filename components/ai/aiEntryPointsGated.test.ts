@@ -3,6 +3,10 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { actionsFor, allActions, dialogFor, slotFor } from "@/components/docEditor/registry/registry"
+import type { ShellSlot, Surface } from "@/components/docEditor/registry/types"
+import "@/components/ai/docAiRegister"
+
 // OneCamp ships in two editions. v1 is built with no AI packages, so its backend serves
 // no AI routes at all; on v2 an admin can switch AI off or leave a provider
 // unconfigured. In both cases an AI button is a button whose every click fails, and the
@@ -100,6 +104,12 @@ const NOT_GATED_ON_PURPOSE: Record<string, string> = {
     MarkdownMessage:
         "a self-contained safe markdown renderer with no network calls, also used by the " +
         "command palette and the in-call panel. Gating it would stop non-AI markdown rendering too.",
+    AiMark:
+        "the AI's mark, an SVG with no calls of its own. The in-call panel draws it, and that " +
+        "panel reads the AI's status itself and says when AI is off.",
+    AiComposer:
+        "a pure input with no calls of its own: its caller sends, and decides when it is " +
+        "disabled. The in-call panel disables it with a note when AI is off.",
 }
 
 /** Does this component gate itself on AI availability? */
@@ -175,5 +185,53 @@ describe("AI entry points are gated on AI availability", () => {
         // server and then remove them, so the AI-free edition would flicker AI
         // features on every page load.
         expect(hook).toMatch(/features:\s*\{\}/)
+    })
+})
+
+// The doc AI bar (docs programme B9) reaches a doc only through the doc
+// editor's registry: its actions, its overlay (the keys: space, ⌘J, ⇧⌘J),
+// the empty doc's row, agents' margin marks and the activity dialog are all
+// registered behind the AI gate, so the AI-free edition, and a workspace with
+// AI off, never draws one of them, nor binds a key to one.
+describe("the doc AI bar is behind the AI gate", () => {
+    const NO_AI = { ai: false }
+    const AI = { ai: true }
+    const ACTIONS = ["aiBar.open", "ai.askDoc", "ai-write", "ai-summarize", "ai.activity"]
+    const SURFACES: Surface[] = ["slash", "selection", "blockMenu", "more", "phoneBar", "phoneSheet", "palette"]
+    const SLOTS: Array<[ShellSlot, string]> = [
+        ["editorOverlay", "ai.bar"],
+        ["emptyStarter", "ai.draft"],
+        ["gutter", "ai.agentEdits"],
+    ]
+
+    it("registers each of its actions for the AI edition only", () => {
+        const mine = allActions().filter((a) => ACTIONS.includes(a.id))
+        expect(mine.map((a) => a.id).sort()).toEqual([...ACTIONS].sort())
+        expect(mine.filter((a) => a.edition !== "ai").map((a) => a.id)).toEqual([])
+        for (const surface of SURFACES) {
+            expect(actionsFor(surface, NO_AI).map((a) => a.id).filter((id) => ACTIONS.includes(id)), surface).toEqual([])
+        }
+        expect(actionsFor("selection", AI).map((a) => a.id)).toContain("aiBar.open")
+    })
+
+    it("draws nothing, and binds no key, without AI", () => {
+        for (const [slot, id] of SLOTS) {
+            expect(slotFor(slot, NO_AI).map((c) => c.id), slot).not.toContain(id)
+            expect(slotFor(slot, AI).map((c) => c.id), slot).toContain(id)
+        }
+        expect(dialogFor("ai.activity", NO_AI)).toBeUndefined()
+        expect(dialogFor("ai.activity", AI)).toBeDefined()
+    })
+
+    it("is reached from outside components/ai only by the registry's one line", () => {
+        const importers: string[] = []
+        for (const dir of SEARCH_DIRS) {
+            for (const file of sourceFiles(join(REPO_ROOT, dir))) {
+                if (file.startsWith(AI_DIR)) continue
+                const content = readFileSync(file, "utf8")
+                if (/@\/components\/ai\/(docAi|DocAi(?!AssistantPanel))/.test(content)) importers.push(file.slice(REPO_ROOT.length + 1))
+            }
+        }
+        expect(importers.filter((f) => f !== "components/docEditor/registry/index.ts")).toEqual([])
     })
 })

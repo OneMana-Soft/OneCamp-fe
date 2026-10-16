@@ -8,15 +8,17 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/helpers/cn";
 import type { DesktopChildrenNavType } from "@/types/nav";
 import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar";
-import { app_channel_path, app_chat_path, app_grp_chat_path, app_project_path } from "@/types/paths";
+import { app_channel_path, app_chat_path, app_doc_path, app_grp_chat_path, app_project_path } from "@/types/paths";
 import { openUI } from "@/store/slice/uiSlice";
 import { getOtherUserId } from "@/lib/utils/getOtherUserId";
 import type { RootState } from "@/store/store";
-import { sortChannelList } from "@/lib/utils/sortChannelList";
+import { sortChannelsByName } from "@/lib/utils/sortChannelList";
+import { isMutedChannel, starredChannelRows } from "@/lib/nav/sidebarChannels";
+import { rowSignal, sectionSignal } from "@/lib/nav/sidebarSignal";
 import { sortChatList } from "@/lib/utils/sortChatList";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
 import { buildPrimaryNavLinks, inboxBadgeCount } from "@/lib/nav/primaryNavLinks";
-import { FOLDED_NAV_TITLES, partitionByTitle } from "@/lib/nav/focusMode";
+import { partitionNav } from "@/lib/nav/focusMode";
 import { useSidebarDisclosure } from "@/lib/nav/sidebarDisclosure";
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import {
@@ -36,8 +38,18 @@ import { SidebarRail } from "@/components/navigationBar/desktop/SidebarRail";
 import { FootPill } from "@/components/error/OfflineNotice";
 import { SidebarSkeleton } from "@/components/protectedRoute/SkeletonShell";
 import { useNudgeCount } from "@/hooks/useNudgeCount";
-import { SettingsNav, rememberAppRoute } from "@/components/navigationBar/desktop/SettingsNav";
+import { SettingsNav, SettingsRailItems, rememberAppRoute } from "@/components/navigationBar/desktop/SettingsNav";
 import { inSettingsShell } from "@/lib/adminSections";
+import { TabletRail } from "@/components/navigationBar/tablet/TabletRail";
+import { TabletListPanel } from "@/components/navigationBar/tablet/TabletListPanel";
+import { useShellBand } from "@/components/navigationBar/tablet/useShellBand";
+import { isTabletBand } from "@/lib/ui/shellBand";
+import { DocsSection } from "@/components/docTree/DocsSection";
+import { FileText } from "@/lib/icons";
+
+/** The tablet's rail and its channel list, in pixels (design v3, mobile T2 and T3). */
+const TABLET_RAIL_PX = 72
+const TABLET_LIST_PX = 340
 
 const setCookie = (name: string, value: string) => {
     document.cookie = `${name}=${value}; path=/; max-age=31536000`
@@ -170,15 +182,32 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         return () => window.removeEventListener("keydown", onKey)
     }, [])
 
+    // A tablet (a coarse pointer from 640 to 1279) gets its own shell: the
+    // 72px rail of labelled places, and the channel list beside or over the
+    // page (design v3, mobile T1 to T3).
+    const band = useShellBand()
+    const tablet = isTabletBand(band)
+    const wide = band === "tablet-wide"
+    const inChannel = path[2] === "channel" && !!path[3]
+    // Wide: the list sits beside a channel unless the person hid it.
+    // Compact: it slides over the page when asked, and goes once a channel is picked.
+    const [listHidden, setListHidden] = useState(false)
+    const [listOpen, setListOpen] = useState(false)
+    useEffect(() => setListOpen(false), [pathname])
+    const docked = tablet && wide && inChannel && !listHidden
+    const toggleList = useCallback(() => (wide ? setListHidden((h) => !h) : setListOpen((o) => !o)), [wide])
+    const closeList = useCallback(() => (wide ? setListHidden(true) : setListOpen(false)), [wide])
+
     // Where the sheet starts and ends, for whatever floats in its corners
     // (CornerStack) and the right panel's own inset.
     useLayoutEffect(() => {
         const root = document.documentElement
-        root.style.setProperty("--shell-left-inset", `${collapsed ? SIDEBAR_RAIL_PX : width}px`)
+        const left = tablet ? TABLET_RAIL_PX + (docked ? TABLET_LIST_PX + 8 : 0) : collapsed ? SIDEBAR_RAIL_PX : width
+        root.style.setProperty("--shell-left-inset", `${left}px`)
         return () => {
             root.style.removeProperty("--shell-left-inset")
         }
-    }, [collapsed, width])
+    }, [collapsed, width, tablet, docked])
 
     // Springs and fades are for what changes while you watch, not for the
     // first paint: they start a moment after the sidebar arrives.
@@ -192,6 +221,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     const [isChannelOpen, setIsChannelOpen] = useSidebarDisclosure("channels", true);
     const [isChatOpen, setIsChatOpen] = useSidebarDisclosure("chats", true);
     const [isFavOpen, setIsFavOpen] = useSidebarDisclosure("favorites", true);
+    const [isDocsOpen, setIsDocsOpen] = useSidebarDisclosure("docs", true);
 
     // Seeds the sidebar's lists and badges, as every layout must.
     const userSideNav = useHydrateUserSidebar()
@@ -208,6 +238,12 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     const totalChannelUnread = useMemo(() =>
         (userSidebarState.userChannels || []).reduce((acc, channel) => acc + (channel.unread_post_count || 0), 0),
         [userSidebarState.userChannels]
+    );
+    // The rails' DMs count the conversations with something unread (Slack's
+    // DMs tab does, SN-19), not every message in them.
+    const unreadDMs = useMemo(() =>
+        (userSidebarState.userChats || []).filter((chat) => (chat?.dm_unread || 0) > 0).length,
+        [userSidebarState.userChats]
     );
 
     const isAdmin = !!self?.user_is_admin
@@ -226,7 +262,11 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [path, counts.channel, counts.dm, counts.activity, counts.laterDue, counts.tasksDue, counts.urgentNudges, isAdmin],
     );
-    const { kept: primary, folded: more } = useMemo(() => partitionByTitle(navLinks, FOLDED_NAV_TITLES), [navLinks]);
+    // Docs are a section in the full sidebar and an item in the rails, which
+    // have no sections (lib/nav/focusMode): the rails take primary, the full
+    // sidebar's rows leave Docs to its section.
+    const { primary: rows, sections, folded: more } = useMemo(() => partitionNav(navLinks), [navLinks]);
+    const primary = useMemo(() => [...rows, ...sections], [rows, sections]);
 
     // A live arrival in Inbox while the window is focused and Inbox isn't
     // open: its badge rings once (N1).
@@ -253,14 +293,29 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     const channelRow = (c: (typeof userSidebarState.userChannels)[number]): DesktopChildrenNavType => ({
         title: c.ch_name,
         unread_count: c?.unread_post_count,
+        mentions: c?.unread_mention_count,
         path: `${app_channel_path}/${c.ch_uuid}`,
         variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
         isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
         isPrivate: !!c.ch_private,
-        muted: c.notification_type === "none",
+        muted: isMutedChannel(c),
     })
-    const starredRows = sortChannelList((userSidebarState.userFavChannels || []).filter(Boolean), favChannelUUIDs).map(channelRow)
-    const channelRows = sortChannelList((userSidebarState.userChannels || []).filter((c) => c && !favChannelUUIDs.has(c.ch_uuid))).map(channelRow)
+    // A starred channel is its Channels row (lib/nav/sidebarChannels), in
+    // starred order; starred docs follow, in the order they were starred (B5).
+    // Channels are A to Z (D-S2): no row moves when something arrives in it.
+    const starredDocRows: DesktopChildrenNavType[] = (userSidebarState.userStarred || [])
+        .filter((p) => p && p.resource_kind === "doc")
+        .map((p) => ({
+            title: p.title || "Untitled",
+            path: p.href || `${app_doc_path}/${p.resource_uuid}`,
+            icon: FileText,
+            variant: path.length > 3 && path[2] === "doc" && path[3] === p.resource_uuid ? "sidebarActive" : "ghost",
+        }))
+    const starredRows = [
+        ...starredChannelRows(userSidebarState.userChannels || [], userSidebarState.userFavChannels || []).map(channelRow),
+        ...starredDocRows,
+    ]
+    const channelRows = sortChannelsByName((userSidebarState.userChannels || []).filter((c) => c && !favChannelUUIDs.has(c.ch_uuid))).map(channelRow)
 
     const dmRows: DesktopChildrenNavType[] = []
     for (const d of sortChatList((userSidebarState.userChats || []).filter(Boolean))) {
@@ -313,14 +368,16 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         <>
             <SidebarHeader isAdmin={isAdmin} onCollapse={() => setCollapsed(true)} onPin={onPin} />
             <SidebarSearchRow />
-            <PrimaryNav links={primary} more={more} inboxPulse={inboxPulse} />
+            <PrimaryNav links={rows} more={more} inboxPulse={inboxPulse} />
             <div ref={scrollRef} className="shell-scroll mt-0.5">
                 {/* Until the sidebar's data answers, its sections are skeleton
                     rows at the real heights (mock M1), never a spinner. */}
                 {!userSideNav.data ? <SidebarSkeleton /> : null}
                 <div hidden={!userSideNav.data}>
-                    {/* Starred only when something is. */}
-                    <SidebarSection title="Starred" open={isFavOpen} setOpen={setIsFavOpen} rows={starredRows} />
+                    {/* Starred only when something is; five, then "Show N more",
+                        so it never pushes the chat sections off the first
+                        screen (design review PG1-02). */}
+                    <SidebarSection title="Starred" open={isFavOpen} setOpen={setIsFavOpen} rows={starredRows} cap={5} />
                     <SidebarSection
                         title="Projects"
                         href={app_project_path}
@@ -331,6 +388,12 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         rows={projectRows}
                         cap={8}
                         invite={{ label: "Start a project", onClick: () => dispatch(openUI({ key: 'createProject' })) }}
+                    />
+                    <DocsSection
+                        open={isDocsOpen}
+                        setOpen={setIsDocsOpen}
+                        active={path[2] === "doc" && !path[3]}
+                        onAdd={() => dispatch(openUI({ key: 'createDoc' }))}
                     />
                     <SidebarSection
                         title="Channels"
@@ -358,6 +421,51 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     )
     const sidebar = sidebarIn()
 
+    if (tablet) {
+        const channelList = (
+            <>
+                <SidebarSection title="Starred" open={isFavOpen} setOpen={setIsFavOpen} rows={starredRows} cap={5} />
+                <SidebarSection title="Channels" open={isChannelOpen} setOpen={setIsChannelOpen} rows={channelRows} bare={starredRows.length === 0} />
+            </>
+        )
+        return (
+            // The tablet shell: the rail on the frame, then the sheets. The
+            // settings pages keep their own nav as the page's first column.
+            <div data-app-viewport="" data-shell="v3" data-band={band} className="app-frame flex h-dvh overflow-hidden">
+                <TabletRail
+                    primary={primary}
+                    more={more}
+                    counts={{ channel: totalChannelUnread, dm: unreadDMs, inbox: inboxCount }}
+                    isAdmin={isAdmin}
+                    onList={inChannel ? toggleList : undefined}
+                    listOpen={wide ? docked : listOpen}
+                />
+                {settingsShell && (
+                    <aside aria-label="Settings" className="shell-side h-full w-[240px] flex-none" data-settled="true">
+                        <Suspense fallback={null}>
+                            <SettingsNav isAdmin={isAdmin} />
+                        </Suspense>
+                    </aside>
+                )}
+                {docked && (
+                    <div className="flex-none py-2 pr-2">
+                        <TabletListPanel mode="docked" onClose={closeList} onAdd={() => dispatch(openUI({ key: 'createChannel' }))}>
+                            {channelList}
+                        </TabletListPanel>
+                    </div>
+                )}
+                <main data-shell-main="" className="relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2">
+                    {children}
+                </main>
+                {!wide && inChannel && listOpen && (
+                    <TabletListPanel mode="overlay" onClose={closeList} onAdd={() => dispatch(openUI({ key: 'createChannel' }))}>
+                        {channelList}
+                    </TabletListPanel>
+                )}
+            </div>
+        )
+    }
+
     return (
         // data-app-viewport: on a tablet, fitted to what the on-screen
         // keyboard leaves while it is up (lib/ui/visualViewport.ts).
@@ -367,8 +475,20 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         <div data-app-viewport="" data-shell="v3" className="app-frame flex h-dvh overflow-hidden">
             {collapsed ? (
                 <SidebarRail
+                    body={settingsShell ? (
+                        <Suspense fallback={null}>
+                            <SettingsRailItems isAdmin={isAdmin} />
+                        </Suspense>
+                    ) : undefined}
                     primary={primary}
+                    more={more}
                     places={[...projectRows, ...starredRows]}
+                    conversations={{
+                        // What the folded Channels section would say: "@2", or a dot.
+                        channels: sectionSignal((userSidebarState.userChannels || []).filter(Boolean).map(channelRow)),
+                        dms: rowSignal({ badge: true, unread_count: unreadDMs }),
+                        on: path[2] === "channel" ? "channel" : path[2] === "chat" ? "chat" : undefined,
+                    }}
                     isAdmin={isAdmin}
                     onExpand={() => setCollapsed(false)}
                     peek={(pin) => <aside aria-label="Sidebar" className="shell-side h-full w-full" data-settled="true">{sidebarIn(pin)}</aside>}

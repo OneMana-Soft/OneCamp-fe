@@ -1,7 +1,8 @@
 "use client"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useLayoutOnce } from "@/components/task/useLayoutOnce"
 import {
     type ColumnFiltersState,
     type SortingState,
@@ -28,7 +29,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { Button } from "@/components/ui/button"
 import dynamic from "next/dynamic"
 
-const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog))
+const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog), { loading: () => null })
 import { whenOf, type TaskGroup } from "@/lib/tasks/grouping"
 import { DUE_WEEK, filtersFromAddress, filtersToAddress } from "@/lib/tasks/listAddress"
 import { WorkState } from "@/components/task/workFrame"
@@ -43,7 +44,7 @@ import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
-import { hueFor } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
 
 interface ProjectTaskTableProps {
     projectId: string
@@ -72,6 +73,7 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
 
 export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps) => {
     const router = useRouter()
+    const projectHue = useProjectHue(projectId)
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const dispatch = useDispatch()
@@ -153,14 +155,13 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
         }
     }, [taskSearchString, columnFilters])
 
-    useLayoutEffect(() => {
-        // Reset taskListVisibleInfo on mount / project change so a
-        // previous project's tasks (or my-task entries) never show
-        // through while we wait for the new fetch. The slot is shared
-        // between myTaskTable and projectTaskTable in
-        // taskInfoSlice.
-        dispatch(clearTaskListVisibleInfo())
-    }, [projectId])
+    // Reset taskListVisibleInfo once per project, so a previous project's
+    // tasks (or my-task entries) never show through while we wait for the
+    // new fetch. The slot is shared between myTaskTable and
+    // projectTaskTable in taskInfoSlice. Once, not on every layout effect
+    // run: a Suspense boundary showing this list again re-ran a plain one
+    // and emptied the list for good (useLayoutOnce).
+    useLayoutOnce(projectId, () => dispatch(clearTaskListVisibleInfo()))
 
     useEffect(() => {
 
@@ -327,6 +328,8 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                     canEdit={canEdit}
                     projectId={projectId}
                     loading={firstLoad}
+                    // More pages to load: a group counts only what has come (PROJ-BUG-2).
+                    partial={moreToLoad}
                     filtered={filtered}
                     sortedBy={sortedBy}
                     fields={fields}
@@ -340,7 +343,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                     empty={
                         <WorkState>
                             <EmptyState
-                                illustration={<SpotTasks hue={hueFor(projectId)} />}
+                                illustration={<SpotTasks hue={projectHue} />}
                                 title="No tasks yet"
                                 description="Make the first one, or bring them in from Linear, Jira, Asana or Trello."
                                 action={

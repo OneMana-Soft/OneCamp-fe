@@ -4,19 +4,19 @@ import {ListSkeleton} from "@/components/ui/ListSkeleton";
 import { Search } from "@/lib/icons";
 import {useFetch} from "@/hooks/useFetch";
 import {TeamInfoRawInterface} from "@/types/team";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {ProjectAddOrRemoveInterface, ProjectInfoInterface} from "@/types/project";
+import {GetEndpointUrl} from "@/services/endPoints";
+import {ProjectInfoInterface} from "@/types/project";
 import {useState} from "react";
 import {useDispatch} from "react-redux";
-import {usePost} from "@/hooks/usePost";
 import {TeamProjectInfo} from "@/components/team/TeamProjectInfo";
 import {openUI} from "@/store/slice/uiSlice";
+import {useArchiveProject} from "@/hooks/useArchiveProject";
 
 export const TeamProjectList = ({teamId}:{teamId: string}) => {
 
 
     const dispatch = useDispatch()
-    const post = usePost()
+    const { archive, restore } = useArchiveProject()
     const teamProjectList = useFetch<TeamInfoRawInterface>(teamId ? GetEndpointUrl.GetTeamProjectList + '/' + teamId :'')
 
     const handleProjectMembers = (id: string) => {
@@ -25,62 +25,13 @@ export const TeamProjectList = ({teamId}:{teamId: string}) => {
 
     const [query, setQuery] = useState('')
 
-    const execDelete = (id: string) => {
-        post.makeRequest<ProjectAddOrRemoveInterface>({
-            apiEndpoint: PostEndpointUrl.DeleteProject,
-            payload: {
-                project_uuid: id
-            }
-        }).then(()=>{
-            teamProjectList.mutate()
-        })
-    }
-
+    // One question, then the server (hooks/useArchiveProject).
+    const nameOf = (id: string) => teamProjectList.data?.data.team_projects?.find((p) => p.project_uuid === id)?.project_name
     const handleDelete = (id: string) => {
-        if(!id) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Archiving project",
-                    description: "Are you sure you want to proceed archiving the project",
-                    confirmText: "Archive project",
-                    onConfirm: ()=>{execDelete(id)}
-                }
-            }));
-        }, 500);
-
-
+        if (id) archive(id, { name: nameOf(id), done: () => void teamProjectList.mutate() })
     }
-
-    const execUndelete = (id: string) => {
-        post.makeRequest<ProjectAddOrRemoveInterface>({
-            apiEndpoint: PostEndpointUrl.UndeleteProject,
-            payload: {
-                project_uuid: id
-            }
-        }).then(()=>{
-            teamProjectList.mutate()
-        })
-    }
-
-    const handleUnDelete = async (id: string) => {
-        if(!id) return
-
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "UnArchiving project",
-                    description: "Are you sure you want to proceed unarchiving the project",
-                    confirmText: "UnArchive project",
-                    onConfirm: ()=>{execUndelete(id)}
-                }
-            }));
-        }, 500);
-
-
+    const handleUnDelete = (id: string) => {
+        if (id) restore(id, { name: nameOf(id), done: () => void teamProjectList.mutate() })
     }
 
 

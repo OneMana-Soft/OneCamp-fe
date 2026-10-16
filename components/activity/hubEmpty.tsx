@@ -1,16 +1,19 @@
+"use client"
+
 /**
  * The hub's empty, caught-up and failed states (hub.md A9, L7): start-aligned
  * in the column where the rows begin, never centred in the screen. Each carries
  * a small spot v3: a tinted disc in the state's hue, the thing itself on a
  * raised tile, a sun dot and the one brand spark.
  */
+import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 import type { ReactNode } from "react"
 
-import { Bell, Bookmark, Check, Search, Shield } from "@/lib/icons"
+import { Bell, Bookmark, Check, MessageSquare, Search, Shield } from "@/lib/icons"
 import { SPARK_PATH } from "@/components/ui/graphics/motifs"
 import { cn } from "@/lib/utils/helpers/cn"
 
-export type HubSpotKind = "bell" | "shield" | "bookmark" | "check" | "search"
+export type HubSpotKind = "bell" | "shield" | "bookmark" | "check" | "search" | "message"
 
 const SPOT: Record<HubSpotKind, { tint: string; ink: string; glyph: ReactNode }> = {
   bell: { tint: "var(--camp-sky-tint)", ink: "text-camp-sky", glyph: <Bell /> },
@@ -18,6 +21,7 @@ const SPOT: Record<HubSpotKind, { tint: string; ink: string; glyph: ReactNode }>
   bookmark: { tint: "var(--camp-dusk-tint)", ink: "text-camp-dusk", glyph: <Bookmark /> },
   check: { tint: "var(--camp-moss-tint)", ink: "text-camp-moss", glyph: <Check /> },
   search: { tint: "var(--camp-lake-tint)", ink: "text-camp-lake", glyph: <Search /> },
+  message: { tint: "var(--camp-berry-tint)", ink: "text-camp-berry", glyph: <MessageSquare /> },
 }
 
 export function HubSpot({ kind, size = 64 }: { kind: HubSpotKind; size?: number }) {
@@ -39,12 +43,15 @@ export function HubSpot({ kind, size = 64 }: { kind: HubSpotKind; size?: number 
 
 export function HubEmpty({
   spot,
+  illustration,
   title,
   description,
   action,
   role,
 }: {
-  spot: HubSpotKind
+  /** One of the hub's spots, or `illustration` for a surface's own drawing at the same 64px. */
+  spot?: HubSpotKind
+  illustration?: ReactNode
   title: string
   description?: ReactNode
   action?: ReactNode
@@ -52,7 +59,13 @@ export function HubEmpty({
 }) {
   return (
     <div data-hub-empty="" role={role} className="flex max-w-[520px] items-start gap-4 text-left">
-      <HubSpot kind={spot} />
+      {illustration ? (
+        <span aria-hidden className="block size-16 shrink-0 [&>svg]:size-16">
+          {illustration}
+        </span>
+      ) : spot ? (
+        <HubSpot kind={spot} />
+      ) : null}
       <div className="min-w-0 pt-1.5">
         <h2 className="text-heading text-foreground">{title}</h2>
         {description ? <p className="mt-0.5 text-ui text-ink-2">{description}</p> : null}
@@ -64,11 +77,13 @@ export function HubEmpty({
 
 /** A failed load (A9): a sunken r12 card with the sentence and a ghost Try again. */
 export function HubError({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  // Said here, so the request's toast stays quiet (lib/http/loadFailure).
+  useSaysLoadFailure()
   return (
     <div data-hub-error="" role="alert" className="flex w-full max-w-[520px] items-center gap-3 rounded-lg bg-sunken px-4 py-3 ring-1 ring-inset ring-line">
       <p className="min-w-0 flex-1 text-xs text-ink-2">{text}</p>
       {onRetry ? (
-        <button type="button" onClick={onRetry} className="h-7 rounded-md px-2.5 text-xs font-medium text-ink-2 hover:bg-hover hover:text-foreground">
+        <button type="button" onClick={onRetry} data-touch-target="" className="h-7 rounded-md px-2.5 text-xs font-medium text-ink-2 hover:bg-hover hover:text-foreground">
           Try again
         </button>
       ) : null}

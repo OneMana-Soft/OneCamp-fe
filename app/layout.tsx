@@ -7,6 +7,8 @@ import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ClientProviders } from "@/components/providers/ClientProviders";
 import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecovery";
+import { APP_BOOT_CSS, APP_BOOT_SCRIPT } from "@/lib/appBoot";
+import { AppBootScreen } from "@/components/protectedRoute/Splash";
 import { splashLinks } from "@/lib/pwa/splash";
 
 // One face for the whole app (design v3, "Type"): Inter, variable, with its
@@ -138,6 +140,14 @@ export default function RootLayout({
           Skip to content
         </a>
         <ClientProviders>{children}</ClientProviders>
+        {/* The app's splash from the first paint, until its code has run
+            (lib/appBoot): the server sends no markup for an app page, which
+            was a blank white page for seconds. After the providers, so the
+            theme's mode is set before it is parsed. */}
+        <style>{APP_BOOT_CSS}</style>
+        <AppBootScreen className="app-boot fixed inset-0 z-[var(--z-toast)]" />
+        {/* Right after it, before anything is drawn: shown on an app address, in its theme. */}
+        <script dangerouslySetInnerHTML={{ __html: APP_BOOT_SCRIPT }} />
       </body>
     </html>
   );

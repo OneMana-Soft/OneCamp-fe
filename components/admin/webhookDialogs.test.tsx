@@ -8,6 +8,9 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) =>
     url.includes("event") ? { data: { event_types: ["post.created", "task.created"] }, isLoading: false } : { data: { channels_list: [] }, isLoading: false },
 }))
+vi.mock("@/components/admin/useEveryChannel", () => ({
+  useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }),
+}))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }), toast: toastSpy }))
 
@@ -80,6 +83,20 @@ describe("new webhook", () => {
     await waitFor(() => expect(url.getAttribute("aria-invalid")).toBe("true"))
     expect(screen.getByText(/starts with https:\/\//)).toBeTruthy()
     expect(toastSpy).not.toHaveBeenCalled()
+  })
+})
+
+// Docs programme C4: a doc's events reach a webhook only when whoever set it up
+// can open the doc, and the picker says so beside them.
+describe("the doc events", () => {
+  it("say who they reach, beside them and nowhere else", async () => {
+    const { WebhookEventChoice, FALLBACK_EVENT_TYPES } = await import("@/components/admin/WebhookCreateDialog")
+    expect(FALLBACK_EVENT_TYPES).toEqual(expect.arrayContaining(["doc.created", "doc.updated", "doc.deleted", "doc.shared", "doc.comment.created"]))
+    render(<WebhookEventChoice events={["post.created", "doc.created", "doc.updated"]} chosen={[]} onChange={() => {}} idPrefix="t" />)
+    const docs = screen.getByRole("group", { name: "doc" })
+    expect(docs.getAttribute("aria-describedby")).toBe("t-n-doc")
+    expect(document.getElementById("t-n-doc")?.textContent).toMatch(/^Sent only for docs whoever sets up the webhook can open\. A private doc's title is never sent/)
+    expect(screen.getByRole("group", { name: "post" }).getAttribute("aria-describedby")).toBeNull()
   })
 })
 

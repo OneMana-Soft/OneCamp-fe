@@ -1,0 +1,235 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "blockColor": "sky_background"
+      },
+      "content": [
+        {
+          "text": "A blue line.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "blockColor": "berry",
+        "level": 4
+      },
+      "content": [
+        {
+          "text": "A red heading, fourth level",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "attrs": {
+        "blockColor": "gray_background",
+        "quoteSize": "large"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A large quote.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "blockquote"
+    },
+    {
+      "content": [
+        {
+          "attrs": {
+            "blockColor": "moss"
+          },
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "A green item",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "A plain item",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    },
+    {
+      "content": [
+        {
+          "attrs": {
+            "blockColor": "dusk_background",
+            "checked": false
+          },
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "A purple task",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "taskItem"
+        }
+      ],
+      "type": "taskList"
+    },
+    {
+      "attrs": {
+        "blockColor": "sun_background"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "A yellow toggle, by ",
+              "type": "text"
+            },
+            {
+              "attrs": {
+                "id": "u-1",
+                "label": "Sam Rivera",
+                "mentionSuggestionChar": "@"
+              },
+              "type": "mention"
+            },
+            {
+              "text": " in ",
+              "type": "text"
+            },
+            {
+              "attrs": {
+                "id": "c-1",
+                "label": "engineering",
+                "mentionSuggestionChar": "#"
+              },
+              "type": "channelMention"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Folded.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "collapsible"
+    },
+    {
+      "type": "toc"
+    },
+    {
+      "content": [
+        {
+          "text": "Some ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "sun"
+              },
+              "type": "highlight"
+            }
+          ],
+          "text": "highlighted",
+          "type": "text"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "color": "sky"
+              },
+              "type": "highlight"
+            }
+          ],
+          "text": "blue",
+          "type": "text"
+        },
+        {
+          "text": " text, ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            },
+            {
+              "attrs": {
+                "color": "sun"
+              },
+              "type": "highlight"
+            }
+          ],
+          "text": "bold and highlighted",
+          "type": "text"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "color": "yellow",
+        "emoji": "💡",
+        "icon": "rocket"
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "text": "With an icon.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "callout"
+    }
+  ],
+  "type": "doc"
+}

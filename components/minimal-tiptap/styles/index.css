@@ -3,7 +3,6 @@
 @import './partials/placeholder.css';
 @import './partials/lists.css';
 @import './partials/typography.css';
-@import './partials/zoom.css';
 @import './partials/doc.css';
 
 :root {
@@ -105,15 +104,13 @@
 
 /* Message and doc bodies read at 15/22, a step above the 14px UI around them
    (design direction, "App scale"). They used to inherit the page's 16px, which
-   made every message louder than the list it sat in. Docs keep a little more
-   leading, since they are read at length. */
+   made every message louder than the list it sat in. */
 .minimal-tiptap-editor .ProseMirror {
   font-size: 0.9375rem;
   line-height: 1.375rem;
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror {
-  line-height: 1.5rem;
-}
+/* A doc's own type (16/26) is in partials/doc.css, imported above: a rule
+   for .doc-editor here, later in the cascade, beat it (docMeasure.test.ts). */
 /* A conversation's message body (design v3 chat, §2.2): 15/23 at -0.009em,
    lines balanced so a last word never sits alone. The row holds it to a
    760px measure. */
@@ -246,8 +243,36 @@
   @apply rounded-full outline outline-2 outline-offset-1 outline-muted-foreground;
 }
 
+/* The gap cursor: the caret beside a divider, an image or an embed, where
+   there's no text for a caret (ProseMirror's gapcursor selection). It was
+   display: none for good, so arrowing past a divider lost the caret until
+   the next key. A 2 px brand line across the column, in the flow with no
+   height (nothing moves when it shows), blinking as a caret does. */
 .minimal-tiptap-editor .ProseMirror .ProseMirror-gapcursor {
-  @apply pointer-events-none absolute hidden;
+  display: none;
+  position: relative;
+  height: 0;
+  margin: 0 !important;
+  pointer-events: none;
+}
+.minimal-tiptap-editor .ProseMirror.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+.minimal-tiptap-editor .ProseMirror .ProseMirror-gapcursor::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  width: auto;
+  border-top: 2px solid var(--brand);
+  border-radius: 1px;
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .minimal-tiptap-editor .ProseMirror .ProseMirror-gapcursor::after {
+    animation: none;
+  }
 }
 
 .minimal-tiptap-editor .ProseMirror .ProseMirror-hideselection {
@@ -280,9 +305,9 @@
 /* COLLABORATORS (content.md D14). Someone else's caret is 2 px in their
    avatar's first stop (a1), with a name flag that IS their avatar colour: the
    a1 -> a2 gradient with white 11/590 text, first name only. The flag shows
-   while they type or move (y-prosemirror draws a new caret each time), holds
-   3 s, then folds to a 6 px dot on the caret's top; hovering the caret brings
-   it back. Their selection is their hue at 18 %. The hue-* class on each
+   when y-prosemirror builds the caret's element (again when they press Enter,
+   not on every key) and folds to a 6 px dot on the caret's top 3.2 s later,
+   even while they keep typing; hovering the caret brings it back. Their selection is their hue at 18 %. The hue-* class on each
    comes from collaboratorCaret in use-minimal-tiptap. */
 .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret {
   position: relative;
@@ -349,6 +374,14 @@
   opacity: 0;
 }
 
+/* An agent is the agent tint, never a person's hue (its avatar is the agent
+   square in the same tint). */
+.minimal-tiptap-editor .ProseMirror .caret-agent {
+  --hue: var(--agent);
+  --hue-a1: var(--agent-a1);
+  --hue-a2: var(--agent-a2);
+}
+
 /* An agent's flag carries a spark before its name. */
 .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret[data-agent] .collaboration-cursor__label::before {
   content: "\2726";
@@ -405,9 +438,11 @@
   margin-top: 0.5rem;
 }
 
-/* The block handle (content.md D10; positioned by block-handle.ts with a
-   transform): "+" and "⋮⋮", 24 px r6 ink-4, hover --hover and ink-2. It
-   glides between blocks over 120 ms; it is only for a hovering pointer. */
+/* THE BLOCK HANDLE (B1; content.md D10, small-details V1–V3; positioned by
+   block-handle.ts with a transform): "+" and "⋮⋮", 24 px r6 ink-4. A button
+   answers the pointer at once (hover --hover and ink-2 in 40 ms, perf 4.6);
+   the handle fades in over 120 ms and glides from block to block over 120
+   ms, and snaps under reduced motion. Only for a pointer that hovers. */
 .block-handle-floating {
   position: fixed;
   left: 0;
@@ -437,11 +472,14 @@
   color: var(--ink-4);
   background: transparent;
   cursor: pointer;
-  transition: background-color var(--duration-hover, 120ms) var(--ease-out), color var(--duration-hover, 120ms) var(--ease-out);
+  transition: background-color 40ms linear, color 40ms linear;
 }
 .block-handle-btn:hover {
   background: var(--hover);
   color: var(--ink-2);
+}
+.block-handle-btn:active {
+  background: var(--press);
 }
 .block-handle-btn:focus-visible {
   outline: 2px solid var(--brand);
@@ -458,18 +496,108 @@
     display: none;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .block-handle-floating,
+  .block-handle-floating[data-glide="true"] {
+    transition: none;
+  }
+}
 
-/* Drop indicator line */
-/* Drop indicator (D10): 2 px brand, r1, with a disc at its left end ringed
-   in the sheet. */
+/* DRAGGING BLOCKS (B1; D10, small-details V4, V5; the board's drag feel,
+   research-real-motion §A). The ghost follows the pointer; its card (pop,
+   e3, r8, 90 %, at most 320 px wide and 160 px tall, fading at the bottom)
+   lifts to 1.03 on the spring (160 ms) and tilts the way the pointer first
+   went. The blocks left behind dim to 35 %. A + on the card says ⌥ copies. */
+html.block-dragging,
+html.block-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+html.block-dragging-copy,
+html.block-dragging-copy * {
+  cursor: copy !important;
+}
+.block-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+}
+.block-drag-card {
+  position: relative;
+  max-height: 160px;
+  overflow: hidden;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--pop);
+  box-shadow: var(--e3);
+  opacity: 0.9;
+  transform-origin: 24px 16px;
+  transition: transform var(--work-lift-ms) var(--work-lift-ease);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
+.block-drag-ghost[data-lifted="true"] .block-drag-card {
+  transform: rotate(var(--tilt, 0deg)) scale(1.03);
+}
+.block-drag-card .ProseMirror > * {
+  margin: 0 !important;
+}
+.block-drag-count {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--sheet);
+  font-size: 11px;
+  font-weight: 590;
+  line-height: 18px;
+}
+.block-drag-copy {
+  display: none;
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--brand-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+.block-drag-ghost[data-copy="true"] .block-drag-copy {
+  display: flex;
+}
+.minimal-tiptap-editor .ProseMirror .block-drag-source {
+  opacity: 0.35;
+  transition: opacity var(--duration-press) var(--ease-out);
+}
+
+/* The drop line (D10): 2 px brand, r1, with a 6 px disc ringed in the sheet
+   at its start; its left edge is the depth the blocks land at. Upright beside
+   a block: they land in a column beside it. */
 .block-drop-indicator {
   display: none;
   position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
   height: 2px;
   background: var(--brand);
   border-radius: 1px;
   pointer-events: none;
-  z-index: 9998;
+  z-index: var(--z-dropdown);
+  /* Its place glides; its length (a depth's change) snaps: no layout per frame. */
+  transition: transform var(--duration-press) var(--ease-out);
+}
+.block-drop-indicator[data-visible="true"] {
+  display: block;
 }
 .block-drop-indicator::before {
   content: "";
@@ -481,6 +609,209 @@
   border-radius: 50%;
   background: var(--brand);
   box-shadow: 0 0 0 2px var(--sheet);
+}
+.block-drop-indicator[data-upright="true"] {
+  width: 2px;
+}
+.block-drop-indicator[data-upright="true"]::before {
+  left: -2px;
+  top: -3px;
+}
+
+/* The landing (D10): the dropped blocks glide from the ghost into place (the
+   board's drop, 200 ms) and flash brand-muted (700 ms), with the work area's
+   own landed flash (globals.css work-landed). Reduced motion: they are there
+   at once, tinted a moment. */
+.minimal-tiptap-editor .ProseMirror .block-landing {
+  position: relative;
+  z-index: 1;
+}
+.minimal-tiptap-editor .ProseMirror .block-landed {
+  border-radius: 6px;
+  transition: transform var(--work-drop-ms) var(--work-drop-ease);
+  animation: work-landed var(--work-landed-ms) var(--work-landed-ease) var(--work-drop-ms) both;
+}
+.minimal-tiptap-editor .ProseMirror .block-landed-still {
+  border-radius: 6px;
+  background-color: var(--brand-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .block-drag-card,
+  .block-drop-indicator,
+  .minimal-tiptap-editor .ProseMirror .block-drag-source {
+    transition: none;
+  }
+}
+
+/* CHOSEN BLOCKS (B1; small-details S1, V6): the selection colour at 60 %,
+   r6, over the whole block, a list item's marker too. Their text isn't
+   selected as text meanwhile. */
+.minimal-tiptap-editor .ProseMirror .block-selected {
+  position: relative;
+  /* The wash sits behind the text, as Notion's does: the text keeps its ink. */
+  isolation: isolate;
+}
+.minimal-tiptap-editor .ProseMirror .block-selected::after {
+  content: "";
+  position: absolute;
+  inset: -2px -4px;
+  z-index: -1;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--selection) 60%, transparent);
+  pointer-events: none;
+}
+.minimal-tiptap-editor .ProseMirror li.block-selected::after {
+  inset-inline-start: -28px;
+}
+.minimal-tiptap-editor .ProseMirror.ProseMirror-hideselection *::selection,
+.minimal-tiptap-editor .ProseMirror .block-selected .selection {
+  background: transparent;
+}
+
+/* A block opened from a link (B1; small-details S12): it flashes in the
+   sender's hue (a hue-* class sets --hue; the brand without one). */
+.minimal-tiptap-editor .ProseMirror .block-link-flash {
+  position: relative;
+}
+.minimal-tiptap-editor .ProseMirror .block-link-flash::after {
+  content: "";
+  position: absolute;
+  inset: -4px -8px;
+  border-radius: 8px;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--hue, var(--brand)) 20%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--hue, var(--brand)) 45%, transparent);
+  animation: block-link-flash 1600ms var(--ease-out) both;
+}
+@keyframes block-link-flash {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .minimal-tiptap-editor .ProseMirror .block-link-flash::after {
+    animation: none;
+  }
+}
+
+/* THE BLOCKS' LAYOUT (B1), in the editor and in the saved copy shown before
+   it, so nothing moves when the editor takes over.
+   Indent (editor.md P1-6): 28 px a level, on the block's start side; an
+   indented code block or embed stays in the column. */
+.doc-editor .ProseMirror [data-indent="1"] { --indent: 1; }
+.doc-editor .ProseMirror [data-indent="2"] { --indent: 2; }
+.doc-editor .ProseMirror [data-indent="3"] { --indent: 3; }
+.doc-editor .ProseMirror [data-indent="4"] { --indent: 4; }
+.doc-editor .ProseMirror [data-indent="5"] { --indent: 5; }
+.doc-editor .ProseMirror [data-indent="6"] { --indent: 6; }
+.doc-editor .ProseMirror [data-indent="7"] { --indent: 7; }
+.doc-editor .ProseMirror [data-indent="8"] { --indent: 8; }
+.doc-editor .ProseMirror [data-indent] {
+  margin-inline-start: calc(var(--indent, 0) * 28px);
+}
+.doc-measure .doc-editor:not(.full-width) .ProseMirror > [data-indent]:is(pre, .node-tableEmbed, .node-image, .node-chartEmbed, .node-recordingEmbed, .node-diffEmbed, [data-type="table-embed"], [data-type="chart"], [data-type="diff"], [data-type="recording-embed"]) {
+  width: auto;
+  margin-inline: 0;
+  margin-inline-start: calc(var(--indent, 0) * 28px);
+}
+
+/* Direction (small-details A2): a block set to a direction takes it, and so
+   do its lines, whatever their letters; a list's markers and a quote's bar
+   go to that side. A block with none follows its own letters (doc.css). */
+.minimal-tiptap-editor.doc-editor .ProseMirror [dir],
+.minimal-tiptap-editor.doc-editor .ProseMirror [dir] :is(p, h1, h2, h3, h4, h5, h6, li, blockquote) {
+  unicode-bidi: isolate;
+}
+.minimal-tiptap-editor .ProseMirror :is(ul, ol)[dir="rtl"],
+.minimal-tiptap-editor .ProseMirror [dir="rtl"] :is(ul, ol) {
+  padding-left: 0;
+  padding-right: 1.5rem;
+}
+.minimal-tiptap-editor .ProseMirror blockquote[dir="rtl"] {
+  padding-left: 0;
+  padding-right: 0.875rem;
+}
+.minimal-tiptap-editor .ProseMirror blockquote[dir="rtl"]::before {
+  left: auto;
+  right: 0;
+}
+
+/* Columns (editor.md P1-14): a row of 2–4, 48 px apart, each its share of
+   the row (the column's width, drawn by its view); one above the other where
+   the doc's pane is narrower than 768 px. The grip between two columns
+   widens one into the other. */
+.doc-editor .ProseMirror [data-type="column-list"] {
+  display: flex;
+  gap: 48px;
+  align-items: flex-start;
+}
+.doc-editor .ProseMirror [data-type="column"] {
+  position: relative;
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.doc-editor .ProseMirror :is([data-type="column"], .doc-column-body) > * + * {
+  margin-top: 12px;
+}
+.doc-editor .ProseMirror :is([data-type="column"], .doc-column-body) > p + p {
+  margin-top: 2px;
+}
+.doc-column-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-end: -28px;
+  width: 8px;
+  display: flex;
+  justify-content: center;
+  cursor: col-resize;
+  touch-action: none;
+}
+.doc-column-grip::before {
+  content: "";
+  width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color var(--duration-hover) var(--ease-out);
+}
+.doc-column-grip:hover::before,
+[data-type="column"][data-resizing] > .doc-column-grip::before {
+  background: var(--line-3);
+}
+[data-type="column"]:last-child > .doc-column-grip,
+.ProseMirror:not([contenteditable="true"]) .doc-column-grip {
+  display: none;
+}
+@container (max-width: 767px) {
+  .doc-editor .ProseMirror [data-type="column-list"] {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .doc-editor .ProseMirror [data-type="column"] {
+    flex-grow: 1 !important;
+    width: 100%;
+  }
+  .doc-column-grip {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .doc-editor .ProseMirror [data-type="column-list"] {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .doc-editor .ProseMirror [data-type="column"] {
+    flex-grow: 1 !important;
+    width: 100%;
+  }
+  .doc-column-grip {
+    display: none;
+  }
 }
 
 /* The doc's reading column (content.md D07): a 720 px measure for 16/26
@@ -557,6 +888,12 @@
   padding: 0 3rem 6rem;
 }
 
+/* A doc read on a surface that already insets it (the guest's paper card):
+   the doc's type, with no gutter of its own. */
+.minimal-tiptap-editor.doc-editor.doc-editor-flush .ProseMirror {
+  padding: 0;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .minimal-tiptap-editor.doc-editor .ProseMirror {
@@ -564,6 +901,9 @@
   }
   .minimal-tiptap-editor.doc-editor.full-width .ProseMirror {
     padding: 0 1.25rem 6rem;
+  }
+  .minimal-tiptap-editor.doc-editor.doc-editor-flush .ProseMirror {
+    padding: 0;
   }
 }
 /* MENTION CHIPS (chat.md C14, content.md D24), the same in a message shown

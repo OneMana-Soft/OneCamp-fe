@@ -3,7 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useFetch } from "@/hooks/useFetch"
 import { Button } from "@/components/ui/button"
 import {
   ChevronRight,
@@ -31,10 +30,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
-import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { useConfirm } from "@/hooks/useConfirm"
+import { useToast } from "@/hooks/use-toast"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
-import { DataTableBoard } from "@/components/table/DataTableBoard"
+import { BoardGroupBy, DataTableBoard } from "@/components/table/DataTableBoard"
 import { CalendarMonthNav, DataTableCalendar, monthOf } from "@/components/table/DataTableCalendar"
 import { DataTableChart } from "@/components/table/DataTableChart"
 import { RecordPanel } from "@/components/table/RecordPanel"
@@ -43,23 +42,25 @@ import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateD
 import {
   createRow,
   deleteTable,
-  nextRowPosition,
-  TableBundle,
+  readEveryRow,
   updateTable,
   Visibility,
   ViewType,
   parseFieldConfig,
-  parseRowValues,
   parseViewConfig,
-  tableBundleKey,
+  type TableRow,
 } from "@/services/tableService"
-import { applyViewRules, fitRules, kindOfField, loadViewRules, NO_RULES, OPS_FOR, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
+import { applyViewRules, fitRules, keepInSight, KEPT_NOTE, kindOfField, loadViewRules, NO_RULES, OPS_FOR, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
+import { ROWS_HELD_MAX, useTableRows } from "@/lib/tables/useTableRows"
+import { usePageName } from "@/lib/utils/pageName"
+import { isComposingKey } from "@/lib/keys/ime"
+import { ToastAction } from "@/components/ui/toast"
+import { formatLocale } from "@/lib/tables/numberFormat"
 import { ViewRulesBar } from "@/components/table/ViewRulesBar"
 import { TableGlyph } from "@/components/table/TableGlyph"
-import { EmptyState } from "@/components/ui/empty-state"
+import { LoadFailureState } from "@/components/ui/load-failure-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SpotError } from "@/components/ui/graphics"
-import { TableViewState, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
+import { TableViewState, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
 import { hueFor } from "@/lib/campHue"
 import { viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
 import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
@@ -121,6 +122,7 @@ function ViewTabs({ active, onPick }: { active: ViewChoice; onPick: (v: ViewChoi
             key={tab.type}
             type="button"
             data-view={tab.type}
+            data-touch-target=""
             onClick={() => onPick(tab.type)}
             aria-pressed={on}
             className={cn(
@@ -149,16 +151,17 @@ export default function TableDetailPage() {
   const searchParams = useSearchParams()
   const confirm = useConfirm()
   const tableId = String(params["table-id"] || "")
+  // Opened from the AI bar: a table AI made, private to its asker.
+  const madeByAi = searchParams.get("made") === "ai"
+  const { toast } = useToast()
 
-  const { data, isLoading, mutate } = useFetch<{ data: TableBundle }>(
-    tableId ? tableBundleKey(tableId) : "",
-    undefined,
-    undefined,
-    // A deleted/inaccessible table 404s/403s; show the friendly state below
-    // instead of firing the global error toast.
-    { suppressErrorToast: true } as never,
-  )
-  const bundle = data?.data
+  // The bundle, and every row the page holds past its first 500, kept live.
+  const held = useTableRows(tableId)
+  usePageName(held.bundle?.table?.name)
+  const { bundle, isLoading, isError, refresh } = held
+  const reload = React.useCallback(() => void refresh(), [refresh])
+  // A change to one row asks for that row's page; one without, for everything held.
+  const changed = React.useCallback((rowId?: string) => void refresh(rowId), [refresh])
 
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -186,6 +189,7 @@ export default function TableDetailPage() {
   const [query, setQuery] = React.useState("")
   const [searching, setSearching] = React.useState(false)
   const searchRef = React.useRef<HTMLInputElement>(null)
+  const exporting = React.useRef(false)
   const [saveState, setSaveState] = React.useState<SaveState>("saved")
   const [savedAt, setSavedAt] = React.useState<Date | null>(null)
   const narrow = useNarrow()
@@ -197,29 +201,13 @@ export default function TableDetailPage() {
     }
   }, [bundle?.table?.name, bundle?.table?.description]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live collaboration: another client's change asks for the table again,
-  // once a burst of messages settles.
-  const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const onMqtt = React.useCallback(() => {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current)
-    refreshTimer.current = setTimeout(() => mutate(), 300)
-  }, [mutate])
-  useMqttTopic({ topic: bundle?.mqtt_topic || "", onMessage: onMqtt })
-  React.useEffect(
-    () => () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current)
-    },
-    [],
-  )
-
   // A cheap signature of the row set so the Chart view re-aggregates when
   // rows change. Above the early returns, with every other hook.
   const chartDataVersion = React.useMemo(() => {
-    const rs = bundle?.rows || []
     let latest = ""
-    for (const r of rs) if (r.updated_at > latest) latest = r.updated_at
-    return `${rs.length}:${latest}`
-  }, [bundle?.rows])
+    for (const r of held.rows) if (r.updated_at > latest) latest = r.updated_at
+    return `${held.total ?? held.rows.length}:${latest}`
+  }, [held.rows, held.total])
 
   // Sort and filter: this reader's, for this table, kept in their browser.
   const [rules, setRules] = React.useState<ViewRules>(NO_RULES)
@@ -255,18 +243,67 @@ export default function TableDetailPage() {
     [tableId],
   )
 
-  const ruled = React.useMemo(() => applyViewRules(bundle?.rows || [], bundle?.fields || [], rules), [bundle?.rows, bundle?.fields, rules])
-  const shownRows = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return ruled
-    return ruled.filter((r) => JSON.stringify(Object.values(parseRowValues(r))).toLowerCase().includes(q))
-  }, [ruled, query])
-  const nextPosition = React.useMemo(() => nextRowPosition(bundle?.rows || []), [bundle?.rows])
+  const ruled = React.useMemo(() => applyViewRules(held.rows, bundle?.fields || [], rules), [held.rows, bundle?.fields, rules])
+  // A row just made here stays in sight, last, until the person moves on, even
+  // where the view's filter or the search would hide it, or its sort put it
+  // elsewhere: R seemed to do nothing, and people pressed it again
+  // (TAB-BUG-14). A toast says why it's out of place; the row is marked.
+  const [added, setAdded] = React.useState<string | null>(null)
+  const { rows: shownRows, kept } = React.useMemo(() => keepInSight(searchRows(ruled, query), ruled, held.rows, added), [ruled, query, held.rows, added])
+  const keptNote = kept ? KEPT_NOTE[kept] : null
+  const toldFor = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!added || !keptNote || toldFor.current === added) return
+    toldFor.current = added
+    toast({ title: keptNote, description: "Your new row stays here until you move on." })
+  }, [added, keptNote, toast])
+  React.useEffect(() => setAdded(null), [rules, query])
+  React.useEffect(() => {
+    if (openRow) setAdded((a) => (a === openRow ? a : null))
+  }, [openRow])
+  const leftRow = React.useCallback((rowId: string) => setAdded((a) => (a === rowId ? a : null)), [])
   const clearFilters = React.useCallback(() => {
     changeRules({ ...rules, filters: [] })
     setQuery("")
   }, [changeRules, rules])
-  const noMatch = (bundle?.rows?.length ?? 0) > 0 && shownRows.length === 0
+  const noMatch = held.rows.length > 0 && shownRows.length === 0
+  // No hit among the rows read is the answer only once the rest are read (or
+  // reading stopped at 10,000, or failed, which the toolbar says): "No rows
+  // match" while they were still coming sent people to clear their filters.
+  const noHit = !held.complete && !held.capped && !held.failed ? <TableViewState kind="searching" /> : <TableViewState kind="no-match" onClear={clearFilters} />
+
+  // What the views need held: a board, a calendar, a sort, a filter or a
+  // search looks at every row (up to 10,000; past that, "Load all"). The grid
+  // reads a page more as it nears the end of what's held. A row the address
+  // names is read on to, as far as those 10,000: past them it's said once,
+  // with "Load all" (a link to a row gone read every row of the table).
+  const { all: holdAll, more: holdMore } = held
+  const needsAll = activeView === "board" || activeView === "calendar" || rules.sort.length + rules.filters.length > 0 || query.trim() !== ""
+  React.useEffect(() => {
+    if (needsAll) holdAll()
+  }, [needsAll, holdAll])
+  const openHeld = !!openRow && held.rows.some((r) => r.id === openRow)
+  const seeking = !!openRow && !openHeld && !held.complete && !held.reading && !held.failed && !held.capped
+  // Asked again as each page lands: a page that came back before "reading"
+  // was ever drawn left seeking true throughout, and the reading stopped.
+  const heldCount = held.rows.length
+  React.useEffect(() => {
+    if (seeking) holdMore()
+  }, [seeking, holdMore, heldCount])
+  const pastHeld = !!openRow && !openHeld && held.capped
+  const toldPast = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!pastHeld || !openRow || toldPast.current === openRow) return
+    toldPast.current = openRow
+    toast({
+      title: `This row isn't among the first ${formatLocale(ROWS_HELD_MAX, {})} loaded`,
+      action: (
+        <ToastAction altText="Load every row" onClick={() => holdAll(true)}>
+          Load all
+        </ToastAction>
+      ),
+    })
+  }, [pastHeld, openRow, toast, holdAll])
 
   const onSaving = React.useCallback((n: number) => {
     if (n > 0) setSaveState("saving")
@@ -275,17 +312,60 @@ export default function TableDetailPage() {
       setSavedAt(new Date())
     }
   }, [])
-  const commit = useCellCommit({ tableId, fields: bundle?.fields || [], rows: bundle?.rows || [], onChange: mutate, onSaving })
+  const commit = useCellCommit({ tableId, rows: held.rows, onChange: changed, onSaving })
 
+  // Rows made here are the table's last: they're read through to, and a new
+  // one is brought into sight: its first cell takes the focus in the grid, on
+  // every device; the phone's list scrolls to it and opens its record, as the
+  // board and the calendar open theirs. Past the first 10,000 rows it's said,
+  // with "Load all", which reads every row and then goes to it.
+  const [focusRow, setFocusRow] = React.useState<string | null>(null)
+  const [listTo, setListTo] = React.useState<string | null>(null)
+  const listMode = narrow && activeView === "grid" && (display.list ?? listByDefault(bundle?.fields || []))
+  const { reveal } = held
+  const bringIn = React.useCallback(
+    (id: string) => {
+      setAdded(id)
+      if (activeView === "grid" && !listMode) return setFocusRow(id)
+      if (listMode) setListTo(id)
+      setOpenRow(id)
+    },
+    [activeView, listMode, setOpenRow],
+  )
+  const onCreated = React.useCallback(
+    (rows: TableRow[], focus = false) => {
+      if (!rows.length) return
+      const shown = reveal(rows)
+      if (!focus) return
+      const id = rows[0].id
+      if (shown) return bringIn(id)
+      toast({
+        title: `Added as the last row, past the first ${formatLocale(ROWS_HELD_MAX, {})} loaded`,
+        action: (
+          <ToastAction
+            altText="Load every row, and go to the new one"
+            onClick={() => {
+              holdAll(true)
+              bringIn(id)
+            }}
+          >
+            Load all
+          </ToastAction>
+        ),
+      })
+    },
+    [reveal, bringIn, toast, holdAll],
+  )
   const addRow = React.useCallback(async () => {
     try {
-      const r = await createRow(tableId, {}, nextPosition)
-      await mutate()
-      if (narrow && r?.id) setOpenRow(r.id)
+      const r = await createRow(tableId, {})
+      if (r?.id) onCreated([r], true)
     } catch {
       // surfaced
     }
-  }, [tableId, nextPosition, mutate, narrow, setOpenRow])
+  }, [tableId, onCreated])
+  const focused = React.useCallback(() => setFocusRow(null), [])
+  const nearEnd = React.useCallback(() => holdMore(), [holdMore])
 
   // R adds a row, / searches (T05).
   React.useEffect(() => {
@@ -305,18 +385,14 @@ export default function TableDetailPage() {
     return () => window.removeEventListener("keydown", onKey)
   }, [bundle?.table, activeView, addRow, openRow])
 
-  const saveTable = async (patch: { name?: string; description?: string; visibility?: Visibility }) => {
+  // Only what changed: the rest of this page's copy may be out of date.
+  const saveTable = async (change: { name?: string; description?: string; visibility?: Visibility }) => {
     if (!bundle?.table || !bundle.can_manage) return
     const t = bundle.table
     setSaveState("saving")
     try {
-      await updateTable(tableId, {
-        name: patch.name ?? t.name,
-        description: (patch.description ?? t.description) || undefined,
-        icon: t.icon || undefined,
-        visibility: patch.visibility ?? t.visibility,
-      })
-      await mutate()
+      await updateTable(tableId, change)
+      await held.refreshTable()
       setSaveState("saved")
       setSavedAt(new Date())
     } catch {
@@ -346,28 +422,16 @@ export default function TableDetailPage() {
   }
 
   if (!bundle?.table) {
-    return (
-      <EmptyState
-        illustration={<SpotError />}
-        title="This table isn't available"
-        description="It doesn't exist, or you don't have access to it."
-        headingLevel={2}
-        className="py-20"
-        action={
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/app/tables">Back to tables</Link>
-          </Button>
-        }
-      />
-    )
+    // Not yours, gone, or not loaded, said as every screen says it
+    // (LoadFailureState): a dropped connection isn't a missing table.
+    return <LoadFailureState error={isError} noun="table" onRetry={reload} back={{ label: "Back to tables", href: "/app/tables" }} className="pt-20" />
   }
 
   const t = bundle.table
   const fields = bundle.fields || []
-  const rows = bundle.rows || []
+  const rows = held.rows
   const sortedFields = [...fields].sort((a, b) => a.position - b.position)
   const hidden = new Set(display.hidden)
-  const listMode = narrow && activeView === "grid" && (display.list ?? listByDefault(fields))
 
   // Stable payload the templates gallery replays on install (structure only).
   const templatePayload = {
@@ -376,13 +440,48 @@ export default function TableDetailPage() {
     views: (bundle.views || []).map((v) => ({ name: v.name, type: v.type, config: parseViewConfig(v), position: v.position })),
   }
 
-  const exportCsv = () => {
-    const blob = new Blob([toCsv(sortedFields.filter((f) => !hidden.has(f.id)), shownRows)], { type: "text/csv;charset=utf-8" })
-    const a = document.createElement("a")
-    a.href = URL.createObjectURL(blob)
-    a.download = `${t.name || "table"}.csv`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  // Every row the view shows, not only those the page holds: the rest are read
+  // first, page by page, with a toast that counts them.
+  const exportCsv = async () => {
+    if (exporting.current) return
+    exporting.current = true
+    const n = (x: number) => formatLocale(x, {})
+    const of = held.total === null ? "" : ` of ${n(held.total)}`
+    const note = held.complete ? null : toast({ tone: "loading", title: "Exporting the table", description: `Reading rows: 0${of}` })
+    try {
+      const every = held.complete
+        ? rows
+        : await readEveryRow(tableId, { onProgress: (got) => note?.update({ id: note.id, tone: "loading", title: "Exporting the table", description: `Reading rows: ${n(got)}${of}` }) })
+      const out = searchRows(applyViewRules(every, fields, rules), query)
+      const blob = new Blob([toCsv(sortedFields.filter((f) => !hidden.has(f.id)), out)], { type: "text/csv;charset=utf-8" })
+      const a = document.createElement("a")
+      a.href = URL.createObjectURL(blob)
+      a.download = `${t.name || "table"}.csv`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+      note?.update({ id: note.id, tone: "success", title: `Exported ${n(out.length)} ${out.length === 1 ? "row" : "rows"}`, description: undefined })
+    } catch {
+      note?.update({ id: note.id, tone: "error", variant: "destructive", title: "Couldn't export the table", description: "Not every row could be read. Try again." })
+    } finally {
+      exporting.current = false
+    }
+  }
+
+  // Showing a table AI made to the workspace asks first: its rows may come
+  // from the asker's private messages and docs (TAB-BUG-6).
+  const showToWorkspace = () => {
+    if (!madeByAi) return void saveTable({ visibility: "workspace" })
+    confirm({
+      title: "Show this table to the workspace?",
+      description: "Its rows may come from your private messages and docs. Everyone in the workspace will see them.",
+      confirmText: "Show to the workspace",
+      onConfirm: async () => {
+        await saveTable({ visibility: "workspace" })
+        const url = new URL(window.location.href)
+        url.searchParams.delete("made")
+        window.history.replaceState(window.history.state, "", url)
+      },
+    })
   }
 
   const removeTable = () =>
@@ -452,11 +551,11 @@ export default function TableDetailPage() {
                     type="button"
                     disabled={i === 0}
                     onClick={() => changeDisplay({ hidden: off ? display.hidden.filter((h) => h !== f.id) : [...display.hidden, f.id] })}
-                    className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink hover:bg-press disabled:cursor-default disabled:hover:bg-transparent"
+                    className={cn("flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink hover:bg-press disabled:cursor-default disabled:hover:bg-transparent", TOUCH_ROW)}
                   >
                     <G className="size-3.5 text-ink-3" aria-hidden />
                     <span className={cn("min-w-0 flex-1 truncate", off && "text-ink-3")}>{f.name}</span>
-                    {i === 0 ? <span className="text-meta text-ink-4">Primary</span> : off ? <EyeOff className="size-3.5 text-ink-4" aria-label="Hidden" /> : <Eye className="size-3.5 text-ink-3" aria-label="Shown" />}
+                    {i === 0 ? <span className="text-meta text-ink-3">Primary</span> : off ? <EyeOff className="size-3.5 text-ink-3" aria-label="Hidden" /> : <Eye className="size-3.5 text-ink-3" aria-label="Shown" />}
                   </button>
                 )
               })}
@@ -473,7 +572,7 @@ export default function TableDetailPage() {
               {ROW_HEIGHTS.map((h) => (
                 <DropdownMenuItem key={h.value} onSelect={() => changeDisplay({ rowHeight: h.value })} className={cn(display.rowHeight === h.value && "font-medium text-ink")}>
                   <span className="flex-1">{h.label}</span>
-                  <span className="text-meta text-ink-4">{h.px}</span>
+                  <span className="text-meta text-ink-3">{h.px}</span>
                 </DropdownMenuItem>
               ))}
               {narrow ? (
@@ -486,12 +585,13 @@ export default function TableDetailPage() {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" onClick={() => void addRow()} className="ml-1 gap-1.5">
+          <Button size="sm" onClick={() => void addRow()} className="ml-1 gap-1.5" aria-label="New row">
             <Plus className="size-3.5" /> <span className="max-sm:hidden">New row</span>
             <kbd className="kbd max-sm:hidden">R</kbd>
           </Button>
         </>
       ) : null}
+      {activeView === "board" ? <BoardGroupBy fields={fields} groupFieldId={display.boardGroup ?? undefined} onPick={(id) => changeDisplay({ boardGroup: id })} /> : null}
       {activeView === "calendar" && fields.some((f) => f.type === "date") ? <CalendarMonthNav month={calendarMonth} onMonth={setCalendarMonth} /> : null}
     </>
   )
@@ -509,8 +609,9 @@ export default function TableDetailPage() {
             Tables
           </Link>
           <ChevronRight className="hidden size-3.5 shrink-0 text-ink-4 sm:block" aria-hidden="true" />
-          <span className="truncate px-1 font-medium text-ink">{t.name}</span>
-          <SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={() => void mutate()} className="ml-1" />
+          {/* On a phone the name is the hero's alone, under the app's bar. */}
+          <span className="truncate px-1 font-medium text-ink max-sm:hidden">{t.name}</span>
+          <SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={reload} className="ml-1" />
         </nav>
         {bundle.can_manage && (
           <>
@@ -524,15 +625,15 @@ export default function TableDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="content-float w-56 rounded-xl p-1 shadow-e3">
-                <DropdownMenuItem onSelect={() => void saveTable({ visibility: t.visibility === "workspace" ? "private" : "workspace" })}>
+                <DropdownMenuItem onSelect={() => (t.visibility === "workspace" ? void saveTable({ visibility: "private" }) : showToWorkspace())}>
                   {t.visibility === "workspace" ? <Lock /> : <Globe />}
                   <span className="flex-1">{t.visibility === "workspace" ? "Make private" : "Show to the workspace"}</span>
-                  <span className="text-meta text-ink-4">{t.visibility === "workspace" ? "Workspace" : "Private"}</span>
+                  <span className="text-meta text-ink-3">{t.visibility === "workspace" ? "Workspace" : "Private"}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setPublishing(true)}>
                   <LayoutTemplate /> Save as template
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={exportCsv}>
+                <DropdownMenuItem onSelect={() => void exportCsv()}>
                   <Download /> Export CSV
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -544,6 +645,17 @@ export default function TableDetailPage() {
           </>
         )}
       </header>
+      {madeByAi && t.visibility === "private" ? (
+        <div role="note" data-made-by-ai="" className="mx-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-sunken px-3 py-2 text-ui-sm text-ink-2 sm:mx-6">
+          <Lock className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+          <span>Only you can see this table. AI may have filled it from your private messages and docs.</span>
+          {bundle.can_manage ? (
+            <button type="button" onClick={showToWorkspace} data-touch-target="" className="font-medium text-brand-text outline-none hover:underline focus-visible:underline">
+              Show to the workspace
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
         {/* The hero: the tile, the name in Inter Display and what it's for. */}
@@ -551,15 +663,18 @@ export default function TableDetailPage() {
           <TableGlyph size="lg" icon={t.icon} id={t.id} />
           <div className="min-w-0 flex-1">
             {bundle.can_manage ? (
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={commitName}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                aria-label="Table name"
-                className="-mx-1 block w-full truncate rounded-md border-b border-transparent bg-transparent px-1 font-display text-title-1 text-ink outline-none hover:bg-hover focus:bg-transparent"
-                maxLength={120}
-              />
+              // The page's heading still, for a manager who can rename it.
+              <h1>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={commitName}
+                  onKeyDown={(e) => e.key === "Enter" && !isComposingKey(e.nativeEvent) && e.currentTarget.blur()}
+                  aria-label="Table name"
+                  className="-mx-1 block w-full truncate rounded-md border-b border-transparent bg-transparent px-1 font-display text-title-1 text-ink outline-none hover:bg-hover focus:bg-transparent"
+                  maxLength={120}
+                />
+              </h1>
             ) : (
               <h1 className="truncate font-display text-title-1 text-ink">{t.name}</h1>
             )}
@@ -568,15 +683,21 @@ export default function TableDetailPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={commitDescription}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                onKeyDown={(e) => e.key === "Enter" && !isComposingKey(e.nativeEvent) && e.currentTarget.blur()}
                 aria-label="What this table is for"
                 placeholder="Add a description"
-                className="-mx-1 mt-0.5 block w-full truncate rounded-md bg-transparent px-1 text-ui text-ink-2 outline-none placeholder:text-ink-4 hover:bg-hover focus:bg-transparent"
+                className="-mx-1 mt-0.5 block w-full truncate rounded-md bg-transparent px-1 text-ui text-ink-2 outline-none placeholder:text-ink-3 hover:bg-hover focus:bg-transparent"
                 maxLength={500}
               />
             ) : t.description ? (
               <p className="mt-0.5 truncate text-ui text-ink-2">{t.description}</p>
             ) : null}
+            {bundle.can_manage ? null : (
+              // Its column menus open read-only, and nothing said why (QA PTC-62).
+              <p className="mt-0.5 text-meta text-ink-3" data-rows-only="">
+                You can edit its rows. Its owner changes its columns.
+              </p>
+            )}
           </div>
         </div>
 
@@ -592,8 +713,9 @@ export default function TableDetailPage() {
             rules={rules}
             onChange={changeRules}
             shown={shownRows.length}
-            total={rows.length}
-            truncated={!!bundle.rows_truncated}
+            held={rows.length}
+            total={held.total}
+            loading={held.complete ? null : { reading: held.reading, failed: held.failed, onLoadAll: () => held.all(true), onRetry: held.retry }}
             end={toolbarEnd}
           />}
           {activeView === "grid" &&
@@ -603,7 +725,9 @@ export default function TableDetailPage() {
                   fields={fields}
                   rows={shownRows}
                   onOpen={setOpenRow}
-                  empty={rows.length === 0 ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : <TableViewState kind="no-match" onClear={clearFilters} />}
+                  onNearEnd={held.complete ? undefined : nearEnd}
+                  scrollTo={listTo}
+                  empty={rows.length === 0 ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
                 />
               </div>
             ) : (
@@ -611,9 +735,14 @@ export default function TableDetailPage() {
                 tableId={tableId}
                 fields={fields}
                 rows={shownRows}
-                nextPosition={nextPosition}
                 canManage={bundle.can_manage}
-                onChange={mutate}
+                onChange={reload}
+                onCreated={onCreated}
+                focusRow={focusRow}
+                onFocused={focused}
+                marked={added && keptNote ? { rowId: added, note: keptNote } : null}
+                onRowFocus={leftRow}
+                onNearEnd={held.complete ? undefined : nearEnd}
                 commit={commit}
                 rowHeight={display.rowHeight}
                 hidden={display.hidden}
@@ -621,6 +750,7 @@ export default function TableDetailPage() {
                 onWidth={(id, px) => changeDisplay({ widths: { ...display.widths, [id]: px } })}
                 summary={display.summary}
                 onSummary={(id, fn) => changeDisplay({ summary: { ...display.summary, [id]: fn } })}
+                loaded={held.complete ? undefined : held.rows.length}
                 onSort={(id, dir) => changeRules({ ...rules, sort: [{ field: id, dir }, ...rules.sort.filter((s) => s.field !== id)].slice(0, 3) })}
                 onFilter={(id) => {
                   const f = fields.find((x) => x.id === id)
@@ -634,25 +764,37 @@ export default function TableDetailPage() {
                     // In the table's own hue, the one its icon wears.
                     <TableViewState kind="no-rows" hue={hueFor(tableId)} />
                   ) : (
-                    <TableViewState kind="no-match" onClear={clearFilters} />
+                    noHit
                   )
                 }
               />
             ))}
           {(activeView === "board" || activeView === "calendar") && noMatch ? (
-            <TableViewState kind="no-match" onClear={clearFilters} />
+            noHit
           ) : activeView === "board" ? (
-            <DataTableBoard tableId={tableId} fields={fields} rows={shownRows} nextPosition={nextPosition} canManage={bundle.can_manage} onChange={mutate} onOpenGrid={() => showView("grid")} />
+            <DataTableBoard
+              tableId={tableId}
+              fields={fields}
+              rows={shownRows}
+              canManage={bundle.can_manage}
+              groupFieldId={display.boardGroup ?? undefined}
+              onChange={changed}
+              onCreated={onCreated}
+              onOpenRow={setOpenRow}
+              onOpenGrid={() => showView("grid")}
+            />
           ) : activeView === "calendar" ? (
             <DataTableCalendar
               tableId={tableId}
               fields={fields}
               rows={shownRows}
-              nextPosition={nextPosition}
               canManage={bundle.can_manage}
-              onChange={mutate}
+              onChange={reload}
+              onCreated={onCreated}
               month={calendarMonth}
               onOpenGrid={() => showView("grid")}
+              onOpenRow={setOpenRow}
+              compact={narrow}
             />
           ) : null}
           {activeView === "chart" && <DataTableChart tableId={tableId} fields={fields} dataVersion={chartDataVersion} />}
@@ -670,7 +812,7 @@ export default function TableDetailPage() {
           commit={commit}
           onStep={setOpenRow}
           onClose={() => setOpenRow(null)}
-          onChange={mutate}
+          onChange={reload}
         />
       ) : null}
 

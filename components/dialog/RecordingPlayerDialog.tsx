@@ -18,6 +18,7 @@ import {formatDateForAttachment} from "@/lib/utils/date/formatDateforAttachment"
 import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
+import {SaysLoadFailure} from "@/lib/http/loadFailure";
 import {toast} from "@/hooks/use-toast";
 
 export const RecordingPlayerDialog = () => {
@@ -182,10 +183,13 @@ export const RecordingPlayerDialog = () => {
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            {/* ... Dialog Content ... */}
+            {/* Full screen lifts the dialog surface's 85dvh cap as well as its
+                width: with the cap kept, the player stopped 15% short of the
+                screen and the page showed above and below it, as the file
+                lightbox did. */}
              <DialogContent className={cn(
-                "max-w-[70vw] h-[85vh] p-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden", 
-                isFullscreen && "!max-w-none !w-screen !h-dvh !rounded-none border-none"
+                "max-w-[70vw] h-[85vh] p-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden",
+                isFullscreen && "!max-w-none !w-screen !h-dvh !max-h-none !rounded-none border-none"
             )}>
                 {/* ... Header ... */}
                  <div className="flex justify-between items-center p-3 border-b bg-muted/20">
@@ -328,7 +332,12 @@ export function RecordingStageMessage({
         return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "This recording can't be played", "The link to it didn't work, even after a fresh one.", true)
     }
     if (loadError) {
-        return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "Couldn't load the recording", "Check your connection and try again.", true)
+        return (
+            <>
+                <SaysLoadFailure />
+                {box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "Couldn't load the recording", "Check your connection and try again.", true)}
+            </>
+        )
     }
     return (
         <div role="status" className="flex gap-2 items-center text-white/70">

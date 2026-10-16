@@ -69,6 +69,14 @@ describe("the chat composer", () => {
     expect(screen.queryByRole("button", { name: "Schedule message" })).toBeNull()
   })
 
+  // QA F-41: a thread's reply box, the compact composer, had no @ and no
+  // Record, which the list's composer has.
+  it("gives a thread's compact box the same tools", async () => {
+    const { container } = composer("", { compact: true })
+    await waitFor(() => screen.getByRole("button", { name: "Add to the message" }))
+    for (const name of ["Add to the message", "Show formatting", "Mention someone", "Record"]) expect(screen.getByRole("button", { name })).toBeTruthy()
+    expect(container.querySelectorAll("[data-icon=mic]")).toHaveLength(1)
+  })
   it("shows Send as the press overlay with no chevron when empty, the accent and its chevron when ready", async () => {
     composer()
     const send = await waitFor(() => screen.getByRole("button", { name: "Send" }))

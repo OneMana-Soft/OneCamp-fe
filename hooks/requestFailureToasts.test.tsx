@@ -52,26 +52,33 @@ async function deleteProject(opts: { showToast?: boolean; showErrorToast?: boole
 
 describe("a request that fails", () => {
   // It was two toasts in a row, the server's reason under "That didn't work"
-  // and then "Error: Failed to delete project.: <reason>" replacing it.
+  // and then "Error: Failed to delete project.: <reason>" replacing it. (The
+  // endpoint archives a project, and says so since PTC-55.)
   it("says what didn't happen and why, once", async () => {
     restore = serverAnswers(400, { msg: "Archive the project's open tasks first." })
     await deleteProject()
     expect(toasts).toEqual([
-      expect.objectContaining({ title: "Couldn't delete project", description: "Archive the project's open tasks first.", variant: "destructive" }),
+      expect.objectContaining({ title: "Couldn't archive project", description: "Archive the project's open tasks first.", variant: "destructive" }),
     ])
   })
 
   it("says what the status means when the server's message is a bare no", async () => {
     restore = serverAnswers(403, { msg: "unauthorized" })
     await deleteProject()
-    expect(toasts).toEqual([expect.objectContaining({ title: "Couldn't delete project", description: "You don't have permission to do that." })])
+    expect(toasts).toEqual([expect.objectContaining({ title: "Couldn't archive project", description: "You don't have permission to do that." })])
+  })
+
+  it("still lets the demo say why it keeps something", async () => {
+    restore = serverAnswers(403, { code: "demo", msg: "Everyone who opens the demo shares this." })
+    await deleteProject()
+    expect(toasts).toEqual([expect.objectContaining({ title: "The demo is shared", description: "Everyone who opens the demo shares this." })])
   })
 
   it("says the server couldn't be reached when nothing answered", async () => {
     restore = serverAnswers(0)
     await deleteProject()
     expect(toasts).toEqual([
-      expect.objectContaining({ title: "Couldn't delete project", description: expect.stringMatching(/could not be reached/i) }),
+      expect.objectContaining({ title: "Couldn't archive project", description: expect.stringMatching(/could not be reached/i) }),
     ])
   })
 
@@ -88,10 +95,26 @@ describe("a request that fails", () => {
     ])
   })
 
+  // "Couldn't delete post" and "Couldn't remove comment" were the server's
+  // words for a channel's message and a thread's reply (QA F-34).
+  it.each([
+    [PostEndpointUrl.DeleteChannelPost, "Couldn't delete message"],
+    [PostEndpointUrl.UpdateChannelPost, "Couldn't update message"],
+    [PostEndpointUrl.RemovePostComment, "Couldn't delete reply"],
+    [PostEndpointUrl.RemoveChatComment, "Couldn't delete reply"],
+  ])("calls a chat %s a message or a reply", async (apiEndpoint, title) => {
+    restore = serverAnswers(500, { msg: "Try again in a moment." })
+    const { result } = renderHook(() => usePost())
+    await act(async () => {
+      await result.current.makeRequest({ apiEndpoint, payload: {}, showErrorToast: true }).catch(() => undefined)
+    })
+    expect(toasts).toEqual([expect.objectContaining({ title, variant: "destructive" })])
+  })
+
   it("confirms success in plain words, not under a 'Success' title", async () => {
     restore = serverAnswers(200, { data: {} })
     await deleteProject()
-    expect(toasts).toEqual([expect.objectContaining({ title: "Project deleted" })])
+    expect(toasts).toEqual([expect.objectContaining({ title: "Project archived" })])
   })
 })
 

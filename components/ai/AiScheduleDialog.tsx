@@ -27,14 +27,14 @@ import {
   type ScheduleProposeResult,
   type ScheduleCandidate,
 } from "@/services/scheduleService"
+import { format } from "date-fns"
+import { clockRange } from "@/lib/utils/date/clock"
 
 // formatSlot renders a UTC RFC3339 start/end pair in the viewer's local time.
 function formatSlot(startISO: string, endISO: string): string {
   const start = new Date(startISO)
   const end = new Date(endISO)
-  const day = start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
-  const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-  return `${day} · ${t(start)} – ${t(end)}`
+  return `${format(start, "EEE d MMM")} · ${clockRange(start, end)}`
 }
 
 const AiScheduleDialog: React.FC<{

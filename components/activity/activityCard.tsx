@@ -16,6 +16,7 @@
  * link stretched over it, so a modifier click opens a new tab and next/link
  * fetches the destination early, while the toolbar's buttons stay buttons.
  */
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import React, { useMemo } from "react"
 import Link from "next/link"
 
@@ -34,7 +35,7 @@ import { activityHref } from "@/lib/activity/activityHref"
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { HubRow, HubToolButton } from "@/components/ui/hubRow"
 import { KindBadge } from "@/components/ui/kindBadge"
-import { collapsedVerb, kindOf, othersCount, previewParts, sentenceOf, type FeedEntry } from "@/lib/activity/notification"
+import { collapsedVerb, kindOf, othersCount, previewParts, sentenceOf, timeUnderDay, type FeedEntry } from "@/lib/activity/notification"
 import { activityKey } from "@/lib/activity/feedPages"
 import { SaveForLaterButton, type LaterTarget } from "@/components/later/SaveForLater"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
@@ -51,10 +52,12 @@ interface ActivityCardProps {
     selected?: boolean
     /** Draw the hairline above the row (inset to the content column): rows in a virtual list are not siblings. */
     separated?: boolean
+    /** It sits under a day header, so its time says only what the header has not. */
+    underDay?: boolean
     onClick?: () => void
 }
 
-export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, entry, unread, onToggleRead, selected, separated, onClick }) => {
+export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, entry, unread, onToggleRead, selected, separated, underDay, onClick }) => {
     const emojiData = useEmojiMartData()
     const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const currentUserId = selfProfile?.data?.user_uuid
@@ -89,7 +92,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, entry, unr
                 </BotAvatar>
             </span>
         ) : (
-            <IdentityMark variant="avatar" size={32} id={s.actor?.user_uuid} label={name} src={src} />
+            <IdentityMark variant="avatar" size={32} id={avatarSeed(s.actor)} label={name} src={src} />
         )
 
     const sentence = (
@@ -131,7 +134,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, entry, unr
         return null
     }, [activity, href, s.preview, s.place, name, label])
 
-    const time = s.at ? formatListTimestamp(s.at) : ""
+    const time = s.at ? (underDay ? timeUnderDay(s.at) : formatListTimestamp(s.at)) : ""
 
     return (
         <HubRow
@@ -214,7 +217,7 @@ function ReactionStack({ entry }: { entry: FeedEntry }) {
         <span className="relative block size-8" data-reaction-stack="">
             {people.map((u, i) => (
                 <span key={u.user_uuid} className="absolute rounded-full ring-2 ring-sheet" style={{ left: i * 12, top: i * 12 }}>
-                    <IdentityMark variant="avatar" size={20} id={u.user_uuid} label={displayNameOf(u) || "?"} />
+                    <IdentityMark variant="avatar" size={20} id={avatarSeed(u)} label={displayNameOf(u) || "?"} />
                 </span>
             ))}
         </span>

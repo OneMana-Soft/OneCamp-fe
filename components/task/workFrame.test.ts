@@ -11,11 +11,13 @@ const TABS: Record<string, { toolbar: boolean; states: boolean }> = {
   "components/task/taskTableToolbar.tsx": { toolbar: true, states: false },
   "components/project/projectTaskTable.tsx": { toolbar: false, states: true },
   "components/myTask/myTaskTable.tsx": { toolbar: false, states: true },
-  "components/project/projectTaskKanban.tsx": { toolbar: true, states: true },
+  // The board shares the list's toolbar (WorkToolbar draws the band: PTC-6).
+  "components/project/projectTaskKanban.tsx": { toolbar: false, states: true },
   "components/myTask/myTaskKanban.tsx": { toolbar: true, states: true },
   "components/project/timeline/ProjectTimeline.tsx": { toolbar: true, states: true },
-  // Design v3 (work.md W27): the updates open on their prompt card, not a toolbar row.
-  "components/projectUpdates/ProjectUpdates.tsx": { toolbar: false, states: true },
+  // Updates has the band too, with New update as its primary (PTC-6); its
+  // prompt card opens the body under it.
+  "components/projectUpdates/ProjectUpdates.tsx": { toolbar: true, states: true },
   "components/project/ProjectAttachments.tsx": { toolbar: true, states: true },
 }
 
@@ -23,7 +25,12 @@ describe("the task views' tabs share one frame", () => {
   for (const [file, want] of Object.entries(TABS)) {
     const src = readFileSync(file, "utf8")
     it(`${file} draws in it`, () => {
-      if (want.toolbar) expect(src).toMatch(/className=\{cn\(workToolbar/)
+      if (want.toolbar) {
+        expect(src).toMatch(/className=\{(cn\()?workToolbar\b/)
+        // The band is the frame's own: no tab pins it to a fixed height (a
+        // wrapped row slid under the timeline on a phone) or pads it again.
+        expect(src).not.toMatch(/cn\(workToolbar, "[^"]*\b(h-11|h-8|px-\d|pl-\d|min-h-\d+)\b/)
+      }
       if (want.states) {
         expect(src).toContain("<WorkState")
         expect(src).toContain("ErrorState")
@@ -34,6 +41,33 @@ describe("the task views' tabs share one frame", () => {
       expect(src).not.toMatch(/hidden h-8[^"]*lg:flex/)
     })
   }
+
+  it("draws the v3 band: 44 px, a hairline under it, 16 px in, flush under the tabs", () => {
+    const src = readFileSync("components/task/workFrame.tsx", "utf8")
+    const band = src.match(/export const workToolbar = "([^"]+)"/)?.[1] ?? ""
+    for (const c of ["min-h-11", "border-b", "border-line", "px-4"]) expect(band.split(" ")).toContain(c)
+    // The Files tab's body is padded, not the tab around its band.
+    expect(readFileSync("components/project/projectTaskDesktop.tsx", "utf8")).not.toMatch(/TabsContent value="attachments" className="[^"]*px-6/)
+  })
+
+  it("draws a project's board with the list's toolbar, the board's own Display in it", () => {
+    const src = readFileSync("components/project/projectTaskKanban.tsx", "utf8")
+    expect(src).toMatch(/<WorkToolbar\b/)
+    expect(src).toMatch(/display=\{\s*<BoardDisplayMenu/)
+    // Display before the one primary, New task, at the band's end: the toolbar's order.
+    const bar = readFileSync("components/task/WorkToolbar.tsx", "utf8")
+    expect(bar.indexOf("<DisplayMenu")).toBeLessThan(bar.indexOf('aria-label="New task"'))
+  })
+
+  it("puts Display before the one primary, New task, at the band's end on My Tasks' board", () => {
+    for (const file of ["components/myTask/myTaskKanban.tsx"]) {
+      const src = readFileSync(file, "utf8")
+      const display = src.indexOf('aria-label="Display"')
+      const create = src.indexOf('aria-label="New task"')
+      expect(display, file).toBeGreaterThan(-1)
+      expect(create, file).toBeGreaterThan(display)
+    }
+  })
 
   it("the project page has one scroll container for its tabs, and no boxed section in Attachments", () => {
     const src = readFileSync("components/project/projectTaskDesktop.tsx", "utf8")

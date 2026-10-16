@@ -1,25 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import type { DocInfoInterface } from "@/types/doc"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
-// What the docs list was handed on each render, to catch a frame where it is
-// told "nothing, and done loading" before the docs it has are copied in.
-const handed: { docList: DocInfoInterface[]; isLoading?: boolean }[] = []
-let fetched: { data?: { data?: { docs: DocInfoInterface[] } }; isLoading: boolean } = { isLoading: false }
-const makeRequest = vi.fn()
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => fetched }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest }) }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+// The docs home's list (docs programme B5): each tab's empty state says what
+// goes there, an error is never shown as an empty list (I19), loading keeps
+// the list's own shape, and the first card's templates are the server's (a
+// template's body is written by the server as the doc is made: N37).
+
+const createDoc = vi.fn()
+vi.mock("@/services/docGraphService", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  createDoc: (req: unknown) => createDoc(req),
+}))
+const push = vi.fn()
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, prefetch: vi.fn() }), usePathname: () => "/app/doc" }))
+vi.mock("react-redux", async (importOriginal) => ({ ...(await importOriginal<object>()), useDispatch: () => vi.fn(), useSelector: () => undefined }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
 import { DocListResult, NewDocCard } from "./docListResult"
-import { DocListTabPrivate } from "./docListTabPrivate"
-import { DocListTabPublic } from "./docListTabPublic"
+import { BUILTIN_DOC_TEMPLATES } from "@/lib/docTemplates"
 
 afterEach(() => {
   cleanup()
-  handed.length = 0
-  fetched = { isLoading: false }
-  makeRequest.mockReset()
+  createDoc.mockReset()
+  push.mockReset()
 })
 
 /** The drawing above an empty state, and the hue it is drawn in. */
@@ -28,94 +31,90 @@ function spotHue() {
   return svg ? /hue-(\w+)/.exec(svg.getAttribute("class") || "")?.[1] : undefined
 }
 
-const doc = (n: number) => ({ doc_uuid: `d${n}`, doc_title: `Doc ${n}` }) as DocInfoInterface
-
 describe("an empty docs list", () => {
-  it("with no docs at all, offers the first doc: the spot, three templates and one primary", () => {
-    makeRequest.mockResolvedValue(undefined)
-    render(<DocListResult docList={[]} withCreateCard />)
+  it("on Mine, offers the first doc: the spot, three of OneCamp's templates and one primary", async () => {
+    createDoc.mockResolvedValue({ doc_uuid: "d-new", doc_title: "" })
+    render(<DocListResult items={[]} view="grid" tab="mine" />)
     expect(screen.getByRole("heading", { name: "Write the first doc" })).toBeTruthy()
-    expect(screen.getByText("Notes, plans and decisions live here, beside the chat that made them.")).toBeTruthy()
     expect(spotHue()).toBe("sky")
-    expect(document.querySelectorAll("[data-template-row]")).toHaveLength(3)
+    const rows = [...document.querySelectorAll("[data-template-row]")].map((r) => r.getAttribute("data-template-row"))
+    expect(rows).toEqual(BUILTIN_DOC_TEMPLATES.slice(0, 3).map((t) => t.id))
     fireEvent.click(screen.getByRole("button", { name: "New doc" }))
-    expect(makeRequest).toHaveBeenCalledOnce()
-    expect(makeRequest.mock.calls[0][0].payload).toEqual({ doc_title: "Untitled", doc_private: true })
+    await waitFor(() => expect(createDoc).toHaveBeenCalledOnce())
+    // No stored title: "Untitled" is only the placeholder (D-6).
+    expect(createDoc.mock.calls[0][0]).toEqual({ doc_title: "", space: "private", doc_private: true })
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/app/doc/d-new?new=1"))
   })
 
-  it("after a search that found nothing, says what was searched, with a way to clear it", () => {
+  it("starts a doc from a template by its id, for the server to write its body", async () => {
+    createDoc.mockResolvedValue({ doc_uuid: "d-tpl", doc_title: "Meeting notes" })
+    render(<DocListResult items={[]} view="grid" tab="mine" />)
+    fireEvent.click(document.querySelector(`[data-template-row="${BUILTIN_DOC_TEMPLATES[0].id}"]`)!)
+    await waitFor(() => expect(createDoc).toHaveBeenCalledOnce())
+    expect(createDoc.mock.calls[0][0]).toMatchObject({ template_id: BUILTIN_DOC_TEMPLATES[0].id, doc_title: "Meeting notes" })
+  })
+
+  it("on Workspace, makes the first doc everyone can open", async () => {
+    createDoc.mockResolvedValue({ doc_uuid: "d-ws", doc_title: "" })
+    render(<DocListResult items={[]} view="list" tab="workspace" />)
+    expect(screen.getByRole("heading", { name: "No workspace docs yet" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "New workspace doc" }))
+    await waitFor(() => expect(createDoc).toHaveBeenCalledOnce())
+    expect(createDoc.mock.calls[0][0]).toMatchObject({ space: "workspace", doc_private: false })
+  })
+
+  it("says what each other tab is for", () => {
+    const { rerender } = render(<DocListResult items={[]} view="grid" tab="shared" />)
+    expect(screen.getByRole("heading", { name: "Nothing shared with you yet" })).toBeTruthy()
+    rerender(<DocListResult items={[]} view="grid" tab="starred" />)
+    expect(screen.getByText(/Star a doc from its ⋯ menu/)).toBeTruthy()
+    rerender(<DocListResult items={[]} view="grid" tab="recent" />)
+    expect(screen.getByRole("heading", { name: "Nothing opened yet" })).toBeTruthy()
+    rerender(<DocListResult items={[]} view="grid" tab="archived" />)
+    expect(screen.getByRole("heading", { name: "Nothing archived" })).toBeTruthy()
+  })
+
+  it("under a filter, says the filter found nothing, with a way to clear it", () => {
     const clear = vi.fn()
-    render(<DocListResult docList={[]} searchQuery="roadmap" onClearSearch={clear} />)
-    expect(screen.getByRole("heading", { name: "No docs match “roadmap”" })).toBeTruthy()
-    expect(screen.queryByText("Write the first doc")).toBeNull()
-    expect(spotHue()).toBe("lake")
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    render(<DocListResult items={[]} view="grid" tab="workspace" filtered onClearFilters={clear} />)
+    expect(screen.getByRole("heading", { name: "No docs match these filters" })).toBeTruthy()
+    expect(screen.queryByText("No workspace docs yet")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }))
     expect(clear).toHaveBeenCalledOnce()
   })
+})
 
-  it("while loading shows the skeleton, not an empty state", () => {
-    render(<DocListResult docList={[]} isLoading withCreateCard />)
+describe("the list's frame", () => {
+  it("loads as the card grid it will be, in the 1,040 px column", () => {
+    render(<DocListResult items={[]} view="grid" tab="mine" isLoading withCreateCard />)
+    const skeleton = screen.getByRole("status", { name: "Loading docs" })
+    expect(skeleton.querySelector(".max-w-\\[1040px\\]")).toBeTruthy()
+    expect(skeleton.querySelectorAll(".sm\\:h-\\[264px\\]").length).toBeGreaterThan(3)
     expect(screen.queryByRole("heading")).toBeNull()
+  })
+
+  it("loads as rows in the list view", () => {
+    render(<DocListResult items={[]} view="list" tab="workspace" isLoading />)
+    expect(document.querySelector('[data-doc-skeleton="rows"]')).toBeTruthy()
+  })
+
+  it("says a failed load failed, with Try again, where it would have said there were no docs", () => {
+    const onRetry = vi.fn()
+    render(<DocListResult items={[]} view="grid" tab="mine" isError onRetry={onRetry} withCreateCard />)
+    expect(screen.getByRole("heading", { name: /Couldn't load these docs/ })).toBeTruthy()
+    expect(screen.queryByText("Write the first doc")).toBeNull()
   })
 })
 
 describe("the new-doc card", () => {
-  it("is no dashed wireframe: a sunken card with a blank doc and three template rows", () => {
+  it("is no dashed wireframe: a sunken card with a blank doc, three templates and the doc templates' gallery", () => {
     render(<NewDocCard />)
     const card = document.querySelector("[data-new-doc-card]")!
     expect(card.className).not.toMatch(/border-dashed/)
     expect(card.className).toMatch(/bg-sunken/)
     expect(screen.getByRole("button", { name: /Blank doc/ })).toBeTruthy()
     expect(card.querySelectorAll("[data-template-row]")).toHaveLength(3)
-    expect(screen.getByRole("link", { name: /All templates/ })).toBeTruthy()
-  })
-})
-
-describe("the docs tabs", () => {
-  vi.mock("./docListResult", async (importOriginal) => {
-    const real = await importOriginal<typeof import("./docListResult")>()
-    return {
-      ...real,
-      DocListResult: (props: Parameters<typeof real.DocListResult>[0]) => {
-        handed.push({ docList: props.docList, isLoading: props.isLoading })
-        return real.DocListResult(props)
-      },
-    }
-  })
-
-  for (const [name, Tab] of [["private", DocListTabPrivate], ["public", DocListTabPublic]] as const) {
-    it(`(${name}) never tell the list it is empty while the first page is on its way in`, () => {
-      fetched = { data: { data: { docs: [doc(1), doc(2)] } }, isLoading: false }
-      render(<Tab searchQuery="" />)
-      expect(handed.length).toBeGreaterThan(0)
-      expect(handed.filter((h) => h.docList.length === 0 && !h.isLoading)).toEqual([])
-      expect(handed.at(-1)?.docList).toHaveLength(2)
-    })
-
-    it(`(${name}) show a search as loading until its answer comes`, async () => {
-      let answer: (v: unknown) => void = () => {}
-      makeRequest.mockReturnValue(new Promise((r) => (answer = r)))
-      render(<Tab searchQuery="roadmap" />)
-      expect(handed.filter((h) => h.docList.length === 0 && !h.isLoading)).toEqual([])
-      await act(async () => answer({ docs: [] }))
-      // Now it is known: nothing matched.
-      expect(screen.getByRole("heading", { name: "No docs match “roadmap”" })).toBeTruthy()
-    })
-  }
-})
-
-describe("the docs list's frame on either tab", () => {
-  it("loads as the card grid it will be, in the 1,040 px column", () => {
-    render(<DocListResult docList={[]} isLoading withCreateCard />)
-    const skeleton = screen.getByRole("status", { name: "Loading docs" })
-    expect(skeleton.querySelector(".max-w-\\[1040px\\]")).toBeTruthy()
-    expect(skeleton.querySelectorAll(".sm\\:h-\\[264px\\]").length).toBeGreaterThan(3)
-  })
-
-  it("says a failed load failed, with Try again, where it said there were no docs", () => {
-    const onRetry = vi.fn()
-    render(<DocListResult docList={[]} isError onRetry={onRetry} withCreateCard />)
-    expect(screen.getByRole("heading", { name: /Couldn't load these docs/ })).toBeTruthy()
-    expect(screen.queryByText("Write the first doc")).toBeNull()
+    // N38: "All templates" leads to the gallery's doc templates.
+    expect(screen.getByRole("link", { name: /All templates/ }).getAttribute("href")).toBe("/app/templates?kind=doc")
   })
 })

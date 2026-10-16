@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SpotImported, SpotSearch } from "@/components/ui/graphics"
+import { SpotCalendar, SpotImported, SpotSearch, SpotTasks } from "@/components/ui/graphics"
 import type { CampHue } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -33,12 +33,20 @@ export function TableToolbar({ children, end, className }: { children?: React.Re
  */
 export const TABLE_VIEW_BODY = "max-h-[calc(100dvh-16rem)] min-h-[8rem] overflow-auto overscroll-contain"
 
+/**
+ * Rows stacked edge to edge (a menu's, a picker's) are 44 px tall under a
+ * finger: a target reaching past its row would take its neighbour's taps
+ * (app/phone.css F3, which does the same for menu items).
+ */
+export const TOUCH_ROW = "[@media(pointer:coarse)]:h-11"
+
 /** The inset of a view whose content sits on the frame's ground (cards, a chart). */
 export const TABLE_VIEW_INSET = "p-3"
 
 type ViewState =
   | { kind: "no-rows"; hue: CampHue }
   | { kind: "no-match"; onClear: () => void }
+  | { kind: "searching" }
   | { kind: "needs-column"; column: "select" | "date"; view: string; hue: CampHue; onOpenGrid?: () => void }
   | { kind: "nothing-to-chart"; hue: CampHue }
 
@@ -73,11 +81,15 @@ export function TableViewState(props: ViewState) {
           }
         />
       )
+    case "searching":
+      // No hit yet among the rows read, while the rest are read: not an answer.
+      return <EmptyState {...common} illustration={<SpotSearch />} title="Searching the rest of the table…" description="Rows that match show here as they're read." />
     case "needs-column":
       return (
         <EmptyState
           {...common}
-          illustration={<SpotImported hue={props.hue} />}
+          // The view's own picture, not an import's tray (QA PTC-48).
+          illustration={props.column === "select" ? <SpotTasks hue={props.hue} /> : <SpotCalendar hue={props.hue} />}
           title={props.column === "select" ? "A board needs a select column" : "A calendar needs a date column"}
           description={
             props.column === "select"

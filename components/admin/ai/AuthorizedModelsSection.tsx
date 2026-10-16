@@ -37,6 +37,8 @@ import {
   discoverAuthorizedModelLimits,
   revokeAuthorizedModel,
 } from "@/services/aiModelService"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 /** 131072 → "128k". Windows are quoted in thousands everywhere else, so showing the raw
  *  integer in a list makes rows harder to compare at a glance. */
@@ -203,9 +205,10 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setModels(await getAuthorizedModels())
-    } catch {
-      toast({ title: "Error", description: "Failed to load authorized models", variant: "destructive" })
+      // Said by the toast below, once: the request's own stays quiet.
+      setModels(await getAuthorizedModels(OWN_ERRORS))
+    } catch (e) {
+      toast({ title: "Couldn't load the authorised models", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -227,9 +230,9 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
       setModelName("")
       setLabel("")
       await load()
-      toast({ title: "Model authorized", description: `${model} is now available to members` })
+      toast({ title: "Model authorised", description: `${model} is now available to members` })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to authorize model"
+      const msg = e instanceof Error ? e.message : "Failed to authorise model"
       toast({ title: "Error", description: msg, variant: "destructive" })
     } finally {
       setBusy(false)
@@ -299,7 +302,7 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
         </div>
         <Button onClick={handleAdd} disabled={busy || !providerId} className="shrink-0">
           <Plus />
-          Authorize
+          Authorise
         </Button>
       </div>
 
@@ -312,7 +315,7 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
           icon={Sparkles}
           hue={ADMIN_GROUP_HUE.ai}
           title="No other models yet"
-          description="Members use the workspace default until you authorize more."
+          description="Members use the workspace default until you authorise more."
           className="py-6"
         />
       ) : (

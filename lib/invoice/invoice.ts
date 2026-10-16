@@ -3,7 +3,7 @@
 // hourly rate typed for this invoice, with tax on the subtotal. Pure, so the
 // page and its tests agree on every number.
 
-import type { TimeReport } from "@/lib/tasks/time"
+import { presetRange, type TimeReport } from "@/lib/tasks/time"
 
 export type LineBy = "task" | "person"
 
@@ -84,4 +84,26 @@ export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED
 export function suggestNumber(project: string, at: Date): string {
   const initials = project.split(/\s+/).map((w) => w[0] ?? "").join("").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase().slice(0, 4) || "INV"
   return `${initials}-${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`
+}
+
+/** A period as [from, to) in the viewer's own time. */
+export interface Period {
+  from: Date
+  to: Date
+}
+
+/**
+ * A new invoice's period when none was asked for: last month, as a monthly
+ * bill is; or this month so far, when last month has no billable time and
+ * this month has (PTC-41: a project with 6.4 h logged this month opened its
+ * invoice on "0.00 hours"). With neither, last month, which says so.
+ * timeOf reads a period's time report.
+ */
+export async function defaultPeriod(timeOf: (p: Period) => Promise<TimeReport>, now: Date): Promise<{ period: Period; report: TimeReport }> {
+  const last = presetRange("last-month", now)
+  const report = await timeOf(last)
+  if (report.billable_seconds > 0) return { period: last, report }
+  const current = presetRange("this-month", now)
+  const sofar = await timeOf(current)
+  return sofar.billable_seconds > 0 ? { period: current, report: sofar } : { period: last, report }
 }

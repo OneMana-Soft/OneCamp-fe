@@ -1,64 +1,112 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, Send, RotateCcw, Copy, Check, Type, ArrowLeft, MessageSquarePlus } from "@/lib/icons";
-import { Scissors, MousePointer2, Wand2, CornerDownLeft, ArrowRightToLine } from "lucide-react";
-import { useDocAI, DocAIAction } from '@/services/aiService';
+/**
+ * The doc AI panel (docs programme B9; AI edition only): the long
+ * conversation's place, beside the doc in the right panel and as the phone's
+ * sheet. AI starts at the text, in the bar (DocAiBar.tsx); ⌘⏎ there carries
+ * its answer here (docAiStore.ts handToPanel), and the panel goes on from it:
+ * refine it, try again, put it in the doc. It runs on the same stream as the
+ * bar (lib/ai/docAIStream.ts) and reads the live doc as Markdown.
+ *
+ * - N17: an answer goes into the doc as Markdown made into blocks, shown as a
+ *   change to review (A9's proposals), never as one flat paragraph.
+ * - N43: Replace lands on the text the panel was opened on, wherever edits
+ *   moved it since (its pin); Accept is one transaction, so ⌘Z undoes it, and
+ *   the panel keeps no undo of its own.
+ * - N44: Back and Esc stop a stream; Stop shows while words arrive; a notice
+ *   belongs to its run; the same action asked twice runs twice; a failed copy
+ *   says so; and while the AI setting is still loading the panel holds its
+ *   place, so the action it was opened with isn't lost.
+ */
+
+import * as React from "react";
+import { useDispatch } from "react-redux";
+import {
+  AlignLeft,
+  ArrowLeft,
+  ArrowRightToLine,
+  Check,
+  Copy,
+  CornerDownLeft,
+  Lightbulb,
+  Maximize2,
+  MessageSquarePlus,
+  Minimize2,
+  Pencil,
+  RotateCcw,
+  Scissors,
+  Sparkles,
+  Square,
+  SquarePen,
+  Type,
+  X,
+} from "@/lib/icons";
 import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
-import { cn } from '@/lib/utils/helpers/cn';
+import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { useDispatch } from "react-redux";
+import { SkeletonRows } from "@/components/ui/skeletonRows";
+import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { withAI } from "@/components/common/withFeature"
-// Types and Config
-const ACTION_DETAILS: Record<DocAIAction, { label: string; icon: any; description: string }> = {
-  write: {
-    label: 'Write',
-    icon: Send,
-    description: 'Generate fresh content from a prompt'
-  },
-  rewrite: {
-    label: 'Rewrite',
-    icon: RotateCcw,
-    description: 'Improve clarity, flow, and tone'
-  },
-  summarize: {
-    label: 'Summarize',
-    icon: Scissors,
-    description: 'Condense into key bullet points'
-  },
-  expand: {
-    label: 'Expand',
-    icon: Type,
-    description: 'Add more detail and examples'
-  },
-  fix_grammar: {
-    label: 'Fix grammar',
-    icon: Wand2,
-    description: 'Spelling and style checks'
-  },
-  shorten: {
-    label: 'Shorten',
-    icon: MousePointer2,
-    description: 'Make it concise and direct'
-  }
+import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig";
+import { toast } from "@/hooks/use-toast";
+import { busForDoc, editorOf } from "@/components/docEditor/registry/commandBus";
+import { isBlankDoc } from "@/components/docEditor/DocBodyLayer";
+import {
+  DOC_AI_ACTIONS,
+  STILL_WRITING_MS,
+  modelLine,
+  stillWorkingLine,
+  typedAction,
+  workingLabel,
+  type DocAIActionId,
+  type DocAIModel,
+} from "@/lib/ai/docAIActions";
+import { streamDocAI, type DocAIRequest } from "@/lib/ai/docAIStream";
+import { getDocAIModel } from "@/lib/ai/docAIApi";
+import { applyFromPanel, panelRequest } from "./docAiRun";
+import { takePanelHandoff } from "./docAiStore";
+
+/** The panel's actions, as the bar names them. */
+const PANEL_ACTIONS: Partial<Record<DocAIActionId, { icon: React.ElementType; description: string }>> = {
+  improve: { icon: SquarePen, description: "Clearer, with the same meaning" },
+  fix: { icon: Check, description: "Spelling, grammar and punctuation" },
+  shorter: { icon: Minimize2, description: "The same points in fewer words" },
+  longer: { icon: Maximize2, description: "More detail and examples" },
+  simplify: { icon: Type, description: "Plain words, short sentences" },
+  explain: { icon: Lightbulb, description: "What it means, in plain words" },
+  continue: { icon: Pencil, description: "Goes on from where the text stops" },
+  summarize: { icon: AlignLeft, description: "The doc's main points" },
 };
 
-const ACTION_GROUPS = {
-  SHORT: ['expand', 'rewrite', 'fix_grammar'] as DocAIAction[],
-  LONG: ['summarize', 'shorten', 'fix_grammar'] as DocAIAction[],
-  DEFAULT: ['write', 'rewrite', 'summarize', 'expand', 'fix_grammar', 'shorten'] as DocAIAction[]
-};
+const WITH_SELECTION: DocAIActionId[] = ["improve", "fix", "shorter", "longer", "simplify", "explain"];
+const AT_CARET: DocAIActionId[] = ["continue", "summarize"];
 
-interface DocAIState {
-  action: DocAIAction | null;
-  history: string[];
-  isRefining: boolean;
-  hasJustReplaced: boolean; // New state for undo
+// The names the old panel and "/" sent, so a tab opened before keeps working.
+const LEGACY: Record<string, DocAIActionId> = { rewrite: "improve", fix_grammar: "fix", shorten: "shorter", expand: "longer" };
+
+/** An action asked by name: one the bar knows, or nothing. Pure. */
+export function panelActionOf(name: string | undefined): DocAIActionId | undefined {
+  if (!name) return undefined;
+  const id = (LEGACY[name] ?? name) as DocAIActionId;
+  return DOC_AI_ACTIONS[id] && id !== "action_items" ? id : undefined;
+}
+
+/** Actions that need words typed with them. */
+const needsWords = (a: DocAIActionId) => a === "write" || a === "draft" || a === "edit" || a === "ask";
+
+type Phase = "waiting" | "streaming" | "done" | "error" | "stopped";
+
+interface PanelRun {
+  action: DocAIActionId;
+  prompt?: string;
+  phase: Phase;
+  text: string;
+  notice: string;
+  error: string;
+  model: DocAIModel | null;
 }
 
 interface DocAiAssistantPanelProps {
@@ -67,7 +115,9 @@ interface DocAiAssistantPanelProps {
   surroundingContext?: string;
   isSidebar?: boolean;
   onClose?: () => void;
-  initialAction?: DocAIAction;
+  initialAction?: string;
+  /** What was typed with it ("/" then "Ask AI to write …"). */
+  initialPrompt?: string;
 }
 
 const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
@@ -77,196 +127,293 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
   isSidebar,
   onClose,
   initialAction,
+  initialPrompt,
 }) => {
   const dispatch = useDispatch();
+  const [run, setRun] = React.useState<PanelRun | null>(null);
+  const [model, setModel] = React.useState<DocAIModel | null>(null);
+  const [customPrompt, setCustomPrompt] = React.useState("");
+  const [refinePrompt, setRefinePrompt] = React.useState("");
+  const [showPromptInput, setShowPromptInput] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+  const [placed, setPlaced] = React.useState(false);
+  const [still, setStill] = React.useState(false);
+  const abortRef = React.useRef<AbortController | null>(null);
+  const resultRef = React.useRef<HTMLDivElement>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
 
-  const handleClosePanel = useCallback(() => {
-    if (onClose) {
-      onClose();
-    } else if (isSidebar) {
-      dispatch(closeRightPanel());
-    }
+  const editorNow = React.useCallback(() => {
+    const e = editorOf(busForDoc(docId));
+    return e && !e.isDestroyed ? e : null;
+  }, [docId]);
+
+  // What the panel works on: the selection it was opened on, else the caret.
+  const hasSelection = !!selectedText.trim();
+  const docEmpty = React.useMemo(() => {
+    const e = editorNow();
+    return !!e && isBlankDoc(e.state.doc);
+    // Read when the selection it was opened on changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorNow, selectedText]);
+
+  const close = React.useCallback(() => {
+    abortRef.current?.abort();
+    if (onClose) onClose();
+    else if (isSidebar) dispatch(closeRightPanel());
   }, [onClose, isSidebar, dispatch]);
 
-  const [state, setState] = useState<DocAIState>({
-    action: null,
-    history: [],
-    isRefining: false,
-    hasJustReplaced: false,
-  });
-
-  const { completeStream, isStreaming: hookIsStreaming, streamText, streamNotice, error: hookError, cancelStream, resetResult } = useDocAI();
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [refinePrompt, setRefinePrompt] = useState('');
-  const [showPromptInput, setShowPromptInput] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const resultRef = useRef<HTMLDivElement>(null);
-
-  // Must be declared before useEffect hooks that reference it
-  const executeAction = useCallback(async (action: DocAIAction, prompt?: string) => {
-    setState(prev => ({ ...prev, action, isRefining: false }));
-    // Pass the surrounding document context to enable tone matching and smarter completions
-    await completeStream(action, selectedText, docId, prompt, surroundingContext);
-  }, [selectedText, docId, completeStream, surroundingContext]);
-
-  // Auto-execute initial action from slash command (desktop + mobile)
-  const initialActionRef = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    const action = initialAction
-    if (action && initialActionRef.current !== action && !hookIsStreaming && !streamText) {
-      initialActionRef.current = action
-      executeAction(action)
-    }
-  }, [initialAction, executeAction, hookIsStreaming, streamText])
-
-  // Listen for mobile drawer initial action events
-  useEffect(() => {
-    const handler = (e: any) => {
-      const action = e.detail?.action as DocAIAction
-      if (action && initialActionRef.current !== action && !hookIsStreaming && !streamText) {
-        initialActionRef.current = action
-        // "Ask AI to write …" from the slash menu carries what was typed.
-        executeAction(action, typeof e.detail?.prompt === 'string' ? e.detail.prompt : undefined)
-      }
-    }
-    window.addEventListener('doc-ai-initial-action', handler)
-    return () => window.removeEventListener('doc-ai-initial-action', handler)
-  }, [executeAction, hookIsStreaming, streamText])
-
-  // Auto-scroll result
-  useEffect(() => {
-    if (resultRef.current && streamText) {
-      resultRef.current.scrollTop = resultRef.current.scrollHeight;
-    }
-  }, [streamText]);
-
-  // Handle successful completion to push to history
-  useEffect(() => {
-    if (!hookIsStreaming && streamText && !state.history.includes(streamText)) {
-      setState(prev => ({
-        ...prev,
-        history: [...prev.history, streamText]
-      }));
-    }
-  }, [hookIsStreaming, streamText, state.history]);
-
-  const handleRefine = useCallback(async () => {
-    if (!refinePrompt.trim()) return;
-    setState(prev => ({ ...prev, isRefining: true }));
-    // When refining, we pass the current result as the context/text to iterate on
-    // Along with the custom prompt for the refinement instruction
-    // Preserve surroundingContext so the LLM maintains document tone awareness
-    await completeStream('rewrite', streamText, docId, refinePrompt, surroundingContext);
-    setRefinePrompt('');
-  }, [refinePrompt, streamText, docId, completeStream, surroundingContext]);
-
-  const handleCancel = useCallback(() => {
-    cancelStream();
-  }, [cancelStream]);
-
-  const handleBack = useCallback(() => {
-    resetResult();
-    setState(prev => ({ ...prev, action: null, hasJustReplaced: false }));
-  }, [resetResult]);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(streamText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [streamText]);
-
-  const handleInsert = useCallback(() => {
-    if (streamText) {
-      window.dispatchEvent(new CustomEvent('doc-ai-insert', { detail: { text: streamText } }));
-      onClose?.();
-    }
-  }, [streamText, onClose]);
-
-  const handleReplace = useCallback(() => {
-    if (streamText) {
-      window.dispatchEvent(new CustomEvent('doc-ai-replace', { detail: { text: streamText, originalText: selectedText } }));
-      setState(prev => ({ ...prev, hasJustReplaced: true }));
-      // Leave the panel open to show the "Undo" option
-    }
-  }, [streamText, selectedText]);
-
-  const handleUndo = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('doc-ai-undo'));
-    setState(prev => ({ ...prev, hasJustReplaced: false }));
+  // The model, named before anything is sent.
+  React.useEffect(() => {
+    let current = true;
+    getDocAIModel().then(
+      (m) => current && setModel((now) => now ?? m),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
   }, []);
 
-  const resetState = () => {
-    handleCancel();
-    resetResult();
-    setState({ action: null, history: [], isRefining: false, hasJustReplaced: false });
+  // Leaving stops what is streaming.
+  React.useEffect(() => () => abortRef.current?.abort(), []);
+
+  const execute = React.useCallback(
+    async (action: DocAIActionId, extra: { prompt?: string; previous?: string } = {}) => {
+      abortRef.current?.abort();
+      const abort = new AbortController();
+      abortRef.current = abort;
+      setPlaced(false);
+      setRefinePrompt("");
+      setRun({ action, prompt: extra.prompt, phase: "waiting", text: "", notice: "", error: "", model });
+      const mine = () => abortRef.current === abort && !abort.signal.aborted;
+      let req: DocAIRequest | null = null;
+      try {
+        req = await panelRequest(docId, action, extra);
+      } catch {
+        req = null;
+      }
+      // The doc isn't open here: what the panel was given.
+      req ??= {
+        action,
+        doc_id: docId,
+        ...(selectedText ? { text: selectedText } : {}),
+        ...(surroundingContext ? { context: surroundingContext } : {}),
+        ...(extra.prompt ? { prompt: extra.prompt } : {}),
+        ...(extra.previous ? { previous: extra.previous } : {}),
+      };
+      if (!mine()) return;
+      const result = await streamDocAI(
+        req,
+        {
+          onModel: (m) => {
+            if (!mine()) return;
+            setModel(m);
+            setRun((r) => (r ? { ...r, model: m } : r));
+          },
+          onText: (text) => mine() && setRun((r) => (r ? { ...r, phase: "streaming", text } : r)),
+          onNotice: (notice) => mine() && setRun((r) => (r ? { ...r, notice } : r)),
+        },
+        abort.signal,
+      );
+      if (abortRef.current !== abort) return;
+      setRun((r) =>
+        r
+          ? {
+              ...r,
+              phase: result.stopped ? "stopped" : result.error ? "error" : "done",
+              text: result.text || r.text,
+              notice: result.notice,
+              error: result.error,
+              model: result.model ?? r.model,
+            }
+          : r,
+      );
+    },
+    [docId, model, selectedText, surroundingContext],
+  );
+
+  // What it is asked: by the props it opened with, then by every ask on its
+  // doc's bus while it is open, so the same action asked twice runs twice.
+  const [asked, setAsked] = React.useState<{ action?: string; prompt?: string; n: number }>(() => ({
+    action: initialAction,
+    prompt: initialPrompt,
+    n: 0,
+  }));
+  React.useEffect(() => {
+    const bus = busForDoc(docId);
+    if (!bus) return;
+    return bus.on("aiRun", ({ action, prompt }) => setAsked((a) => ({ action, prompt, n: a.n + 1 })));
+  }, [docId]);
+  React.useEffect(() => {
+    // Each ask brings the keys here (over the doc on a tablet, Esc closes it).
+    rootRef.current?.focus({ preventScroll: true });
+    const editor = editorNow();
+    const handoff = editor ? takePanelHandoff(editor) : undefined;
+    const action = panelActionOf(handoff?.action ?? asked.action);
+    const prompt = (handoff?.prompt ?? asked.prompt)?.trim() || undefined;
     setShowPromptInput(false);
-    setCustomPrompt('');
-    setRefinePrompt('');
+    setCustomPrompt("");
+    if (handoff?.text && action) {
+      // The bar's answer: the panel goes on from it.
+      abortRef.current?.abort();
+      abortRef.current = null;
+      if (handoff.model) setModel(handoff.model);
+      setRun({ action, prompt, phase: "done", text: handoff.text, notice: "", error: "", model: handoff.model ?? null });
+      return;
+    }
+    if (!action) {
+      abortRef.current?.abort();
+      setRun(null);
+      return;
+    }
+    if (needsWords(action) && !prompt) {
+      abortRef.current?.abort();
+      setRun(null);
+      setShowPromptInput(true);
+      return;
+    }
+    void execute(action, { prompt });
+    // Each ask once; execute reads the props of the moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asked]);
+
+  // The 8 s "still writing" line before a first word.
+  const waiting = run?.phase === "waiting";
+  React.useEffect(() => {
+    setStill(false);
+    if (!waiting) return;
+    const t = setTimeout(() => setStill(true), STILL_WRITING_MS);
+    return () => clearTimeout(t);
+  }, [waiting]);
+
+  // The answer follows its last line as it streams.
+  React.useEffect(() => {
+    if (resultRef.current && run?.phase === "streaming") resultRef.current.scrollTop = resultRef.current.scrollHeight;
+  }, [run?.text, run?.phase]);
+
+  const back = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setRun(null);
+    setPlaced(false);
+    setRefinePrompt("");
   };
 
-  const getActiveActions = () => {
-    if (!selectedText) return ACTION_GROUPS.DEFAULT;
-    const wordCount = selectedText.split(/\s+/).length;
-    if (wordCount < 10) return ACTION_GROUPS.SHORT;
-    if (wordCount > 50) return ACTION_GROUPS.LONG;
-    return ACTION_GROUPS.DEFAULT;
+  // Stopped with words: they stay, to use or to ask again; with none, back to the actions.
+  const stop = () => {
+    if (!run?.text) return back();
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setRun((r) => (r ? { ...r, phase: "stopped" } : r));
   };
+
+  const copy = () => {
+    if (!run?.text) return;
+    navigator.clipboard.writeText(run.text).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => toast({ title: "Couldn't copy: the browser didn't allow it. Select the text and copy it instead.", variant: "destructive" }),
+    );
+  };
+
+  const runCustom = () => {
+    const typed = customPrompt.trim();
+    if (!typed) return;
+    void execute(typedAction(typed, { hasSelection, docEmpty, askMode: false }), { prompt: typed });
+  };
+
+  const refine = () => {
+    const text = refinePrompt.trim();
+    if (!text || !run?.text) return;
+    void execute(run.action, { prompt: text, previous: run.text });
+  };
+
+  const place = async (mode: "replace" | "insert") => {
+    if (!run?.text) return;
+    const answer = await applyFromPanel(docId, run.text, mode, run.action, run.model ?? model);
+    if (answer === "gone") {
+      toast({ title: "This doc can't be changed here, so nothing was put in it. Copy the answer instead.", variant: "destructive" });
+      return;
+    }
+    if (answer === "same") {
+      toast({ title: "That's what the doc already says." });
+      return;
+    }
+    setPlaced(true);
+    // On a phone the sheet steps aside, so the change can be reviewed.
+    if (onClose) onClose();
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    e.preventDefault();
+    if (run && (run.phase === "waiting" || run.phase === "streaming")) return stop();
+    if (run) return back();
+    if (showPromptInput) return setShowPromptInput(false);
+    close();
+  };
+
+  const kind = run ? DOC_AI_ACTIONS[run.action]?.kind : undefined;
+  const working = run?.phase === "waiting" || run?.phase === "streaming";
+  const line = modelLine(run?.model ?? model);
+  const list = hasSelection ? WITH_SELECTION : AT_CARET;
+  const canReplace = hasSelection && kind === "transform";
 
   return (
-    <div className={cn("h-full flex flex-col ", isSidebar && "border-l ")}>
-      {/* In the right panel it opens under the panel's one 48px header, as a
-          thread, a task or the AI chat do; its own 65px header moved the
-          panel's top when it switched from one of them. */}
+    <div ref={rootRef} tabIndex={-1} className={cn("flex h-full flex-col outline-none", isSidebar && "border-l")} onKeyDown={onKeyDown} data-doc-ai-panel="">
+      {/* In the right panel it opens under the panel's one header, as a
+          thread, a task or the AI chat do. */}
       {isSidebar && !onClose ? (
         <RightPanelHeader titleKey="ai" title="OneCamp AI" />
       ) : (
-      <div className="flex justify-between items-center px-5 py-4 border-b ">
-         <div className="flex items-center gap-2 font-medium">
-           <Sparkles className="h-4 w-4 text-agent-ink" />
-           <span>OneCamp AI</span>
-         </div>
-         {(isSidebar || onClose) && (
-            <Button onClick={handleClosePanel} size="icon" variant="ghost" aria-label={isSidebar && !onClose ? "Collapse panel" : "Close panel"} className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", isSidebar && !onClose && "hidden md:flex")}>
-              {isSidebar && !onClose ? <ArrowRightToLine className="h-5 w-5" /> : <X className="h-5 w-5" />}
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <div className="flex items-center gap-2 font-medium">
+            <Sparkles className="size-4 text-agent-ink" />
+            <span>OneCamp AI</span>
+          </div>
+          {(isSidebar || onClose) && (
+            <Button onClick={close} size="icon" variant="ghost" aria-label="Close panel" className="size-8 text-ink-3 hover:text-ink">
+              <X className="size-5" />
             </Button>
-         )}
-      </div>
+          )}
+        </div>
       )}
 
       <ScrollArea className="flex-1">
         <div className="p-5">
-        {selectedText && !streamText && !hookIsStreaming && (
-          <div className="mb-4 rounded-[10px] bg-agent-muted p-3">
-            <span className="mb-1 block text-meta font-medium text-ink-3">Selected text</span>
-            <div className="line-clamp-2 text-ui-sm text-ink-2">{selectedText}</div>
-          </div>
-        )}
+          {line && (
+            <p className="mb-3 truncate text-meta text-ink-3" title={line}>
+              {line}
+            </p>
+          )}
 
-        <AnimatePresence mode="wait">
-          {!streamText && !hookIsStreaming ? (
-            <motion.div
-              key="actions"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="space-y-4"
-            >
-              <div className="flex flex-col gap-0.5">
-                {getActiveActions().map((actionId) => {
-                  const details = ACTION_DETAILS[actionId];
+          {selectedText && !run && (
+            <div className="mb-4 rounded-[10px] bg-agent-muted p-3">
+              <span className="mb-1 block text-meta font-medium text-ink-3">Selected text</span>
+              <div className="line-clamp-2 text-ui-sm text-ink-2">{selectedText}</div>
+            </div>
+          )}
+
+          {!run ? (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-0.5" role="group" aria-label="Actions">
+                {list.map((id) => {
+                  const details = PANEL_ACTIONS[id]!;
                   const Icon = details.icon;
                   return (
                     <Button
-                      key={actionId}
+                      key={id}
                       variant="ghost"
-                      onClick={() => executeAction(actionId)}
+                      onClick={() => void execute(id)}
                       className="group h-11 w-full justify-start gap-3 rounded-lg px-2 text-left hover:bg-hover active:bg-press"
                     >
                       <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-agent-muted text-agent-ink [&_svg]:!text-agent-ink">
                         <Icon className="!size-4" />
                       </span>
                       <span className="flex min-w-0 flex-col">
-                        <span className="text-ui font-[510] text-ink">{details.label}</span>
+                        <span className="text-ui font-[510] text-ink">{id === "summarize" ? "Summarise this doc" : DOC_AI_ACTIONS[id].label}</span>
                         <span className="truncate text-meta font-normal text-ink-3">{details.description}</span>
                       </span>
                     </Button>
@@ -281,173 +428,201 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                     onClick={() => setShowPromptInput(true)}
                     className="h-9 w-full justify-start gap-3 rounded-lg px-2 text-ui-sm text-ink-2 hover:bg-hover hover:text-ink"
                   >
-                    <span className="inline-flex size-7 items-center justify-center"><MessageSquarePlus className="!size-4" /></span>
-                    Write your own instruction…
+                    <span className="inline-flex size-7 items-center justify-center">
+                      <MessageSquarePlus className="!size-4" />
+                    </span>
+                    {hasSelection ? "Say what to change, or ask about it…" : "Say what to write, or ask about the doc…"}
                   </Button>
                 ) : (
-                    <div className="bg-background p-1">
+                  <div className="p-1">
                     <Textarea
                       value={customPrompt}
                       onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder="e.g., 'Make it sound like a pirate' or 'Convert to a todo list'..."
-                      className="field-surface w-full min-h-[100px] rounded-[10px] p-3 text-ui text-ink resize-none outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          runCustom();
+                        }
+                      }}
+                      aria-label={hasSelection ? "What to change, or a question" : "What to write, or a question"}
+                      placeholder={hasSelection ? "Make it a table, or ask what it means" : "Draft a rollout checklist, or ask who owns what"}
+                      className="field-surface min-h-[100px] w-full resize-none rounded-[10px] p-3 text-ui text-ink outline-none"
                       autoFocus
                     />
-                    <div className="flex justify-between items-center mt-3">
-                      <Button variant="ghost" onClick={() => setShowPromptInput(false)} className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground hover:bg-transparent">Cancel</Button>
-                      <Button
-                        onClick={() => executeAction('write', customPrompt)}
-                        disabled={!customPrompt.trim()}
-                        size="sm"
-                      >
-                        <Send className="h-3 w-3" />
-                        Generate
+                    <div className="mt-3 flex items-center justify-between">
+                      <Button variant="ghost" size="sm" onClick={() => setShowPromptInput(false)} className="text-ink-3 hover:text-ink">
+                        Cancel
+                      </Button>
+                      <Button onClick={runCustom} disabled={!customPrompt.trim()} size="sm">
+                        <CornerDownLeft className="size-3" />
+                        Go
                       </Button>
                     </div>
                   </div>
                 )}
               </div>
-            </motion.div>
+            </div>
           ) : (
-            <motion.div
-              key="result"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-4"
-            >
-              {hookIsStreaming && !streamText ? (
-                <div className="flex flex-col items-center justify-center py-[60px] gap-4">
-                  <Sparkles className="size-6 text-agent-ink animate-pulse" />
-                  <span className="text-ui-sm text-ink-3">
-                    {state.action === 'write' ? 'Writing…' : 'Thinking…'}
-                  </span>
-                  <Button variant="secondary" size="sm" onClick={handleCancel} className="mt-2">Stop</Button>
-                </div>
-              ) : (
-                <div className="rounded-[12px] bg-raised p-4 shadow-e1">
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="flex items-center gap-2">
-                       <button
-                         onClick={handleBack}
-                         className="p-1.5 rounded-lg text-ink-3 transition-colors hover:bg-hover hover:text-ink"
-                         title="Back"
-                       >
-                         <ArrowLeft className="h-3 w-3" />
-                       </button>
-                       <span className="text-meta font-medium text-agent-ink">Draft</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-colors hover:bg-hover hover:text-ink" title="Copy to clipboard">
-                        {copied ? <Check className="h-3 w-3 text-success-ink" /> : <Copy className="h-3 w-3" />}
-                      </button>
-                      <button onClick={resetState} className="p-1.5 rounded-lg text-muted-foreground transition-colors hover:bg-hover hover:text-ink" title="Start over">
-                        <RotateCcw className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-[350px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar" ref={resultRef}>
-                    <div className="text-sm leading-relaxed">
-                        <motion.div>
-                            {streamText}
-                            {hookIsStreaming && (
-                                <motion.span
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="inline-block w-5 h-4 -ml-2.5 bg-[linear-gradient(90deg,transparent,color-mix(in_oklab,var(--agent)_40%,transparent),transparent)] animate-text-shimmer align-middle"
-                                />
-                            )}
-                            {hookIsStreaming && <span className="inline-block w-[2px] h-4 bg-agent ml-0.5 align-middle animate-blink" />}
-                        </motion.div>
-                    </div>
-                  </div>
-
-                  {/* The result came from part of the selection. Shown after streaming
-                      finishes, muted, and never styled like hookError above: the action
-                      succeeded, and someone about to insert this into their document is
-                      entitled to know it did not read all of the input. */}
-                  {!hookIsStreaming && streamNotice && (
-                    <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground" role="note">
-                      <Scissors size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
-                      <span>{streamNotice}</span>
-                    </div>
-                  )}
-
-                  {!hookIsStreaming && (
-                    <motion.div
-                      key="refine-and-actions"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
-                      className="space-y-4"
+            <div className="space-y-4">
+              <div className="rounded-[12px] bg-raised p-4 shadow-e1" data-doc-ai-panel-run={run.phase}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={back}
+                      aria-label="Back to the actions"
+                      title="Back (Esc)"
+                      className="rounded-lg p-1.5 text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
                     >
-                      <div className="field-surface mt-2 overflow-hidden rounded-[10px]">
-                        <div className="relative group/input">
-                          <Input
-                            type="text"
-                            value={refinePrompt}
-                            onChange={(e) => setRefinePrompt(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault()
-                                    handleRefine()
-                                }
-                            }}
-                            placeholder="Ask for a change, like ‘make it formal’"
-                            className="w-full bg-transparent border-none px-3.5 py-2.5 text-foreground text-sm outline-none shadow-none ring-0 focus-visible:ring-0"
-                          />
-                          <Button
- aria-label="Refine"                            variant="ghost"
-                            size="icon"
-                            disabled={!refinePrompt.trim()}
-                            onClick={handleRefine}
-                            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 text-ink-2 hover:bg-hover"
+                      <ArrowLeft className="size-3" />
+                    </button>
+                    <span
+                      className={cn(
+                        "truncate text-meta font-medium",
+                        working
+                          ? "bg-[linear-gradient(90deg,var(--ink-2),var(--agent),var(--ink-2))] bg-[length:200%_100%] bg-clip-text text-transparent animate-text-shimmer motion-reduce:animate-none motion-reduce:text-ink-2"
+                          : "text-agent-ink",
+                      )}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {working
+                        ? run.phase === "waiting" && still
+                          ? stillWorkingLine(run.model ?? model)
+                          : `${workingLabel(run.action)}…`
+                        : DOC_AI_ACTIONS[run.action]?.label}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {working ? (
+                      <Button variant="secondary" size="sm" onClick={stop} title="Stop (Esc)">
+                        <Square className="size-3" />
+                        Stop
+                      </Button>
+                    ) : (
+                      <>
+                        {run.text && (
+                          <button
+                            type="button"
+                            onClick={copy}
+                            aria-label="Copy the answer"
+                            title="Copy"
+                            className="rounded-lg p-1.5 text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
                           >
-                            <CornerDownLeft className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+                            {copied ? <Check className="size-3 text-success-ink" /> : <Copy className="size-3" />}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void execute(run.action, { prompt: run.prompt })}
+                          aria-label="Try again"
+                          title="Try again"
+                          className="rounded-lg p-1.5 text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                        >
+                          <RotateCcw className="size-3" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-                        <div className="flex flex-col gap-2">
-                        {state.hasJustReplaced ? (
-                          <Button
-                            variant="secondary"
-                            className="w-full"
-                            onClick={handleUndo}
-                          >
-                            <RotateCcw className="h-4 w-4 mr-2" />
-                            Undo the change
-                          </Button>
-                        ) : (
-                          <Button className="w-full" onClick={handleReplace}>
+                {run.text ? (
+                  <div className="max-h-[350px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar" ref={resultRef}>
+                    <div className="text-ui text-ink">
+                      <MarkdownMessage content={run.text} />
+                      {run.phase === "streaming" && <span className="ml-0.5 inline-block h-4 w-[2px] animate-blink bg-agent align-middle motion-reduce:animate-none" aria-hidden="true" />}
+                    </div>
+                  </div>
+                ) : run.phase === "waiting" ? (
+                  <SkeletonRows rows={3} />
+                ) : null}
+
+                {run.phase === "error" && run.error && (
+                  <p className="mt-2 text-ui-sm text-danger-ink" role="alert">
+                    {run.error}
+                  </p>
+                )}
+
+                {/* The answer came from part of the input: said after it ends,
+                    muted, never like an error. */}
+                {!working && run.notice && (
+                  <div className="mt-2 flex items-start gap-1.5 text-meta text-ink-3" role="note">
+                    <Scissors size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>{run.notice}</span>
+                  </div>
+                )}
+
+                {!working && run.text && (
+                  <div className="mt-3 space-y-3">
+                    <div className="field-surface relative overflow-hidden rounded-[10px]">
+                      <Input
+                        type="text"
+                        value={refinePrompt}
+                        onChange={(e) => setRefinePrompt(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            refine();
+                          }
+                        }}
+                        aria-label="Ask for a change to the answer"
+                        placeholder="Ask for a change, like ‘make it formal’"
+                        className="w-full border-none bg-transparent px-3.5 py-2.5 text-ui-sm text-ink shadow-none outline-none ring-0 focus-visible:ring-0"
+                      />
+                      <Button
+                        aria-label="Change the answer"
+                        variant="ghost"
+                        size="icon"
+                        disabled={!refinePrompt.trim()}
+                        onClick={refine}
+                        className="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-ink-2 hover:bg-hover"
+                      >
+                        <CornerDownLeft className="size-4" />
+                      </Button>
+                    </div>
+
+                    {placed ? (
+                      <p className="flex items-center gap-1.5 text-ui-sm text-ink-2" role="status">
+                        <ArrowRightToLine className="size-3.5 shrink-0 text-agent-ink" aria-hidden="true" />
+                        It&apos;s in the doc for review: accept or discard it there.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {canReplace && (
+                          <Button className="w-full" onClick={() => void place("replace")}>
                             Replace the selection
                           </Button>
                         )}
-                        <Button variant="secondary" className="w-full" onClick={handleInsert}>
+                        <Button variant={canReplace ? "secondary" : "default"} className="w-full" onClick={() => void place("insert")}>
                           Insert below
                         </Button>
                       </div>
-                    </motion.div>
-                  )}
-                </div>
-              )}
-            </motion.div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-        </AnimatePresence>
-
-         {hookError && (
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-[10px] bg-camp-berry-tint p-3 text-camp-berry-ink" role="alert">
-            <span className="text-ui-sm">{hookError}</span>
-            <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-2xs underline hover:bg-transparent">Dismiss</Button>
-          </div>
-        )}
-      </div>
+        </div>
       </ScrollArea>
     </div>
   );
 };
-// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
-// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
-// export covers every place this is rendered, desktop and mobile, rather than asking
-// each of them to remember.
-export const DocAiAssistantPanel = withAI(DocAiAssistantPanelUngated)
+
+/**
+ * Gated on the AI subsystem (hidden on the AI-free edition and wherever AI is
+ * off). While the setting is still loading it holds its place, so the action
+ * it was opened with runs once it is known (N44, N18).
+ */
+export function DocAiAssistantPanel(props: DocAiAssistantPanelProps) {
+  const ai = useFeatureState(FEATURE_AI);
+  if (ai === "unavailable") return null;
+  if (ai === "unknown") {
+    return (
+      <div className="flex h-full flex-col p-5" role="status" aria-label="Loading the AI panel">
+        <SkeletonRows rows={4} />
+      </div>
+    );
+  }
+  return <DocAiAssistantPanelUngated {...props} />;
+}

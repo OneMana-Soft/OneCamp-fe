@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
-import { Check, ChevronDown, ChevronUp } from "@/lib/icons";
+import { ChevronDown, ChevronUp } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { inputSizing } from "@/components/ui/input"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 const Select = SelectPrimitive.Root
 
@@ -36,7 +37,10 @@ const SelectTrigger = React.forwardRef<React.ElementRef<typeof SelectPrimitive.T
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "field-surface flex w-full items-center justify-between whitespace-nowrap rounded-md px-2.5 py-1 text-sm data-[placeholder]:text-faint-foreground [&>span]:line-clamp-1",
+      // The value truncates with an ellipsis: line-clamp ends a text at a line
+      // break, and on one nowrap line there is none, so a long value was cut
+      // mid-letter ("Workspace default (claude-sonr").
+      "field-surface flex w-full items-center justify-between gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-sm data-[placeholder]:text-faint-foreground [&>span]:min-w-0 [&>span]:truncate",
       inputSizing(className, dense),
       className
     )}
@@ -141,11 +145,9 @@ const SelectItem = React.forwardRef<
     )}
     {...props}
   >
-    <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
-      <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </SelectPrimitive.ItemIndicator>
-    </span>
+    <SelectPrimitive.ItemIndicator className="absolute right-2 flex">
+      <MenuCheck checked />
+    </SelectPrimitive.ItemIndicator>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ))

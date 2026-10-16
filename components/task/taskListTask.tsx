@@ -157,7 +157,10 @@ export const TaskListTask = ({
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
-        className={cn("relative flex h-14 items-center bg-sheet pr-4 active:bg-press", isSelected && "bg-sel")}
+        // The press is an overlay on the sheet, never a see-through fill: a
+        // translucent --press let the swipe's actions show through the row
+        // being dragged ("Tomo••ow" under More).
+        className={cn("relative flex h-14 items-center bg-sheet pr-4 active:shadow-[inset_0_0_0_100vmax_var(--press)]", isSelected && "shadow-[inset_0_0_0_100vmax_var(--sel)]")}
         style={{ transform: `translateX(${dx}px)`, transition: settle, touchAction: "pan-y" }}
       >
         {selectionMode ? (

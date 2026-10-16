@@ -24,6 +24,7 @@ import { UserProfileInterface } from "@/types/user"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { WorkspaceName } from "@/hooks/useWorkspaceName"
 
 interface ChatOptionsDrawerProps {
     drawerOpenState: boolean
@@ -77,8 +78,8 @@ export function ChatOptionsDrawer({
         <Drawer detent="menu" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
-                    <DrawerTitle className="capitalize">
-                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    <DrawerTitle>
+                        <WorkspaceName />
                     </DrawerTitle>
                     <DrawerDescription>Chat options</DrawerDescription>
                 </DrawerHeader>

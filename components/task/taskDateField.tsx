@@ -51,6 +51,127 @@ type DateFieldProps = {
 }
 
 export function DateField({ isAdmin, label, value, onSelect, onClear, className, compact = false, bare = false, emptyText, onOpenChange }: DateFieldProps) {
+    const { isMobile } = useMedia()
+    const [open, setOpenState] = useState(false)
+    // Wrap setOpen so the parent is always notified of open/close transitions.
+    const setOpen = (next: boolean) => {
+        setOpenState(next)
+        onOpenChange?.(next)
+    }
+
+    const TriggerButton = bare ? (
+        <button
+            type="button"
+            aria-label={`${label}: ${value ? shortDate(value) : "none"}`}
+            // 24px tall: a finger's 44px (app/phone.css F3; PTC-14, the task
+            // page's dates were 55 by 24).
+            data-touch-target=""
+            className={cn(
+                "-mx-1 inline-flex h-6 items-center rounded-sm px-1 text-sm font-[450] tabular-nums transition-colors hover:bg-hover disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-ring",
+                value ? "text-foreground" : "text-ink-3",
+                className,
+            )}
+            disabled={!isAdmin}
+        >
+            {value ? shortDate(value) : emptyText ?? label}
+        </button>
+    ) : (
+        <Button
+            variant={compact ? "outline" : "ghost"}
+            // Named with its label in every form: a compact one in a dialog
+            // (a goal's dates) read only "31 Dec".
+            aria-label={`${label}: ${value ? shortDate(value) : "none"}`}
+            className={cn(
+                compact ? "h-8 px-2 text-xs" : cn(inlineValue, "tabular-nums"),
+                !value && "text-muted-foreground",
+                className
+            )}
+            disabled={!isAdmin}
+        >
+            {value ? shortDate(value) : <span>{compact ? label : isAdmin ? `Add ${label.toLowerCase()}` : "None"}</span>}
+            <CalIcon aria-hidden className={compact ? "ml-1 h-3 w-3" : cn(inlineAffordance, "h-3.5 w-3.5")} />
+        </Button>
+    )
+
+    const PickerContent = (
+        <DatePickerPanel
+            label={label}
+            value={value}
+            isAdmin={isAdmin}
+            onSelect={onSelect}
+            onClear={onClear}
+            onClose={() => setOpen(false)}
+            closeOnPick={isMobile}
+        />
+    )
+
+    const Control = (
+        <div className="relative w-fit">
+            {isMobile ? (
+                <Drawer open={open} onOpenChange={setOpen}>
+                    <DrawerTrigger asChild>
+                        {TriggerButton}
+                    </DrawerTrigger>
+                    <DrawerContent>
+                        <DrawerTitle className="sr-only">{label}</DrawerTitle>
+                        <div className="mt-4 border-t pt-4 pb-4 flex flex-col items-center">
+                            {PickerContent}
+                        </div>
+                    </DrawerContent>
+                </Drawer>
+            ) : (
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        {TriggerButton}
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        {PickerContent}
+                    </PopoverContent>
+                </Popover>
+            )}
+        </div>
+    )
+
+    // Bare (the panel's Dates row) is its own row's value: no row of its own,
+    // or Dates nested a second label column ("Start date 9 Oct") inside the
+    // first and wrapped "9 / Oct" on the task page.
+    if (compact || bare) return Control
+
+    return (
+        <div className={propertyRow()} data-field-empty={value ? undefined : ""}>
+            <div>
+                <span className={propertyLabel}>{label}</span>
+            </div>
+            <div className="min-w-0">{Control}</div>
+        </div>
+    )
+}
+
+/**
+ * The date picker itself: a typed date, the quick days, the calendar and
+ * Clear. DateField puts it in a popover (a sheet on a phone); a list's bulk
+ * bar sets many tasks' due date with it.
+ */
+export function DatePickerPanel({
+    label,
+    value,
+    isAdmin,
+    onSelect,
+    onClear,
+    onClose,
+    closeOnPick = false,
+}: {
+    label: string
+    value?: Date
+    isAdmin: boolean
+    onSelect: (d: Date | undefined) => void
+    onClear?: () => void
+    /** Closes whatever holds it, after a quick day. */
+    onClose: () => void
+    /** Closes after a day or Clear too (a phone's sheet, or one choice for many tasks). */
+    closeOnPick?: boolean
+}) {
+    const { isMobile } = useMedia()
     const [inputValue, setInputValue] = useState<string>(value ? format(value, "dd/MM/yyyy") : "")
 
     useEffect(() => {
@@ -77,44 +198,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
         }
     }
 
-    const { isMobile } = useMedia()
-    const [open, setOpenState] = useState(false)
-    // Wrap setOpen so the parent is always notified of open/close transitions.
-    const setOpen = (next: boolean) => {
-        setOpenState(next)
-        onOpenChange?.(next)
-    }
-
-    const TriggerButton = bare ? (
-        <button
-            type="button"
-            aria-label={`${label}: ${value ? shortDate(value) : "none"}`}
-            className={cn(
-                "-mx-1 inline-flex h-6 items-center rounded-sm px-1 text-sm font-[450] tabular-nums transition-colors hover:bg-hover disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-ring",
-                value ? "text-foreground" : "text-ink-3",
-                className,
-            )}
-            disabled={!isAdmin}
-        >
-            {value ? shortDate(value) : emptyText ?? label}
-        </button>
-    ) : (
-        <Button
-            variant={compact ? "outline" : "ghost"}
-            aria-label={compact ? undefined : `${label}: ${value ? shortDate(value) : "none"}`}
-            className={cn(
-                compact ? "h-8 px-2 text-xs" : cn(inlineValue, "tabular-nums"),
-                !value && "text-muted-foreground",
-                className
-            )}
-            disabled={!isAdmin}
-        >
-            {value ? shortDate(value) : <span>{compact ? label : isAdmin ? `Add ${label.toLowerCase()}` : "None"}</span>}
-            <CalIcon aria-hidden className={compact ? "ml-1 h-3 w-3" : cn(inlineAffordance, "h-3.5 w-3.5")} />
-        </Button>
-    )
-
-    const PickerContent = (
+    return (
         <>
             <div className="flex items-center justify-between gap-4 font-medium border-b p-2">
                 <div className='text-xs'>
@@ -150,7 +234,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                                 if (d) onSelect(d)
                                 else if (onClear) onClear()
                                 else onSelect(undefined)
-                                setOpen(false)
+                                onClose()
                             }}
                         >
                             {q.label}
@@ -164,7 +248,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                 selected={value}
                 onSelect={(date) => {
                     onSelect(date)
-                    if (isMobile) setOpen(false)
+                    if (closeOnPick) onClose()
                 }}
                 initialFocus
                 captionLayout="dropdown-buttons"
@@ -201,7 +285,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                             } else {
                                 onSelect(undefined)
                             }
-                            if (isMobile) setOpen(false)
+                            if (closeOnPick) onClose()
                         }}
                         disabled={!isAdmin}
                     >
@@ -210,43 +294,5 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                 </div>
             )}
         </>
-    )
-
-    const Control = (
-        <div className="relative w-fit">
-            {isMobile ? (
-                <Drawer open={open} onOpenChange={setOpen}>
-                    <DrawerTrigger asChild>
-                        {TriggerButton}
-                    </DrawerTrigger>
-                    <DrawerContent>
-                        <DrawerTitle className="sr-only">{label}</DrawerTitle>
-                        <div className="mt-4 border-t pt-4 pb-4 flex flex-col items-center">
-                            {PickerContent}
-                        </div>
-                    </DrawerContent>
-                </Drawer>
-            ) : (
-                <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                        {TriggerButton}
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        {PickerContent}
-                    </PopoverContent>
-                </Popover>
-            )}
-        </div>
-    )
-
-    if (compact) return Control
-
-    return (
-        <div className={propertyRow()} data-field-empty={value ? undefined : ""}>
-            <div>
-                <span className={propertyLabel}>{label}</span>
-            </div>
-            <div className="min-w-0">{Control}</div>
-        </div>
     )
 }

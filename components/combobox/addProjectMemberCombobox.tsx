@@ -45,7 +45,8 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                         <span className="truncate text-sm font-medium">
                             {value
                                 ? displayNameOf(usersList.data?.users?.find((framework) => framework.user_uuid === value))
-                                : "Search members…"
+                                // It adds someone: the list below has its own find (PTC-18).
+                                : "Add a person…"
                             }
                         </span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
@@ -53,9 +54,9 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                 </PopoverTrigger>
                 <PopoverContent className="w-[240px] p-0 shadow-e4 border-border/50">
                     <Command>
-                        <CommandInput placeholder="Search user…" className="h-9" />
+                        <CommandInput placeholder="Find someone in the team…" className="h-9" />
                         <CommandList>
-                            <CommandEmpty>{"No user found"}</CommandEmpty>
+                            <CommandEmpty>Nobody in the team by that name.</CommandEmpty>
                             <CommandGroup>
                                 {usersList.data?.users?.map((user) => (
                                     <UserComboboxItem
@@ -86,7 +87,7 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                 onClick={()=>{handleOnClick(value)}}
                 disabled={!value}
             >
-                Add member
+                Add
             </Button>
         </div>
 

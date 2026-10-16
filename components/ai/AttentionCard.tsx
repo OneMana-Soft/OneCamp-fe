@@ -16,7 +16,8 @@
  */
 
 import React, { useEffect, useState, type ReactNode } from "react"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
 import { getAttention, attentionKey, type AttentionResult, type AttentionItem } from "@/services/memoryService"
 import { forgetShared, peekShared } from "@/lib/utils/sharedRequest"
 import { approvePendingAction, rejectPendingAction } from "@/services/pendingActionService"
@@ -27,8 +28,13 @@ import { NeedsMeSection } from "@/components/home/NeedsMeSection"
 import { SHARED_ACTIONS } from "@/components/home/needsActions"
 import { mergeNeeds, type NeedsItem } from "@/components/home/needsMe"
 
-/** The AI's attention items as Home's rows. Calendar items are the agenda's. Pure. */
-export function attentionToNeeds(items: AttentionItem[], now: Date): NeedsItem[] {
+/**
+ * The AI's attention items as Home's rows. Calendar items are the agenda's.
+ * An item names its project only by name (context): projectIdOf finds the
+ * reader's project of that name, so the row's tile is the project's own (it
+ * was keyed on the name, a third colour for Q4 launch). Pure.
+ */
+export function attentionToNeeds(items: AttentionItem[], now: Date, projectIdOf: (name: string) => string | undefined = () => undefined): NeedsItem[] {
   const out: NeedsItem[] = []
   items.forEach((it, i) => {
     const id = `ai:${it.source}:${it.ref_id || it.url || i}`
@@ -45,7 +51,7 @@ export function attentionToNeeds(items: AttentionItem[], now: Date): NeedsItem[]
         status: "todo",
         due: dueLabel(it.due_time, now) || it.kind,
         overdue,
-        project: it.context ? { id: it.context, name: it.context } : undefined,
+        project: it.context ? { id: projectIdOf(it.context) ?? it.context, name: it.context } : undefined,
         href: it.url,
         taskUuid: it.source === "task" ? it.ref_id : undefined,
       })
@@ -69,6 +75,11 @@ interface AttentionCardProps {
 
 function AttentionCard({ base = [], baseLoading = false, footer, noChannels, className }: AttentionCardProps) {
   const dispatch = useDispatch()
+  const projects = useSelector((s: RootState) => s.users.userSidebar.userProjects)
+  const projectIdOf = React.useMemo(() => {
+    const byName = new Map((projects ?? []).map((p) => [p.project_name.trim().toLowerCase(), p.project_uuid]))
+    return (name: string) => byName.get(name.trim().toLowerCase())
+  }, [projects])
   // Start from the answer kept from a moment ago, if any, so coming back to
   // Home shows the list at once instead of a placeholder.
   const [data, setData] = useState<AttentionResult | null>(() => peekShared<AttentionResult>(attentionKey()) ?? null)
@@ -121,7 +132,7 @@ function AttentionCard({ base = [], baseLoading = false, footer, noChannels, cla
   }
 
   // Guard the collection: a null items slice must not throw during render.
-  const aiItems = data?.enabled && Array.isArray(data.items) ? attentionToNeeds(data.items, now) : []
+  const aiItems = data?.enabled && Array.isArray(data.items) ? attentionToNeeds(data.items, now, projectIdOf) : []
   // The AI's rows first where both name one task (its due phrase is exact).
   const items = mergeNeeds(aiItems, base)
 

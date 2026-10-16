@@ -101,6 +101,8 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
                     <ChatUserListUserAvatar
                         userName={UName}
                         userProfileObjKey={otherParticipant.user_profile_object_key}
+                        userUUID={otherParticipant.user_uuid}
+                        isBot={!!otherParticipant.is_bot}
                     />
                     {isOnline && (
                         <span

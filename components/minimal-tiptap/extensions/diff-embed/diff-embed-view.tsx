@@ -128,10 +128,10 @@ export const DiffEmbedView: React.FC<{ node: { attrs: { diff?: string } } }> = (
                         <tbody>
                             {shown.map((r, i) => (
                                 <tr key={i} className={ROW_STYLES[r.kind]}>
-                                    <td className="select-none px-2 text-right align-top tabular-nums text-ink-4">
+                                    <td className="select-none px-2 text-right align-top tabular-nums text-ink-3">
                                         {r.oldNo ?? ""}
                                     </td>
-                                    <td className="select-none px-2 text-right align-top tabular-nums text-ink-4">
+                                    <td className="select-none px-2 text-right align-top tabular-nums text-ink-3">
                                         {r.newNo ?? ""}
                                     </td>
                                     <td className="whitespace-pre-wrap break-words px-2 align-top">

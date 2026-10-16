@@ -5,13 +5,13 @@ import { addDays, differenceInCalendarDays, format, isSameDay, isSameMonth, isWe
 import { Plus } from "@/lib/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SpotCalendar } from "@/components/ui/graphics";
-import { shortTime } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import { HueBlock } from "@/components/calendar/HueBlock";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { allDayItem, dayKey, type DatedItem, type WeekBar } from "@/components/calendar/calendarLayout";
 import type { CalendarDraft } from "@/components/calendar/weekView";
+import { clockTime } from "@/lib/utils/date/clock";
 
 /**
  * The month (content.md C05, C06): hairlines between days only, weekends on
@@ -209,7 +209,7 @@ export function MonthView<T extends MonthItem>({
                         aria-current={isToday ? "date" : undefined}
                         className={cn(
                           "flex h-6 min-w-6 items-center justify-center text-ui-sm font-medium tabular-nums",
-                          isToday ? "rounded-full font-semibold text-brand-text ring-[1.5px] ring-inset ring-brand" : outside ? "text-ink-4" : "text-ink-2",
+                          isToday ? "rounded-full font-semibold text-brand-text ring-[1.5px] ring-inset ring-brand" : outside ? "text-ink-3" : "text-ink-2",
                           first && !isToday && "font-semibold",
                           !isToday && "justify-start",
                         )}
@@ -334,7 +334,7 @@ export function MonthView<T extends MonthItem>({
                       >
                         <span className={cn("truncate leading-none", isTask && item.task_status === "done" && "line-through decoration-ink-4")}>
                           {timed ? (
-                            <span className="mr-1 hidden text-micro font-[450] tabular-nums opacity-70 @[40rem]/month:inline">{compactTime(parseISO(item.event_start_time))}</span>
+                            <span className="mr-1 hidden text-micro font-[450] tabular-nums opacity-70 @[40rem]/month:inline">{clockTime(parseISO(item.event_start_time), { compact: true })}</span>
                           ) : null}
                           {item.event_title}
                         </span>
@@ -352,10 +352,6 @@ export function MonthView<T extends MonthItem>({
   );
 }
 
-/** "9:30", "14:00": the month bar's time, as the mock writes it. */
-function compactTime(d: Date): string {
-  return shortTime(d).replace(/\s?[AP]M$/i, "");
-}
 
 /** Lights every segment of one item (a meeting across two weeks is two bars). */
 function light(from: HTMLElement, uuid: string, on: boolean) {
@@ -416,7 +412,7 @@ function MorePopover<T extends MonthItem>({
               <span className="min-w-0 flex-1 truncate">{item.event_title}</span>
               {!item.isTask ? (
                 <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">
-                  {allDayItem(item, parseISO(item.event_start_time), parseISO(item.event_end_time)) ? "All day" : shortTime(parseISO(item.event_start_time))}
+                  {allDayItem(item, parseISO(item.event_start_time), parseISO(item.event_end_time)) ? "All day" : clockTime(parseISO(item.event_start_time))}
                 </span>
               ) : null}
             </HueBlock>

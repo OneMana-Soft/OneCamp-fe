@@ -32,10 +32,17 @@ import { instantMeetingPath, joinInstantMeeting, newInstantMeetingLink } from "@
 import type { UserProfileInterface } from "@/types/user"
 
 
-/** Why the page can't open this meeting, from the server's answer: not the creator's, or over. Pure. */
+/**
+ * Why the page can't open this meeting, from the server's answer: not the
+ * creator's, never there ("no_meeting"), or over. A 404 without a code, from
+ * a server that didn't yet tell the last two apart, reads as over. Pure.
+ */
 export function meetingUnavailable(status: number, code: string): { title: string; detail: string } | null {
   if (status === 403 || code === "not_host") {
     return { title: "This meeting is someone else's", detail: "Only the person who started it can open it here. If you were invited, use the link they sent." }
+  }
+  if (code === "no_meeting") {
+    return { title: "We couldn't find this meeting", detail: "The link may be mistyped. Check it, or start a new meeting." }
   }
   if (status === 404) {
     return { title: "This meeting has ended", detail: "Its link has expired or was turned off. Start a new meeting to talk again." }

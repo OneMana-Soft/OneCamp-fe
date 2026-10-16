@@ -103,7 +103,15 @@ const AgentActiveWorkPanel: React.FC<{ title?: string; className?: string }> = (
       <div data-settings-card="" className="set-card">
         <ul className="max-h-[22rem] overflow-y-auto custom-scrollbar">
           {sorted.map((it) => (
-            <li key={it.task_id} data-live-row="" data-live={it.state === "working" ? "true" : undefined} className="ai-live-row">
+            <li
+              key={it.task_id}
+              data-live-row=""
+              data-live={it.state === "working" ? "true" : undefined}
+              // The waiting tint on the whole row, avatar column too: on the
+              // row's words alone it left a white strip beside a tinted one.
+              data-blocked={it.state === "blocked" ? "true" : undefined}
+              className="ai-live-row"
+            >
               <span aria-hidden="true" data-live-bar="" className="ai-live-bar" />
               <span className="mt-2.5 size-7 shrink-0">
                 <AgentAvatar />
@@ -111,7 +119,7 @@ const AgentActiveWorkPanel: React.FC<{ title?: string; className?: string }> = (
               <ul className="min-w-0 flex-1">
                 <AgentWorkRow
                   item={it}
-                  className="pr-3"
+                  className="bg-transparent pr-3"
                   onChanged={load}
                   onError={(msg) => toast({ title: "Couldn't stop it", description: msg, variant: "destructive" })}
                 />

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
-import { isImageByExtension } from "@/lib/utils/file/getAttachmentType"
+import { isImageByExtension, viewableDocumentType } from "@/lib/utils/file/getAttachmentType"
 import { useAnalyzeImage, useAnalyzeDocument } from "@/services/aiService"
 
 /**
@@ -505,27 +505,14 @@ export function MediaLightboxDialog({
 
             case "document":
             case "other":
-                const extension = fileName.split(".").pop()?.toLowerCase() || ""
-                const supportedDocs = [
-                    "pdf",
-                    "txt",
-                    "doc",
-                    "docx",
-                    "xls",
-                    "xlsx",
-                    "csv",
-                    "json",
-                    "xml",
-                    "log",
-                    "md",
-                ]
+                const viewable = viewableDocumentType(fileName)
 
-                if (supportedDocs.includes(extension)) {
+                if (viewable) {
                     return (
                         <DocumentViewer
                             key={currentMedia.attachment_uuid}
                             url={mediaReq.data?.url || ""}
-                            type={extension}
+                            type={viewable}
                         />
                     )
                 }
@@ -553,8 +540,12 @@ export function MediaLightboxDialog({
     // the info rail on demand.
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
+            {/* The whole screen, edge to edge. The dialog surface caps itself
+                at 85dvh (a long form scrolls inside it): without lifting that
+                cap the stage stopped 15% short of the bottom, the page showed
+                undimmed beneath it and the zoom bar floated mid-screen. */}
             <DialogContent
-                className="!fixed !inset-0 !left-0 !top-0 !h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden !rounded-none border-0 bg-[rgb(8_9_10/.92)] p-0 !shadow-none [&>button]:hidden"
+                className="!fixed !inset-0 !left-0 !top-0 !h-dvh !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden !rounded-none border-0 bg-[rgb(8_9_10/.92)] p-0 !shadow-none [&>button]:hidden"
                 data-lightbox=""
             >
                 <DialogHeader className="sr-only">
@@ -592,7 +583,7 @@ export function MediaLightboxDialog({
                                         }}
                                         disabled={asking}
                                         className={barButtonClass}
-                                        aria-label={effectiveType === "image" ? "Ask AI about this image" : "Summarize with AI"}
+                                        aria-label={effectiveType === "image" ? "Ask AI about this image" : "Summarise with AI"}
                                     >
                                         {asking ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                                     </Button>

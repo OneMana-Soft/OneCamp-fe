@@ -266,7 +266,7 @@ function PeopleHead({ columns, count, countId }: { columns: string[]; count?: st
       <span className="flex items-center gap-1.5">
         Name
         {count ? (
-          <span id={countId} className="font-book tabular-nums text-ink-4">
+          <span id={countId} className="font-book tabular-nums text-ink-3">
             {count}
           </span>
         ) : null}

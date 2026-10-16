@@ -180,8 +180,10 @@ export const ChatComposerShell = React.forwardRef<HTMLDivElement, ChatComposerSh
                             />
                             <FormatToggle open={formatOpen} onToggle={toggleFormat} />
                             <EmojiReactionPicker editor={editor} size="sm" className={COMPOSER_TOOL} />
-                            {!compact && <MentionTool editor={editor} />}
-                            {!compact && <RecordTool onRecordClip={onFiles ? openClip : undefined} dictation={dictation} />}
+                            {/* A thread's compact box has them too: @ and Record were in the
+                                list's composer and not a thread's (QA F-41). */}
+                            <MentionTool editor={editor} />
+                            <RecordTool onRecordClip={onFiles ? openClip : undefined} dictation={dictation} />
                             <div className="min-w-0 flex-1" />
                             {overLimit ? (
                                 <LimitCounter editor={editor} />

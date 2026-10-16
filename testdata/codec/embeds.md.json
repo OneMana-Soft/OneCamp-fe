@@ -1,0 +1,75 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/tables/tbl-1",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Table",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "Poll",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "spec": "{\"type\":\"bar\",\"title\":\"Signups\",\"data\":[1,2,3]}"
+      },
+      "type": "chartEmbed"
+    },
+    {
+      "attrs": {
+        "language": "diff"
+      },
+      "content": [
+        {
+          "text": "--- a\n+++ b\n@@ -1 +1 @@\n-old <x>\n+new & \"quoted\"",
+          "type": "text"
+        }
+      ],
+      "type": "codeBlock"
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/recordings",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Call recording",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

@@ -2,8 +2,20 @@ import { Extension } from "@tiptap/core"
 import { PluginKey } from "@tiptap/pm/state"
 import Suggestion from "@tiptap/suggestion"
 import { SlashCommandItem, slashCommandSuggestion, CHAT_COMMANDS } from "./slashCommand"
+import { inCode } from "../suggestion-popup"
 
 const SlashCommandPluginKey = new PluginKey("slash-command")
+
+/**
+ * The chat composer's commands (/remind, /poll, an app's own) are its
+ * conversation's (setBackendCommandProvider, per surface). They once reached a
+ * doc's "/" beside a thread, and picking one fired it into that composer
+ * (how-docs-work N6): an editor with its own list (a doc's) never offers them.
+ * Pure.
+ */
+export function withoutChatCommands(items: SlashCommandItem[]): SlashCommandItem[] {
+  return items.filter((item) => !item.id.startsWith("cmd-"))
+}
 
 export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>({
   name: "slash-command",
@@ -22,6 +34,7 @@ export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>(
 
   addProseMirrorPlugins() {
     const commands = this.options.commands || CHAT_COMMANDS
+    const ownList = !!this.options.commands
     const { render } = slashCommandSuggestion
 
     return [
@@ -32,8 +45,11 @@ export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>(
           props.command({ editor, range })
         },
         items: ({ query, editor }): SlashCommandItem[] => {
-          return slashCommandSuggestion.items({ query, commands, editor })
+          const items = slashCommandSuggestion.items({ query, commands, editor })
+          return ownList ? withoutChatCommands(items) : items
         },
+        // "/" in code is code ("a/b", a path, a comment), not a menu.
+        allow: ({ state, range }) => !inCode(state, range.from),
         render,
       }),
     ]

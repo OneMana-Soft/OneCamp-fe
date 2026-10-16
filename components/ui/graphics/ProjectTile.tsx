@@ -1,7 +1,9 @@
+"use client"
+
 import type { CSSProperties } from "react"
 
 import { Box, Flag, Globe, Heart, Layers, Rocket, Target, Zap } from "@/lib/icons"
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { useProjectHue } from "@/lib/projectHue"
 import { cn } from "@/lib/utils/helpers/cn"
 
 import { HUE_CLASS } from "./hues"
@@ -23,11 +25,14 @@ export function projectGlyphFor(id: string | null | undefined, chosen?: string |
   return GLYPH_ORDER[h % GLYPH_ORDER.length]
 }
 
-/** The four sizes, with their radius and glyph (work.md W07). */
+/** The sizes, with their radius and glyph (work.md W07; 14 sits in a 12px meta line, 24 is a search row's lead, 32 Home's project card). */
 const SIZES = {
+  14: { radius: 4, glyph: 9 },
   16: { radius: 5, glyph: 10 },
   20: { radius: 6, glyph: 12 },
+  24: { radius: 7, glyph: 14 },
   28: { radius: 8, glyph: 16 },
+  32: { radius: 9, glyph: 16 },
   36: { radius: 10, glyph: 18 },
 } as const
 export type ProjectTileSize = keyof typeof SIZES
@@ -35,9 +40,12 @@ export type ProjectTileSize = keyof typeof SIZES
 /**
  * A project's tile (design v3, work.md W07): a gradient from its hue's a1 to
  * a2 at 140 degrees holding a white glyph, with a soft inner highlight. The
- * project's hue follows it everywhere (rule 1): the header, breadcrumbs,
- * overview rows, task chips and My Tasks' groups all draw this, so the same
- * project is the same tile on every screen. An archived project is grey.
+ * one way a project is drawn (owner's decision, 12 Oct 2026): the sidebar,
+ * the header, the overview, Home, the client view, search, the palette, link
+ * cards, filters and task chips all draw this, so the same project is the
+ * same tile on every screen (app/projectTile.test.ts). Its hue is the
+ * project's own (lib/projectHue): keyed on its id, apart from the reader's
+ * other projects. An archived project is grey.
  *
  * Decorative unless labelled: its name is always beside it.
  */
@@ -45,7 +53,6 @@ export function ProjectTile({
   id,
   chosen,
   glyph,
-  hue,
   size = 16,
   archived,
   label,
@@ -56,13 +63,12 @@ export function ProjectTile({
   /** A colour its admins picked; it wins over the hash. */
   chosen?: string | null
   glyph?: string | null
-  hue?: CampHue
   size?: ProjectTileSize
   archived?: boolean
   label?: string
   className?: string
 }) {
-  const h = hue ?? hueFor(id, chosen)
+  const h = useProjectHue(id, chosen)
   const { radius, glyph: g } = SIZES[size]
   const Glyph = PROJECT_GLYPHS[projectGlyphFor(id, glyph)]
   const style: CSSProperties = {

@@ -64,6 +64,7 @@ const RESOURCE: Record<GuestResourceType, {
   viewLabel: string
   writeLabel?: string
   title: string
+  /** What the link gives, said above its options; none where the dialog around it says it already. */
   blurb: string
   /** Under the permission, when one choice holds back something people expect. */
   note?: string
@@ -77,7 +78,9 @@ const RESOURCE: Record<GuestResourceType, {
   },
   project: {
     noun: "project", write: "comment", start: "comment", viewLabel: "Can see tasks", writeLabel: "Can see and comment", title: "Share with a client",
-    blurb: "A client follows this project's tasks from a link: names, status, dates, assignees and descriptions. With comments on, they also read and write each task's comments, and approve tasks or ask for changes. No account needed.",
+    // The share dialog's preview says what a client sees, point by point: a
+    // paragraph here said it all again under it (PTC-60).
+    blurb: "",
     note: "Approving tasks and asking for changes need “Can see and comment”.",
   },
 }
@@ -152,7 +155,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
   return (
     <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-3 pt-4 border-t border-line"}>
       {embedded ? (
-        !link && <p className="text-sm text-muted-foreground">{kind.blurb}</p>
+        !link && kind.blurb && <p className="text-sm text-muted-foreground">{kind.blurb}</p>
       ) : (
         <Label className="text-sm font-medium text-foreground">
           Share to web
@@ -177,8 +180,12 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
       )}
 
       {open && !link && (
-        <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-1.5">
+        // On a phone the two menus share a row and Create link takes the one
+        // under them, full width at the finger's 44px: side by side, the
+        // menus wouldn't shrink below their words and pushed the button out
+        // past the dialog's edge (the client share sheet at 390).
+        <div data-link-options="" className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
+          <div className="min-w-0 flex-1 space-y-1.5">
             <Label htmlFor={expiryId} className="text-xs text-muted-foreground">Link expires</Label>
             <Select value={String(ttlHours)} onValueChange={(v) => setTtlHours(Number(v))}>
               <SelectTrigger id={expiryId} className="h-9">
@@ -194,7 +201,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
             </Select>
           </div>
           {supportsComment && (
-            <div className="flex-1 space-y-1.5">
+            <div className="min-w-0 flex-[1.4] space-y-1.5">
               <Label htmlFor={permissionId} className="text-xs text-muted-foreground">Permission</Label>
               <Select value={capability} onValueChange={(v) => setCapability(v as GuestCapability)}>
                 <SelectTrigger id={permissionId} className="h-9">
@@ -207,7 +214,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
               </Select>
             </div>
           )}
-          <Button onClick={handleCreate} disabled={creating} className="h-9 shrink-0">
+          <Button onClick={handleCreate} disabled={creating} className="h-9 shrink-0 max-sm:h-11 max-sm:w-full">
             <Link2 className="mr-1.5 h-4 w-4" />
             {creating ? "Creating…" : "Create link"}
           </Button>

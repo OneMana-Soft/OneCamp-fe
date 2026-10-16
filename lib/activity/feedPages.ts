@@ -69,6 +69,7 @@ export function hasSubject(item: UnifiedActivityItem): boolean {
   }
   if (item.activity_type === "COMMENT") return Boolean(item.comment)
   if (item.activity_type === "REACTION") return Boolean(item.reaction)
+  if (item.activity_type === "NOTICE") return Boolean(item.notice)
   return false
 }
 
@@ -175,9 +176,22 @@ function plainWords(html: string): string {
 function recordId(item: UnifiedActivityItem): string | undefined {
   return (
     item.id ||
+    item.notice?.id ||
     item.mention?.uid ||
     (item.activity_type === "COMMENT" ? item.comment?.comment_uuid : undefined) ||
     (item.activity_type === "REACTION" ? item.reaction?.uid : undefined) ||
     undefined
   )
+}
+
+/**
+ * The inbox's page of the feed: notices included (activity type NOTICE), which
+ * the API sends only to an app that asks, since an older one has no badge for
+ * them. The tabs' counts and the list read the same key, so they share a cache.
+ */
+/** The inbox's page size; the tabs count its first page. */
+export const INBOX_PAGE_SIZE = 20
+
+export function inboxFeedKey(endpoint: string, limit: number, cursor = ""): string {
+  return `${endpoint}?limit=${limit}&notices=1${cursor ? `&beforeTime=${encodeURIComponent(cursor)}` : ""}`
 }

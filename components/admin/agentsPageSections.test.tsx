@@ -76,7 +76,15 @@ describe("the sections of Agents and skills", () => {
   it("leaves New agent to the page when the page holds it", () => {
     const open = vi.fn()
     render(<AgentsCard creating={false} onCreatingChange={open} />)
-    expect(screen.queryByRole("button", { name: /New agent/ })).toBeNull()
+    // The section draws no header button of its own: the page's header holds
+    // the one primary. The empty card's secondary (critic #31) is the only
+    // New agent here, and it opens the page's dialog.
+    const buttons = screen.getAllByRole("button", { name: /New agent/ })
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].closest("[data-section-action]")).toBeNull()
+    expect(buttons[0].closest(".set-card")).toBeTruthy()
+    fireEvent.click(buttons[0])
+    expect(open).toHaveBeenCalledWith(true)
   })
 
   it("loads each list in its own shape, and fails compactly with Try again", () => {

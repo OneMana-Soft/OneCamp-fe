@@ -82,7 +82,10 @@ export function FindTimeSuggestions({
       </div>
       {slots && slots.length === 0 && <p className="text-ui-sm text-ink-2">No shared free time this week. Try a shorter meeting.</p>}
       {slots && slots.length > 0 && (
-        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1" data-find-time-strip="">
+        // The strip scrolls sideways: its edge fades, so a cut chip reads
+        // as "more this way" rather than as broken; the end pad keeps the
+        // last chip clear of the fade.
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 pr-6 [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]" data-find-time-strip="">
           {groupByDay(slots, tz).map((d) => (
             <div key={d.day} className="flex shrink-0 flex-col gap-1">
               <span className="text-micro font-medium tabular-nums text-ink-3">{formatDay(d.day)}</span>

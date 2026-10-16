@@ -85,6 +85,23 @@ export function referenceAccentClass(_refType: ReferenceType): string {
   return "bg-foreground/[0.05] text-foreground hover:bg-foreground/[0.09] [&_svg]:text-muted-foreground"
 }
 
+/** The kinds a chip draws live, as each reader may see them (Live Entity Chips). */
+export const LIVE_REFERENCE_TYPES: ReadonlySet<ReferenceType> = new Set(["doc", "task", "project"])
+
+/** Whether an editor is a doc's: only a doc's carries connected work's "@" part (mention-list/mentionInDoc). */
+export const isDocEditor = (editor: { storage: object }) => "mentionInDoc" in editor.storage
+
+/**
+ * The label a chip keeps. In a doc, a doc's, task's or project's chip keeps
+ * only what it is ("Doc"): its name is read live, as each reader may see it,
+ * and a name kept in the doc would reach readers who may not open the thing,
+ * by copy, export and the guest's page. Elsewhere, and for a channel or a
+ * board, the name it was picked by.
+ */
+export function keptLabel(item: Pick<ReferenceItem, "refType" | "label">, inDoc: boolean): string {
+  return inDoc && LIVE_REFERENCE_TYPES.has(item.refType) ? referenceTypeLabel(item.refType) : item.label
+}
+
 export function referenceTypeLabel(refType: ReferenceType): string {
   switch (refType) {
     case "channel":

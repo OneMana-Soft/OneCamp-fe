@@ -25,6 +25,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/compon
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
+import { useModKey } from "@/hooks/useModKey"
 import { useDocAI, DocAIAction } from "@/services/aiService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { Sparkles, Loader2 } from "@/lib/icons"
@@ -85,6 +86,8 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
 }) => {
   const { toast } = useToast()
   const { complete } = useDocAI()
+  // "⌘ ⏎" on a Mac, "Ctrl ⏎" elsewhere.
+  const mod = useModKey()
   const [openState, setOpenState] = useState(false)
   const controlled = openProp !== undefined
   const open = controlled ? openProp : openState
@@ -187,8 +190,9 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
           </div>
         )}
         <div className="mt-3 flex items-center justify-between">
-          <span className="flex items-center gap-1 text-meta text-ink-3"><kbd className="kbd">⌘</kbd><kbd className="kbd">⏎</kbd></span>
-          <Button type="button" size="sm" disabled={anyBusy || !prompt.trim()} onClick={onWrite}>
+          {/* A keyboard's shortcut, so not on a touch screen, where it named keys nobody has. */}
+          <span className="flex items-center gap-1 text-meta text-ink-3 pointer-coarse:hidden"><kbd className="kbd">{mod}</kbd><kbd className="kbd">⏎</kbd></span>
+          <Button type="button" size="sm" disabled={anyBusy || !prompt.trim()} onClick={onWrite} className="ml-auto">
             {busy === "write" && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
             Write
           </Button>

@@ -1,0 +1,150 @@
+{
+  "appURL": "https://app.example.test",
+  "roundTrip": [
+    {
+      "name": "paragraphs"
+    },
+    {
+      "name": "headings"
+    },
+    {
+      "name": "marks"
+    },
+    {
+      "name": "links"
+    },
+    {
+      "name": "lists"
+    },
+    {
+      "name": "tasks"
+    },
+    {
+      "name": "quotes"
+    },
+    {
+      "name": "code"
+    },
+    {
+      "name": "breaks"
+    },
+    {
+      "name": "images"
+    },
+    {
+      "name": "callouts"
+    },
+    {
+      "name": "toggles"
+    },
+    {
+      "name": "mentions"
+    },
+    {
+      "name": "embeds"
+    },
+    {
+      "name": "colors"
+    },
+    {
+      "name": "formatting"
+    },
+    {
+      "name": "ordered-types"
+    },
+    {
+      "name": "kept-table"
+    },
+    {
+      "name": "tables",
+      "schema": "everything"
+    },
+    {
+      "name": "layout"
+    },
+    {
+      "name": "empty"
+    },
+    {
+      "name": "technical"
+    },
+    {
+      "name": "media"
+    },
+    {
+      "name": "connected"
+    }
+  ],
+  "import": [
+    {
+      "name": "server",
+      "from": "html"
+    },
+    {
+      "name": "gdocs",
+      "from": "html",
+      "foreign": true
+    },
+    {
+      "name": "paste",
+      "from": "html",
+      "foreign": true
+    },
+    {
+      "name": "messy",
+      "from": "md"
+    },
+    {
+      "name": "notion",
+      "from": "md"
+    },
+    {
+      "name": "github",
+      "from": "md"
+    },
+    {
+      "name": "github-everything",
+      "file": "github",
+      "from": "md",
+      "schema": "everything"
+    },
+    {
+      "name": "edges",
+      "from": "md"
+    },
+    {
+      "name": "legacy",
+      "from": "html"
+    },
+    {
+      "name": "details",
+      "from": "html",
+      "foreign": true
+    },
+    {
+      "name": "toc",
+      "from": "md"
+    },
+    {
+      "name": "layout-foreign",
+      "from": "html",
+      "foreign": true
+    },
+    {
+      "name": "layout-malformed",
+      "from": "html"
+    }
+  ],
+  "export": [
+    {
+      "name": "plan",
+      "fixture": "callouts",
+      "title": "Q3 plan: \"launch\" & <beta>"
+    },
+    {
+      "name": "wiki",
+      "fixture": "kept-table",
+      "title": "Team wiki"
+    }
+  ]
+}

@@ -57,7 +57,7 @@ describe("the event popover (C12)", () => {
     render(<EventPopover event={ev} anchor={anchor} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
     const dialog = screen.getByRole("dialog", { name: "Design review" })
     expect(dialog.className).toMatch(/w-\[360px\]/)
-    expect(dialog.textContent).toMatch(/Thu 15 Oct · 11:00 AM – 12:00 PM/)
+    expect(dialog.textContent).toMatch(/Thu 15 Oct · 11:00\u00a0AM – 12:00\u00a0PM/)
     expect(dialog.textContent).toMatch(/in 1 hour/)
     expect(screen.getByRole("link", { name: /Join call/ }).getAttribute("href")).toBe("https://meet.example.com/abc")
   })

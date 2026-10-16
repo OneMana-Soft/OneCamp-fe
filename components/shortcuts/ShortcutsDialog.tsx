@@ -49,7 +49,7 @@ export function shortcutGroups({ ai }: { ai: boolean }): ShortcutGroup[] {
         { keys: "Ctrl/⌘ + K", does: "Search or ask" },
         ...(ai ? [{ keys: "Ctrl/⌘ + J", does: "Ask OneCamp AI" }] : []),
         { keys: "Ctrl/⌘ + \\", does: "Toggle the sidebar" },
-        { keys: "?", does: "This list" },
+        { keys: "? or Ctrl/⌘ + / or F1", does: "This list" },
       ],
     },
     { title: "Go to", rows: goRows },
@@ -77,10 +77,16 @@ export type Piece = { key: string } | { word: string }
  */
 export function pieces(keys: string, mac: boolean): Piece[] {
   const out: Piece[] = []
+  let afterPlus = false
   for (const raw of keys.replace(/[()]/g, " ").split(/\s+/).filter(Boolean)) {
-    if (raw === "+") continue
-    if (raw === "/" || /^[a-z]+$/.test(raw)) out.push({ word: raw })
+    if (raw === "+") {
+      afterPlus = true
+      continue
+    }
+    // A "/" after "+" is the slash key (Ctrl/⌘ + /); between keys it says "or".
+    if ((raw === "/" && !afterPlus) || /^[a-z]+$/.test(raw)) out.push({ word: raw })
     else out.push({ key: raw === "Ctrl/⌘" ? (mac ? "⌘" : "Ctrl") : raw })
+    afterPlus = false
   }
   return out
 }
@@ -97,8 +103,8 @@ export function combosOf(keys: string): string[][] {
     const parts = alt.split(/\s+\+\s+/).map((p) => p.trim()).filter(Boolean)
     if (parts.length < 2) continue
     const last = parts.pop()!
-    // "Ctrl + Alt + 1 / 2 / 3" is three combinations.
-    for (const finalKey of last.split(/\s*\/\s*/).filter(Boolean)) {
+    // "Ctrl + Alt + 1 / 2 / 3" is three combinations; "Ctrl/⌘ + /" is the slash key.
+    for (const finalKey of last === "/" ? ["/"] : last.split(/\s*\/\s*/).filter(Boolean)) {
       combos.push([...parts, finalKey].map((p) => (p === "Ctrl/⌘" ? "mod" : p.toLowerCase())))
     }
   }
@@ -153,8 +159,9 @@ function Keys({ keys, mac, hit }: { keys: string; mac: boolean; hit: boolean }) 
 }
 
 /**
- * The keyboard shortcuts, behind "?" (when not typing) and the palette
- * (design v3, shell §K, mock M7): 720px, r16, e4. A filter field takes the
+ * The keyboard shortcuts, behind "?" and F1 (when not typing), ⌘/ (Ctrl+/,
+ * Slack's key, from a message box too) and the palette (design v3, shell §K,
+ * mock M7): 720px, r16, e4. A filter field takes the
  * focus and narrows by what a shortcut does or by its keys; two columns of
  * groups; v3 kbd chips. Pressing a listed combination while it is open lights
  * its row and brings it into view, without doing it.
@@ -172,7 +179,11 @@ export function ShortcutsDialog() {
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !typing(e.target)) {
+      // A key something took already stays its own: a doc's ⌘/ is its block menu.
+      if (e.defaultPrevented) return
+      const slash = e.key === "/" && (e.ctrlKey || e.metaKey) && !e.altKey
+      const bare = !e.ctrlKey && !e.metaKey && !e.altKey && !typing(e.target)
+      if (slash || (bare && (e.key === "?" || e.key === "F1"))) {
         e.preventDefault()
         setOpen(true)
       }

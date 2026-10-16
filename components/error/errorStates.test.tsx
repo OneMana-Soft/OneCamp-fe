@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { GlobalErrorBoundary } from "@/components/error/GlobalErrorBoundary"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { ErrorState as LegacyErrorState } from "@/components/error/errorState"
+import { SpotCrash } from "@/components/error/shellSpots"
 
 // What the app says when something breaks: what happened, that nothing saved
 // is lost, and the one thing to do. And a broken page no longer takes the
@@ -20,6 +21,21 @@ function Boom() {
   if (shouldThrow) throw new Error("boom")
   return <p>Back to normal</p>
 }
+
+// One arc with a gap is a loading spinner's shape: the crash spot drawn that
+// way asked "is it still loading?" of a page that had failed (live demo,
+// 11 Oct). Redrawn as a ring broken in two, it still read as a refresh arrow
+// at 24 and 64 px; the crash screens draw the app's one error mark, the page
+// with a "!" (SpotError), at their own sizes (critic integration, 12 Oct).
+describe("the crash spot", () => {
+  it("is the one error mark, a page with no arc in it", () => {
+    const { container } = render(<SpotCrash size={56} />)
+    const svg = container.querySelector("[data-spot-crash] svg")!
+    expect(svg.getAttribute("width")).toBe("56")
+    expect(svg.querySelector("rect.fill-card")).not.toBeNull()
+    for (const p of svg.querySelectorAll("path")) expect(p.getAttribute("d")).not.toMatch(/[aA]\s*\d/)
+  })
+})
 
 describe("a page that crashes inside the app", () => {
   const ROUTE_ERROR = join(__dirname, "..", "..", "app", "app", "error.tsx")

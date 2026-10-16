@@ -5,13 +5,12 @@
 // The project's admins change it, as every task edit; others read it.
 
 import * as React from "react"
-import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
 import { formatDuration, parseDuration } from "@/lib/tasks/time"
-import { inlineInput } from "@/lib/ui/fieldRow"
+import { InlineEdit } from "@/components/task/inlineEdit"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Bar } from "@/components/ui/progress"
@@ -38,10 +37,7 @@ export function TaskEstimateField({
   const { toast } = useToast()
   const { optimisticUpdateTasks } = useTaskUpdate()
   const shown = minutes ? formatDuration(minutes * 60) : ""
-  const [draft, setDraft] = React.useState(shown)
-  const cancelled = React.useRef(false)
   const id = React.useId()
-  React.useEffect(() => setDraft(shown), [shown])
 
   const patch = (value: number) => {
     void appMutate(
@@ -52,25 +48,16 @@ export function TaskEstimateField({
     optimisticUpdateTasks([{ task_uuid: taskUUID, task_estimate_minutes: value }], projectUUID)
   }
 
-  const save = async () => {
-    // Escape blurs too, before the draft it put back has landed: nothing to save.
-    if (cancelled.current) {
-      cancelled.current = false
-      setDraft(shown)
-      return
-    }
+  // Escape puts the value back without calling this (InlineEdit).
+  const save = async (draft: string) => {
     const text = draft.trim()
     // A bare number is hours, as estimates are said: "8" is a day's work, not 8 minutes.
     const next = text === "" ? 0 : parseDuration(/^\d+(\.\d+)?$/.test(text) ? `${text}h` : text, MAX_ESTIMATE_MINUTES)
     if (next === null) {
       toast({ variant: "destructive", title: "That isn't an estimate", description: "Write it like 2h, 1h 30m, 45m or 1.5h, up to 1000 hours." })
-      setDraft(shown)
       return
     }
-    if (next === (minutes ?? 0)) {
-      setDraft(shown)
-      return
-    }
+    if (next === (minutes ?? 0)) return
     patch(next)
     try {
       await axiosInstance.post(PostEndpointUrl.UpdateTaskEstimate, { task_uuid: taskUUID, task_estimate_minutes: next }, OWN_ERRORS)
@@ -97,22 +84,13 @@ export function TaskEstimateField({
           </>
         )}
         {canEdit ? (
-          <Input
+          <InlineEdit
             id={id}
-            value={draft}
+            value={shown}
             placeholder="Add estimate"
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => void save()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur()
-              if (e.key === "Escape") {
-                // Handled: the panel this field sits in stays open.
-                e.preventDefault()
-                cancelled.current = true
-                e.currentTarget.blur()
-              }
-            }}
-            className={cn(inlineInput, "tabular-nums", logged > 0 && est > 0 ? "-ml-1 w-16 px-1" : "w-40")}
+            onCommit={(draft) => void save(draft)}
+            className={cn("tabular-nums", logged > 0 && est > 0 && "-ml-1 px-1")}
+            inputClassName={cn("tabular-nums", logged > 0 && est > 0 ? "-ml-1 w-16 px-1" : "w-40")}
           />
         ) : (
           <span className={cn("text-sm", shown ? "text-ink-2" : "text-ink-3")}>{shown || "None"}</span>

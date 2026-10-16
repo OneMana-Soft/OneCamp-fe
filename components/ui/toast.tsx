@@ -24,26 +24,53 @@ const ToastProvider = ToastPrimitives.Provider
  *
  * The toasts inside stack: see globals.css, "V3 SHELL: TOASTS AND NOTICES".
  */
+/**
+ * Whether a key is the toasts' hotkey: ⌥T alone. Never while typing: in a
+ * field or an editor ⌥T is a character on a Mac ("†"), and ⌘⌥T opens or closes
+ * every toggle in a doc. Radix's own hotkey matched ⌥T with anything else held
+ * and anywhere, so both took focus out of the text. Pure.
+ */
+export function isToastHotkey(e: Pick<KeyboardEvent, "altKey" | "metaKey" | "ctrlKey" | "shiftKey" | "code" | "target" | "defaultPrevented">): boolean {
+  if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey || e.code !== "KeyT" || e.defaultPrevented) return false
+  const t = e.target as HTMLElement | null
+  if (!t || typeof t.closest !== "function") return true
+  return !t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
+}
+
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, ref) => {
+  const own = React.useRef<React.ElementRef<typeof ToastPrimitives.Viewport>>(null)
+  React.useImperativeHandle(ref, () => own.current as React.ElementRef<typeof ToastPrimitives.Viewport>)
+  // ⌥T reaches the toasts from the keyboard, when nobody is typing
+  // (isToastHotkey). Radix's hotkey is off (hotkey={[]}) for this one.
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isToastHotkey(e)) own.current?.focus()
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [])
+  return (
   <ToastPrimitives.Viewport
-    ref={ref}
-    // ⌥T reaches the toasts from the keyboard (Radix matches event.code).
-    hotkey={["altKey", "KeyT"]}
+    ref={own}
+    hotkey={[]}
     label="Notifications (Alt+T)"
     className={cn(
       "toast-viewport fixed z-[var(--z-toast)] m-0 list-none p-0 outline-none",
       // Phone: above the tab bar or the composer, centred.
       "bottom-[calc(var(--phone-floor)+12px)] left-1/2 w-[min(100%-32px,360px)] -translate-x-1/2",
-      // sm and up: bottom right, 356px wide.
-      "sm:left-auto sm:right-6 sm:translate-x-0 sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))] sm:w-[356px]",
+      // sm and up: bottom right of the sheet, 356px wide: 16px inside its
+      // edge, which is the right panel's while that is open, so a toast never
+      // sits on the panel's composer (QA DSA-19). 24px with no panel.
+      "sm:left-auto sm:right-[calc(var(--shell-right-inset,8px)+16px)] sm:translate-x-0 sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))] sm:w-[356px]",
       className,
     )}
     {...props}
   />
-))
+  )
+})
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 
 /**

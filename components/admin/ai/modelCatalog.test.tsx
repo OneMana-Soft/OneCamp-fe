@@ -45,12 +45,26 @@ describe("the model catalog", () => {
     expect(all.className).not.toContain("rounded-full")
   })
 
+  // At 768 the name was cut to "Qwen3 …" beside Recommended and Installed:
+  // the name stays whole, and the tags wrap under it where they don't fit.
+  it("keeps a card's name whole and lets its tags wrap under it", async () => {
+    vi.mocked(getOllamaCatalog).mockResolvedValue({ models: [model({ installed: true })] } as never)
+    render(<ModelCatalog providerId="p1" onInstalled={() => {}} />)
+    const name = await screen.findByRole("heading", { name: "Qwen3 4B" })
+    expect(name.className).not.toContain("truncate")
+    expect(name.parentElement!.className).toContain("flex-wrap")
+    const head = name.closest("[data-model-head]")!
+    expect(head.className).toContain("flex-wrap")
+    expect(head.textContent).toContain("Recommended")
+    expect(head.textContent).toContain("Installed")
+  })
+
   // A failed load toasted, then said "No models match your search.": a false
   // empty, with nothing to press.
   it("says the catalog couldn't load, with the reason and Try again, not that nothing matches", async () => {
     vi.mocked(getOllamaCatalog).mockRejectedValueOnce({ response: { status: 502, data: { msg: "Ollama isn't answering." } } })
     render(<ModelCatalog providerId="p1" onInstalled={() => {}} />)
-    expect(await screen.findByText("Couldn't load the model catalog")).toBeTruthy()
+    expect(await screen.findByText("Couldn't load the model catalogue")).toBeTruthy()
     expect(screen.getByText("Ollama isn't answering.")).toBeTruthy()
     expect(screen.queryByText(/No models match/)).toBeNull()
     vi.mocked(getOllamaCatalog).mockResolvedValueOnce({ models: [model()] } as never)

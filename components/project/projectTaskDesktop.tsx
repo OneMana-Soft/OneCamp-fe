@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
-import { List, Megaphone, Paperclip } from "@/lib/icons";
+import { FileText, List, Megaphone, Paperclip } from "@/lib/icons";
 import { TabLoading } from "@/components/task/TabLoading"
 import { lazyView } from "@/components/task/LazyView"
 import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
@@ -13,7 +13,6 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { WorkTabsList } from "@/components/task/WorkTabs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ChevronRight } from "@/lib/icons"
 import Link from "next/link"
@@ -21,6 +20,7 @@ import { app_project_path } from "@/types/paths"
 import type { UserProfileDataInterface } from "@/types/user"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { displayNameOf } from "@/lib/personName"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -34,22 +34,27 @@ const Board = lazyView(() => import("@/components/project/projectTaskKanban"))
 const Timeline = lazyView(() => import("@/components/project/timeline/ProjectTimeline"))
 const Updates = lazyView(() => import("@/components/projectUpdates/ProjectUpdates"))
 const Files = lazyView(() => import("@/components/project/ProjectAttachments"))
+// The project's docs: the pages made in its space (docs programme B5).
+const Docs = lazyView(() => import("@/components/docTree/SpaceDocs"))
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ChartGantt } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { countAddress } from "@/lib/tasks/listAddress"
 import { useState, useEffect, useCallback, startTransition } from "react"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
-import {NotificationBell} from "@/components/Notification/notificationBell";
+import { NotificationLevelMenu } from "@/components/Notification/notificationLevels";
 import {NotificationType} from "@/types/channel";
-import {getNextNotification} from "@/lib/utils/getNextNotification";
+import { optimistic } from "@/lib/optimistic";
 import {usePost} from "@/hooks/usePost";
+import { useProjectHue } from "@/lib/projectHue";
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 
-const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments"] as const
+const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments", "docs"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const { t } = useTranslation()
+    const projectHue = useProjectHue(projectId)
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
     const [projectNotification, setProjectNotificationType] = useState<string>(NotificationType.NotificationAll)
 
@@ -77,10 +82,16 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
 
     }, [projectInfo.data?.data.project_is_member])
 
-    const UpdateNotification = async () => {
-        const nextNotification = getNextNotification(projectNotification)
-        await postNotification.makeRequest<ProjectNotificationInterface>({payload:{project_id: projectId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateProjectNotification})
-        setProjectNotificationType(nextNotification)
+    // A level is chosen from the bell's menu, shown at once and taken back
+    // if the server refuses it (PTC-26: one click cycled it).
+    const chooseNotification = (level: string) => {
+        const before = projectNotification
+        void optimistic({
+            key: `project:${projectId}:notify`,
+            apply: () => setProjectNotificationType(level),
+            revert: () => setProjectNotificationType(before),
+            commit: () => postNotification.makeRequest<ProjectNotificationInterface>({ payload: { project_id: projectId, notification_type: level }, apiEndpoint: PostEndpointUrl.UpdateProjectNotification }),
+        })
     }
 
     // The underline moves at once; the tab's content follows as a transition,
@@ -129,29 +140,33 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const loading = !project && projectInfo.isLoading
 
     return (
-        <div className="flex h-full flex-col overflow-hidden">
+        // A container, so the header gives way when a side panel narrows the
+        // page: the member stack and the "Projects" crumb go before the
+        // project's name is cut or the stack draws over the crumb.
+        <div className="@container flex h-full flex-col overflow-hidden">
             {/* The project's light (work.md W16): a radial of its hue, only in
                 the top band of its own page, from where its tile sits. */}
-            <div className={cn(HUE_CLASS[hueFor(projectId)], "relative isolate")}>
+            <div className={cn(HUE_CLASS[projectHue], "relative isolate")}>
                 <div aria-hidden="true" data-project-band="" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[120px] [background:radial-gradient(420px_120px_at_40px_40px,color-mix(in_oklab,var(--hue)_7%,transparent),transparent)] dark:[background:radial-gradient(420px_120px_at_40px_40px,color-mix(in_oklab,var(--hue)_9%,transparent),transparent)]" />
                 {/* The sheet's header bar: where you are, who is here, and the project's tools. */}
                 <div className="flex h-[52px] items-center gap-3 px-6">
                     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-ink-2">
-                        <Link href={app_project_path} className="rounded-sm hover:text-foreground">Projects</Link>
-                        <ChevronRight className="size-3.5 text-ink-3" aria-hidden="true" />
+                        <Link href={app_project_path} className="shrink-0 rounded-sm hover:text-foreground @max-[560px]:hidden">Projects</Link>
+                        <ChevronRight className="size-3.5 shrink-0 text-ink-3 @max-[560px]:hidden" aria-hidden="true" />
                         <ProjectTile id={projectId} size={16} />
                         <span className="truncate font-[590] text-foreground">{project?.project_name || "\u00a0"}</span>
                     </nav>
                     <span className="flex-1" />
-                    {members.length > 0 && <MemberStack members={members} />}
+                    {members.length > 0 && <span className="shrink-0 @max-[640px]:hidden"><MemberStack members={members} /></span>}
                     {(isMember || isAdmin) && (
                         <div className="flex items-center gap-0.5">
-                            <NotificationBell notificationType={projectNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                            <NotificationLevelMenu level={projectNotification} onChoose={chooseNotification} />
                             <ProjectActionsMenu
                                 projectId={projectId}
                                 projectName={project?.project_name}
                                 isAdmin={isAdmin}
                                 isMember={isMember}
+                                archived={!isZeroEpoch(project?.project_deleted_at || "")}
                                 onRename={() => dispatch(openUI({ key: 'editProjectName', data: { projectUUID: projectId || "" } }))}
                                 onMembers={() => dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))}
                             />
@@ -190,6 +205,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             { value: "timeline", label: "Timeline", icon: <ChartGantt /> },
                             { value: "updates", label: "Updates", icon: <Megaphone /> },
                             { value: "attachments", label: "Files", icon: <Paperclip />, count: project?.project_attachments?.length },
+                            { value: "docs", label: "Docs", icon: <FileText /> },
                         ]}
                     />
                     {/* One scroll container for every tab's body. The panels
@@ -215,11 +231,14 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 )}
                             />
                         </KeptTab>
-                        <TabsContent value="updates" className="mt-0 px-6 pt-5 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
+                        <TabsContent value="updates" className="mt-0 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Updates.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectUpdates projectId={projectId} />} />
                         </TabsContent>
-                        <TabsContent value="attachments" className="mt-0 px-6 pt-5 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
+                        <TabsContent value="attachments" className="mt-0 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Files.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectAttachments projectId={projectId} projectName={project?.project_name} canLink={isMember} />} />
+                        </TabsContent>
+                        <TabsContent value="docs" className="mt-0 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
+                            <Docs.View fallback={<TabLoading kind="list" />} render={(m) => <m.default space={`project:${projectId}` as const} name={project?.project_name} />} />
                         </TabsContent>
                     </div>
                 </Tabs>
@@ -246,5 +265,5 @@ function MemberStack({ members }: { members: UserProfileDataInterface[] }) {
 
 function MemberFace({ user }: { user: UserProfileDataInterface }) {
     const { src } = useUserAvatar(user.user_profile_object_key)
-    return <IdentityMark variant="avatar" id={user.user_uuid} label={displayNameOf(user)} src={src} size={22} />
+    return <IdentityMark variant="avatar" id={avatarSeed(user)} label={displayNameOf(user)} src={src} size={22} />
 }

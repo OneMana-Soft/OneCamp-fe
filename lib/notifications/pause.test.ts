@@ -9,9 +9,9 @@ describe("pausePresets", () => {
       "For 30 minutes",
       "For 1 hour",
       "For 2 hours",
-      "Until later today, 5:00 PM",
-      "Until tomorrow, 9:00 AM",
-      "Until Monday, 9:00 AM",
+      "Until later today, 5:00\u00a0PM",
+      "Until tomorrow, 9:00\u00a0AM",
+      "Until Monday, 9:00\u00a0AM",
     ])
     for (const x of p) expect(x.at.getTime() - now.getTime()).toBeLessThanOrEqual(MAX_PAUSE_MS)
   })

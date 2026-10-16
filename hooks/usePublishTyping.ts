@@ -6,6 +6,7 @@ import throttle from 'lodash/throttle';
 import { useCallback, useMemo } from 'react';
 import axiosInstance from '@/lib/axiosInstance';
 import { PostEndpointUrl } from '@/services/endPoints';
+import { TYPING_REPEAT_MS } from '@/lib/typingTiming';
 
 type PublishTypingTargetType = 'channel' | 'chat' | 'groupChat';
 
@@ -44,9 +45,10 @@ export const usePublishTyping = ({ targetType, targetId }: PublishTypingProps) =
         }
     }, [targetType, targetId]);
 
-    // Throttle the publish function to execute at most once every 3 seconds
+    // At most once every 3 s: the receiver keeps the line up for 6 s, so it
+    // holds while someone keeps typing (lib/typingTiming).
     const publishWithThrottle = useMemo(
-        () => throttle(publish, 3000, { trailing: false }),
+        () => throttle(publish, TYPING_REPEAT_MS, { trailing: false }),
         [publish]
     );
 
@@ -56,7 +58,7 @@ export const usePublishTyping = ({ targetType, targetId }: PublishTypingProps) =
      * Accepts the current editor content so we can suppress publishes
      * when the editor is empty (e.g. on send / clear / paste-then-delete).
      * Without this, the receiver sees a spurious "typing..." indicator
-     * for ~4 seconds AFTER the message has already arrived, because the
+     * for several seconds AFTER the message has already arrived, because the
      * editor's onChange fires once with empty content as part of the
      * clear-after-send flow.
      */

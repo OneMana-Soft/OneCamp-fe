@@ -65,12 +65,44 @@ describe("the AI answer card", () => {
     expect(document.querySelector("[data-search-answer=none]")!.textContent).toBe("No clear answer in what you can see.")
   })
 
-  it("says the answer is unavailable when the request fails", async () => {
+  it("says it couldn't write an answer when the request fails, and asks again on Try again", async () => {
+    // QA DSA-25: it said only "AI answer unavailable", with no way on.
     vi.useFakeTimers()
     fail = true
     render(<SearchAnswer query="launch" />)
     await settle()
-    expect(screen.getByText("AI answer unavailable")).toBeTruthy()
+    expect(document.querySelector("[data-search-answer=unavailable]")!.textContent).toContain("Couldn't write an answer just now.")
+    fail = false
+    answer = CITED
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    await settle()
+    expect(document.querySelector("[data-search-answer=card]")).toBeTruthy()
+  })
+
+  it("never shows one query's answer under the next", async () => {
+    // QA DSA-04: the last query's answer stayed up under the new words.
+    vi.useFakeTimers()
+    answer = CITED
+    const { rerender } = render(<SearchAnswer query="launch" />)
+    await settle()
+    expect(document.querySelector("[data-search-answer-body]")!.textContent).toContain("The launch is the last Tuesday")
+    rerender(<SearchAnswer query="roadmap" />)
+    await act(async () => {})
+    expect(document.querySelector("[data-search-answer-body]")).toBeNull()
+    expect(screen.getByRole("status").textContent).toMatch(/Reading/)
+  })
+
+  it("fades its foot only while the answer is cut short", async () => {
+    // QA DSA-27: the fade covered the last 40px of every answer, so a short one read as greyed out.
+    vi.useFakeTimers()
+    answer = CITED
+    render(<SearchAnswer query="launch" />)
+    await settle()
+    expect(document.querySelector("[data-search-answer-body]")!.hasAttribute("data-clamped")).toBe(false)
+    const css = readFileSync(join(process.cwd(), "app/hub.css"), "utf8")
+    const at = css.indexOf(".hub-clamp-fade {")
+    expect(css.slice(at, css.indexOf("}", at))).not.toMatch(/mask-image/)
+    expect(css).toMatch(/\.hub-clamp-fade\[data-clamped\] \{[^}]*mask-image: linear-gradient/)
   })
 
   it("has the agent gradient as its one top edge", async () => {

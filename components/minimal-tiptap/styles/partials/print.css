@@ -1,0 +1,133 @@
+/*
+ * Printing a doc (P11): "Export as PDF" in More, or the browser's own Print.
+ * The sheet prints alone, its title and body, on as many pages as it runs
+ * to, with no app around it; the print dialog saves it as a PDF with real
+ * text. Nothing goes through a server.
+ *
+ * The sheet is the doc's scroll box (.doc-scroll) that holds its title. Each
+ * box around it lets it run over pages, and everything beside those boxes
+ * (the sidebar, the header, panels, menus, toasts) is left out. Other pages,
+ * which have no doc title, print as they always did.
+ */
+@media print {
+  /* Paper is light in any theme: the light tokens, as .invoice-paper has them. */
+  :root:has(.doc-scroll [data-doc-title]) {
+    --sheet: #ffffff;
+    --raised: #ffffff;
+    --sunken: #f8f9fa;
+    --ink: #16171b;
+    --ink-2: #5b5d65;
+    --ink-3: #67696f;
+    --line: rgba(20, 22, 30, 0.075);
+    --background: #ffffff;
+    --foreground: #16171b;
+    --card: #ffffff;
+    --card-foreground: #16171b;
+    --muted: #f8f9fa;
+    --muted-foreground: #5b5d65;
+    --border: rgba(20, 22, 30, 0.075);
+    color-scheme: light;
+  }
+
+  /* Every box around the sheet: no fixed height, no scrolling, no frame. */
+  :has(.doc-scroll [data-doc-title]) {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Everything beside those boxes. */
+  :has(.doc-scroll [data-doc-title]) > :not(:has(.doc-scroll [data-doc-title])):not(.doc-scroll) {
+    display: none !important;
+  }
+
+  .doc-scroll:has([data-doc-title]) {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    cursor: auto;
+  }
+
+  .doc-scroll:has([data-doc-title]) > .doc-measure,
+  .doc-scroll:has([data-doc-title]) > .doc-measure-full {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .doc-scroll [data-doc-title-block] {
+    padding: 0 0 12pt !important;
+  }
+
+  .doc-scroll [data-doc-title] {
+    color: #000000 !important;
+  }
+
+  /* The editor's own chrome: handles, other people's carets, the empty-line
+     prompt, the space that makes a new block when clicked. */
+  .doc-scroll .block-handle,
+  .doc-scroll .block-handle-floating,
+  .doc-scroll .drag-handle-hover,
+  .doc-scroll .click-to-create-block,
+  .doc-scroll .collaboration-cursor__caret,
+  .doc-scroll .collaboration-cursor__label,
+  .doc-scroll .ProseMirror-gapcursor {
+    display: none !important;
+  }
+
+  .doc-scroll .minimal-tiptap-editor .is-editor-empty::before {
+    content: none !important;
+  }
+
+  .doc-scroll .minimal-tiptap-editor .ProseMirror {
+    color: #000000;
+    padding: 0 !important;
+  }
+
+  /* A page break falls between blocks, not through a picture, a code block
+     or a table, and never straight after a heading. */
+  .doc-scroll .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+    break-after: avoid;
+  }
+
+  .doc-scroll .ProseMirror :is(img, figure, pre, table, blockquote, [data-type='callout']) {
+    break-inside: avoid;
+  }
+
+  .doc-scroll .ProseMirror pre {
+    white-space: pre-wrap !important;
+    overflow: visible !important;
+  }
+
+  .doc-scroll .ProseMirror img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Wide blocks (tables, embeds) fit the page instead of scrolling. */
+  .doc-scroll .ProseMirror :is(.tableWrapper, [data-type='table-embed'], [data-type='chart']) {
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+
+  .doc-scroll .ProseMirror a {
+    color: inherit;
+    text-decoration: underline;
+  }
+}

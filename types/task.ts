@@ -6,6 +6,7 @@ import {CommentInfoInterface} from "@/types/comment";
 import type {FieldValues} from "@/lib/tasks/fields";
 import type {DependencyFacets} from "@/lib/tasks/dependency";
 import {z} from "zod";
+import { nameSchema } from "@/lib/validation/names";
 
 /** A task on the other end of a dependency, as a task's panel reads it, with how the dependency works. */
 export interface DependencyTask extends DependencyFacets {
@@ -35,6 +36,10 @@ export interface TaskInfoInterface {
     task_comments: CommentInfoInterface[]
     task_description: string;
     task_activities: TaskActivityInterface[]
+    /** Every history line the task has; task_activities holds the newest of them (PROJ-BUG-8). */
+    task_activity_count?: number
+    /** Older lines than task_activities holds exist (GetTaskActivityList pages them). */
+    task_activity_has_more?: boolean
     task_assignee?: UserProfileDataInterface;
     task_collaborators: UserProfileDataInterface[];
     task_due_date: string;
@@ -135,11 +140,9 @@ export const taskStatusOptions = [
 export const taskStatusLabel = (id: string) => taskStatusOptions.find((o) => o.id === id)?.label ?? id
 
 export const createTaskFormSchema = z.object({
-    task_name: z
-        .string()
-        .trim()
-        .min(4, "Task name must be at least 4 characters")
-        .max(100, "Task name must be at most 100 characters"),
+    // A title, as a doc's is (lib/validation/names): "Bug" and "SEO" were
+    // refused here at under four characters while quick add took them (PTC-11).
+    task_name: nameSchema("title", "Task name"),
     task_assignee_uuid: z
         .string()
         .optional(),

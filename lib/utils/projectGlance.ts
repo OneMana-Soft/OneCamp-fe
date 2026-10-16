@@ -16,6 +16,8 @@ export interface ProjectGlance {
   overdue: number
   dueSoon: number
   done: number
+  /** More open tasks exist than were loaded: overdue and dueSoon count only the loaded ones, so they are at least that (PROJ-BUG-8). */
+  partial?: boolean
 }
 
 function startOfDay(d: Date): Date {
@@ -28,9 +30,11 @@ function startOfDay(d: Date): Date {
  * Counts for a project's tasks, as of now. Overdue: open, with a due date
  * before today. Due soon: open, due today or in the next six days. A due date
  * of the zero time (never set) counts as none. The board loads only the newest
- * done tasks, so `doneTotal`, the server's count, wins when it is larger.
+ * done tasks, so `doneTotal`, the server's count, wins when it is larger; and
+ * the first 1,000 of each open column, so `openTotal`, the server's count of
+ * open tasks, wins too, and marks the date counts as partial.
  */
-export function projectGlance(tasks: GlanceTask[], now: Date, doneTotal = 0): ProjectGlance {
+export function projectGlance(tasks: GlanceTask[], now: Date, doneTotal = 0, openTotal?: number): ProjectGlance {
   const today = startOfDay(now).getTime()
   const weekEnd = today + 7 * 86_400_000
   const g: ProjectGlance = { open: 0, overdue: 0, dueSoon: 0, done: 0 }
@@ -48,6 +52,10 @@ export function projectGlance(tasks: GlanceTask[], now: Date, doneTotal = 0): Pr
     else if (day < weekEnd) g.dueSoon++
   }
   g.done = Math.max(g.done, doneTotal)
+  if (openTotal !== undefined && openTotal > g.open) {
+    g.open = openTotal
+    g.partial = true
+  }
   return g
 }
 

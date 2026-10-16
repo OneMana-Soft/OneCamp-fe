@@ -5,8 +5,10 @@ import { Check, Clock, Lock } from "@/lib/icons"
 import type { CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import type { EditKind, TimelineTask } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
+import { stuckRoom } from "@/hooks/useTimelineView"
 
 /**
  * Whether a bar holds its whole name: a 12.5px name runs about 7px a
@@ -17,6 +19,9 @@ const fitsName = (name: string, width: number, icons: number) => name.length * 7
 
 /** A bar wide enough to carry its assignee's face at its end (work.md W24). */
 const AVATAR_FROM = 120
+
+/** How far in from the names column a bar's name sticks. */
+export const STICK_INSET = 4
 
 interface BarProps {
   task: TimelineTask
@@ -189,7 +194,9 @@ export const TimelineBar = memo(function TimelineBar({
           </span>
         )}
         {inside && (
-          <span className="sticky z-[1] flex min-w-0 items-center gap-1 pl-3 pr-2" style={{ left: stickAt }}>
+          // It narrows to what is left of its bar in view rather than sliding
+          // under the names column ("upport on the new tiers", PTC-29).
+          <span className="sticky z-[1] flex min-w-0 items-center gap-1 pl-3 pr-2" style={{ left: stickAt, maxWidth: stuckRoom(left + width, STICK_INSET) }}>
             {done && <Check className="size-3 shrink-0" />}
             {late && <Clock aria-hidden className="size-3 shrink-0 text-danger-ink" />}
             {blocked > 0 && <Lock aria-hidden className="size-3 shrink-0" />}
@@ -198,7 +205,7 @@ export const TimelineBar = memo(function TimelineBar({
         )}
         {inside && who && wide && (
           <span className="relative z-[1] ml-auto mr-1 shrink-0">
-            <IdentityMark variant="avatar" size={18} id={task.task_assignee?.user_uuid} label={who} />
+            <IdentityMark variant="avatar" size={18} id={avatarSeed(task.task_assignee)} label={who} />
           </span>
         )}
         {handles && (

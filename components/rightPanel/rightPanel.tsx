@@ -4,6 +4,8 @@ import {useDispatch, useSelector} from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel";
 import {RootState} from "@/store/store";
+import { PanelOutlet } from "@/components/docEditor/registry/slots";
+import { useEditionGate } from "@/components/docEditor/registry/gate";
 
 // What the panel shows loads the first time it's opened, not with every
 // page: a thread's reply box brings the whole editor (ProseMirror, code
@@ -28,20 +30,45 @@ const EventInfoPanel = dynamic(loaders.event);
 const AiChatPanel = dynamic(loaders.ai);
 const DocAiAssistantPanel = dynamic(() => loaders.docAi().then((m) => m.DocAiAssistantPanel));
 
-/** Fetches every panel's code once the app has nothing better to do. */
+/** How long the panels wait for a first touch or key before fetching anyway. */
+const PRELOAD_AFTER_MS = 5000
+
+/**
+ * Fetches every panel's code once the app has nothing better to do: after the
+ * first touch, click or key (the page has painted and is being used), or 5 s,
+ * whichever comes first, and then at the next idle moment. It used to start
+ * at the first idle moment, which on a doc's first load was still part of the
+ * load (perf 2.4).
+ */
 function usePreloadPanels() {
     useEffect(() => {
-        const preload = () => Object.values(loaders).forEach((load) => void load().catch(() => {}));
-        if (typeof window.requestIdleCallback === "function") {
-            const id = window.requestIdleCallback(preload, { timeout: 5000 });
-            return () => window.cancelIdleCallback(id);
+        let idle = 0
+        let started = false
+        const preload = () => Object.values(loaders).forEach((load) => void load().catch(() => {}))
+        const start = () => {
+            if (started) return
+            started = true
+            stop()
+            if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(preload, { timeout: 5000 })
+            else idle = window.setTimeout(preload, 0)
         }
-        const id = window.setTimeout(preload, 2000);
-        return () => window.clearTimeout(id);
+        const events = ["pointerdown", "keydown"] as const
+        const stop = () => {
+            window.clearTimeout(timer)
+            events.forEach((e) => window.removeEventListener(e, start, true))
+        }
+        const timer = window.setTimeout(start, PRELOAD_AFTER_MS)
+        events.forEach((e) => window.addEventListener(e, start, { capture: true, once: true }))
+        return () => {
+            stop()
+            if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle)
+            window.clearTimeout(idle)
+        }
     }, []);
 }
 
 export const RightPanel = () => {
+    const gate = useEditionGate();
 
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
     usePreloadPanels();
@@ -60,6 +87,12 @@ export const RightPanel = () => {
             return <AiChatPanel />
         }
 
+        // A panel a package registered for a doc, by its kind.
+        if (rightPanelState.data.docPanel) {
+            const { kind, docId } = rightPanelState.data.docPanel
+            return <PanelOutlet kind={kind} docId={docId} gate={gate} />
+        }
+
         if (rightPanelState.data.docAiOpen) {
             return (
                 <DocAiAssistantPanel 
@@ -67,6 +100,7 @@ export const RightPanel = () => {
                     docId={rightPanelState.data.docAiData?.docId || ""}
                     surroundingContext={rightPanelState.data.docAiData?.surroundingContext}
                     initialAction={rightPanelState.data.docAiData?.initialAction as any}
+                    initialPrompt={rightPanelState.data.docAiData?.initialPrompt}
                     isSidebar={true}
                 />
             )

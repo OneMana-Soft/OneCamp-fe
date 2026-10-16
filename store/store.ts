@@ -18,7 +18,6 @@ import {createTaskDialogSlice} from "@/store/slice/createTaskDailogSlice";
 import {createTaskCommentSlice} from "@/store/slice/createTaskCommentSlice";
 import taskFilterSlice from "@/store/slice/taskFilterSlice";
 import groupChatSlice from "@/store/slice/groupChatSlice";
-import {createDocCommentSlice} from "@/store/slice/createDocCommentSlice";
 import uiSlice from "@/store/slice/uiSlice";
 import mentionSlice from "./slice/mentionSlice";
 import { recentItemsSlice } from "./slice/recentItemsSlice";
@@ -27,6 +26,7 @@ import { commandSlice } from "@/store/slice/commandSlice";
 import nudgeSlice from "@/store/slice/nudgeSlice";
 import pendingActionSlice from "@/store/slice/pendingActionSlice";
 import splitSlice from "@/store/slice/splitSlice";
+import type { LazySlices } from "@/store/lazySlices";
 
 
 const rootPersistConfig = {
@@ -45,17 +45,36 @@ const rootPersistConfig = {
 // both run by the session-end hook at the bottom of this file.
 export const RESET_STORE_ACTION = "store/RESET"
 
-// Every slice, under the name its state lives at.
+// Every slice every page uses, under the name its state lives at. A slice
+// only some pages use (a doc's) is added by them when they load (injectSlice):
+// store/lazySlices.test.ts holds this list to that.
 const SLICES = [
     userSlice, refreshSlice, channelSlice, uiSlice, projectAttachmentSlice,
     createTaskDialogSlice, createTaskCommentSlice, taskInfoSlice, reactionSlice,
     chatSlice, groupChatSlice, fwdMessageSlice, desktopRightPanelSlice, typingSlice,
-    taskFilterSlice, createDocCommentSlice, channelCommentSlice, chatCommentSlice,
+    taskFilterSlice, channelCommentSlice, chatCommentSlice,
     mentionSlice, recentItemsSlice, messageResyncSlice, commandSlice, nudgeSlice,
     pendingActionSlice, splitSlice,
 ] as const
 
+/** The names the static slices' state lives at. */
+export const STATIC_SLICE_NAMES: readonly string[] = SLICES.map((s) => s.name)
+
 type AnyReducer = (state: unknown, action: unknown) => unknown
+
+/** What injectSlice takes: a slice (createSlice), or anything with its name and reducer. */
+export interface InjectableSlice {
+    name: string
+    // A slice's reducer takes its own state; the root reducer hands each its own.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reducer: (state: any, action: any) => any
+}
+
+// The slices pages added (injectSlice), in the order they came.
+const injected = new Map<string, InjectableSlice>()
+
+/** Dispatched as a slice is added, so its state is there at once. No slice handles it. */
+export const INJECT_SLICE_ACTION = "store/injectSlice"
 
 // Composed by hand to avoid combineReducers' type complexity, and like
 // combineReducers it returns the same state object when no slice changed.
@@ -75,16 +94,18 @@ const rootReducer = (
     }
     let changed = state === undefined
     const next: Record<string, unknown> = {}
-    for (const slice of SLICES) {
+    const run = (slice: { name: string; reducer: unknown }) => {
         const before = (state as Record<string, unknown> | undefined)?.[slice.name]
         const after = (slice.reducer as AnyReducer)(before, action)
         next[slice.name] = after
         if (after !== before) changed = true
     }
+    SLICES.forEach(run)
+    injected.forEach(run)
     return changed ? (next as RootState) : (state as RootState)
 }
 
-export type RootState = {
+type StaticState = {
     [userSlice.name]: ReturnType<typeof userSlice.reducer>
     [refreshSlice.name]: ReturnType<typeof refreshSlice.reducer>
     [channelSlice.name]: ReturnType<typeof channelSlice.reducer>
@@ -100,7 +121,6 @@ export type RootState = {
     [desktopRightPanelSlice.name]: ReturnType<typeof desktopRightPanelSlice.reducer>
     [typingSlice.name]: ReturnType<typeof typingSlice.reducer>
     [taskFilterSlice.name]: ReturnType<typeof taskFilterSlice.reducer>
-    [createDocCommentSlice.name]: ReturnType<typeof createDocCommentSlice.reducer>
     [channelCommentSlice.name]: ReturnType<typeof channelCommentSlice.reducer>
     [chatCommentSlice.name]: ReturnType<typeof chatCommentSlice.reducer>
     [mentionSlice.name]: ReturnType<typeof mentionSlice.reducer>
@@ -111,6 +131,13 @@ export type RootState = {
     [pendingActionSlice.name]: ReturnType<typeof pendingActionSlice.reducer>
     [splitSlice.name]: ReturnType<typeof splitSlice.reducer>
 }
+
+/**
+ * The store's state: every static slice's, and each injected one's once its
+ * page has added it (store/lazySlices.ts), so until then a reader outside that
+ * page reads it as possibly not there.
+ */
+export type RootState = StaticState & Partial<LazySlices>
 
 const persistedReducer = persistReducer(rootPersistConfig, rootReducer);
 
@@ -123,6 +150,22 @@ const store = configureStore({
 })
 
 export const persistor = persistStore(store);
+
+/**
+ * Adds a slice the first time a page needs it, so the pages that don't carry
+ * none of its state (store/lazySlices.ts says how a slice is added). Call it
+ * from the top of a module only that page loads, not while rendering: the
+ * slice's state is there as soon as it returns. Adding the same slice again
+ * does nothing; a new copy of it (a hot reload) takes its place. On a reset
+ * (logout) it starts again from its initial state, like every other slice. It
+ * is never persisted.
+ */
+export function injectSlice(slice: InjectableSlice): void {
+    if (STATIC_SLICE_NAMES.includes(slice.name)) return
+    if (injected.get(slice.name) === slice) return
+    injected.set(slice.name, slice)
+    store.dispatch({ type: INJECT_SLICE_ACTION, payload: { name: slice.name } })
+}
 
 // When a session ends: 1. reset every slice in memory, 2. purge the persisted
 // blob and flush, so the persistor stops writing the old state back. Storage

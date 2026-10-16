@@ -4,7 +4,7 @@ import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 
 interface ProjectIconProps {
-    /** What it marks: a project's or team's uuid, hashed onto its camp hue. */
+    /** What it marks: a team's uuid, hashed onto its camp hue. A project is drawn by its ProjectTile. */
     name: string
     size?: "dot" | "sm" | "xs" | "md" | "lg" | "xl"
     className?: string

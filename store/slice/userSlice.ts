@@ -5,6 +5,7 @@ import {TeamInfoInterface} from "@/types/team";
 import {ProjectInfoInterface} from "@/types/project";
 import {DocSidebarInfo} from "@/types/doc";
 import {BoardSidebarInfo} from "@/types/board";
+import type {Place} from "@/types/docGraph";
 
 interface UpdateUserEmojiStatusInterface {
   status: UserEmojiStatus;
@@ -120,6 +121,8 @@ interface UserSidebarInterface {
   userProjects:  ProjectInfoInterface[],
   userDocs: DocSidebarInfo[],
   userBoards: BoardSidebarInfo[],
+  /** Starred pages, in the person's order (places of kind star; docs today). */
+  userStarred: Place[],
   totalUnreadActivityCount: number
 }
 
@@ -137,6 +140,7 @@ const initialState = {
     userProjects: [],
     userDocs: [],
     userBoards: [],
+    userStarred: [],
     totalUnreadActivityCount: 0
   } as UserSidebarInterface
 };
@@ -345,6 +349,17 @@ const userSlice = createSlice({
 
     },
 
+    // The reader changed their notification level on a channel: the sidebar
+    // shows it muted (block) or not at once, Starred included.
+    setUserChannelNotificationType: (state, action: {payload: {channelUUID: string; notificationType: string}}) => {
+      const { channelUUID, notificationType } = action.payload;
+      for (const list of [state.userSidebar.userChannels, state.userSidebar.userFavChannels]) {
+        for (const item of list || []) {
+          if (item?.ch_uuid === channelUUID) item.notification_type = notificationType;
+        }
+      }
+    },
+
     removeUserChannelName: (state, action: {payload: RemoveUserChannelInterface}) => {
       const {channelUUID} = action.payload;
 
@@ -367,6 +382,7 @@ const userSlice = createSlice({
         if(item.ch_uuid == channelUser.ch_uuid) {
           found = true;
           item.unread_post_count = 0
+          item.unread_mention_count = 0
         }
         return item
       })
@@ -462,12 +478,35 @@ const userSlice = createSlice({
       state.userSidebar.userDocs = [doc, ...rest].slice(0, SIDEBAR_DOC_LIMIT);
     },
 
+    // removeUserDoc takes a deleted doc out of the sidebar's recent docs and
+    // its starred pages.
+    removeUserDoc: (state, action: {payload: {doc_uuid: string}}) => {
+      const list = state.userSidebar.userDocs;
+      const at = list ? list.findIndex((d) => d.doc_uuid === action.payload.doc_uuid) : -1;
+      if (at > -1) list!.splice(at, 1);
+      state.userSidebar.userStarred = (state.userSidebar.userStarred || []).filter((p) => p.resource_uuid !== action.payload.doc_uuid);
+    },
+
+    // Starred pages: as the sidebar's answer has them, and as the person
+    // stars and unstars (the Starred section shows them at once).
+    setUserStarred: (state, action: {payload: {places: Place[]}}) => {
+      state.userSidebar.userStarred = action.payload.places;
+    },
+    starPlace: (state, action: {payload: {place: Place}}) => {
+      const list = state.userSidebar.userStarred || [];
+      if (!list.some((p) => p.resource_uuid === action.payload.place.resource_uuid)) state.userSidebar.userStarred = [...list, action.payload.place];
+    },
+    unstarPlace: (state, action: {payload: {resource_uuid: string}}) => {
+      state.userSidebar.userStarred = (state.userSidebar.userStarred || []).filter((p) => p.resource_uuid !== action.payload.resource_uuid);
+    },
+
     // updateUserDocTitle keeps the sidebar label in sync when a doc is renamed,
     // and moves it to the top — the sidebar is ordered by most-recently edited
     // (doc_updated_at), and a rename is an edit. No-op if the doc isn't listed
     // (don't surprise the user by injecting an off-list doc).
     updateUserDocTitle: (state, action: {payload: {doc_uuid: string; doc_title: string}}) => {
       const {doc_uuid, doc_title} = action.payload;
+      for (const p of state.userSidebar.userStarred || []) if (p.resource_uuid === doc_uuid) p.title = doc_title;
       const list = state.userSidebar.userDocs;
       if (!list) {
         return;
@@ -571,6 +610,7 @@ const userSlice = createSlice({
       state.userSidebar.userChannels = state.userSidebar.userChannels.map((item) => {
         if(item.ch_uuid == ch_uuid) {
           item.unread_post_count = 0;
+          item.unread_mention_count = 0;
         }
         return item;
       });
@@ -586,11 +626,12 @@ const userSlice = createSlice({
       });
     },
 
-    incrementUserChannelUnread: (state, action: {payload: {ch_uuid: string}}) => {
-      const {ch_uuid} = action.payload;
+    incrementUserChannelUnread: (state, action: {payload: {ch_uuid: string; mentionsMe?: boolean}}) => {
+      const {ch_uuid, mentionsMe} = action.payload;
       state.userSidebar.userChannels = state.userSidebar.userChannels.map((item) => {
         if(item.ch_uuid == ch_uuid) {
           item.unread_post_count = (item.unread_post_count || 0) + 1;
+          if (mentionsMe) item.unread_mention_count = (item.unread_mention_count || 0) + 1;
         }
         return item;
       });
@@ -641,7 +682,11 @@ export const {
   addUserProjectList,
   createUserDocList,
   addUserDoc,
+  removeUserDoc,
   updateUserDocTitle,
+  setUserStarred,
+  starPlace,
+  unstarPlace,
   createUserBoardList,
   addUserBoard,
   updateUserBoardTitle,
@@ -655,6 +700,7 @@ export const {
   incrementUserChannelUnread,
   incrementTotalUnreadActivityCount,
   toggleUserChannelFavorite,
+  setUserChannelNotificationType,
 
 } = userSlice.actions;
 

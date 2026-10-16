@@ -1,0 +1,4 @@
+<!-- logo.svg's ring, with a dot while something needs you (SD-62): the
+     components/common/FaviconBadge link. The gap around the dot is the tab
+     strip's own ground, light or dark, so the dot never runs into the ring. -->
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><style>.gap{stroke:#fff}@media (prefers-color-scheme:dark){.gap{stroke:#202124}}</style><circle cx="256" cy="256" r="176" stroke="#c84f00" stroke-width="56"/><circle class="gap" cx="400" cy="112" r="100" fill="#c84f00" stroke-width="40"/></svg>

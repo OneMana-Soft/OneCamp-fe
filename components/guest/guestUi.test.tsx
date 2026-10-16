@@ -5,7 +5,7 @@ import type { PublicResult } from "@/services/publicApi"
 
 function Page({ ask }: { ask: () => Promise<PublicResult<string>> }) {
   const { data, trouble } = useGuestAnswer("link", ask)
-  return data ? <p>{data}</p> : <GuestNotYet trouble={trouble} loading={<p>Loading</p>} />
+  return data ? <p>{data}</p> : <GuestNotYet trouble={trouble} loading={<p>Loading</p>} gone={<p>Gone</p>} />
 }
 
 function Poller({ tick, every }: { tick: (first: boolean) => Promise<GuestPollOutcome>; every: number }) {
@@ -38,7 +38,7 @@ describe("a guest page that can't load yet", () => {
     render(<Page ask={ask} />)
     await flush()
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't reach the server, retrying…")
-    expect(screen.queryByText("This link is no longer available")).not.toBeInTheDocument()
+    expect(screen.queryByText("Gone")).not.toBeInTheDocument()
 
     await wait(5_000)
     expect(ask).toHaveBeenCalledTimes(2)
@@ -68,7 +68,7 @@ describe("a guest page that can't load yet", () => {
     const ask = vi.fn<() => Promise<PublicResult<string>>>().mockResolvedValue(fail(404))
     render(<Page ask={ask} />)
     await flush()
-    expect(screen.getByText("This link is no longer available")).toBeInTheDocument()
+    expect(screen.getByText("Gone")).toBeInTheDocument()
     await wait(300_000)
     expect(ask).toHaveBeenCalledTimes(1)
   })

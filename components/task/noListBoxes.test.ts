@@ -33,6 +33,6 @@ describe("the one-line toolbar (work.md W10)", () => {
     // Every Button in the bar is ghost except the primary New task (no variant).
     const buttons = [...toolbar.matchAll(/<Button\b([^>]*)>/g)].map((m) => m[1])
     expect(buttons.filter((b) => !/variant=/.test(b))).toHaveLength(1)
-    expect(toolbar).toMatch(/New task\s*<span className="kbd"/)
+    expect(toolbar).toMatch(/New task<\/span>\s*<span className="kbd/)
   })
 })

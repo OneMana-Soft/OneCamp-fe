@@ -1,0 +1,40 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "text": "Line one",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "text": "line two",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "text": "- line three starts like a list",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "type": "horizontalRule"
+    },
+    {
+      "content": [
+        {
+          "text": "After the rule.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "type": "doc"
+}

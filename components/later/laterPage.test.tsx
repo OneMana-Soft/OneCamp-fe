@@ -15,7 +15,15 @@ vi.mock("@/hooks/useLater", () => ({
   useLaterActions: () => ({ done, remove, save: vi.fn(), remind: vi.fn(), refresh: vi.fn() }),
 }))
 let lastToast: { title?: string; action?: ReactElement } | null = null
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: (t: typeof lastToast) => (lastToast = t) }) }))
+const dismissed = vi.fn()
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({
+    toast: (t: typeof lastToast) => {
+      lastToast = t
+      return { id: "t", dismiss: dismissed, update: vi.fn() }
+    },
+  }),
+}))
 
 import { LaterItems } from "@/components/later/LaterPage"
 
@@ -28,8 +36,10 @@ const mount = (state: "open" | "done") =>
 
 beforeEach(() => {
   items = [item("a", "Q4 launch plan"), item("b", "Launch sync notes")]
-  done.mockClear()
+  done.mockReset()
+  done.mockImplementation(async () => {})
   remove.mockClear()
+  dismissed.mockClear()
   lastToast = null
 })
 afterEach(() => {
@@ -50,6 +60,49 @@ describe("Later", () => {
     })
     expect(done).toHaveBeenCalledWith("a", false)
     expect(screen.getByText("Q4 launch plan")).toBeTruthy()
+  })
+
+  // A refusal came back before the row's exit ended, which then hid the row
+  // for good, under a toast saying it was done (QA F-12).
+  it("brings a row back when the server refuses to mark it done, and takes back 'Marked done'", async () => {
+    let refuse!: (e: unknown) => void
+    done.mockImplementation(() => new Promise((_, reject) => (refuse = reject)))
+    mount("open")
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark done" })[0])
+    expect(lastToast?.title).toBe("Marked done")
+    await act(async () => {
+      refuse(Object.assign(new Error("Request failed with status code 500"), { response: { status: 500 } }))
+    })
+    expect(screen.getByText("Q4 launch plan")).toBeTruthy()
+    expect(dismissed).toHaveBeenCalled()
+  })
+
+  it("keeps a row back when the refusal arrives while it is still on its way out", async () => {
+    vi.useFakeTimers()
+    const motion = await import("@/lib/celebrate")
+    const still = vi.spyOn(motion, "prefersReducedMotion").mockReturnValue(false)
+    let refuse!: (e: unknown) => void
+    done.mockImplementation(() => new Promise((_, reject) => (refuse = reject)))
+    mount("open")
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark done" })[0])
+    await act(async () => {
+      refuse(new Error("refused"))
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(5_000)
+    })
+    expect(screen.getByText("Q4 launch plan")).toBeTruthy()
+    still.mockRestore()
+  })
+
+  // One row without the fields it expected took the whole page down (QA F-13).
+  it("draws the rest when one row can't be drawn", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {})
+    items = [{ id: "bad", title: "Broken", remind_at: "not a date" } as never, item("b", "Launch sync notes")]
+    mount("open")
+    expect(screen.getByText("This item couldn't be shown")).toBeTruthy()
+    expect(screen.getByText("Launch sync notes")).toBeTruthy()
+    quiet.mockRestore()
   })
 
   it("removes behind an Undo, and an undone removal never reaches the server", async () => {

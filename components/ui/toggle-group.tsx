@@ -56,6 +56,8 @@ const ToggleGroupItem = React.forwardRef<
         (context.variant || variant) === "underline" && underlineToggle,
         className
       )}
+      // A finger's target is 44px (app/phone.css F3).
+      data-touch-target=""
       {...props}
     >
       {children}

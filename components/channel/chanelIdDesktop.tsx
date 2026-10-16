@@ -1,5 +1,6 @@
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { useMedia } from "@/context/MediaQueryContext";
+import { searchWithinHref } from "@/lib/search/within";
 import {useFetch} from "@/hooks/useFetch";
 import { ChannelWelcome, useWelcomeSend } from "@/components/onboarding/ChannelWelcome";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
@@ -31,7 +32,7 @@ import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {openUI} from "@/store/slice/uiSlice";
-import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
+import { setUserChannelNotificationType, toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {
@@ -54,6 +55,7 @@ import {useUploadFile} from "@/hooks/useUploadFile";
 import { FeatureGate } from "@/components/common/withFeature"
 import { WithTooltip } from "@/components/common/withTooltip"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { ChannelGuestTag } from "@/components/channel/channelGuestTag"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 
@@ -140,6 +142,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         setChannelNotificationType(next)
         const res = await postNotification.makeRequest<ChannelNotificationInterface, GenericResponse >({payload:{channel_id: channelId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateChannelNotification}).catch(() => undefined)
         if (res === undefined) setChannelNotificationType(before)
+        // The sidebar shows the channel muted, or not, at once.
+        else dispatch(setUserChannelNotificationType({ channelUUID: channelId, notificationType: next }))
     }
 
     // One Details sheet (C49): the name, the stack and More › Details open it.
@@ -213,7 +217,10 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                 their squares), the one labelled action (Huddle), search and
                 More. The name and topic are one button: the channel's details.
                 chatHeaderConsistency.test.ts holds all three headers to it. */}
-            <header className='sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
+            {/* A container, so what the title carries follows the header's own
+                width (a thread open beside it at 1024 left it 360px wide): the
+                topic shrinks and goes first, the name keeps its first letters. */}
+            <header className='@container/chathead sticky top-0 z-[var(--z-sticky)] flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-sheet pl-5 pr-3'>
                 <button
                     type='button'
                     aria-label='Channel details'
@@ -223,15 +230,16 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                     {channelInfo.data?.channel_info.ch_private
                         ? <Lock className='size-4 shrink-0 text-ink-3' aria-hidden='true' />
                         : <Hash className='size-[18px] shrink-0 text-ink-3' aria-hidden='true' />}
-                    <span key={channelId} data-header-title='' className='truncate text-heading text-ink animate-fade-in'>{channelDisplayName}</span>
+                    <span key={channelId} data-header-title='' className='min-w-[4ch] truncate text-heading text-ink animate-fade-in'>{channelDisplayName}</span>
                     {isFavorite && <Star className='size-3.5 shrink-0 fill-camp-sun text-camp-sun' aria-label='Favourite' />}
                     {archived && (
                         <span className='chip h-5 shrink-0 gap-1 bg-sunken'><FileArchive className='size-3' aria-hidden='true' /> Archived</span>
                     )}
+                    {channelInfo.data?.channel_info.has_guest_access && <ChannelGuestTag />}
                     {topic ? (
-                        <span key={topic} className='ml-0.5 hidden min-w-0 truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3 animate-fade-in lg:block' title={topic}>{topic}</span>
+                        <span key={topic} data-header-topic='' className='ml-0.5 hidden min-w-0 shrink-[8] truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3 animate-fade-in @[38rem]/chathead:block' title={topic}>{topic}</span>
                     ) : channelInfo.data?.channel_info.ch_is_admin ? (
-                        <span className='ml-0.5 hidden shrink-0 border-l border-line-2 pl-2.5 text-ui-sm text-ink-4 transition-colors hover:text-ink-3 lg:block'>Add a topic</span>
+                        <span data-header-topic='' className='ml-0.5 hidden min-w-0 shrink-[8] truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3 transition-colors hover:text-ink-2 @[38rem]/chathead:block'>Add a topic</span>
                     ) : null}
                 </button>
                 <ChannelMemoryIndicator channelUUID={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
@@ -245,9 +253,10 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                             <HuddleButton href={channelCallHref} live={channelCallActive} onOpen={(e) => openBeside({ kind: "call-channel", id: channelId }, e)} />
                         </span>
                     </FeatureGate>
-                    <WithTooltip label="Search">
+                    {/* Search in this channel, said and removable on the search page (QA F-15). */}
+                    <WithTooltip label="Search in this channel">
                         <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
-                            <Link href='/app/search' aria-label='Search'><Search aria-hidden='true' /></Link>
+                            <Link href={searchWithinHref({ kind: "channel", id: channelId })} aria-label={`Search in #${channelDisplayName}`}><Search aria-hidden='true' /></Link>
                         </Button>
                     </WithTooltip>
                     {/* More (C05): AI, then how you follow it, then the channel
@@ -262,7 +271,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                         <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
                             <FeatureGate feature={FEATURE_AI}>
                                 <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}>
-                                    <Spark size={14} className="text-agent" /> Create tasks from this conversation
+                                    <Spark size={14} className="text-agent" /> Create tasks from this chat
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
                                     <Link href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}>

@@ -15,10 +15,13 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: () => {} }) }))
 import { TaskEstimateField } from "@/components/task/taskEstimateField"
 
 const field = () => screen.getByLabelText("Estimate") as HTMLInputElement
+// A value at rest, the size of every other; a box once it is chosen to type in (PTC-44).
+const edit = () => fireEvent.click(screen.getByLabelText("Estimate"))
 
 describe("the Estimate field", () => {
   it("saves on Enter, reading a bare number as hours", () => {
     render(<TaskEstimateField taskUUID="t" projectUUID="p" canEdit />)
+    edit()
     fireEvent.change(field(), { target: { value: "8" } })
     fireEvent.keyDown(field(), { key: "Enter" })
     fireEvent.blur(field())
@@ -27,11 +30,14 @@ describe("the Estimate field", () => {
 
   it("puts the estimate back on Escape and saves nothing", () => {
     render(<TaskEstimateField taskUUID="t" projectUUID="p" minutes={120} canEdit />)
+    edit()
     fireEvent.change(field(), { target: { value: "5h" } })
     fireEvent.keyDown(field(), { key: "Escape" })
     fireEvent.blur(field())
     expect(post).not.toHaveBeenCalled()
-    expect(field().value).toBe("2h")
+    expect(field().textContent).toBe("2h")
+    // The keyboard is back on the value it left.
+    expect(document.activeElement).toBe(field())
   })
 
   it("is read-only for someone who can't change the task", () => {
@@ -42,11 +48,17 @@ describe("the Estimate field", () => {
 })
 
 describe("the Estimate field's look", () => {
-  it("reads as a value until it has focus: no box at rest, and an example of what to type", () => {
+  it("reads as a value until it is typed in: no box at rest, and an example of what to type", () => {
     render(<TaskEstimateField taskUUID="t" projectUUID="p" canEdit />)
+    // At rest it is the panel's value button, not a box a phone draws at 16px (PTC-44).
+    expect(field().tagName).toBe("BUTTON")
+    expect(field().textContent).toBe("Add estimate")
+    edit()
+    expect(field().tagName).toBe("INPUT")
     expect(field().className).toMatch(/border-transparent/)
     expect(field().className).not.toMatch(/(^|\s)border-input(\s|$)/)
     expect(field().placeholder).toBe("Add estimate")
+    expect(document.activeElement).toBe(field())
   })
 
   it("reads logged time against the estimate, with a bar", () => {

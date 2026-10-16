@@ -3,7 +3,7 @@
 
 import { displayNameOf } from "@/lib/personName"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {type CreateOrUpdatePostsReq, CreatePostsRes, PostsResRaw} from "@/types/post";
+import {PostsResRaw} from "@/types/post";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {
@@ -21,20 +21,20 @@ import {OWN_ERRORS} from "@/lib/axiosInstance";
 import { UserProfileInterface} from "@/types/user";
 import {
     addChannelComments,
-    createChannelCommentReaction, removeChannelComment, removeChannelCommentReaction, updateChannelComment,
-    updateChannelCommentReaction
+    createChannelCommentReaction, removeChannelComment, removeChannelCommentReaction, updateChannelCommentReaction
 } from "@/store/slice/channelCommentSlice";
 import type {RootState} from "@/store/store";
 import {openUI} from "@/store/slice/uiSlice";
 import {
     createPostReactionPostId,
-    removePostByPostId,
-    removePostReactionByPostId, updateChannelMessageReplyDecrement, updatePostByPostId,
-    updatePostReactionPostId
+    removePostReactionByPostId, updateChannelMessageReplyDecrement, updatePostReactionPostId
 } from "@/store/slice/channelSlice";
 import {usePost} from "@/hooks/usePost";
+import { useSaveEdit } from "@/hooks/useSaveEdit"
+import { useDeleteMessage } from "@/hooks/useDeleteMessage";
+import { useRouter } from "next/navigation";
+import { app_channel_path } from "@/types/paths";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
@@ -57,6 +57,9 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
     const postCommentState = useSelector((state: RootState) => state.channelComment.postComments[postUUID] || NO_ITEMS);
 
     const post = usePost()
+    const saveEdit = useSaveEdit()
+    const deleteMessage = useDeleteMessage()
+    const router = useRouter()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
@@ -106,48 +109,17 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
         }, 500)
     }
 
-    const handleUpdatePost = (postId: string, postHTMLText: string) => {
+    // A correction to the thread's message or a reply saves as in the list:
+    // at once, and back with the box open on what was typed when the save
+    // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
+    const handleUpdatePost = (id: string, html: string) => saveEdit({ kind: "post", channelId, id }, html)
 
-        const trimmedHtml = removeEmptyPTags(postHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
-            apiEndpoint: PostEndpointUrl.UpdateChannelPost,
-            payload: {
-                post_id: postId,
-                post_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updatePostByPostId({
-                        postId: postId,
-                        channelId: channelId,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-
-    }
-
+    // The thread's message leaves at once, and the page goes back to its
+    // channel, which shows the delete or, if refused, the message put back
+    // (QA F-02). The page used to wait on a loading row for ever.
     const executeDeletePost = (postId: string) => {
-
-        post.makeRequest<CreateOrUpdatePostsReq>({
-            apiEndpoint: PostEndpointUrl.DeleteChannelPost,
-            payload: {
-                post_id: postId,
-            },
-            showToast: true,
-        })
-            .then(() => {
-                dispatch(removePostByPostId({ postId, channelId }))
-
-            })
-
-
+        void deleteMessage({ kind: "post", channelId, id: postId })
+        router.replace(`${app_channel_path}/${channelId}`)
     }
 
 
@@ -228,32 +200,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
             })
     }
 
-    const handleUpdatePostComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
-
-        const trimmedHtml = removeEmptyPTags(commentHTMLText)
-        if (!trimmedHtml) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface>({
-            apiEndpoint: PostEndpointUrl.UpdatePostComment,
-            payload: {
-                post_id: postUUID,
-                comment_id: commentUUID,
-                comment_text_html: trimmedHtml
-            },
-            showToast: true
-        })
-            .then((res)=>{
-
-                if(res) {
-                    dispatch(updateChannelComment({
-                        commentIndex: commentIndex,
-                        postId: postUUID,
-                        htmlText: trimmedHtml,
-                    }))
-                }
-
-            })
-    }
+    const handleUpdatePostComment = (id: string, html: string) => saveEdit({ kind: "postReply", postId: postUUID, id }, html)
 
     const handleDeletePostComment = (commentUUID: string, commentIndex: number) => {
 

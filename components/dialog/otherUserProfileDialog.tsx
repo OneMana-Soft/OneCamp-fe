@@ -22,7 +22,7 @@ import { PrincipalTag } from "@/components/ui/principalTag"
 import { BotTag } from "@/components/ui/botTag"
 import { AgentCardDetails } from "@/components/ai/AgentCardDetails"
 import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder"
-import { AgentStatePill, ProfileCard, type ProfileKind } from "@/components/profile/profileCard"
+import { AgentStatePill, ProfileCard, profileKindOf, type ProfileKind } from "@/components/profile/profileCard"
 import { presenceOf } from "@/components/ui/presenceDot"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
@@ -96,9 +96,8 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
 
     const isBot = p?.is_bot === true
     const isExternal = isExternalUser(p)
-    const isSelf = !!userUUID && userUUID === self.data?.data?.user_uuid
     const botCopy = botProfileCopy(p?.user_bot_kind)
-    const kind: ProfileKind = isBot ? (p?.user_bot_kind === "agent" || p?.user_bot_kind === "assistant" ? "agent" : "bot") : isSelf ? "self" : "person"
+    const kind: ProfileKind = profileKindOf(p, userUUID, self.data?.data?.user_uuid)
     // By the one name rule; a bot made before bots took their name as
     // user_name has its login handle there, and goes by its full name.
     const name = (isBot && p?.user_full_name?.trim()) || displayNameOf(p)
@@ -154,7 +153,9 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
             // External contacts can't be messaged; the server refuses it too.
             if (!isExternal || isBot)
                 actions = (
-                    <Button size="sm" className="flex-1" onClick={() => go(`/app/chat/${userUUID}`)}>
+                    // Secondary, not the accent (hub.md P1): a glance at someone
+                    // is no place for the one primary of a screen.
+                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => go(`/app/chat/${userUUID}`)}>
                         <MessageSquare className="size-3.5" /> {isBot ? botCopy.action : "Message"}
                     </Button>
                 )
@@ -227,7 +228,12 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
                 sideOffset={8}
                 collisionPadding={12}
                 aria-label={name ? `${name}'s profile` : "Profile"}
-                className="hub-pop w-[320px] overflow-hidden rounded-xl bg-pop p-0 shadow-e3"
+                // Never taller than the room on its side: an agent's card is
+                // long, and from a name mid-screen it ran off the top (1440x900)
+                // or the bottom (1024x768) with its name or its actions cut.
+                // It scrolls inside instead.
+                data-fits-viewport=""
+                className="hub-pop max-h-[var(--radix-popover-content-available-height)] w-[320px] overflow-y-auto overscroll-contain rounded-xl bg-pop p-0 shadow-e3"
             >
                 {card}
             </PopoverContent>

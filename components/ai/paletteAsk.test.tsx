@@ -94,6 +94,14 @@ describe("the palette's Ask view", () => {
     expect(screen.getByRole("button", { name: /Retry/ })).toBeTruthy()
   })
 
+  it("says it couldn't answer when the answer comes back empty, never the provenance line alone", async () => {
+    stream.askStream.mockResolvedValue({ sessionId: "s1", text: "", actions: [], sources: [], notice: "" })
+    const { rerender } = render(<PaletteAskView {...props} />)
+    await act(async () => rerender(<PaletteAskView {...props} askNonce={1} />))
+    expect(screen.getByRole("alert").textContent).toMatch(/OneCamp AI couldn.t answer/)
+    expect(screen.queryByText("Answered from what you can open · on the record")).toBeNull()
+  })
+
   it("⌘⏎ hands the conversation to the AI panel", async () => {
     stream.askStream.mockResolvedValue({ sessionId: "s1", text: "Yes.", actions: [], sources: [], notice: "" })
     const { rerender } = render(<PaletteAskView {...props} />)

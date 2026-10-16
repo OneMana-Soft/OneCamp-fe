@@ -25,6 +25,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { bookingPageUrl } from "@/services/bookingService"
 import { defaultHours, slugify, timeZones, type WorkingHours } from "@/lib/calendar/availability"
+import { clockTime } from "@/lib/utils/date/clock"
 
 interface BookingPage {
   id?: string
@@ -129,7 +130,7 @@ function PageList({ pages, loading, onEdit, onChanged }: { pages: BookingPage[];
       setCopied(slug)
       setTimeout(() => setCopied(null), 1500)
     } catch {
-      toast({ title: "Couldn't copy", description: bookingPageUrl(slug) })
+      toast({ title: "Couldn't copy", description: bookingPageUrl(slug), tone: "error" })
     }
   }
   const remove = (p: BookingPage) =>
@@ -341,7 +342,7 @@ export function sampleTimes(hours: WorkingHours, minutes: number, gap: number, c
   }
   const out: string[] = []
   for (let m = toMin(hours.start); m + minutes <= toMin(hours.end) && out.length < count; m += minutes + gap) {
-    out.push(format(new Date(2000, 0, 1, Math.floor(m / 60), m % 60), "h:mm a"))
+    out.push(clockTime(new Date(2000, 0, 1, Math.floor(m / 60), m % 60)))
   }
   return out
 }

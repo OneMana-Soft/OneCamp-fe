@@ -62,14 +62,14 @@ import {
 } from "@/lib/timeline"
 import { statusOptionOf } from "@/lib/taskStatus"
 import { cn } from "@/lib/utils/helpers/cn"
-import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { HEADER_HEIGHT, TimelineHeader } from "./TimelineHeader"
-import { WorkState, workBody, workToolbar } from "@/components/task/workFrame"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
-import { TimelineBar } from "./TimelineBar"
+import { STICK_INSET, TimelineBar } from "./TimelineBar"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
 import { ZoomSwitch } from "./ZoomSwitch"
+import { useProjectHue } from "@/lib/projectHue"
 
 const ROW_HEIGHT = 36
 /** A group's row: shorter than a task's, on the sunken step (work.md W23). */
@@ -209,7 +209,7 @@ export function ProjectTimeline({
   const canEdit = !!data?.can_edit && !compact
   const dayWidth = DAY_WIDTH[zoom]
   const nameWidth = compact ? 140 : 260
-  const projectHue = hueFor(projectId)
+  const projectHue = useProjectHue(projectId)
 
   const { rows, unscheduled, spans } = useMemo(
     () => timelineRows(tasks, { grouping, statuses, showDone, collapsed }),
@@ -569,13 +569,15 @@ export function ProjectTimeline({
     return () => clearTimeout(t)
   }, [links, preview])
 
-  // T goes to today; - and + zoom out and in (work.md W23). Only while the timeline is on screen.
+  // T goes to today; - and + zoom out and in (work.md W23); C makes a task,
+  // as on the List and the Board. Only while the timeline is on screen.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || !scrollRef.current?.offsetParent) return
       const t = e.target as HTMLElement | null
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
       if (e.key === "t" || e.key === "T") goToday()
+      else if ((e.key === "c" || e.key === "C") && onCreateTask) onCreateTask()
       else if (e.key === "-") setZoom(zoomStep(zoom, 1))
       else if (e.key === "+" || e.key === "=") setZoom(zoomStep(zoom, -1))
       else return
@@ -583,10 +585,12 @@ export function ProjectTimeline({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [goToday, setZoom, zoom])
+  }, [goToday, setZoom, zoom, onCreateTask])
 
   const toolRow = (
-    <div data-work-toolbar="" className={cn(workToolbar, "h-11 justify-between gap-1.5 px-4")}>
+    // The band (components/task/workFrame) grows when its controls wrap: at a
+    // fixed 44 px the phone's second row of controls slid under the grid.
+    <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
       <div className="flex flex-wrap items-center gap-1.5">
         {leading}
         <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" onClick={goToday} disabled={!drawn} aria-keyshortcuts="T">
@@ -649,17 +653,19 @@ export function ProjectTimeline({
         </DropdownMenu>
         {/* The one filled button, where the List and the Board keep it. */}
         {onCreateTask && (
-          <Button size="sm" className="h-7 gap-1.5 px-2.5" aria-label="New task" onClick={onCreateTask}>
+          <Button size="sm" className="h-7 gap-1.5 px-2.5" aria-label="New task" aria-keyshortcuts="C" onClick={onCreateTask}>
             <Plus className="size-3.5" />
             <span className="hidden sm:inline">New task</span>
+            {/* The List's and the Board's key, said the same way (PTC-6). */}
+            <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
           </Button>
         )}
       </div>
     </div>
   )
 
-  // No box (design v3): the grid sits on the sheet under a hairline.
-  const frame = cn(workBody, "relative mt-0 flex min-h-0 flex-1 overflow-hidden border-t border-line bg-sheet")
+  // No box (design v3): the grid sits on the sheet under the band's hairline.
+  const frame = "relative flex min-h-0 flex-1 overflow-hidden bg-sheet"
 
   if (!drawn) {
     return (
@@ -883,7 +889,7 @@ export function ProjectTimeline({
                       done={done}
                       milestone={milestone}
                       canEdit={canEdit && !isPending(task)}
-                      stickAt={nameWidth + 4}
+                      stickAt={nameWidth + STICK_INSET}
                       blocked={task.task_blocked_open ?? 0}
                       onLinkStart={given ? undefined : onLinkStart}
                       linkTarget={linking?.target === task.task_uuid}

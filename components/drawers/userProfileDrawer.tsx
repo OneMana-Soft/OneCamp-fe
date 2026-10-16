@@ -16,6 +16,7 @@ import {
     Zap,
     MailPlus,
     LayoutDashboard,
+    Smile,
     File as FileIcon, Inbox as InboxIcon } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import { useLogout } from "@/hooks/useLogout"
@@ -32,7 +33,8 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { useState } from "react"
-import { useSelector } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
+import { openUI } from "@/store/slice/uiSlice"
 import type { RootState } from "@/store/store"
 import { displayNameOf } from "@/lib/personName"
 import { useStatusIsExpired } from "@/hooks/useStatusIsExpired"
@@ -52,6 +54,7 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
+import { WorkspaceName } from "@/hooks/useWorkspaceName"
 
 interface ProfileDrawerProps {
     drawerOpenState: boolean
@@ -103,13 +106,24 @@ function DrawerSection({ label }: { label: string }) {
 export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDrawerProps) {
     const { logout } = useLogout()
     const router = useRouter()
+    const dispatch = useDispatch()
     const { theme, setTheme } = useTheme()
     const { can } = useCapabilities()
     const aiAvailable = useAIAvailable()
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const isAdmin = !!selfProfile.data?.data.user_is_admin
-    const [inviteOpen, setInviteOpen] = useState(false)
-    const [pauseOpen, setPauseOpen] = useState(false)
+    // What the sheet hands over to: the pause sheet or the invite dialog. The
+    // sheet hides while it shows and closes once it is done, and stays mounted
+    // throughout: the UI manager unmounts this sheet when it closes, so a
+    // dialog opened from it and then closed along with it never appeared, and
+    // "Pause notifications…" and "Invite people" did nothing on a phone.
+    const [handoff, setHandoff] = useState<null | "pause" | "invite">(null)
+    const handTo = (layer: "pause" | "invite") => setHandoff(layer)
+    const handBack = (open: boolean) => {
+        if (open) return
+        setHandoff(null)
+        setOpenState(false)
+    }
     const { pausedUntil, focusUntil } = usePauseNotifications()
     const { startFocus, starting } = useStartFocus()
     const me = selfProfile.data?.data
@@ -135,11 +149,11 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
 
     return (
         <>
-        <Drawer detent="large" onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="large" onOpenChange={(o) => !o && !handoff && closeDrawer()} open={drawerOpenState && !handoff}>
             <DrawerContent {...phoneSheet}>
                 <DrawerHeader className="sr-only">
-                    <DrawerTitle className="capitalize">
-                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    <DrawerTitle>
+                        <WorkspaceName />
                     </DrawerTitle>
                     <DrawerDescription>App menu</DrawerDescription>
                 </DrawerHeader>
@@ -163,6 +177,19 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             </span>
                         </span>
                     </button>
+                    {/* Your status, as the desktop's profile menu offers it
+                        (hub P2/P3). A phone had no way to set one short of
+                        Settings > Profile. The editor is the app's own layer,
+                        so the sheet can close behind it. */}
+                    <DrawerItem
+                        icon={Smile}
+                        neutralTile
+                        label={status ? "Change your status" : "Set a status"}
+                        onClick={() => {
+                            closeDrawer()
+                            dispatch(openUI({ key: "userStatusUpdate", data: { userUUID: "" } }))
+                        }}
+                    />
                     <DrawerItem
                         icon={Focus}
                         neutralTile
@@ -173,8 +200,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             if (focusUntil) {
                                 // Focus comes from a calendar event and ends with
                                 // it; the pause dialog says so.
-                                setPauseOpen(true)
-                                closeDrawer()
+                                handTo("pause")
                                 return
                             }
                             void startFocus().then((ok) => ok && closeDrawer())
@@ -184,10 +210,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         icon={BellOff}
                         neutralTile
                         label={pauseMenuLabel(pausedUntil, null)}
-                        onClick={() => {
-                            setPauseOpen(true)
-                            closeDrawer()
-                        }}
+                        onClick={() => handTo("pause")}
                     />
                     <ThemeRow value={themeChoice} onChange={setTheme} />
                     {/* The theme colour, the account menu's swatches at a finger's
@@ -310,10 +333,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             icon={MailPlus}
                             label="Invite people"
                         hue={destinationHue("invite")}
-                            onClick={() => {
-                                setInviteOpen(true)
-                                closeDrawer()
-                            }}
+                            onClick={() => handTo("invite")}
                         />
                     )}
 
@@ -328,8 +348,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                 </div>
             </DrawerContent>
         </Drawer>
-        <MemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
-        <PauseNotificationsDialog open={pauseOpen} onOpenChange={setPauseOpen} />
+        <MemberInviteDialog open={handoff === "invite"} onOpenChange={handBack} />
+        <PauseNotificationsDialog open={handoff === "pause"} onOpenChange={handBack} />
         </>
     )
 }

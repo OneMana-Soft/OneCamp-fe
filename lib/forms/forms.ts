@@ -1,5 +1,7 @@
 /** Intake forms on the client: question types and a blank question. Pure. */
 
+import { parseTypedNumber } from "@/lib/format/number"
+
 export type FieldType = "short_text" | "long_text" | "email" | "number" | "date" | "select" | "checkbox"
 
 export interface FormField {
@@ -62,3 +64,20 @@ export function moveField(fields: FormField[], index: number, by: -1 | 1): FormF
 }
 
 export const formUrl = (token: string) => (typeof window === "undefined" ? `/f/${token}` : `${window.location.origin}/f/${token}`)
+
+/**
+ * The first number answer that isn't a number as its sender writes numbers
+ * (lib/format/number parseTypedNumber, in their locale), said as the server
+ * says it, or "" when every one is. An answer is sent as typed, with the
+ * sender's signs (services/formService), so "1,5" from Berlin is one and a
+ * half: the field was a browser number input, which read and rewrote it in
+ * the browser's own locale. Pure, but for the reader's locale.
+ */
+export function numberProblem(fields: FormField[], answers: Record<string, unknown>, locale?: string): string {
+  for (const f of fields) {
+    const v = answers[f.id]
+    if (f.type !== "number" || typeof v !== "string" || !v.trim()) continue
+    if (parseTypedNumber(v, locale) === null) return `“${f.label}” needs a number.`
+  }
+  return ""
+}

@@ -91,6 +91,36 @@
   }
 }
 
+/* F3. TOUCH TARGETS. Under a finger every control takes a tap across at least
+   --m-hit (44px), whatever size it is drawn: the base controls carry
+   data-touch-target (Button, Switch, Checkbox, a radio, a toggle, a tab, a
+   segment) and so does the shell's icon button. A ::before centred on the
+   control reaches out to 44px where the control is smaller and is the
+   control's own box where it is bigger, so nothing moves and nothing grows.
+   ::before, because ::after is taken (a switch's or a box's desktop target,
+   an underlined tab's rule). A control the page has positioned (absolute,
+   fixed, sticky) keeps its position: relative is set in the components layer,
+   under every utility. Menu items stack edge to edge, where a target that
+   reaches past the item would take its neighbour's taps, so a menu item is
+   44px tall instead. A mouse sees none of it. */
+@layer components {
+  @media (pointer: coarse) {
+    :is([data-touch-target], .shell-icon-btn) {
+      position: relative;
+    }
+  }
+}
+@media (pointer: coarse) {
+  :is([data-touch-target], .shell-icon-btn)::before {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - var(--m-hit)) / 2));
+  }
+  :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
+    min-height: var(--m-hit);
+  }
+}
+
 @layer components {
   /* F4. A phone on its side: the gutters clear the notch and the rounded corners. */
   @media (max-width: 1023.98px) and (orientation: landscape) {
@@ -138,6 +168,40 @@
   }
   [data-phone-topbar][data-glow="true"][data-scrolled="true"] {
     background-image: none;
+  }
+}
+
+/* The page's own strip right under a large title (the Channels tabs, the
+   Inbox header) is clear while the large title shows, so the theme's glow runs
+   on under it and fades out on its own. It was the sheet's solid colour from
+   the start, which cut the glow off in a hard line across the screen. Once the
+   title has gone up under the top bar the strip is stuck to it, and it takes
+   the sheet again so the list scrolls under something solid. Unlayered: it
+   outranks the strip's own background utility. */
+[data-app-scroller][data-glow="true"] > [data-large-title] + * > .sticky:first-child {
+  transition: background-color 140ms var(--ease-out);
+}
+[data-app-scroller][data-glow="true"][data-large-passed="false"] > [data-large-title] + * > .sticky:first-child {
+  background-color: transparent;
+}
+
+/* C2. A page's own tools in the top bar (PhoneBarActions): 40px targets,
+   20px glyphs in ink-2, r12, the control press. The size sits outside the
+   layers: a page's tool keeps its desktop classes (size-7, a 16px glyph), and
+   any utility outranks a layer, so the AI page's tools were 28px with 16px
+   glyphs (QA SH-04). */
+[data-phone-bar-actions] > button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+[data-phone-bar-actions] > button svg {
+  width: 20px;
+  height: 20px;
+}
+@layer components {
+  [data-phone-bar-actions] > button {
+    color: var(--ink-2);
   }
 }
 

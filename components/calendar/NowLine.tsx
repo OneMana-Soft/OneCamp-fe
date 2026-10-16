@@ -2,8 +2,8 @@
 
 import * as React from "react"
 
-import { shortTime } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
+import { clockTime } from "@/lib/utils/date/clock"
 
 /**
  * The time now, on a time grid (content.md C08): the brand, never the
@@ -45,7 +45,8 @@ export function NowLine({ top, gutter, columns, todayIndex, now, className }: No
         className="absolute flex h-[18px] -translate-y-1/2 items-center rounded-[5px] bg-brand px-1 text-micro font-semibold tabular-nums text-brand-foreground"
         style={{ right: `calc(100% - ${gutter - 4}px)` }}
       >
-        {shortTime(now).replace(/\s?[AP]M$/i, "")}
+        {/* The axis beside it says AM or PM: the pill says the time alone. */}
+        {clockTime(now, { bare: true })}
       </span>
       <div className="absolute top-0 h-0" style={{ left: gutter, right: 0 }}>
         {/* Faint across the week. */}
