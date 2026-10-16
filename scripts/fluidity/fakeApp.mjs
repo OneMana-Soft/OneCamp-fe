@@ -11,10 +11,16 @@
 //   await fakeApp(context, { user: USERS.sam, docs: DOCS, collab, rtt: 150 })
 import { createFakeCollab } from "./fakeCollab.mjs"
 
-export const API_HOST = /onecamp-backend\.onemana\.dev/
-export const COLLAB_HOST = /onecamp-collab\.onemana\.dev/
+// The app's servers by their names, on whatever domain the build was made for:
+// the demo's build reaches onecamp-backend.onemana.dev, the public repository's
+// the placeholder onecamp-backend.your-domain.com (.env.production), and each
+// service has its own subdomain of the one parent domain. Matched on the
+// domain alone, the public build's every call went past the fakes, and the
+// doc session's tests never got past "Couldn't load your workspace".
+export const API_HOST = /\/\/onecamp-backend\.[^/:?#]+/
+export const COLLAB_HOST = /\/\/onecamp-collab\.[^/:?#]+/
 // The realtime broker and the storefront's funnel: never reached.
-const QUIET_HOSTS = /onecamp-emqx\.onemana\.dev|(^|\/\/)backend\.onemana\.dev/
+const QUIET_HOSTS = /\/\/onecamp-emqx\.[^/:?#]+|(^|\/\/)backend\.onemana\.dev/
 
 export const USERS = {
   sam: { user_uuid: "5a7a1c11-0000-4000-8000-00000000000a", user_name: "sam", user_full_name: "Sam Rivera", user_email_id: "sam@example.test", token: "sam" },
