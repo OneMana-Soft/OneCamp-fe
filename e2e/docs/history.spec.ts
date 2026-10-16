@@ -40,11 +40,11 @@ function writes(page: Page) {
   return out
 }
 
-async function openHistory(page: Page) {
+async function openHistory(page: Page, timeout?: number) {
   await page.getByRole("button", { name: "More doc actions" }).click()
   await page.getByRole("menuitem", { name: "Version history" }).click()
   const sheet = page.locator("[data-history-sheet]")
-  await expect(sheet).toBeVisible()
+  await expect(sheet).toBeVisible({ timeout })
   return sheet
 }
 
@@ -115,43 +115,57 @@ test("reads a 5,000-block version, and compares it with the one before, without 
   test.setTimeout(240_000)
   const relay = new CollabRelay()
   const tab = await openDocWith(browser, testInfo, relay, SAM, { id: DOC }, answers(bigVersion(5000, true), bigVersion(5000, false)))
+  // The frames the page paints, and its long tasks (for the numbers only).
   await tab.page.evaluate(() => {
-    const w = window as unknown as { __long: number[] }
+    const w = window as unknown as { __frames: number[]; __long: number[] }
+    w.__frames = []
     w.__long = []
+    const paint = () => {
+      w.__frames.push(performance.now())
+      requestAnimationFrame(paint)
+    }
+    requestAnimationFrame(paint)
     new PerformanceObserver((l) => {
       for (const e of l.getEntries()) w.__long.push(Math.round(e.duration))
     }).observe({ type: "longtask" })
   })
   const longTasks = () => tab.page.evaluate(() => (window as unknown as { __long: number[] }).__long.splice(0))
-  const span = (start: string, end: string) =>
+  /** From one of the page's marks to another: how long, and how many frames it painted meanwhile. */
+  const between = (start: string, end: string) =>
     tab.page.evaluate(([s, e]) => {
-      const a = performance.getEntriesByName(s).pop()
-      const b = performance.getEntriesByName(e).pop()
-      return a && b ? Math.round(b.startTime - a.startTime) : -1
+      const a = performance.getEntriesByName(s).pop()?.startTime
+      const b = performance.getEntriesByName(e).pop()?.startTime
+      if (a === undefined || b === undefined) return null
+      const frames = (window as unknown as { __frames: number[] }).__frames.filter((t) => t > a && t < b).length
+      return { ms: Math.round(b - a), frames }
     }, [start, end])
 
   const opened = Date.now()
-  const sheet = await openHistory(tab.page)
+  // How soon the sheet opens is not what this holds, and a busy machine has
+  // taken more than the usual 5 s to open it (16 Oct).
+  const sheet = await openHistory(tab.page, 30_000)
   await expect(sheet.locator(".history-preview > *").first()).toBeAttached({ timeout: 60_000 })
   const firstScreenMs = Date.now() - opened
-  await expect.poll(() => span("history-render-start", "history-render-end"), { timeout: 120_000 }).toBeGreaterThan(0)
-  const renderMs = await span("history-render-start", "history-render-end")
+  await expect.poll(() => between("history-render-start", "history-render-end"), { timeout: 120_000 }).not.toBeNull()
+  const render = (await between("history-render-start", "history-render-end"))!
   const renderLong = await longTasks()
 
   await sheet.getByRole("switch", { name: "Show changes" }).click()
   await expect(sheet.locator("[data-diff-summary]")).toContainText("since the version before", { timeout: 120_000 })
-  const diffMs = await span("history-diff-start", "history-diff-end")
+  const diff = (await between("history-diff-start", "history-diff-end"))!
   const diffLong = await longTasks()
   const marked = await sheet.locator(".history-preview [data-history-change]").count()
 
-  const numbers = { blocks: 5000, firstScreenMs, renderMs, renderLongTasks: renderLong, diffMs, diffLongTasks: diffLong, marked }
+  const numbers = { blocks: 5000, firstScreenMs, renderMs: render.ms, renderFrames: render.frames, renderLongTasks: renderLong, diffMs: diff.ms, diffFrames: diff.frames, diffLongTasks: diffLong, marked }
   testInfo.annotations.push({ type: "history-5000", description: JSON.stringify(numbers) })
   console.log("history-5000", JSON.stringify(numbers))
   expect(marked).toBeGreaterThan(100)
-  // These hold the page in slices, not a stopwatch: unsliced, either is one
-  // task of seconds. A shared machine at three times its cores stretched a
-  // sliced frame to 543 ms (13 Oct), so the bound is a second.
-  expect(Math.max(0, ...renderLong)).toBeLessThan(1000)
-  expect(Math.max(0, ...diffLong)).toBeLessThan(1000)
+  // Drawn and compared in slices, the page goes on painting. Unsliced, either
+  // is one task, and not a frame comes until it ends: that is what this
+  // holds, by the frames painted, not by how long a task took. A busy machine
+  // stretched a slice past any bound in time (3 s at load 70, on 16 Oct), but
+  // it paints more frames, not fewer: the work takes longer.
+  expect(render.frames, "frames painted while the version was drawn").toBeGreaterThanOrEqual(5)
+  expect(diff.frames, "frames painted while its changes were worked out").toBeGreaterThanOrEqual(5)
   await tab.close()
 })
