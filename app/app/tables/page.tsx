@@ -29,9 +29,9 @@ function pageKey(e: KeyboardEvent): boolean {
 
 /**
  * The tables page (content.md T01): a title row with the count, a search pill
- * and the one primary, "New table"; then the tables as rows on the sheet, with no box around them and their
- * actions in a "More" menu that shows on hover (a trash can on every row read
- * as the page's main action).
+ * and the one primary, "New table"; then the tables as rows on the sheet, with
+ * no box around them and their actions in a "More" menu that shows on hover (a
+ * trash can on every row read as the page's main action).
  */
 export default function TablesPage() {
   const router = useRouter()

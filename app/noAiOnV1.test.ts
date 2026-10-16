@@ -80,7 +80,7 @@ describe("the AI-free edition", () => {
 })
 
 // The tables page offered "Describe a table and AI builds it" on this edition,
-// with no gate, posting to an AI route the AI-free server doesn't have (found
+// with no gate, posting to a route the AI-free server answers with 501 (found
 // 16 Oct 2026). Its import has no "AI" in its name, so the check above never
 // saw it: this one reads what the page and the table service hold.
 describe("the tables page", () => {
