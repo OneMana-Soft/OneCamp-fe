@@ -23,6 +23,13 @@ export default defineConfig({
     // import under vitest — without this exclude vitest tries to load
     // those files and fails.
     exclude: ["node_modules", ".next", "dist", "e2e/**", "playwright-report/**", "test-results/**"],
+    // The packages that import tippy.js as their default, compiled with the
+    // tests. Loaded by Node, each was handed tippy's CommonJS exports, and the
+    // bubble menu's first show (250 ms after a selection) threw "tippy is not
+    // a function", often after its test, as an unhandled error. Compiled here,
+    // their import reads tippy's default as the app's own code does
+    // (components/minimal-tiptap/components/bubble-menu/bubbleMenuTippyGuard.test.tsx).
+    server: { deps: { inline: ["@tiptap/extension-bubble-menu", "@tiptap/extension-floating-menu", "@tiptap/react"] } },
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
