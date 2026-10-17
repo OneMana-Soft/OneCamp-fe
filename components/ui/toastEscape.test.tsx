@@ -7,10 +7,12 @@ import * as React from "react"
 // every toast a layer, and a toast that came while a dialog was open (Link
 // copied, Saved a version) became the top one: Esc closed the toast and left
 // the dialog. A toast now takes Esc only when it has focus, or when nothing
-// else is open.
+// else is open; and one press does one thing, so with the right panel open the
+// panel closes first and the toast on the next press.
 
 let api: typeof import("@/hooks/use-toast")
 let Toaster: typeof import("@/components/ui/toaster").Toaster
+let panel: typeof import("@/hooks/useEscapeClosesPanel")
 let ui: {
   dialog: typeof import("@/components/ui/dialog")
   sheet: typeof import("@/components/ui/sheet")
@@ -23,6 +25,7 @@ beforeEach(async () => {
   vi.resetModules()
   api = await import("@/hooks/use-toast")
   Toaster = (await import("@/components/ui/toaster")).Toaster
+  panel = await import("@/hooks/useEscapeClosesPanel")
   ui = {
     dialog: await import("@/components/ui/dialog"),
     sheet: await import("@/components/ui/sheet"),
@@ -36,9 +39,9 @@ const toastNamed = (title: string) =>
   Array.from(document.querySelectorAll<HTMLElement>(".toast-root")).find((t) => t.textContent?.includes(title)) ?? null
 const toastOpen = (title: string) => toastNamed(title)?.getAttribute("data-state") === "open"
 
-/** Esc, pressed where focus is (or on `target`). */
-function escape(target: Element | null = document.activeElement) {
-  act(() => {
+/** Esc, pressed where focus is (or on `target`). Everything it closes, it closes inside the press. */
+async function escape(target: Element | null = document.activeElement) {
+  await act(async () => {
     fireEvent.keyDown(target ?? document.body, { key: "Escape" })
   })
 }
@@ -95,54 +98,73 @@ function InMenu() {
   )
 }
 
+/** The right panel as rightPanel.tsx wires it, with a field and a button that copies a link. */
+function WithPanel() {
+  const [open, setOpen] = React.useState(true)
+  panel.useEscapeClosesPanel(open, () => setOpen(false))
+  return (
+    <>
+      <Toaster />
+      {open && (
+        <aside aria-label="Task">
+          <input aria-label="Task name" defaultValue="Launch plan" />
+          <button type="button" onClick={() => api.toast({ title: "Link copied" })}>
+            Copy task link
+          </button>
+        </aside>
+      )}
+    </>
+  )
+}
+
 describe("Esc with a toast showing", () => {
-  it("closes the dialog a toast came up in, and leaves the toast", () => {
+  it("closes the dialog a toast came up in, and leaves the toast", async () => {
     render(<InDialog />)
     const copy = screen.getByRole("button", { name: "Copy link" })
     fireEvent.click(copy)
     expect(toastOpen("Link copied")).toBe(true)
     copy.focus()
-    escape()
+    await escape()
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(toastOpen("Link copied")).toBe(true)
     // Nothing else is open now: the next Esc is the toast's.
-    escape(document.body)
+    await escape(document.body)
     expect(toastOpen("Link copied")).toBe(false)
   })
 
-  it("closes a sheet before a toast that came while it was open", () => {
+  it("closes a sheet before a toast that came while it was open", async () => {
     render(<InSheet />)
     act(() => {
       api.toast({ title: "Moved to Done" })
     })
     screen.getByRole("button", { name: "Leave" }).focus()
-    escape()
+    await escape()
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(toastOpen("Moved to Done")).toBe(true)
   })
 
-  it("closes a menu before a toast that came while it was open", () => {
+  it("closes a menu before a toast that came while it was open", async () => {
     render(<InMenu />)
     act(() => {
       api.toast({ title: "Saved a version" })
     })
-    escape(screen.getByRole("menuitem", { name: "Rename" }))
+    await escape(screen.getByRole("menuitem", { name: "Rename" }))
     expect(screen.queryByRole("menu")).toBeNull()
     expect(toastOpen("Saved a version")).toBe(true)
   })
 
-  it("closes the toast that has focus", () => {
+  it("closes the toast that has focus", async () => {
     render(<Toaster />)
     act(() => {
       api.toast({ title: "Link copied" })
     })
     const toast = toastNamed("Link copied")!
     toast.focus()
-    escape(toast)
+    await escape(toast)
     expect(toastOpen("Link copied")).toBe(false)
   })
 
-  it("closes the front toast, and only that one, when nothing else is open", () => {
+  it("closes the front toast, and only that one, when nothing else is open", async () => {
     render(
       <>
         <Toaster />
@@ -154,8 +176,28 @@ describe("Esc with a toast showing", () => {
       api.toast({ title: "Link copied" })
     })
     screen.getByRole("button", { name: "Board" }).focus()
-    escape()
+    await escape()
     expect(toastOpen("Link copied")).toBe(false)
     expect(toastOpen("Moved to Done")).toBe(true)
+  })
+
+  it("closes the right panel first, then the toast: one press, one thing", async () => {
+    render(<WithPanel />)
+    const name = screen.getByRole("textbox", { name: "Task name" })
+    fireEvent.click(screen.getByRole("button", { name: "Copy task link" }))
+    expect(toastOpen("Link copied")).toBe(true)
+    name.focus()
+    // In a field, the first press leaves the field,
+    await escape()
+    expect(document.activeElement).not.toBe(name)
+    expect(screen.queryByRole("complementary", { name: "Task" })).not.toBeNull()
+    expect(toastOpen("Link copied")).toBe(true)
+    // the next closes the panel,
+    await escape(document.body)
+    expect(screen.queryByRole("complementary", { name: "Task" })).toBeNull()
+    expect(toastOpen("Link copied")).toBe(true)
+    // and the one after that, the toast.
+    await escape(document.body)
+    expect(toastOpen("Link copied")).toBe(false)
   })
 })

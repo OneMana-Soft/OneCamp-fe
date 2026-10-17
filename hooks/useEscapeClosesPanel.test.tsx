@@ -150,6 +150,29 @@ describe("Escape and the right panel", () => {
     expect(escapeBelongsToLayer(press())).toBe(true)
   })
 
+  // One press does one thing (interaction spec, rule 7): the Escape the panel
+  // used is marked, so a toast showing waits for the next press
+  // (components/ui/toaster.tsx).
+  it("marks the Escape it uses, leaving a field or closing the panel", () => {
+    const onClose = vi.fn()
+    render(<Panel onClose={onClose} />)
+    const field = document.createElement("input")
+    document.body.appendChild(field)
+    field.focus()
+    const leave = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    act(() => {
+      field.dispatchEvent(leave)
+    })
+    expect(leave.defaultPrevented).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+    const close = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    act(() => {
+      document.body.dispatchEvent(close)
+    })
+    expect(close.defaultPrevented).toBe(true)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it("does nothing for other keys, or once the panel is closed", () => {
     const onClose = vi.fn()
     const { rerender } = render(<Panel onClose={onClose} />)

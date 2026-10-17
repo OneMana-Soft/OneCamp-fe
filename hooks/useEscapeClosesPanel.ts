@@ -60,6 +60,9 @@ export function editableTargetOf(event: Event): HTMLElement | null {
  * Listens on the window in the bubble phase, after the document: every layer,
  * and anything else listening on the document (a doc's focus mode), has had
  * its turn first, and one that handled the key has marked it defaultPrevented.
+ * It marks the key itself when it leaves a field or closes the panel, so one
+ * press does one thing (interaction spec, rule 7): a toast showing waits for
+ * the next Escape (components/ui/toaster.tsx).
  */
 export function useEscapeClosesPanel(enabled: boolean, onClose: () => void) {
   const close = useRef(onClose)
@@ -71,6 +74,7 @@ export function useEscapeClosesPanel(enabled: boolean, onClose: () => void) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.isComposing) return
       if (escapeBelongsToLayer(event)) return
+      event.preventDefault()
       const field = editableTargetOf(event)
       if (field) {
         field.blur()
