@@ -340,20 +340,27 @@ test.describe("dense type scale, as rendered", () => {
  */
 test.describe("accent themes reach the components", () => {
   const applyTheme = async (page: Page, theme: string) => {
-    await page.evaluate((t) => {
+    await page.evaluate(async (t) => {
       // Snapshot before removing: classList is live, so removing while iterating
       // it skips entries.
       Array.from(document.body.classList)
         .filter((c) => c.startsWith("theme-"))
         .forEach((c) => document.body.classList.remove(c))
       document.body.classList.add(`theme-${t}`)
+      // The Button carries colour transitions, and getComputedStyle mid-flight
+      // returns the INTERPOLATED colour, serialised as oklab(). Reading straight
+      // after the class change made three different themes all report the
+      // colour they were transitioning away from, which looked exactly like the
+      // bug this test exists to catch. So wait for the transitions the change
+      // started to land (background and shadow, 140 ms each). A fixed 600 ms
+      // per theme spent 6.6 of the test's 30 s, and on a busy machine both
+      // tests ran out of time closing their context (15 Oct).
+      const button = document.querySelector('form button[type="submit"]')
+      const transitions = () => (button?.getAnimations() ?? []).filter((a) => a instanceof CSSTransition)
+      for (let running = transitions(); running.length; running = transitions()) {
+        await Promise.allSettled(running.map((a) => a.finished))
+      }
     }, theme)
-    // The Button carries transition-colors, and getComputedStyle mid-flight
-    // returns the INTERPOLATED colour, serialised as oklab(). Reading straight
-    // after the class change made three different themes all report the colour
-    // they were transitioning away from, which looked exactly like the bug this
-    // test exists to catch. Wait for the transition to land.
-    await page.waitForTimeout(600)
   }
 
   test("changing the theme changes the primary button, not just the ring", async ({ page }) => {
