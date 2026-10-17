@@ -4,6 +4,7 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { handEscapeToPanel } from "@/hooks/useEscapeClosesPanel"
 
 /**
  * A SHEET OVER THE PAGE, on the shell's scrim: the tablet's channel list and
@@ -21,7 +22,8 @@ import { cn } from "@/lib/utils/helpers/cn"
  * `escape="own"` leaves Escape to the sheet's content (the right panel's
  * rules: an editor's popup or a field takes it first); the sheet is then
  * marked so escapeBelongsToLayer (hooks/useEscapeClosesPanel) doesn't count
- * it as a layer over itself.
+ * it as a layer over itself, and it hands the press on unused
+ * (handEscapeToPanel) rather than only marking it, which read as used.
  */
 export function OverlaySheet({
   open,
@@ -61,7 +63,7 @@ export function OverlaySheet({
           e.preventDefault()
           if (returnTo.current?.isConnected) returnTo.current.focus()
         }}
-        onEscapeKeyDown={escape === "own" ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={escape === "own" ? handEscapeToPanel : undefined}
         // A surface takes focus to hold it, and draws no ring for it, as the shared drawer's sheet.
         className={cn("outline-none", className)}
         {...rest}

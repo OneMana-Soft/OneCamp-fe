@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { OverlaySheet } from "./overlaySheet"
-import { escapeBelongsToLayer } from "@/hooks/useEscapeClosesPanel"
+import { escapeBelongsToLayer, useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel"
 
 afterEach(cleanup)
 
@@ -70,6 +70,27 @@ describe("a sheet over the page", () => {
     expect(escapeBelongsToLayer(press)).toBe(false)
     fireEvent.keyDown(document.activeElement!, { key: "Escape" })
     expect(screen.getByRole("dialog", { name: "Channel list" })).toBeTruthy()
+  })
+
+  // The sheet stops Radix closing it by marking the key, and the right panel
+  // read a marked key as one a layer had used: Escape never closed the panel
+  // over a narrow page (16 Oct). The sheet hands the press on instead.
+  it("hands Escape on to the right panel, which closes on it", () => {
+    function NarrowPage() {
+      const [open, setOpen] = React.useState(true)
+      useEscapeClosesPanel(open, () => setOpen(false))
+      return open ? (
+        <OverlaySheet open onClose={() => setOpen(false)} label="Side panel" escape="own">
+          <button type="button">Copy task link</button>
+        </OverlaySheet>
+      ) : null
+    }
+    render(<NarrowPage />)
+    const press = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    fireEvent(document.activeElement ?? document.body, press)
+    expect(screen.queryByRole("dialog", { name: "Side panel" })).toBeNull()
+    // Used by the panel: a toast showing waits for the next press.
+    expect(escapeBelongsToLayer(press)).toBe(true)
   })
 
   it("is a layer over the page otherwise, for the right panel's Escape", () => {
