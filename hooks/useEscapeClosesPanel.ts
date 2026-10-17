@@ -3,6 +3,22 @@
 import { useEffect, useRef } from "react"
 
 /**
+ * Escapes a sheet passed on to the right panel unused. A sheet over the page
+ * that leaves Escape to its content (components/ui/overlaySheet, escape="own":
+ * the right panel over a narrow page) has to stop Radix closing it, and the
+ * only way is to mark the key, which read as "a layer used it": the panel
+ * never closed on Escape there (16 Oct). The sheet hands the press on instead,
+ * and it counts as unused until the panel uses it.
+ */
+const handedOn = new WeakSet<Event>()
+
+/** For a layer's onEscapeKeyDown: keeps Radix from closing it, and leaves the press to the right panel. */
+export function handEscapeToPanel(event: KeyboardEvent) {
+  handedOn.add(event)
+  event.preventDefault()
+}
+
+/**
  * Whether an Escape press belongs to something layered over the page rather
  * than to the page itself: a dialog, a menu, a popover or select list, or an
  * editor's suggestion popup (mentions, emoji, slash commands). Those close on
@@ -15,7 +31,7 @@ import { useEffect, useRef } from "react"
  * tooltip does not count: hovering a button must not make Escape do nothing.
  */
 export function escapeBelongsToLayer(event: KeyboardEvent, doc: Document = document): boolean {
-  if (event.defaultPrevented) return true
+  if (event.defaultPrevented && !handedOn.has(event)) return true
   // A sheet that leaves Escape to its own content (the right panel over the
   // page, components/ui/overlaySheet) is no layer over itself.
   if (doc.querySelector('[role="dialog"]:not([data-overlay-sheet="own-escape"]), [role="alertdialog"], [role="menu"], [role="listbox"]')) return true
@@ -74,6 +90,8 @@ export function useEscapeClosesPanel(enabled: boolean, onClose: () => void) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.isComposing) return
       if (escapeBelongsToLayer(event)) return
+      // Used now, even if a sheet handed it on (handEscapeToPanel).
+      handedOn.delete(event)
       event.preventDefault()
       const field = editableTargetOf(event)
       if (field) {

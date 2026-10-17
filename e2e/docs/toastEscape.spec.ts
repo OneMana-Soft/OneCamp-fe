@@ -89,3 +89,30 @@ test("with the right panel open, Esc closes the panel, and the toast on the next
   await expect(toast).toHaveCount(0)
   await tab.close()
 })
+
+test("over a narrow page, Esc closes the right panel, and the toast on the next press", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  // Under 1100px the right panel opens over the page, in a sheet that leaves
+  // Escape to the panel (components/ui/overlaySheet, escape="own").
+  const tab = await openDocWith(browser, testInfo, relay, SAM, { id: DOC }, {}, { width: 1080, height: 800 })
+  const page = tab.page
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"])
+  await page.clock.install()
+  await page.clock.pauseAt(Date.now() + 200)
+  // The toast first: the panel's sheet holds the page behind it.
+  await page.getByRole("button", { name: "More doc actions" }).click()
+  await page.getByRole("menuitem", { name: "Copy link" }).click()
+  const toast = page.locator(".toast-root", { hasText: "Link copied" })
+  await expect(toast).toHaveAttribute("data-state", "open")
+  await expect(page.getByRole("menu")).toHaveCount(0)
+  await page.getByRole("button", { name: /^Comments, / }).click()
+  const sheet = page.locator("[data-right-panel-sheet]")
+  await expect(sheet.locator("[data-doc-comments]")).toBeVisible({ timeout: 30_000 })
+
+  await page.keyboard.press("Escape")
+  await expect(sheet).toHaveCount(0)
+  await expect(toast).toHaveAttribute("data-state", "open")
+  await page.keyboard.press("Escape")
+  await expect(toast).toHaveCount(0)
+  await tab.close()
+})

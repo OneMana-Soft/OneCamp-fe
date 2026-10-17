@@ -14,6 +14,7 @@ let api: typeof import("@/hooks/use-toast")
 let Toaster: typeof import("@/components/ui/toaster").Toaster
 let panel: typeof import("@/hooks/useEscapeClosesPanel")
 let ui: {
+  overlay: typeof import("@/components/ui/overlaySheet")
   dialog: typeof import("@/components/ui/dialog")
   sheet: typeof import("@/components/ui/sheet")
   menu: typeof import("@/components/ui/dropdown-menu")
@@ -27,6 +28,7 @@ beforeEach(async () => {
   Toaster = (await import("@/components/ui/toaster")).Toaster
   panel = await import("@/hooks/useEscapeClosesPanel")
   ui = {
+    overlay: await import("@/components/ui/overlaySheet"),
     dialog: await import("@/components/ui/dialog"),
     sheet: await import("@/components/ui/sheet"),
     menu: await import("@/components/ui/dropdown-menu"),
@@ -117,6 +119,25 @@ function WithPanel() {
   )
 }
 
+/** The right panel over a narrow page (LayoutContent): in a sheet that leaves Escape to the panel. */
+function NarrowPanel() {
+  const [open, setOpen] = React.useState(true)
+  panel.useEscapeClosesPanel(open, () => setOpen(false))
+  const { OverlaySheet } = ui.overlay
+  return (
+    <>
+      <Toaster />
+      {open && (
+        <OverlaySheet open onClose={() => setOpen(false)} label="Side panel" escape="own">
+          <button type="button" onClick={() => api.toast({ title: "Link copied" })}>
+            Copy task link
+          </button>
+        </OverlaySheet>
+      )}
+    </>
+  )
+}
+
 describe("Esc with a toast showing", () => {
   it("closes the dialog a toast came up in, and leaves the toast", async () => {
     render(<InDialog />)
@@ -197,6 +218,17 @@ describe("Esc with a toast showing", () => {
     expect(screen.queryByRole("complementary", { name: "Task" })).toBeNull()
     expect(toastOpen("Link copied")).toBe(true)
     // and the one after that, the toast.
+    await escape(document.body)
+    expect(toastOpen("Link copied")).toBe(false)
+  })
+
+  it("closes the right panel over a narrow page first, then the toast", async () => {
+    render(<NarrowPanel />)
+    fireEvent.click(screen.getByRole("button", { name: "Copy task link" }))
+    expect(toastOpen("Link copied")).toBe(true)
+    await escape()
+    expect(screen.queryByRole("dialog", { name: "Side panel" })).toBeNull()
+    expect(toastOpen("Link copied")).toBe(true)
     await escape(document.body)
     expect(toastOpen("Link copied")).toBe(false)
   })
